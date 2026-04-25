@@ -1,0 +1,550 @@
+{
+  "name": "A: Control & Scheduling",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "a1-schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "notes": "Runs every 6 hours. Checks which channels need content today."
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "11-vlRvjXfDVLQMnrHzuujE5A1i4luy2DG-ycUtsS-c4",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "System_Config",
+          "mode": "name"
+        }
+      },
+      "id": "a2-read-system-config",
+      "name": "Read System_Config",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [220, 0],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "JEExfumNmZ8LNXKP",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if system is active and not emergency-stopped\nconst configRows = $input.all().map(i => i.json);\n\nconst getConfig = (key) => {\n  const row = configRows.find(r => r.config_key === key);\n  return row ? row.config_value : null;\n};\n\nconst systemStatus = getConfig('system_status');\nconst emergencyStop = getConfig('emergency_stop');\nconst maxConcurrent = parseInt(getConfig('max_concurrent_runs') || '3');\nconst dailyBudgetLimit = parseFloat(getConfig('daily_budget_limit') || '50');\nconst dailyBudgetUsed = parseFloat(getConfig('daily_budget_used') || '0');\n\nconst isActive = systemStatus === 'active' && emergencyStop !== 'true';\nconst budgetAvailable = dailyBudgetUsed < dailyBudgetLimit;\n\nif (!isActive) {\n  console.log(`System not active. Status: ${systemStatus}, Emergency: ${emergencyStop}`);\n}\nif (!budgetAvailable) {\n  console.log(`Daily budget exhausted: $${dailyBudgetUsed}/$${dailyBudgetLimit}`);\n}\n\nreturn [{\n  json: {\n    system_active: isActive && budgetAvailable,\n    system_status: systemStatus,\n    emergency_stop: emergencyStop,\n    max_concurrent: maxConcurrent,\n    daily_budget_limit: dailyBudgetLimit,\n    daily_budget_used: dailyBudgetUsed,\n    budget_remaining: dailyBudgetLimit - dailyBudgetUsed,\n    checked_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "a3-check-system",
+      "name": "Check System Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-active",
+              "leftValue": "={{ $json.system_active }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "a4-if-active",
+      "name": "IF System Active",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {},
+      "id": "a5-system-paused",
+      "name": "System Paused - Stop",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [880, 200],
+      "notes": "System is paused or emergency stopped. Do nothing."
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "11-vlRvjXfDVLQMnrHzuujE5A1i4luy2DG-ycUtsS-c4",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Channel_DNA",
+          "mode": "name"
+        }
+      },
+      "id": "a6-read-channel-dna",
+      "name": "Read Channel_DNA",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [880, 0],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "JEExfumNmZ8LNXKP",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "11-vlRvjXfDVLQMnrHzuujE5A1i4luy2DG-ycUtsS-c4",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Execution_Locks",
+          "mode": "name"
+        }
+      },
+      "id": "a7-read-locks",
+      "name": "Read Execution_Locks",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1100, 0],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "JEExfumNmZ8LNXKP",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Determine which channels need content today\n// C-Optimized schedule:\n//   Month 1-2: 1 Long + 7 Shorts/week (daily short, 1 long on schedule day)\n//   Month 3+:  2 Longs + 3 Shorts/week\n// For now we use the Channel_DNA values for videos_per_week_long/short\n\nconst channels = $('Read Channel_DNA').all().map(i => i.json);\nconst locks = $('Read Execution_Locks').all().map(i => i.json);\n\nfunction getISOWeek(d) {\n  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));\n  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));\n  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));\n  return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);\n}\n\nfunction getISOWeekString(d) {\n  return `${d.getFullYear()}-W${String(getISOWeek(d)).padStart(2, '0')}`;\n}\n\nconst now = new Date();\nconst today = now.toISOString().split('T')[0];\nconst dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ...\nconst currentWeek = getISOWeekString(now);\n\nconst activeChannels = channels.filter(ch => ch.status === 'active');\nconst tasksToDispatch = [];\n\nfor (const ch of activeChannels) {\n  const channelId = ch.channel_id;\n\n  // Check locks for this channel this week\n  const weekLocks = locks.filter(l =>\n    l.channel_id === channelId &&\n    l.execution_week === currentWeek &&\n    l.status === 'completed'\n  );\n\n  const shortsThisWeek = weekLocks.filter(l => l.run_id && l.run_id.includes('short')).length;\n  const longsThisWeek = weekLocks.filter(l => l.run_id && l.run_id.includes('long')).length;\n\n  const maxShorts = parseInt(ch.videos_per_week_short) || 7;\n  const maxLongs = parseInt(ch.videos_per_week_long) || 1;\n\n  // Check if already ran today\n  const ranToday = weekLocks.some(l => l.locked_at && l.locked_at.startsWith(today));\n  if (ranToday) continue;\n\n  // Determine what to produce\n  // Shorts: produce daily if under weekly limit\n  if (shortsThisWeek < maxShorts) {\n    tasksToDispatch.push({\n      channel_id: channelId,\n      channel_name: ch.channel_name,\n      niche: ch.niche,\n      sub_niche: ch.sub_niche,\n      content_mode: 'short',\n      execution_week: currentWeek,\n      run_id: `${channelId}_short_${today}`,\n      brand_voice: ch.brand_voice,\n      narrative_rhythm: ch.narrative_rhythm,\n      emotional_contract: ch.emotional_contract,\n      intellectual_lens: ch.intellectual_lens,\n      belief_territory: ch.belief_territory,\n      topic_domain: ch.topic_domain,\n      target_word_count: parseInt(ch.words_per_video_short) || 80,\n      max_script_words: parseInt(ch.max_script_words_short) || 90,\n      min_script_words: parseInt(ch.min_script_words_short) || 70,\n      elevenlabs_voice_id: ch.elevenlabs_voice_id,\n      primary_color: ch.primary_color,\n      secondary_color: ch.secondary_color,\n      font_family: ch.font_family,\n      caption_style: ch.caption_style,\n      pacing_style: ch.pacing_style,\n      thumbnail_style: ch.thumbnail_style,\n      forbidden_words: ch.forbidden_words,\n      target_audience: ch.target_audience,\n      video_template: ch.video_template,\n      visual_only_ratio: parseFloat(ch.visual_only_ratio) || 0.12,\n      hook_length_seconds: parseInt(ch.hook_length_seconds_short) || 2,\n      today: today\n    });\n  }\n\n  // Longs: produce on specific days (spread across week)\n  // For 1 long/week: produce on Monday (dayOfWeek=1)\n  // For 2 longs/week: produce on Monday and Thursday\n  const longDays = maxLongs === 1 ? [1] : maxLongs === 2 ? [1, 4] : [1, 3, 5];\n\n  if (longDays.includes(dayOfWeek) && longsThisWeek < maxLongs) {\n    tasksToDispatch.push({\n      channel_id: channelId,\n      channel_name: ch.channel_name,\n      niche: ch.niche,\n      sub_niche: ch.sub_niche,\n      content_mode: 'long',\n      execution_week: currentWeek,\n      run_id: `${channelId}_long_${today}`,\n      brand_voice: ch.brand_voice,\n      narrative_rhythm: ch.narrative_rhythm,\n      emotional_contract: ch.emotional_contract,\n      intellectual_lens: ch.intellectual_lens,\n      belief_territory: ch.belief_territory,\n      topic_domain: ch.topic_domain,\n      target_word_count: parseInt(ch.words_per_video_long) || 1100,\n      max_script_words: parseInt(ch.max_script_words_long) || 1200,\n      min_script_words: parseInt(ch.min_script_words_long) || 1000,\n      elevenlabs_voice_id: ch.elevenlabs_voice_id,\n      primary_color: ch.primary_color,\n      secondary_color: ch.secondary_color,\n      font_family: ch.font_family,\n      caption_style: ch.caption_style,\n      pacing_style: ch.pacing_style,\n      thumbnail_style: ch.thumbnail_style,\n      forbidden_words: ch.forbidden_words,\n      target_audience: ch.target_audience,\n      video_template: ch.video_template,\n      visual_only_ratio: parseFloat(ch.visual_only_ratio) || 0.12,\n      hook_length_seconds: parseInt(ch.hook_length_seconds_long) || 8,\n      today: today\n    });\n  }\n}\n\nconsole.log(`Dispatching ${tasksToDispatch.length} tasks for ${activeChannels.length} active channels`);\n\nif (tasksToDispatch.length === 0) {\n  return [{ json: { no_tasks: true, reason: 'All channels up to date for today', checked_at: new Date().toISOString() } }];\n}\n\nreturn tasksToDispatch.map(t => ({ json: t }));"
+      },
+      "id": "a8-filter-schedule",
+      "name": "Determine Tasks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-has-tasks",
+              "leftValue": "={{ $json.no_tasks }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "a9-if-has-tasks",
+      "name": "IF Has Tasks",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1540, 0]
+    },
+    {
+      "parameters": {},
+      "id": "a10-no-tasks",
+      "name": "No Tasks Today",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1760, 200],
+      "notes": "All channels are up to date. Nothing to dispatch."
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "a11-split-batches",
+      "name": "Process One at a Time",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1760, 0],
+      "notes": "Process channels sequentially to respect API rate limits"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "11-vlRvjXfDVLQMnrHzuujE5A1i4luy2DG-ycUtsS-c4",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Belief_Registry",
+          "mode": "name"
+        },
+        "filters": {
+          "values": [
+            {
+              "lookupColumn": "channel_id",
+              "lookupValue": "={{ $json.channel_id }}"
+            }
+          ]
+        }
+      },
+      "id": "a12-read-beliefs",
+      "name": "Read Beliefs for Channel",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1980, 0],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "JEExfumNmZ8LNXKP",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "11-vlRvjXfDVLQMnrHzuujE5A1i4luy2DG-ycUtsS-c4",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Output_Log",
+          "mode": "name"
+        },
+        "filters": {
+          "values": [
+            {
+              "lookupColumn": "channel_id",
+              "lookupValue": "={{ $('Process One at a Time').item.json.channel_id }}"
+            }
+          ]
+        }
+      },
+      "id": "a13-read-output-log",
+      "name": "Read Recent Videos",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2200, 0],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "JEExfumNmZ8LNXKP",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Select a belief and topic, avoiding recent ones\nconst task = $('Process One at a Time').item.json;\nconst beliefs = $('Read Beliefs for Channel').all().map(i => i.json);\nconst recentVideos = $('Read Recent Videos').all().map(i => i.json);\n\n// Get last 10 topics used by this channel\nconst recentTopics = recentVideos\n  .slice(-10)\n  .map(v => (v.assigned_topic || '').toLowerCase())\n  .filter(t => t);\n\n// Get last 5 beliefs used\nconst recentBeliefIds = recentVideos\n  .slice(-5)\n  .map(v => v.belief_id || '')\n  .filter(b => b);\n\n// Filter available beliefs (not recently used, not cooling)\nconst now = new Date();\nconst availableBeliefs = beliefs.filter(b => {\n  if (b.belief_status === 'exhausted') return false;\n  if (recentBeliefIds.includes(b.belief_id)) return false;\n  if (b.cooling_until_date && new Date(b.cooling_until_date) > now) return false;\n  return true;\n});\n\n// Select belief (prefer least used)\nlet selectedBelief = null;\nif (availableBeliefs.length > 0) {\n  availableBeliefs.sort((a, b) => (parseInt(a.times_used) || 0) - (parseInt(b.times_used) || 0));\n  selectedBelief = availableBeliefs[0];\n} else if (beliefs.length > 0) {\n  // Fallback: use any belief\n  selectedBelief = beliefs[Math.floor(Math.random() * beliefs.length)];\n}\n\n// Build the payload for Workflow B1\nconst payload = {\n  // Task identity\n  channel_id: task.channel_id,\n  channel_name: task.channel_name,\n  content_mode: task.content_mode,\n  execution_week: task.execution_week,\n  run_id: task.run_id,\n  dispatched_at: new Date().toISOString(),\n\n  // Channel DNA\n  niche: task.niche,\n  sub_niche: task.sub_niche,\n  brand_voice: task.brand_voice,\n  narrative_rhythm: task.narrative_rhythm,\n  emotional_contract: task.emotional_contract,\n  intellectual_lens: task.intellectual_lens,\n  topic_domain: task.topic_domain,\n  target_audience: task.target_audience,\n  forbidden_words: task.forbidden_words,\n\n  // Content specs\n  target_word_count: task.target_word_count,\n  max_script_words: task.max_script_words,\n  min_script_words: task.min_script_words,\n  hook_length_seconds: task.hook_length_seconds,\n  visual_only_ratio: task.visual_only_ratio,\n\n  // Visual identity\n  elevenlabs_voice_id: task.elevenlabs_voice_id,\n  primary_color: task.primary_color,\n  secondary_color: task.secondary_color,\n  font_family: task.font_family,\n  caption_style: task.caption_style,\n  pacing_style: task.pacing_style,\n  thumbnail_style: task.thumbnail_style,\n  video_template: task.video_template,\n\n  // Selected belief\n  belief_id: selectedBelief ? selectedBelief.belief_id : '',\n  belief: selectedBelief ? selectedBelief.belief : '',\n  counter_narrative: selectedBelief ? selectedBelief.counter_narrative : '',\n  angle: selectedBelief ? selectedBelief.angle : '',\n\n  // Dedup context\n  recent_topics: recentTopics.join(', '),\n  total_videos_published: recentVideos.length\n};\n\nconsole.log(`Dispatching ${task.content_mode} for ${task.channel_name} | Belief: ${payload.belief || 'none'}`);\n\nreturn [{ json: payload }];"
+      },
+      "id": "a14-select-topic",
+      "name": "Select Belief & Build Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2420, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_BASE_URL || 'https://saurabhrawat-yt.app.n8n.cloud' }}/webhook/b1-research",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "a15-trigger-b1",
+      "name": "Trigger B1: Research",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2640, 0],
+      "notes": "Calls Workflow B1 webhook with full channel context + belief"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "11-vlRvjXfDVLQMnrHzuujE5A1i4luy2DG-ycUtsS-c4",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Execution_Locks",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "channel_id": "={{ $('Process One at a Time').item.json.channel_id }}",
+            "execution_week": "={{ $('Process One at a Time').item.json.execution_week }}",
+            "execution_id": "={{ $('Process One at a Time').item.json.run_id }}",
+            "run_id": "={{ $('Process One at a Time').item.json.run_id }}",
+            "status": "completed",
+            "locked_at": "={{ new Date().toISOString() }}",
+            "lock_expires_at": "={{ new Date(Date.now() + 24*60*60*1000).toISOString() }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "a16-write-lock",
+      "name": "Write Execution Lock",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2860, 0],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "JEExfumNmZ8LNXKP",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log completion and loop back to batch processor\nconst task = $('Process One at a Time').item.json;\nconsole.log(`✅ Dispatched: ${task.channel_name} (${task.content_mode}) — ${task.run_id}`);\nreturn [{ json: { dispatched: true, run_id: task.run_id, channel_id: task.channel_id } }];"
+      },
+      "id": "a17-log-dispatch",
+      "name": "Log Dispatch",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3080, 0]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read System_Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read System_Config": {
+      "main": [
+        [
+          {
+            "node": "Check System Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check System Status": {
+      "main": [
+        [
+          {
+            "node": "IF System Active",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF System Active": {
+      "main": [
+        [
+          {
+            "node": "Read Channel_DNA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "System Paused - Stop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Channel_DNA": {
+      "main": [
+        [
+          {
+            "node": "Read Execution_Locks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Execution_Locks": {
+      "main": [
+        [
+          {
+            "node": "Determine Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Determine Tasks": {
+      "main": [
+        [
+          {
+            "node": "IF Has Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Has Tasks": {
+      "main": [
+        [
+          {
+            "node": "Process One at a Time",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Tasks Today",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process One at a Time": {
+      "main": [
+        [
+          {
+            "node": "Read Beliefs for Channel",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Tasks Today",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Beliefs for Channel": {
+      "main": [
+        [
+          {
+            "node": "Read Recent Videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Recent Videos": {
+      "main": [
+        [
+          {
+            "node": "Select Belief & Build Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Belief & Build Payload": {
+      "main": [
+        [
+          {
+            "node": "Trigger B1: Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger B1: Research": {
+      "main": [
+        [
+          {
+            "node": "Write Execution Lock",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Execution Lock": {
+      "main": [
+        [
+          {
+            "node": "Log Dispatch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Dispatch": {
+      "main": [
+        [
+          {
+            "node": "Process One at a Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "youtube-automation"
+    }
+  ]
+}

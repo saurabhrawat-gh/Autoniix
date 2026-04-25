@@ -1,110 +1,237 @@
-# YouTube Automation — Master Architecture Plan
+# YouTube Automation Platform — Master Architecture
 
-> Generated: April 17, 2025 | Updated: April 18, 2025
-> Status: Planning Complete — Ready to Build
-> Strategy: **C-Optimized (LOCKED)** | 10 diversified channels | $328/mo
-> Total: ~582 nodes | 9 workflows | 10 Sheet tabs | Remotion renderer
+> **Version:** 2.0 | **Updated:** April 25, 2026
+> **Architecture:** Self-hosted Temporal Microservices
+> **Language:** Python (FastAPI) | TypeScript (Remotion only)
+> **Status:** Architecture Finalized — Ready to Build
+
+---
+
+## Vision
+
+A fully automated, premium-quality YouTube content production platform. Every video — from research to upload — is produced without manual intervention, with human-in-the-loop review available via workflow signals. The system is designed for **day-1 scalability** (1 to 100+ channels), **provider-swappable** components, and **fault-tolerant** durable workflows.
+
+---
 
 ## Locked Decisions
 
-- **Strategy:** C-Optimized (adaptive: 1L+7S/wk → 2L+3S/wk steady state)
-- **Channels:** 10 (5 Health + 3 Finance + 2 Psychology)
-- **Brands:** Body Signals, Money Decoded, Mind Shifts
-- **Voice:** ElevenLabs Pro $99 (100% voiced, unique voice per channel)
-- **Research:** Full SerpAPI $50 (no compromise)
-- **n8n:** Self-hosted Hetzner CX31 ($18)
-- **Long-form:** 8 min (1100 words), 12% visual-only scenes
-- **Shorts:** 45 sec (80 words), all voiced
-- **Budget:** $328/mo (Month 1-2), $307/mo (Month 3+)
-- **Target:** $2K profit by Month 7-8
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Orchestrator** | Temporal (self-hosted, OSS) | Durable workflows, built-in retries, versioning, $0 license |
+| **Services language** | Python 3.12 + FastAPI | Best AI/ML ecosystem, async, type-safe |
+| **Render engine** | Remotion (TypeScript, separate repo) | Code-driven video, 48+ components, BullMQ queue |
+| **TTS provider** | Fish Audio (PAYG, $0.0208/min) | 77-89% cheaper than ElevenLabs; swappable |
+| **LLM stack** | GPT-4o, Claude Sonnet, Gemini Flash, GPT-4o-mini | Each model assigned by task strength |
+| **Primary database** | PostgreSQL 15 | ACID, partitioning, JSON support, no rate limits |
+| **Cache** | Redis 7 | Sub-ms latency, pub/sub, rate limiting |
+| **Object storage** | MinIO (S3-compatible) | Self-hosted, free, versioning |
+| **API gateway** | Traefik | Docker-native, auto-discovery, TLS, free |
+| **Monitoring** | Temporal Web UI + Prometheus + Grafana | Industry standard |
+| **Infrastructure** | Hetzner Cloud VPS | Best price/performance in EU |
+| **Container orchestration** | Docker Compose → Kubernetes (at scale) | Start simple, scale later |
+| **Provider pattern** | Abstract base classes + config registry | Swap any provider via env var + one file |
+
+---
+
+## Architecture Diagram
+
+```
+                          ┌─────────────────────────┐
+                          │    Traefik (Gateway)     │
+                          │  TLS · Auth · Routing    │
+                          └────────────┬────────────┘
+                                       │
+              ┌────────────────────────┼────────────────────────┐
+              │                        │                        │
+    ┌─────────▼────────┐    ┌─────────▼────────┐    ┌─────────▼────────┐
+    │  TEMPORAL SERVER  │    │   ADMIN API      │    │   MONITORING     │
+    │  + Web UI         │    │   (FastAPI)      │    │   Prometheus     │
+    │  + Admin Tools    │    │   JWT · RBAC     │    │   + Grafana      │
+    └────────┬─────────┘    └──────────────────┘    └──────────────────┘
+             │
+             │  Activities (service calls)
+             │
+    ┌────────┴──────┬────────────┬────────────┬────────────┬────────────┐
+    │               │            │            │            │            │
+┌───▼────┐   ┌─────▼───┐  ┌─────▼───┐  ┌─────▼───┐  ┌────▼────┐  ┌───▼──────┐
+│RESEARCH│   │ SCRIPT  │  │  VOICE  │  │ ASSETS  │  │THUMBNAIL│  │ ASSEMBLY │
+│SERVICE │   │ SERVICE │  │ SERVICE │  │ SERVICE │  │ SERVICE │  │ SERVICE  │
+│        │   │         │  │         │  │         │  │         │  │          │
+│FastAPI │   │FastAPI  │  │FastAPI  │  │FastAPI  │  │FastAPI  │  │FastAPI   │
+└────────┘   └─────────┘  └─────────┘  └─────────┘  └─────────┘  └──────────┘
+    │               │            │            │            │            │
+    └───────────────┴────────────┴─────┬──────┴────────────┴────────────┘
+                                       │
+         ┌─────────────────────────────┼─────────────────────────────┐
+         │                             │                             │
+   ┌─────▼──────┐              ┌───────▼───────┐             ┌──────▼──────┐
+   │  RENDER    │              │  DELIVERY     │             │  ANALYTICS  │
+   │  SERVICE   │              │  SERVICE      │             │  SERVICE    │
+   │ (Remotion) │              │  Upload +     │             │  YouTube    │
+   │ Separate   │              │  Notify       │             │  API +      │
+   │ Repo + VPS │              │               │             │  Patterns   │
+   └────────────┘              └───────────────┘             └─────────────┘
+         │                             │                             │
+    ┌────┴─────────────────────────────┼─────────────────────────────┘
+    │                                  │
+┌───▼────────┐    ┌────────────────┐   ┌────────────────┐
+│ PostgreSQL │    │ Redis Cache    │   │ MinIO (S3)     │
+│            │    │                │   │                │
+│ Channels   │    │ API cache      │   │ Scripts        │
+│ Videos     │    │ Dedup hashes   │   │ Audio files    │
+│ Config     │    │ Rate limits    │   │ Video files    │
+│ Analytics  │    │ Trends         │   │ Thumbnails     │
+│ Audit logs │    │ Sessions       │   │ Backups        │
+└────────────┘    └────────────────┘   └────────────────┘
+```
+
+---
+
+## Technology Stack
+
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| Orchestration | Temporal Server (self-hosted) | Latest OSS |
+| Services | Python + FastAPI + uvicorn | 3.12 / 0.110+ |
+| Task queue | Celery + Redis (per-service, optional) | 5.x |
+| Render engine | Remotion + BullMQ (TypeScript) | 4.x |
+| Database | PostgreSQL | 15 |
+| Cache | Redis | 7-alpine |
+| Object storage | MinIO | Latest |
+| API gateway | Traefik | 3.x |
+| Monitoring | Prometheus + Grafana | Latest |
+| Secrets | Docker secrets → HashiCorp Vault (roadmap) | — |
+| Containers | Docker Compose → Kubernetes (at scale) | — |
+| CI/CD | GitHub Actions | — |
+
+---
+
+## Content Strategy
+
+| Parameter | Value |
+|-----------|-------|
+| Long-form duration | 8 min (~1100 words) |
+| Short-form duration | 45 sec (~80 words) |
+| Month 1-2 cadence | 1 long + 7 shorts / week / channel |
+| Month 3+ cadence | 2 longs + 3 shorts / week / channel |
+| Visual-only scenes | 12% of long-form |
+| Quality threshold | ≥ 8.0 composite score |
+| Voice | 100% narrated, unique voice per channel |
+
+---
 
 ## Account Structure
 
-- Management: yt.empire.management@gmail.com (Brand Accounts, up to 100 channels)
-- AdSense: saurabhrawat.official@gmail.com (ONE account, linked to ALL channels)
-- For 100+ channels: additional management accounts, same AdSense
+| Account | Email | Purpose |
+|---------|-------|---------|
+| Management | yt.empire.management@gmail.com | Brand Accounts (up to 100 channels) |
+| AdSense | saurabhrawat.official@gmail.com | Revenue (ONE account, ALL channels) |
+| Additional management | New Gmail per 100 channels | Same AdSense linked |
 
-## System Diagram
+---
 
-```
-A (Control) ──→ B1 (Research 155n) ──→ B2 (Assets 110n) ──→ B4 (Assembly 87n)
-                                  └──→ B3 (Thumbnail 42n) ──→ B4
-                                                                  ↓
-                                                          Remotion Server
-                                                                  ↓
-D (Intelligence 50n, weekly)                            C (Delivery 18n)
-E (Trends 40n, 3x daily)
-Admin (10n, webhook)
-+ ~35 checkpoint/control nodes across all workflows
-```
+## Channels (Initial)
 
-## Node Count Summary
+| Brand | Niche | Channels |
+|-------|-------|----------|
+| Body Signals | Health | 5 |
+| Money Decoded | Finance | 3 |
+| Mind Shifts | Psychology | 2 |
 
-| Workflow | Nodes |
-|----------|-------|
-| A: Control & Scheduling | 35 |
-| B1: Research & Ideation | 155 |
-| B2: Asset Generation | 110 |
-| B3: Thumbnail Generation | 42 |
-| B4: Assembly & QA + Direction Engine | 87 |
-| C: Delivery | 18 |
-| D: Virality Intelligence | 50 |
-| E: Trend Intelligence | 40 |
-| Admin Control | 10 |
-| Checkpoint/Control nodes | 35 |
-| **TOTAL** | **~582** |
+---
 
-## Hybrid Model Stack (C-Optimized)
+## LLM Assignment (Hybrid Model Stack)
 
 | Task | Model | Why |
 |------|-------|-----|
-| Research synthesis | Gemini 2.5 Flash | Cost-optimized, excellent at structured JSON |
-| Script writing | Claude Sonnet | Superior creative writing (unchanged) |
-| Script critique | GPT-4o-mini | Cost-optimized, critique is simpler task |
-| Fact-checking | GPT-4o (temp 0.1) | Most reliable (unchanged) |
-| Scene Descriptor v3 | GPT-4o | Best complex JSON output (unchanged) |
-| Direction Engine | GPT-4o | Creative-to-technical translation (unchanged) |
-| All QC/Scoring | Gemini 2.5 Flash | 94% cheaper, fast (unchanged) |
-| Tags, desc, emotion map | GPT-4o-mini | Simple tasks, cheap (unchanged) |
-| Audience simulation | Claude Sonnet | Best role-playing (unchanged) |
-| Thumbnail QC | GPT-4o Vision | Can "see" the thumbnail (unchanged) |
+| Research synthesis | Gemini 2.5 Flash | Cost-optimized, structured JSON |
+| Script writing | Claude Sonnet | Superior creative writing |
+| Script critique | GPT-4o-mini | Cost-optimized, simpler task |
+| Fact-checking | GPT-4o (temp 0.1) | Most reliable |
+| Scene Descriptor v3 | GPT-4o | Best complex JSON output |
+| Direction Engine | GPT-4o | Creative-to-technical translation |
+| All QC/Scoring | Gemini 2.5 Flash | 94% cheaper, fast |
+| Tags, desc, emotion | GPT-4o-mini | Simple tasks, cheap |
+| Audience simulation | Claude Sonnet | Best role-playing |
+| Thumbnail QC | GPT-4o Vision | Can "see" the thumbnail |
 
-## Sheet Tabs (10 total)
+All models are swappable via `LLMProvider` interface (see `docs/11-PROVIDER-INTERFACES.md`).
 
-| Tab | GID | Status |
-|-----|-----|--------|
-| Channel_DNA | 0 | Needs 10-channel data + new columns |
-| Execution_Locks | 1865472506 | Columns only ✅ |
-| Belief_Registry | 259150285 | ❌ Wrong columns, needs fix + 30 seed beliefs |
-| Output_Log | 1787987140 | ✅ + add artifact URL columns |
-| Feedback_Loop | 844630622 | ✅ |
-| Performance_Memory | 1321792890 | ✅ |
-| Prompt_Registry | 2066543396 | ✅ needs seed data |
-| Trend_Intelligence | NEW | Create + columns only |
-| API_Usage_Tracker | NEW | Create + columns only |
-| System_Config | NEW | Create + seed data |
+---
+
+## Credentials & Secrets
+
+**No credentials are stored in documentation.**
+
+All secrets are managed via:
+1. **Development:** `.env` file (git-ignored)
+2. **Production:** Docker secrets or HashiCorp Vault
+
+Required secret keys (configure in `.env`):
+```
+# Database
+DB_PASSWORD=
+REDIS_URL=redis://redis:6379
+
+# AI Providers
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+GOOGLE_AI_API_KEY=
+
+# TTS
+FISH_AUDIO_API_KEY=
+
+# Search
+SERPAPI_KEY=
+
+# Image
+PIXABAY_API_KEY=
+
+# YouTube
+YOUTUBE_API_KEY=
+
+# Storage (MinIO / S3)
+S3_ENDPOINT=
+S3_ACCESS_KEY=
+S3_SECRET_KEY=
+S3_BUCKET=
+S3_PUBLIC_BASE_URL=
+
+# Google OAuth (for YouTube uploads)
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_OAUTH_REFRESH_TOKEN=
+
+# Admin
+ADMIN_JWT_SECRET=
+```
+
+---
 
 ## Documentation Index
 
 | Doc | Contents |
 |-----|----------|
-| 00-OVERVIEW.md | This file — system summary |
-| 01-SHEETS-STRUCTURE.md | All 10 tabs, columns, seed data |
-| 02-WORKFLOW-NODES.md | Node-by-node for all 9 workflows |
-| 03-COST-ANALYSIS.md | C-Optimized costs, all strategies, switching guide |
-| 04-STRATEGY-SWITCHING.md | Strategy switching, system controls, checkpoints |
-| 05-QUALITY-GATES.md | 30 quality gates, failure points, review system |
-| 06-REMOTION-ARCHITECTURE.md | 48 React components, API, templates |
-| 07-BUILD-ORDER.md | 4-week build plan, scaling roadmap, milestones |
-| 08-YOUTUBE-POLICY-SAFETY.md | YouTube policy compliance, legal plan, 100-channel safety |
+| **00-OVERVIEW.md** | This file — master overview, decisions, stack |
+| **01-ARCHITECTURE.md** | Full system architecture, data layer, network, security model |
+| **02-SERVICE-CONTRACTS.md** | API contracts, payload schemas, Temporal activity specs |
+| **03-SCRIPT-ARCHITECTURE.md** | Script engine: 3 views (voiceover, assets, Remotion v3) |
+| **04-TEMPORAL-WORKFLOWS.md** | Workflow definitions, signals, budget guards, versioning |
+| **05-QUALITY-GATES.md** | 30+ quality gates, anti-inflation, human review |
+| **06-REMOTION-INTEGRATION.md** | Render engine integration contract (separate repo) |
+| **07-COST-ANALYSIS.md** | Complete cost breakdown: 1/3/5/10/25/50/100 channels |
+| **08-SECURITY.md** | Secrets, JWT, RBAC, TLS, YouTube policy, audit |
+| **09-INFRASTRUCTURE.md** | Docker Compose, sizing, backups, monitoring, K8s roadmap |
+| **10-BUILD-ORDER.md** | 10-12 week phased build timeline |
+| **11-PROVIDER-INTERFACES.md** | Abstract base classes, config registry, fallback chains |
 
-## Credentials
+### Related Repositories
 
-- Google Sheets OAuth2: JEExfumNmZ8LNXKP
-- OpenAI: k9DUnxWeeBIU3zwy
-- ElevenLabs API: sk_e2d1c71399f81aec1d9019525fdbe938b33376b9cbd483e4
-- ElevenLabs Voice: uju3wxzG5OhpWcoi3SMy (default — each channel gets unique voice)
-- Pixabay: 19295073-73da36f3ff10a5b2e1ce66eca
-- YouTube Data API: AIzaSyCgjg0kfH0-mdQODrDVnUtH1-lq1tRas9A
-- n8n URL: Self-hosted (to be configured)
-- Remotion: $vars.REMOTION_RENDER_URL
+| Repo | Path | Purpose |
+|------|------|---------|
+| yt-automation-n8n | This repo | Temporal orchestrator + Python services |
+| yt-automation-remotion | `../yt-automation-remotion` | Remotion render engine (TypeScript) |
+
+### Archived Documentation
+
+Previous architecture docs (monolith, hybrid, microservices exploration) are preserved in `docs/archive/`.

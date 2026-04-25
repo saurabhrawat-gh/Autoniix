@@ -1,137 +1,256 @@
-# Quality Gates & Failure Points
+# Quality Gates & Compliance
+
+> 30+ quality gates enforced across Temporal activities. Anti-inflation scoring. Human review via workflow signals. Content fingerprinting for cross-channel dedup.
 
 ---
 
 ## All Quality Gates
 
-| Gate | Location | Hard Threshold | Retry | Fail Action |
-|------|----------|---------------|-------|-------------|
-| Research Depth | B1 | ≥8.0 | 2 | Proceed with warning |
-| Fact Confidence (per claim) | B1 | ≥0.7 | 1 | Remove claim |
-| Idea Composite | B1 | ≥7.5 | 0 | STOP pipeline |
-| Script Structure | B1 | Pass/Fail | 1 | Rewrite |
-| Word Count | B1 | ±15% | 1 | Rewrite |
-| Forbidden Words | B1 | 0 violations | 1 | Auto-remove |
-| Script Critic (per dim) | B1 | ≥6.0 each | 2 | Rewrite targeted |
-| Script Overall | B1 | ≥8.0 | 2 | Human review |
-| Hook Retention | B1 | ≥8.0 | 2 | Regenerate |
-| Title-Script Alignment | B1 | ≥7.5 | 1 | Rewrite title |
-| Clickbait Check | B1 | ≥8.0 | 0 | Block |
-| Policy Compliance | B1 | Risk=low | 0 | Human review |
-| Voice Duration | B2 | ±20% | 2 | Adjust speed |
-| Voice Word Count | B2 | 100% | 1 | Regenerate |
-| Voice Pace (WPM) | B2 | 130-170 | 1 | Adjust |
-| Stock Relevance | B2 | ≥7.0/clip | 2 | Backup search |
-| Asset Diversity | B2 | ≥3 styles | 0 | Warn |
-| Music-Scene Fit | B2 | ≥7.0 | 1 | Different track |
-| Thumbnail CTR | B3 | ≥7.5 | 2 | Regenerate |
-| Title-Thumb Alignment | B3 | ≥7.5 | 1 | Regenerate |
-| Mobile Readability | B3 | Pass/Fail | 1 | Increase text |
-| Direction Coherence | B4 | ≥8.5 | 2 | Regenerate |
-| v3 Schema | B4 | Pass/Fail | 2 | Regenerate |
-| Timeline Continuity | B4 | No gaps | 1 | Fix |
-| Asset Reference | B4 | All exist | 0 | Fallback |
-| Caption Timing | B4 | Pass/Fail | 1 | Recalculate |
-| Production Inspector | B4 | ≥8.0 | 2 | Regenerate |
-| **Final Composite** | **B4** | **≥8.0** | **0** | **Human review** |
-| Strike Risk | B4 | All <3 | 0 | Human review |
-| Cross-Channel Similarity | B4 | <40% | 0 | BLOCK |
+| # | Gate | Service | Hard Threshold | Retry | Fail Action |
+|---|------|---------|---------------|-------|-------------|
+| 1 | Research Depth | Research | ≥ 8.0 | 2 | Proceed with warning |
+| 2 | Fact Confidence (per claim) | Research | ≥ 0.7 | 1 | Remove claim |
+| 3 | Idea Composite | Research | ≥ 7.5 | 0 | STOP pipeline |
+| 4 | Script Structure | Script | Pass/Fail | 1 | Rewrite |
+| 5 | Word Count | Script | ±15% of target | 1 | Rewrite |
+| 6 | Forbidden Words | Script | 0 violations | 1 | Auto-remove + rewrite |
+| 7 | Script Critic (per dim) | Script | ≥ 6.0 each | 2 | Rewrite targeted section |
+| 8 | Script Overall | Script | ≥ 8.0 | 2 | Human review signal |
+| 9 | Hook Retention | Script | ≥ 8.0 | 2 | Regenerate hook |
+| 10 | Title-Script Alignment | Script | ≥ 7.5 | 1 | Rewrite title |
+| 11 | Clickbait Check | Script | ≥ 8.0 authenticity | 0 | Block |
+| 12 | Policy Compliance | Script | Risk = low | 0 | Human review signal |
+| 13 | Voice Duration | Voice | ±20% of target | 2 | Adjust speed param |
+| 14 | Voice Word Count | Voice | 100% of narrated words | 1 | Regenerate scene |
+| 15 | Voice Pace (WPM) | Voice | 130-170 WPM | 1 | Adjust target_wpm |
+| 16 | Stock Relevance | Assets | ≥ 7.0 per clip | 2 | Backup search terms |
+| 17 | Asset Diversity | Assets | ≥ 3 visual styles | 0 | Warn (proceed) |
+| 18 | Music-Scene Fit | Assets | ≥ 7.0 | 1 | Select different track |
+| 19 | License Compliance | Assets | All free/CC | 0 | Block asset |
+| 20 | Thumbnail CTR Prediction | Thumbnail | ≥ 7.5 | 2 | Regenerate concept |
+| 21 | Title-Thumb Alignment | Thumbnail | ≥ 7.5 | 1 | Regenerate |
+| 22 | Mobile Readability | Thumbnail | Pass/Fail | 1 | Increase text size |
+| 23 | Direction Coherence | Assembly | ≥ 8.5 | 2 | Regenerate v3 |
+| 24 | v3 Schema Validation | Assembly | Pass Zod schema | 2 | Regenerate |
+| 25 | Timeline Continuity | Assembly | No gaps | 1 | Fix gaps |
+| 26 | All Asset URLs Exist | Assembly | 100% | 0 | Fallback assets |
+| 27 | Caption Timing | Assembly | ±200ms per word | 1 | Recalculate from audio |
+| 28 | Production Inspector | Assembly | ≥ 8.0 | 2 | Regenerate |
+| 29 | **Final Composite** | **Assembly** | **≥ 8.0** | **0** | **Human review signal** |
+| 30 | Strike Risk | Assembly | All risk < 3 | 0 | Human review signal |
+| 31 | Cross-Channel Similarity | Assembly | < 40% | 0 | **BLOCK** |
+| 32 | AI Disclosure Present | Delivery | Required | 0 | Inject automatically |
+| 33 | Niche Disclaimer Present | Delivery | If health/finance | 0 | Inject automatically |
 
-### Anti-Inflation Measures
+---
 
-1. QC models use adversarial prompts: "You rarely score above 7."
-2. Calibration examples in every QC (what 3/10, 5/10, 7/10, 9/10 looks like)
-3. Generator and judge ALWAYS different models
-4. Track score distributions weekly → auto-adjust thresholds if inflated
-5. If inspector gives 10/10 → flag as suspicious
+## Anti-Inflation Measures
+
+Quality score inflation is a critical risk — AI scorers tend to give higher scores over time. Five countermeasures:
+
+### 1. Adversarial Scoring Prompts
+
+All QC scoring prompts include:
+```
+You are a harsh but fair critic. You rarely give scores above 7.
+A score of 9+ means genuinely exceptional — better than 95% of YouTube content in this niche.
+A score of 5 is average. Most AI-generated content scores 4-6.
+```
+
+### 2. Calibration Examples
+
+Every scoring prompt includes reference examples:
+
+```json
+{
+  "calibration": {
+    "score_3": "Generic script with obvious AI phrasing, no unique angle, factual errors",
+    "score_5": "Competent script, correct facts, but predictable structure, no surprise",
+    "score_7": "Good script with clear voice, strong hook, 1-2 unique insights",
+    "score_9": "Exceptional — would outperform 90% of human-written scripts in niche"
+  }
+}
+```
+
+### 3. Separate Generator and Judge
+
+| Task | Generator Model | Judge Model |
+|------|----------------|-------------|
+| Script writing | Claude Sonnet | GPT-4o-mini (critique) + Gemini Flash (QC) |
+| Fact checking | GPT-4o | Gemini Flash (verify sources) |
+| Thumbnail concept | GPT-4o | GPT-4o Vision (visual QC) |
+| Direction v3 | GPT-4o | Gemini Flash (schema + coherence) |
+
+Generator and judge are **always different models** to prevent self-reinforcing bias.
+
+### 4. Score Distribution Tracking
+
+```python
+# Analytics Service: weekly distribution check
+async def check_score_inflation(channel_id: str, weeks: int = 4):
+    scores = await db.fetch_all(
+        "SELECT scores->>'overall' as score FROM videos "
+        "WHERE channel_id = $1 AND created_at > NOW() - INTERVAL '$2 weeks' "
+        "ORDER BY created_at",
+        channel_id, weeks,
+    )
+    
+    avg = statistics.mean(scores)
+    if avg > 8.5:
+        # Scores are inflating — tighten thresholds
+        await db.execute(
+            "UPDATE system_config SET config_value = $1 WHERE config_key = 'quality_threshold'",
+            str(min(float(current_threshold) + 0.5, 9.0)),
+        )
+        return {"action": "threshold_raised", "new_threshold": current_threshold + 0.5}
+    
+    return {"action": "none", "avg_score": avg}
+```
+
+### 5. Suspicious Score Detection
+
+If any scorer gives a 10/10, flag as suspicious and re-score with a different model.
 
 ---
 
 ## Failure Points & Mitigations
 
-### API Failures
+### Provider Failures
 
 | Failure | Probability | Severity | Mitigation |
 |---------|------------|----------|-----------|
-| OpenAI rate limit | Medium | Medium | retryOnFail: true, maxTries: 3, wait 10s |
-| GPT JSON parse failure | High (10-15%) | Low | Strip fences, try/catch, retry with stricter prompt |
-| YouTube API quota exhaustion | Medium (at scale) | Medium | Cache competitor data weekly, quota tracking, degrade gracefully |
-| ElevenLabs char limit | Medium | HIGH | Pre-check quota, STOP if insufficient, track per-video |
-| DALL-E content rejection | Medium (5-10%) | Low | Sanitize prompt, 3 concepts (fallback), stock image backup |
-| Remotion server crash | Low-Medium | HIGH | Health check first, 30min timeout, retry simplified |
-| Pixabay/Pexels rate limit | Low | Medium | Rate limiter (600ms), batch similar terms, cache |
+| OpenAI rate limit | Medium | Medium | Temporal retry (3×, backoff), circuit breaker at 5 failures |
+| GPT JSON parse failure | High (10-15%) | Low | Strip fences, Pydantic validation, retry with stricter prompt |
+| Fish Audio TTS error | Low | Medium | Retry 3×, fallback to Google TTS (via TTSProvider interface) |
+| DALL-E content rejection | Medium (5-10%) | Low | Sanitize prompt, 3 concept fallbacks, stock image backup |
+| Remotion render crash | Low-Medium | High | Health check activity, 20min timeout, heartbeat every 2min, retry simplified v3 |
+| Pixabay/Pexels rate limit | Low | Medium | Token bucket rate limiter, batch terms, Redis cache |
+| YouTube upload quota | Medium (at scale) | High | Queue uploads, respect daily quota, exponential backoff |
+| SerpAPI quota exhaustion | Medium | Medium | Cache results (7d TTL), degrade to Google Custom Search |
 
-### GPT Quality Failures
-
-| Failure | Probability | Severity | Mitigation |
-|---------|------------|----------|-----------|
-| Hallucinated facts | High (20-30%) | CRITICAL | Claim extractor + fact verifier + source confidence |
-| Fact-checker hallucination | Medium | CRITICAL | Temp 0.1, cross-ref web data, flag stats for human |
-| Quality score inflation | High (ongoing) | Medium | Adversarial prompts, calibration, distribution tracking |
-| Brand voice drift | Slow (weeks) | Medium | Golden paragraphs, consistency check, periodic audit |
-| Repetitive structures | Medium | Medium | Template rotation, pattern tracking, novelty scoring |
-
-### Data & State Failures
+### AI Quality Failures
 
 | Failure | Probability | Severity | Mitigation |
 |---------|------------|----------|-----------|
-| Sheets concurrent write | Low (1-3ch) | Medium | content_id idempotency, sequential writes, _last_modified_by |
-| B4 race condition | Low (5%) | High | Flag+read pattern, assembly_started_at mutex, 2-3s delay |
-| Webhook delivery failure | Low (1-2%) | High | retryOnFail: 3, watchdog in A every 6h |
-| Stale performance memory | Medium | Medium | still_valid flag, 90-day auto-expire, re-validate weekly |
-| Lock expiry during execution | Low | Medium | 24h TTL, B4 refreshes lock, check Output_Log before create |
-| Data loss (sheets) | Low | HIGH | Weekly CSV backup to Drive |
+| Hallucinated facts | High (20-30%) | CRITICAL | Claim extractor + fact verifier + source confidence ≥ 0.7 |
+| Fact-checker hallucination | Medium | CRITICAL | Temp 0.1, cross-ref web data, flag statistics for human |
+| Quality score inflation | High (ongoing) | Medium | Anti-inflation measures (see above) |
+| Brand voice drift | Slow (weeks) | Medium | Golden paragraphs in Channel_DNA, consistency scoring |
+| Repetitive structures | Medium | Medium | Template rotation, pattern tracking in Performance_Memory |
+| Prompt injection via data | Very Low | Medium | Sanitize all DB inputs, validate JSON schemas at boundary |
 
-### Content Quality Failures
-
-| Failure | Probability | Severity | Mitigation |
-|---------|------------|----------|-----------|
-| Title-thumb-script misalignment | Medium (15-20%) | HIGH | Alignment inspector, hard threshold ≥8 |
-| Repetitive content | Medium | Medium | Output_Log dedup, structure rotation, Performance_Memory |
-| Voice monotone | Medium | Medium | Per-sentence SSML, pace variation, dual voice |
-| Visual-audio mismatch | Medium | Medium | GPT relevance scorer per clip, SFX placement validator |
-| YouTube policy violation | Low-Medium | CRITICAL | Policy inspector, niche compliance, AI disclosure |
-| Cross-channel similarity | Medium (at 100ch) | CRITICAL | Fingerprint + dedup, different voices/templates/prompts |
-
-### System Failures
+### Infrastructure Failures
 
 | Failure | Probability | Severity | Mitigation |
 |---------|------------|----------|-----------|
-| n8n execution timeout | Medium | High | Split sub-workflows, checkpoint saves |
-| n8n memory limit | Medium | High | Trim payload between sections, store large data to Drive |
-| Cost runaway | Low | HIGH | max_daily_api_spend, per-video cost estimator, budget gates |
-| Cascading failure | Low | HIGH | Each workflow handles own failures, watchdog, notifications |
-| Prompt injection | Very Low | Medium | Sanitize all Sheet data, validate patterns |
+| Temporal server crash | Low | High | Docker restart policy: `always`, persistence in PostgreSQL |
+| Worker process crash | Low | Medium | Temporal automatically re-dispatches activities |
+| PostgreSQL down | Very Low | CRITICAL | Docker health check, auto-restart, daily pg_dump backup |
+| Redis down | Low | Medium | Fallback: skip cache (slower but functional), auto-restart |
+| MinIO down | Low | High | Versioning enabled, backup to external S3 weekly |
+| VPS out of memory | Medium (at scale) | High | Resource limits per container, monitoring alerts, scaling guide |
+| Network partition | Very Low | High | Temporal handles: workflow pauses, resumes when services return |
+
+### Content Compliance Failures
+
+| Failure | Probability | Severity | Mitigation |
+|---------|------------|----------|-----------|
+| YouTube policy violation | Low-Medium | CRITICAL | Policy scanner activity, niche-specific rules |
+| Cross-channel similarity | Medium (at 100ch) | CRITICAL | Content fingerprinting + similarity < 40% gate |
+| Missing AI disclosure | N/A | High | Auto-injected by Delivery Service (never forgotten) |
+| Missing health/finance disclaimer | N/A | High | Auto-injected based on channel niche |
+| Copyright in stock footage | Low | HIGH | License validation gate; only free/CC assets |
 
 ---
 
-## Manual Review Points (Human-in-the-Loop)
+## Human-in-the-Loop via Temporal Signals
 
-### Recommended Checkpoints
+### Trigger Conditions
 
-| When | What You Review | Time | Impact |
-|------|----------------|------|--------|
-| After Idea Selection (B1) | Title + hook + angle | 30s | Prevents bad topic (saves downstream cost) |
-| After Script v1 Final (B1) | Full script + scores | 3-5 min | Catches tone/factual issues |
-| After Hook Selection (B1) | Top 3 hooks | 30s | Ensures strong opening |
-| After Thumbnail Concepts (B3) | 3 concepts + DALL-E images | 1 min | Prevents bad thumbnails |
-| After Final Assembly (B4) | Video URL + scores | 10 min watch | Final quality check |
+A human review signal is sent when:
+1. Final composite score < 8.0
+2. Policy risk != "low"
+3. Strike risk >= 3 on any dimension
+4. Any gate marked "Human review" fails
+
+### Notification Payload
+
+```json
+{
+  "type": "human_review_required",
+  "content_id": "VID_BS001_20250425_001",
+  "channel_id": "BS001",
+  "topic": "4 Types of Shivers",
+  "score": 7.6,
+  "failed_gates": ["direction_coherence"],
+  "artifacts": {
+    "script_url": "s3://yt-automation/scripts/.../script_base.json",
+    "thumbnail_url": "s3://yt-automation/thumbnails/.../final.png",
+    "quality_report_url": "s3://yt-automation/scripts/.../qa_report.json"
+  },
+  "actions": {
+    "approve": "POST /api/videos/video-BS001-20250425-1030/approve {\"approved\": true}",
+    "reject": "POST /api/videos/video-BS001-20250425-1030/approve {\"approved\": false}"
+  },
+  "timeout": "48 hours"
+}
+```
 
 ### Review Scaling
 
-- **First 10 videos:** ALL checkpoints (train the system)
-- **Videos 11-50:** After Idea + After Final Assembly only
-- **After 50 videos:** Final Assembly only (or auto if scores ≥8.5)
-- **100 channels:** 10% random audit + anomaly detection
+| Video Count | Review Policy | Threshold |
+|-------------|--------------|-----------|
+| 1-10 | ALL videos require approval | Score override |
+| 11-50 | Only if score < 8.0 | Standard |
+| 51-200 | Only if score < 7.5 | Relaxed |
+| 200+ | Only if score < 7.0 or anomaly | Minimal |
+| 100+ channels | 10% random audit | Random sample |
 
-### How It Works
+Thresholds are stored in `system_config` and adjustable via Admin API.
 
+---
+
+## Content Fingerprinting & Cross-Channel Dedup
+
+### Fingerprint Generation
+
+```python
+import hashlib
+
+def generate_fingerprint(script_base: dict) -> str:
+    """Generate content fingerprint for cross-channel dedup."""
+    # Combine: topic angle + key claims + structure
+    components = [
+        script_base["title"].lower(),
+        " ".join(s["text_raw"][:100] for s in script_base["scenes"][:3]),
+        " ".join(c["text"] for s in script_base["scenes"] for c in s.get("claims", [])[:2]),
+    ]
+    text = "|".join(components)
+    return hashlib.sha256(text.encode()).hexdigest()
 ```
-Pipeline → review point → writes to Output_Log (status="awaiting_review")
-→ sends notification with download links + approve/reject buttons
-→ pipeline STOPS
 
-You: Approve → webhook → pipeline resumes
-     Reject + notes → pipeline logs failure → ends
-     Edit → changes in Sheet → click Resume
+### Similarity Check
+
+```python
+async def check_cross_channel_similarity(fingerprint: str, channel_id: str) -> float:
+    """Check if similar content exists on other channels."""
+    existing = await redis.get(f"dedup:fingerprint:{fingerprint}")
+    if existing and existing.decode() != channel_id:
+        return 1.0  # Exact match on different channel → block
+
+    # Fuzzy check: compare against recent fingerprints
+    recent = await db.fetch_all(
+        "SELECT content_fingerprint, channel_id FROM videos "
+        "WHERE channel_id != $1 AND created_at > NOW() - INTERVAL '90 days'",
+        channel_id,
+    )
+    
+    max_similarity = 0.0
+    for row in recent:
+        sim = compute_jaccard_similarity(fingerprint, row["content_fingerprint"])
+        max_similarity = max(max_similarity, sim)
+    
+    return max_similarity
 ```
+
+Gate: `similarity < 0.40` → pass. `≥ 0.40` → **BLOCK** (content too similar across channels).

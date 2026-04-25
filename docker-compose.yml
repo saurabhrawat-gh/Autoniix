@@ -1,0 +1,327 @@
+networks:
+  yt-net:
+    driver: bridge
+
+volumes:
+  pg_app_data:
+  pg_temporal_data:
+  redis_data:
+  minio_data:
+
+services:
+
+  # ── Databases ────────────────────────────────────────────
+  postgres-app:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-yt_automation}
+      POSTGRES_USER: ${DB_USER:-app}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change_me_strong_random_64}
+    volumes:
+      - pg_app_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
+    ports:
+      - "5433:5432"
+    networks: [yt-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-app} -d ${DB_NAME:-yt_automation}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  postgres-temporal:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: temporal
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: ${TEMPORAL_DB_PASSWORD:-change_me_temporal_64}
+    volumes:
+      - pg_temporal_data:/var/lib/postgresql/data
+    networks: [yt-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal -d temporal"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6380:6379"
+    networks: [yt-net]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks: [yt-net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Temporal ─────────────────────────────────────────────
+  temporal:
+    image: temporalio/auto-setup:latest
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=${TEMPORAL_DB_PASSWORD:-change_me_temporal_64}
+      - POSTGRES_SEEDS=postgres-temporal
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/production.yaml
+    volumes:
+      - ./config/dynamicconfig:/etc/temporal/config/dynamicconfig
+    ports:
+      - "7233:7233"
+    networks: [yt-net]
+    depends_on:
+      postgres-temporal:
+        condition: service_healthy
+    restart: unless-stopped
+
+  temporal-ui:
+    image: temporalio/ui:latest
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:8080
+    ports:
+      - "8080:8080"
+    networks: [yt-net]
+    depends_on:
+      - temporal
+    restart: unless-stopped
+
+  # ── Application Services ─────────────────────────────────
+  research:
+    build: .
+    command: uvicorn src.services.research.main:app --host 0.0.0.0 --port 8001
+    env_file: .env
+    environment:
+      - PORT=8001
+    ports:
+      - "8001:8001"
+    networks: [yt-net]
+    depends_on:
+      postgres-app:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  script:
+    build: .
+    command: uvicorn src.services.script.main:app --host 0.0.0.0 --port 8002
+    env_file: .env
+    environment:
+      - PORT=8002
+    ports:
+      - "8002:8002"
+    networks: [yt-net]
+    depends_on:
+      postgres-app:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  voice:
+    build: .
+    command: uvicorn src.services.voice.main:app --host 0.0.0.0 --port 8003
+    env_file: .env
+    environment:
+      - PORT=8003
+    ports:
+      - "8003:8003"
+    networks: [yt-net]
+    depends_on:
+      postgres-app:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  assets:
+    build: .
+    command: uvicorn src.services.assets.main:app --host 0.0.0.0 --port 8004
+    env_file: .env
+    environment:
+      - PORT=8004
+    ports:
+      - "8004:8004"
+    networks: [yt-net]
+    depends_on:
+      postgres-app:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  thumbnail:
+    build: .
+    command: uvicorn src.services.thumbnail.main:app --host 0.0.0.0 --port 8005
+    env_file: .env
+    environment:
+      - PORT=8005
+    ports:
+      - "8005:8005"
+    networks: [yt-net]
+    depends_on:
+      postgres-app:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  assembly:
+    build: .
+    command: uvicorn src.services.assembly.main:app --host 0.0.0.0 --port 8006
+    env_file: .env
+    environment:
+      - PORT=8006
+    ports:
+      - "8006:8006"
+    networks: [yt-net]
+    depends_on:
+      postgres-app:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  delivery:
+    build: .
+    command: uvicorn src.services.delivery.main:app --host 0.0.0.0 --port 8007
+    env_file: .env
+    environment:
+      - PORT=8007
+    ports:
+      - "8007:8007"
+    networks: [yt-net]
+    depends_on:
+      postgres-app:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  analytics:
+    build: .
+    command: uvicorn src.services.analytics.main:app --host 0.0.0.0 --port 8008
+    env_file: .env
+    environment:
+      - PORT=8008
+    ports:
+      - "8008:8008"
+    networks: [yt-net]
+    depends_on:
+      postgres-app:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  admin:
+    build: .
+    command: uvicorn src.services.admin.main:app --host 0.0.0.0 --port 8009
+    env_file: .env
+    environment:
+      - PORT=8009
+    ports:
+      - "8009:8009"
+    networks: [yt-net]
+    depends_on:
+      postgres-app:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ── Temporal Workers ─────────────────────────────────────
+  worker-production:
+    build: .
+    command: python -m src.workers.run_production
+    env_file: .env
+    networks: [yt-net]
+    healthcheck:
+      disable: true
+    depends_on:
+      temporal:
+        condition: service_started
+      postgres-app:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      research:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  worker-scheduler:
+    build: .
+    command: python -m src.workers.run_scheduler
+    env_file: .env
+    networks: [yt-net]
+    healthcheck:
+      disable: true
+    depends_on:
+      temporal:
+        condition: service_started
+      postgres-app:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
