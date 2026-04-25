@@ -18,6 +18,7 @@ logger = structlog.get_logger()
 class DeliveryRequest(BaseModel):
     content_id: str
     channel_id: str
+    content_mode: str = "short"
     title: str
     description: str = ""
     tags: list[str] = Field(default_factory=list)
@@ -25,6 +26,17 @@ class DeliveryRequest(BaseModel):
     thumbnail_url: str = ""  # URL to thumbnail in MinIO
     privacy_status: str = "private"  # private|unlisted|public
     category_id: str = "22"  # 22 = People & Blogs, 27 = Education, 26 = How-to
+    is_short: bool = False
+    scheduled_at: str = ""  # ISO datetime for scheduled publish
+    quality_scores: dict = Field(default_factory=dict)
+    human_review_required: bool = False
+
+
+class HumanReviewRequest(BaseModel):
+    content_id: str
+    approved: bool
+    reviewer: str = "admin"
+    notes: str = ""
 
 
 @asynccontextmanager
@@ -59,11 +71,75 @@ async def refresh_access_token() -> str:
         return resp.json()["access_token"]
 
 
+def _compute_final_score(scores: dict) -> float:
+    """Weighted composite: research 15% + script 25% + hook 15% + voice 10% + thumbnail 15% + direction 10% + production 10%."""
+    weights = {
+        "research_depth_score": 0.15,
+        "script_structure_score": 0.25,
+        "hook_retention_score": 0.15,
+        "voice_quality_score": 0.10,
+        "thumbnail_score": 0.15,
+        "direction_score": 0.10,
+        "production_score": 0.10,
+    }
+    total = 0.0
+    for key, weight in weights.items():
+        total += float(scores.get(key, 7.0)) * weight
+    return round(total, 2)
+
+
+@app.post("/human-review", response_model=ServiceResponse)
+async def human_review(req: HumanReviewRequest):
+    """Submit human review decision for a content piece."""
+    logger.info("delivery.human_review", content_id=req.content_id, approved=req.approved)
+
+    try:
+        pool = await get_pool()
+        status = "approved" if req.approved else "rejected"
+        await pool.execute(
+            "UPDATE videos SET human_review_status = $1, human_review_notes = $2, "
+            "human_reviewer = $3, status = $4, updated_at = NOW() WHERE content_id = $5",
+            status, req.notes, req.reviewer,
+            "ready_to_deliver" if req.approved else "rejected",
+            req.content_id)
+
+        return ServiceResponse(
+            status="success",
+            data={"content_id": req.content_id, "review_status": status, "reviewer": req.reviewer},
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @app.post("/upload", response_model=ServiceResponse)
 async def upload(req: DeliveryRequest):
     logger.info("delivery.uploading", content_id=req.content_id, title=req.title[:50])
 
     try:
+        # ── Pre-flight: Compute final composite score ────
+        final_score = _compute_final_score(req.quality_scores)
+        logger.info("delivery.final_score", score=final_score)
+
+        # ── Human review gate ────────────────────────────
+        if req.human_review_required:
+            pool = await get_pool()
+            row = await pool.fetchrow(
+                "SELECT human_review_status FROM videos WHERE content_id = $1", req.content_id)
+            if not row or row["human_review_status"] != "approved":
+                # Mark as pending review instead of uploading
+                await pool.execute(
+                    "UPDATE videos SET status = 'pending_review', final_composite_score = $1, "
+                    "updated_at = NOW() WHERE content_id = $2",
+                    final_score, req.content_id)
+                return ServiceResponse(
+                    status="pending_review",
+                    data={
+                        "content_id": req.content_id,
+                        "final_score": final_score,
+                        "message": "Queued for human review before delivery",
+                    },
+                )
+
         # Step 1: Get fresh access token
         access_token = await refresh_access_token()
 
@@ -132,20 +208,39 @@ async def upload(req: DeliveryRequest):
             except Exception as thumb_err:
                 logger.warning("delivery.thumbnail_upload_failed", error=str(thumb_err))
 
-        # Step 5: Log to DB
+        # Step 5: Log to DB + create feedback_loop entry
+        import json as json_mod
         try:
             pool = await get_pool()
             await pool.execute(
                 "UPDATE videos SET youtube_video_id = $1, delivery_result = $2, "
-                "status = 'delivered', updated_at = NOW() WHERE content_id = $3",
+                "final_composite_score = $3, status = 'delivered', updated_at = NOW() "
+                "WHERE content_id = $4",
                 youtube_video_id,
-                __import__("json").dumps({
+                json_mod.dumps({
                     "youtube_video_id": youtube_video_id,
                     "privacy_status": req.privacy_status,
                     "url": f"https://youtu.be/{youtube_video_id}",
+                    "is_short": req.is_short,
                 }),
+                final_score,
                 req.content_id,
             )
+
+            # Create feedback_loop entry for future analytics collection
+            scores = req.quality_scores
+            await pool.execute(
+                "INSERT INTO feedback_loop (video_id, channel_id, title, idea_score, script_score, "
+                "thumbnail_score, hook_retention_score, final_score, content_mode, status, yt_video_id) "
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'delivered', $10) "
+                "ON CONFLICT (video_id) DO UPDATE SET yt_video_id = $10, status = 'delivered', updated_at = NOW()",
+                req.content_id, req.channel_id, req.title,
+                float(scores.get("idea_score", 0)),
+                float(scores.get("script_structure_score", 0)),
+                float(scores.get("thumbnail_score", 0)),
+                float(scores.get("hook_retention_score", 0)),
+                final_score, req.content_mode, youtube_video_id)
+
         except Exception as e:
             logger.warning("delivery.db_log_failed", error=str(e))
 

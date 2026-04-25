@@ -3,24 +3,266 @@ from __future__ import annotations
 import json
 import re
 from contextlib import asynccontextmanager
+from datetime import date, datetime
 
+import httpx
 import structlog
 import uvicorn
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
 
 from src.config import settings
 from src.db import close_pool, get_pool
 from src.redis_client import close_redis, get_redis
-from src.schemas.common import HealthResponse, ResearchRequest, ServiceResponse
+from src.schemas.common import HealthResponse, ServiceResponse
 
 # Import providers to trigger auto-registration
 import src.providers.llm.openai_provider  # noqa: F401
+import src.providers.llm.gemini_provider  # noqa: F401
+import src.providers.llm.claude_provider  # noqa: F401
 import src.providers.search.serpapi_provider  # noqa: F401
 
 from src.providers.registry import ProviderRegistry
+from src.providers.llm.base import LLMRequest
 
 logger = structlog.get_logger()
 
+
+# ── Request Models ───────────────────────────────────────────
+
+class ResearchRequest(BaseModel):
+    channel_id: str
+    content_mode: str = "short"
+    topic_candidates: list[str] = Field(default_factory=list)
+    budget_guard: dict = Field(default_factory=lambda: {"max_cost_usd": 2.50, "accrued_cost_usd": 0.0})
+
+
+class IdeationRequest(BaseModel):
+    channel_id: str
+    research_data: dict = Field(default_factory=dict)
+
+
+# ── Helpers ──────────────────────────────────────────────────
+
+def _parse_json(text: str) -> dict:
+    """Strip markdown fences and parse JSON."""
+    text = text.strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+    return json.loads(text)
+
+
+async def _log_usage(content_id: str, service: str, provider: str, model: str,
+                     tokens_in: int, tokens_out: int, cost: float, latency: int):
+    try:
+        pool = await get_pool()
+        cost_col = f"{provider}_cost" if provider in ("openai", "claude", "gemini") else "cost_usd"
+        await pool.execute(
+            "INSERT INTO api_usage (content_id, service, provider, model, tokens_in, tokens_out, cost_usd, latency_ms) "
+            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+            content_id, service, provider, model, tokens_in, tokens_out, float(cost), latency,
+        )
+    except Exception as e:
+        logger.warning("research.db_log_failed", error=str(e))
+
+
+async def _load_channel_dna(channel_id: str) -> dict:
+    """Load full channel DNA from PostgreSQL."""
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT * FROM channels WHERE channel_id = $1", channel_id)
+    if not row:
+        return {}
+    return dict(row)
+
+
+async def _load_beliefs(channel_id: str) -> list[dict]:
+    """Load beliefs for a channel from the belief_registry."""
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT belief_id, belief, counter_narrative, angle, belief_status, times_used, cooling_until_date "
+        "FROM belief_registry WHERE channel_id = $1 ORDER BY times_used ASC",
+        channel_id,
+    )
+    return [dict(r) for r in rows]
+
+
+async def _load_used_topics(channel_id: str) -> list[str]:
+    """Load recently used topics to avoid duplication."""
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT topic FROM videos WHERE channel_id = $1 AND created_at > NOW() - INTERVAL '30 days' "
+        "ORDER BY created_at DESC LIMIT 50",
+        channel_id,
+    )
+    return [r["topic"] for r in rows if r["topic"]]
+
+
+async def _load_prompt(prompt_id: str) -> dict:
+    """Load a prompt template from the prompt_registry."""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT system_prompt, user_prompt_template FROM prompt_registry "
+        "WHERE prompt_id = $1 AND is_active = true",
+        prompt_id,
+    )
+    return dict(row) if row else {}
+
+
+# ── Multi-Source Research ────────────────────────────────────
+
+async def _search_youtube(topic: str, niche: str) -> list[dict]:
+    """Search YouTube Data API for trending/relevant videos."""
+    api_key = settings.youtube_api_key
+    if not api_key:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(
+                "https://www.googleapis.com/youtube/v3/search",
+                params={
+                    "part": "snippet",
+                    "q": f"{topic} {niche}",
+                    "type": "video",
+                    "order": "relevance",
+                    "maxResults": 10,
+                    "key": api_key,
+                },
+            )
+            resp.raise_for_status()
+            items = resp.json().get("items", [])
+            return [
+                {
+                    "source": "youtube",
+                    "title": it["snippet"]["title"],
+                    "description": it["snippet"]["description"][:200],
+                    "url": f"https://youtube.com/watch?v={it['id']['videoId']}",
+                    "channel": it["snippet"]["channelTitle"],
+                    "published": it["snippet"]["publishedAt"],
+                }
+                for it in items if it.get("id", {}).get("videoId")
+            ]
+    except Exception as e:
+        logger.warning("research.youtube_search_failed", error=str(e))
+        return []
+
+
+async def _search_serpapi(queries: list[str]) -> list[dict]:
+    """Search via SerpAPI (Google + Google Trends)."""
+    try:
+        search_provider = ProviderRegistry.get("search")
+        from src.providers.search.base import SearchRequest
+        results = []
+        for q in queries[:3]:
+            result = await search_provider.search(SearchRequest(
+                query=q,
+                num_results=5,
+            ))
+            for r in result.results:
+                results.append({
+                    "source": "google",
+                    "title": r.get("title", ""),
+                    "snippet": r.get("snippet", ""),
+                    "url": r.get("link", ""),
+                })
+        return results
+    except Exception as e:
+        logger.warning("research.serpapi_failed", error=str(e))
+        return []
+
+
+async def _search_reddit(topic: str, niche: str) -> list[dict]:
+    """Search Reddit for relevant discussions."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0, headers={
+            "User-Agent": "YTAutomation/1.0",
+        }) as client:
+            resp = await client.get(
+                "https://www.reddit.com/search.json",
+                params={"q": f"{topic} {niche}", "sort": "relevance", "limit": 10, "t": "month"},
+            )
+            resp.raise_for_status()
+            posts = resp.json().get("data", {}).get("children", [])
+            return [
+                {
+                    "source": "reddit",
+                    "title": p["data"]["title"],
+                    "snippet": p["data"].get("selftext", "")[:200],
+                    "url": f"https://reddit.com{p['data']['permalink']}",
+                    "subreddit": p["data"]["subreddit"],
+                    "score": p["data"].get("score", 0),
+                }
+                for p in posts[:10]
+            ]
+    except Exception as e:
+        logger.warning("research.reddit_failed", error=str(e))
+        return []
+
+
+async def _search_news(topic: str, niche: str) -> list[dict]:
+    """Search News API for recent articles."""
+    api_key = settings.news_api_key
+    if not api_key:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://newsapi.org/v2/everything",
+                params={
+                    "q": f"{topic} {niche}",
+                    "sortBy": "relevancy",
+                    "pageSize": 5,
+                    "language": "en",
+                    "apiKey": api_key,
+                },
+            )
+            resp.raise_for_status()
+            articles = resp.json().get("articles", [])
+            return [
+                {
+                    "source": "news",
+                    "title": a.get("title", ""),
+                    "snippet": a.get("description", "")[:200],
+                    "url": a.get("url", ""),
+                    "published": a.get("publishedAt", ""),
+                }
+                for a in articles
+            ]
+    except Exception as e:
+        logger.warning("research.news_failed", error=str(e))
+        return []
+
+
+async def _search_wikipedia(topic: str) -> list[dict]:
+    """Search Wikipedia for background knowledge."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://en.wikipedia.org/w/api.php",
+                params={
+                    "action": "query",
+                    "list": "search",
+                    "srsearch": topic,
+                    "srlimit": 3,
+                    "format": "json",
+                },
+            )
+            resp.raise_for_status()
+            results = resp.json().get("query", {}).get("search", [])
+            return [
+                {
+                    "source": "wikipedia",
+                    "title": r["title"],
+                    "snippet": re.sub(r"<[^>]+>", "", r.get("snippet", "")),
+                    "url": f"https://en.wikipedia.org/wiki/{r['title'].replace(' ', '_')}",
+                }
+                for r in results
+            ]
+    except Exception as e:
+        logger.warning("research.wikipedia_failed", error=str(e))
+        return []
+
+
+# ── Core Research Pipeline ───────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -41,120 +283,306 @@ async def health():
 
 @app.post("/research", response_model=ServiceResponse)
 async def research(req: ResearchRequest):
+    """Full multi-source research pipeline with quality gate."""
     logger.info("research.started", channel_id=req.channel_id, topics=req.topic_candidates)
-
     total_cost = 0.0
 
     try:
-        # ── Step 1: Search for topic data ────────────────────
-        search_provider = ProviderRegistry.get("search")
-        search_results = []
+        # ── Load Channel DNA ─────────────────────────────
+        channel = await _load_channel_dna(req.channel_id)
+        if not channel:
+            raise HTTPException(status_code=404, detail=f"Channel {req.channel_id} not found")
 
-        queries = req.topic_candidates[:3] if req.topic_candidates else ["trending topics"]
-        for query in queries:
-            result = await search_provider.search(
-                __import__("src.providers.search.base", fromlist=["SearchRequest"]).SearchRequest(
-                    query=f"{query} site:youtube.com OR site:reddit.com",
-                    num_results=5,
-                )
-            )
-            search_results.extend(result.results)
-            total_cost += result.cost_usd
+        niche = channel.get("niche", "general")
+        sub_niche = channel.get("sub_niche", "")
+        topic_domain = channel.get("topic_domain", "")
+        belief_territory = channel.get("belief_territory", "")
+        intellectual_lens = channel.get("intellectual_lens", "")
 
-        # ── Step 2: Synthesize with LLM ──────────────────────
-        llm_provider = ProviderRegistry.get("llm.research")
+        # Build search queries from topic candidates + channel domain
+        queries = req.topic_candidates[:3] if req.topic_candidates else []
+        if topic_domain and not queries:
+            queries = [t.strip() for t in topic_domain.split(",")[:3]]
+        primary_topic = queries[0] if queries else niche
 
-        # Build sources context for the LLM
-        sources_text = "\n".join(
-            f"- {r.get('title', 'N/A')}: {r.get('snippet', 'N/A')}"
-            for r in search_results[:10]
+        # ── Step 1: Multi-source search (parallel) ───────
+        import asyncio
+        youtube_task = _search_youtube(primary_topic, niche)
+        serpapi_task = _search_serpapi([f"{q} {niche}" for q in queries])
+        reddit_task = _search_reddit(primary_topic, niche)
+        news_task = _search_news(primary_topic, niche)
+        wiki_task = _search_wikipedia(primary_topic)
+
+        youtube_results, serp_results, reddit_results, news_results, wiki_results = (
+            await asyncio.gather(youtube_task, serpapi_task, reddit_task, news_task, wiki_task)
         )
 
-        from src.providers.llm.base import LLMRequest
+        all_sources = youtube_results + serp_results + reddit_results + news_results + wiki_results
+        logger.info("research.sources_collected",
+                     youtube=len(youtube_results), serp=len(serp_results),
+                     reddit=len(reddit_results), news=len(news_results), wiki=len(wiki_results))
 
-        synthesis = await llm_provider.complete(
-            LLMRequest(
+        # ── Step 2: LLM Research Synthesis ───────────────
+        prompt = await _load_prompt("PRM_B1_RESEARCH_SYNTH")
+        llm = ProviderRegistry.get("llm.research")
+
+        # Build source context strings
+        yt_text = "\n".join(f"- [{r['title']}]({r['url']}) by {r.get('channel','')}" for r in youtube_results[:8])
+        serp_text = "\n".join(f"- {r['title']}: {r.get('snippet','')}" for r in serp_results[:8])
+        reddit_text = "\n".join(f"- r/{r.get('subreddit','')}: {r['title']} (score: {r.get('score',0)})" for r in reddit_results[:8])
+        news_text = "\n".join(f"- {r['title']}: {r.get('snippet','')}" for r in news_results[:5])
+
+        system_prompt = prompt.get("system_prompt", "You are a YouTube research analyst. Respond in valid JSON.").format(
+            niche=niche,
+        )
+        user_prompt = prompt.get("user_prompt_template", "Channel: {channel_id}\nTopics: {topic_candidates}").format(
+            channel_id=req.channel_id,
+            channel_name=channel.get("channel_name", ""),
+            niche=niche,
+            sub_niche=sub_niche,
+            belief_territory=belief_territory,
+            intellectual_lens=intellectual_lens,
+            topic_domain=topic_domain,
+            topic_candidates=json.dumps(queries),
+            search_results=serp_text,
+            youtube_trending=yt_text,
+            reddit_data=reddit_text,
+            news_data=news_text,
+        )
+
+        max_retries = 2
+        research_data = None
+
+        for attempt in range(1, max_retries + 2):
+            synthesis = await llm.complete(LLMRequest(
                 messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a YouTube research analyst. Analyze the provided search "
-                            "results and topic candidates. Select the best topic and produce "
-                            "a research synthesis. Respond in JSON with keys: "
-                            "selected_topic, title_candidates (list of 5), "
-                            "research_depth_score (1-10), sources (list of {url, title, relevance}), "
-                            "fact_claims (list of {text, confidence}), "
-                            "trend_data ({trending_score, search_volume_hint}), "
-                            "competitor_analysis ({top_videos_count, avg_views_hint, gap})."
-                        ),
-                    },
-                    {
-                        "role": "user",
-                        "content": (
-                            f"Channel: {req.channel_id}\n"
-                            f"Content mode: {req.content_mode}\n"
-                            f"Topic candidates: {json.dumps(req.topic_candidates)}\n\n"
-                            f"Search results:\n{sources_text}"
-                        ),
-                    },
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
                 ],
                 temperature=0.4,
+                max_tokens=3000,
+                response_format="json",
+            ))
+            total_cost += synthesis.cost_usd
+            await _log_usage(f"research-{req.channel_id}", "research", synthesis.provider,
+                             synthesis.model, synthesis.tokens_in, synthesis.tokens_out,
+                             synthesis.cost_usd, synthesis.latency_ms)
+
+            try:
+                research_data = _parse_json(synthesis.content)
+            except json.JSONDecodeError:
+                logger.warning("research.synthesis_json_failed", attempt=attempt)
+                research_data = {"selected_topic": primary_topic, "research_depth_score": 5.0,
+                                 "title_candidates": [], "sources": [], "fact_claims": [],
+                                 "trend_data": {}, "competitor_analysis": {}, "audience_pain_points": []}
+
+            # ── Quality Gate: research_depth_score >= 8.0 ──
+            depth_score = float(research_data.get("research_depth_score", 0))
+            if depth_score >= 8.0:
+                logger.info("research.quality_gate_passed", score=depth_score, attempt=attempt)
+                break
+            elif attempt <= max_retries:
+                logger.info("research.quality_gate_retry", score=depth_score, attempt=attempt)
+                user_prompt += (
+                    f"\n\n[RETRY: Your research_depth_score was {depth_score}/10. "
+                    "Provide deeper analysis with more specific data points, statistics, and nuanced insights.]"
+                )
+            else:
+                logger.warning("research.quality_gate_failed", score=depth_score)
+
+        # ── Step 3: Fact-Check Claims ────────────────────
+        fact_claims = research_data.get("fact_claims", [])
+        if fact_claims:
+            factcheck_llm = ProviderRegistry.get("llm.factcheck")
+            fc_prompt = await _load_prompt("PRM_B1_FACT_CHECK")
+
+            fc_system = fc_prompt.get("system_prompt", "You are a fact-checking specialist. Respond in JSON.")
+            fc_user = fc_prompt.get("user_prompt_template", "Claims: {claims}\nSources: {sources}").format(
+                claims=json.dumps(fact_claims),
+                sources=json.dumps(research_data.get("sources", [])),
+            )
+
+            fc_result = await factcheck_llm.complete(LLMRequest(
+                messages=[
+                    {"role": "system", "content": fc_system},
+                    {"role": "user", "content": fc_user},
+                ],
+                model="gpt-4o",
+                temperature=0.1,
                 max_tokens=2000,
                 response_format="json",
-            )
-        )
-        total_cost += synthesis.cost_usd
+            ))
+            total_cost += fc_result.cost_usd
+            await _log_usage(f"research-{req.channel_id}", "factcheck", fc_result.provider,
+                             fc_result.model, fc_result.tokens_in, fc_result.tokens_out,
+                             fc_result.cost_usd, fc_result.latency_ms)
 
-        # Parse LLM JSON response
-        try:
-            content = synthesis.content.strip()
-            # Strip markdown fences if present
-            content = re.sub(r"^```(?:json)?\s*", "", content)
-            content = re.sub(r"\s*```$", "", content)
-            data = json.loads(content)
-        except json.JSONDecodeError:
-            data = {
-                "selected_topic": req.topic_candidates[0] if req.topic_candidates else "Unknown",
-                "title_candidates": [],
-                "research_depth_score": 5.0,
-                "sources": [],
-                "fact_claims": [],
-                "trend_data": {},
-                "competitor_analysis": {},
-            }
+            try:
+                fc_data = _parse_json(fc_result.content)
+                research_data["verified_claims"] = fc_data.get("verified_claims", [])
+                research_data["removed_claims"] = fc_data.get("removed_claims", [])
+                # Replace fact_claims with only verified ones
+                research_data["fact_claims"] = [
+                    c for c in fc_data.get("verified_claims", [])
+                    if c.get("confidence", 0) >= 0.7
+                ]
+                fact_confidence = sum(c.get("confidence", 0) for c in research_data["fact_claims"]) / max(len(research_data["fact_claims"]), 1)
+                research_data["fact_confidence_score"] = round(fact_confidence * 10, 1)
+            except json.JSONDecodeError:
+                logger.warning("research.factcheck_json_failed")
+                research_data["fact_confidence_score"] = 5.0
 
-        # ── Step 3: Log usage ────────────────────────────────
-        try:
-            pool = await get_pool()
-            await pool.execute(
-                "INSERT INTO api_usage (content_id, service, provider, model, tokens_in, tokens_out, cost_usd, latency_ms) "
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-                f"research-{req.channel_id}",
-                "research",
-                synthesis.provider,
-                synthesis.model,
-                synthesis.tokens_in,
-                synthesis.tokens_out,
-                float(synthesis.cost_usd),
-                synthesis.latency_ms,
-            )
-        except Exception as db_err:
-            logger.warning("research.db_log_failed", error=str(db_err))
-
-        logger.info(
-            "research.completed",
-            topic=data.get("selected_topic"),
-            cost_usd=round(total_cost, 4),
-        )
+        logger.info("research.completed",
+                     topic=research_data.get("selected_topic"),
+                     depth=research_data.get("research_depth_score"),
+                     fact_conf=research_data.get("fact_confidence_score"),
+                     cost_usd=round(total_cost, 4))
 
         return ServiceResponse(
             status="success",
-            data=data,
-            cost={"cost_usd": round(total_cost, 6), "provider": synthesis.provider},
+            data=research_data,
+            cost={"cost_usd": round(total_cost, 6), "provider": "multi"},
         )
 
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error("research.failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ── Ideation Pipeline ────────────────────────────────────────
+
+@app.post("/ideate", response_model=ServiceResponse)
+async def ideate(req: IdeationRequest):
+    """Full ideation pipeline: 10 ideas → scoring → novelty → quality gate."""
+    logger.info("ideation.started", channel_id=req.channel_id)
+    total_cost = 0.0
+
+    try:
+        channel = await _load_channel_dna(req.channel_id)
+        if not channel:
+            raise HTTPException(status_code=404, detail=f"Channel {req.channel_id} not found")
+
+        beliefs = await _load_beliefs(req.channel_id)
+        used_topics = await _load_used_topics(req.channel_id)
+
+        # Pick an available belief (not cooling, least used)
+        today = date.today()
+        available_beliefs = [
+            b for b in beliefs
+            if b.get("belief_status") == "available"
+            and (not b.get("cooling_until_date") or b["cooling_until_date"] <= today)
+        ]
+        selected_belief = available_beliefs[0] if available_beliefs else (beliefs[0] if beliefs else None)
+
+        # ── Step 1: Generate 10 ideas ────────────────────
+        prompt = await _load_prompt("PRM_B1_IDEATION")
+        llm = ProviderRegistry.get("llm.ideation")
+
+        system_prompt = prompt.get("system_prompt", "Generate 10 YouTube video concepts. Respond in JSON.").format(
+            niche=channel.get("niche", ""),
+            belief_territory=selected_belief["belief"] if selected_belief else channel.get("belief_territory", ""),
+            intellectual_lens=channel.get("intellectual_lens", ""),
+        )
+        user_prompt = prompt.get("user_prompt_template", "Channel: {channel_id}").format(
+            channel_id=req.channel_id,
+            brand_voice=channel.get("brand_voice", ""),
+            narrative_rhythm=channel.get("narrative_rhythm", ""),
+            emotional_contract=channel.get("emotional_contract", ""),
+            research_summary=json.dumps(req.research_data.get("selected_topic", ""), default=str)[:2000],
+            used_topics=json.dumps(used_topics[:20]),
+        )
+
+        max_retries = 2
+        ideation_data = None
+
+        for attempt in range(1, max_retries + 2):
+            idea_result = await llm.complete(LLMRequest(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                model="gpt-4o",
+                temperature=0.8,
+                max_tokens=3000,
+                response_format="json",
+            ))
+            total_cost += idea_result.cost_usd
+            await _log_usage(f"ideation-{req.channel_id}", "ideation", idea_result.provider,
+                             idea_result.model, idea_result.tokens_in, idea_result.tokens_out,
+                             idea_result.cost_usd, idea_result.latency_ms)
+
+            try:
+                ideation_data = _parse_json(idea_result.content)
+            except json.JSONDecodeError:
+                logger.warning("ideation.json_failed", attempt=attempt)
+                ideation_data = {"ideas": []}
+
+            ideas = ideation_data.get("ideas", [])
+
+            # ── Step 2: Score ideas ──────────────────────
+            for idea in ideas:
+                curiosity = float(idea.get("curiosity_score", 5))
+                novelty = float(idea.get("novelty_score", 5))
+                emotion = float(idea.get("emotion_score", 5))
+                # Composite: algo 30% + research context 30% + audience appeal 40%
+                composite = (curiosity * 0.3 + novelty * 0.3 + emotion * 0.4)
+                idea["composite_score"] = round(composite, 2)
+
+            # ── Step 3: Novelty check vs used topics ─────
+            for idea in ideas:
+                title_lower = idea.get("title", "").lower()
+                is_novel = not any(
+                    t.lower() in title_lower or title_lower in t.lower()
+                    for t in used_topics
+                )
+                idea["is_novel"] = is_novel
+
+            # Filter to novel ideas and sort by composite score
+            novel_ideas = [i for i in ideas if i.get("is_novel", True)]
+            novel_ideas.sort(key=lambda x: x.get("composite_score", 0), reverse=True)
+
+            # ── Quality Gate: top idea >= 7.5 ────────────
+            top_score = novel_ideas[0].get("composite_score", 0) if novel_ideas else 0
+            if top_score >= 7.5:
+                logger.info("ideation.quality_gate_passed", score=top_score, attempt=attempt, ideas=len(novel_ideas))
+                break
+            elif attempt <= max_retries:
+                logger.info("ideation.quality_gate_retry", score=top_score, attempt=attempt)
+                user_prompt += (
+                    f"\n\n[RETRY: Top idea scored {top_score}/10. "
+                    "Generate bolder, more surprising concepts with higher curiosity and emotion.]"
+                )
+            else:
+                logger.warning("ideation.quality_gate_failed", score=top_score)
+
+        # Select winner
+        winner = novel_ideas[0] if novel_ideas else (ideas[0] if ideas else {"title": "Unknown", "hook": ""})
+
+        result = {
+            "selected_idea": winner,
+            "all_ideas": novel_ideas[:10],
+            "belief_used": selected_belief,
+            "idea_count": len(novel_ideas),
+            "top_composite_score": winner.get("composite_score", 0),
+        }
+
+        logger.info("ideation.completed",
+                     title=winner.get("title", "")[:60],
+                     score=winner.get("composite_score"),
+                     cost=round(total_cost, 4))
+
+        return ServiceResponse(
+            status="success",
+            data=result,
+            cost={"cost_usd": round(total_cost, 6), "provider": "multi"},
+        )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("ideation.failed", error=str(exc))
         raise HTTPException(status_code=500, detail=str(exc))
 
 

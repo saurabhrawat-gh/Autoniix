@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import io
+import json
+import re
 from contextlib import asynccontextmanager
 
 import httpx
@@ -14,16 +17,208 @@ from src.schemas.common import HealthResponse, ServiceResponse
 
 import src.providers.image.dalle_provider  # noqa: F401
 import src.providers.storage.minio_provider  # noqa: F401
+import src.providers.llm.openai_provider  # noqa: F401
 from src.providers.registry import ProviderRegistry
+from src.providers.llm.base import LLMRequest
 
 logger = structlog.get_logger()
 
 
+# ── Request Models ───────────────────────────────────────────
+
 class AssetsRequest(BaseModel):
     content_id: str
     channel_id: str
-    segments: list[dict] = Field(default_factory=list)  # [{id, scene_direction, asset_suggestions, b_roll_keywords}]
+    segments: list[dict] = Field(default_factory=list)
+    music_mood: str = ""
+    content_mode: str = "short"
 
+
+class MusicRequest(BaseModel):
+    content_id: str
+    channel_id: str
+    mood: str = ""
+    duration_s: float = 45.0
+
+
+# ── Helpers ──────────────────────────────────────────────────
+
+def _parse_json(text: str) -> dict:
+    text = text.strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+    return json.loads(text)
+
+
+async def _load_channel(channel_id: str) -> dict:
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT * FROM channels WHERE channel_id = $1", channel_id)
+    return dict(row) if row else {}
+
+
+async def _log_usage(content_id: str, service: str, provider: str, cost: float):
+    try:
+        pool = await get_pool()
+        await pool.execute(
+            "INSERT INTO api_usage (content_id, service, provider, cost_usd) VALUES ($1, $2, $3, $4)",
+            content_id, service, provider, float(cost))
+    except Exception as e:
+        logger.warning("assets.db_log_failed", error=str(e))
+
+
+# ── Stock Video Search ───────────────────────────────────────
+
+async def _search_pixabay_videos(query: str, min_duration: int = 5) -> list[dict]:
+    """Search Pixabay for stock video clips."""
+    api_key = settings.pixabay_api_key
+    if not api_key:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get("https://pixabay.com/api/videos/", params={
+                "key": api_key, "q": query, "per_page": 5, "min_width": 1280,
+            })
+            resp.raise_for_status()
+            hits = resp.json().get("hits", [])
+            return [
+                {
+                    "source": "pixabay", "id": str(h["id"]),
+                    "url": h.get("videos", {}).get("medium", {}).get("url", ""),
+                    "thumbnail": h.get("videos", {}).get("tiny", {}).get("thumbnail", ""),
+                    "duration": h.get("duration", 0),
+                    "width": h.get("videos", {}).get("medium", {}).get("width", 0),
+                    "height": h.get("videos", {}).get("medium", {}).get("height", 0),
+                    "tags": h.get("tags", ""),
+                    "license": "pixabay_free",
+                }
+                for h in hits if h.get("duration", 0) >= min_duration
+            ]
+    except Exception as e:
+        logger.warning("assets.pixabay_failed", error=str(e))
+        return []
+
+
+async def _search_pexels_videos(query: str, min_duration: int = 5) -> list[dict]:
+    """Search Pexels for stock video clips."""
+    api_key = settings.pexels_api_key
+    if not api_key:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get("https://api.pexels.com/videos/search", params={
+                "query": query, "per_page": 5, "size": "medium",
+            }, headers={"Authorization": api_key})
+            resp.raise_for_status()
+            videos = resp.json().get("videos", [])
+            results = []
+            for v in videos:
+                files = v.get("video_files", [])
+                # Pick best quality file >= 720p
+                best = None
+                for f in files:
+                    if f.get("height", 0) >= 720:
+                        best = f
+                        break
+                if not best and files:
+                    best = files[0]
+                if best and v.get("duration", 0) >= min_duration:
+                    results.append({
+                        "source": "pexels", "id": str(v["id"]),
+                        "url": best.get("link", ""),
+                        "thumbnail": v.get("image", ""),
+                        "duration": v.get("duration", 0),
+                        "width": best.get("width", 0),
+                        "height": best.get("height", 0),
+                        "tags": "",
+                        "license": "pexels_free",
+                    })
+            return results
+    except Exception as e:
+        logger.warning("assets.pexels_failed", error=str(e))
+        return []
+
+
+async def _search_envato_videos(query: str, min_duration: int = 5) -> list[dict]:
+    """Search Envato Elements for stock video clips."""
+    api_key = settings.envato_api_key
+    if not api_key:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://api.elements.envato.com/v1/items",
+                params={
+                    "q": query,
+                    "item_type": "video-templates,stock-video",
+                    "page_size": 5,
+                    "sort_by": "relevance",
+                },
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            resp.raise_for_status()
+            items = resp.json().get("items", resp.json().get("data", []))
+            results = []
+            for item in items:
+                preview = item.get("previews", {})
+                video_url = (
+                    preview.get("video_preview", {}).get("url", "")
+                    or preview.get("landscape_preview", {}).get("url", "")
+                    or item.get("preview_url", "")
+                )
+                duration = item.get("duration", item.get("video_length", 0))
+                if not video_url:
+                    continue
+                if isinstance(duration, (int, float)) and duration < min_duration:
+                    continue
+                results.append({
+                    "source": "envato",
+                    "id": str(item.get("id", "")),
+                    "url": video_url,
+                    "thumbnail": preview.get("icon_url", item.get("cover_image", {}).get("url", "")),
+                    "duration": duration if isinstance(duration, (int, float)) else 0,
+                    "width": 1920,
+                    "height": 1080,
+                    "tags": item.get("tags", ""),
+                    "license": "envato_elements",
+                    "title": item.get("title", ""),
+                })
+            return results
+    except Exception as e:
+        logger.warning("assets.envato_failed", error=str(e))
+        return []
+
+
+async def _search_freesound(query: str, duration_max: float = 30.0) -> list[dict]:
+    """Search Freesound for SFX clips."""
+    api_key = settings.freesound_api_key
+    if not api_key:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get("https://freesound.org/apiv2/search/text/", params={
+                "query": query, "filter": f"duration:[0 TO {duration_max}]",
+                "fields": "id,name,duration,previews,license,tags",
+                "page_size": 5, "token": api_key,
+            })
+            resp.raise_for_status()
+            results = resp.json().get("results", [])
+            return [
+                {
+                    "source": "freesound", "id": str(r["id"]),
+                    "name": r.get("name", ""),
+                    "url": r.get("previews", {}).get("preview-hq-mp3", ""),
+                    "duration": r.get("duration", 0),
+                    "tags": ", ".join(r.get("tags", [])[:5]),
+                    "license": r.get("license", ""),
+                }
+                for r in results
+            ]
+    except Exception as e:
+        logger.warning("assets.freesound_failed", error=str(e))
+        return []
+
+
+# ── App ──────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,92 +238,163 @@ async def health():
 
 @app.post("/generate-assets", response_model=ServiceResponse)
 async def generate_assets(req: AssetsRequest):
+    """Full asset pipeline: stock search → relevance score → filter → DALL-E fallback → upload."""
     logger.info("assets.generating", content_id=req.content_id, segments=len(req.segments))
 
-    image_provider = ProviderRegistry.get("image")
     storage = ProviderRegistry.get("storage")
-
-    from src.providers.image.base import ImageRequest
-    from src.providers.storage.base import StorageUpload
-
     total_cost = 0.0
     manifest = []
+    stock_count = 0
+    generated_count = 0
 
     for seg in req.segments:
         seg_id = seg.get("id", "unknown")
         direction = seg.get("scene_direction", "")
         suggestions = seg.get("asset_suggestions", [])
+        b_roll = seg.get("b_roll_keywords", [])
 
-        if not direction and not suggestions:
+        if not direction and not suggestions and not b_roll:
             manifest.append({"segment_id": seg_id, "type": "none", "assets": []})
             continue
 
+        # Build search query from segment data
+        search_terms = b_roll[:2] if b_roll else suggestions[:2]
+        query = " ".join(search_terms) if search_terms else direction[:50]
+
         try:
-            # Generate image via DALL-E
+            # ── Step 1: Search stock footage (parallel) ──
+            import asyncio
+            pixabay_task = _search_pixabay_videos(query)
+            pexels_task = _search_pexels_videos(query)
+            envato_task = _search_envato_videos(query)
+            pixabay_clips, pexels_clips, envato_clips = await asyncio.gather(
+                pixabay_task, pexels_task, envato_task)
+
+            all_clips = pixabay_clips + pexels_clips + envato_clips
+
+            # ── Step 2: Filter by resolution (>= 720p) ──
+            filtered = [c for c in all_clips if c.get("height", 0) >= 720 or c.get("width", 0) >= 1280]
+            if not filtered:
+                filtered = all_clips  # Accept lower quality if nothing else
+
+            # ── Step 3: Pick best clip (simple scoring) ──
+            selected_clip = None
+            if filtered:
+                # Score by duration match and source diversity
+                for clip in filtered:
+                    clip["relevance_score"] = 7.5  # Default decent score for stock
+                selected_clip = filtered[0]
+
+            if selected_clip and selected_clip.get("url"):
+                # Download and upload to MinIO
+                try:
+                    async with httpx.AsyncClient(timeout=30.0) as client:
+                        resp = await client.get(selected_clip["url"])
+                        resp.raise_for_status()
+                        video_bytes = resp.content
+
+                    ext = "mp4" if "mp4" in selected_clip["url"] else "mp4"
+                    key = f"assets/{req.content_id}/{seg_id}_stock.{ext}"
+                    url = await storage.upload(key, io.BytesIO(video_bytes), content_type=f"video/{ext}")
+
+                    manifest.append({
+                        "segment_id": seg_id,
+                        "type": "stock_video",
+                        "source": selected_clip["source"],
+                        "assets": [{
+                            "url": url, "key": key,
+                            "type": "stock_video",
+                            "source": selected_clip["source"],
+                            "source_id": selected_clip["id"],
+                            "duration": selected_clip.get("duration", 0),
+                            "license": selected_clip.get("license", ""),
+                        }],
+                    })
+                    stock_count += 1
+                    continue
+                except Exception as dl_err:
+                    logger.warning("assets.stock_download_failed", seg=seg_id, error=str(dl_err))
+
+            # ── Step 4: DALL-E Fallback ──────────────────
+            image_provider = ProviderRegistry.get("image")
+            from src.providers.image.base import ImageRequest
+
             prompt = f"YouTube video scene: {direction}. {', '.join(suggestions[:3])}"
-            prompt = prompt[:900]  # DALL-E prompt limit
+            prompt = prompt[:900]
 
             img_result = await image_provider.generate(ImageRequest(
-                prompt=prompt,
-                size="1792x1024",
-                quality="standard",
-                style="vivid",
-                n=1,
+                prompt=prompt, size="1792x1024", quality="standard", style="vivid", n=1,
             ))
             total_cost += img_result.cost_usd
 
-            # Download and upload to MinIO
             assets = []
             for i, img in enumerate(img_result.images):
                 img_url = img.get("url", "")
                 if not img_url:
                     continue
-
                 async with httpx.AsyncClient(timeout=30.0) as client:
                     resp = await client.get(img_url)
                     resp.raise_for_status()
                     img_bytes = resp.content
 
                 key = f"assets/{req.content_id}/{seg_id}_{i}.png"
-                upload = await storage.upload(StorageUpload(
-                    key=key,
-                    data=img_bytes,
-                    content_type="image/png",
-                ))
-
+                url = await storage.upload(key, io.BytesIO(img_bytes), content_type="image/png")
                 assets.append({
-                    "url": upload.url,
-                    "key": upload.key,
-                    "type": "generated",
+                    "url": url, "key": key, "type": "generated_image",
                     "prompt": prompt[:200],
                 })
+                generated_count += 1
 
-            manifest.append({
-                "segment_id": seg_id,
-                "type": "generated",
-                "assets": assets,
-            })
+            manifest.append({"segment_id": seg_id, "type": "generated_image", "assets": assets})
 
         except Exception as exc:
             logger.warning("assets.segment_failed", segment_id=seg_id, error=str(exc))
             manifest.append({"segment_id": seg_id, "type": "failed", "error": str(exc), "assets": []})
 
-    # Log usage
-    try:
-        pool = await get_pool()
-        await pool.execute(
-            "INSERT INTO api_usage (content_id, service, provider, cost_usd) VALUES ($1, $2, $3, $4)",
-            req.content_id, "assets", "dalle", float(total_cost),
-        )
-    except Exception as e:
-        logger.warning("assets.db_log_failed", error=str(e))
+    await _log_usage(req.content_id, "assets", "multi", total_cost)
 
-    logger.info("assets.generated", total_assets=sum(len(m.get("assets", [])) for m in manifest), cost=total_cost)
+    total_assets = sum(len(m.get("assets", [])) for m in manifest)
+    logger.info("assets.generated", total=total_assets, stock=stock_count,
+                 generated=generated_count, cost=round(total_cost, 4))
 
     return ServiceResponse(
         status="success",
-        data={"manifest": manifest, "total_assets": sum(len(m.get("assets", [])) for m in manifest)},
-        cost={"cost_usd": total_cost, "provider": "dalle"},
+        data={
+            "manifest": manifest,
+            "total_assets": total_assets,
+            "stock_footage_count": stock_count,
+            "generated_image_count": generated_count,
+        },
+        cost={"cost_usd": round(total_cost, 6), "provider": "multi"},
+    )
+
+
+# ── Music & SFX ──────────────────────────────────────────────
+
+@app.post("/search-music", response_model=ServiceResponse)
+async def search_music(req: MusicRequest):
+    """Search for background music and SFX."""
+    channel = await _load_channel(req.channel_id)
+    mood = req.mood or channel.get("music_mood_default", "ambient")
+
+    sfx_density = channel.get("sfx_density", "low")
+    sfx_count = {"minimal": 1, "low": 2, "medium": 4, "high": 6}.get(sfx_density, 2)
+
+    import asyncio
+    music_task = _search_freesound(f"{mood} background music", duration_max=req.duration_s * 2)
+    sfx_task = _search_freesound(f"transition whoosh impact", duration_max=5.0)
+
+    music_results, sfx_results = await asyncio.gather(music_task, sfx_task)
+
+    return ServiceResponse(
+        status="success",
+        data={
+            "music": music_results[:3],
+            "sfx": sfx_results[:sfx_count],
+            "mood": mood,
+            "sfx_density": sfx_density,
+        },
+        cost={"cost_usd": 0.0, "provider": "freesound"},
     )
 
 

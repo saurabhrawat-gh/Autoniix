@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import base64
 import time
+from dataclasses import dataclass, field
 
 import httpx
 import structlog
@@ -17,21 +19,54 @@ PRICING: dict[str, dict[str, float]] = {
 }
 
 
-class OpenAILLM(LLMProvider):
+@dataclass
+class VisionRequest(LLMRequest):
+    """LLM request that can include images."""
+    image_urls: list[str] = field(default_factory=list)
+    image_bytes_list: list[bytes] = field(default_factory=list)
+
+
+class OpenAIVisionLLM(LLMProvider):
     BASE_URL = "https://api.openai.com/v1/chat/completions"
 
     def __init__(self) -> None:
         self.api_key = settings.openai_api_key
         if not self.api_key:
-            logger.warning("openai.no_api_key")
+            logger.warning("openai_vision.no_api_key")
 
     async def complete(self, request: LLMRequest) -> LLMResult:
         model = request.model or self.default_model()
         start = time.monotonic()
 
+        messages = []
+        for msg in request.messages:
+            if msg["role"] == "system":
+                messages.append(msg)
+            elif msg["role"] == "user":
+                # Build multimodal content if images are provided
+                content_parts = [{"type": "text", "text": msg["content"]}]
+
+                # Check for images in the request
+                if isinstance(request, VisionRequest):
+                    for url in request.image_urls:
+                        content_parts.append({
+                            "type": "image_url",
+                            "image_url": {"url": url, "detail": "high"},
+                        })
+                    for img_bytes in request.image_bytes_list:
+                        b64 = base64.b64encode(img_bytes).decode("utf-8")
+                        content_parts.append({
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/png;base64,{b64}", "detail": "high"},
+                        })
+
+                messages.append({"role": "user", "content": content_parts})
+            else:
+                messages.append(msg)
+
         body: dict = {
             "model": model,
-            "messages": request.messages,
+            "messages": messages,
             "temperature": request.temperature,
             "max_tokens": request.max_tokens,
         }
@@ -49,14 +84,11 @@ class OpenAILLM(LLMProvider):
 
         usage = data["usage"]
         pricing = PRICING.get(model, PRICING["gpt-4o"])
-        cost = (
-            usage["prompt_tokens"] * pricing["input"]
-            + usage["completion_tokens"] * pricing["output"]
-        )
+        cost = usage["prompt_tokens"] * pricing["input"] + usage["completion_tokens"] * pricing["output"]
         latency = int((time.monotonic() - start) * 1000)
 
         logger.info(
-            "openai.completed",
+            "openai_vision.completed",
             model=model,
             tokens_in=usage["prompt_tokens"],
             tokens_out=usage["completion_tokens"],
@@ -70,14 +102,12 @@ class OpenAILLM(LLMProvider):
             tokens_in=usage["prompt_tokens"],
             tokens_out=usage["completion_tokens"],
             cost_usd=cost,
-            provider="openai",
+            provider="openai_vision",
             latency_ms=latency,
             finish_reason=data["choices"][0]["finish_reason"],
         )
 
-    def estimate_cost(
-        self, tokens_in: int, tokens_out: int, model: str | None = None
-    ) -> float:
+    def estimate_cost(self, tokens_in: int, tokens_out: int, model: str | None = None) -> float:
         model = model or self.default_model()
         pricing = PRICING.get(model, PRICING["gpt-4o"])
         return tokens_in * pricing["input"] + tokens_out * pricing["output"]
@@ -94,21 +124,13 @@ class OpenAILLM(LLMProvider):
             return False
 
     def provider_name(self) -> str:
-        return "openai"
+        return "openai_vision"
 
     def default_model(self) -> str:
-        return "gpt-4o-mini"
+        return "gpt-4o"
 
     def supported_models(self) -> list[str]:
         return list(PRICING.keys())
 
 
-ProviderRegistry.register("llm", "openai", OpenAILLM)
-ProviderRegistry.register("llm.research", "openai", OpenAILLM)
-ProviderRegistry.register("llm.script", "openai", OpenAILLM)
-ProviderRegistry.register("llm.factcheck", "openai", OpenAILLM)
-ProviderRegistry.register("llm.qc", "openai", OpenAILLM)
-ProviderRegistry.register("llm.ideation", "openai", OpenAILLM)
-ProviderRegistry.register("llm.hook", "openai", OpenAILLM)
-ProviderRegistry.register("llm.direction", "openai", OpenAILLM)
-ProviderRegistry.register("llm.emotion", "openai", OpenAILLM)
+ProviderRegistry.register("llm.vision", "openai", OpenAIVisionLLM)

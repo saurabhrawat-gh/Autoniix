@@ -19,10 +19,13 @@ class VideoStatus(str, Enum):
     pending = "pending"
     researching = "researching"
     scripting = "scripting"
+    generating_voice = "generating_voice"
     generating_assets = "generating_assets"
+    directing = "directing"
     assembling = "assembling"
-    awaiting_review = "awaiting_review"
     rendering = "rendering"
+    pending_review = "pending_review"
+    awaiting_review = "awaiting_review"
     delivering = "delivering"
     delivered = "delivered"
     failed = "failed"
@@ -71,6 +74,7 @@ class VideoParams:
     content_mode: str = "long_form"
     topic_candidates: list[str] = field(default_factory=list)
     max_cost_usd: float = 2.50
+    human_review_required: bool = False
 
 
 @dataclass

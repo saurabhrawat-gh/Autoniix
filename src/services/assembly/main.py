@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
+import json
 from contextlib import asynccontextmanager
 
+import httpx
 import structlog
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -14,17 +17,30 @@ from src.schemas.common import HealthResponse, ServiceResponse
 logger = structlog.get_logger()
 
 
+# ── Request Models ───────────────────────────────────────────
+
 class AssemblyRequest(BaseModel):
     content_id: str
     channel_id: str
-    content_mode: str = "long_form"
+    content_mode: str = "short"
     title: str
-    script: dict = Field(default_factory=dict)
-    voice_result: dict = Field(default_factory=dict)
-    asset_manifest: dict = Field(default_factory=dict)
-    thumbnail_result: dict = Field(default_factory=dict)
-    brand_config: dict = Field(default_factory=dict)
+    direction_v3: dict = Field(default_factory=dict)
+    thumbnail_url: str = ""
 
+
+class RenderStatusRequest(BaseModel):
+    render_id: str
+
+
+# ── Helpers ──────────────────────────────────────────────────
+
+async def _load_channel(channel_id: str) -> dict:
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT * FROM channels WHERE channel_id = $1", channel_id)
+    return dict(row) if row else {}
+
+
+# ── App ──────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -42,132 +58,133 @@ async def health():
     return HealthResponse(service="assembly")
 
 
-def build_direction_v3(req: AssemblyRequest) -> dict:
-    """Transform script + assets + voice into Remotion Direction v3 JSON."""
-    segments = req.script.get("segments", [])
-    manifest_items = {m["segment_id"]: m for m in req.asset_manifest.get("manifest", [])}
-
-    aspect = "16:9" if req.content_mode == "long_form" else "9:16"
-    resolution = {"width": 1920, "height": 1080} if req.content_mode == "long_form" else {"width": 1080, "height": 1920}
-    fps = 30
-
-    # Build Remotion segments
-    remotion_segments = []
-    cumulative_ms = 0
-
-    for seg in segments:
-        seg_id = seg.get("id", "s0")
-        duration_s = seg.get("duration_s", 30)
-        duration_ms = duration_s * 1000
-        narration = seg.get("narration", "")
-        direction = seg.get("scene_direction", "")
-        text_overlay = seg.get("text_overlay", "")
-        transition = seg.get("transition", "cut")
-
-        # Get assets for this segment
-        seg_assets = manifest_items.get(seg_id, {}).get("assets", [])
-        bg_url = seg_assets[0]["url"] if seg_assets else ""
-
-        remotion_seg = {
-            "id": seg_id,
-            "start_ms": cumulative_ms,
-            "duration_ms": duration_ms,
-            "scene_preset": "scene.stock_footage" if bg_url else "scene.kinetic_typography",
-            "scene_overrides": {
-                "background_url": bg_url,
-                "label": text_overlay or "",
-            },
-            "narration": {
-                "text": narration,
-                "word_count": len(narration.split()),
-            },
-            "transition_in": {
-                "preset": f"trans.{transition}" if transition != "cut" else "trans.cut",
-                "duration_ms": 500,
-            },
-        }
-        remotion_segments.append(remotion_seg)
-        cumulative_ms += duration_ms
-
-    # Compute total duration
-    total_duration_s = cumulative_ms / 1000
-
-    brand = req.brand_config or {}
-
-    direction_v3 = {
-        "version": "3.0",
-        "meta": {
-            "video_id": req.content_id,
-            "channel_id": req.channel_id,
-            "title": req.title,
-            "duration_target_seconds": total_duration_s,
-            "aspect": aspect,
-            "fps": fps,
-            "resolution": resolution,
-        },
-        "template": brand.get("template", "hybrid-kinetic"),
-        "theme": {
-            "primary_color": brand.get("primary_color", "#FF3B30"),
-            "accent_color": brand.get("accent_color", "#FFD60A"),
-            "background_color": brand.get("background_color", "#000000"),
-            "text_color": brand.get("text_color", "#FFFFFF"),
-            "fonts": brand.get("fonts", {"heading": "Inter", "body": "Inter"}),
-        },
-        "grade_preset": brand.get("grade_preset", "fx.grade.cinematic_teal_orange"),
-        "global_overlays": [
-            {"type": "vignette", "intensity": 0.3},
-            {"type": "film_grain", "preset": "fx.grain.35mm", "intensity": 0.15},
-        ],
-        "audio_master": {
-            "narration_url": req.voice_result.get("audio_url", ""),
-            "music_url": "",
-            "music_volume": 0.15,
-            "ducking": True,
-            "ducking_threshold": -20,
-        },
-        "segments": remotion_segments,
-    }
-
-    return direction_v3
-
-
 @app.post("/assemble", response_model=ServiceResponse)
 async def assemble(req: AssemblyRequest):
-    logger.info("assembly.assembling", content_id=req.content_id)
+    """Submit Direction v3 to Remotion API for rendering, poll until complete."""
+    logger.info("assembly.assembling", content_id=req.content_id,
+                 segments=len(req.direction_v3.get("segments", [])))
 
     try:
-        direction_v3 = build_direction_v3(req)
+        direction_v3 = req.direction_v3
+        if not direction_v3 or not direction_v3.get("segments"):
+            raise HTTPException(status_code=400, detail="No direction_v3 data provided")
 
-        # Store in database
+        # ── Step 1: Submit render job to Remotion API ────
+        remotion_url = settings.remotion_base_url
+        render_payload = {
+            "direction": direction_v3,
+            "outputFormat": "mp4",
+            "quality": "high",
+            "codec": "h264",
+        }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(f"{remotion_url}/render", json=render_payload)
+            resp.raise_for_status()
+            render_data = resp.json()
+
+        render_id = render_data.get("renderId", render_data.get("id", ""))
+        if not render_id:
+            raise HTTPException(status_code=500, detail="No render ID returned from Remotion")
+
+        logger.info("assembly.render_submitted", render_id=render_id)
+
+        # ── Step 2: Poll for render completion ───────────
+        max_wait_s = 600  # 10 minutes max
+        poll_interval_s = 5
+        elapsed = 0
+        render_result = None
+
+        while elapsed < max_wait_s:
+            await asyncio.sleep(poll_interval_s)
+            elapsed += poll_interval_s
+
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    status_resp = await client.get(f"{remotion_url}/render/{render_id}")
+                    status_resp.raise_for_status()
+                    render_result = status_resp.json()
+
+                status = render_result.get("status", "unknown")
+                if status == "completed":
+                    break
+                elif status == "failed":
+                    error_msg = render_result.get("error", "Unknown render error")
+                    raise HTTPException(status_code=500, detail=f"Render failed: {error_msg}")
+                else:
+                    progress = render_result.get("progress", 0)
+                    logger.info("assembly.render_progress", render_id=render_id,
+                                 status=status, progress=progress, elapsed=elapsed)
+
+            except httpx.HTTPError as poll_err:
+                logger.warning("assembly.poll_error", error=str(poll_err))
+
+        if not render_result or render_result.get("status") != "completed":
+            raise HTTPException(status_code=504, detail="Render timed out after 10 minutes")
+
+        video_url = render_result.get("outputUrl", render_result.get("url", ""))
+        render_duration = render_result.get("renderDuration", 0)
+
+        # ── Step 3: Production QC ────────────────────────
+        production_score = 8.0
+        production_issues = []
+
+        target_duration = direction_v3.get("meta", {}).get("duration_target_seconds", 0)
+        actual_duration = render_result.get("videoDuration", target_duration)
+        if target_duration and abs(actual_duration - target_duration) > target_duration * 0.1:
+            production_score -= 1.0
+            production_issues.append(f"Duration mismatch: target {target_duration}s, actual {actual_duration}s")
+
+        if not video_url:
+            production_score -= 2.0
+            production_issues.append("No output URL from render")
+
+        # ── Step 4: Update DB ────────────────────────────
         try:
             pool = await get_pool()
-            import json
             await pool.execute(
-                "UPDATE videos SET v3_direction = $1, updated_at = NOW() WHERE content_id = $2",
-                json.dumps(direction_v3),
-                req.content_id,
-            )
+                "UPDATE videos SET render_url = $1, render_id = $2, production_score = $3, "
+                "status = 'rendered', updated_at = NOW() WHERE content_id = $4",
+                video_url, render_id, production_score, req.content_id)
         except Exception as e:
             logger.warning("assembly.db_update_failed", error=str(e))
 
-        logger.info(
-            "assembly.completed",
-            segments=len(direction_v3["segments"]),
-            duration=direction_v3["meta"]["duration_target_seconds"],
-        )
+        logger.info("assembly.completed",
+                     render_id=render_id,
+                     video_url=video_url[:80] if video_url else "",
+                     production_score=production_score,
+                     render_time=render_duration)
 
         return ServiceResponse(
             status="success",
             data={
-                "direction_v3": direction_v3,
-                "segment_count": len(direction_v3["segments"]),
-                "total_duration_s": direction_v3["meta"]["duration_target_seconds"],
+                "render_id": render_id,
+                "video_url": video_url,
+                "render_duration_s": render_duration,
+                "video_duration_s": actual_duration,
+                "production_score": round(production_score, 1),
+                "production_issues": production_issues,
+                "segment_count": len(direction_v3.get("segments", [])),
             },
-            cost={"cost_usd": 0, "provider": "assembly"},
+            cost={"cost_usd": 0, "provider": "remotion"},
         )
 
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error("assembly.failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/render-status/{render_id}", response_model=ServiceResponse)
+async def render_status(render_id: str):
+    """Check the status of a Remotion render job."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"{settings.remotion_base_url}/render/{render_id}")
+            resp.raise_for_status()
+            return ServiceResponse(status="success", data=resp.json())
+    except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
 

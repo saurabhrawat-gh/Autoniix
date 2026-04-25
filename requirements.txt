@@ -9,3 +9,15 @@ pydantic>=2.9.0
 pydantic-settings>=2.5.0
 structlog>=24.4.0
 python-jose[cryptography]>=3.3.0
+# ── AI Providers ─────────────────────────────────
+openai>=1.30.0
+anthropic>=0.25.0
+google-generativeai>=0.5.0
+# ── TTS ──────────────────────────────────────────
+elevenlabs>=1.0.0
+# ── Research / Data ──────────────────────────────
+wikipedia>=1.4.0
+google-api-python-client>=2.130.0
+# ── Google Sheets Sync ───────────────────────────
+gspread>=6.0.0
+google-auth>=2.29.0

@@ -26,6 +26,8 @@ from src.workers.activities.script import script_activity, title_activity
 from src.workers.activities.voice import voice_activity
 from src.workers.activities.assets import assets_activity
 from src.workers.activities.thumbnail import thumbnail_activity
+from src.workers.activities.direction import direction_activity
+from src.workers.activities.music import music_activity
 from src.workers.activities.assembly import assembly_activity
 from src.workers.activities.render import render_activity
 from src.workers.activities.delivery import delivery_activity
@@ -58,6 +60,8 @@ async def main() -> None:
             voice_activity,
             assets_activity,
             thumbnail_activity,
+            direction_activity,
+            music_activity,
             assembly_activity,
             render_activity,
             delivery_activity,

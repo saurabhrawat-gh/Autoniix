@@ -29,14 +29,20 @@ class Settings(BaseSettings):
 
     # ── TTS ─────────────────────────────────────────────
     fish_audio_api_key: str = ""
-    tts_provider: str = "fish_audio"
+    elevenlabs_api_key: str = ""
+    elevenlabs_model_id: str = "eleven_multilingual_v2"
+    tts_provider: str = "fishaudio"
 
     # ── Search ──────────────────────────────────────────
     serpapi_key: str = ""
+    news_api_key: str = ""
     search_provider: str = "serpapi"
 
-    # ── Image ───────────────────────────────────────────
+    # ── Image / Stock Footage ─────────────────────────────
     pixabay_api_key: str = ""
+    pexels_api_key: str = ""
+    envato_api_key: str = ""
+    freesound_api_key: str = ""
     image_provider: str = "dalle"
 
     # ── Storage ─────────────────────────────────────────
@@ -44,23 +50,32 @@ class Settings(BaseSettings):
 
     # ── LLM Routing ─────────────────────────────────────
     llm_provider: str = "openai"
-    llm_research_provider: str = "openai"
-    llm_script_provider: str = "openai"
+    llm_research_provider: str = "gemini"
+    llm_script_provider: str = "claude"
     llm_factcheck_provider: str = "openai"
-    llm_qc_provider: str = "openai"
+    llm_qc_provider: str = "gemini"
+    llm_vision_provider: str = "openai"
+    llm_ideation_provider: str = "openai"
+    llm_hook_provider: str = "openai"
+    llm_direction_provider: str = "openai"
+    llm_emotion_provider: str = "openai"
 
     # ── Temporal ────────────────────────────────────────
     temporal_host: str = "temporal:7233"
     temporal_namespace: str = "default"
 
     # ── Remotion ────────────────────────────────────────
-    remotion_base_url: str = "http://remotion:4000"
+    remotion_base_url: str = "http://remotion-api:4000"
 
     # ── YouTube / Google OAuth ────────────────────────
     youtube_api_key: str = ""
     google_oauth_client_id: str = ""
     google_oauth_client_secret: str = ""
     google_oauth_refresh_token: str = ""
+
+    # ── Google Sheets Sync ────────────────────────────
+    google_sheets_id: str = "11-vlRvjXfDVLQMnrHzuujE5A1i4luy2DG-ycUtsS-c4"
+    google_sheets_credentials_json: str = ""
 
     # ── Admin ───────────────────────────────────────────
     admin_jwt_secret: str = "change_me"
