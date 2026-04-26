@@ -320,10 +320,10 @@ services:
         limits:
           memory: 256M
 
-  # ── Remotion Renderer (separate repo) ────────────────────
+  # ── Remotion Renderer ───────────────────────────────────
   remotion-api:
     build:
-      context: ../yt-automation-remotion
+      context: ./services/remotion
       dockerfile: Dockerfile
     command: ["npm", "run", "start:api"]
     environment:
@@ -364,7 +364,7 @@ services:
 
   remotion-worker:
     build:
-      context: ../yt-automation-remotion
+      context: ./services/remotion
       dockerfile: Dockerfile
     command: ["npm", "run", "start:worker"]
     environment:

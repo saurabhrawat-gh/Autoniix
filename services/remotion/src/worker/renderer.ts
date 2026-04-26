@@ -1,0 +1,182 @@
+import path from "node:path";
+import fs from "node:fs";
+import { bundle } from "@remotion/bundler";
+import {
+  renderMedia,
+  renderStill,
+  selectComposition,
+  type Codec,
+} from "@remotion/renderer";
+import { env } from "../utils/env";
+import { logger } from "../utils/logger";
+import { uploadFile } from "../utils/storage";
+import { DirectionV3 } from "../schemas/directionV3";
+import { validateAgainstTemplate } from "../utils/compositionValidator";
+import { normalizeLoudness } from "../utils/loudnessNormalizer";
+import { stripAudio, extractMixedAudio } from "../utils/ffmpegStems";
+import type { RenderJobData } from "../api/queue";
+
+let cachedBundle: string | null = null;
+
+/** Bundle the Remotion entry once per worker process. */
+async function getBundle(): Promise<string> {
+  if (cachedBundle) return cachedBundle;
+  const entryPoint = path.resolve(process.cwd(), "src/index.ts");
+  logger.info({ entryPoint }, "bundling remotion project");
+  cachedBundle = await bundle({
+    entryPoint,
+    // Pass webpack-config override here if needed (e.g. TailwindCSS).
+  });
+  return cachedBundle;
+}
+
+export interface RenderResult {
+  outputUrl: string;
+  fileSize: number;
+  duration: number;
+  /** Present only when `exportStems: true` was requested. */
+  stems?: {
+    videoOnlyUrl: string;
+    audioMixUrl: string;
+  };
+}
+
+export async function runRender(
+  job: RenderJobData,
+  onProgress: (p: number) => void,
+): Promise<RenderResult> {
+  const startedAt = Date.now();
+
+  // Validate + log warnings for MainVideo/ShortFormVideo jobs (thumbnail skipped).
+  if (job.composition !== "ThumbnailComp") {
+    const directionRaw = (job.inputProps as { direction?: unknown }).direction;
+    if (directionRaw) {
+      const parsed = DirectionV3.safeParse(directionRaw);
+      if (!parsed.success) {
+        throw new Error(
+          `direction JSON failed schema validation: ${parsed.error.message}`,
+        );
+      }
+      const report = validateAgainstTemplate(parsed.data);
+      if (report.warnings.length) {
+        logger.warn({ warnings: report.warnings }, "template validation warnings");
+      }
+      if (!report.valid) {
+        throw new Error(
+          `template validation failed: ${report.errors.join("; ")}`,
+        );
+      }
+    }
+  }
+
+  const serveUrl = await getBundle();
+
+  fs.mkdirSync(env.RENDER_TMP_DIR, { recursive: true });
+
+  const composition = await selectComposition({
+    serveUrl,
+    id: job.composition,
+    inputProps: job.inputProps,
+  });
+
+  if (job.composition === "ThumbnailComp") {
+    const ext = job.outputFormat === "jpeg" ? "jpg" : "png";
+    const outPath = path.join(env.RENDER_TMP_DIR, `${job.renderId}.${ext}`);
+    await renderStill({
+      composition: {
+        ...composition,
+        ...(job.width ? { width: job.width } : {}),
+        ...(job.height ? { height: job.height } : {}),
+      },
+      serveUrl,
+      output: outPath,
+      inputProps: job.inputProps,
+      imageFormat: ext === "jpg" ? "jpeg" : "png",
+    });
+
+    onProgress(1);
+    const upload = await uploadFile(
+      outPath,
+      `thumbnails/${job.renderId}.${ext}`,
+      ext === "jpg" ? "image/jpeg" : "image/png",
+    );
+    fs.unlinkSync(outPath);
+
+    return {
+      outputUrl: upload.url,
+      fileSize: upload.size,
+      duration: Math.round((Date.now() - startedAt) / 1000),
+    };
+  }
+
+  const ext = job.outputFormat === "webm" ? "webm" : "mp4";
+  const outPath = path.join(env.RENDER_TMP_DIR, `${job.renderId}.${ext}`);
+  const codec: Codec = (job.codec ?? "h264") as Codec;
+
+  // Map quality (0-100) to CRF (0-51 for h264, lower = better quality).
+  // quality=100 → CRF 1, quality=80 → CRF 18, quality=50 → CRF 28
+  const quality = job.quality ?? 80;
+  const crf = Math.max(1, Math.round(51 - (quality / 100) * 50));
+
+  await renderMedia({
+    composition,
+    serveUrl,
+    codec,
+    outputLocation: outPath,
+    inputProps: job.inputProps,
+    concurrency: env.RENDER_CONCURRENCY,
+    onProgress: ({ progress }) => onProgress(progress),
+    imageFormat: "png",
+    crf,
+    jpegQuality: Math.max(80, quality),
+  });
+
+  // Phase 2: post-process loudness normalization if target LUFS was specified.
+  const targetLufs = (job.inputProps as { direction?: { audio?: { loudness_target_lufs?: number } } })
+    .direction?.audio?.loudness_target_lufs;
+  if (typeof targetLufs === "number" && ext !== "webm") {
+    try {
+      logger.info({ targetLufs }, "normalizing loudness");
+      await normalizeLoudness(outPath, { targetLufs });
+    } catch (err) {
+      logger.warn({ err }, "loudnorm failed — continuing with un-normalized audio");
+    }
+  }
+
+  const upload = await uploadFile(
+    outPath,
+    `renders/${job.renderId}.${ext}`,
+    ext === "webm" ? "video/webm" : "video/mp4",
+  );
+
+  // Phase 2.5: optional stems export for NLE import (Filmora/Premiere/DaVinci).
+  let stems: RenderResult["stems"] | undefined;
+  if (job.exportStems && ext !== "webm") {
+    try {
+      const videoOnlyPath = path.join(env.RENDER_TMP_DIR, `${job.renderId}.video_only.${ext}`);
+      const audioWavPath = path.join(env.RENDER_TMP_DIR, `${job.renderId}.audio.wav`);
+      await Promise.all([
+        stripAudio(outPath, videoOnlyPath),
+        extractMixedAudio(outPath, audioWavPath),
+      ]);
+      const [videoUp, audioUp] = await Promise.all([
+        uploadFile(videoOnlyPath, `renders/${job.renderId}.video_only.${ext}`, `video/${ext === "mp4" ? "mp4" : "webm"}`),
+        uploadFile(audioWavPath, `renders/${job.renderId}.audio.wav`, "audio/wav"),
+      ]);
+      stems = { videoOnlyUrl: videoUp.url, audioMixUrl: audioUp.url };
+      fs.unlinkSync(videoOnlyPath);
+      fs.unlinkSync(audioWavPath);
+    } catch (err) {
+      logger.warn({ err }, "stems export failed — returning main MP4 only");
+    }
+  }
+
+  fs.unlinkSync(outPath);
+
+  return {
+    outputUrl: upload.url,
+    fileSize: upload.size,
+    duration: Math.round((Date.now() - startedAt) / 1000),
+    ...(stems ? { stems } : {}),
+  };
+}
