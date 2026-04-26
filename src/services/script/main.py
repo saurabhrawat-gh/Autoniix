@@ -52,6 +52,13 @@ class PackagingRequest(BaseModel):
 
 # ── Helpers ──────────────────────────────────────────────────
 
+def _safe_format(template: str, **kwargs) -> str:
+    """Replace {key} placeholders without failing on unknown/literal braces."""
+    for key, value in kwargs.items():
+        template = template.replace(f"{{{key}}}", str(value))
+    return template
+
+
 def _parse_json(text: str) -> dict:
     text = text.strip()
     text = re.sub(r"^```(?:json)?\s*", "", text)
@@ -127,15 +134,15 @@ async def generate_script(req: ScriptRequest):
         prompt = await _load_prompt("PRM_B1_SCRIPT_V1")
         script_llm = ProviderRegistry.get("llm.script")
 
-        system_prompt = prompt.get("system_prompt",
-            "You are a YouTube scriptwriter. Output valid JSON with segments.").format(
+        system_prompt = _safe_format(prompt.get("system_prompt",
+            "You are a YouTube scriptwriter. Output valid JSON with segments."),
             brand_voice=channel.get("brand_voice", ""),
             narrative_rhythm=channel.get("narrative_rhythm", ""),
             emotional_contract=channel.get("emotional_contract", ""),
             content_mode=req.content_mode,
         )
-        user_prompt = prompt.get("user_prompt_template",
-            "Channel: {channel_id}\nTopic: {topic}\nTitle: {title}").format(
+        user_prompt = _safe_format(prompt.get("user_prompt_template",
+            "Channel: {channel_id}\nTopic: {topic}\nTitle: {title}"),
             channel_id=req.channel_id,
             topic=req.topic,
             title=req.title or "Generate one",
@@ -190,12 +197,12 @@ async def generate_script(req: ScriptRequest):
         critique_prompt = await _load_prompt("PRM_B1_SCRIPT_CRITIQUE")
         critique_llm = ProviderRegistry.get("llm.qc")
 
-        crit_system = critique_prompt.get("system_prompt",
-            "Critique this script. Score 6 dimensions 1-10. Respond in JSON.").format(
-            min_dimension_score=6.0,
+        crit_system = _safe_format(critique_prompt.get("system_prompt",
+            "Critique this script. Score 8 dimensions 1-10. Respond in JSON."),
+            min_dimension_score=7.0,
         )
-        crit_user = critique_prompt.get("user_prompt_template",
-            "Script: {script_json}\nVoice: {brand_voice}").format(
+        crit_user = _safe_format(critique_prompt.get("user_prompt_template",
+            "Script: {script_json}\nVoice: {brand_voice}"),
             script_json=json.dumps(script_data)[:4000],
             brand_voice=channel.get("brand_voice", ""),
             target_audience=channel.get("target_audience", ""),
@@ -223,18 +230,28 @@ async def generate_script(req: ScriptRequest):
         script_data["critique"] = critique_data
         weak_dims = critique_data.get("weak_dimensions", [])
 
-        # ── Step 4: Rewrite Loop (max 2 retries) ────────
+        # ── Step 4: Rewrite Loop (max 3 retries, target score 9.0) ─
         rewrite_count = 0
-        while weak_dims and rewrite_count < 2:
+        target_overall_score = 9.0
+        overall_score = critique_data.get("overall_score", 7.0)
+
+        while (weak_dims or overall_score < target_overall_score) and rewrite_count < 3:
             rewrite_count += 1
-            logger.info("script.rewriting", attempt=rewrite_count, weak=weak_dims)
+            logger.info("script.rewriting", attempt=rewrite_count, weak=weak_dims,
+                         current_score=overall_score, target=target_overall_score)
 
             suggestions = critique_data.get("rewrite_suggestions", [])
             rewrite_prompt = (
-                f"Rewrite this script to fix these weak dimensions: {json.dumps(weak_dims)}\n"
-                f"Suggestions: {json.dumps(suggestions)}\n"
-                f"Keep the same JSON structure. Fix ONLY the weak areas.\n\n"
-                f"Current script:\n{json.dumps(script_data)[:4000]}"
+                f"REWRITE this script. Current overall score: {overall_score}/10. Target: {target_overall_score}/10.\n\n"
+                f"Weak dimensions to fix: {json.dumps(weak_dims)}\n"
+                f"Specific fixes required:\n{json.dumps(suggestions, indent=2)}\n\n"
+                f"RULES:\n"
+                f"- Keep the same JSON structure\n"
+                f"- Fix ALL weak dimensions listed above\n"
+                f"- Ensure every segment has scene_direction (50+ words), emphasis_words, text_overlay, emotion\n"
+                f"- Make scene directions cinematic and specific, not vague\n"
+                f"- Ensure narration is natural and conversational with zero filler\n\n"
+                f"Current script:\n{json.dumps(script_data)[:5000]}"
             )
 
             rw_result = await script_llm.complete(LLMRequest(
@@ -242,7 +259,7 @@ async def generate_script(req: ScriptRequest):
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": rewrite_prompt},
                 ],
-                temperature=0.6,
+                temperature=max(0.5, 0.7 - rewrite_count * 0.1),
                 max_tokens=4000,
                 response_format="json",
             ))
@@ -257,28 +274,37 @@ async def generate_script(req: ScriptRequest):
                 logger.warning("script.rewrite_json_failed", attempt=rewrite_count)
                 break
 
-            # Re-critique
+            # Re-critique with updated script
+            updated_crit_user = _safe_format(critique_prompt.get("user_prompt_template",
+                "Script: {script_json}\nVoice: {brand_voice}"),
+                script_json=json.dumps(script_data)[:4000],
+                brand_voice=channel.get("brand_voice", ""),
+                target_audience=channel.get("target_audience", ""),
+            )
+
             crit_result2 = await critique_llm.complete(LLMRequest(
                 messages=[
                     {"role": "system", "content": crit_system},
-                    {"role": "user", "content": crit_user.replace(
-                        json.dumps(script_data)[:4000], json.dumps(script_data)[:4000])},
+                    {"role": "user", "content": updated_crit_user},
                 ],
                 temperature=0.3,
                 max_tokens=2000,
                 response_format="json",
             ))
             total_cost += crit_result2.cost_usd
+            await _log_usage(f"script-{req.channel_id}", f"script_recritique_{rewrite_count}",
+                             crit_result2.provider, crit_result2.model, crit_result2.tokens_in,
+                             crit_result2.tokens_out, crit_result2.cost_usd, crit_result2.latency_ms)
 
             try:
                 critique_data = _parse_json(crit_result2.content)
                 script_data["critique"] = critique_data
                 weak_dims = critique_data.get("weak_dimensions", [])
+                overall_score = critique_data.get("overall_score", overall_score)
             except json.JSONDecodeError:
                 break
 
         script_data["rewrite_count"] = rewrite_count
-        overall_score = critique_data.get("overall_score", 7.0)
         script_data["script_structure_score"] = overall_score
 
         logger.info("script.generated",
@@ -319,12 +345,12 @@ async def generate_hooks(req: HookRequest):
         is_long = channel.get("content_mode", "short") == "long_form"
         hook_seconds = channel.get("hook_length_seconds_long", 8) if is_long else channel.get("hook_length_seconds_short", 2)
 
-        system_prompt = prompt.get("system_prompt",
-            "Generate 5 hooks. Respond in JSON.").format(
+        system_prompt = _safe_format(prompt.get("system_prompt",
+            "Generate 5 hooks. Respond in JSON."),
             hook_length_seconds=hook_seconds,
         )
-        user_prompt = prompt.get("user_prompt_template",
-            "Title: {title}\nTopic: {topic}").format(
+        user_prompt = _safe_format(prompt.get("user_prompt_template",
+            "Title: {title}\nTopic: {topic}"),
             title=req.title,
             topic=req.topic,
             narrative_rhythm=channel.get("narrative_rhythm", ""),

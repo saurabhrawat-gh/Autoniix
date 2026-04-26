@@ -36,6 +36,13 @@ class DirectionRequest(BaseModel):
 
 # ── Helpers ──────────────────────────────────────────────────
 
+def _safe_format(template: str, **kwargs) -> str:
+    """Replace {key} placeholders without failing on unknown/literal braces."""
+    for key, value in kwargs.items():
+        template = template.replace(f"{{{key}}}", str(value))
+    return template
+
+
 def _parse_json(text: str) -> dict:
     text = text.strip()
     text = re.sub(r"^```(?:json)?\s*", "", text)
@@ -102,6 +109,8 @@ async def generate_direction(req: DirectionRequest):
         aspect = "16:9" if is_long else "9:16"
         resolution = {"width": 1920, "height": 1080} if is_long else {"width": 1080, "height": 1920}
         fps = 30
+        brand_primary = channel.get("primary_color", "#1A237E")
+        brand_accent = channel.get("accent_color", "#FF6F00")
 
         # Build asset lookup
         asset_lookup = {}
@@ -131,13 +140,13 @@ async def generate_direction(req: DirectionRequest):
             for s in req.script_segments
         ], indent=2)[:4000]
 
-        system_prompt = prompt.get("system_prompt",
-            "Generate per-segment visual direction for Remotion rendering. Respond in JSON.").format(
+        system_prompt = _safe_format(prompt.get("system_prompt",
+            "Generate per-segment visual direction for Remotion rendering. Respond in JSON."),
             aspect=aspect,
             resolution=json.dumps(resolution),
         )
-        user_prompt = prompt.get("user_prompt_template",
-            "Segments: {segments}\nChannel style: {visual_style}").format(
+        user_prompt = _safe_format(prompt.get("user_prompt_template",
+            "Segments: {segments}\nChannel style: {visual_style}"),
             title=req.title,
             segments=segments_summary,
             visual_style=channel.get("visual_style", "cinematic"),
@@ -202,19 +211,59 @@ async def generate_direction(req: DirectionRequest):
                 else:
                     scene_preset = "scene.kinetic_typography"
 
+            # Extract rich direction fields from GPT output
+            gpt_camera = gpt_dir.get("camera", {})
+            gpt_text_strategy = gpt_dir.get("text_strategy", {})
+            gpt_bg_strategy = gpt_dir.get("background_strategy", {})
+            gpt_motion = gpt_dir.get("motion_design", {})
+            gpt_audio_cues = gpt_dir.get("audio_cues", {})
+            gpt_transition = gpt_dir.get("transition_in", {})
+
+            # Script-level emphasis_words and emotion
+            script_emphasis = seg.get("emphasis_words", [])
+            script_emotion = seg.get("emotion", "")
+
             remotion_seg = {
                 "id": seg_id,
                 "start_ms": cumulative_ms,
                 "duration_ms": duration_ms,
                 "section": seg.get("section", "body"),
+                "emotion": script_emotion,
                 "scene_preset": scene_preset,
+                "camera": {
+                    "type": gpt_camera.get("type", "static"),
+                    "speed": gpt_camera.get("speed", "medium"),
+                    "start_position": gpt_camera.get("start_position", "center"),
+                    "end_position": gpt_camera.get("end_position", ""),
+                },
                 "scene_overrides": {
                     "background_url": bg_url,
                     "label": text_overlay,
-                    "animation": gpt_dir.get("animation", "fade_in"),
-                    "zoom_direction": gpt_dir.get("zoom_direction", ""),
-                    "text_position": gpt_dir.get("text_position", "center"),
-                    "emphasis_words": gpt_dir.get("emphasis_words", []),
+                    "animation": gpt_dir.get("animation", gpt_text_strategy.get("animation", "fade_in")),
+                    "zoom_direction": gpt_camera.get("type", "") if "zoom" in gpt_camera.get("type", "") else "",
+                    "text_position": gpt_text_strategy.get("position", gpt_dir.get("text_position", "center")),
+                    "emphasis_words": gpt_text_strategy.get("emphasis_words", gpt_dir.get("emphasis_words", script_emphasis)),
+                },
+                "text_strategy": {
+                    "primary_text": gpt_text_strategy.get("primary_text", text_overlay),
+                    "font_size": gpt_text_strategy.get("font_size", "large"),
+                    "animation": gpt_text_strategy.get("animation", "fade_in"),
+                    "position": gpt_text_strategy.get("position", "center"),
+                    "timing_ms": gpt_text_strategy.get("timing_ms", {"appear": 0, "duration": duration_ms}),
+                    "emphasis_words": gpt_text_strategy.get("emphasis_words", []),
+                },
+                "background_strategy": {
+                    "type": gpt_bg_strategy.get("type", "asset" if bg_url else "gradient"),
+                    "primary_color": gpt_bg_strategy.get("primary_color", brand_primary),
+                    "overlay_opacity": gpt_bg_strategy.get("overlay_opacity", 0.0),
+                    "blur_amount": gpt_bg_strategy.get("blur_amount", 0),
+                },
+                "motion_design": {
+                    "elements": gpt_motion.get("elements", []),
+                },
+                "audio_cues": {
+                    "sfx": gpt_audio_cues.get("sfx", []),
+                    "music_shift": gpt_audio_cues.get("music_shift", "none"),
                 },
                 "narration": {
                     "text": narration,
@@ -222,8 +271,9 @@ async def generate_direction(req: DirectionRequest):
                     "audio_url": voice_url,
                 },
                 "transition_in": {
-                    "preset": f"trans.{transition}" if transition != "cut" else "trans.cut",
-                    "duration_ms": gpt_dir.get("transition_duration_ms", 500),
+                    "type": gpt_transition.get("type", f"{transition}" if transition != "cut" else "cut"),
+                    "preset": f"trans.{gpt_transition.get('type', transition)}" if gpt_transition.get('type', transition) != "cut" else "trans.cut",
+                    "duration_ms": gpt_transition.get("duration_ms", gpt_dir.get("transition_duration_ms", 500)),
                 },
                 "visual_effects": gpt_dir.get("visual_effects", []),
             }
@@ -231,8 +281,6 @@ async def generate_direction(req: DirectionRequest):
             cumulative_ms += duration_ms
 
         total_duration_s = cumulative_ms / 1000
-        brand_primary = channel.get("primary_color", "#1A237E")
-        brand_accent = channel.get("accent_color", "#FF6F00")
 
         direction_v3 = {
             "version": "3.0",
@@ -272,17 +320,56 @@ async def generate_direction(req: DirectionRequest):
             "segments": remotion_segments,
         }
 
-        # ── Step 3: Direction QC ─────────────────────────
-        direction_score = 8.0
+        # ── Step 3: Direction QC (enhanced) ───────────────
+        direction_score = 10.0
         issues = []
-        if not all(s.get("scene_overrides", {}).get("background_url") for s in remotion_segments):
-            missing_bg = sum(1 for s in remotion_segments if not s.get("scene_overrides", {}).get("background_url"))
-            if missing_bg > len(remotion_segments) * 0.3:
-                direction_score -= 1.0
-                issues.append(f"{missing_bg} segments missing background visuals")
+
+        # Check backgrounds
+        missing_bg = sum(1 for s in remotion_segments if not s.get("scene_overrides", {}).get("background_url"))
+        if missing_bg > 0:
+            penalty = min(2.0, missing_bg * 0.5)
+            direction_score -= penalty
+            issues.append(f"{missing_bg} segments missing background visuals")
+
+        # Check text_strategy completeness
+        missing_text = sum(1 for s in remotion_segments if not s.get("text_strategy", {}).get("primary_text"))
+        if missing_text > 0:
+            direction_score -= missing_text * 0.3
+            issues.append(f"{missing_text} segments missing text_strategy")
+
+        # Check emphasis_words
+        missing_emphasis = sum(1 for s in remotion_segments
+                               if not s.get("scene_overrides", {}).get("emphasis_words")
+                               and not s.get("text_strategy", {}).get("emphasis_words"))
+        if missing_emphasis > 0:
+            direction_score -= missing_emphasis * 0.2
+            issues.append(f"{missing_emphasis} segments missing emphasis_words")
+
+        # Check camera movement (should not all be static)
+        all_static = all(s.get("camera", {}).get("type", "static") == "static" for s in remotion_segments)
+        if all_static and len(remotion_segments) > 2:
+            direction_score -= 1.0
+            issues.append("All segments use static camera — needs visual variety")
+
+        # Check motion_design
+        no_motion = sum(1 for s in remotion_segments if not s.get("motion_design", {}).get("elements"))
+        if no_motion > len(remotion_segments) * 0.5:
+            direction_score -= 0.5
+            issues.append(f"{no_motion} segments have no motion_design elements")
+
+        # Check consecutive scene_preset repetition
+        presets = [s.get("scene_preset", "") for s in remotion_segments]
+        consecutive_repeats = sum(1 for i in range(1, len(presets)) if presets[i] == presets[i-1])
+        if consecutive_repeats > 0:
+            direction_score -= consecutive_repeats * 0.3
+            issues.append(f"{consecutive_repeats} consecutive scene_preset repeats")
+
+        # Duration check
         if total_duration_s < 10:
             direction_score -= 0.5
             issues.append("Very short total duration")
+
+        direction_score = max(1.0, round(direction_score, 1))
 
         direction_v3["direction_score"] = round(direction_score, 1)
         direction_v3["direction_issues"] = issues

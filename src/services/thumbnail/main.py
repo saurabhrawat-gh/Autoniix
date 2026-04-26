@@ -21,6 +21,7 @@ import src.providers.llm.openai_provider  # noqa: F401
 import src.providers.llm.openai_vision_provider  # noqa: F401
 from src.providers.registry import ProviderRegistry
 from src.providers.llm.base import LLMRequest
+from src.providers.storage.base import StorageUpload
 
 logger = structlog.get_logger()
 
@@ -37,6 +38,13 @@ class ThumbnailRequest(BaseModel):
 
 
 # ── Helpers ──────────────────────────────────────────────────
+
+def _safe_format(template: str, **kwargs) -> str:
+    """Replace {key} placeholders without failing on unknown/literal braces."""
+    for key, value in kwargs.items():
+        template = template.replace(f"{{{key}}}", str(value))
+    return template
+
 
 def _parse_json(text: str) -> dict:
     text = text.strip()
@@ -104,10 +112,10 @@ async def generate_thumbnail(req: ThumbnailRequest):
         prompt = await _load_prompt("PRM_B3_THUMBNAIL")
         concept_llm = ProviderRegistry.get("llm")
 
-        system_prompt = prompt.get("system_prompt",
-            "Generate 5 thumbnail concepts. Respond in JSON.").format(niche=niche)
-        user_prompt = prompt.get("user_prompt_template",
-            "Title: {title}\nThumbnail style: {thumbnail_style}").format(
+        system_prompt = _safe_format(prompt.get("system_prompt",
+            "Generate 5 thumbnail concepts. Respond in JSON."), niche=niche)
+        user_prompt = _safe_format(prompt.get("user_prompt_template",
+            "Title: {title}\nThumbnail style: {thumbnail_style}"),
             title=req.title,
             niche=niche,
             thumbnail_style=thumbnail_style,
@@ -146,8 +154,7 @@ async def generate_thumbnail(req: ThumbnailRequest):
         variants = []
         for i, concept in enumerate(top_concepts):
             dalle_prompt = concept.get("dall_e_prompt", f"YouTube thumbnail: {req.title}")
-            # Sanitize prompt (remove triggering content)
-            dalle_prompt = dalle_prompt[:900]
+            dalle_prompt = dalle_prompt[:1500]
 
             try:
                 img_result = await image_provider.generate(ImageRequest(
@@ -168,7 +175,8 @@ async def generate_thumbnail(req: ThumbnailRequest):
                             img_bytes = resp.content
 
                         key = f"thumbnails/{req.content_id}/variant_{i}.png"
-                        url = await storage.upload(key, io.BytesIO(img_bytes), content_type="image/png")
+                        sr = await storage.upload(StorageUpload(key=key, data=img_bytes, content_type="image/png"))
+                        url = sr.url
 
                         variants.append({
                             "variant_id": i,
@@ -176,7 +184,11 @@ async def generate_thumbnail(req: ThumbnailRequest):
                             "url": url,
                             "key": key,
                             "predicted_ctr": float(concept.get("predicted_ctr", 0.08)),
-                            "dall_e_prompt": dalle_prompt[:200],
+                            "text_overlay": concept.get("text_overlay", ""),
+                            "text_style": concept.get("text_style", {}),
+                            "composition_rule": concept.get("composition_rule", ""),
+                            "emotion_trigger": concept.get("emotion_trigger", ""),
+                            "dall_e_prompt": dalle_prompt[:500],
                             "revised_prompt": img_result.images[0].get("revised_prompt", ""),
                         })
 
@@ -186,57 +198,200 @@ async def generate_thumbnail(req: ThumbnailRequest):
         if not variants:
             raise HTTPException(status_code=500, detail="All thumbnail variants failed to generate")
 
-        # ── Step 3: GPT Vision QC (inspect best variant) ─
-        best_variant = variants[0]
-        vision_score = 7.5  # Default
-
+        # ── Step 3: GPT Vision QC (score each variant) ───
+        vision_llm = None
         try:
             vision_llm = ProviderRegistry.get("llm.vision")
+        except Exception as vis_err:
+            logger.warning("thumbnail.vision_provider_unavailable", error=str(vis_err))
+
+        if vision_llm:
             from src.providers.llm.openai_vision_provider import VisionRequest
 
-            vision_result = await vision_llm.complete(VisionRequest(
+            for variant in variants:
+                try:
+                    vision_result = await vision_llm.complete(VisionRequest(
+                        messages=[
+                            {"role": "system", "content": (
+                                "You are a ruthless YouTube thumbnail critic. You rarely give scores above 7. "
+                                "A score of 9+ means this thumbnail would outperform 95% of YouTube thumbnails in this niche.\n\n"
+                                "Score 1-10 on each dimension:\n"
+                                "- composition: Rule of thirds? Visual hierarchy? Clear focal point?\n"
+                                "- contrast: Do colors pop? Is there enough contrast between elements?\n"
+                                "- readability: Can text be read at phone screen size (small thumbnail)?\n"
+                                "- emotion: Does this trigger an emotional click response (curiosity, fear, surprise)?\n"
+                                "- uniqueness: Would this stand out in a feed of similar niche videos?\n"
+                                "- click_worthiness: Would YOU click this thumbnail?\n\n"
+                                "Calibration: 4=generic stock photo, 6=decent but forgettable, 8=professional, 9=would stop scrolling\n\n"
+                                'Respond in JSON: {"scores": {"composition": N, "contrast": N, "readability": N, '
+                                '"emotion": N, "uniqueness": N, "click_worthiness": N}, "overall_score": N, '
+                                '"issues": [], "mobile_readable": true/false, "improvement_suggestions": []}'
+                            )},
+                            {"role": "user", "content": (
+                                f"Title: {req.title}\n"
+                                f"Niche: {niche}\n"
+                                f"Target audience: {target_audience}\n"
+                                f"Text overlay: {variant.get('text_overlay', 'none')}\n"
+                                "Evaluate this thumbnail:"
+                            )},
+                        ],
+                        model="gpt-4o",
+                        temperature=0.2,
+                        max_tokens=1000,
+                        response_format="json",
+                        image_urls=[variant["url"]],
+                    ))
+                    total_cost += vision_result.cost_usd
+
+                    try:
+                        vision_data = _parse_json(vision_result.content)
+                        variant["vision_scores"] = vision_data.get("scores", {})
+                        variant["vision_issues"] = vision_data.get("issues", [])
+                        variant["mobile_readable"] = vision_data.get("mobile_readable", True)
+                        variant["thumbnail_score"] = float(vision_data.get("overall_score", 7.0))
+                        variant["improvement_suggestions"] = vision_data.get("improvement_suggestions", [])
+                    except json.JSONDecodeError:
+                        variant["thumbnail_score"] = 7.0
+
+                except Exception as vis_err:
+                    logger.warning("thumbnail.vision_qc_failed", variant=variant.get("variant_id"), error=str(vis_err))
+                    variant["thumbnail_score"] = 7.0
+        else:
+            for variant in variants:
+                variant["thumbnail_score"] = float(variant.get("predicted_ctr", 0.08)) * 100
+
+        # ── Step 4: Select best variant by vision score ───
+        variants.sort(key=lambda v: v.get("thumbnail_score", 0), reverse=True)
+        best_variant = variants[0]
+        best_score = best_variant.get("thumbnail_score", 7.0)
+
+        # ── Step 5: Regeneration loop if score < 9.0 (max 2 retries) ─
+        regen_count = 0
+        target_thumb_score = 9.0
+        while best_score < target_thumb_score and regen_count < 2:
+            regen_count += 1
+            logger.info("thumbnail.regenerating", attempt=regen_count,
+                         current_score=best_score, target=target_thumb_score)
+
+            regen_issues = best_variant.get("vision_issues", []) + best_variant.get("improvement_suggestions", [])
+            regen_system = _safe_format(prompt.get("system_prompt",
+                "Generate 5 thumbnail concepts. Respond in JSON."), niche=niche)
+            regen_user = (
+                f"REGENERATE thumbnail concepts. Previous best scored {best_score}/10.\n"
+                f"Issues to fix: {json.dumps(regen_issues)}\n"
+                f"Title: {req.title}\n"
+                f"Niche: {niche}\n"
+                f"Thumbnail style: {thumbnail_style}\n"
+                f"Primary color: {primary_color}\n"
+                f"Target audience: {target_audience}\n"
+                f"MAKE DALL-E PROMPTS MORE DETAILED (200+ words). Fix all issues above.\n"
+                f"Competitor patterns: bold text, dramatic lighting, face close-ups"
+            )
+
+            regen_result = await concept_llm.complete(LLMRequest(
                 messages=[
-                    {"role": "system", "content": (
-                        "You are a YouTube thumbnail expert. Evaluate this thumbnail for click-worthiness. "
-                        "Score 1-10 on: composition, contrast, readability, emotion, uniqueness. "
-                        "Respond in JSON: {\"scores\": {\"composition\": N, \"contrast\": N, \"readability\": N, "
-                        "\"emotion\": N, \"uniqueness\": N}, \"overall_score\": N, \"issues\": [], \"mobile_readable\": true/false}"
-                    )},
-                    {"role": "user", "content": (
-                        f"Title: {req.title}\n"
-                        f"Niche: {niche}\n"
-                        f"Target audience: {target_audience}\n"
-                        "Evaluate this thumbnail:"
-                    )},
+                    {"role": "system", "content": regen_system},
+                    {"role": "user", "content": regen_user},
                 ],
                 model="gpt-4o",
-                temperature=0.2,
-                max_tokens=1000,
+                temperature=0.9,
+                max_tokens=2000,
                 response_format="json",
-                image_urls=[best_variant["url"]],
             ))
-            total_cost += vision_result.cost_usd
+            total_cost += regen_result.cost_usd
 
             try:
-                vision_data = _parse_json(vision_result.content)
-                vision_score = float(vision_data.get("overall_score", 7.5))
-                best_variant["vision_scores"] = vision_data.get("scores", {})
-                best_variant["vision_issues"] = vision_data.get("issues", [])
-                best_variant["mobile_readable"] = vision_data.get("mobile_readable", True)
+                regen_data = _parse_json(regen_result.content)
+                regen_concepts = regen_data.get("concepts", [])
             except json.JSONDecodeError:
-                pass
+                break
 
-        except Exception as vis_err:
-            logger.warning("thumbnail.vision_qc_failed", error=str(vis_err))
+            if not regen_concepts:
+                break
 
-        # ── Step 4: Select winner ────────────────────────
-        best_variant["thumbnail_score"] = round(vision_score, 1)
+            regen_concepts.sort(key=lambda c: float(c.get("predicted_ctr", 0)), reverse=True)
+            regen_concept = regen_concepts[0]
+            regen_prompt_text = regen_concept.get("dall_e_prompt", f"YouTube thumbnail: {req.title}")[:1500]
+
+            try:
+                regen_img = await image_provider.generate(ImageRequest(
+                    prompt=regen_prompt_text,
+                    size="1792x1024",
+                    quality="hd",
+                    style="vivid",
+                    n=1,
+                ))
+                total_cost += regen_img.cost_usd
+
+                if regen_img.images:
+                    img_url = regen_img.images[0].get("url", "")
+                    if img_url:
+                        async with httpx.AsyncClient(timeout=30.0) as client:
+                            resp = await client.get(img_url)
+                            resp.raise_for_status()
+                            img_bytes = resp.content
+
+                        key = f"thumbnails/{req.content_id}/regen_{regen_count}.png"
+                        sr = await storage.upload(StorageUpload(key=key, data=img_bytes, content_type="image/png"))
+                        regen_url = sr.url
+
+                        regen_variant = {
+                            "variant_id": len(variants),
+                            "concept_name": regen_concept.get("concept_name", f"regen_{regen_count}"),
+                            "url": regen_url,
+                            "key": key,
+                            "predicted_ctr": float(regen_concept.get("predicted_ctr", 0.08)),
+                            "text_overlay": regen_concept.get("text_overlay", ""),
+                            "text_style": regen_concept.get("text_style", {}),
+                            "composition_rule": regen_concept.get("composition_rule", ""),
+                            "emotion_trigger": regen_concept.get("emotion_trigger", ""),
+                            "dall_e_prompt": regen_prompt_text[:500],
+                            "regenerated": True,
+                        }
+
+                        if vision_llm:
+                            try:
+                                from src.providers.llm.openai_vision_provider import VisionRequest
+                                v_res = await vision_llm.complete(VisionRequest(
+                                    messages=[
+                                        {"role": "system", "content": (
+                                            "Score this YouTube thumbnail 1-10. Calibration: 6=decent, 8=professional, 9=exceptional. "
+                                            'Respond in JSON: {"overall_score": N, "scores": {}, "issues": [], "mobile_readable": true/false}'
+                                        )},
+                                        {"role": "user", "content": f"Title: {req.title}\nNiche: {niche}\nEvaluate:"},
+                                    ],
+                                    model="gpt-4o",
+                                    temperature=0.2,
+                                    max_tokens=800,
+                                    response_format="json",
+                                    image_urls=[regen_url],
+                                ))
+                                total_cost += v_res.cost_usd
+                                v_data = _parse_json(v_res.content)
+                                regen_variant["thumbnail_score"] = float(v_data.get("overall_score", 7.0))
+                                regen_variant["vision_scores"] = v_data.get("scores", {})
+                                regen_variant["vision_issues"] = v_data.get("issues", [])
+                            except Exception:
+                                regen_variant["thumbnail_score"] = 7.0
+
+                        variants.append(regen_variant)
+
+                        if regen_variant.get("thumbnail_score", 0) > best_score:
+                            best_variant = regen_variant
+                            best_score = regen_variant["thumbnail_score"]
+
+            except Exception as regen_err:
+                logger.warning("thumbnail.regen_failed", attempt=regen_count, error=str(regen_err))
+                break
+
+        best_variant["thumbnail_score"] = round(best_score, 1)
 
         await _log_usage(req.content_id, "thumbnail", "multi", total_cost)
 
         logger.info("thumbnail.generated",
                      variants=len(variants),
-                     best_score=vision_score,
+                     best_score=best_score,
+                     regenerations=regen_count,
                      cost=round(total_cost, 4))
 
         return ServiceResponse(
@@ -245,7 +400,8 @@ async def generate_thumbnail(req: ThumbnailRequest):
                 "selected_thumbnail": best_variant,
                 "all_variants": variants,
                 "concepts_generated": len(concepts),
-                "thumbnail_score": round(vision_score, 1),
+                "regeneration_count": regen_count,
+                "thumbnail_score": round(best_score, 1),
                 "thumbnail_ctr_prediction": float(best_variant.get("predicted_ctr", 0.08)),
             },
             cost={"cost_usd": round(total_cost, 6), "provider": "multi"},

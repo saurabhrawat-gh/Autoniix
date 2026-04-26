@@ -20,6 +20,7 @@ import src.providers.storage.minio_provider  # noqa: F401
 import src.providers.llm.openai_provider  # noqa: F401
 from src.providers.registry import ProviderRegistry
 from src.providers.llm.base import LLMRequest
+from src.providers.storage.base import StorageUpload
 
 logger = structlog.get_logger()
 
@@ -295,7 +296,8 @@ async def generate_assets(req: AssetsRequest):
 
                     ext = "mp4" if "mp4" in selected_clip["url"] else "mp4"
                     key = f"assets/{req.content_id}/{seg_id}_stock.{ext}"
-                    url = await storage.upload(key, io.BytesIO(video_bytes), content_type=f"video/{ext}")
+                    sr = await storage.upload(StorageUpload(key=key, data=video_bytes, content_type=f"video/{ext}"))
+                    url = sr.url
 
                     manifest.append({
                         "segment_id": seg_id,
@@ -338,7 +340,8 @@ async def generate_assets(req: AssetsRequest):
                     img_bytes = resp.content
 
                 key = f"assets/{req.content_id}/{seg_id}_{i}.png"
-                url = await storage.upload(key, io.BytesIO(img_bytes), content_type="image/png")
+                sr = await storage.upload(StorageUpload(key=key, data=img_bytes, content_type="image/png"))
+                url = sr.url
                 assets.append({
                     "url": url, "key": key, "type": "generated_image",
                     "prompt": prompt[:200],

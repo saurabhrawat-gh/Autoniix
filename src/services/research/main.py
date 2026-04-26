@@ -44,6 +44,13 @@ class IdeationRequest(BaseModel):
 
 # ── Helpers ──────────────────────────────────────────────────
 
+def _safe_format(template: str, **kwargs) -> str:
+    """Replace {key} placeholders without failing on unknown/literal braces."""
+    for key, value in kwargs.items():
+        template = template.replace(f"{{{key}}}", str(value))
+    return template
+
+
 def _parse_json(text: str) -> dict:
     """Strip markdown fences and parse JSON."""
     text = text.strip()
@@ -332,10 +339,10 @@ async def research(req: ResearchRequest):
         reddit_text = "\n".join(f"- r/{r.get('subreddit','')}: {r['title']} (score: {r.get('score',0)})" for r in reddit_results[:8])
         news_text = "\n".join(f"- {r['title']}: {r.get('snippet','')}" for r in news_results[:5])
 
-        system_prompt = prompt.get("system_prompt", "You are a YouTube research analyst. Respond in valid JSON.").format(
+        system_prompt = _safe_format(prompt.get("system_prompt", "You are a YouTube research analyst. Respond in valid JSON."),
             niche=niche,
         )
-        user_prompt = prompt.get("user_prompt_template", "Channel: {channel_id}\nTopics: {topic_candidates}").format(
+        user_prompt = _safe_format(prompt.get("user_prompt_template", "Channel: {channel_id}\nTopics: {topic_candidates}"),
             channel_id=req.channel_id,
             channel_name=channel.get("channel_name", ""),
             niche=niche,
@@ -397,7 +404,7 @@ async def research(req: ResearchRequest):
             fc_prompt = await _load_prompt("PRM_B1_FACT_CHECK")
 
             fc_system = fc_prompt.get("system_prompt", "You are a fact-checking specialist. Respond in JSON.")
-            fc_user = fc_prompt.get("user_prompt_template", "Claims: {claims}\nSources: {sources}").format(
+            fc_user = _safe_format(fc_prompt.get("user_prompt_template", "Claims: {claims}\nSources: {sources}"),
                 claims=json.dumps(fact_claims),
                 sources=json.dumps(research_data.get("sources", [])),
             )
@@ -480,12 +487,12 @@ async def ideate(req: IdeationRequest):
         prompt = await _load_prompt("PRM_B1_IDEATION")
         llm = ProviderRegistry.get("llm.ideation")
 
-        system_prompt = prompt.get("system_prompt", "Generate 10 YouTube video concepts. Respond in JSON.").format(
+        system_prompt = _safe_format(prompt.get("system_prompt", "Generate 10 YouTube video concepts. Respond in JSON."),
             niche=channel.get("niche", ""),
             belief_territory=selected_belief["belief"] if selected_belief else channel.get("belief_territory", ""),
             intellectual_lens=channel.get("intellectual_lens", ""),
         )
-        user_prompt = prompt.get("user_prompt_template", "Channel: {channel_id}").format(
+        user_prompt = _safe_format(prompt.get("user_prompt_template", "Channel: {channel_id}"),
             channel_id=req.channel_id,
             brand_voice=channel.get("brand_voice", ""),
             narrative_rhythm=channel.get("narrative_rhythm", ""),

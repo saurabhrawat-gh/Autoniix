@@ -21,6 +21,7 @@ import src.providers.llm.openai_provider  # noqa: F401
 
 from src.providers.registry import ProviderRegistry
 from src.providers.llm.base import LLMRequest
+from src.providers.storage.base import StorageUpload
 
 logger = structlog.get_logger()
 
@@ -37,6 +38,13 @@ class VoiceRequest(BaseModel):
 
 
 # ── Helpers ──────────────────────────────────────────────────
+
+def _safe_format(template: str, **kwargs) -> str:
+    """Replace {key} placeholders without failing on unknown/literal braces."""
+    for key, value in kwargs.items():
+        template = template.replace(f"{{{key}}}", str(value))
+    return template
+
 
 def _parse_json(text: str) -> dict:
     text = text.strip()
@@ -138,8 +146,8 @@ async def synthesize(req: VoiceRequest):
 
         em_system = emotion_prompt.get("system_prompt",
             "Map emotions to voice parameters per sentence. Respond in JSON.")
-        em_user = emotion_prompt.get("user_prompt_template",
-            "Narration: {narration}\nVoice style: {brand_voice}").format(
+        em_user = _safe_format(emotion_prompt.get("user_prompt_template",
+            "Narration: {narration}\nVoice style: {brand_voice}"),
             narration=full_narration[:3000],
             brand_voice=channel.get("brand_voice", ""),
             pacing_style=channel.get("pacing_style", ""),
@@ -181,6 +189,8 @@ async def synthesize(req: VoiceRequest):
                 sent["speed"] = float(em.get("speed", 1.0))
                 sent["pause_after_ms"] = int(em.get("pause_after_ms", 300))
                 sent["emotion"] = em.get("emotion", "neutral")
+                sent["emphasis_words"] = em.get("emphasis_words", [])
+                sent["volume_shift"] = em.get("volume_shift", "normal")
             else:
                 sent["stability"] = default_stability
                 sent["similarity_boost"] = default_similarity
@@ -188,6 +198,8 @@ async def synthesize(req: VoiceRequest):
                 sent["speed"] = 1.0
                 sent["pause_after_ms"] = 300
                 sent["emotion"] = "neutral"
+                sent["emphasis_words"] = []
+                sent["volume_shift"] = "normal"
 
         # ── Step 3: Per-Sentence TTS ─────────────────────
         audio_chunks = []
@@ -222,7 +234,8 @@ async def synthesize(req: VoiceRequest):
         combined_audio = b"".join(chunk["audio_bytes"] for chunk in audio_chunks)
 
         key = f"voice/{req.content_id}/narration.mp3"
-        url = await storage.upload(key, io.BytesIO(combined_audio), content_type="audio/mpeg")
+        sr = await storage.upload(StorageUpload(key=key, data=combined_audio, content_type="audio/mpeg"))
+        url = sr.url
 
         # Also upload per-segment audio
         segment_urls = {}
@@ -232,15 +245,15 @@ async def synthesize(req: VoiceRequest):
             if chunk["segment_id"] != current_seg:
                 if current_seg and seg_audio:
                     seg_key = f"voice/{req.content_id}/{current_seg}.mp3"
-                    seg_url = await storage.upload(seg_key, io.BytesIO(seg_audio), content_type="audio/mpeg")
-                    segment_urls[current_seg] = seg_url
+                    seg_sr = await storage.upload(StorageUpload(key=seg_key, data=seg_audio, content_type="audio/mpeg"))
+                    segment_urls[current_seg] = seg_sr.url
                 current_seg = chunk["segment_id"]
                 seg_audio = b""
             seg_audio += chunk["audio_bytes"]
         if current_seg and seg_audio:
             seg_key = f"voice/{req.content_id}/{current_seg}.mp3"
-            seg_url = await storage.upload(seg_key, io.BytesIO(seg_audio), content_type="audio/mpeg")
-            segment_urls[current_seg] = seg_url
+            seg_sr = await storage.upload(StorageUpload(key=seg_key, data=seg_audio, content_type="audio/mpeg"))
+            segment_urls[current_seg] = seg_sr.url
 
         # ── Step 5: Validation ───────────────────────────
         word_count = sum(len(s["text"].split()) for s in all_sentences)
@@ -255,12 +268,38 @@ async def synthesize(req: VoiceRequest):
             "total_chars": total_chars,
         }
 
-        # ── Step 6: Quality score (simple heuristic) ─────
-        quality_score = 8.0  # Base score
+        # ── Step 6: Quality score (enhanced) ──────────
+        quality_score = 10.0
+
+        # WPM check
         if not validation["wpm_ok"]:
-            quality_score -= 1.0
+            quality_score -= 1.5
+            validation["wpm_issue"] = f"WPM {wpm:.0f} outside 130-170 range"
+
+        # Duration check
         if total_duration < 10:
             quality_score -= 0.5
+
+        # Emotion variety check
+        unique_emotions = set(s.get("emotion", "neutral") for s in all_sentences)
+        if len(unique_emotions) <= 1:
+            quality_score -= 1.0
+            validation["emotion_variety"] = "low — only one emotion detected"
+        elif len(unique_emotions) <= 2:
+            quality_score -= 0.5
+            validation["emotion_variety"] = "moderate — only 2 emotions"
+        else:
+            validation["emotion_variety"] = f"good — {len(unique_emotions)} distinct emotions"
+
+        # Segment coverage check
+        covered_segments = set(s["segment_id"] for s in all_sentences)
+        total_segments = set(seg.get("id", "") for seg in req.script_segments if seg.get("narration"))
+        missing_segs = total_segments - covered_segments
+        if missing_segs:
+            quality_score -= len(missing_segs) * 0.5
+            validation["missing_segments"] = list(missing_segs)
+
+        quality_score = max(1.0, round(quality_score, 1))
 
         # Log usage
         await _log_usage(req.content_id, "voice", tts_provider_name, "tts",
@@ -274,7 +313,15 @@ async def synthesize(req: VoiceRequest):
             "word_count": word_count,
             "sentence_count": len(all_sentences),
             "emotion_map": [
-                {"segment_id": s["segment_id"], "text": s["text"][:50], "emotion": s.get("emotion", "neutral")}
+                {
+                    "segment_id": s["segment_id"],
+                    "text": s["text"][:80],
+                    "emotion": s.get("emotion", "neutral"),
+                    "emphasis_words": s.get("emphasis_words", []),
+                    "volume_shift": s.get("volume_shift", "normal"),
+                    "speed": s.get("speed", 1.0),
+                    "pause_after_ms": s.get("pause_after_ms", 300),
+                }
                 for s in all_sentences
             ],
             "validation": validation,

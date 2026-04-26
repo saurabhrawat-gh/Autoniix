@@ -69,6 +69,73 @@ async def assemble(req: AssemblyRequest):
         if not direction_v3 or not direction_v3.get("segments"):
             raise HTTPException(status_code=400, detail="No direction_v3 data provided")
 
+        segments = direction_v3.get("segments", [])
+
+        # ── Pre-Render Sync Validation ────────────────────
+        sync_issues = []
+
+        # 1. Timeline continuity: no gaps or overlaps
+        for i, seg in enumerate(segments):
+            if i == 0:
+                if seg.get("start_ms", 0) != 0:
+                    sync_issues.append(f"Segment {seg.get('id')}: start_ms should be 0, got {seg.get('start_ms')}")
+            else:
+                prev = segments[i - 1]
+                expected_start = prev.get("start_ms", 0) + prev.get("duration_ms", 0)
+                actual_start = seg.get("start_ms", 0)
+                if actual_start != expected_start:
+                    sync_issues.append(
+                        f"Segment {seg.get('id')}: timeline gap/overlap — "
+                        f"expected start_ms={expected_start}, got {actual_start}"
+                    )
+
+        # 2. Voice-text alignment: every segment with narration must have audio_url
+        for seg in segments:
+            narration = seg.get("narration", {})
+            if isinstance(narration, dict):
+                text = narration.get("text", "")
+                audio_url = narration.get("audio_url", "")
+                if text and not audio_url:
+                    sync_issues.append(f"Segment {seg.get('id')}: has narration text but no audio_url")
+                if audio_url and not text:
+                    sync_issues.append(f"Segment {seg.get('id')}: has audio_url but no narration text")
+
+        # 3. Asset coverage: check background_url or background_strategy
+        for seg in segments:
+            bg_url = seg.get("scene_overrides", {}).get("background_url", "")
+            bg_strategy = seg.get("background_strategy", {}).get("type", "")
+            if not bg_url and bg_strategy not in ("gradient", "solid"):
+                sync_issues.append(f"Segment {seg.get('id')}: no background asset and no fallback strategy")
+
+        # 4. Text strategy presence
+        missing_text_strategy = sum(1 for s in segments if not s.get("text_strategy", {}).get("primary_text"))
+        if missing_text_strategy > 0:
+            sync_issues.append(f"{missing_text_strategy} segments missing text_strategy.primary_text")
+
+        # 5. Audio master validation
+        audio_master = direction_v3.get("audio_master", {})
+        if not audio_master.get("narration_url"):
+            sync_issues.append("No master narration_url in audio_master")
+
+        # 6. Duration sanity
+        total_duration_ms = sum(s.get("duration_ms", 0) for s in segments)
+        target_duration_s = direction_v3.get("meta", {}).get("duration_target_seconds", 0)
+        if target_duration_s and abs(total_duration_ms / 1000 - target_duration_s) > target_duration_s * 0.2:
+            sync_issues.append(
+                f"Duration mismatch: segments total {total_duration_ms/1000:.1f}s, "
+                f"target {target_duration_s:.1f}s"
+            )
+
+        if sync_issues:
+            logger.warning("assembly.sync_issues", issues=sync_issues, count=len(sync_issues))
+            direction_v3["sync_validation"] = {
+                "passed": len(sync_issues) == 0,
+                "issues": sync_issues,
+                "issue_count": len(sync_issues),
+            }
+        else:
+            direction_v3["sync_validation"] = {"passed": True, "issues": [], "issue_count": 0}
+
         # ── Step 1: Submit render job to Remotion API ────
         remotion_url = settings.remotion_base_url
         render_payload = {
