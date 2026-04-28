@@ -100,7 +100,16 @@ INSERT INTO system_config (config_key, config_value, description, updated_by) VA
     -- Brand Identity
     ('brand_consistency_min',          '7.0',    'Min brand consistency score', 'setup_script'),
     ('brand_evolution_check_interval', '14',     'Days between brand evolution checks', 'setup_script'),
-    ('brand_auto_evolve',             'false',   'Auto-apply brand evolution suggestions', 'setup_script')
+    ('brand_auto_evolve',             'false',   'Auto-apply brand evolution suggestions', 'setup_script'),
+    -- Dashboard
+    ('dashboard_admin_password',      'admin',   'Admin dashboard password (change in production!)', 'setup_script'),
+    ('dashboard_session_ttl_hours',   '24',      'Dashboard session TTL in hours', 'setup_script'),
+    ('telegram_bot_token',            '',        'Telegram bot token for notifications (leave empty to disable)', 'setup_script'),
+    ('telegram_chat_id',              '',        'Telegram chat ID for notifications', 'setup_script'),
+    ('notify_on_complete',            'true',    'Send notification when video completes', 'setup_script'),
+    ('notify_on_failure',             'true',    'Send notification when video fails', 'setup_script'),
+    ('notify_on_review',              'true',    'Send notification when human review needed', 'setup_script'),
+    ('notify_daily_summary',          'true',    'Send daily summary notification', 'setup_script')
 ON CONFLICT (config_key) DO UPDATE SET
     config_value = EXCLUDED.config_value,
     description = EXCLUDED.description,

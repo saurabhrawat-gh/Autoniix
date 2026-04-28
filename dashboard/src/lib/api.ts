@@ -1,0 +1,112 @@
+const BASE = process.env.NEXT_PUBLIC_API_URL || '';
+
+function getToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('dashboard_token');
+}
+
+export function setToken(token: string) {
+  localStorage.setItem('dashboard_token', token);
+}
+
+export function clearToken() {
+  localStorage.removeItem('dashboard_token');
+}
+
+export function isLoggedIn(): boolean {
+  return !!getToken();
+}
+
+async function request<T = any>(path: string, opts: RequestInit = {}): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(opts.headers as Record<string, string> || {}),
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${BASE}${path}`, { ...opts, headers });
+  if (res.status === 401) {
+    clearToken();
+    if (typeof window !== 'undefined') window.location.href = '/login';
+    throw new Error('Unauthorized');
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || body.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export const api = {
+  // Auth
+  login: (password: string) =>
+    request<{ token: string; expires_in: number }>('/api/auth/login', {
+      method: 'POST', body: JSON.stringify({ password }),
+    }),
+  logout: () => request('/api/auth/logout', { method: 'POST' }),
+  me: () => request('/api/auth/me'),
+
+  // Stats
+  stats: () => request('/api/stats'),
+
+  // Channels
+  channels: () => request('/api/channels'),
+  createChannel: (data: any) =>
+    request('/api/channels', { method: 'POST', body: JSON.stringify(data) }),
+  updateChannel: (id: string, data: any) =>
+    request(`/api/channels/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  enableChannel: (id: string) =>
+    request(`/api/channels/${id}/enable`, { method: 'PUT' }),
+  disableChannel: (id: string) =>
+    request(`/api/channels/${id}/disable`, { method: 'PUT' }),
+
+  // Workflow control
+  trigger: (id: string, data: any = {}) =>
+    request(`/api/channels/${id}/trigger`, { method: 'POST', body: JSON.stringify(data) }),
+  pause: (id: string) =>
+    request(`/api/channels/${id}/pause`, { method: 'POST' }),
+  resume: (id: string) =>
+    request(`/api/channels/${id}/resume`, { method: 'POST' }),
+  stop: (id: string) =>
+    request(`/api/channels/${id}/stop`, { method: 'POST' }),
+
+  // Jobs
+  jobs: (channelId: string, contentMode?: string) => {
+    const params = new URLSearchParams();
+    if (contentMode) params.set('content_mode', contentMode);
+    return request(`/api/channels/${channelId}/jobs?${params}`);
+  },
+  jobProgress: (contentId: string) =>
+    request(`/api/jobs/${contentId}/progress`),
+  jobMetadata: (contentId: string) =>
+    request(`/api/jobs/${contentId}/metadata`),
+  jobOutput: (contentId: string) =>
+    request(`/api/jobs/${contentId}/output`),
+
+  // Workflow status
+  workflowStatus: (channelId: string) =>
+    request(`/api/channels/${channelId}/workflow-status`),
+
+  // Active jobs (all in-progress)
+  activeJobs: () => request('/api/jobs/active'),
+
+  // Job approval / rejection
+  approveJob: (contentId: string) =>
+    request(`/api/jobs/${contentId}/approve`, { method: 'POST' }),
+  rejectJob: (contentId: string) =>
+    request(`/api/jobs/${contentId}/reject`, { method: 'POST' }),
+
+  // Config
+  config: () => request('/api/config'),
+  updateConfig: (key: string, value: string) =>
+    request('/api/config', { method: 'PUT', body: JSON.stringify({ config_key: key, config_value: value }) }),
+  emergencyStop: () => request('/api/emergency-stop', { method: 'POST' }),
+  emergencyResume: () => request('/api/emergency-resume', { method: 'POST' }),
+};
+
+export function wsProgress(contentId: string): WebSocket {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = process.env.NEXT_PUBLIC_WS_URL || `${proto}//${window.location.host}`;
+  return new WebSocket(`${host}/api/ws/progress/${contentId}`);
+}

@@ -21,6 +21,7 @@ services:
     volumes:
       - pg_app_data:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./scripts/seed-data.sql:/docker-entrypoint-initdb.d/02-seed.sql
     ports:
       - "5433:5432"
     networks: [yt-net]
@@ -473,6 +474,56 @@ services:
       postgres-app:
         condition: service_healthy
       redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ── Dashboard ──────────────────────────────────────────
+
+  dashboard-bff:
+    build: .
+    command: uvicorn src.services.dashboard.main:app --host 0.0.0.0 --port 8020
+    env_file: .env
+    ports:
+      - "8020:8020"
+    networks: [yt-net]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8020/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      postgres-app:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  dashboard-ui:
+    build: ./dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=
+      - NEXT_PUBLIC_WS_URL=
+      - API_INTERNAL_URL=http://dashboard-bff:8020
+    networks: [yt-net]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      dashboard-bff:
         condition: service_healthy
     restart: unless-stopped
     deploy:

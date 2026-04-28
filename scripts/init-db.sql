@@ -74,6 +74,8 @@ CREATE TABLE IF NOT EXISTS channels (
     target_avd_percent      DECIMAL(5,3)  DEFAULT 0.450,
     max_daily_api_spend     DECIMAL(8,2)  DEFAULT 5.00,
     human_review_required   VARCHAR(50)   DEFAULT 'first_10',
+    auto_upload             BOOLEAN       DEFAULT FALSE,
+    schedule_config         JSONB         DEFAULT '{"enabled": true}',
     status                  VARCHAR(20)   DEFAULT 'active',
     created_at              TIMESTAMPTZ   DEFAULT NOW(),
     updated_at              TIMESTAMPTZ   DEFAULT NOW()
@@ -1058,6 +1060,25 @@ CREATE TABLE IF NOT EXISTS model_health (
 CREATE INDEX IF NOT EXISTS idx_intel_metrics_service   ON intelligence_metrics(service_name, decision_point);
 CREATE INDEX IF NOT EXISTS idx_intel_metrics_time      ON intelligence_metrics(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_model_health_name       ON model_health(model_name, niche);
+
+-- ── Dashboard: Job Events (per-step progress tracking) ──────
+-- ══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS job_events (
+    id              BIGSERIAL     PRIMARY KEY,
+    content_id      VARCHAR(100)  NOT NULL,
+    channel_id      VARCHAR(20),
+    phase           VARCHAR(50)   NOT NULL,
+    status          VARCHAR(20)   NOT NULL,
+    detail          JSONB         DEFAULT '{}',
+    cost_usd        DECIMAL(10,6) DEFAULT 0,
+    duration_ms     INTEGER       DEFAULT 0,
+    created_at      TIMESTAMPTZ   DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_events_content   ON job_events(content_id);
+CREATE INDEX IF NOT EXISTS idx_job_events_channel   ON job_events(channel_id);
+CREATE INDEX IF NOT EXISTS idx_job_events_created   ON job_events(created_at DESC);
 
 -- ── pgvector Indexes (IVFFlat for ANN search) ─────────────
 -- These require data to build; create with small nlist for initial use

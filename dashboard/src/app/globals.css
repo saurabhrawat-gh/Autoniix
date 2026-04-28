@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* ── Light theme (default) ─────────────────────── */
+:root {
+  --surface-0: 255 255 255;
+  --surface-1: 247 248 249;
+  --surface-2: 240 241 242;
+  --surface-3: 224 225 227;
+  --accent: 0 151 111;
+  --accent-hover: 0 65 48;
+  --accent-light: 230 249 244;
+  --accent-muted: 77 228 188;
+  --secondary: 71 48 135;
+  --secondary-light: 240 236 249;
+  --content-primary: 30 32 38;
+  --content-secondary: 67 68 73;
+  --content-tertiary: 120 121 125;
+  --content-inverse: 255 255 255;
+  --border: 224 225 227;
+  --border-hover: 210 210 212;
+  --status-success: 0 120 47;
+  --status-warning: 161 83 5;
+  --status-error: 162 22 22;
+  --status-info: 11 104 179;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-elevated: 0 10px 25px -5px rgba(0,0,0,0.08), 0 8px 10px -6px rgba(0,0,0,0.04);
+  --shadow-glow: 0 0 20px rgba(0,151,111,0.15);
+}
+
+/* ── Dark theme ────────────────────────────────── */
+.dark {
+  --surface-0: 30 32 38;
+  --surface-1: 37 39 45;
+  --surface-2: 48 49 55;
+  --surface-3: 58 59 64;
+  --accent: 0 216 159;
+  --accent-hover: 77 228 188;
+  --accent-light: 0 71 81;
+  --accent-muted: 0 151 111;
+  --secondary: 102 69 193;
+  --secondary-light: 31 21 58;
+  --content-primary: 255 255 255;
+  --content-secondary: 210 210 212;
+  --content-tertiary: 156 157 160;
+  --content-inverse: 30 32 38;
+  --border: 58 59 64;
+  --border-hover: 67 68 73;
+  --status-success: 77 197 123;
+  --status-warning: 252 193 95;
+  --status-error: 239 99 99;
+  --status-info: 16 148 255;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-elevated: 0 10px 25px -5px rgba(0,0,0,0.5), 0 8px 10px -6px rgba(0,0,0,0.3);
+  --shadow-glow: 0 0 20px rgba(0,216,159,0.2);
+}
+
+@layer base {
+  body {
+    @apply bg-surface-1 text-content-primary font-sans antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  ::selection {
+    @apply bg-accent-light text-accent;
+  }
+
+  input, select, textarea {
+    @apply w-full bg-surface-0 border border-border text-content-primary rounded-lg
+           px-3.5 py-2.5 text-sm transition-all
+           placeholder:text-content-tertiary
+           focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/10;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface-0 border border-border rounded-xl shadow-card;
+  }
+  .card-elevated {
+    @apply bg-surface-0 border border-border rounded-xl shadow-elevated;
+  }
+  .btn-primary {
+    @apply bg-accent hover:bg-accent-hover text-content-inverse font-medium text-sm
+           rounded-lg px-4 py-2.5 transition-all hover:shadow-glow
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply bg-surface-0 border border-border hover:border-border-hover
+           text-content-secondary hover:text-content-primary font-medium text-sm
+           rounded-lg px-4 py-2.5 transition-all;
+  }
+  .btn-ghost {
+    @apply text-content-tertiary hover:text-content-primary hover:bg-surface-2
+           font-medium text-sm rounded-lg px-3 py-2 transition-all;
+  }
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium;
+  }
+}

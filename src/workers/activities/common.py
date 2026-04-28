@@ -123,6 +123,77 @@ async def acquire_channel_lock(channel_id: str) -> bool:
 
 
 @activity.defn
+async def emit_job_event(content_id: str, channel_id: str, phase: str,
+                          status: str, detail: dict | None = None,
+                          cost_usd: float = 0) -> None:
+    """Insert a row into job_events for dashboard progress tracking."""
+    logger.info("activity.emit_job_event", content_id=content_id, phase=phase, status=status)
+    try:
+        pool = await get_pool()
+        await pool.execute(
+            "INSERT INTO job_events (content_id, channel_id, phase, status, detail, cost_usd) "
+            "VALUES ($1, $2, $3, $4, $5::jsonb, $6)",
+            content_id, channel_id, phase, status,
+            __import__("json").dumps(detail or {}), float(cost_usd),
+        )
+    except Exception as exc:
+        logger.warning("activity.emit_job_event.failed", error=str(exc))
+
+
+@activity.defn
 async def send_notification(payload: dict) -> None:
-    """Send notification (webhook, email, etc). Stub for now."""
+    """Send notification via Telegram (if configured) or log."""
     logger.info("activity.notification", type=payload.get("type"), channel=payload.get("channel_id"))
+    try:
+        pool = await get_pool()
+        token_row = await pool.fetchrow(
+            "SELECT config_value FROM system_config WHERE config_key = 'telegram_bot_token'"
+        )
+        chat_row = await pool.fetchrow(
+            "SELECT config_value FROM system_config WHERE config_key = 'telegram_chat_id'"
+        )
+        token = token_row["config_value"] if token_row else ""
+        chat_id = chat_row["config_value"] if chat_row else ""
+
+        if not token or not chat_id:
+            logger.info("activity.notification.skip", reason="telegram not configured")
+            return
+
+        import httpx
+        notif_type = payload.get("type", "info")
+        channel_id = payload.get("channel_id", "")
+        content_id = payload.get("content_id", "")
+
+        if notif_type == "human_review_required":
+            text = (
+                f"\u26a0\ufe0f *Review Needed*\n"
+                f"Channel: `{channel_id}`\n"
+                f"Video: `{content_id}`\n"
+                f"Topic: {payload.get('topic', 'N/A')}\n"
+                f"Score: {payload.get('composite_score', 'N/A')}"
+            )
+        elif notif_type == "video_completed":
+            text = (
+                f"\u2705 *Video Completed*\n"
+                f"Channel: `{channel_id}`\n"
+                f"Video: `{content_id}`\n"
+                f"Cost: ${payload.get('cost', 0):.2f}"
+            )
+        elif notif_type == "video_failed":
+            text = (
+                f"\u274c *Video Failed*\n"
+                f"Channel: `{channel_id}`\n"
+                f"Video: `{content_id}`\n"
+                f"Error: {payload.get('error', 'Unknown')}"
+            )
+        else:
+            text = f"\u2139\ufe0f *{notif_type}*\n{payload}"
+
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
+                timeout=10,
+            )
+    except Exception as exc:
+        logger.warning("activity.notification.failed", error=str(exc))
