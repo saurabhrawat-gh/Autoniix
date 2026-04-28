@@ -18,6 +18,15 @@ elevenlabs>=1.0.0
 # ── Research / Data ──────────────────────────────
 wikipedia>=1.4.0
 google-api-python-client>=2.130.0
+pytrends>=4.9.0
+# ── ML / Embeddings (Research Intelligence) ─────
+sentence-transformers>=2.7.0
+scikit-learn>=1.5.0
+numpy>=1.26.0
+# ── NLP / Script Intelligence ───────────────────
+spacy>=3.7.0
+textstat>=0.7.3
+nltk>=3.8.0
 # ── Google Sheets Sync ───────────────────────────
 gspread>=6.0.0
 google-auth>=2.29.0

@@ -1,4 +1,8 @@
 -- ============================================================
+-- Enable pgvector extension for embeddings
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- ============================================================
 -- YT Automation — Full Database Schema
 -- Matches 10 Google Sheets tabs: Channel_DNA (63 cols),
 -- Execution_Locks, Belief_Registry, Output_Log, Feedback_Loop,
@@ -307,6 +311,166 @@ CREATE TABLE IF NOT EXISTS audit_log (
     created_at       TIMESTAMPTZ   DEFAULT NOW()
 );
 
+-- ── Research Intelligence: Competitor Channels ────────────
+CREATE TABLE IF NOT EXISTS competitor_channels (
+    id                  BIGSERIAL     PRIMARY KEY,
+    channel_id          VARCHAR(20)   REFERENCES channels(channel_id),
+    competitor_yt_id    VARCHAR(50)   NOT NULL,
+    competitor_name     VARCHAR(255),
+    niche               VARCHAR(100),
+    subscriber_count    INTEGER       DEFAULT 0,
+    video_count         INTEGER       DEFAULT 0,
+    avg_views           INTEGER       DEFAULT 0,
+    avg_view_velocity   DECIMAL(10,2) DEFAULT 0,
+    outlier_ratio       DECIMAL(5,3)  DEFAULT 0,
+    last_scraped_at     TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ   DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ   DEFAULT NOW(),
+    UNIQUE(channel_id, competitor_yt_id)
+);
+
+-- ── Research Intelligence: Competitor Videos ──────────────
+CREATE TABLE IF NOT EXISTS competitor_videos (
+    id                  BIGSERIAL     PRIMARY KEY,
+    competitor_yt_id    VARCHAR(50)   NOT NULL,
+    video_yt_id         VARCHAR(50)   UNIQUE NOT NULL,
+    title               TEXT,
+    description         TEXT,
+    tags                TEXT,
+    published_at        TIMESTAMPTZ,
+    view_count          INTEGER       DEFAULT 0,
+    like_count          INTEGER       DEFAULT 0,
+    comment_count       INTEGER       DEFAULT 0,
+    duration_seconds    INTEGER       DEFAULT 0,
+    view_velocity_24h   INTEGER       DEFAULT 0,
+    view_velocity_48h   INTEGER       DEFAULT 0,
+    is_outlier          BOOLEAN       DEFAULT FALSE,
+    outlier_multiplier  DECIMAL(6,2)  DEFAULT 1.0,
+    niche               VARCHAR(100),
+    title_embedding     vector(384),
+    created_at          TIMESTAMPTZ   DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ   DEFAULT NOW()
+);
+
+-- ── Research Intelligence: Trend Signals ──────────────────
+CREATE TABLE IF NOT EXISTS trend_signals (
+    id                  BIGSERIAL     PRIMARY KEY,
+    niche               VARCHAR(100)  NOT NULL,
+    keyword             TEXT          NOT NULL,
+    source              VARCHAR(50)   NOT NULL,
+    signal_type         VARCHAR(50)   NOT NULL,
+    momentum_score      DECIMAL(5,2)  DEFAULT 0,
+    volume_index        INTEGER       DEFAULT 0,
+    related_queries     JSONB         DEFAULT '[]',
+    rising_queries      JSONB         DEFAULT '[]',
+    burst_score         DECIMAL(5,2)  DEFAULT 0,
+    is_burst            BOOLEAN       DEFAULT FALSE,
+    snapshot_date       DATE          DEFAULT CURRENT_DATE,
+    raw_data            JSONB         DEFAULT '{}',
+    created_at          TIMESTAMPTZ   DEFAULT NOW(),
+    UNIQUE(niche, keyword, source, snapshot_date)
+);
+
+-- ── Research Intelligence: Topic Embeddings (pgvector) ────
+CREATE TABLE IF NOT EXISTS topic_embeddings (
+    id                  BIGSERIAL     PRIMARY KEY,
+    content_id          VARCHAR(100),
+    channel_id          VARCHAR(20)   REFERENCES channels(channel_id),
+    text_type           VARCHAR(30)   NOT NULL,
+    text_content        TEXT          NOT NULL,
+    embedding           vector(384)   NOT NULL,
+    simhash             BIGINT,
+    created_at          TIMESTAMPTZ   DEFAULT NOW()
+);
+
+-- ── Research Intelligence: Research Features (for ML) ─────
+CREATE TABLE IF NOT EXISTS research_features (
+    id                  BIGSERIAL     PRIMARY KEY,
+    content_id          VARCHAR(100)  NOT NULL,
+    channel_id          VARCHAR(20)   REFERENCES channels(channel_id),
+    topic               TEXT,
+    freshness_score     DECIMAL(5,3)  DEFAULT 0,
+    novelty_score       DECIMAL(5,3)  DEFAULT 0,
+    trend_momentum      DECIMAL(5,3)  DEFAULT 0,
+    supply_demand_gap   DECIMAL(5,3)  DEFAULT 0,
+    hookability_score   DECIMAL(5,3)  DEFAULT 0,
+    competitor_gap      DECIMAL(5,3)  DEFAULT 0,
+    burst_score         DECIMAL(5,3)  DEFAULT 0,
+    seasonality_score   DECIMAL(5,3)  DEFAULT 0,
+    phrase_novelty      DECIMAL(5,3)  DEFAULT 0,
+    opportunity_score   DECIMAL(5,3)  DEFAULT 0,
+    model_predicted     DECIMAL(5,3),
+    bandit_arm          VARCHAR(100),
+    was_selected        BOOLEAN       DEFAULT FALSE,
+    created_at          TIMESTAMPTZ   DEFAULT NOW()
+);
+
+-- ── Research Intelligence: Performance Outcomes (labels) ──
+CREATE TABLE IF NOT EXISTS performance_outcomes (
+    id                  BIGSERIAL     PRIMARY KEY,
+    content_id          VARCHAR(100)  UNIQUE NOT NULL,
+    channel_id          VARCHAR(20)   REFERENCES channels(channel_id),
+    yt_video_id         VARCHAR(50),
+    impressions         INTEGER       DEFAULT 0,
+    views_24h           INTEGER       DEFAULT 0,
+    views_48h           INTEGER       DEFAULT 0,
+    views_7d            INTEGER       DEFAULT 0,
+    ctr                 DECIMAL(5,3)  DEFAULT 0,
+    avg_view_duration   DECIMAL(8,2)  DEFAULT 0,
+    avg_view_pct        DECIMAL(5,3)  DEFAULT 0,
+    likes               INTEGER       DEFAULT 0,
+    comments            INTEGER       DEFAULT 0,
+    subs_gained         INTEGER       DEFAULT 0,
+    engagement_rate     DECIMAL(5,3)  DEFAULT 0,
+    is_success          BOOLEAN,
+    success_tier        VARCHAR(20),
+    fetched_at          TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ   DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ   DEFAULT NOW()
+);
+
+-- ── Research Intelligence: Model Store ────────────────────
+CREATE TABLE IF NOT EXISTS ml_models (
+    id                  BIGSERIAL     PRIMARY KEY,
+    model_name          VARCHAR(100)  NOT NULL,
+    model_version       INTEGER       DEFAULT 1,
+    niche               VARCHAR(100),
+    model_type          VARCHAR(50)   NOT NULL,
+    model_blob          BYTEA,
+    feature_names       JSONB         DEFAULT '[]',
+    metrics             JSONB         DEFAULT '{}',
+    training_samples    INTEGER       DEFAULT 0,
+    is_active           BOOLEAN       DEFAULT TRUE,
+    created_at          TIMESTAMPTZ   DEFAULT NOW(),
+    UNIQUE(model_name, niche, model_version)
+);
+
+-- ── Research Intelligence: Bandit State ───────────────────
+CREATE TABLE IF NOT EXISTS bandit_state (
+    id                  BIGSERIAL     PRIMARY KEY,
+    niche               VARCHAR(100)  NOT NULL,
+    arm_name            VARCHAR(200)  NOT NULL,
+    alpha               DECIMAL(10,2) DEFAULT 1,
+    beta                DECIMAL(10,2) DEFAULT 1,
+    pulls               INTEGER       DEFAULT 0,
+    rewards             DECIMAL(10,4) DEFAULT 0,
+    updated_at          TIMESTAMPTZ   DEFAULT NOW(),
+    UNIQUE(niche, arm_name)
+);
+
+-- ── Research Intelligence: Phrase Bank ────────────────────
+CREATE TABLE IF NOT EXISTS phrase_bank (
+    id                  BIGSERIAL     PRIMARY KEY,
+    niche               VARCHAR(100)  NOT NULL,
+    phrase              TEXT          NOT NULL,
+    source              VARCHAR(50),
+    frequency           INTEGER       DEFAULT 1,
+    is_rising           BOOLEAN       DEFAULT FALSE,
+    first_seen          DATE          DEFAULT CURRENT_DATE,
+    last_seen           DATE          DEFAULT CURRENT_DATE,
+    UNIQUE(niche, phrase)
+);
+
 -- ════════════════════════════════════════════════════════════
 -- INDEXES
 -- ════════════════════════════════════════════════════════════
@@ -336,3 +500,133 @@ CREATE INDEX IF NOT EXISTS idx_usage_provider         ON api_usage(provider);
 CREATE INDEX IF NOT EXISTS idx_audit_actor            ON audit_log(actor);
 CREATE INDEX IF NOT EXISTS idx_audit_created          ON audit_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_resource         ON audit_log(resource_type, resource_id);
+
+-- ── Research Intelligence Indexes ─────────────────────────
+CREATE INDEX IF NOT EXISTS idx_comp_channels_channel   ON competitor_channels(channel_id);
+CREATE INDEX IF NOT EXISTS idx_comp_channels_niche     ON competitor_channels(niche);
+CREATE INDEX IF NOT EXISTS idx_comp_videos_yt_id       ON competitor_videos(competitor_yt_id);
+CREATE INDEX IF NOT EXISTS idx_comp_videos_niche       ON competitor_videos(niche);
+CREATE INDEX IF NOT EXISTS idx_comp_videos_outlier     ON competitor_videos(is_outlier) WHERE is_outlier = TRUE;
+CREATE INDEX IF NOT EXISTS idx_comp_videos_published   ON competitor_videos(published_at);
+CREATE INDEX IF NOT EXISTS idx_trend_signals_niche     ON trend_signals(niche);
+CREATE INDEX IF NOT EXISTS idx_trend_signals_date      ON trend_signals(snapshot_date);
+CREATE INDEX IF NOT EXISTS idx_trend_signals_burst     ON trend_signals(is_burst) WHERE is_burst = TRUE;
+CREATE INDEX IF NOT EXISTS idx_topic_emb_channel       ON topic_embeddings(channel_id);
+CREATE INDEX IF NOT EXISTS idx_topic_emb_type          ON topic_embeddings(text_type);
+CREATE INDEX IF NOT EXISTS idx_research_feat_channel   ON research_features(channel_id);
+CREATE INDEX IF NOT EXISTS idx_research_feat_content   ON research_features(content_id);
+CREATE INDEX IF NOT EXISTS idx_perf_outcomes_channel   ON performance_outcomes(channel_id);
+CREATE INDEX IF NOT EXISTS idx_perf_outcomes_success   ON performance_outcomes(is_success);
+CREATE INDEX IF NOT EXISTS idx_ml_models_active        ON ml_models(model_name, niche) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_bandit_niche            ON bandit_state(niche);
+CREATE INDEX IF NOT EXISTS idx_phrase_bank_niche       ON phrase_bank(niche);
+CREATE INDEX IF NOT EXISTS idx_phrase_bank_rising      ON phrase_bank(is_rising) WHERE is_rising = TRUE;
+
+-- ── Script Intelligence: Script Features (for ML) ──────────
+CREATE TABLE IF NOT EXISTS script_features (
+    id                      BIGSERIAL     PRIMARY KEY,
+    content_id              VARCHAR(100)  NOT NULL,
+    channel_id              VARCHAR(20)   REFERENCES channels(channel_id),
+    topic                   TEXT,
+    -- Structural features
+    segment_count           INTEGER       DEFAULT 0,
+    word_count              INTEGER       DEFAULT 0,
+    avg_sentence_length     DECIMAL(5,2)  DEFAULT 0,
+    sentence_length_variance DECIMAL(5,2) DEFAULT 0,
+    -- Retention features
+    hook_strength           DECIMAL(5,3)  DEFAULT 0,
+    curiosity_loop_count    INTEGER       DEFAULT 0,
+    open_loop_ratio         DECIMAL(5,3)  DEFAULT 0,
+    pattern_interrupt_freq  DECIMAL(5,3)  DEFAULT 0,
+    but_therefore_ratio     DECIMAL(5,3)  DEFAULT 0,
+    -- Linguistic features
+    contraction_rate        DECIMAL(5,3)  DEFAULT 0,
+    question_density        DECIMAL(5,3)  DEFAULT 0,
+    specificity_score       DECIMAL(5,3)  DEFAULT 0,
+    readability_score       DECIMAL(5,2)  DEFAULT 0,
+    -- Emotional features
+    emotion_variance        DECIMAL(5,3)  DEFAULT 0,
+    emphasis_density        DECIMAL(5,3)  DEFAULT 0,
+    emotional_arc_score     DECIMAL(5,3)  DEFAULT 0,
+    -- Quality scores (from critique)
+    overall_script_score    DECIMAL(4,2)  DEFAULT 0,
+    hook_retention_score    DECIMAL(4,2)  DEFAULT 0,
+    -- Bandit context
+    hook_style_used         VARCHAR(100),
+    pacing_strategy_used    VARCHAR(100),
+    was_selected            BOOLEAN       DEFAULT FALSE,
+    created_at              TIMESTAMPTZ   DEFAULT NOW()
+);
+
+-- ── Script Intelligence: Script Outcomes (labels for ML) ───
+CREATE TABLE IF NOT EXISTS script_outcomes (
+    id                      BIGSERIAL     PRIMARY KEY,
+    content_id              VARCHAR(100)  UNIQUE NOT NULL,
+    channel_id              VARCHAR(20)   REFERENCES channels(channel_id),
+    yt_video_id             VARCHAR(50),
+    -- YouTube metrics (fetched 48h post-publish)
+    impressions             INTEGER       DEFAULT 0,
+    views_48h               INTEGER       DEFAULT 0,
+    ctr                     DECIMAL(5,3)  DEFAULT 0,
+    avg_view_pct            DECIMAL(5,3)  DEFAULT 0,
+    avg_view_duration_s     DECIMAL(8,2)  DEFAULT 0,
+    likes                   INTEGER       DEFAULT 0,
+    comments                INTEGER       DEFAULT 0,
+    -- Retention curve (sampled at 10 points: 0%, 10%, ..., 90%)
+    retention_curve         JSONB         DEFAULT '[]',
+    -- Computed labels
+    engagement_rate         DECIMAL(5,3)  DEFAULT 0,
+    is_success              BOOLEAN,
+    success_tier            VARCHAR(20),
+    -- What contributed
+    hook_style_used         VARCHAR(100),
+    pacing_strategy_used    VARCHAR(100),
+    fetched_at              TIMESTAMPTZ,
+    created_at              TIMESTAMPTZ   DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ   DEFAULT NOW()
+);
+
+-- ── Script Intelligence: Model Store ────────────────────────
+CREATE TABLE IF NOT EXISTS script_models (
+    id                      BIGSERIAL     PRIMARY KEY,
+    model_name              VARCHAR(100)  NOT NULL,
+    model_version           INTEGER       DEFAULT 1,
+    niche                   VARCHAR(100),
+    model_type              VARCHAR(50)   NOT NULL,
+    model_blob              BYTEA,
+    feature_names           JSONB         DEFAULT '[]',
+    metrics                 JSONB         DEFAULT '{}',
+    training_samples        INTEGER       DEFAULT 0,
+    is_active               BOOLEAN       DEFAULT TRUE,
+    created_at              TIMESTAMPTZ   DEFAULT NOW(),
+    UNIQUE(model_name, niche, model_version)
+);
+
+-- ── Script Intelligence: Bandit State ───────────────────────
+CREATE TABLE IF NOT EXISTS script_bandit_state (
+    id                      BIGSERIAL     PRIMARY KEY,
+    niche                   VARCHAR(100)  NOT NULL,
+    bandit_type             VARCHAR(50)   NOT NULL,
+    arm_name                VARCHAR(200)  NOT NULL,
+    alpha                   DECIMAL(10,2) DEFAULT 1,
+    beta                    DECIMAL(10,2) DEFAULT 1,
+    pulls                   INTEGER       DEFAULT 0,
+    rewards                 DECIMAL(10,4) DEFAULT 0,
+    avg_reward              DECIMAL(8,4)  DEFAULT 0,
+    updated_at              TIMESTAMPTZ   DEFAULT NOW(),
+    UNIQUE(niche, bandit_type, arm_name)
+);
+
+-- ── Script Intelligence Indexes ─────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_script_feat_content    ON script_features(content_id);
+CREATE INDEX IF NOT EXISTS idx_script_feat_channel    ON script_features(channel_id);
+CREATE INDEX IF NOT EXISTS idx_script_out_content     ON script_outcomes(content_id);
+CREATE INDEX IF NOT EXISTS idx_script_out_channel     ON script_outcomes(channel_id);
+CREATE INDEX IF NOT EXISTS idx_script_out_success     ON script_outcomes(is_success);
+CREATE INDEX IF NOT EXISTS idx_script_models_active   ON script_models(model_name, niche) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_script_bandit_niche    ON script_bandit_state(niche, bandit_type);
+
+-- ── pgvector Indexes (IVFFlat for ANN search) ─────────────
+-- These require data to build; create with small nlist for initial use
+CREATE INDEX IF NOT EXISTS idx_topic_emb_vector        ON topic_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 10);
+CREATE INDEX IF NOT EXISTS idx_comp_video_emb_vector   ON competitor_videos USING ivfflat (title_embedding vector_cosine_ops) WITH (lists = 10);

@@ -139,6 +139,7 @@ class VideoProductionWorkflow:
                     "title": title,
                     "research_data": research_data,
                     "budget_guard": budget,
+                    "content_id": content_id,
                 }],
                 start_to_close_timeout=timedelta(minutes=8),
                 retry_policy=RETRY_STANDARD,
@@ -146,7 +147,14 @@ class VideoProductionWorkflow:
             self._accrued_cost += _add_cost(budget, script_result)
             self._check_budget(budget)
 
-            script_data = script_result.get("data", {})
+            # Multi-view response: {script_base, script_voice, script_assets, script_direction}
+            full_script_data = script_result.get("data", {})
+            script_data = full_script_data.get("script_base", full_script_data)
+            script_voice_data = full_script_data.get("script_voice", {})
+            script_assets_data = full_script_data.get("script_assets", {})
+            script_direction_data = full_script_data.get("script_direction", {})
+            intelligence_scores = full_script_data.get("intelligence_scores", {})
+
             segments = script_data.get("segments", [])
             final_title = script_data.get("title", title)
             script_score = script_data.get("script_structure_score", 7.0)
@@ -161,10 +169,31 @@ class VideoProductionWorkflow:
 
             workflow.logger.info(
                 f"Script done: {len(segments)} segments, score: {script_score}, "
-                f"rewrites: {script_data.get('rewrite_count', 0)}")
+                f"rewrites: {script_data.get('rewrite_count', 0)}, "
+                f"intelligence: {intelligence_scores}")
 
             # ── Phase 3: Voice ───────────────────────────
             await self._set_phase(content_id, "generating_voice")
+
+            # Build voice segments with prosody data from Script Intelligence
+            voice_prosody_segs = script_voice_data.get("segments", []) if isinstance(script_voice_data, dict) else []
+            voice_segments_input = []
+            for i, s in enumerate(segments):
+                seg_input = {
+                    "id": s.get("id"),
+                    "section": s.get("section", "body"),
+                    "narration": s.get("narration", ""),
+                    "emotion": s.get("emotion", ""),
+                    "emphasis_words": s.get("emphasis_words", []),
+                }
+                # Enrich with prosody engine data if available
+                if i < len(voice_prosody_segs):
+                    prosody = voice_prosody_segs[i]
+                    seg_input["tts_params"] = prosody.get("tts_params", {})
+                    seg_input["dominant_emotion"] = prosody.get("dominant_emotion", "")
+                    if not seg_input["emphasis_words"] and prosody.get("emphasis_words"):
+                        seg_input["emphasis_words"] = prosody["emphasis_words"]
+                voice_segments_input.append(seg_input)
 
             voice_result = await workflow.execute_activity(
                 "voice_activity",
@@ -173,16 +202,7 @@ class VideoProductionWorkflow:
                     "channel_id": params.channel_id,
                     "content_mode": params.content_mode,
                     "voice_id": "",
-                    "script_segments": [
-                        {
-                            "id": s.get("id"),
-                            "section": s.get("section", "body"),
-                            "narration": s.get("narration", ""),
-                            "emotion": s.get("emotion", ""),
-                            "emphasis_words": s.get("emphasis_words", []),
-                        }
-                        for s in segments
-                    ],
+                    "script_segments": voice_segments_input,
                 }],
                 start_to_close_timeout=timedelta(minutes=10),
                 retry_policy=RETRY_STANDARD,
@@ -203,22 +223,33 @@ class VideoProductionWorkflow:
             # ── Phase 4: Assets + Thumbnail + Music (parallel) ─
             await self._set_phase(content_id, "generating_assets")
 
+            # Build asset segments enriched with Script Intelligence queries
+            asset_intel_segs = script_assets_data.get("segments", []) if isinstance(script_assets_data, dict) else []
+            assets_segments_input = []
+            for i, s in enumerate(segments):
+                seg_input = {
+                    "id": s.get("id"),
+                    "scene_direction": s.get("scene_direction", ""),
+                    "asset_suggestions": s.get("asset_suggestions", []),
+                    "b_roll_keywords": s.get("b_roll_keywords", []),
+                    "emotion": s.get("emotion", ""),
+                }
+                # Enrich with asset engine queries if available
+                if i < len(asset_intel_segs):
+                    intel = asset_intel_segs[i]
+                    seg_input["primary_query"] = intel.get("primary_query", "")
+                    seg_input["alternate_queries"] = intel.get("alternate_queries", [])
+                    seg_input["shot_type"] = intel.get("shot_type", "")
+                    seg_input["mood"] = intel.get("mood", {})
+                assets_segments_input.append(seg_input)
+
             assets_future = workflow.execute_activity(
                 "assets_activity",
                 args=[{
                     "content_id": content_id,
                     "channel_id": params.channel_id,
                     "content_mode": params.content_mode,
-                    "segments": [
-                        {
-                            "id": s.get("id"),
-                            "scene_direction": s.get("scene_direction", ""),
-                            "asset_suggestions": s.get("asset_suggestions", []),
-                            "b_roll_keywords": s.get("b_roll_keywords", []),
-                            "emotion": s.get("emotion", ""),
-                        }
-                        for s in segments
-                    ],
+                    "segments": assets_segments_input,
                 }],
                 start_to_close_timeout=timedelta(minutes=15),
                 retry_policy=RETRY_STANDARD,
@@ -284,6 +315,7 @@ class VideoProductionWorkflow:
                     "asset_manifest": assets_result.get("data", {}).get("manifest", []),
                     "thumbnail_result": thumbnail_data,
                     "music_data": music_data,
+                    "script_direction_hint": script_direction_data,
                 }],
                 start_to_close_timeout=timedelta(minutes=3),
                 retry_policy=RETRY_STANDARD,
