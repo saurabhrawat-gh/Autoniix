@@ -25,6 +25,24 @@ import src.providers.search.serpapi_provider  # noqa: F401
 from src.providers.registry import ProviderRegistry
 from src.providers.llm.base import LLMRequest
 
+# ── Research Intelligence Modules ────────────────────────────
+from src.services.research.trend_collector import collect_trends
+from src.services.research.competitor_insights import collect_competitor_insights
+from src.services.research.similarity import (
+    check_similarity, compute_embedding, compute_freshness, store_topic_embedding,
+)
+from src.services.research.opportunity_scorer import (
+    rank_candidates, score_opportunity, store_research_features,
+)
+from src.services.research.self_learning import (
+    predict_success, thompson_sample, bandit_update, ingest_performance,
+    train_model, check_model_drift,
+)
+from src.services.research.burst_detector import (
+    detect_bursts, mine_phrases, get_rising_phrases,
+    compute_phrase_novelty, compute_advanced_seasonality,
+)
+
 logger = structlog.get_logger()
 
 
@@ -439,10 +457,164 @@ async def research(req: ResearchRequest):
                 logger.warning("research.factcheck_json_failed")
                 research_data["fact_confidence_score"] = 5.0
 
+        # ── Step 4: Intelligence Layer (zero API cost) ──────
+        selected_topic = research_data.get("selected_topic", primary_topic)
+
+        # 4a. Collect trend signals (parallel)
+        try:
+            trend_data = await collect_trends(niche, queries[:5])
+            research_data["trend_signals"] = {
+                "momentum": trend_data.get("google_trends", {}).get("momentum", {}),
+                "suggestions": trend_data.get("youtube_suggestions", {}),
+                "trending_videos": trend_data.get("youtube_trending", [])[:5],
+            }
+        except Exception as e:
+            logger.warning("research.trends_failed", error=str(e))
+            trend_data = {}
+
+        # 4b. Competitor insights (parallel)
+        try:
+            competitor_yt_ids = [
+                c.strip() for c in (channel.get("competitor_channels") or "").split(",") if c.strip()
+            ]
+            comp_data = await collect_competitor_insights(req.channel_id, niche, competitor_yt_ids or None)
+            research_data["competitor_insights"] = {
+                "competitor_count": comp_data.get("competitor_count", 0),
+                "outlier_videos": comp_data.get("outlier_videos", [])[:5],
+                "niche_outliers": comp_data.get("niche_outliers", [])[:5],
+            }
+        except Exception as e:
+            logger.warning("research.competitors_failed", error=str(e))
+            comp_data = {}
+
+        # 4c. Burst detection
+        try:
+            bursts = await detect_bursts(niche)
+            bursting = [b for b in bursts if b.get("is_burst")]
+            research_data["bursting_keywords"] = bursting[:5]
+        except Exception as e:
+            logger.warning("research.bursts_failed", error=str(e))
+            bursting = []
+
+        # 4d. Phrase mining
+        try:
+            phrases = await mine_phrases(niche)
+            rising_phrases = [p for p in phrases if p.get("is_rising")]
+            research_data["rising_phrases"] = [p["phrase"] for p in rising_phrases[:10]]
+        except Exception as e:
+            logger.warning("research.phrases_failed", error=str(e))
+            rising_phrases = []
+
+        # 4e. Similarity / duplicate check
+        try:
+            sim_result = await check_similarity(selected_topic, text_type="topic")
+            research_data["similarity_check"] = {
+                "is_duplicate": sim_result.get("is_duplicate", False),
+                "max_similarity": sim_result.get("max_similarity", 0),
+                "novelty_score": sim_result.get("novelty_score", 1.0),
+            }
+        except Exception as e:
+            logger.warning("research.similarity_failed", error=str(e))
+            sim_result = {"novelty_score": 0.7}
+
+        # 4f. Freshness score
+        try:
+            trend_momentum = 0.0
+            momentum_data = trend_data.get("google_trends", {}).get("momentum", {})
+            if momentum_data:
+                first_kw = next(iter(momentum_data.values()), {})
+                trend_momentum = first_kw.get("momentum", 0.0)
+            fresh = await compute_freshness(selected_topic, niche, trend_momentum)
+            research_data["freshness"] = fresh
+        except Exception as e:
+            logger.warning("research.freshness_failed", error=str(e))
+            fresh = {"freshness_score": 0.5}
+
+        # 4g. Phrase novelty
+        try:
+            phrase_nov = await compute_phrase_novelty(selected_topic, niche)
+        except Exception:
+            phrase_nov = 0.5
+
+        # 4h. Seasonality
+        try:
+            season = await compute_advanced_seasonality(selected_topic, niche)
+            research_data["seasonality"] = season
+        except Exception:
+            season = {"seasonality_score": 0.3}
+
+        # 4i. Opportunity score
+        try:
+            features = {
+                "freshness_score": fresh.get("freshness_score", 0.5),
+                "novelty_score": sim_result.get("novelty_score", 0.7),
+                "trend_momentum": trend_momentum,
+                "burst_score": bursting[0]["burst_score"] if bursting else 0.0,
+                "phrase_novelty": phrase_nov,
+                "trend_volume_index": next(
+                    (m.get("current_index", 50) for m in momentum_data.values()), 50
+                ) if momentum_data else 50,
+            }
+            opp = await score_opportunity(selected_topic, niche=niche, features=features)
+            research_data["opportunity_score"] = opp.get("opportunity_score", 0.5)
+            research_data["feature_breakdown"] = opp.get("features", {})
+        except Exception as e:
+            logger.warning("research.scoring_failed", error=str(e))
+            opp = {"opportunity_score": 0.5, "features": {}}
+
+        # 4j. ML prediction (if model exists)
+        try:
+            ml_pred = await predict_success(opp.get("features", {}), niche)
+            research_data["ml_prediction"] = ml_pred
+        except Exception:
+            ml_pred = {"predicted_probability": 0.5}
+
+        # 4k. Thompson Sampling (if topic clusters available)
+        try:
+            topic_clusters = research_data.get("title_candidates", [])
+            if topic_clusters and len(topic_clusters) >= 2:
+                bandit_result = await thompson_sample(niche, topic_clusters[:10])
+                research_data["bandit_selection"] = bandit_result
+        except Exception:
+            pass
+
+        # 4l. Store topic embedding for future dedup
+        try:
+            await store_topic_embedding(
+                f"research-{req.channel_id}-{datetime.utcnow().strftime('%Y%m%d%H%M')}",
+                req.channel_id, "topic", selected_topic,
+            )
+        except Exception:
+            pass
+
+        # 4m. Store research features for ML training
+        try:
+            content_id = f"research-{req.channel_id}-{datetime.utcnow().strftime('%Y%m%d%H%M')}"
+            await store_research_features(
+                content_id=content_id,
+                channel_id=req.channel_id,
+                topic=selected_topic,
+                features=opp.get("features", {}),
+                opportunity_score=opp.get("opportunity_score", 0.5),
+                model_predicted=ml_pred.get("predicted_probability"),
+            )
+        except Exception:
+            pass
+
+        # ── Duplicate hard gate ────────────────────────────
+        if research_data.get("similarity_check", {}).get("is_duplicate"):
+            research_data["_warning"] = "HIGH_SIMILARITY_DETECTED"
+            logger.warning("research.duplicate_detected",
+                           topic=selected_topic,
+                           sim=research_data["similarity_check"]["max_similarity"])
+
         logger.info("research.completed",
-                     topic=research_data.get("selected_topic"),
+                     topic=selected_topic,
                      depth=research_data.get("research_depth_score"),
                      fact_conf=research_data.get("fact_confidence_score"),
+                     opportunity=research_data.get("opportunity_score"),
+                     novelty=sim_result.get("novelty_score"),
+                     freshness=fresh.get("freshness_score"),
                      cost_usd=round(total_cost, 4))
 
         return ServiceResponse(
@@ -590,6 +762,128 @@ async def ideate(req: IdeationRequest):
         raise
     except Exception as exc:
         logger.error("ideation.failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ═══════════════════════════════════════════════════════════
+# Intelligence API Endpoints
+# ═══════════════════════════════════════════════════════════
+
+
+class FeedbackRequest(BaseModel):
+    content_id: str
+    analytics: dict = Field(default_factory=dict)
+
+
+class TrainRequest(BaseModel):
+    niche: str | None = None
+    min_samples: int = 20
+
+
+class SimilarityRequest(BaseModel):
+    text: str
+    channel_id: str | None = None
+    text_type: str = "topic"
+
+
+class TrendRequest(BaseModel):
+    niche: str
+    keywords: list[str] = Field(default_factory=list)
+
+
+class CompetitorRequest(BaseModel):
+    channel_id: str
+    niche: str
+    competitor_yt_ids: list[str] = Field(default_factory=list)
+
+
+@app.post("/feedback", response_model=ServiceResponse)
+async def feedback(req: FeedbackRequest):
+    """Ingest post-publish YouTube analytics for self-learning loop."""
+    try:
+        result = await ingest_performance(req.content_id, req.analytics)
+        return ServiceResponse(status="success", data=result)
+    except Exception as exc:
+        logger.error("feedback.failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/train", response_model=ServiceResponse)
+async def train(req: TrainRequest):
+    """Train/retrain the topic success predictor model."""
+    try:
+        result = await train_model(req.niche, req.min_samples)
+        return ServiceResponse(status="success", data=result)
+    except Exception as exc:
+        logger.error("train.failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/drift", response_model=ServiceResponse)
+async def drift(niche: str | None = None):
+    """Check if the ML model has drifted and needs retraining."""
+    try:
+        result = await check_model_drift(niche)
+        return ServiceResponse(status="success", data=result)
+    except Exception as exc:
+        logger.error("drift.failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/similarity", response_model=ServiceResponse)
+async def similarity_check(req: SimilarityRequest):
+    """Check topic similarity against existing catalog."""
+    try:
+        result = await check_similarity(req.text, req.channel_id, req.text_type)
+        return ServiceResponse(status="success", data=result)
+    except Exception as exc:
+        logger.error("similarity.failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/trends", response_model=ServiceResponse)
+async def trends(req: TrendRequest):
+    """Collect trend signals for a niche."""
+    try:
+        result = await collect_trends(req.niche, req.keywords)
+        return ServiceResponse(status="success", data=result)
+    except Exception as exc:
+        logger.error("trends.failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/competitors", response_model=ServiceResponse)
+async def competitors(req: CompetitorRequest):
+    """Analyze competitors and find niche outliers."""
+    try:
+        result = await collect_competitor_insights(
+            req.channel_id, req.niche, req.competitor_yt_ids or None
+        )
+        return ServiceResponse(status="success", data=result)
+    except Exception as exc:
+        logger.error("competitors.failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/bursts", response_model=ServiceResponse)
+async def bursts(niche: str):
+    """Detect bursting keywords in a niche."""
+    try:
+        result = await detect_bursts(niche)
+        return ServiceResponse(status="success", data=result)
+    except Exception as exc:
+        logger.error("bursts.failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/phrases", response_model=ServiceResponse)
+async def phrases(niche: str):
+    """Get rising phrases for a niche."""
+    try:
+        result = await get_rising_phrases(niche)
+        return ServiceResponse(status="success", data=result)
+    except Exception as exc:
+        logger.error("phrases.failed", error=str(exc))
         raise HTTPException(status_code=500, detail=str(exc))
 
 

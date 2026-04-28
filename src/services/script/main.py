@@ -19,6 +19,22 @@ import src.providers.llm.gemini_provider  # noqa: F401
 from src.providers.registry import ProviderRegistry
 from src.providers.llm.base import LLMRequest
 
+from src.services.script.script_analyzer import analyze_full_script
+from src.services.script.retention_optimizer import compute_retention_score
+from src.services.script.humanizer import humanize_full_script
+from src.services.script.prosody_engine import generate_script_voice
+from src.services.script.asset_engine import generate_script_assets
+from src.services.script.direction_engine import generate_script_direction
+from src.services.script.self_learning import (
+    extract_script_features,
+    store_script_features,
+    predict_script_success,
+    thompson_sample,
+    ingest_script_performance,
+    train_model as train_script_model,
+    detect_drift as detect_script_drift,
+)
+
 logger = structlog.get_logger()
 
 
@@ -33,6 +49,18 @@ class ScriptRequest(BaseModel):
     research_data: dict = Field(default_factory=dict)
     idea_data: dict = Field(default_factory=dict)
     budget_guard: dict = Field(default_factory=lambda: {"max_cost_usd": 2.50, "accrued_cost_usd": 0.0})
+    video_style: str = "stock_footage"
+    content_id: str = ""
+
+
+class ScriptFeedbackRequest(BaseModel):
+    content_id: str
+    analytics: dict = Field(default_factory=dict)
+
+
+class ScriptTrainRequest(BaseModel):
+    niche: str = ""
+    min_samples: int = 15
 
 
 class HookRequest(BaseModel):
@@ -102,7 +130,7 @@ async def lifespan(app: FastAPI):
     logger.info("script.stopped")
 
 
-app = FastAPI(title="Script Service", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Script Service", version="0.2.0", lifespan=lifespan)
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -307,15 +335,150 @@ async def generate_script(req: ScriptRequest):
         script_data["rewrite_count"] = rewrite_count
         script_data["script_structure_score"] = overall_score
 
+        # ══════════════════════════════════════════════════════
+        # SCRIPT INTELLIGENCE PIPELINE (zero LLM cost)
+        # ══════════════════════════════════════════════════════
+        segments = script_data.get("segments", [])
+        niche = channel.get("niche", "")
+        pacing_style = channel.get("pacing_style", "dynamic")
+        brand_voice = channel.get("brand_voice", "")
+
+        # ── Step 5: Bandit selection (hook style + pacing) ───
+        hook_styles = ["shocking_stat", "open_loop", "pattern_interrupt",
+                       "story_hook", "authority_challenge", "contrarian", "outcome_promise"]
+        pacing_strategies = ["slow_build", "fast_punchy", "wave_rhythm", "escalating", "conversational"]
+
+        try:
+            hook_bandit = await thompson_sample(niche, "hook_style", hook_styles)
+            pacing_bandit = await thompson_sample(niche, "pacing_strategy", pacing_strategies)
+            selected_hook_style = hook_bandit["selected_arm"]
+            selected_pacing = pacing_bandit["selected_arm"]
+        except Exception as e:
+            logger.warning("script.bandit_failed", error=str(e))
+            selected_hook_style = "open_loop"
+            selected_pacing = "wave_rhythm"
+
+        # ── Step 6: Humanize script ──────────────────────────
+        try:
+            humanized = humanize_full_script(segments, pacing_style, brand_voice)
+            segments = humanized["segments"]
+            script_data["segments"] = segments
+            humanizer_metrics = humanized["metrics"]
+            logger.info("script.humanized",
+                         ai_removed=humanizer_metrics["ai_patterns_removed"],
+                         score=humanizer_metrics["composite_score"])
+        except Exception as e:
+            logger.warning("script.humanize_failed", error=str(e))
+            humanizer_metrics = {"composite_score": 0.5, "contraction_rate": 0.0}
+
+        # ── Step 7: NLP analysis ─────────────────────────────
+        try:
+            script_analysis = await analyze_full_script(segments)
+            logger.info("script.analyzed",
+                         words=script_analysis["total_word_count"],
+                         ai_patterns=script_analysis["ai_patterns_total"])
+        except Exception as e:
+            logger.warning("script.analysis_failed", error=str(e))
+            script_analysis = {"total_word_count": 0, "segment_analyses": []}
+
+        # ── Step 8: Retention scoring ────────────────────────
+        try:
+            retention = await compute_retention_score(segments)
+            script_data["retention_score"] = retention
+            logger.info("script.retention_scored",
+                         composite=retention["composite_score"])
+        except Exception as e:
+            logger.warning("script.retention_failed", error=str(e))
+            retention = {"composite_score": 0.5, "dimensions": {}}
+
+        # ── Step 9: Generate Script v1 — Voice (prosody) ────
+        try:
+            script_voice = await generate_script_voice(segments, channel)
+            logger.info("script.v1_voice_generated",
+                         duration=script_voice["total_duration_s"],
+                         coverage=script_voice["prosody_coverage"])
+        except Exception as e:
+            logger.warning("script.v1_voice_failed", error=str(e))
+            script_voice = {"version": "v1_voice", "segments": [], "error": str(e)}
+
+        # ── Step 10: Generate Script v2 — Assets ─────────────
+        try:
+            script_assets = await generate_script_assets(segments, channel, req.video_style)
+            logger.info("script.v2_assets_generated",
+                         coverage=script_assets.get("qc", {}).get("asset_coverage", 0))
+        except Exception as e:
+            logger.warning("script.v2_assets_failed", error=str(e))
+            script_assets = {"version": "v2_assets", "segments": [], "error": str(e)}
+
+        # ── Step 11: Generate Script v3 — Direction ──────────
+        try:
+            voice_segs = script_voice.get("segments", []) if isinstance(script_voice, dict) else []
+            asset_segs = script_assets.get("segments", []) if isinstance(script_assets, dict) else []
+            resolution = "1080x1920" if req.content_mode == "short" else "1920x1080"
+            script_direction = generate_script_direction(
+                segments, voice_segs, asset_segs, channel, fps=30, resolution=resolution,
+            )
+            logger.info("script.v3_direction_generated",
+                         duration_ms=script_direction.get("render_config", {}).get("duration_ms", 0))
+        except Exception as e:
+            logger.warning("script.v3_direction_failed", error=str(e))
+            script_direction = {"version": "v3_direction", "segments": [], "error": str(e)}
+
+        # ── Step 12: Extract features + predict success ──────
+        content_id = req.content_id or f"script-{req.channel_id}-{req.topic[:20]}"
+        try:
+            features = await extract_script_features(
+                script_analysis, retention, humanizer_metrics,
+                req.channel_id, content_id, req.topic,
+            )
+            prediction = await predict_script_success(features, niche)
+            script_data["success_prediction"] = prediction
+
+            await store_script_features(
+                content_id, req.channel_id, features,
+                overall_score=overall_score,
+                hook_score=retention.get("dimensions", {}).get("hook_strength", 0),
+                hook_style=selected_hook_style,
+                pacing_strategy=selected_pacing,
+                topic=req.topic,
+            )
+            logger.info("script.features_stored",
+                         predicted=prediction.get("predicted_probability", 0))
+        except Exception as e:
+            logger.warning("script.features_failed", error=str(e))
+
+        # ── Step 13: Multi-view QC ───────────────────────────
+        qc_report = {
+            "humanization": humanizer_metrics.get("composite_score", 0),
+            "retention": retention.get("composite_score", 0),
+            "prosody_coverage": script_voice.get("prosody_coverage", 0) if isinstance(script_voice, dict) else 0,
+            "asset_coverage": script_assets.get("qc", {}).get("asset_coverage", 0) if isinstance(script_assets, dict) else 0,
+            "direction_ok": script_direction.get("qc", {}).get("direction_ok", False) if isinstance(script_direction, dict) else False,
+            "script_structure_score": overall_score,
+        }
+        script_data["multi_view_qc"] = qc_report
+
         logger.info("script.generated",
-                     segments=len(script_data.get("segments", [])),
+                     segments=len(segments),
                      score=overall_score,
                      rewrites=rewrite_count,
+                     retention=retention.get("composite_score", 0),
+                     humanization=humanizer_metrics.get("composite_score", 0),
                      cost=round(total_cost, 4))
 
         return ServiceResponse(
             status="success",
-            data=script_data,
+            data={
+                "script_base": script_data,
+                "script_voice": script_voice,
+                "script_assets": script_assets,
+                "script_direction": script_direction,
+                "bandit_selections": {
+                    "hook_style": selected_hook_style,
+                    "pacing_strategy": selected_pacing,
+                },
+                "intelligence_scores": qc_report,
+            },
             cost={"cost_usd": round(total_cost, 6), "provider": "multi"},
         )
 
@@ -476,6 +639,43 @@ async def package(req: PackagingRequest):
         raise
     except Exception as exc:
         logger.error("packaging.failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ── Script Intelligence Endpoints ─────────────────────────────
+
+@app.post("/script-feedback", response_model=ServiceResponse)
+async def script_feedback(req: ScriptFeedbackRequest):
+    """Ingest post-publish YouTube analytics for script self-learning."""
+    logger.info("script_feedback.ingesting", content_id=req.content_id)
+    try:
+        result = await ingest_script_performance(req.content_id, req.analytics)
+        return ServiceResponse(status="success", data=result)
+    except Exception as exc:
+        logger.error("script_feedback.failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/script-train", response_model=ServiceResponse)
+async def script_train(req: ScriptTrainRequest):
+    """Train/retrain the script success predictor model."""
+    logger.info("script_train.starting", niche=req.niche)
+    try:
+        result = await train_script_model(req.niche or None, req.min_samples)
+        return ServiceResponse(status="success", data=result)
+    except Exception as exc:
+        logger.error("script_train.failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/script-drift", response_model=ServiceResponse)
+async def script_drift(niche: str = ""):
+    """Check if the script success model needs retraining."""
+    try:
+        result = await detect_script_drift(niche or None)
+        return ServiceResponse(status="success", data=result)
+    except Exception as exc:
+        logger.error("script_drift.failed", error=str(exc))
         raise HTTPException(status_code=500, detail=str(exc))
 
 

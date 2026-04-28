@@ -13,7 +13,7 @@ services:
 
   # ── Databases ────────────────────────────────────────────
   postgres-app:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg15
     environment:
       POSTGRES_DB: ${DB_NAME:-yt_automation}
       POSTGRES_USER: ${DB_USER:-app}
@@ -120,6 +120,7 @@ services:
     env_file: .env
     environment:
       - PORT=8001
+      - SENTENCE_TRANSFORMERS_HOME=/app/.cache/sentence_transformers
     ports:
       - "8001:8001"
     networks: [yt-net]
@@ -132,7 +133,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 1536M
 
   script:
     build: .
@@ -146,11 +147,13 @@ services:
     depends_on:
       postgres-app:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 1536M
 
   voice:
     build: .
