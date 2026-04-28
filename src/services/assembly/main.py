@@ -14,6 +14,13 @@ from src.config import settings
 from src.db import close_pool, get_pool
 from src.schemas.common import HealthResponse, ServiceResponse
 
+from src.services.assembly.render_predictor import (
+    compute_direction_complexity,
+    estimate_render_duration,
+    simplify_direction_for_retry,
+    log_render_attempt,
+)
+
 logger = structlog.get_logger()
 
 
@@ -136,6 +143,18 @@ async def assemble(req: AssemblyRequest):
         else:
             direction_v3["sync_validation"] = {"passed": True, "issues": [], "issue_count": 0}
 
+        # ── Intelligence: Complexity Analysis ─────────────
+        complexity = compute_direction_complexity(direction_v3)
+        estimated_render_s = estimate_render_duration(complexity)
+        logger.info("assembly.complexity",
+                     complexity=complexity.get("complexity"),
+                     risk=complexity.get("risk"),
+                     estimated_render_s=estimated_render_s)
+
+        if complexity.get("risk") == "high":
+            logger.warning("assembly.high_complexity",
+                           risk_factors=complexity.get("risk_factors", []))
+
         # ── Step 1: Submit render job to Remotion API ────
         remotion_url = settings.remotion_base_url
         render_payload = {
@@ -187,7 +206,45 @@ async def assemble(req: AssemblyRequest):
                 logger.warning("assembly.poll_error", error=str(poll_err))
 
         if not render_result or render_result.get("status") != "completed":
-            raise HTTPException(status_code=504, detail="Render timed out after 10 minutes")
+            # Intelligence: Try simplified direction on failure
+            logger.warning("assembly.render_failed_trying_simplified")
+            await log_render_attempt(
+                req.content_id, req.channel_id, render_id,
+                complexity, success=False, error_category="timeout")
+
+            simplified = simplify_direction_for_retry(direction_v3)
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    resp2 = await client.post(f"{remotion_url}/render", json={
+                        "direction": simplified, "outputFormat": "mp4",
+                        "quality": "high", "codec": "h264",
+                    })
+                    resp2.raise_for_status()
+                    retry_data = resp2.json()
+                    retry_id = retry_data.get("renderId", retry_data.get("id", ""))
+
+                if retry_id:
+                    elapsed2 = 0
+                    while elapsed2 < 300:
+                        await asyncio.sleep(5)
+                        elapsed2 += 5
+                        async with httpx.AsyncClient(timeout=10.0) as client:
+                            sr = await client.get(f"{remotion_url}/render/{retry_id}")
+                            sr.raise_for_status()
+                            render_result = sr.json()
+                        if render_result.get("status") == "completed":
+                            render_id = retry_id
+                            break
+                        elif render_result.get("status") == "failed":
+                            break
+            except Exception as retry_err:
+                logger.error("assembly.retry_failed", error=str(retry_err))
+
+            if not render_result or render_result.get("status") != "completed":
+                await log_render_attempt(
+                    req.content_id, req.channel_id, render_id,
+                    complexity, success=False, retry_count=1, error_category="timeout_retry")
+                raise HTTPException(status_code=504, detail="Render timed out after retry")
 
         video_url = render_result.get("outputUrl", render_result.get("url", ""))
         render_duration = render_result.get("renderDuration", 0)
@@ -216,6 +273,13 @@ async def assemble(req: AssemblyRequest):
         except Exception as e:
             logger.warning("assembly.db_update_failed", error=str(e))
 
+        # Intelligence: Log successful render
+        await log_render_attempt(
+            req.content_id, req.channel_id, render_id,
+            complexity, success=True,
+            render_duration_s=render_duration,
+            video_duration_s=actual_duration)
+
         logger.info("assembly.completed",
                      render_id=render_id,
                      video_url=video_url[:80] if video_url else "",
@@ -232,6 +296,10 @@ async def assemble(req: AssemblyRequest):
                 "production_score": round(production_score, 1),
                 "production_issues": production_issues,
                 "segment_count": len(direction_v3.get("segments", [])),
+                "intelligence": {
+                    "complexity": complexity,
+                    "estimated_render_s": estimated_render_s,
+                },
             },
             cost={"cost_usd": 0, "provider": "remotion"},
         )

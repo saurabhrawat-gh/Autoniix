@@ -14,6 +14,11 @@ from src.config import settings
 from src.db import close_pool, get_pool
 from src.schemas.common import HealthResponse, ServiceResponse
 
+from src.services.analytics.pattern_miner import (
+    mine_performance_patterns,
+    get_channel_insights,
+)
+
 logger = structlog.get_logger()
 
 
@@ -352,6 +357,36 @@ async def refresh_trends(req: TrendRefreshRequest):
     except Exception as exc:
         logger.error("analytics.refresh_trends_failed", error=str(exc))
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ── Intelligence Endpoints ────────────────────────────────
+
+@app.post("/mine-patterns", response_model=ServiceResponse)
+async def mine_patterns(req: PerformanceRequest):
+    """Discover performance patterns from historical video data."""
+    try:
+        channel = await _load_channel(req.channel_id)
+        niche = channel.get("niche", "general")
+        result = await mine_performance_patterns(req.channel_id, niche)
+        return ServiceResponse(status="success", data=result)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/insights/{channel_id}", response_model=ServiceResponse)
+async def insights(channel_id: str):
+    """Get stored performance insights for a channel."""
+    try:
+        result = await get_channel_insights(channel_id)
+        return ServiceResponse(status="success", data=result)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+async def _load_channel(channel_id: str) -> dict:
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT * FROM channels WHERE channel_id = $1", channel_id)
+    return dict(row) if row else {}
 
 
 if __name__ == "__main__":

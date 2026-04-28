@@ -51,7 +51,56 @@ INSERT INTO system_config (config_key, config_value, description, updated_by) VA
     ('script_bandit_exploration',      '0.15',  'Exploration weight for script bandits', 'setup_script'),
     ('script_feature_weights',         '{"hook_strength":0.18,"curiosity_loops":0.12,"pattern_interrupts":0.10,"but_therefore":0.08,"specificity":0.12,"emotion_variance":0.10,"readability":0.08,"contraction_rate":0.07,"question_density":0.08,"pacing_score":0.07}', 'Default script quality feature weights (JSON)', 'setup_script'),
     ('script_hook_styles',             '["shocking_stat","open_loop","pattern_interrupt","story_hook","authority_challenge","contrarian","outcome_promise"]', 'Available hook style arms for bandit', 'setup_script'),
-    ('script_pacing_strategies',       '["slow_build","fast_punchy","wave_rhythm","escalating","conversational"]', 'Available pacing strategy arms for bandit', 'setup_script')
+    ('script_pacing_strategies',       '["slow_build","fast_punchy","wave_rhythm","escalating","conversational"]', 'Available pacing strategy arms for bandit', 'setup_script'),
+    -- Voice Intelligence
+    ('voice_use_prosody_hints',        'true',   'Use script prosody engine hints instead of LLM emotion mapping when available', 'setup_script'),
+    ('voice_snr_min_db',               '15.0',   'Min SNR in dB for acceptable audio quality', 'setup_script'),
+    ('voice_naturalness_min',          '6.0',    'Min naturalness score (1-10) for audio', 'setup_script'),
+    ('voice_cache_ttl_hours',          '168',    'Hours to keep sentence audio cache (7 days)', 'setup_script'),
+    ('voice_ml_retrain_min_samples',   '15',     'Min labeled voice outcomes to trigger model retrain', 'setup_script'),
+    -- Asset Intelligence
+    ('asset_cache_enabled',            'true',   'Enable asset library caching to avoid redundant downloads', 'setup_script'),
+    ('asset_cache_similarity_threshold','0.85',  'Cosine similarity threshold for asset cache hit', 'setup_script'),
+    ('asset_min_quality_score',        '6.0',    'Min quality score for stock footage selection', 'setup_script'),
+    ('asset_max_reuse_count',          '5',      'Max times a single cached asset can be reused', 'setup_script'),
+    ('asset_color_match_weight',       '0.3',    'Weight of color palette match in asset scoring', 'setup_script'),
+    -- Thumbnail Intelligence
+    ('thumb_local_qc_enabled',         'true',   'Enable local composition analysis before Vision QC', 'setup_script'),
+    ('thumb_local_qc_skip_threshold',  '8.5',    'If local score >= this, skip expensive Vision QC', 'setup_script'),
+    ('thumb_min_contrast_score',       '5.0',    'Min color contrast score for thumbnail', 'setup_script'),
+    ('thumb_min_brightness',           '0.15',   'Min average brightness (0-1)', 'setup_script'),
+    ('thumb_max_brightness',           '0.90',   'Max average brightness (0-1)', 'setup_script'),
+    ('thumb_ctr_predictor_min_samples','20',     'Min samples to enable CTR predictor', 'setup_script'),
+    ('thumb_similarity_fatigue_max',   '0.80',   'Max similarity to recent thumbnails before flagging fatigue', 'setup_script'),
+    -- Direction Intelligence
+    ('direction_use_script_v3_hint',   'true',   'Use script direction engine v3 as base instead of full LLM generation', 'setup_script'),
+    ('direction_llm_enhance_enabled',  'true',   'Whether to call LLM to enhance/validate script v3 direction', 'setup_script'),
+    ('direction_min_camera_variety',   '2',      'Min unique camera types across segments', 'setup_script'),
+    ('direction_max_consecutive_same', '2',       'Max consecutive segments with same scene_preset', 'setup_script'),
+    -- Editor / Post-Production
+    ('editor_enabled',                 'true',   'Enable the Editor/Post-Production service in pipeline', 'setup_script'),
+    ('editor_pacing_tolerance_pct',    '15',     'Max % deviation from target WPM before pacing adjustment', 'setup_script'),
+    ('editor_min_transition_variety',  '3',      'Min unique transition types in a video', 'setup_script'),
+    ('editor_caption_style',           'word_highlight', 'Default caption animation style', 'setup_script'),
+    ('editor_music_duck_db',           '-12',    'Music ducking level in dB when narration active', 'setup_script'),
+    -- Assembly Intelligence
+    ('assembly_predict_success',       'true',   'Enable render success prediction before submitting', 'setup_script'),
+    ('assembly_max_retries',           '2',      'Max render retry attempts', 'setup_script'),
+    ('assembly_complexity_warn_threshold','8.0',  'Direction complexity score above which to warn', 'setup_script'),
+    -- Delivery Intelligence
+    ('delivery_optimize_timing',       'true',   'Enable ML-based upload timing optimization', 'setup_script'),
+    ('delivery_seo_enabled',           'true',   'Enable SEO keyword optimization for metadata', 'setup_script'),
+    ('delivery_min_seo_score',         '6.0',    'Min SEO score for metadata', 'setup_script'),
+    ('delivery_power_words',           '["secret","shocking","revealed","truth","never","instantly","proven","warning","mistake","surprising"]', 'Power words for title scoring', 'setup_script'),
+    -- Analytics Intelligence
+    ('analytics_pattern_min_samples',  '10',     'Min videos to detect reliable performance patterns', 'setup_script'),
+    ('analytics_anomaly_z_threshold',  '2.5',    'Z-score threshold for performance anomaly detection', 'setup_script'),
+    ('analytics_cross_channel_enabled','true',   'Enable cross-channel learning within same niche', 'setup_script'),
+    ('analytics_fatigue_window_days',  '30',     'Days to look back for content fatigue detection', 'setup_script'),
+    -- Brand Identity
+    ('brand_consistency_min',          '7.0',    'Min brand consistency score', 'setup_script'),
+    ('brand_evolution_check_interval', '14',     'Days between brand evolution checks', 'setup_script'),
+    ('brand_auto_evolve',             'false',   'Auto-apply brand evolution suggestions', 'setup_script')
 ON CONFLICT (config_key) DO UPDATE SET
     config_value = EXCLUDED.config_value,
     description = EXCLUDED.description,

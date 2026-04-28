@@ -127,6 +127,26 @@ class VideoProductionWorkflow:
 
             workflow.logger.info(f"Research done: {topic} (score: {research_score})")
 
+            # ── Phase 1B: Brand Identity ──────────────────
+            await self._set_phase(content_id, "brand_check")
+
+            brand_profile = {}
+            try:
+                brand_result = await workflow.execute_activity(
+                    "brand_activity",
+                    args=[{
+                        "channel_id": params.channel_id,
+                        "action": "get_or_create",
+                    }],
+                    start_to_close_timeout=timedelta(seconds=30),
+                    retry_policy=RETRY_STANDARD,
+                )
+                brand_profile = brand_result.get("data", {}).get("profile", {})
+                workflow.logger.info(
+                    f"Brand profile loaded: consistency_baseline={brand_profile.get('consistency_baseline', 'N/A')}")
+            except Exception:
+                workflow.logger.warning("Brand activity failed — non-critical, continuing")
+
             # ── Phase 2: Script ──────────────────────────
             await self._set_phase(content_id, "scripting")
 
@@ -335,6 +355,37 @@ class VideoProductionWorkflow:
                 f"Direction done: {direction_data.get('segment_count', 0)} segments "
                 f"(score: {dir_score})")
 
+            # ── Phase 5B: Editor / Post-Production ────────
+            await self._set_phase(content_id, "post_production")
+
+            try:
+                editor_result = await workflow.execute_activity(
+                    "editor_activity",
+                    args=[{
+                        "content_id": content_id,
+                        "channel_id": params.channel_id,
+                        "direction_v3": direction_v3,
+                        "voice_manifest": voice_data,
+                        "brand_profile": brand_profile,
+                    }],
+                    start_to_close_timeout=timedelta(minutes=3),
+                    retry_policy=RETRY_STANDARD,
+                )
+
+                editor_data = editor_result.get("data", {})
+                # Apply editor optimizations back to direction_v3
+                if editor_data.get("optimized_direction"):
+                    direction_v3 = editor_data["optimized_direction"]
+                    workflow.logger.info(
+                        f"Editor applied: pacing_optimized={editor_data.get('pacing_optimized', False)}, "
+                        f"qc_passed={editor_data.get('qc_passed', False)}, "
+                        f"qc_score={editor_data.get('qc_score', 'N/A')}")
+                else:
+                    workflow.logger.info("Editor returned no optimized direction — using original")
+
+            except Exception as editor_err:
+                workflow.logger.warning(f"Editor activity failed — using original direction: {editor_err}")
+
             # ── Phase 6: Assembly (Remotion render) ──────
             await self._set_phase(content_id, "rendering")
 
@@ -445,7 +496,7 @@ class VideoProductionWorkflow:
             youtube_id = delivery_result.get("data", {}).get("youtube_video_id", "")
             workflow.logger.info(f"Delivered: https://youtu.be/{youtube_id}")
 
-            # ── Phase 9: Analytics ────────────────────────
+            # ── Phase 9: Analytics + Intelligence Feedback ──
             await self._set_phase(content_id, "analytics")
 
             try:
@@ -462,6 +513,24 @@ class VideoProductionWorkflow:
                 )
             except Exception:
                 workflow.logger.warning("Analytics activity failed — non-critical, continuing")
+
+            # Brand consistency check on final output
+            if brand_profile:
+                try:
+                    await workflow.execute_activity(
+                        "brand_consistency_activity",
+                        args=[{
+                            "channel_id": params.channel_id,
+                            "content_id": content_id,
+                            "title": final_title,
+                            "description": description,
+                            "tags": tags,
+                            "quality_scores": quality_scores,
+                        }],
+                        start_to_close_timeout=timedelta(seconds=30),
+                    )
+                except Exception:
+                    workflow.logger.warning("Brand consistency check failed — non-critical")
 
             # ── Done ─────────────────────────────────────
             await self._set_phase(content_id, "delivered")

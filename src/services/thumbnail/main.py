@@ -23,6 +23,14 @@ from src.providers.registry import ProviderRegistry
 from src.providers.llm.base import LLMRequest
 from src.providers.storage.base import StorageUpload
 
+from src.services.thumbnail.composition_analyzer import analyze_composition
+from src.services.thumbnail.ctr_predictor import (
+    extract_thumbnail_features,
+    predict_ctr,
+    ingest_ctr_outcome,
+    train_ctr_model,
+)
+
 logger = structlog.get_logger()
 
 
@@ -198,7 +206,46 @@ async def generate_thumbnail(req: ThumbnailRequest):
         if not variants:
             raise HTTPException(status_code=500, detail="All thumbnail variants failed to generate")
 
+        # ── Step 2B: Intelligence — Local Composition Analysis ──
+        local_qc_skip_threshold = 8.5
+        try:
+            _thresh = await _load_config("thumb_local_qc_skip_threshold")
+            if _thresh:
+                local_qc_skip_threshold = float(_thresh)
+        except Exception:
+            pass
+
+        for variant in variants:
+            try:
+                # Download image bytes for local analysis
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    resp = await client.get(variant["url"])
+                    resp.raise_for_status()
+                    img_bytes = resp.content
+
+                composition = await analyze_composition(img_bytes)
+                variant["local_composition"] = composition
+                variant["local_score"] = composition.get("composition_score", 5.0)
+
+                # Extract features for ML
+                await extract_thumbnail_features(
+                    req.content_id, req.channel_id, composition,
+                    variant_id=variant.get("variant_id", 0),
+                    text_overlay=variant.get("text_overlay", ""))
+
+                # Predict CTR using ML model
+                ml_ctr = await predict_ctr(
+                    composition.get("features", {}), niche)
+                if ml_ctr is not None:
+                    variant["ml_predicted_ctr"] = ml_ctr
+
+            except Exception as comp_err:
+                logger.warning("thumbnail.local_analysis_failed",
+                               variant=variant.get("variant_id"), error=str(comp_err))
+                variant["local_score"] = 5.0
+
         # ── Step 3: GPT Vision QC (score each variant) ───
+        # Intelligence: Skip Vision QC if local score is high enough
         vision_llm = None
         try:
             vision_llm = ProviderRegistry.get("llm.vision")
@@ -209,6 +256,15 @@ async def generate_thumbnail(req: ThumbnailRequest):
             from src.providers.llm.openai_vision_provider import VisionRequest
 
             for variant in variants:
+                # Intelligence: Skip expensive Vision QC if local score is very high
+                if variant.get("local_score", 0) >= local_qc_skip_threshold:
+                    variant["thumbnail_score"] = variant["local_score"]
+                    variant["vision_skipped"] = True
+                    logger.info("thumbnail.vision_skipped",
+                                 variant=variant.get("variant_id"),
+                                 local_score=variant["local_score"])
+                    continue
+
                 try:
                     vision_result = await vision_llm.complete(VisionRequest(
                         messages=[
@@ -394,6 +450,8 @@ async def generate_thumbnail(req: ThumbnailRequest):
                      regenerations=regen_count,
                      cost=round(total_cost, 4))
 
+        vision_skipped_count = sum(1 for v in variants if v.get("vision_skipped"))
+
         return ServiceResponse(
             status="success",
             data={
@@ -403,6 +461,18 @@ async def generate_thumbnail(req: ThumbnailRequest):
                 "regeneration_count": regen_count,
                 "thumbnail_score": round(best_score, 1),
                 "thumbnail_ctr_prediction": float(best_variant.get("predicted_ctr", 0.08)),
+                "intelligence": {
+                    "local_composition_scores": [
+                        {"variant": v.get("variant_id"), "score": v.get("local_score", 0)}
+                        for v in variants
+                    ],
+                    "ml_ctr_predictions": [
+                        {"variant": v.get("variant_id"), "ctr": v.get("ml_predicted_ctr")}
+                        for v in variants if v.get("ml_predicted_ctr") is not None
+                    ],
+                    "vision_calls_skipped": vision_skipped_count,
+                    "vision_cost_saved": vision_skipped_count > 0,
+                },
             },
             cost={"cost_usd": round(total_cost, 6), "provider": "multi"},
         )
@@ -412,6 +482,44 @@ async def generate_thumbnail(req: ThumbnailRequest):
     except Exception as exc:
         logger.error("thumbnail.failed", error=str(exc))
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ── Intelligence Endpoints ────────────────────────────────
+
+class ThumbnailFeedbackRequest(BaseModel):
+    content_id: str
+    channel_id: str
+    actual_ctr: float
+    impressions: int = 0
+
+
+class ThumbnailTrainRequest(BaseModel):
+    niche: str
+
+
+@app.post("/thumbnail-feedback", response_model=ServiceResponse)
+async def thumbnail_feedback(req: ThumbnailFeedbackRequest):
+    """Ingest actual CTR data for thumbnail ML learning."""
+    ok = await ingest_ctr_outcome(req.content_id, req.channel_id,
+                                   req.actual_ctr, req.impressions)
+    return ServiceResponse(status="success" if ok else "failed", data={"ingested": ok})
+
+
+@app.post("/thumbnail-train", response_model=ServiceResponse)
+async def thumbnail_train(req: ThumbnailTrainRequest):
+    """Train/retrain thumbnail CTR prediction model."""
+    result = await train_ctr_model(req.niche)
+    return ServiceResponse(status="success", data=result)
+
+
+async def _load_config(key: str) -> str:
+    try:
+        pool = await get_pool()
+        row = await pool.fetchrow(
+            "SELECT config_value FROM system_config WHERE config_key = $1", key)
+        return row["config_value"] if row else ""
+    except Exception:
+        return ""
 
 
 if __name__ == "__main__":

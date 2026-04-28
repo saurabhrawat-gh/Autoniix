@@ -626,6 +626,439 @@ CREATE INDEX IF NOT EXISTS idx_script_out_success     ON script_outcomes(is_succ
 CREATE INDEX IF NOT EXISTS idx_script_models_active   ON script_models(model_name, niche) WHERE is_active = TRUE;
 CREATE INDEX IF NOT EXISTS idx_script_bandit_niche    ON script_bandit_state(niche, bandit_type);
 
+-- ══════════════════════════════════════════════════════════
+-- ── Brand Identity Intelligence ──────────────────────────
+-- ══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS brand_profiles (
+    id                      BIGSERIAL     PRIMARY KEY,
+    channel_id              VARCHAR(20)   UNIQUE REFERENCES channels(channel_id),
+    -- Visual identity
+    color_palette           JSONB         DEFAULT '{}',
+    fonts                   JSONB         DEFAULT '{}',
+    logo_url                TEXT,
+    watermark_url           TEXT,
+    thumbnail_style_rules   JSONB         DEFAULT '{}',
+    -- Voice identity
+    voice_fingerprint       JSONB         DEFAULT '{}',
+    vocabulary_whitelist    JSONB         DEFAULT '[]',
+    vocabulary_blacklist    JSONB         DEFAULT '[]',
+    speaking_style          JSONB         DEFAULT '{}',
+    -- Content personality
+    humor_level             DECIMAL(3,2)  DEFAULT 0.5,
+    formality_level         DECIMAL(3,2)  DEFAULT 0.5,
+    energy_level            DECIMAL(3,2)  DEFAULT 0.7,
+    -- Templates
+    intro_template_url      TEXT,
+    outro_template_url      TEXT,
+    lower_third_style       JSONB         DEFAULT '{}',
+    -- Motion & editing style
+    preferred_transitions   JSONB         DEFAULT '[]',
+    pacing_profile          JSONB         DEFAULT '{}',
+    camera_style_weights    JSONB         DEFAULT '{}',
+    -- Multi-persona support
+    personas                JSONB         DEFAULT '[]',
+    active_persona          VARCHAR(100)  DEFAULT 'default',
+    -- Computed
+    brand_embedding         vector(384),
+    consistency_score       DECIMAL(4,2)  DEFAULT 0,
+    created_at              TIMESTAMPTZ   DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ   DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS brand_assets (
+    id                      BIGSERIAL     PRIMARY KEY,
+    channel_id              VARCHAR(20)   REFERENCES channels(channel_id),
+    asset_type              VARCHAR(50)   NOT NULL,
+    asset_name              VARCHAR(200),
+    asset_url               TEXT          NOT NULL,
+    metadata                JSONB         DEFAULT '{}',
+    is_active               BOOLEAN       DEFAULT TRUE,
+    created_at              TIMESTAMPTZ   DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS brand_style_history (
+    id                      BIGSERIAL     PRIMARY KEY,
+    channel_id              VARCHAR(20)   REFERENCES channels(channel_id),
+    snapshot_date           DATE          NOT NULL,
+    style_features          JSONB         DEFAULT '{}',
+    performance_correlation JSONB         DEFAULT '{}',
+    created_at              TIMESTAMPTZ   DEFAULT NOW(),
+    UNIQUE(channel_id, snapshot_date)
+);
+
+-- ══════════════════════════════════════════════════════════
+-- ── Voice Intelligence ───────────────────────────────────
+-- ══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS voice_features (
+    id                      BIGSERIAL     PRIMARY KEY,
+    content_id              VARCHAR(100)  NOT NULL,
+    channel_id              VARCHAR(20)   REFERENCES channels(channel_id),
+    segment_id              VARCHAR(50),
+    -- TTS params used
+    tts_provider            VARCHAR(50),
+    stability               DECIMAL(4,3),
+    similarity_boost        DECIMAL(4,3),
+    style                   DECIMAL(4,3),
+    speed                   DECIMAL(4,3),
+    emotion                 VARCHAR(50),
+    -- Audio quality metrics (local analysis)
+    snr_db                  DECIMAL(6,2),
+    rms_energy              DECIMAL(8,6),
+    zero_crossing_rate      DECIMAL(8,6),
+    spectral_centroid       DECIMAL(10,2),
+    duration_s              DECIMAL(8,3),
+    wpm                     DECIMAL(6,2),
+    -- Quality scores
+    audio_quality_score     DECIMAL(4,2)  DEFAULT 0,
+    naturalness_score       DECIMAL(4,2)  DEFAULT 0,
+    created_at              TIMESTAMPTZ   DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS voice_outcomes (
+    id                      BIGSERIAL     PRIMARY KEY,
+    content_id              VARCHAR(100)  UNIQUE NOT NULL,
+    channel_id              VARCHAR(20)   REFERENCES channels(channel_id),
+    avg_view_duration_s     DECIMAL(8,2)  DEFAULT 0,
+    retention_at_30pct      DECIMAL(5,3)  DEFAULT 0,
+    retention_at_50pct      DECIMAL(5,3)  DEFAULT 0,
+    retention_at_70pct      DECIMAL(5,3)  DEFAULT 0,
+    is_good_retention       BOOLEAN,
+    created_at              TIMESTAMPTZ   DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ   DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS voice_models (
+    id                      BIGSERIAL     PRIMARY KEY,
+    model_name              VARCHAR(100)  NOT NULL,
+    model_version           INTEGER       DEFAULT 1,
+    niche                   VARCHAR(100),
+    model_type              VARCHAR(50)   NOT NULL,
+    model_blob              BYTEA,
+    feature_names           JSONB         DEFAULT '[]',
+    metrics                 JSONB         DEFAULT '{}',
+    training_samples        INTEGER       DEFAULT 0,
+    is_active               BOOLEAN       DEFAULT TRUE,
+    created_at              TIMESTAMPTZ   DEFAULT NOW(),
+    UNIQUE(model_name, niche, model_version)
+);
+
+-- ══════════════════════════════════════════════════════════
+-- ── Asset Intelligence ───────────────────────────────────
+-- ══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS asset_library (
+    id                      BIGSERIAL     PRIMARY KEY,
+    query_hash              VARCHAR(64)   NOT NULL,
+    query_text              TEXT          NOT NULL,
+    provider                VARCHAR(50)   NOT NULL,
+    provider_asset_id       VARCHAR(200),
+    asset_url               TEXT          NOT NULL,
+    minio_key               TEXT,
+    asset_type              VARCHAR(50)   DEFAULT 'stock_video',
+    -- Quality features
+    resolution_width        INTEGER       DEFAULT 0,
+    resolution_height       INTEGER       DEFAULT 0,
+    duration_s              DECIMAL(8,2)  DEFAULT 0,
+    dominant_colors         JSONB         DEFAULT '[]',
+    quality_score           DECIMAL(4,2)  DEFAULT 7.0,
+    relevance_score         DECIMAL(4,2)  DEFAULT 7.0,
+    -- Usage tracking
+    use_count               INTEGER       DEFAULT 0,
+    last_used_at            TIMESTAMPTZ,
+    -- Embedding for similarity
+    query_embedding         vector(384),
+    license_type            VARCHAR(100),
+    tags                    TEXT,
+    created_at              TIMESTAMPTZ   DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS asset_search_log (
+    id                      BIGSERIAL     PRIMARY KEY,
+    content_id              VARCHAR(100),
+    channel_id              VARCHAR(20)   REFERENCES channels(channel_id),
+    segment_id              VARCHAR(50),
+    query_text              TEXT,
+    provider                VARCHAR(50),
+    results_count           INTEGER       DEFAULT 0,
+    selected_asset_id       VARCHAR(200),
+    used_cache              BOOLEAN       DEFAULT FALSE,
+    used_dalle_fallback     BOOLEAN       DEFAULT FALSE,
+    search_time_ms          INTEGER       DEFAULT 0,
+    created_at              TIMESTAMPTZ   DEFAULT NOW()
+);
+
+-- ══════════════════════════════════════════════════════════
+-- ── Thumbnail Intelligence ───────────────────────────────
+-- ══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS thumbnail_features (
+    id                      BIGSERIAL     PRIMARY KEY,
+    content_id              VARCHAR(100)  NOT NULL,
+    channel_id              VARCHAR(20)   REFERENCES channels(channel_id),
+    variant_id              INTEGER       DEFAULT 0,
+    -- Composition features (local analysis)
+    has_face                BOOLEAN       DEFAULT FALSE,
+    face_area_ratio         DECIMAL(5,3)  DEFAULT 0,
+    text_area_ratio         DECIMAL(5,3)  DEFAULT 0,
+    dominant_color_rgb      VARCHAR(20),
+    color_contrast_score    DECIMAL(4,2)  DEFAULT 0,
+    brightness_score        DECIMAL(4,2)  DEFAULT 0,
+    saturation_score        DECIMAL(4,2)  DEFAULT 0,
+    rule_of_thirds_score    DECIMAL(4,2)  DEFAULT 0,
+    -- Text features
+    text_word_count         INTEGER       DEFAULT 0,
+    text_font_size_ratio    DECIMAL(5,3)  DEFAULT 0,
+    -- Scores
+    local_composition_score DECIMAL(4,2)  DEFAULT 0,
+    vision_qc_score         DECIMAL(4,2),
+    predicted_ctr           DECIMAL(6,4)  DEFAULT 0,
+    -- Embedding
+    thumbnail_embedding     vector(384),
+    created_at              TIMESTAMPTZ   DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS thumbnail_outcomes (
+    id                      BIGSERIAL     PRIMARY KEY,
+    content_id              VARCHAR(100)  UNIQUE NOT NULL,
+    channel_id              VARCHAR(20)   REFERENCES channels(channel_id),
+    actual_ctr              DECIMAL(6,4),
+    impressions             INTEGER       DEFAULT 0,
+    clicks                  INTEGER       DEFAULT 0,
+    ctr_percentile          DECIMAL(5,2),
+    is_above_avg_ctr        BOOLEAN,
+    created_at              TIMESTAMPTZ   DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ   DEFAULT NOW()
+);
+
+-- ══════════════════════════════════════════════════════════
+-- ── Direction Intelligence ───────────────────────────────
+-- ══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS direction_features (
+    id                      BIGSERIAL     PRIMARY KEY,
+    content_id              VARCHAR(100)  NOT NULL,
+    channel_id              VARCHAR(20)   REFERENCES channels(channel_id),
+    segment_count           INTEGER       DEFAULT 0,
+    unique_scene_presets    INTEGER       DEFAULT 0,
+    unique_camera_types     INTEGER       DEFAULT 0,
+    avg_segment_duration_ms INTEGER       DEFAULT 0,
+    has_motion_design       BOOLEAN       DEFAULT FALSE,
+    transition_variety      INTEGER       DEFAULT 0,
+    used_script_v3_hint     BOOLEAN       DEFAULT FALSE,
+    llm_tokens_used         INTEGER       DEFAULT 0,
+    direction_score         DECIMAL(4,2)  DEFAULT 0,
+    created_at              TIMESTAMPTZ   DEFAULT NOW()
+);
+
+-- ══════════════════════════════════════════════════════════
+-- ── Editor / Post-Production Intelligence ────────────────
+-- ══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS editor_sessions (
+    id                      BIGSERIAL     PRIMARY KEY,
+    content_id              VARCHAR(100)  NOT NULL,
+    channel_id              VARCHAR(20)   REFERENCES channels(channel_id),
+    -- Adjustments made
+    pacing_adjustments      JSONB         DEFAULT '[]',
+    transition_changes      JSONB         DEFAULT '[]',
+    audio_mix_config        JSONB         DEFAULT '{}',
+    color_grade_applied     VARCHAR(100),
+    captions_generated      BOOLEAN       DEFAULT FALSE,
+    caption_word_count      INTEGER       DEFAULT 0,
+    -- Quality
+    pre_edit_score          DECIMAL(4,2)  DEFAULT 0,
+    post_edit_score         DECIMAL(4,2)  DEFAULT 0,
+    total_adjustments       INTEGER       DEFAULT 0,
+    edit_time_ms            INTEGER       DEFAULT 0,
+    created_at              TIMESTAMPTZ   DEFAULT NOW()
+);
+
+-- ══════════════════════════════════════════════════════════
+-- ── Assembly Intelligence ────────────────────────────────
+-- ══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS assembly_render_log (
+    id                      BIGSERIAL     PRIMARY KEY,
+    content_id              VARCHAR(100)  NOT NULL,
+    channel_id              VARCHAR(20)   REFERENCES channels(channel_id),
+    render_id               VARCHAR(200),
+    -- Render params
+    codec                   VARCHAR(50)   DEFAULT 'h264',
+    quality                 VARCHAR(50)   DEFAULT 'high',
+    segment_count           INTEGER       DEFAULT 0,
+    direction_complexity    DECIMAL(4,2)  DEFAULT 0,
+    -- Result
+    render_success          BOOLEAN       DEFAULT FALSE,
+    render_duration_s       DECIMAL(10,2) DEFAULT 0,
+    video_duration_s        DECIMAL(10,2) DEFAULT 0,
+    retry_count             INTEGER       DEFAULT 0,
+    error_category          VARCHAR(100),
+    -- Prediction
+    predicted_success_prob  DECIMAL(5,3),
+    production_score        DECIMAL(4,2)  DEFAULT 0,
+    created_at              TIMESTAMPTZ   DEFAULT NOW()
+);
+
+-- ══════════════════════════════════════════════════════════
+-- ── Delivery Intelligence ────────────────────────────────
+-- ══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS delivery_features (
+    id                      BIGSERIAL     PRIMARY KEY,
+    content_id              VARCHAR(100)  NOT NULL,
+    channel_id              VARCHAR(20)   REFERENCES channels(channel_id),
+    -- Timing
+    upload_hour_utc         INTEGER,
+    upload_day_of_week      INTEGER,
+    optimal_hour_predicted  INTEGER,
+    -- Metadata features
+    title_word_count        INTEGER       DEFAULT 0,
+    title_has_number        BOOLEAN       DEFAULT FALSE,
+    title_has_question      BOOLEAN       DEFAULT FALSE,
+    title_power_words       INTEGER       DEFAULT 0,
+    description_length      INTEGER       DEFAULT 0,
+    tag_count               INTEGER       DEFAULT 0,
+    -- SEO
+    seo_score               DECIMAL(4,2)  DEFAULT 0,
+    keyword_density         DECIMAL(5,3)  DEFAULT 0,
+    -- Outcome
+    first_hour_views        INTEGER,
+    first_day_views         INTEGER,
+    created_at              TIMESTAMPTZ   DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ   DEFAULT NOW()
+);
+
+-- ══════════════════════════════════════════════════════════
+-- ── Analytics Patterns (cross-service learning) ──────────
+-- ══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS analytics_patterns (
+    id                      BIGSERIAL     PRIMARY KEY,
+    channel_id              VARCHAR(20)   REFERENCES channels(channel_id),
+    pattern_type            VARCHAR(100)  NOT NULL,
+    pattern_key             VARCHAR(200)  NOT NULL,
+    pattern_data            JSONB         DEFAULT '{}',
+    confidence              DECIMAL(5,3)  DEFAULT 0,
+    sample_count            INTEGER       DEFAULT 0,
+    last_validated          TIMESTAMPTZ,
+    created_at              TIMESTAMPTZ   DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ   DEFAULT NOW(),
+    UNIQUE(channel_id, pattern_type, pattern_key)
+);
+
+-- ══════════════════════════════════════════════════════════
+-- ── Intelligence Indexes ─────────────────────────────────
+-- ══════════════════════════════════════════════════════════
+
+CREATE INDEX IF NOT EXISTS idx_brand_profiles_channel   ON brand_profiles(channel_id);
+CREATE INDEX IF NOT EXISTS idx_brand_assets_channel     ON brand_assets(channel_id);
+CREATE INDEX IF NOT EXISTS idx_brand_assets_type        ON brand_assets(asset_type);
+CREATE INDEX IF NOT EXISTS idx_brand_history_channel    ON brand_style_history(channel_id);
+
+CREATE INDEX IF NOT EXISTS idx_voice_feat_content       ON voice_features(content_id);
+CREATE INDEX IF NOT EXISTS idx_voice_feat_channel       ON voice_features(channel_id);
+CREATE INDEX IF NOT EXISTS idx_voice_out_content        ON voice_outcomes(content_id);
+CREATE INDEX IF NOT EXISTS idx_voice_models_active      ON voice_models(model_name, niche) WHERE is_active = TRUE;
+
+CREATE INDEX IF NOT EXISTS idx_asset_lib_hash           ON asset_library(query_hash);
+CREATE INDEX IF NOT EXISTS idx_asset_lib_provider       ON asset_library(provider);
+CREATE INDEX IF NOT EXISTS idx_asset_lib_quality        ON asset_library(quality_score DESC);
+CREATE INDEX IF NOT EXISTS idx_asset_search_content     ON asset_search_log(content_id);
+
+CREATE INDEX IF NOT EXISTS idx_thumb_feat_content       ON thumbnail_features(content_id);
+CREATE INDEX IF NOT EXISTS idx_thumb_feat_channel       ON thumbnail_features(channel_id);
+CREATE INDEX IF NOT EXISTS idx_thumb_out_content        ON thumbnail_outcomes(content_id);
+CREATE INDEX IF NOT EXISTS idx_thumb_out_ctr            ON thumbnail_outcomes(is_above_avg_ctr) WHERE is_above_avg_ctr = TRUE;
+
+CREATE INDEX IF NOT EXISTS idx_dir_feat_content         ON direction_features(content_id);
+CREATE INDEX IF NOT EXISTS idx_editor_sess_content      ON editor_sessions(content_id);
+CREATE INDEX IF NOT EXISTS idx_assembly_render_content  ON assembly_render_log(content_id);
+CREATE INDEX IF NOT EXISTS idx_delivery_feat_content    ON delivery_features(content_id);
+CREATE INDEX IF NOT EXISTS idx_analytics_patterns_ch    ON analytics_patterns(channel_id, pattern_type);
+
+-- ── A/B Testing Framework ─────────────────────────────────
+-- ══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS experiments (
+    id                      BIGSERIAL     PRIMARY KEY,
+    experiment_name         VARCHAR(200)  UNIQUE NOT NULL,
+    description             TEXT,
+    variants                JSONB         NOT NULL DEFAULT '[]',
+    traffic_pct             REAL          DEFAULT 100.0,
+    target_metric           VARCHAR(100)  DEFAULT 'views',
+    status                  VARCHAR(20)   DEFAULT 'draft',
+    winning_variant         VARCHAR(100),
+    started_at              TIMESTAMPTZ,
+    ended_at                TIMESTAMPTZ,
+    created_at              TIMESTAMPTZ   DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ   DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS experiment_assignments (
+    id                      BIGSERIAL     PRIMARY KEY,
+    experiment_name         VARCHAR(200)  REFERENCES experiments(experiment_name),
+    content_id              VARCHAR(100)  NOT NULL,
+    channel_id              VARCHAR(20),
+    variant_name            VARCHAR(100)  NOT NULL,
+    assigned_at             TIMESTAMPTZ   DEFAULT NOW(),
+    UNIQUE(experiment_name, content_id)
+);
+
+CREATE TABLE IF NOT EXISTS experiment_outcomes (
+    id                      BIGSERIAL     PRIMARY KEY,
+    experiment_name         VARCHAR(200)  REFERENCES experiments(experiment_name),
+    content_id              VARCHAR(100)  NOT NULL,
+    variant_name            VARCHAR(100)  NOT NULL,
+    metrics                 JSONB         NOT NULL DEFAULT '{}',
+    recorded_at             TIMESTAMPTZ   DEFAULT NOW(),
+    UNIQUE(experiment_name, content_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_exp_assign_exp         ON experiment_assignments(experiment_name);
+CREATE INDEX IF NOT EXISTS idx_exp_assign_content     ON experiment_assignments(content_id);
+CREATE INDEX IF NOT EXISTS idx_exp_outcome_exp        ON experiment_outcomes(experiment_name);
+
+-- ── Intelligence Observability ────────────────────────────
+-- ══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS intelligence_metrics (
+    id                      BIGSERIAL     PRIMARY KEY,
+    service_name            VARCHAR(50)   NOT NULL,
+    content_id              VARCHAR(100),
+    channel_id              VARCHAR(20),
+    decision_point          VARCHAR(100)  NOT NULL,
+    path_taken              VARCHAR(50)   NOT NULL,
+    local_score             REAL,
+    llm_cost_usd            REAL          DEFAULT 0,
+    cost_saved_usd          REAL          DEFAULT 0,
+    latency_ms              INTEGER,
+    model_version           VARCHAR(50),
+    metadata                JSONB         DEFAULT '{}',
+    created_at              TIMESTAMPTZ   DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS model_health (
+    id                      BIGSERIAL     PRIMARY KEY,
+    model_name              VARCHAR(100)  NOT NULL,
+    niche                   VARCHAR(100),
+    training_rows           INTEGER       DEFAULT 0,
+    last_trained_at         TIMESTAMPTZ,
+    accuracy_metric         REAL,
+    drift_detected          BOOLEAN       DEFAULT FALSE,
+    drift_score             REAL,
+    last_checked_at         TIMESTAMPTZ   DEFAULT NOW(),
+    status                  VARCHAR(20)   DEFAULT 'untrained',
+    created_at              TIMESTAMPTZ   DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ   DEFAULT NOW(),
+    UNIQUE(model_name, niche)
+);
+
+CREATE INDEX IF NOT EXISTS idx_intel_metrics_service   ON intelligence_metrics(service_name, decision_point);
+CREATE INDEX IF NOT EXISTS idx_intel_metrics_time      ON intelligence_metrics(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_model_health_name       ON model_health(model_name, niche);
+
 -- ── pgvector Indexes (IVFFlat for ANN search) ─────────────
 -- These require data to build; create with small nlist for initial use
 CREATE INDEX IF NOT EXISTS idx_topic_emb_vector        ON topic_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 10);
