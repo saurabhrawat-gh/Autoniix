@@ -89,6 +89,13 @@ class ChannelCreateRequest(BaseModel):
     content_mode: str = "short"
     sub_niche: str = ""
     auto_upload: bool = False
+    videos_per_week_short: int = 7
+    videos_per_week_long: int = 1
+    short_form_duration: int = 60
+    long_form_duration: int = 600
+    schedule_enabled: bool = True
+    human_review_required: str = "first_10"
+    max_daily_api_spend: float = 5.00
 
 class ChannelUpdateRequest(BaseModel):
     channel_name: str | None = None
@@ -96,6 +103,13 @@ class ChannelUpdateRequest(BaseModel):
     content_mode: str | None = None
     status: str | None = None
     auto_upload: bool | None = None
+    videos_per_week_short: int | None = None
+    videos_per_week_long: int | None = None
+    short_form_duration: int | None = None
+    long_form_duration: int | None = None
+    schedule_enabled: bool | None = None
+    human_review_required: str | None = None
+    max_daily_api_spend: float | None = None
 
 class TriggerRequest(BaseModel):
     content_mode: str = "short"
@@ -151,6 +165,8 @@ async def list_channels(_: str = Depends(verify_token)):
     rows = await pool.fetch(
         "SELECT channel_id, channel_name, niche, sub_niche, content_mode, "
         "auto_upload, status, videos_per_week_long, videos_per_week_short, "
+        "short_form_duration, long_form_duration, schedule_config, "
+        "human_review_required, max_daily_api_spend, "
         "created_at FROM channels ORDER BY channel_id"
     )
     channels = []
@@ -181,11 +197,15 @@ async def list_channels(_: str = Depends(verify_token)):
         )
         # Check if any workflow is currently running or paused
         active_job = await pool.fetchrow(
-            "SELECT content_id, status FROM videos WHERE channel_id = $1 "
+            "SELECT content_id, status, content_mode FROM videos WHERE channel_id = $1 "
             "AND status NOT IN ('delivered', 'failed', 'rejected') "
             "ORDER BY created_at DESC LIMIT 1",
             r["channel_id"],
         )
+        # Parse schedule_config
+        sched_raw = r["schedule_config"]
+        sched = json.loads(sched_raw) if isinstance(sched_raw, str) else (sched_raw or {})
+        schedule_enabled = sched.get("enabled", True) if sched else True
         channels.append({
             "channel_id": r["channel_id"],
             "channel_name": r["channel_name"],
@@ -213,9 +233,15 @@ async def list_channels(_: str = Depends(verify_token)):
                 "short": {"used": weekly["short_used"] if weekly else 0, "limit": r["videos_per_week_short"] or 7, "approved": weekly["short_approved"] if weekly else 0},
                 "long_form": {"used": weekly["long_used"] if weekly else 0, "limit": r["videos_per_week_long"] or 1, "approved": weekly["long_approved"] if weekly else 0},
             },
+            "schedule_enabled": schedule_enabled,
+            "short_form_duration": r["short_form_duration"] or 60,
+            "long_form_duration": r["long_form_duration"] or 600,
+            "human_review_required": r["human_review_required"] or "first_10",
+            "max_daily_api_spend": float(r["max_daily_api_spend"]) if r["max_daily_api_spend"] else 5.0,
             "active_job": {
                 "content_id": active_job["content_id"],
                 "status": active_job["status"],
+                "content_mode": active_job["content_mode"],
             } if active_job else None,
         })
     return R(status="ok", data=channels)
@@ -225,11 +251,17 @@ async def list_channels(_: str = Depends(verify_token)):
 async def create_channel(req: ChannelCreateRequest, _: str = Depends(verify_token)):
     pool = await get_pool()
     try:
+        sched_json = json.dumps({"enabled": req.schedule_enabled})
         await pool.execute(
             "INSERT INTO channels (channel_id, channel_name, niche, sub_niche, "
-            "content_mode, auto_upload) VALUES ($1, $2, $3, $4, $5, $6)",
+            "content_mode, auto_upload, videos_per_week_short, videos_per_week_long, "
+            "short_form_duration, long_form_duration, schedule_config, "
+            "human_review_required, max_daily_api_spend) "
+            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13)",
             req.channel_id, req.channel_name, req.niche, req.sub_niche,
-            req.content_mode, req.auto_upload,
+            req.content_mode, req.auto_upload, req.videos_per_week_short,
+            req.videos_per_week_long, req.short_form_duration, req.long_form_duration,
+            sched_json, req.human_review_required, req.max_daily_api_spend,
         )
     except Exception as exc:
         if "duplicate" in str(exc).lower():
@@ -245,15 +277,39 @@ async def update_channel(channel_id: str, req: ChannelUpdateRequest, _: str = De
     for field, col in [
         ("channel_name", "channel_name"), ("niche", "niche"),
         ("content_mode", "content_mode"), ("status", "status"),
+        ("human_review_required", "human_review_required"),
     ]:
         val = getattr(req, field, None)
         if val is not None:
             sets.append(f"{col} = ${idx}")
             vals.append(val)
             idx += 1
-    if req.auto_upload is not None:
-        sets.append(f"auto_upload = ${idx}")
-        vals.append(req.auto_upload)
+    for field, col in [
+        ("auto_upload", "auto_upload"),
+    ]:
+        val = getattr(req, field, None)
+        if val is not None:
+            sets.append(f"{col} = ${idx}")
+            vals.append(val)
+            idx += 1
+    for field, col in [
+        ("videos_per_week_short", "videos_per_week_short"),
+        ("videos_per_week_long", "videos_per_week_long"),
+        ("short_form_duration", "short_form_duration"),
+        ("long_form_duration", "long_form_duration"),
+    ]:
+        val = getattr(req, field, None)
+        if val is not None:
+            sets.append(f"{col} = ${idx}")
+            vals.append(val)
+            idx += 1
+    if req.max_daily_api_spend is not None:
+        sets.append(f"max_daily_api_spend = ${idx}")
+        vals.append(req.max_daily_api_spend)
+        idx += 1
+    if req.schedule_enabled is not None:
+        sets.append(f"schedule_config = ${idx}::jsonb")
+        vals.append(json.dumps({"enabled": req.schedule_enabled}))
         idx += 1
     if not sets:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -275,7 +331,9 @@ async def enable_channel(channel_id: str, _: str = Depends(verify_token)):
     )
     if "UPDATE 0" in result:
         raise HTTPException(status_code=404, detail="Channel not found")
-    return R(status="ok", data={"channel_id": channel_id, "status": "active"})
+    # Resume any paused workflows for this channel
+    resumed = await _signal_running_workflows(channel_id, "resume_workflow", None)
+    return R(status="ok", data={"channel_id": channel_id, "status": "active", "resumed_workflows": resumed})
 
 
 @app.put("/api/channels/{channel_id}/disable")
@@ -287,7 +345,9 @@ async def disable_channel(channel_id: str, _: str = Depends(verify_token)):
     )
     if "UPDATE 0" in result:
         raise HTTPException(status_code=404, detail="Channel not found")
-    return R(status="ok", data={"channel_id": channel_id, "status": "disabled"})
+    # Pause any running workflows for this channel (don't kill)
+    paused = await _signal_running_workflows(channel_id, "pause_workflow", None)
+    return R(status="ok", data={"channel_id": channel_id, "status": "disabled", "paused_workflows": paused})
 
 
 # ── Workflow Control ───────────────────────────────────────
@@ -296,9 +356,34 @@ async def disable_channel(channel_id: str, _: str = Depends(verify_token)):
 async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depends(verify_token)):
     """Manually trigger a VideoProductionWorkflow for a channel."""
     pool = await get_pool()
-    ch = await pool.fetchrow("SELECT channel_id, content_mode FROM channels WHERE channel_id = $1", channel_id)
+    ch = await pool.fetchrow("SELECT channel_id, content_mode, status FROM channels WHERE channel_id = $1", channel_id)
     if not ch:
         raise HTTPException(status_code=404, detail="Channel not found")
+    if ch["status"] != "active":
+        raise HTTPException(status_code=400, detail="Channel is disabled — enable it first")
+
+    # Budget checks: global daily + per-channel daily
+    global_limit_row = await pool.fetchrow(
+        "SELECT config_value FROM system_config WHERE config_key = 'daily_budget_limit'"
+    )
+    global_limit = float(global_limit_row["config_value"]) if global_limit_row else 50.0
+    global_spent = await pool.fetchval(
+        "SELECT COALESCE(SUM(total_cost), 0) FROM videos WHERE created_at::date = CURRENT_DATE"
+    )
+    if float(global_spent) >= global_limit:
+        raise HTTPException(status_code=400, detail=f"Global daily budget exhausted (${global_limit:.2f})")
+
+    ch_full = await pool.fetchrow(
+        "SELECT max_daily_api_spend FROM channels WHERE channel_id = $1", channel_id
+    )
+    ch_limit = float(ch_full["max_daily_api_spend"]) if ch_full and ch_full["max_daily_api_spend"] else 5.0
+    ch_spent = await pool.fetchval(
+        "SELECT COALESCE(SUM(total_cost), 0) FROM videos "
+        "WHERE channel_id = $1 AND created_at::date = CURRENT_DATE",
+        channel_id,
+    )
+    if float(ch_spent) >= ch_limit:
+        raise HTTPException(status_code=400, detail=f"Channel daily budget exhausted (${ch_limit:.2f})")
 
     content_mode = req.content_mode or ch["content_mode"]
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
@@ -580,17 +665,56 @@ async def reject_job(content_id: str, _: str = Depends(verify_token)):
     return R(status="ok", data={"content_id": content_id, "rejected": True})
 
 
+@app.post("/api/jobs/{content_id}/retry")
+async def retry_job(content_id: str, _: str = Depends(verify_token)):
+    """Retry a failed job from its last checkpoint."""
+    pool = await get_pool()
+    video = await pool.fetchrow(
+        "SELECT channel_id, content_mode, checkpoint, status "
+        "FROM videos WHERE content_id = $1",
+        content_id,
+    )
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    if video["status"] != "failed":
+        raise HTTPException(status_code=400, detail=f"Can only retry failed jobs, current: '{video['status']}'")
+
+    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    workflow_id = f"retry-{video['channel_id']}-{ts}"
+    try:
+        client = await _get_temporal_client()
+        await client.start_workflow(
+            "VideoProductionWorkflow",
+            VideoParams(
+                channel_id=video["channel_id"],
+                content_mode=video["content_mode"] or "short",
+                resume_from=video["checkpoint"],
+                original_content_id=content_id,
+            ),
+            id=workflow_id,
+            task_queue="video-production",
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to start retry workflow: {exc}")
+    return R(status="ok", data={
+        "workflow_id": workflow_id,
+        "content_id": content_id,
+        "resume_from": video["checkpoint"],
+    })
+
+
 # ── Active Jobs (all in-progress across channels) ────────
 
 @app.get("/api/jobs/active")
 async def active_jobs(_: str = Depends(verify_token)):
-    """Get all currently in-progress video jobs across all channels."""
+    """Get all currently in-progress + recently failed (24h) video jobs."""
     pool = await get_pool()
     rows = await pool.fetch(
         "SELECT v.content_id, v.channel_id, v.status, v.title, v.content_mode, "
-        "v.total_cost, v.created_at, c.channel_name "
+        "v.total_cost, v.checkpoint, v.error_message, v.created_at, c.channel_name "
         "FROM videos v JOIN channels c ON v.channel_id = c.channel_id "
-        "WHERE v.status NOT IN ('delivered', 'failed', 'rejected') "
+        "WHERE v.status NOT IN ('delivered', 'rejected') "
+        "AND (v.status != 'failed' OR v.updated_at > NOW() - INTERVAL '24 hours') "
         "ORDER BY v.created_at DESC"
     )
     jobs = []
@@ -613,6 +737,8 @@ async def active_jobs(_: str = Depends(verify_token)):
             "current_phase": last_event["phase"] if last_event else None,
             "phase_status": last_event["status"] if last_event else None,
             "last_event_at": last_event["created_at"].isoformat() if last_event and last_event["created_at"] else None,
+            "checkpoint": r["checkpoint"],
+            "error_message": r["error_message"],
         })
     return R(status="ok", data=jobs)
 

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { api, isLoggedIn, wsProgress } from '@/lib/api';
 import { cn, statusColor, statusIcon, PHASE_ORDER, PHASE_LABELS } from '@/lib/utils';
-import { ThemeToggle } from '@/lib/theme';
+import { ThemeToggle, HomeLogo } from '@/lib/theme';
 
 export default function JobDetailPage() {
   const router = useRouter();
@@ -19,6 +19,7 @@ export default function JobDetailPage() {
   const [copied, setCopied] = useState('');
   const [reviewAction, setReviewAction] = useState<'none' | 'approving' | 'rejecting' | 'approved' | 'rejected'>('none');
   const wsRef = useRef<WebSocket | null>(null);
+  const [systemStopped, setSystemStopped] = useState(false);
 
   const loadAll = useCallback(async () => {
     const [p, o, m] = await Promise.all([
@@ -56,6 +57,7 @@ export default function JobDetailPage() {
     if (!isLoggedIn()) { router.replace('/login'); return; }
     loadAll();
     connectWs();
+    api.stats().then(res => setSystemStopped(res.data?.emergency_stop === true)).catch(() => {});
     return () => { wsRef.current?.close(); };
   }, [router, contentId, loadAll, connectWs]);
 
@@ -88,9 +90,17 @@ export default function JobDetailPage() {
   );
 
   const isDelivered = progress.current_status === 'delivered';
+  const isFailed = progress.current_status === 'failed';
   const showReviewPanel = isDelivered && reviewAction !== 'approved' && reviewAction !== 'rejected';
   const isApproved = reviewAction === 'approved';
   const isRejected = reviewAction === 'rejected';
+
+  async function handleRetry() {
+    try {
+      await api.retryJob(contentId);
+      loadAll();
+    } catch {}
+  }
 
   return (
     <div className="h-screen flex flex-col">
@@ -98,7 +108,7 @@ export default function JobDetailPage() {
       <header className="sticky top-0 z-10 bg-surface-0 border-b border-border px-6 py-4">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="btn-ghost !px-2 !py-1 !text-xs">← Back</Link>
+            <HomeLogo />
             <div>
               <h1 className="text-lg font-semibold text-content-primary">{contentId}</h1>
               <div className="flex items-center gap-2 mt-1">
@@ -120,8 +130,20 @@ export default function JobDetailPage() {
       {/* Scrollable Content */}
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-6 py-6">
+          {/* Lockdown banner */}
+          {systemStopped && (
+            <div className="mb-6 p-4 rounded-lg bg-status-error/10 border border-status-error/20">
+              <div className="flex items-center gap-3">
+                <span className="text-status-error text-lg">■</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-status-error">System Stopped</h3>
+                  <p className="text-xs text-content-tertiary mt-0.5">All controls are frozen.</p>
+                </div>
+              </div>
+            </div>
+          )}
           {/* Stepper — always visible */}
-          <div className="card p-5 mb-6">
+          <div className={cn('card p-5 mb-6', systemStopped && 'lockdown-frost')}>
             <div className="flex items-center gap-1">
               {PHASE_ORDER.map((phase, idx) => {
                 const events = (progress.timeline || []).filter((e: any) => e.phase === phase);
@@ -168,6 +190,37 @@ export default function JobDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Failed Panel — shown when job has failed */}
+          {isFailed && (
+            <div className="card p-5 mb-6 border-2 border-status-error/30 bg-status-error/5">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-status-error">Job Failed</h3>
+                  <p className="text-xs text-content-tertiary mt-1">
+                    This job failed during production. You can review the error, adjust channel settings if needed, and retry.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link href={`/dashboard/channels/${progress.channel_id}/settings`}
+                    className="px-4 py-2 border rounded-lg text-xs font-medium text-content-primary bg-surface-0 border-border hover:bg-surface-1 transition-all">
+                    Channel Settings
+                  </Link>
+                  <button
+                    onClick={handleRetry}
+                    className="px-4 py-2 border rounded-lg text-xs font-medium text-accent bg-accent/5 border-accent/15 hover:bg-accent/10 transition-all"
+                  >
+                    {progress.checkpoint ? `Retry from ${progress.checkpoint}` : 'Retry'}
+                  </button>
+                </div>
+              </div>
+              {progress.error_message && (
+                <div className="px-3 py-2 rounded bg-status-error/10 text-xs text-status-error font-mono">
+                  {progress.error_message}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Review Panel — shown when video is delivered and not yet reviewed */}
           {showReviewPanel && (

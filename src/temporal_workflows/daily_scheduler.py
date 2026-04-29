@@ -39,7 +39,9 @@ class DailySchedulerWorkflow:
 
         triggered = 0
         for ch in channels:
-            # Step 3: Acquire lock
+            mode = ch.get("content_mode", "long_form")
+
+            # Step 3: Acquire lock (one job per channel at a time)
             locked = await workflow.execute_activity(
                 "acquire_channel_lock",
                 args=[ch["channel_id"]],
@@ -50,17 +52,20 @@ class DailySchedulerWorkflow:
                 continue
 
             # Step 4: Start child workflow
-            per_video_budget = min(budget_remaining / max(len(channels), 1), 5.0)
+            per_video_budget = min(
+                ch.get("max_daily_api_spend", 5.0),
+                budget_remaining / max(len(channels) - triggered, 1),
+            )
 
             await workflow.start_child_workflow(
                 "VideoProductionWorkflow",
                 args=[VideoParams(
                     channel_id=ch["channel_id"],
-                    content_mode=ch.get("content_mode", "long_form"),
+                    content_mode=mode,
                     topic_candidates=ch.get("topic_candidates", []),
                     max_cost_usd=per_video_budget,
                 )],
-                id=f"video-{ch['channel_id']}-{workflow.now().strftime('%Y%m%d-%H%M')}",
+                id=f"video-{ch['channel_id']}-{mode[:1]}-{workflow.now().strftime('%Y%m%d-%H%M')}",
                 task_queue="video-production",
             )
             triggered += 1

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, isLoggedIn } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { ThemeToggle } from '@/lib/theme';
+import { ThemeToggle, HomeLogo } from '@/lib/theme';
 
 const FRIENDLY_LABELS: Record<string, string> = {
   dashboard_admin_password: 'Admin Password',
@@ -174,7 +174,7 @@ export default function SettingsPage() {
       <header className="sticky top-0 z-10 bg-surface-0 border-b border-border px-6 py-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="btn-ghost !px-2 !py-1 !text-xs">← Back</Link>
+            <HomeLogo />
             <div>
               <h1 className="text-lg font-semibold text-content-primary">Settings</h1>
               <p className="text-xs text-content-tertiary mt-0.5">Manage configuration</p>
@@ -224,7 +224,7 @@ export default function SettingsPage() {
                   {GROUP_LABELS[group] || group}
                   <span className="text-content-tertiary font-normal">({items.length})</span>
                 </h2>
-                <div className="card divide-y divide-border">
+                <div className={cn('card divide-y divide-border', systemStopped && 'lockdown-frost')}>
                   {items.map((cfg: any) => (
                     <ConfigRow
                       key={cfg.key}

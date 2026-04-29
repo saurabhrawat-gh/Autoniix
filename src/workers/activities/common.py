@@ -81,24 +81,60 @@ async def check_system_status() -> dict:
 
 @activity.defn
 async def get_eligible_channels() -> list[dict]:
-    """Get channels that are active and due for video production."""
+    """Get channels that are active, schedule-enabled, and due for video production."""
     logger.info("activity.get_eligible_channels")
     try:
         pool = await get_pool()
         rows = await pool.fetch(
-            "SELECT channel_id, channel_name, niche, content_mode, schedule_config "
+            "SELECT channel_id, channel_name, niche, content_mode, schedule_config, "
+            "videos_per_week_short, videos_per_week_long, max_daily_api_spend "
             "FROM channels WHERE status = 'active'"
         )
-        return [
-            {
-                "channel_id": r["channel_id"],
-                "channel_name": r["channel_name"],
-                "niche": r["niche"],
-                "content_mode": r["content_mode"],
-                "topic_candidates": [],
-            }
-            for r in rows
-        ]
+        import json
+        from datetime import datetime, timedelta
+        week_start = (datetime.utcnow() - timedelta(days=datetime.utcnow().weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        result = []
+        for r in rows:
+            sched_raw = r["schedule_config"]
+            sched = json.loads(sched_raw) if isinstance(sched_raw, str) else (sched_raw or {})
+            if not sched.get("enabled", True):
+                continue
+            # Determine which modes this channel supports
+            mode_raw = r["content_mode"] or "short"
+            modes = ["short", "long_form"] if mode_raw == "both" else [m.strip() for m in mode_raw.split(",")]
+            # Skip channels that already have a running job
+            running = await pool.fetchval(
+                "SELECT COUNT(*) FROM videos WHERE channel_id = $1 "
+                "AND status NOT IN ('delivered', 'failed', 'rejected')",
+                r["channel_id"],
+            )
+            if (running or 0) > 0:
+                continue
+            # Pick ONE eligible mode (short first — higher frequency)
+            picked_mode = None
+            for mode in modes:
+                limit = r["videos_per_week_short"] if mode == "short" else r["videos_per_week_long"]
+                used = await pool.fetchval(
+                    "SELECT COUNT(*) FROM videos WHERE channel_id = $1 "
+                    "AND content_mode = $2 AND created_at >= $3 "
+                    "AND status NOT IN ('rejected')",
+                    r["channel_id"], mode, week_start,
+                )
+                if (used or 0) < (limit or 0):
+                    picked_mode = mode
+                    break
+            if picked_mode:
+                result.append({
+                    "channel_id": r["channel_id"],
+                    "channel_name": r["channel_name"],
+                    "niche": r["niche"],
+                    "content_mode": picked_mode,
+                    "max_daily_api_spend": float(r["max_daily_api_spend"]) if r["max_daily_api_spend"] else 5.0,
+                    "topic_candidates": [],
+                })
+        return result
     except Exception as exc:
         logger.error("activity.get_eligible_channels.failed", error=str(exc))
         return []

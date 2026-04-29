@@ -49,9 +49,9 @@ export default function DashboardPage() {
     } catch {}
   }
 
-  async function triggerChannel(id: string) {
+  async function triggerChannel(id: string, contentMode: string) {
     try {
-      await api.trigger(id);
+      await api.trigger(id, { content_mode: contentMode });
       loadData();
     } catch {}
   }
@@ -79,24 +79,26 @@ export default function DashboardPage() {
     return 'running';
   }
 
-  function isWeeklyLimitReached(ch: any): boolean {
-    if (!ch.weekly_usage) return false;
-    const modes = (ch.content_mode || 'short').split(',');
-    for (const mode of modes) {
-      const m = mode.trim();
-      const usage = ch.weekly_usage[m];
-      if (usage && usage.used >= usage.limit) continue;
-      return false; // at least one mode still has capacity
-    }
-    return true;
+  function getModes(ch: any): string[] {
+    const raw = ch.content_mode || 'short';
+    if (raw === 'both') return ['short', 'long_form'];
+    return raw.split(',').map((m: string) => m.trim());
+  }
+
+  function isModeAtLimit(ch: any, mode: string): boolean {
+    const u = ch.weekly_usage?.[mode];
+    if (!u) return false;
+    return u.used >= u.limit;
+  }
+
+  function isAllModesAtLimit(ch: any): boolean {
+    return getModes(ch).every(m => isModeAtLimit(ch, m));
   }
 
   function getWeeklyLabel(ch: any): string | null {
     if (!ch.weekly_usage) return null;
     const parts: string[] = [];
-    const modes = (ch.content_mode || 'short').split(',');
-    for (const mode of modes) {
-      const m = mode.trim();
+    for (const m of getModes(ch)) {
       const u = ch.weekly_usage[m];
       if (!u) continue;
       const label = m === 'short' ? 'S' : 'L';
@@ -186,46 +188,62 @@ export default function DashboardPage() {
               <span className="text-xs text-content-tertiary">{channels.length} total</span>
             </div>
 
-            <div className="card overflow-hidden divide-y divide-border">
+            <div className={cn('card overflow-hidden divide-y divide-border', systemStopped && 'lockdown-frost')}>
               {/* Table header */}
               <div className="px-5 py-3 flex items-center bg-surface-1/50 text-xs font-medium text-content-tertiary">
                 <span className="flex-1">Channel</span>
                 <span className="w-20 text-center">Enabled</span>
-                <span className="w-64 text-right">Actions</span>
+                <span className="w-8 mr-1"></span>
+                <span className="w-72 text-right">Actions</span>
               </div>
 
               {channels.map((ch: any) => {
                 const state = getChannelState(ch);
                 const disabled = ch.status !== 'active';
-                const limitReached = isWeeklyLimitReached(ch);
+                const allLimitReached = isAllModesAtLimit(ch);
                 const weeklyLabel = getWeeklyLabel(ch);
-                const canTrigger = !disabled && !systemStopped && state === 'idle' && !limitReached;
+                const modes = getModes(ch);
+                const runningMode = ch.active_job?.content_mode;
 
                 return (
-                  <div key={ch.channel_id} className="px-5 py-4 flex items-center hover:bg-surface-1/50 transition-colors">
-                    {/* Channel info */}
-                    <Link href={`/dashboard/channels/${ch.channel_id}`} className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3">
-                        <span className={cn('w-2 h-2 rounded-full shrink-0', statusDot(ch.status))} />
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm text-content-primary truncate">{ch.channel_name}</span>
-                            <span className="badge bg-surface-2 text-content-tertiary">{ch.niche}</span>
-                            <span className="badge bg-surface-2 text-content-tertiary">
-                              {ch.content_mode === 'short' ? 'Short' : ch.content_mode === 'long_form' ? 'Long' : ch.content_mode}
-                            </span>
-                            {ch.auto_upload && (
-                              <span className="badge bg-accent/10 text-accent">Auto-upload</span>
-                            )}
-                          </div>
-                          <div className="mt-1 text-xs text-content-tertiary flex gap-3">
-                            <span>{ch.stats.delivered} delivered</span>
-                            <span>{ch.stats.in_progress} in progress</span>
-                            {weeklyLabel && <span className="text-accent font-medium">{weeklyLabel} this week</span>}
+                  <div key={ch.channel_id} className={cn(
+                    'px-5 py-4 flex items-center transition-colors',
+                    disabled ? 'bg-surface-1/30' : 'hover:bg-surface-1/50'
+                  )}>
+                    {/* Channel info — frosted when disabled */}
+                    <div className={cn('flex-1 min-w-0', disabled && 'lockdown-frost rounded-lg')}>
+                      <Link href={`/dashboard/channels/${ch.channel_id}`} className="block">
+                        <div className="flex items-center gap-3">
+                          <span className={cn('w-2 h-2 rounded-full shrink-0', statusDot(ch.status))} />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-sm text-content-primary truncate">{ch.channel_name}</span>
+                              <span className="badge bg-surface-2 text-content-tertiary">{ch.niche}</span>
+                              {modes.map((m: string) => (
+                                <span key={m} className="badge bg-surface-2 text-content-tertiary">
+                                  {m === 'short' ? 'Short' : 'Long'}
+                                </span>
+                              ))}
+                              {ch.auto_upload && (
+                                <span className="badge bg-accent/10 text-accent">Auto-upload</span>
+                              )}
+                              {disabled ? (
+                                <span className="badge bg-surface-3 text-content-tertiary">Cron Inactive</span>
+                              ) : ch.schedule_enabled ? (
+                                <span className="badge bg-blue-500/10 text-blue-400">Cron</span>
+                              ) : (
+                                <span className="badge bg-surface-3 text-content-tertiary">Cron Off</span>
+                              )}
+                            </div>
+                            <div className="mt-1 text-xs text-content-tertiary flex gap-3">
+                              <span>{ch.stats.delivered} delivered</span>
+                              <span>{ch.stats.in_progress} in progress</span>
+                              {weeklyLabel && <span className="text-accent font-medium">{weeklyLabel} this week</span>}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </Link>
+                      </Link>
+                    </div>
 
                     {/* Toggle */}
                     <div className="w-20 flex justify-center">
@@ -236,22 +254,56 @@ export default function DashboardPage() {
                       />
                     </div>
 
-                    {/* Actions */}
-                    <div className="w-64 flex justify-end items-center gap-2">
+                    {/* Settings gear */}
+                    <Link href={`/dashboard/channels/${ch.channel_id}/settings`}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-2 transition-all text-content-tertiary hover:text-accent mr-1"
+                      title="Channel Settings">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                      </svg>
+                    </Link>
+
+                    {/* Actions — frosted when disabled */}
+                    <div className={cn('w-72 flex justify-end items-center gap-2 flex-wrap', disabled && 'lockdown-frost rounded-lg')}>
                       {/* Trigger / Progress Ring */}
                       {state === 'idle' ? (
-                        <button
-                          onClick={() => triggerChannel(ch.channel_id)}
-                          disabled={!canTrigger}
-                          className={cn(
-                            'px-3 py-1.5 border rounded-lg text-xs font-medium transition-all',
-                            canTrigger
-                              ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
-                              : 'text-content-tertiary bg-surface-2 border-border cursor-not-allowed opacity-50'
-                          )}
-                        >
-                          {limitReached ? 'Limit Reached' : 'Trigger'}
-                        </button>
+                        modes.length > 1 ? (
+                          /* Per-mode trigger buttons when channel supports both */
+                          modes.map((m: string) => {
+                            const atLimit = isModeAtLimit(ch, m);
+                            const canTriggerMode = !disabled && !systemStopped && !atLimit;
+                            return (
+                              <button
+                                key={m}
+                                onClick={() => triggerChannel(ch.channel_id, m)}
+                                disabled={!canTriggerMode}
+                                className={cn(
+                                  'px-3 py-1.5 border rounded-lg text-xs font-medium transition-all',
+                                  canTriggerMode
+                                    ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
+                                    : 'text-content-tertiary bg-surface-2 border-border cursor-not-allowed opacity-50'
+                                )}
+                              >
+                                {atLimit ? `${m === 'short' ? 'S' : 'L'} Limit` : `▶ ${m === 'short' ? 'Short' : 'Long'}`}
+                              </button>
+                            );
+                          })
+                        ) : (
+                          /* Single trigger button for single-mode channels */
+                          <button
+                            onClick={() => triggerChannel(ch.channel_id, modes[0])}
+                            disabled={disabled || systemStopped || allLimitReached}
+                            className={cn(
+                              'px-3 py-1.5 border rounded-lg text-xs font-medium transition-all',
+                              !disabled && !systemStopped && !allLimitReached
+                                ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
+                                : 'text-content-tertiary bg-surface-2 border-border cursor-not-allowed opacity-50'
+                            )}
+                          >
+                            {allLimitReached ? 'Limit Reached' : 'Trigger'}
+                          </button>
+                        )
                       ) : state === 'pending_review' ? (
                         <Link href={`/dashboard/jobs/${ch.active_job?.content_id}`}
                           className="px-3 py-1.5 border rounded-lg text-xs font-medium text-status-warning bg-status-warning/5 border-status-warning/15 hover:bg-status-warning/10 transition-all">
@@ -262,6 +314,7 @@ export default function DashboardPage() {
                           <ProgressRing paused={state === 'paused'} />
                           <span className="text-[10px] text-content-tertiary font-medium">
                             {state === 'paused' ? 'Paused' : 'Running'}
+                            {runningMode && ` (${runningMode === 'short' ? 'S' : 'L'})`}
                           </span>
                         </div>
                       )}

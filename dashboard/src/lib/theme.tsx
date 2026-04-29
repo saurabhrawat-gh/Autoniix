@@ -41,6 +41,19 @@ export function useTheme() {
   return useContext(ThemeContext);
 }
 
+export function HomeLogo() {
+  return (
+    <a href="/dashboard" className="flex items-center gap-2 group" title="Back to Dashboard">
+      <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center group-hover:bg-accent/20 transition-colors">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="text-accent">
+          <path d="M23 7l-7 5 7 5V7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <rect x="1" y="5" width="15" height="14" rx="2" stroke="currentColor" strokeWidth="2"/>
+        </svg>
+      </div>
+    </a>
+  );
+}
+
 export function ThemeToggle() {
   const { theme, toggle } = useTheme();
 

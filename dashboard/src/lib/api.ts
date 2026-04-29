@@ -5,16 +5,27 @@ function getToken(): string | null {
   return localStorage.getItem('dashboard_token');
 }
 
-export function setToken(token: string) {
+export function setToken(token: string, expiresIn?: number) {
   localStorage.setItem('dashboard_token', token);
+  if (expiresIn) {
+    localStorage.setItem('dashboard_token_expires', String(Date.now() + expiresIn * 1000));
+  }
 }
 
 export function clearToken() {
   localStorage.removeItem('dashboard_token');
+  localStorage.removeItem('dashboard_token_expires');
 }
 
 export function isLoggedIn(): boolean {
-  return !!getToken();
+  const token = getToken();
+  if (!token) return false;
+  const expires = localStorage.getItem('dashboard_token_expires');
+  if (expires && Date.now() > parseInt(expires, 10)) {
+    clearToken();
+    return false;
+  }
+  return true;
 }
 
 async function request<T = any>(path: string, opts: RequestInit = {}): Promise<T> {
@@ -91,11 +102,13 @@ export const api = {
   // Active jobs (all in-progress)
   activeJobs: () => request('/api/jobs/active'),
 
-  // Job approval / rejection
+  // Job approval / rejection / retry
   approveJob: (contentId: string) =>
     request(`/api/jobs/${contentId}/approve`, { method: 'POST' }),
   rejectJob: (contentId: string) =>
     request(`/api/jobs/${contentId}/reject`, { method: 'POST' }),
+  retryJob: (contentId: string) =>
+    request(`/api/jobs/${contentId}/retry`, { method: 'POST' }),
 
   // Config
   config: () => request('/api/config'),

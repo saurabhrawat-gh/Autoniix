@@ -103,4 +103,19 @@
   .badge {
     @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium;
   }
+
+  /* Frosted glass lockdown overlay — used for emergency stop freeze */
+  .lockdown-frost {
+    @apply relative pointer-events-none select-none;
+  }
+  .lockdown-frost::after {
+    content: '';
+    @apply absolute inset-0 rounded-xl z-10;
+    backdrop-filter: blur(2px) saturate(0.5);
+    -webkit-backdrop-filter: blur(2px) saturate(0.5);
+    background: rgb(var(--surface-0) / 0.45);
+  }
+  .dark .lockdown-frost::after {
+    background: rgb(var(--surface-0) / 0.55);
+  }
 }

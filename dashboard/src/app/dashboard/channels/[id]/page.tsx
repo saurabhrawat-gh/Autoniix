@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api, isLoggedIn } from '@/lib/api';
 import { cn, statusColor, statusIcon, PHASE_LABELS } from '@/lib/utils';
-import { ThemeToggle } from '@/lib/theme';
+import { ThemeToggle, HomeLogo } from '@/lib/theme';
 
 export default function ChannelDetailPage() {
   const router = useRouter();
@@ -15,6 +15,7 @@ export default function ChannelDetailPage() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [channel, setChannel] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [systemStopped, setSystemStopped] = useState(false);
 
   const loadJobs = useCallback(async () => {
     setLoading(true);
@@ -25,6 +26,11 @@ export default function ChannelDetailPage() {
       ]);
       setJobs(jobsRes.data || []);
       const ch = (chRes.data || []).find((c: any) => c.channel_id === channelId);
+      if (ch && !channel) {
+        const raw = ch.content_mode || 'short';
+        const firstMode = raw === 'both' ? 'short' : raw.trim();
+        if (firstMode !== tab) setTab(firstMode as 'short' | 'long_form');
+      }
       setChannel(ch || null);
     } catch {}
     setLoading(false);
@@ -33,6 +39,7 @@ export default function ChannelDetailPage() {
   useEffect(() => {
     if (!isLoggedIn()) { router.replace('/login'); return; }
     loadJobs();
+    api.stats().then(res => setSystemStopped(res.data?.emergency_stop === true)).catch(() => {});
   }, [router, loadJobs]);
 
   return (
@@ -41,7 +48,7 @@ export default function ChannelDetailPage() {
       <header className="sticky top-0 z-10 bg-surface-0 border-b border-border px-6 py-4">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="btn-ghost !px-2 !py-1 !text-xs">← Back</Link>
+            <HomeLogo />
             <div>
               <h1 className="text-lg font-semibold text-content-primary">
                 {channel?.channel_name || channelId}
@@ -49,16 +56,54 @@ export default function ChannelDetailPage() {
               <p className="text-xs text-content-tertiary mt-0.5">Channel Detail</p>
             </div>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+              <Link href={`/dashboard/channels/${channelId}/settings`}
+                className="w-9 h-9 flex items-center justify-center rounded-lg bg-surface-2 hover:bg-surface-3 transition-all text-content-secondary hover:text-accent"
+                title="Channel Settings">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+              </Link>
+              <ThemeToggle />
+            </div>
         </div>
       </header>
 
       {/* Scrollable Content */}
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-6 py-6">
+          {/* Channel disabled banner */}
+          {channel && channel.status !== 'active' && !systemStopped && (
+            <div className="mb-6 p-4 rounded-lg bg-surface-2 border border-border">
+              <div className="flex items-center gap-3">
+                <span className="text-content-tertiary text-lg">○</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-content-secondary">Channel Disabled</h3>
+                  <p className="text-xs text-content-tertiary mt-0.5">
+                    Enable this channel from the dashboard to resume operations.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Lockdown banner */}
+          {systemStopped && (
+            <div className="mb-6 p-4 rounded-lg bg-status-error/10 border border-status-error/20">
+              <div className="flex items-center gap-3">
+                <span className="text-status-error text-lg">■</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-status-error">System Stopped</h3>
+                  <p className="text-xs text-content-tertiary mt-0.5">
+                    All operations are frozen.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           {/* Progress Summary Card */}
           {channel && (
-            <div className="card p-5 mb-6">
+            <div className={cn('card p-5 mb-6', (systemStopped || channel.status !== 'active') && 'lockdown-frost')}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-6">
                   {/* Active job status */}
@@ -82,20 +127,40 @@ export default function ChannelDetailPage() {
                       <div>
                         <div className="text-xs font-medium text-content-tertiary mb-1">Weekly Usage</div>
                         <div className="flex items-center gap-3">
-                          {(channel.content_mode || 'short').split(',').map((mode: string) => {
-                            const m = mode.trim();
-                            const u = channel.weekly_usage[m];
-                            if (!u) return null;
-                            return (
-                              <span key={m} className="text-sm font-medium text-content-primary">
-                                {u.used}/{u.limit} {m === 'short' ? 'Shorts' : 'Long'}
-                              </span>
-                            );
-                          })}
+                          {(() => {
+                            const raw = channel.content_mode || 'short';
+                            const modes = raw === 'both' ? ['short', 'long_form'] : raw.split(',').map((s: string) => s.trim());
+                            return modes.map((m: string) => {
+                              const u = channel.weekly_usage[m];
+                              if (!u) return null;
+                              return (
+                                <span key={m} className={cn(
+                                  'text-sm font-medium',
+                                  m === (tab === 'short' ? 'short' : 'long_form') ? 'text-accent' : 'text-content-primary'
+                                )}>
+                                  {u.used}/{u.limit} {m === 'short' ? 'Shorts' : 'Long'}
+                                </span>
+                              );
+                            });
+                          })()}
                         </div>
                       </div>
                     </>
                   )}
+                  {/* Automation indicator */}
+                  <>
+                    <div className="h-8 w-px bg-border" />
+                    <div>
+                      <div className="text-xs font-medium text-content-tertiary mb-1">Automation</div>
+                      {channel.status !== 'active' ? (
+                        <span className="text-sm font-medium text-content-tertiary">Cron Inactive</span>
+                      ) : channel.schedule_enabled ? (
+                        <span className="text-sm font-medium text-blue-400">Cron Active</span>
+                      ) : (
+                        <span className="text-sm font-medium text-content-tertiary">Cron Off</span>
+                      )}
+                    </div>
+                  </>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-content-tertiary">
                   <span>{channel.stats.delivered} delivered</span>
@@ -107,22 +172,32 @@ export default function ChannelDetailPage() {
           )}
 
           {/* Content card */}
-          <div className="card overflow-hidden">
-            {/* Tabs */}
-            <div className="flex border-b border-border px-5">
-              {(['short', 'long_form'] as const).map((t) => (
-                <button key={t} onClick={() => setTab(t)}
-                  className={cn(
-                    'px-4 py-3 text-sm font-medium transition-colors relative',
-                    tab === t
-                      ? 'text-accent'
-                      : 'text-content-tertiary hover:text-content-primary'
-                  )}>
-                  {t === 'short' ? 'Short Form' : 'Long Form'}
-                  {tab === t && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full" />}
-                </button>
-              ))}
-            </div>
+          <div className={cn('card overflow-hidden', (systemStopped || (channel && channel.status !== 'active')) && 'lockdown-frost')}>
+            {/* Tabs — only show if channel supports multiple modes */}
+            {(() => {
+              const raw = channel?.content_mode || 'short';
+              const modes = raw === 'both' ? ['short', 'long_form'] : [raw.trim()];
+              return modes.length > 1 ? (
+                <div className="flex border-b border-border px-5">
+                  {modes.map((t) => (
+                    <button key={t} onClick={() => setTab(t as 'short' | 'long_form')}
+                      className={cn(
+                        'px-4 py-3 text-sm font-medium transition-colors relative',
+                        tab === t
+                          ? 'text-accent'
+                          : 'text-content-tertiary hover:text-content-primary'
+                      )}>
+                      {t === 'short' ? 'Short Form' : 'Long Form'}
+                      {tab === t && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full" />}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-5 py-3 text-sm font-medium text-accent border-b border-border">
+                  {modes[0] === 'short' ? 'Short Form' : 'Long Form'}
+                </div>
+              );
+            })()}
 
             {/* Jobs */}
             {loading ? (
