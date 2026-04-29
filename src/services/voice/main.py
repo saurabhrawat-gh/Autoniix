@@ -23,6 +23,15 @@ from src.providers.registry import ProviderRegistry
 from src.providers.llm.base import LLMRequest
 from src.providers.storage.base import StorageUpload
 
+from src.services.voice.emotion_predictor import predict_emotions_for_sentences
+from src.services.voice.audio_quality_scorer import analyze_audio_quality, score_emotion_variety
+from src.services.voice.voice_style_learner import (
+    extract_voice_features,
+    predict_optimal_params,
+    ingest_voice_feedback,
+    train_voice_model,
+)
+
 logger = structlog.get_logger()
 
 
@@ -133,73 +142,103 @@ async def synthesize(req: VoiceRequest):
                     "segment_id": seg.get("id", ""),
                     "section": seg.get("section", "body"),
                     "text": sent,
+                    "prosody_hint": seg.get("prosody_hint", {}),
                 })
 
         if not all_sentences:
             raise HTTPException(status_code=400, detail="No narration text in segments")
 
-        # ── Step 2: Emotion Mapping (GPT-4o-mini) ────────
-        emotion_prompt = await _load_prompt("PRM_B2_EMOTION_MAP")
-        emotion_llm = ProviderRegistry.get("llm.emotion")
+        # ── Step 2: Intelligence — Emotion Prediction ──────
+        # Check if we can use local prediction (saves LLM cost)
+        use_prosody = await _load_config("voice_use_prosody_hints")
+        has_prosody_hints = any(s.get("prosody_hint") for s in all_sentences)
+        emotion_source = "local"
 
-        full_narration = " ".join(s["text"] for s in all_sentences)
-
-        em_system = emotion_prompt.get("system_prompt",
-            "Map emotions to voice parameters per sentence. Respond in JSON.")
-        em_user = _safe_format(emotion_prompt.get("user_prompt_template",
-            "Narration: {narration}\nVoice style: {brand_voice}"),
-            narration=full_narration[:3000],
-            brand_voice=channel.get("brand_voice", ""),
-            pacing_style=channel.get("pacing_style", ""),
-        )
-
-        em_result = await emotion_llm.complete(LLMRequest(
-            messages=[
-                {"role": "system", "content": em_system},
-                {"role": "user", "content": em_user},
-            ],
-            model="gpt-4o-mini",
-            temperature=0.3,
-            max_tokens=2000,
-            response_format="json",
-        ))
-        total_cost += em_result.cost_usd
-        await _log_usage(req.content_id, "voice_emotion", em_result.provider,
-                         em_result.model, em_result.tokens_in, em_result.tokens_out,
-                         em_result.cost_usd, em_result.latency_ms)
-
-        # Parse emotion map
-        try:
-            emotion_data = _parse_json(em_result.content)
-            emotion_sentences = emotion_data.get("sentences", [])
-        except json.JSONDecodeError:
-            emotion_sentences = []
-
-        # Merge emotion params into sentences
-        default_stability = float(channel.get("voice_stability", 0.50))
-        default_similarity = float(channel.get("voice_similarity", 0.75))
-        default_style = float(channel.get("voice_style", 0.40))
-
-        for i, sent in enumerate(all_sentences):
-            if i < len(emotion_sentences):
-                em = emotion_sentences[i]
-                sent["stability"] = float(em.get("stability", default_stability))
-                sent["similarity_boost"] = float(em.get("similarity_boost", default_similarity))
-                sent["style"] = float(em.get("style", default_style))
-                sent["speed"] = float(em.get("speed", 1.0))
-                sent["pause_after_ms"] = int(em.get("pause_after_ms", 300))
+        if use_prosody != "false" and has_prosody_hints:
+            # LOCAL PATH: Use emotion predictor (cost: $0.00)
+            predicted_emotions = predict_emotions_for_sentences(all_sentences, channel)
+            for i, sent in enumerate(all_sentences):
+                em = predicted_emotions[i] if i < len(predicted_emotions) else {}
+                sent["stability"] = em.get("stability", 0.50)
+                sent["similarity_boost"] = em.get("similarity_boost", 0.75)
+                sent["style"] = em.get("style", 0.40)
+                sent["speed"] = em.get("speed", 1.0)
+                sent["pause_after_ms"] = em.get("pause_after_ms", 300)
                 sent["emotion"] = em.get("emotion", "neutral")
                 sent["emphasis_words"] = em.get("emphasis_words", [])
                 sent["volume_shift"] = em.get("volume_shift", "normal")
-            else:
-                sent["stability"] = default_stability
-                sent["similarity_boost"] = default_similarity
-                sent["style"] = default_style
-                sent["speed"] = 1.0
-                sent["pause_after_ms"] = 300
-                sent["emotion"] = "neutral"
-                sent["emphasis_words"] = []
-                sent["volume_shift"] = "normal"
+            logger.info("voice.emotion_predicted_locally", sentences=len(all_sentences))
+        else:
+            # LLM FALLBACK: Use GPT-4o-mini for emotion mapping
+            emotion_source = "llm"
+            emotion_prompt = await _load_prompt("PRM_B2_EMOTION_MAP")
+            emotion_llm = ProviderRegistry.get("llm.emotion")
+
+            full_narration = " ".join(s["text"] for s in all_sentences)
+
+            em_system = emotion_prompt.get("system_prompt",
+                "Map emotions to voice parameters per sentence. Respond in JSON.")
+            em_user = _safe_format(emotion_prompt.get("user_prompt_template",
+                "Narration: {narration}\nVoice style: {brand_voice}"),
+                narration=full_narration[:3000],
+                brand_voice=channel.get("brand_voice", ""),
+                pacing_style=channel.get("pacing_style", ""),
+            )
+
+            em_result = await emotion_llm.complete(LLMRequest(
+                messages=[
+                    {"role": "system", "content": em_system},
+                    {"role": "user", "content": em_user},
+                ],
+                model="gpt-4o-mini",
+                temperature=0.3,
+                max_tokens=2000,
+                response_format="json",
+            ))
+            total_cost += em_result.cost_usd
+            await _log_usage(req.content_id, "voice_emotion", em_result.provider,
+                             em_result.model, em_result.tokens_in, em_result.tokens_out,
+                             em_result.cost_usd, em_result.latency_ms)
+
+            try:
+                emotion_data = _parse_json(em_result.content)
+                emotion_sentences = emotion_data.get("sentences", [])
+            except json.JSONDecodeError:
+                emotion_sentences = []
+
+            default_stability = float(channel.get("voice_stability", 0.50))
+            default_similarity = float(channel.get("voice_similarity", 0.75))
+            default_style = float(channel.get("voice_style", 0.40))
+
+            for i, sent in enumerate(all_sentences):
+                if i < len(emotion_sentences):
+                    em = emotion_sentences[i]
+                    sent["stability"] = float(em.get("stability", default_stability))
+                    sent["similarity_boost"] = float(em.get("similarity_boost", default_similarity))
+                    sent["style"] = float(em.get("style", default_style))
+                    sent["speed"] = float(em.get("speed", 1.0))
+                    sent["pause_after_ms"] = int(em.get("pause_after_ms", 300))
+                    sent["emotion"] = em.get("emotion", "neutral")
+                    sent["emphasis_words"] = em.get("emphasis_words", [])
+                    sent["volume_shift"] = em.get("volume_shift", "normal")
+                else:
+                    sent["stability"] = default_stability
+                    sent["similarity_boost"] = default_similarity
+                    sent["style"] = default_style
+                    sent["speed"] = 1.0
+                    sent["pause_after_ms"] = 300
+                    sent["emotion"] = "neutral"
+                    sent["emphasis_words"] = []
+                    sent["volume_shift"] = "normal"
+
+        # ── Step 2B: Apply ML-learned optimal params (if model exists)
+        niche = channel.get("niche", "general")
+        optimal_params = await predict_optimal_params(req.channel_id, niche)
+        if optimal_params:
+            logger.info("voice.applying_ml_params", params=optimal_params)
+            for sent in all_sentences:
+                sent["stability"] = sent["stability"] * 0.7 + optimal_params.get("stability", sent["stability"]) * 0.3
+                sent["similarity_boost"] = sent["similarity_boost"] * 0.7 + optimal_params.get("similarity_boost", sent["similarity_boost"]) * 0.3
 
         # ── Step 3: Per-Sentence TTS ─────────────────────
         audio_chunks = []
@@ -268,7 +307,13 @@ async def synthesize(req: VoiceRequest):
             "total_chars": total_chars,
         }
 
-        # ── Step 6: Quality score (enhanced) ──────────
+        # ── Step 5B: Intelligence — Audio Quality Analysis ──
+        audio_analysis = await analyze_audio_quality(
+            combined_audio, expected_duration_s=total_duration)
+        emotion_variety = score_emotion_variety(
+            [{"emotion": s.get("emotion", "neutral")} for s in all_sentences])
+
+        # ── Step 6: Quality score (enhanced with intelligence) ──
         quality_score = 10.0
 
         # WPM check
@@ -280,7 +325,23 @@ async def synthesize(req: VoiceRequest):
         if total_duration < 10:
             quality_score -= 0.5
 
-        # Emotion variety check
+        # Audio quality from librosa analysis
+        audio_score = audio_analysis.get("quality_score", 7.0)
+        if audio_score < 5.0:
+            quality_score -= 2.0
+            validation["audio_quality"] = f"Poor audio quality: {audio_score}"
+        elif audio_score < 7.0:
+            quality_score -= 1.0
+            validation["audio_quality"] = f"Fair audio quality: {audio_score}"
+        else:
+            validation["audio_quality"] = f"Good audio quality: {audio_score}"
+
+        # Naturalness score
+        naturalness = audio_analysis.get("naturalness_score", 7.0)
+        validation["naturalness_score"] = naturalness
+
+        # Emotion variety check (using intelligence scorer)
+        variety_score = emotion_variety.get("variety_score", 5.0)
         unique_emotions = set(s.get("emotion", "neutral") for s in all_sentences)
         if len(unique_emotions) <= 1:
             quality_score -= 1.0
@@ -290,6 +351,7 @@ async def synthesize(req: VoiceRequest):
             validation["emotion_variety"] = "moderate — only 2 emotions"
         else:
             validation["emotion_variety"] = f"good — {len(unique_emotions)} distinct emotions"
+        validation["emotion_variety_score"] = variety_score
 
         # Segment coverage check
         covered_segments = set(s["segment_id"] for s in all_sentences)
@@ -300,6 +362,17 @@ async def synthesize(req: VoiceRequest):
             validation["missing_segments"] = list(missing_segs)
 
         quality_score = max(1.0, round(quality_score, 1))
+
+        # ── Step 6B: Intelligence — Store features for ML ──
+        await extract_voice_features(
+            req.content_id, req.channel_id,
+            audio_analysis.get("metrics", {}),
+            [{"emotion": s.get("emotion"), "stability": s.get("stability"),
+              "similarity_boost": s.get("similarity_boost"), "style": s.get("style"),
+              "speed": s.get("speed"), "pause_after_ms": s.get("pause_after_ms"),
+              "emphasis_words": s.get("emphasis_words", [])}
+             for s in all_sentences],
+            validation)
 
         # Log usage
         await _log_usage(req.content_id, "voice", tts_provider_name, "tts",
@@ -326,6 +399,17 @@ async def synthesize(req: VoiceRequest):
             ],
             "validation": validation,
             "voice_quality_score": round(quality_score, 1),
+            "intelligence": {
+                "emotion_source": emotion_source,
+                "audio_analysis": {
+                    "quality_score": audio_analysis.get("quality_score"),
+                    "naturalness_score": audio_analysis.get("naturalness_score"),
+                    "snr_db": audio_analysis.get("metrics", {}).get("snr_db"),
+                },
+                "emotion_variety": emotion_variety,
+                "ml_params_applied": optimal_params is not None,
+                "llm_cost_saved": emotion_source == "local",
+            },
         }
 
         logger.info("voice.completed",
@@ -345,6 +429,42 @@ async def synthesize(req: VoiceRequest):
     except Exception as exc:
         logger.error("voice.failed", error=str(exc))
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ── Intelligence Endpoints ────────────────────────────────
+
+class VoiceFeedbackRequest(BaseModel):
+    content_id: str
+    channel_id: str
+    retention_data: dict = Field(default_factory=dict)
+
+
+class VoiceTrainRequest(BaseModel):
+    niche: str
+
+
+@app.post("/voice-feedback", response_model=ServiceResponse)
+async def voice_feedback(req: VoiceFeedbackRequest):
+    """Ingest retention data for voice ML learning."""
+    ok = await ingest_voice_feedback(req.content_id, req.channel_id, req.retention_data)
+    return ServiceResponse(status="success" if ok else "failed", data={"ingested": ok})
+
+
+@app.post("/voice-train", response_model=ServiceResponse)
+async def voice_train(req: VoiceTrainRequest):
+    """Train/retrain voice parameter optimization model."""
+    result = await train_voice_model(req.niche)
+    return ServiceResponse(status="success", data=result)
+
+
+async def _load_config(key: str) -> str:
+    try:
+        pool = await get_pool()
+        row = await pool.fetchrow(
+            "SELECT config_value FROM system_config WHERE config_key = $1", key)
+        return row["config_value"] if row else ""
+    except Exception:
+        return ""
 
 
 if __name__ == "__main__":

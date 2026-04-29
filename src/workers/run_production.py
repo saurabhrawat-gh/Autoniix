@@ -16,6 +16,7 @@ from src.temporal_workflows.video_production import VideoProductionWorkflow
 from src.workers.activities.common import (
     acquire_channel_lock,
     check_system_status,
+    emit_job_event,
     get_eligible_channels,
     release_channel_lock,
     send_notification,
@@ -68,6 +69,7 @@ async def main() -> None:
             analytics_activity,
             # Infrastructure activities
             update_video_status,
+            emit_job_event,
             release_channel_lock,
             check_system_status,
             get_eligible_channels,

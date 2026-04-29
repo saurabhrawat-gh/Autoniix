@@ -17,6 +17,12 @@ import src.providers.llm.openai_provider  # noqa: F401
 from src.providers.registry import ProviderRegistry
 from src.providers.llm.base import LLMRequest
 
+from src.services.direction.direction_merger import (
+    merge_script_direction_with_assets,
+    score_merged_direction,
+    store_direction_features,
+)
+
 logger = structlog.get_logger()
 
 
@@ -111,6 +117,68 @@ async def generate_direction(req: DirectionRequest):
         fps = 30
         brand_primary = channel.get("primary_color", "#1A237E")
         brand_accent = channel.get("accent_color", "#FF6F00")
+
+        # ── Intelligence: Try script v3 direction hint first ──
+        use_hint_cfg = await _load_config("direction_use_script_v3_hint")
+        use_hint = use_hint_cfg != "false"
+        llm_enhance_cfg = await _load_config("direction_llm_enhance_enabled")
+        llm_enhance = llm_enhance_cfg != "false"
+        used_hint = False
+
+        script_v3_hint = {}
+        for seg in req.script_segments:
+            if seg.get("direction_hint"):
+                if not script_v3_hint:
+                    script_v3_hint = {"segments": []}
+                script_v3_hint["segments"].append(seg.get("direction_hint", {}))
+
+        if use_hint and script_v3_hint.get("segments"):
+            # Try to build direction from script v3 hints (cost: $0.00)
+            merged = merge_script_direction_with_assets(
+                script_v3_hint, req.script_segments,
+                req.voice_manifest, req.asset_manifest,
+                req.thumbnail_result, req.music_data, channel)
+
+            if merged and merged.get("segments"):
+                merged_qc = score_merged_direction(merged)
+                merged_score = merged_qc.get("score", 0)
+
+                if merged_score >= 7.0 and not llm_enhance:
+                    # Merged direction is good enough, skip LLM entirely
+                    merged["direction_score"] = merged_score
+                    merged["direction_issues"] = merged_qc.get("issues", [])
+                    merged["meta"]["video_id"] = req.content_id
+                    merged["meta"]["title"] = req.title
+                    used_hint = True
+
+                    await store_direction_features(
+                        req.content_id, req.channel_id, merged,
+                        used_hint=True, llm_tokens=0)
+
+                    try:
+                        pool = await get_pool()
+                        await pool.execute(
+                            "UPDATE videos SET v3_direction = $1, direction_score = $2, updated_at = NOW() "
+                            "WHERE content_id = $3",
+                            json.dumps(merged), merged_score, req.content_id)
+                    except Exception:
+                        pass
+
+                    logger.info("direction.completed_from_hint",
+                                 segments=len(merged.get("segments", [])),
+                                 score=merged_score, cost=0)
+
+                    return ServiceResponse(
+                        status="success",
+                        data={
+                            "direction_v3": merged,
+                            "segment_count": len(merged.get("segments", [])),
+                            "total_duration_s": merged.get("meta", {}).get("duration_target_seconds", 0),
+                            "direction_score": round(merged_score, 1),
+                            "intelligence": {"source": "script_v3_hint", "llm_cost": 0},
+                        },
+                        cost={"cost_usd": 0, "provider": "local"},
+                    )
 
         # Build asset lookup
         asset_lookup = {}
@@ -374,6 +442,11 @@ async def generate_direction(req: DirectionRequest):
         direction_v3["direction_score"] = round(direction_score, 1)
         direction_v3["direction_issues"] = issues
 
+        # Intelligence: Store direction features for learning
+        await store_direction_features(
+            req.content_id, req.channel_id, direction_v3,
+            used_hint=False, llm_tokens=result.tokens_in + result.tokens_out)
+
         # ── Step 4: Store in DB ──────────────────────────
         try:
             pool = await get_pool()
@@ -397,6 +470,7 @@ async def generate_direction(req: DirectionRequest):
                 "segment_count": len(remotion_segments),
                 "total_duration_s": total_duration_s,
                 "direction_score": round(direction_score, 1),
+                "intelligence": {"source": "llm", "llm_cost": round(total_cost, 6)},
             },
             cost={"cost_usd": round(total_cost, 6), "provider": result.provider},
         )
@@ -406,6 +480,16 @@ async def generate_direction(req: DirectionRequest):
     except Exception as exc:
         logger.error("direction.failed", error=str(exc))
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+async def _load_config(key: str) -> str:
+    try:
+        pool = await get_pool()
+        row = await pool.fetchrow(
+            "SELECT config_value FROM system_config WHERE config_key = $1", key)
+        return row["config_value"] if row else ""
+    except Exception:
+        return ""
 
 
 if __name__ == "__main__":

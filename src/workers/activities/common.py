@@ -81,24 +81,60 @@ async def check_system_status() -> dict:
 
 @activity.defn
 async def get_eligible_channels() -> list[dict]:
-    """Get channels that are active and due for video production."""
+    """Get channels that are active, schedule-enabled, and due for video production."""
     logger.info("activity.get_eligible_channels")
     try:
         pool = await get_pool()
         rows = await pool.fetch(
-            "SELECT channel_id, channel_name, niche, content_mode, schedule_config "
+            "SELECT channel_id, channel_name, niche, content_mode, schedule_config, "
+            "videos_per_week_short, videos_per_week_long, max_daily_api_spend "
             "FROM channels WHERE status = 'active'"
         )
-        return [
-            {
-                "channel_id": r["channel_id"],
-                "channel_name": r["channel_name"],
-                "niche": r["niche"],
-                "content_mode": r["content_mode"],
-                "topic_candidates": [],
-            }
-            for r in rows
-        ]
+        import json
+        from datetime import datetime, timedelta
+        week_start = (datetime.utcnow() - timedelta(days=datetime.utcnow().weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        result = []
+        for r in rows:
+            sched_raw = r["schedule_config"]
+            sched = json.loads(sched_raw) if isinstance(sched_raw, str) else (sched_raw or {})
+            if not sched.get("enabled", True):
+                continue
+            # Determine which modes this channel supports
+            mode_raw = r["content_mode"] or "short"
+            modes = ["short", "long_form"] if mode_raw == "both" else [m.strip() for m in mode_raw.split(",")]
+            # Skip channels that already have a running job
+            running = await pool.fetchval(
+                "SELECT COUNT(*) FROM videos WHERE channel_id = $1 "
+                "AND status NOT IN ('delivered', 'failed', 'rejected')",
+                r["channel_id"],
+            )
+            if (running or 0) > 0:
+                continue
+            # Pick ONE eligible mode (short first — higher frequency)
+            picked_mode = None
+            for mode in modes:
+                limit = r["videos_per_week_short"] if mode == "short" else r["videos_per_week_long"]
+                used = await pool.fetchval(
+                    "SELECT COUNT(*) FROM videos WHERE channel_id = $1 "
+                    "AND content_mode = $2 AND created_at >= $3 "
+                    "AND status NOT IN ('rejected')",
+                    r["channel_id"], mode, week_start,
+                )
+                if (used or 0) < (limit or 0):
+                    picked_mode = mode
+                    break
+            if picked_mode:
+                result.append({
+                    "channel_id": r["channel_id"],
+                    "channel_name": r["channel_name"],
+                    "niche": r["niche"],
+                    "content_mode": picked_mode,
+                    "max_daily_api_spend": float(r["max_daily_api_spend"]) if r["max_daily_api_spend"] else 5.0,
+                    "topic_candidates": [],
+                })
+        return result
     except Exception as exc:
         logger.error("activity.get_eligible_channels.failed", error=str(exc))
         return []
@@ -123,6 +159,77 @@ async def acquire_channel_lock(channel_id: str) -> bool:
 
 
 @activity.defn
+async def emit_job_event(content_id: str, channel_id: str, phase: str,
+                          status: str, detail: dict | None = None,
+                          cost_usd: float = 0) -> None:
+    """Insert a row into job_events for dashboard progress tracking."""
+    logger.info("activity.emit_job_event", content_id=content_id, phase=phase, status=status)
+    try:
+        pool = await get_pool()
+        await pool.execute(
+            "INSERT INTO job_events (content_id, channel_id, phase, status, detail, cost_usd) "
+            "VALUES ($1, $2, $3, $4, $5::jsonb, $6)",
+            content_id, channel_id, phase, status,
+            __import__("json").dumps(detail or {}), float(cost_usd),
+        )
+    except Exception as exc:
+        logger.warning("activity.emit_job_event.failed", error=str(exc))
+
+
+@activity.defn
 async def send_notification(payload: dict) -> None:
-    """Send notification (webhook, email, etc). Stub for now."""
+    """Send notification via Telegram (if configured) or log."""
     logger.info("activity.notification", type=payload.get("type"), channel=payload.get("channel_id"))
+    try:
+        pool = await get_pool()
+        token_row = await pool.fetchrow(
+            "SELECT config_value FROM system_config WHERE config_key = 'telegram_bot_token'"
+        )
+        chat_row = await pool.fetchrow(
+            "SELECT config_value FROM system_config WHERE config_key = 'telegram_chat_id'"
+        )
+        token = token_row["config_value"] if token_row else ""
+        chat_id = chat_row["config_value"] if chat_row else ""
+
+        if not token or not chat_id:
+            logger.info("activity.notification.skip", reason="telegram not configured")
+            return
+
+        import httpx
+        notif_type = payload.get("type", "info")
+        channel_id = payload.get("channel_id", "")
+        content_id = payload.get("content_id", "")
+
+        if notif_type == "human_review_required":
+            text = (
+                f"\u26a0\ufe0f *Review Needed*\n"
+                f"Channel: `{channel_id}`\n"
+                f"Video: `{content_id}`\n"
+                f"Topic: {payload.get('topic', 'N/A')}\n"
+                f"Score: {payload.get('composite_score', 'N/A')}"
+            )
+        elif notif_type == "video_completed":
+            text = (
+                f"\u2705 *Video Completed*\n"
+                f"Channel: `{channel_id}`\n"
+                f"Video: `{content_id}`\n"
+                f"Cost: ${payload.get('cost', 0):.2f}"
+            )
+        elif notif_type == "video_failed":
+            text = (
+                f"\u274c *Video Failed*\n"
+                f"Channel: `{channel_id}`\n"
+                f"Video: `{content_id}`\n"
+                f"Error: {payload.get('error', 'Unknown')}"
+            )
+        else:
+            text = f"\u2139\ufe0f *{notif_type}*\n{payload}"
+
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
+                timeout=10,
+            )
+    except Exception as exc:
+        logger.warning("activity.notification.failed", error=str(exc))

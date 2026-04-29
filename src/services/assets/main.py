@@ -22,6 +22,14 @@ from src.providers.registry import ProviderRegistry
 from src.providers.llm.base import LLMRequest
 from src.providers.storage.base import StorageUpload
 
+from src.services.assets.query_optimizer import (
+    optimize_query,
+    check_asset_cache,
+    store_in_cache,
+    log_search,
+    score_asset_relevance,
+)
+
 logger = structlog.get_logger()
 
 
@@ -248,6 +256,11 @@ async def generate_assets(req: AssetsRequest):
     stock_count = 0
     generated_count = 0
 
+    import asyncio
+    import time as _time
+    channel = await _load_channel(req.channel_id)
+    cache_enabled = True  # asset_cache_enabled config
+
     for seg in req.segments:
         seg_id = seg.get("id", "unknown")
         direction = seg.get("scene_direction", "")
@@ -258,13 +271,32 @@ async def generate_assets(req: AssetsRequest):
             manifest.append({"segment_id": seg_id, "type": "none", "assets": []})
             continue
 
-        # Build search query from segment data
-        search_terms = b_roll[:2] if b_roll else suggestions[:2]
-        query = " ".join(search_terms) if search_terms else direction[:50]
+        # ── Intelligence: Optimize query ───────────────
+        optimized = optimize_query(seg)
+        queries = optimized.get("queries", [])
+        query_hash = optimized.get("primary_hash", "")
+        query = queries[0] if queries else " ".join(b_roll[:2] or suggestions[:2]) or direction[:50]
+        search_start = _time.time()
 
         try:
+            # ── Intelligence: Check asset cache first ────
+            if cache_enabled and query_hash:
+                cached = await check_asset_cache(query_hash)
+                if cached:
+                    manifest.append({
+                        "segment_id": seg_id,
+                        "type": cached.get("asset_type", "stock_video"),
+                        "source": cached.get("provider", "cache"),
+                        "assets": [{"url": cached["url"], "type": cached["asset_type"],
+                                     "source": "cache", "cached": True}],
+                    })
+                    stock_count += 1
+                    await log_search(req.content_id, req.channel_id, seg_id,
+                                     query, "cache", 1, used_cache=True,
+                                     search_time_ms=int((_time.time() - search_start) * 1000))
+                    continue
+
             # ── Step 1: Search stock footage (parallel) ──
-            import asyncio
             pixabay_task = _search_pixabay_videos(query)
             pexels_task = _search_pexels_videos(query)
             envato_task = _search_envato_videos(query)
@@ -276,14 +308,14 @@ async def generate_assets(req: AssetsRequest):
             # ── Step 2: Filter by resolution (>= 720p) ──
             filtered = [c for c in all_clips if c.get("height", 0) >= 720 or c.get("width", 0) >= 1280]
             if not filtered:
-                filtered = all_clips  # Accept lower quality if nothing else
+                filtered = all_clips
 
-            # ── Step 3: Pick best clip (simple scoring) ──
+            # ── Intelligence: Score relevance ─────────────
             selected_clip = None
             if filtered:
-                # Score by duration match and source diversity
                 for clip in filtered:
-                    clip["relevance_score"] = 7.5  # Default decent score for stock
+                    clip["relevance_score"] = score_asset_relevance(clip, query)
+                filtered.sort(key=lambda c: c.get("relevance_score", 0), reverse=True)
                 selected_clip = filtered[0]
 
             if selected_clip and selected_clip.get("url"):
@@ -310,9 +342,19 @@ async def generate_assets(req: AssetsRequest):
                             "source_id": selected_clip["id"],
                             "duration": selected_clip.get("duration", 0),
                             "license": selected_clip.get("license", ""),
+                            "relevance_score": selected_clip.get("relevance_score", 7.0),
                         }],
                     })
                     stock_count += 1
+                    # Intelligence: Cache the asset for future reuse
+                    await store_in_cache(
+                        query, selected_clip["source"], selected_clip["url"],
+                        minio_key=key, quality_score=selected_clip.get("relevance_score", 7.0),
+                        duration_s=float(selected_clip.get("duration", 0)))
+                    await log_search(req.content_id, req.channel_id, seg_id,
+                                     query, selected_clip["source"], len(all_clips),
+                                     selected_id=selected_clip["id"],
+                                     search_time_ms=int((_time.time() - search_start) * 1000))
                     continue
                 except Exception as dl_err:
                     logger.warning("assets.stock_download_failed", seg=seg_id, error=str(dl_err))
@@ -349,6 +391,10 @@ async def generate_assets(req: AssetsRequest):
                 generated_count += 1
 
             manifest.append({"segment_id": seg_id, "type": "generated_image", "assets": assets})
+            # Intelligence: Log DALL-E fallback
+            await log_search(req.content_id, req.channel_id, seg_id,
+                             query, "dalle", 0, used_fallback=True,
+                             search_time_ms=int((_time.time() - search_start) * 1000))
 
         except Exception as exc:
             logger.warning("assets.segment_failed", segment_id=seg_id, error=str(exc))

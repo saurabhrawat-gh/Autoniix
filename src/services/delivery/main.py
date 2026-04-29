@@ -12,6 +12,14 @@ from src.config import settings
 from src.db import close_pool, get_pool
 from src.schemas.common import HealthResponse, ServiceResponse
 
+from src.services.delivery.seo_optimizer import (
+    score_title_seo,
+    optimize_description,
+    suggest_tags,
+    predict_optimal_upload_time,
+    store_delivery_features,
+)
+
 logger = structlog.get_logger()
 
 
@@ -119,6 +127,16 @@ async def upload(req: DeliveryRequest):
         # ── Pre-flight: Compute final composite score ────
         final_score = _compute_final_score(req.quality_scores)
         logger.info("delivery.final_score", score=final_score)
+
+        # ── Intelligence: SEO Analysis ─────────────────
+        seo_result = score_title_seo(req.title)
+        desc_result = optimize_description(req.description, req.title, req.tags)
+        optimized_tags = suggest_tags(req.title, "", req.tags)
+        upload_timing = await predict_optimal_upload_time(req.channel_id)
+
+        logger.info("delivery.seo_analysis",
+                     title_seo=seo_result.get("seo_score"),
+                     desc_score=desc_result.get("score"))
 
         # ── Human review gate ────────────────────────────
         if req.human_review_required:
@@ -246,12 +264,23 @@ async def upload(req: DeliveryRequest):
 
         logger.info("delivery.uploaded", youtube_video_id=youtube_video_id)
 
+        # Intelligence: Store delivery features
+        await store_delivery_features(
+            req.content_id, req.channel_id,
+            req.title, req.description, req.tags, seo_result)
+
         return ServiceResponse(
             status="success",
             data={
                 "youtube_video_id": youtube_video_id,
                 "youtube_url": f"https://youtu.be/{youtube_video_id}",
                 "privacy_status": req.privacy_status,
+                "intelligence": {
+                    "seo_score": seo_result,
+                    "description_analysis": desc_result,
+                    "optimal_upload_time": upload_timing,
+                    "tags_suggested": len(optimized_tags) - len(req.tags),
+                },
             },
             cost={"cost_usd": 0, "provider": "youtube"},
         )
@@ -261,6 +290,34 @@ async def upload(req: DeliveryRequest):
     except Exception as exc:
         logger.error("delivery.failed", error=str(exc))
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ── Intelligence Endpoints ────────────────────────────────
+
+class SEORequest(BaseModel):
+    title: str
+    description: str = ""
+    tags: list[str] = Field(default_factory=list)
+    niche: str = ""
+    channel_id: str = ""
+
+
+@app.post("/seo-score", response_model=ServiceResponse)
+async def seo_score(req: SEORequest):
+    """Score title/description/tags for YouTube SEO."""
+    seo = score_title_seo(req.title)
+    desc = optimize_description(req.description, req.title, req.tags)
+    tags = suggest_tags(req.title, req.niche, req.tags)
+    timing = await predict_optimal_upload_time(req.channel_id) if req.channel_id else {}
+    return ServiceResponse(
+        status="success",
+        data={
+            "title_seo": seo,
+            "description_analysis": desc,
+            "suggested_tags": tags,
+            "optimal_upload_time": timing,
+        },
+    )
 
 
 if __name__ == "__main__":

@@ -13,6 +13,20 @@ from src.config import settings
 from src.db import close_pool, get_pool
 from src.schemas.common import HealthResponse, ServiceResponse
 
+from src.services.experiments.ab_framework import (
+    create_experiment,
+    activate_experiment,
+    pause_experiment,
+    complete_experiment,
+    list_experiments,
+    analyze_experiment,
+)
+from src.services.experiments.observability import (
+    get_decision_summary,
+    get_cost_savings,
+    get_model_health_summary,
+)
+
 logger = structlog.get_logger()
 
 
@@ -253,6 +267,76 @@ async def list_videos(channel_id: str | None = None, status: str | None = None, 
         for r in rows
     ]
     return ServiceResponse(status="success", data={"videos": videos, "count": len(videos)})
+
+
+# ── A/B Experiment Endpoints ──────────────────────────────
+
+class ExperimentCreate(BaseModel):
+    name: str
+    description: str = ""
+    variants: list[dict] = Field(default_factory=list)
+    traffic_pct: float = 100.0
+    target_metric: str = "views"
+
+
+@app.post("/experiments", response_model=ServiceResponse)
+async def create_exp(req: ExperimentCreate):
+    result = await create_experiment(req.name, req.description, req.variants,
+                                     req.traffic_pct, req.target_metric)
+    return ServiceResponse(status="success", data=result)
+
+
+@app.post("/experiments/{name}/activate", response_model=ServiceResponse)
+async def activate_exp(name: str):
+    result = await activate_experiment(name)
+    return ServiceResponse(status="success", data=result)
+
+
+@app.post("/experiments/{name}/pause", response_model=ServiceResponse)
+async def pause_exp(name: str):
+    result = await pause_experiment(name)
+    return ServiceResponse(status="success", data=result)
+
+
+@app.post("/experiments/{name}/complete", response_model=ServiceResponse)
+async def complete_exp(name: str, winner: str = ""):
+    result = await complete_experiment(name, winner)
+    return ServiceResponse(status="success", data=result)
+
+
+@app.get("/experiments", response_model=ServiceResponse)
+async def list_exps(status: str = ""):
+    result = await list_experiments(status)
+    return ServiceResponse(status="success", data={"experiments": result})
+
+
+@app.get("/experiments/{name}/results", response_model=ServiceResponse)
+async def experiment_results(name: str):
+    result = await analyze_experiment(name)
+    return ServiceResponse(status="success", data=result)
+
+
+# ── Intelligence Dashboard Endpoints ─────────────────────────
+
+@app.get("/intelligence/decisions", response_model=ServiceResponse)
+async def intelligence_decisions(days: int = 30, service: str = ""):
+    """Decision path breakdown across all services."""
+    result = await get_decision_summary(days, service)
+    return ServiceResponse(status="success", data=result)
+
+
+@app.get("/intelligence/savings", response_model=ServiceResponse)
+async def intelligence_savings(days: int = 30):
+    """Cost savings from local intelligence vs LLM fallback."""
+    result = await get_cost_savings(days)
+    return ServiceResponse(status="success", data=result)
+
+
+@app.get("/intelligence/models", response_model=ServiceResponse)
+async def intelligence_models():
+    """Health status of all ML models."""
+    result = await get_model_health_summary()
+    return ServiceResponse(status="success", data={"models": result})
 
 
 if __name__ == "__main__":

@@ -37,6 +37,8 @@ class VideoProductionWorkflow:
         self._human_approved: bool | None = None
         self._accrued_cost: float = 0.0
         self._current_phase: str = "init"
+        self._paused: bool = False
+        self._cancelled: bool = False
 
     # ── Signals ──────────────────────────────────────────
 
@@ -47,6 +49,15 @@ class VideoProductionWorkflow:
     @workflow.signal
     async def emergency_stop(self) -> None:
         self._human_approved = False
+        self._cancelled = True
+
+    @workflow.signal
+    async def pause_workflow(self) -> None:
+        self._paused = True
+
+    @workflow.signal
+    async def resume_workflow(self) -> None:
+        self._paused = False
 
     # ── Queries ──────────────────────────────────────────
 
@@ -56,17 +67,57 @@ class VideoProductionWorkflow:
             "phase": self._current_phase,
             "accrued_cost": self._accrued_cost,
             "human_approved": self._human_approved,
+            "paused": self._paused,
+            "cancelled": self._cancelled,
         }
 
     # ── Helpers ──────────────────────────────────────────
 
-    async def _set_phase(self, content_id: str, phase: str) -> None:
+    async def _set_phase(self, content_id: str, phase: str, channel_id: str = "") -> None:
         self._current_phase = phase
         await workflow.execute_activity(
             "update_video_status",
             args=[content_id, phase],
             start_to_close_timeout=timedelta(seconds=10),
         )
+        await workflow.execute_activity(
+            "emit_job_event",
+            args=[content_id, channel_id, phase, "started", {}],
+            start_to_close_timeout=timedelta(seconds=10),
+        )
+
+    async def _complete_phase(self, content_id: str, channel_id: str, phase: str,
+                               cost: float = 0, detail: dict | None = None) -> None:
+        await workflow.execute_activity(
+            "emit_job_event",
+            args=[content_id, channel_id, phase, "completed",
+                  detail or {}, cost],
+            start_to_close_timeout=timedelta(seconds=10),
+        )
+
+    async def _fail_phase(self, content_id: str, channel_id: str, phase: str,
+                           error: str = "") -> None:
+        await workflow.execute_activity(
+            "emit_job_event",
+            args=[content_id, channel_id, phase, "failed",
+                  {"error": error}],
+            start_to_close_timeout=timedelta(seconds=10),
+        )
+
+    async def _check_pause(self) -> None:
+        """Block if paused; raise if cancelled. Auto-cancel after 24h if still paused."""
+        if self._paused:
+            try:
+                await workflow.wait_condition(
+                    lambda: not self._paused or self._cancelled,
+                    timeout=timedelta(hours=24),
+                )
+            except asyncio.TimeoutError:
+                # 24 hours elapsed while paused — auto-cancel
+                self._cancelled = True
+                workflow.logger.warning("Auto-cancelling workflow after 24h pause timeout")
+        if self._cancelled:
+            raise RuntimeError("Workflow cancelled by user")
 
     def _check_budget(self, budget: dict) -> None:
         if budget["accrued_cost_usd"] > budget["max_cost_usd"]:
@@ -96,8 +147,10 @@ class VideoProductionWorkflow:
         }
 
         try:
+            ch = params.channel_id
+
             # ── Phase 1: Research ────────────────────────
-            await self._set_phase(content_id, "researching")
+            await self._set_phase(content_id, "researching", ch)
 
             research = await workflow.execute_activity(
                 "research_activity",
@@ -125,10 +178,38 @@ class VideoProductionWorkflow:
                 workflow.logger.warning(
                     f"Research score {research_score} below threshold {THRESHOLDS['research_depth_score']} — proceeding with warning")
 
+            await self._complete_phase(content_id, ch, "researching",
+                                       cost=_add_cost({"accrued_cost_usd": 0}, research),
+                                       detail={"topic": topic, "score": research_score})
             workflow.logger.info(f"Research done: {topic} (score: {research_score})")
 
+            await self._check_pause()
+
+            # ── Phase 1B: Brand Identity ──────────────────
+            await self._set_phase(content_id, "brand_check", ch)
+
+            brand_profile = {}
+            try:
+                brand_result = await workflow.execute_activity(
+                    "brand_activity",
+                    args=[{
+                        "channel_id": params.channel_id,
+                        "action": "get_or_create",
+                    }],
+                    start_to_close_timeout=timedelta(seconds=30),
+                    retry_policy=RETRY_STANDARD,
+                )
+                brand_profile = brand_result.get("data", {}).get("profile", {})
+                workflow.logger.info(
+                    f"Brand profile loaded: consistency_baseline={brand_profile.get('consistency_baseline', 'N/A')}")
+            except Exception:
+                workflow.logger.warning("Brand activity failed — non-critical, continuing")
+            await self._complete_phase(content_id, ch, "brand_check")
+
+            await self._check_pause()
+
             # ── Phase 2: Script ──────────────────────────
-            await self._set_phase(content_id, "scripting")
+            await self._set_phase(content_id, "scripting", ch)
 
             script_result = await workflow.execute_activity(
                 "script_activity",
@@ -167,13 +248,17 @@ class VideoProductionWorkflow:
                     f"Script score {script_score} below target {THRESHOLDS['script_structure_score']} "
                     f"after rewrites — proceeding (rewrite loop already exhausted)")
 
+            await self._complete_phase(content_id, ch, "scripting",
+                                       detail={"segments": len(segments), "score": script_score})
             workflow.logger.info(
                 f"Script done: {len(segments)} segments, score: {script_score}, "
                 f"rewrites: {script_data.get('rewrite_count', 0)}, "
                 f"intelligence: {intelligence_scores}")
 
+            await self._check_pause()
+
             # ── Phase 3: Voice ───────────────────────────
-            await self._set_phase(content_id, "generating_voice")
+            await self._set_phase(content_id, "generating_voice", ch)
 
             # Build voice segments with prosody data from Script Intelligence
             voice_prosody_segs = script_voice_data.get("segments", []) if isinstance(script_voice_data, dict) else []
@@ -218,10 +303,14 @@ class VideoProductionWorkflow:
                 workflow.logger.warning(
                     f"Voice score {voice_score} below threshold {THRESHOLDS['voice_quality_score']}")
 
+            await self._complete_phase(content_id, ch, "generating_voice",
+                                       detail={"duration_s": voice_data.get("duration_s", 0), "score": voice_score})
             workflow.logger.info(f"Voice done: {voice_data.get('duration_s', 0)}s (score: {voice_score})")
 
+            await self._check_pause()
+
             # ── Phase 4: Assets + Thumbnail + Music (parallel) ─
-            await self._set_phase(content_id, "generating_assets")
+            await self._set_phase(content_id, "generating_assets", ch)
 
             # Build asset segments enriched with Script Intelligence queries
             asset_intel_segs = script_assets_data.get("segments", []) if isinstance(script_assets_data, dict) else []
@@ -296,12 +385,16 @@ class VideoProductionWorkflow:
                     f"Thumbnail score {thumb_score} below target {THRESHOLDS['thumbnail_score']} "
                     f"after regenerations — proceeding")
 
+            await self._complete_phase(content_id, ch, "generating_assets",
+                                       detail={"thumb_score": thumb_score})
             workflow.logger.info(
                 f"Assets + Thumbnail + Music done (thumb score: {thumb_score}, "
                 f"regens: {thumbnail_data.get('regeneration_count', 0)})")
 
+            await self._check_pause()
+
             # ── Phase 5: Direction ───────────────────────
-            await self._set_phase(content_id, "directing")
+            await self._set_phase(content_id, "directing", ch)
 
             direction_result = await workflow.execute_activity(
                 "direction_activity",
@@ -331,12 +424,50 @@ class VideoProductionWorkflow:
                 workflow.logger.warning(
                     f"Direction score {dir_score} below threshold {THRESHOLDS['direction_score']}")
 
+            await self._complete_phase(content_id, ch, "directing",
+                                       detail={"score": dir_score})
             workflow.logger.info(
                 f"Direction done: {direction_data.get('segment_count', 0)} segments "
                 f"(score: {dir_score})")
 
+            await self._check_pause()
+
+            # ── Phase 5B: Editor / Post-Production ────────
+            await self._set_phase(content_id, "post_production", ch)
+
+            try:
+                editor_result = await workflow.execute_activity(
+                    "editor_activity",
+                    args=[{
+                        "content_id": content_id,
+                        "channel_id": params.channel_id,
+                        "direction_v3": direction_v3,
+                        "voice_manifest": voice_data,
+                        "brand_profile": brand_profile,
+                    }],
+                    start_to_close_timeout=timedelta(minutes=3),
+                    retry_policy=RETRY_STANDARD,
+                )
+
+                editor_data = editor_result.get("data", {})
+                # Apply editor optimizations back to direction_v3
+                if editor_data.get("optimized_direction"):
+                    direction_v3 = editor_data["optimized_direction"]
+                    workflow.logger.info(
+                        f"Editor applied: pacing_optimized={editor_data.get('pacing_optimized', False)}, "
+                        f"qc_passed={editor_data.get('qc_passed', False)}, "
+                        f"qc_score={editor_data.get('qc_score', 'N/A')}")
+                else:
+                    workflow.logger.info("Editor returned no optimized direction — using original")
+
+            except Exception as editor_err:
+                workflow.logger.warning(f"Editor activity failed — using original direction: {editor_err}")
+            await self._complete_phase(content_id, ch, "post_production")
+
+            await self._check_pause()
+
             # ── Phase 6: Assembly (Remotion render) ──────
-            await self._set_phase(content_id, "rendering")
+            await self._set_phase(content_id, "rendering", ch)
 
             assembly_result = await workflow.execute_activity(
                 "assembly_activity",
@@ -358,6 +489,8 @@ class VideoProductionWorkflow:
             prod_score = assembly_data.get("production_score", 7.0)
             quality_scores["production_score"] = prod_score
 
+            await self._complete_phase(content_id, ch, "rendering",
+                                       detail={"video_url": video_url[:80], "score": prod_score})
             workflow.logger.info(f"Render done: {video_url[:80]} (score: {prod_score})")
 
             # ── Phase 7: Compute Composite & Human Review Gate ─
@@ -377,7 +510,7 @@ class VideoProductionWorkflow:
                 f"scores: {quality_scores}")
 
             if needs_human_review:
-                await self._set_phase(content_id, "pending_review")
+                await self._set_phase(content_id, "pending_review", ch)
 
                 # Notify
                 await workflow.execute_activity(
@@ -407,7 +540,7 @@ class VideoProductionWorkflow:
                     self._human_approved = True
 
                 if not self._human_approved:
-                    await self._set_phase(content_id, "rejected")
+                    await self._set_phase(content_id, "rejected", ch)
                     return VideoResult(
                         status="rejected",
                         content_id=content_id,
@@ -415,8 +548,10 @@ class VideoProductionWorkflow:
                         cost=self._accrued_cost,
                     )
 
+            await self._check_pause()
+
             # ── Phase 8: Delivery ────────────────────────
-            await self._set_phase(content_id, "delivering")
+            await self._set_phase(content_id, "delivering", ch)
 
             packaging = script_data.get("packaging", {})
             description = packaging.get("description", script_data.get("description", ""))
@@ -443,10 +578,12 @@ class VideoProductionWorkflow:
             )
 
             youtube_id = delivery_result.get("data", {}).get("youtube_video_id", "")
+            await self._complete_phase(content_id, ch, "delivering",
+                                       detail={"youtube_id": youtube_id})
             workflow.logger.info(f"Delivered: https://youtu.be/{youtube_id}")
 
-            # ── Phase 9: Analytics ────────────────────────
-            await self._set_phase(content_id, "analytics")
+            # ── Phase 9: Analytics + Intelligence Feedback ──
+            await self._set_phase(content_id, "analytics", ch)
 
             try:
                 await workflow.execute_activity(
@@ -463,8 +600,29 @@ class VideoProductionWorkflow:
             except Exception:
                 workflow.logger.warning("Analytics activity failed — non-critical, continuing")
 
+            # Brand consistency check on final output
+            if brand_profile:
+                try:
+                    await workflow.execute_activity(
+                        "brand_consistency_activity",
+                        args=[{
+                            "channel_id": params.channel_id,
+                            "content_id": content_id,
+                            "title": final_title,
+                            "description": description,
+                            "tags": tags,
+                            "quality_scores": quality_scores,
+                        }],
+                        start_to_close_timeout=timedelta(seconds=30),
+                    )
+                except Exception:
+                    workflow.logger.warning("Brand consistency check failed — non-critical")
+
             # ── Done ─────────────────────────────────────
-            await self._set_phase(content_id, "delivered")
+            await self._set_phase(content_id, "delivered", ch)
+            await self._complete_phase(content_id, ch, "delivered",
+                                       cost=self._accrued_cost,
+                                       detail={"youtube_id": youtube_id, "composite_score": composite_score})
 
             return VideoResult(
                 status="delivered",
@@ -482,6 +640,7 @@ class VideoProductionWorkflow:
                     args=[content_id, "failed"],
                     start_to_close_timeout=timedelta(seconds=10),
                 )
+                await self._fail_phase(content_id, ch, self._current_phase, str(exc))
             except Exception:
                 pass
             raise

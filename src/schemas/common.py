@@ -75,6 +75,8 @@ class VideoParams:
     topic_candidates: list[str] = field(default_factory=list)
     max_cost_usd: float = 2.50
     human_review_required: bool = False
+    resume_from: str | None = None
+    original_content_id: str | None = None
 
 
 @dataclass
