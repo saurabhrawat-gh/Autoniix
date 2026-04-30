@@ -25,6 +25,7 @@ from temporalio.client import Client as TemporalClient
 
 from src.config import settings
 from src.db import get_pool
+from src.environment import get_mode, set_db_mode_override, is_test
 from src.schemas.common import VideoParams
 
 logger = structlog.get_logger()
@@ -160,14 +161,18 @@ async def me(token: str = Depends(verify_token)):
 # ── Channels ───────────────────────────────────────────────
 
 @app.get("/api/channels")
-async def list_channels(_: str = Depends(verify_token)):
+async def list_channels(
+    include_archived: bool = Query(default=False),
+    _: str = Depends(verify_token),
+):
     pool = await get_pool()
+    status_filter = "" if include_archived else "WHERE status != 'archived'"
     rows = await pool.fetch(
-        "SELECT channel_id, channel_name, niche, sub_niche, content_mode, "
-        "auto_upload, status, videos_per_week_long, videos_per_week_short, "
-        "short_form_duration, long_form_duration, schedule_config, "
-        "human_review_required, max_daily_api_spend, "
-        "created_at FROM channels ORDER BY channel_id"
+        f"SELECT channel_id, channel_name, niche, sub_niche, content_mode, "
+        f"auto_upload, status, videos_per_week_long, videos_per_week_short, "
+        f"short_form_duration, long_form_duration, schedule_config, "
+        f"human_review_required, max_daily_api_spend, "
+        f"created_at FROM channels {status_filter} ORDER BY channel_id"
     )
     channels = []
     for r in rows:
@@ -350,6 +355,112 @@ async def disable_channel(channel_id: str, _: str = Depends(verify_token)):
     return R(status="ok", data={"channel_id": channel_id, "status": "disabled", "paused_workflows": paused})
 
 
+@app.put("/api/channels/{channel_id}/archive")
+async def archive_channel(channel_id: str, _: str = Depends(verify_token)):
+    """Archive a channel — removes from active list but keeps all data."""
+    pool = await get_pool()
+    ch = await pool.fetchrow("SELECT status FROM channels WHERE channel_id = $1", channel_id)
+    if not ch:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    if ch["status"] == "archived":
+        raise HTTPException(status_code=400, detail="Channel is already archived")
+    # Pause running workflows first
+    paused = await _signal_running_workflows(channel_id, "pause_workflow", None)
+    await pool.execute(
+        "UPDATE channels SET status = 'archived', updated_at = NOW() WHERE channel_id = $1",
+        channel_id,
+    )
+    logger.info("channel.archived", channel_id=channel_id)
+    return R(status="ok", data={"channel_id": channel_id, "status": "archived", "paused_workflows": paused})
+
+
+@app.put("/api/channels/{channel_id}/restore")
+async def restore_channel(channel_id: str, _: str = Depends(verify_token)):
+    """Restore an archived channel — sets status to 'disabled' (user must explicitly enable)."""
+    pool = await get_pool()
+    ch = await pool.fetchrow("SELECT status FROM channels WHERE channel_id = $1", channel_id)
+    if not ch:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    if ch["status"] != "archived":
+        raise HTTPException(status_code=400, detail="Channel is not archived")
+    await pool.execute(
+        "UPDATE channels SET status = 'disabled', updated_at = NOW() WHERE channel_id = $1",
+        channel_id,
+    )
+    logger.info("channel.restored", channel_id=channel_id)
+    return R(status="ok", data={"channel_id": channel_id, "status": "disabled"})
+
+
+@app.post("/api/channels/{channel_id}/clone")
+async def clone_channel(channel_id: str, _: str = Depends(verify_token)):
+    """Clone a channel's config into a new channel with '_copy' suffix."""
+    pool = await get_pool()
+    ch = await pool.fetchrow(
+        "SELECT * FROM channels WHERE channel_id = $1", channel_id
+    )
+    if not ch:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    # Generate new ID
+    ts = datetime.utcnow().strftime("%m%d%H%M")
+    new_id = f"{channel_id[:12]}_C{ts}"
+    try:
+        await pool.execute(
+            "INSERT INTO channels (channel_id, channel_name, niche, sub_niche, "
+            "content_mode, auto_upload, videos_per_week_short, videos_per_week_long, "
+            "short_form_duration, long_form_duration, schedule_config, "
+            "human_review_required, max_daily_api_spend, "
+            "belief_territory, intellectual_lens, topic_domain, brand_voice, "
+            "narrative_rhythm, emotional_contract, content_style, "
+            "target_audience, thumbnail_style, primary_color, secondary_color, "
+            "font_family, caption_style, pacing_style, elevenlabs_voice_id, "
+            "voice_stability, voice_similarity, voice_style, "
+            "competitor_channels, forbidden_words, status) "
+            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, "
+            "$14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, "
+            "$28, $29, $30, $31, $32, $33, 'disabled')",
+            new_id, f"{ch['channel_name']} (Copy)", ch["niche"], ch["sub_niche"],
+            ch["content_mode"], ch["auto_upload"],
+            ch["videos_per_week_short"], ch["videos_per_week_long"],
+            ch["short_form_duration"], ch["long_form_duration"],
+            json.dumps(json.loads(ch["schedule_config"]) if isinstance(ch["schedule_config"], str) else (ch["schedule_config"] or {})),
+            ch["human_review_required"], ch["max_daily_api_spend"],
+            ch["belief_territory"], ch["intellectual_lens"], ch["topic_domain"],
+            ch["brand_voice"], ch["narrative_rhythm"], ch["emotional_contract"],
+            ch["content_style"], ch["target_audience"], ch["thumbnail_style"],
+            ch["primary_color"], ch["secondary_color"], ch["font_family"],
+            ch["caption_style"], ch["pacing_style"], ch["elevenlabs_voice_id"],
+            ch["voice_stability"], ch["voice_similarity"], ch["voice_style"],
+            ch["competitor_channels"], ch["forbidden_words"],
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Clone failed: {exc}")
+    logger.info("channel.cloned", source=channel_id, new_id=new_id)
+    return R(status="ok", data={"source_channel_id": channel_id, "new_channel_id": new_id})
+
+
+@app.get("/api/channels/{channel_id}/export")
+async def export_channel(channel_id: str, _: str = Depends(verify_token)):
+    """Export full channel configuration as JSON."""
+    pool = await get_pool()
+    ch = await pool.fetchrow("SELECT * FROM channels WHERE channel_id = $1", channel_id)
+    if not ch:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    export_data = {}
+    for key in ch.keys():
+        val = ch[key]
+        if hasattr(val, 'isoformat'):
+            val = val.isoformat()
+        elif isinstance(val, (float, int, bool, str, type(None))):
+            pass
+        else:
+            try:
+                val = json.loads(val) if isinstance(val, str) else str(val)
+            except Exception:
+                val = str(val)
+        export_data[key] = val
+    return R(status="ok", data=export_data)
+
+
 # ── Workflow Control ───────────────────────────────────────
 
 @app.post("/api/channels/{channel_id}/trigger")
@@ -389,6 +500,12 @@ async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depe
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     workflow_id = f"manual-{channel_id}-{ts}"
 
+    # Resolve environment mode from DB
+    env_row = await pool.fetchrow(
+        "SELECT config_value FROM system_config WHERE config_key = 'environment_mode'"
+    )
+    env_mode = env_row["config_value"] if env_row else get_mode()
+
     try:
         client = await _get_temporal_client()
         await client.start_workflow(
@@ -398,6 +515,7 @@ async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depe
                 content_mode=content_mode,
                 topic_candidates=req.topic_candidates,
                 max_cost_usd=req.max_cost_usd,
+                environment=env_mode,
             ),
             id=workflow_id,
             task_queue="video-production",
@@ -855,6 +973,142 @@ async def emergency_resume(_: str = Depends(verify_token)):
     return R(status="ok", data={"emergency_stop": False, "workflows_resumed": resumed_count})
 
 
+# ── Environment Mode ──────────────────────────────────────
+
+class EnvironmentSwitchRequest(BaseModel):
+    mode: str  # "test" or "production"
+    confirm: bool = False
+
+
+@app.get("/api/environment")
+async def get_environment(_: str = Depends(verify_token)):
+    """Get current environment mode."""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT config_value FROM system_config WHERE config_key = 'environment_mode'"
+    )
+    mode = row["config_value"] if row else "test"
+    switched_at_row = await pool.fetchrow(
+        "SELECT config_value FROM system_config WHERE config_key = 'environment_switched_at'"
+    )
+    switched_by_row = await pool.fetchrow(
+        "SELECT config_value FROM system_config WHERE config_key = 'environment_switched_by'"
+    )
+
+    # Cost estimate per video in production
+    cost_estimate = {
+        "llm": "$0.05-0.15",
+        "tts": "$0.01-0.03",
+        "image": "$0.04-0.12",
+        "search": "$0.02-0.05",
+        "total_per_video": "$0.12-0.35",
+    }
+
+    return R(status="ok", data={
+        "mode": mode,
+        "switched_at": switched_at_row["config_value"] if switched_at_row else None,
+        "switched_by": switched_by_row["config_value"] if switched_by_row else None,
+        "cost_estimate_production": cost_estimate,
+    })
+
+
+@app.put("/api/environment")
+async def switch_environment(req: EnvironmentSwitchRequest, _: str = Depends(verify_token)):
+    """Switch environment mode. Requires confirm=true for production."""
+    if req.mode not in ("test", "production"):
+        raise HTTPException(status_code=400, detail="Mode must be 'test' or 'production'")
+
+    if req.mode == "production" and not req.confirm:
+        raise HTTPException(
+            status_code=400,
+            detail="Switching to production requires confirm=true. "
+                   "This will use paid APIs. Estimated cost: $0.12-0.35 per video."
+        )
+
+    pool = await get_pool()
+    now = datetime.utcnow().isoformat()
+    await pool.execute(
+        "UPDATE system_config SET config_value = $1, updated_at = NOW() "
+        "WHERE config_key = 'environment_mode'",
+        req.mode,
+    )
+    await pool.execute(
+        "UPDATE system_config SET config_value = $1, updated_at = NOW() "
+        "WHERE config_key = 'environment_switched_at'",
+        now,
+    )
+    await pool.execute(
+        "UPDATE system_config SET config_value = $1, updated_at = NOW() "
+        "WHERE config_key = 'environment_switched_by'",
+        "admin",
+    )
+
+    # Update in-memory override for all services in this process
+    set_db_mode_override(req.mode)
+
+    # Clear provider cache so next request uses correct providers
+    from src.providers.registry import ProviderRegistry
+    ProviderRegistry.reset()
+
+    logger.info("environment.switched", mode=req.mode)
+    return R(status="ok", data={"mode": req.mode, "switched_at": now})
+
+
+@app.get("/api/test-data/stats")
+async def test_data_stats(_: str = Depends(verify_token)):
+    """Get stats about test data (videos, storage, cost)."""
+    pool = await get_pool()
+    video_stats = await pool.fetchrow(
+        "SELECT COUNT(*) as count, COALESCE(SUM(total_cost), 0) as total_cost "
+        "FROM videos WHERE environment = 'test'"
+    )
+    job_count = await pool.fetchval(
+        "SELECT COUNT(*) FROM job_events WHERE environment = 'test'"
+    )
+    return R(status="ok", data={
+        "test_videos": video_stats["count"] if video_stats else 0,
+        "test_cost_total": float(video_stats["total_cost"]) if video_stats else 0,
+        "test_job_events": job_count or 0,
+    })
+
+
+@app.delete("/api/test-data")
+async def cleanup_test_data(_: str = Depends(verify_token)):
+    """Delete all test data from DB and storage."""
+    pool = await get_pool()
+
+    # Delete in correct FK order
+    feedback_del = await pool.execute(
+        "DELETE FROM feedback_loop WHERE environment = 'test'"
+    )
+    events_del = await pool.execute(
+        "DELETE FROM job_events WHERE environment = 'test'"
+    )
+    videos_del = await pool.execute(
+        "DELETE FROM videos WHERE environment = 'test'"
+    )
+
+    # Clean up MinIO test/ prefix
+    storage_deleted = 0
+    try:
+        from src.providers.storage.minio_provider import MinIOStorage
+        storage = MinIOStorage()
+        storage_deleted = storage.delete_prefix("test/")
+    except Exception as exc:
+        logger.warning("test_data.storage_cleanup_failed", error=str(exc))
+
+    logger.info("test_data.cleaned",
+                videos=videos_del, events=events_del,
+                feedback=feedback_del, storage_objects=storage_deleted)
+
+    return R(status="ok", data={
+        "deleted_videos": videos_del,
+        "deleted_events": events_del,
+        "deleted_feedback": feedback_del,
+        "deleted_storage_objects": storage_deleted,
+    })
+
+
 # ── Dashboard Stats ────────────────────────────────────────
 
 @app.get("/api/stats")
@@ -863,7 +1117,8 @@ async def dashboard_stats(_: str = Depends(verify_token)):
     channels = await pool.fetchrow(
         "SELECT COUNT(*) as total, "
         "COUNT(*) FILTER (WHERE status = 'active') as active, "
-        "COUNT(*) FILTER (WHERE status = 'disabled') as disabled "
+        "COUNT(*) FILTER (WHERE status = 'disabled') as disabled, "
+        "COUNT(*) FILTER (WHERE status = 'archived') as archived "
         "FROM channels"
     )
     videos_today = await pool.fetchrow(
@@ -880,11 +1135,18 @@ async def dashboard_stats(_: str = Depends(verify_token)):
     emergency_row = await pool.fetchrow(
         "SELECT config_value FROM system_config WHERE config_key = 'emergency_stop'"
     )
+    # Environment mode
+    env_row = await pool.fetchrow(
+        "SELECT config_value FROM system_config WHERE config_key = 'environment_mode'"
+    )
+    env_mode = env_row["config_value"] if env_row else "test"
+
     return R(status="ok", data={
         "channels": {
             "total": channels["total"],
             "active": channels["active"],
             "disabled": channels["disabled"],
+            "archived": channels["archived"],
         },
         "today": {
             "videos_total": videos_today["total"],
@@ -898,6 +1160,7 @@ async def dashboard_stats(_: str = Depends(verify_token)):
             "used_today": float(videos_today["total_cost"]),
         },
         "emergency_stop": emergency_row["config_value"] == "true" if emergency_row else False,
+        "environment_mode": env_mode,
     })
 
 
@@ -934,7 +1197,7 @@ async def ws_progress(websocket: WebSocket, content_id: str):
             video = await pool.fetchrow(
                 "SELECT status FROM videos WHERE content_id = $1", content_id
             )
-            if video and video["status"] in ("delivered", "failed", "rejected"):
+            if video and video["status"] in ("delivered", "test_delivered", "failed", "rejected"):
                 await websocket.send_json({
                     "type": "done",
                     "final_status": video["status"],

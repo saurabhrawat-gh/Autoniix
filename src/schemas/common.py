@@ -28,6 +28,7 @@ class VideoStatus(str, Enum):
     awaiting_review = "awaiting_review"
     delivering = "delivering"
     delivered = "delivered"
+    test_delivered = "test_delivered"
     failed = "failed"
     rejected = "rejected"
 
@@ -77,6 +78,7 @@ class VideoParams:
     human_review_required: bool = False
     resume_from: str | None = None
     original_content_id: str | None = None
+    environment: str = "test"
 
 
 @dataclass

@@ -98,7 +98,7 @@ export default function NewChannelPage() {
 
       <form onSubmit={handleSubmit} className={cn('card p-6 space-y-5', systemStopped && 'lockdown-frost')}>
         <Field label="Channel ID" placeholder="e.g., BS_SLEEP01" value={form.channel_id}
-          onChange={(v) => setForm({ ...form, channel_id: v })} />
+          onChange={(v) => setForm({ ...form, channel_id: v })} hint="Unique identifier, used internally. Cannot be changed later." />
         <Field label="Channel Name" placeholder="e.g., Body Signals - Sleep" value={form.channel_name}
           onChange={(v) => setForm({ ...form, channel_name: v })} />
         <div className="grid grid-cols-2 gap-4">
@@ -182,7 +182,9 @@ export default function NewChannelPage() {
           </label>
         </div>
 
-        <button type="submit" disabled={loading || systemStopped} className="w-full btn-primary !py-3 disabled:opacity-50 disabled:cursor-not-allowed">
+        <button type="submit" disabled={loading || systemStopped}
+          title={systemStopped ? 'Resume the system from Settings to create channels' : 'Create a new channel with these settings'}
+          className="w-full btn-primary !py-3 disabled:opacity-50 disabled:cursor-not-allowed">
           {systemStopped ? 'System Stopped' : loading ? 'Creating…' : 'Create Channel'}
         </button>
       </form>
@@ -190,16 +192,17 @@ export default function NewChannelPage() {
   );
 }
 
-function Field({ label, placeholder, value, onChange, optional }: {
-  label: string; placeholder: string; value: string; onChange: (v: string) => void; optional?: boolean;
+function Field({ label, placeholder, value, onChange, optional, hint }: {
+  label: string; placeholder: string; value: string; onChange: (v: string) => void; optional?: boolean; hint?: string;
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-content-primary mb-1.5">
+      <label className="block text-sm font-medium text-content-primary mb-1.5" title={hint}>
         {label}
         {optional && <span className="text-content-tertiary font-normal ml-1">(optional)</span>}
       </label>
       <input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+      {hint && <p className="text-[10px] text-content-tertiary mt-1">{hint}</p>}
     </div>
   );
 }

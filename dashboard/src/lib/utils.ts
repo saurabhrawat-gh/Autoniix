@@ -48,6 +48,7 @@ export function statusIcon(status: string): string {
 export function statusDot(status: string): string {
   if (status === 'active') return 'bg-status-success';
   if (status === 'disabled') return 'bg-content-tertiary';
+  if (status === 'archived') return 'bg-surface-3';
   if (status === 'failed' || status === 'rejected') return 'bg-status-error';
   return 'bg-status-warning';
 }

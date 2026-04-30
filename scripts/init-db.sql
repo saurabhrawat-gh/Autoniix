@@ -177,9 +177,12 @@ CREATE TABLE IF NOT EXISTS videos (
     approved_at             TIMESTAMPTZ,
     ai_disclosure           BOOLEAN       DEFAULT TRUE,
     niche_disclaimer        TEXT,
+    environment             VARCHAR(10)   DEFAULT 'test' NOT NULL,
     created_at              TIMESTAMPTZ   DEFAULT NOW(),
     updated_at              TIMESTAMPTZ   DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_videos_environment ON videos(environment);
 
 -- ── Tab 5: Feedback_Loop ────────────────────────────────────
 CREATE TABLE IF NOT EXISTS feedback_loop (
@@ -207,6 +210,7 @@ CREATE TABLE IF NOT EXISTS feedback_loop (
     performance_tier        VARCHAR(20),
     analytics_status        VARCHAR(30)   DEFAULT 'pending',
     analytics_fetched_at    TIMESTAMPTZ,
+    environment             VARCHAR(10)   DEFAULT 'test' NOT NULL,
     created_at              TIMESTAMPTZ   DEFAULT NOW(),
     updated_at              TIMESTAMPTZ   DEFAULT NOW()
 );
@@ -1073,6 +1077,7 @@ CREATE TABLE IF NOT EXISTS job_events (
     detail          JSONB         DEFAULT '{}',
     cost_usd        DECIMAL(10,6) DEFAULT 0,
     duration_ms     INTEGER       DEFAULT 0,
+    environment     VARCHAR(10)   DEFAULT 'test' NOT NULL,
     created_at      TIMESTAMPTZ   DEFAULT NOW()
 );
 

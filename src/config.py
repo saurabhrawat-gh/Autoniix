@@ -4,6 +4,9 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    # ── Environment Mode ──────────────────────────────────
+    environment_mode: str = "test"  # "test" or "production"
+
     # ── App Database ─────────────────────────────────────
     db_host: str = "postgres-app"
     db_port: int = 5432

@@ -124,6 +124,20 @@ async def upload(req: DeliveryRequest):
     logger.info("delivery.uploading", content_id=req.content_id, title=req.title[:50])
 
     try:
+        # ── Safety guard: block YouTube upload in test mode ────
+        from src.environment import get_mode_from_db
+        env_mode = await get_mode_from_db()
+        if env_mode != "production":
+            logger.warning("delivery.blocked_test_mode", content_id=req.content_id)
+            return ServiceResponse(
+                status="skipped",
+                data={
+                    "content_id": req.content_id,
+                    "youtube_video_id": "TEST_SKIP",
+                    "reason": "YouTube upload blocked in test mode",
+                },
+            )
+
         # ── Pre-flight: Compute final composite score ────
         final_score = _compute_final_score(req.quality_scores)
         logger.info("delivery.final_score", score=final_score)

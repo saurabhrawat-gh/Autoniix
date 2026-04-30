@@ -104,18 +104,34 @@
     @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium;
   }
 
-  /* Frosted glass lockdown overlay — used for emergency stop freeze */
+  /* Frosted glass lockdown overlay — used for disabled/emergency freeze.
+     Subtle enough that data is still readable, but clearly signals "inactive". */
   .lockdown-frost {
     @apply relative pointer-events-none select-none;
   }
   .lockdown-frost::after {
     content: '';
     @apply absolute inset-0 rounded-xl z-10;
-    backdrop-filter: blur(2px) saturate(0.5);
-    -webkit-backdrop-filter: blur(2px) saturate(0.5);
-    background: rgb(var(--surface-0) / 0.45);
+    backdrop-filter: blur(1px) saturate(0.6);
+    -webkit-backdrop-filter: blur(1px) saturate(0.6);
+    background: rgb(var(--surface-0) / 0.25);
   }
   .dark .lockdown-frost::after {
-    background: rgb(var(--surface-0) / 0.55);
+    background: rgb(var(--surface-0) / 0.35);
+  }
+
+  /* Tooltip wrapper — add to any parent, put tooltip text in data-tip attr */
+  .has-tooltip {
+    @apply relative;
+  }
+  .has-tooltip .tooltip-text {
+    @apply invisible absolute z-50 px-2.5 py-1.5 text-[11px] font-medium
+           rounded-lg shadow-elevated whitespace-nowrap
+           bg-surface-0 text-content-primary border border-border
+           bottom-full left-1/2 -translate-x-1/2 mb-1.5
+           opacity-0 transition-all duration-150;
+  }
+  .has-tooltip:hover .tooltip-text {
+    @apply visible opacity-100;
   }
 }
