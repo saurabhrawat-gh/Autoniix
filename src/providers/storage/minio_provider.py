@@ -7,6 +7,7 @@ import structlog
 from minio import Minio
 
 from src.config import settings
+from src.environment import get_storage_prefix
 from src.providers.registry import ProviderRegistry
 from src.providers.storage.base import StorageProvider, StorageResult, StorageUpload
 
@@ -36,27 +37,28 @@ class MinIOStorage(StorageProvider):
             logger.warning("minio.bucket_check_failed", error=str(exc))
 
     async def upload(self, upload: StorageUpload) -> StorageResult:
+        prefixed_key = self._prefixed_key(upload.key)
         data = BytesIO(upload.data)
         self.client.put_object(
             self.bucket,
-            upload.key,
+            prefixed_key,
             data,
             len(upload.data),
             content_type=upload.content_type,
             metadata=upload.metadata,
         )
         url = (
-            f"{self.public_base}/{upload.key}"
+            f"{self.public_base}/{prefixed_key}"
             if self.public_base
-            else f"s3://{self.bucket}/{upload.key}"
+            else f"s3://{self.bucket}/{prefixed_key}"
         )
-        logger.info("minio.uploaded", key=upload.key, size=len(upload.data))
+        logger.info("minio.uploaded", key=prefixed_key, size=len(upload.data))
         return StorageResult(
-            url=url, key=upload.key, size_bytes=len(upload.data), provider="minio"
+            url=url, key=prefixed_key, size_bytes=len(upload.data), provider="minio"
         )
 
     async def download(self, key: str) -> bytes:
-        response = self.client.get_object(self.bucket, key)
+        response = self.client.get_object(self.bucket, self._prefixed_key(key))
         try:
             return response.read()
         finally:
@@ -65,18 +67,19 @@ class MinIOStorage(StorageProvider):
 
     async def exists(self, key: str) -> bool:
         try:
-            self.client.stat_object(self.bucket, key)
+            self.client.stat_object(self.bucket, self._prefixed_key(key))
             return True
         except Exception:
             return False
 
     async def delete(self, key: str) -> None:
-        self.client.remove_object(self.bucket, key)
-        logger.info("minio.deleted", key=key)
+        prefixed = self._prefixed_key(key)
+        self.client.remove_object(self.bucket, prefixed)
+        logger.info("minio.deleted", key=prefixed)
 
     async def get_signed_url(self, key: str, expires_in: int = 3600) -> str:
         return self.client.presigned_get_object(
-            self.bucket, key, expires=timedelta(seconds=expires_in)
+            self.bucket, self._prefixed_key(key), expires=timedelta(seconds=expires_in)
         )
 
     async def health_check(self) -> bool:
@@ -88,6 +91,26 @@ class MinIOStorage(StorageProvider):
 
     def provider_name(self) -> str:
         return "minio"
+
+    @staticmethod
+    def _prefixed_key(key: str) -> str:
+        """Prefix key with environment (test/ or prod/) if not already prefixed."""
+        prefix = get_storage_prefix()
+        if key.startswith(f"{prefix}/") or key.startswith("test/") or key.startswith("prod/"):
+            return key
+        return f"{prefix}/{key}"
+
+    def delete_prefix(self, prefix: str) -> int:
+        """Delete all objects under a prefix. Used for test data cleanup."""
+        count = 0
+        objects = self.client.list_objects(self.bucket, prefix=prefix, recursive=True)
+        from minio.deleteobjects import DeleteObject
+        delete_list = [DeleteObject(obj.object_name) for obj in objects]
+        if delete_list:
+            errors = list(self.client.remove_objects(self.bucket, delete_list))
+            count = len(delete_list) - len(errors)
+            logger.info("minio.prefix_deleted", prefix=prefix, deleted=count, errors=len(errors))
+        return count
 
 
 ProviderRegistry.register("storage", "minio", MinIOStorage)

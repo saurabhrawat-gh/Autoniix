@@ -156,10 +156,12 @@ export default function ProgressPage() {
                               {isFailed ? (
                                 <>
                                   <Link href={`/dashboard/channels/${job.channel_id}/settings`}
+                                    title="Open channel settings to debug the failure"
                                     className="px-2.5 py-1 border rounded-md text-[11px] font-medium text-content-tertiary bg-surface-1 border-border hover:bg-surface-2 transition-all">
                                     Settings
                                   </Link>
                                   <button onClick={() => retryJob(job.content_id)}
+                                    title={job.checkpoint ? `Resume production from the '${job.checkpoint}' phase` : 'Restart the entire production workflow'}
                                     className="px-2.5 py-1 border rounded-md text-[11px] font-medium text-accent bg-accent/5 border-accent/15 hover:bg-accent/10 transition-all">
                                     {job.checkpoint ? `Retry from ${job.checkpoint}` : 'Retry'}
                                   </button>
@@ -167,10 +169,12 @@ export default function ProgressPage() {
                               ) : (
                                 <>
                                   <button onClick={() => pauseJob(job.channel_id)}
+                                    title="Pause this workflow — it can be resumed later"
                                     className="px-2.5 py-1 border rounded-md text-[11px] font-medium text-status-warning bg-status-warning/5 border-status-warning/15 hover:bg-status-warning/10 transition-all">
                                     Pause
                                   </button>
                                   <button onClick={() => stopJob(job.channel_id)}
+                                    title="Terminate this workflow — cannot be resumed"
                                     className="px-2.5 py-1 border rounded-md text-[11px] font-medium text-status-error bg-status-error/5 border-status-error/15 hover:bg-status-error/10 transition-all">
                                     Stop
                                   </button>

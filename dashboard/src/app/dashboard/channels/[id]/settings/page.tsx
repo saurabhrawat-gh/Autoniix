@@ -34,7 +34,7 @@ export default function ChannelSettingsPage() {
 
   const loadChannel = useCallback(async () => {
     try {
-      const res = await api.channels();
+      const res = await api.channels(true);
       const ch = (res.data || []).find((c: any) => c.channel_id === channelId);
       if (ch) {
         setChannel(ch);
@@ -67,6 +67,7 @@ export default function ChannelSettingsPage() {
   }, [router, loadChannel]);
 
   const channelDisabled = channel?.status !== 'active';
+  const isArchived = channel?.status === 'archived';
   const locked = systemStopped || channelDisabled;
 
   async function handleSave() {
@@ -125,7 +126,8 @@ export default function ChannelSettingsPage() {
           <div className="flex items-center gap-3">
             {/* Edit Mode Toggle — matches global settings UI */}
             <label className="flex items-center gap-2 cursor-pointer">
-              <span className={cn('text-xs font-medium', locked ? 'text-content-tertiary' : 'text-content-secondary')}>
+              <span className={cn('text-xs font-medium', locked ? 'text-content-tertiary' : 'text-content-secondary')}
+                title={locked ? (systemStopped ? 'System is stopped' : isArchived ? 'Channel is archived' : 'Channel is disabled') : 'Toggle to edit settings'}>
                 Edit Mode{locked ? ' (locked)' : ''}
               </span>
               <button
@@ -155,8 +157,30 @@ export default function ChannelSettingsPage() {
 
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
+          {/* Channel archived banner */}
+          {isArchived && !systemStopped && (
+            <div className="p-4 rounded-lg bg-surface-2 border border-border">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-content-tertiary text-lg">▣</span>
+                  <div>
+                    <h3 className="text-sm font-semibold text-content-secondary">Channel Archived</h3>
+                    <p className="text-xs text-content-tertiary mt-0.5">
+                      Settings are read-only while the channel is archived. Restore it to make changes.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={async () => { try { await api.restoreChannel(channelId); loadChannel(); } catch {} }}
+                  className="px-3 py-1.5 border rounded-lg text-xs font-medium text-accent bg-accent/5 border-accent/15 hover:bg-accent/10 transition-all shrink-0"
+                  title="Restore this channel to disabled state">
+                  Restore
+                </button>
+              </div>
+            </div>
+          )}
           {/* Channel disabled banner */}
-          {channelDisabled && !systemStopped && (
+          {channelDisabled && !isArchived && !systemStopped && (
             <div className="p-4 rounded-lg bg-surface-2 border border-border">
               <div className="flex items-center gap-3">
                 <span className="text-content-tertiary text-lg">○</span>

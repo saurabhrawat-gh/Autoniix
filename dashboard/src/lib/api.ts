@@ -62,7 +62,8 @@ export const api = {
   stats: () => request('/api/stats'),
 
   // Channels
-  channels: () => request('/api/channels'),
+  channels: (includeArchived = false) =>
+    request(`/api/channels?include_archived=${includeArchived}`),
   createChannel: (data: any) =>
     request('/api/channels', { method: 'POST', body: JSON.stringify(data) }),
   updateChannel: (id: string, data: any) =>
@@ -71,6 +72,14 @@ export const api = {
     request(`/api/channels/${id}/enable`, { method: 'PUT' }),
   disableChannel: (id: string) =>
     request(`/api/channels/${id}/disable`, { method: 'PUT' }),
+  archiveChannel: (id: string) =>
+    request(`/api/channels/${id}/archive`, { method: 'PUT' }),
+  restoreChannel: (id: string) =>
+    request(`/api/channels/${id}/restore`, { method: 'PUT' }),
+  cloneChannel: (id: string) =>
+    request(`/api/channels/${id}/clone`, { method: 'POST' }),
+  exportChannel: (id: string) =>
+    request(`/api/channels/${id}/export`),
 
   // Workflow control
   trigger: (id: string, data: any = {}) =>
@@ -116,6 +125,13 @@ export const api = {
     request('/api/config', { method: 'PUT', body: JSON.stringify({ config_key: key, config_value: value }) }),
   emergencyStop: () => request('/api/emergency-stop', { method: 'POST' }),
   emergencyResume: () => request('/api/emergency-resume', { method: 'POST' }),
+
+  // Environment
+  environment: () => request('/api/environment'),
+  switchEnvironment: (mode: string, confirm: boolean = false) =>
+    request('/api/environment', { method: 'PUT', body: JSON.stringify({ mode, confirm }) }),
+  testDataStats: () => request('/api/test-data/stats'),
+  cleanupTestData: () => request('/api/test-data', { method: 'DELETE' }),
 };
 
 export function wsProgress(contentId: string): WebSocket {

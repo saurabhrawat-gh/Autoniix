@@ -183,7 +183,8 @@ export default function SettingsPage() {
           <div className="flex items-center gap-3">
             {/* Edit Mode Toggle */}
             <label className="flex items-center gap-2 cursor-pointer">
-              <span className={cn('text-xs font-medium', systemStopped ? 'text-content-tertiary' : 'text-content-secondary')}>
+              <span className={cn('text-xs font-medium', systemStopped ? 'text-content-tertiary' : 'text-content-secondary')}
+                title={systemStopped ? 'Resume the system to edit settings' : 'Toggle to enable editing'}>
                 Edit Mode{systemStopped ? ' (locked)' : ''}
               </span>
               <button
@@ -202,6 +203,7 @@ export default function SettingsPage() {
             </label>
             <ThemeToggle />
             <button onClick={toggleEmergency}
+              title={emergency ? 'Resume all paused workflows and re-enable the system' : 'Freeze the entire system and pause all running workflows'}
               className={cn(
                 'px-4 py-2 rounded-lg text-xs font-medium transition-all',
                 emergency

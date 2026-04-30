@@ -130,7 +130,10 @@ class VideoProductionWorkflow:
     @workflow.run
     async def run(self, params: VideoParams) -> VideoResult:
         ts = workflow.now().strftime("%Y%m%d_%H%M")
-        content_id = f"VID_{params.channel_id}_{ts}"
+        env = getattr(params, "environment", "test")
+        is_test_mode = env != "production"
+        prefix = "TEST_VID" if is_test_mode else "VID"
+        content_id = f"{prefix}_{params.channel_id}_{ts}"
         budget = {"max_cost_usd": params.max_cost_usd, "accrued_cost_usd": 0}
         quality_scores = {}
 
@@ -478,6 +481,7 @@ class VideoProductionWorkflow:
                     "title": final_title,
                     "direction_v3": direction_v3,
                     "thumbnail_url": thumbnail_data.get("selected_thumbnail", {}).get("url", ""),
+                    "environment": env,
                 }],
                 start_to_close_timeout=timedelta(hours=1),
                 heartbeat_timeout=timedelta(minutes=2),
@@ -557,30 +561,39 @@ class VideoProductionWorkflow:
             description = packaging.get("description", script_data.get("description", ""))
             tags = packaging.get("tags", script_data.get("tags", []))
 
-            delivery_result = await workflow.execute_activity(
-                "delivery_activity",
-                args=[{
-                    "content_id": content_id,
-                    "channel_id": params.channel_id,
-                    "content_mode": params.content_mode,
-                    "title": final_title,
-                    "description": description,
-                    "tags": tags,
-                    "video_url": video_url,
-                    "thumbnail_url": thumbnail_data.get("selected_thumbnail", {}).get("url", ""),
-                    "privacy_status": "private",
-                    "is_short": params.content_mode == "short",
-                    "quality_scores": quality_scores,
-                    "human_review_required": False,
-                }],
-                start_to_close_timeout=timedelta(minutes=10),
-                retry_policy=RETRY_STANDARD,
-            )
+            youtube_id = ""
 
-            youtube_id = delivery_result.get("data", {}).get("youtube_video_id", "")
-            await self._complete_phase(content_id, ch, "delivering",
-                                       detail={"youtube_id": youtube_id})
-            workflow.logger.info(f"Delivered: https://youtu.be/{youtube_id}")
+            if is_test_mode:
+                # TEST MODE: Skip YouTube upload entirely
+                youtube_id = "TEST_SKIP"
+                workflow.logger.info("Test mode — skipping YouTube upload")
+                await self._complete_phase(content_id, ch, "delivering",
+                                           detail={"youtube_id": youtube_id, "skipped": True, "reason": "test_mode"})
+            else:
+                delivery_result = await workflow.execute_activity(
+                    "delivery_activity",
+                    args=[{
+                        "content_id": content_id,
+                        "channel_id": params.channel_id,
+                        "content_mode": params.content_mode,
+                        "title": final_title,
+                        "description": description,
+                        "tags": tags,
+                        "video_url": video_url,
+                        "thumbnail_url": thumbnail_data.get("selected_thumbnail", {}).get("url", ""),
+                        "privacy_status": "private",
+                        "is_short": params.content_mode == "short",
+                        "quality_scores": quality_scores,
+                        "human_review_required": False,
+                    }],
+                    start_to_close_timeout=timedelta(minutes=10),
+                    retry_policy=RETRY_STANDARD,
+                )
+
+                youtube_id = delivery_result.get("data", {}).get("youtube_video_id", "")
+                await self._complete_phase(content_id, ch, "delivering",
+                                           detail={"youtube_id": youtube_id})
+                workflow.logger.info(f"Delivered: https://youtu.be/{youtube_id}")
 
             # ── Phase 9: Analytics + Intelligence Feedback ──
             await self._set_phase(content_id, "analytics", ch)
@@ -619,13 +632,15 @@ class VideoProductionWorkflow:
                     workflow.logger.warning("Brand consistency check failed — non-critical")
 
             # ── Done ─────────────────────────────────────
-            await self._set_phase(content_id, "delivered", ch)
-            await self._complete_phase(content_id, ch, "delivered",
+            final_status = "test_delivered" if is_test_mode else "delivered"
+            await self._set_phase(content_id, final_status, ch)
+            await self._complete_phase(content_id, ch, final_status,
                                        cost=self._accrued_cost,
-                                       detail={"youtube_id": youtube_id, "composite_score": composite_score})
+                                       detail={"youtube_id": youtube_id, "composite_score": composite_score,
+                                               "environment": env})
 
             return VideoResult(
-                status="delivered",
+                status=final_status,
                 content_id=content_id,
                 youtube_video_id=youtube_id,
                 cost=self._accrued_cost,

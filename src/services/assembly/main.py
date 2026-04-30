@@ -33,6 +33,7 @@ class AssemblyRequest(BaseModel):
     title: str
     direction_v3: dict = Field(default_factory=dict)
     thumbnail_url: str = ""
+    environment: str = "test"
 
 
 class RenderStatusRequest(BaseModel):
@@ -157,12 +158,18 @@ async def assemble(req: AssemblyRequest):
 
         # ── Step 1: Submit render job to Remotion API ────
         remotion_url = settings.remotion_base_url
+        is_test_mode = req.environment != "production"
+        render_quality = "preview" if is_test_mode else "high"
         render_payload = {
             "direction": direction_v3,
             "outputFormat": "mp4",
-            "quality": "high",
+            "quality": render_quality,
             "codec": "h264",
         }
+        if is_test_mode:
+            render_payload["resolution"] = {"width": 640, "height": 360}
+            render_payload["fps"] = 15
+            logger.info("assembly.test_mode", quality="preview", resolution="640x360", fps=15)
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(f"{remotion_url}/render", json=render_payload)

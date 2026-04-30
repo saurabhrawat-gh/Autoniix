@@ -22,7 +22,7 @@ export default function ChannelDetailPage() {
     try {
       const [jobsRes, chRes] = await Promise.all([
         api.jobs(channelId, tab),
-        api.channels(),
+        api.channels(true),
       ]);
       setJobs(jobsRes.data || []);
       const ch = (chRes.data || []).find((c: any) => c.channel_id === channelId);
@@ -59,7 +59,7 @@ export default function ChannelDetailPage() {
           <div className="flex items-center gap-2">
               <Link href={`/dashboard/channels/${channelId}/settings`}
                 className="w-9 h-9 flex items-center justify-center rounded-lg bg-surface-2 hover:bg-surface-3 transition-all text-content-secondary hover:text-accent"
-                title="Channel Settings">
+                title="View and edit channel configuration">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="3" />
                   <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
@@ -73,8 +73,30 @@ export default function ChannelDetailPage() {
       {/* Scrollable Content */}
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-6 py-6">
+          {/* Channel archived banner */}
+          {channel && channel.status === 'archived' && !systemStopped && (
+            <div className="mb-6 p-4 rounded-lg bg-surface-2 border border-border">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-content-tertiary text-lg">▣</span>
+                  <div>
+                    <h3 className="text-sm font-semibold text-content-secondary">Channel Archived</h3>
+                    <p className="text-xs text-content-tertiary mt-0.5">
+                      This channel is archived. Configuration and history are preserved. Restore it to re-enable.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={async () => { try { await api.restoreChannel(channelId); loadJobs(); } catch {} }}
+                  className="px-3 py-1.5 border rounded-lg text-xs font-medium text-accent bg-accent/5 border-accent/15 hover:bg-accent/10 transition-all shrink-0"
+                  title="Restore this channel to disabled state">
+                  Restore
+                </button>
+              </div>
+            </div>
+          )}
           {/* Channel disabled banner */}
-          {channel && channel.status !== 'active' && !systemStopped && (
+          {channel && channel.status === 'disabled' && !systemStopped && (
             <div className="mb-6 p-4 rounded-lg bg-surface-2 border border-border">
               <div className="flex items-center gap-3">
                 <span className="text-content-tertiary text-lg">○</span>

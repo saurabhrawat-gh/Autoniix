@@ -109,7 +109,14 @@ INSERT INTO system_config (config_key, config_value, description, updated_by) VA
     ('notify_on_complete',            'true',    'Send notification when video completes', 'setup_script'),
     ('notify_on_failure',             'true',    'Send notification when video fails', 'setup_script'),
     ('notify_on_review',              'true',    'Send notification when human review needed', 'setup_script'),
-    ('notify_daily_summary',          'true',    'Send daily summary notification', 'setup_script')
+    ('notify_daily_summary',          'true',    'Send daily summary notification', 'setup_script'),
+    -- Environment Mode
+    ('environment_mode',              'test',    'Global environment: test or production', 'setup_script'),
+    ('environment_switched_at',       '',        'ISO timestamp of last mode switch', 'setup_script'),
+    ('environment_switched_by',       '',        'Who last switched the mode', 'setup_script'),
+    ('test_daily_budget_limit',       '5.00',    'Max daily spend USD in test mode', 'setup_script'),
+    ('test_max_videos_per_day',       '10',      'Max videos per day in test mode', 'setup_script'),
+    ('test_cost_alert_threshold',     '2.00',    'Alert if test mode cost exceeds this USD/day', 'setup_script')
 ON CONFLICT (config_key) DO UPDATE SET
     config_value = EXCLUDED.config_value,
     description = EXCLUDED.description,

@@ -25,6 +25,25 @@ _ENV_MAP: dict[str, str] = {
     "storage": "STORAGE_PROVIDER",
 }
 
+# Test mode remaps expensive providers to free alternatives.
+# Storage stays the same (MinIO is self-hosted, just paths change).
+_TEST_PROVIDER_MAP: dict[str, str] = {
+    "tts": "edge_tts",
+    "llm": "mock_llm",
+    "llm.research": "mock_llm",
+    "llm.script": "mock_llm",
+    "llm.factcheck": "mock_llm",
+    "llm.qc": "mock_llm",
+    "llm.vision": "mock_llm",
+    "llm.ideation": "mock_llm",
+    "llm.hook": "mock_llm",
+    "llm.direction": "mock_llm",
+    "llm.emotion": "mock_llm",
+    "search": "mock_search",
+    "image": "placeholder",
+    # storage: NOT remapped — MinIO is free (self-hosted)
+}
+
 
 class ProviderRegistry:
     """Config-driven provider factory.  Read provider name from env vars."""
@@ -41,7 +60,15 @@ class ProviderRegistry:
 
     @classmethod
     def get(cls, category: str, *, override: str | None = None) -> Any:
-        name = override or os.getenv(_ENV_MAP.get(category, ""), "")
+        from src.environment import is_test
+
+        if override:
+            name = override
+        elif is_test() and category in _TEST_PROVIDER_MAP:
+            name = _TEST_PROVIDER_MAP[category]
+        else:
+            name = os.getenv(_ENV_MAP.get(category, ""), "")
+
         if not name:
             raise ValueError(f"No provider configured for category '{category}'")
 
