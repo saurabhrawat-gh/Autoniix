@@ -51,6 +51,7 @@ export default function DashboardPage() {
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [pinned, setPinned] = useState<Set<string>>(new Set());
+  const [showSortMenu, setShowSortMenu] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout>();
 
   // Debounced search
@@ -423,40 +424,55 @@ export default function DashboardPage() {
 
           <div className="flex items-center gap-3 flex-1 justify-end">
             {/* Search */}
-            <div className="relative max-w-xs w-full">
-              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-content-tertiary" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <div className="relative w-full max-w-sm">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-content-tertiary" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
               </svg>
               <input
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search channels…"
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-surface-1 border border-border rounded-lg text-content-primary placeholder:text-content-tertiary focus:outline-none focus:ring-1 focus:ring-accent/30"
+                placeholder="Search by name, ID, or niche…"
+                className="w-full pl-9 pr-8 py-1.5 text-xs bg-surface-1 border border-border rounded-md text-content-primary placeholder:text-content-tertiary focus:outline-none focus:ring-1 focus:ring-accent/30 focus:border-accent/30"
               />
               {search && (
                 <button onClick={() => setSearch('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-content-tertiary hover:text-content-primary text-xs">✕</button>
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-tertiary hover:text-content-primary text-xs">✕</button>
               )}
             </div>
 
             {/* Sort dropdown */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-content-tertiary font-medium">Sort:</span>
-              {SORT_OPTIONS.map(s => (
-                <button key={s.key} onClick={() => cycleSort(s.key)}
-                  className={cn(
-                    'px-2 py-1 text-[10px] font-medium rounded transition-all',
-                    sortKey === s.key
-                      ? 'bg-accent/10 text-accent'
-                      : 'text-content-tertiary hover:text-content-secondary hover:bg-surface-1'
-                  )}>
-                  {s.label}
-                  {sortKey === s.key && (
-                    <span className="ml-0.5">{sortDir === 'asc' ? '↑' : '↓'}</span>
-                  )}
-                </button>
-              ))}
+            <div className="relative">
+              <button onClick={() => setShowSortMenu(!showSortMenu)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-surface-1 border border-border rounded-md text-content-secondary hover:text-content-primary hover:border-border transition-colors">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18M6 12h12M9 18h6" />
+                </svg>
+                <span>{SORT_OPTIONS.find(s => s.key === sortKey)?.label}</span>
+                <span className="text-accent text-[10px]">{sortDir === 'asc' ? '↑' : '↓'}</span>
+              </button>
+              {showSortMenu && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setShowSortMenu(false)} />
+                  <div className="absolute right-0 top-9 z-30 w-40 bg-surface-0 border border-border rounded-md shadow-elevated py-1">
+                    {SORT_OPTIONS.map(s => (
+                      <button key={s.key}
+                        onClick={() => { cycleSort(s.key); setShowSortMenu(false); }}
+                        className={cn(
+                          'w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between',
+                          sortKey === s.key
+                            ? 'text-accent bg-accent/5 font-medium'
+                            : 'text-content-secondary hover:bg-surface-1'
+                        )}>
+                        <span>{s.label}</span>
+                        {sortKey === s.key && (
+                          <span className="text-accent text-[10px] font-semibold">{sortDir === 'asc' ? '↑ Asc' : '↓ Desc'}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
