@@ -409,13 +409,13 @@ export default function DashboardPage() {
             {TABS.map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
                 className={cn(
-                  'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                  'px-3 py-1.5 text-sm font-medium rounded-md transition-all',
                   tab === t.key
                     ? 'bg-surface-0 text-content-primary shadow-sm'
                     : 'text-content-tertiary hover:text-content-secondary'
                 )}>
                 {t.label}
-                <span className={cn('ml-1.5 text-[10px]', tab === t.key ? 'text-accent' : 'text-content-tertiary')}>
+                <span className={cn('ml-1.5 text-[16px]', tab === t.key ? 'text-accent' : 'text-content-tertiary')}>
                   {tabCounts[t.key]}
                 </span>
               </button>
@@ -442,14 +442,20 @@ export default function DashboardPage() {
             </div>
 
             {/* Sort dropdown */}
-            <div className="relative">
+            <div className="relative flex items-center gap-2">
+              <span className="text-[14px] text-content-tertiary font-medium">Sort:</span>
               <button onClick={() => setShowSortMenu(!showSortMenu)}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-surface-1 border border-border rounded-md text-content-secondary hover:text-content-primary hover:border-border transition-colors">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 6h18M6 12h12M9 18h6" />
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M7 3v18" /><path d="m3 7 4-4 4 4" />
+                  <path d="M17 21V3" /><path d="m21 17-4 4-4-4" />
                 </svg>
                 <span>{SORT_OPTIONS.find(s => s.key === sortKey)?.label}</span>
-                <span className="text-accent text-[10px]">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
+                  {sortDir === 'asc'
+                    ? <path d="M18 15l-6-6-6 6" />
+                    : <path d="M6 9l6 6 6-6" />}
+                </svg>
               </button>
               {showSortMenu && (
                 <>
@@ -483,7 +489,7 @@ export default function DashboardPage() {
         <div className={cn('card h-full flex flex-col overflow-hidden', systemStopped && 'lockdown-frost')}>
           {/* Table header */}
           <div className="shrink-0 px-4 py-2.5 flex items-center bg-surface-1/50 text-[11px] font-semibold text-content-tertiary uppercase tracking-wider border-b border-border">
-            <span className="w-8"></span>
+            <span className="w-9"></span>
             <span className="flex-1 min-w-0">Channel</span>
             <span className="w-24 text-center">Status</span>
             <span className="w-20 text-center">Delivered</span>
@@ -507,16 +513,17 @@ export default function DashboardPage() {
 
               return (
                 <div key={ch.channel_id} className={cn(
-                  'px-4 py-3 flex items-center transition-colors group',
+                  'px-4 py-3 flex items-start transition-colors group',
                   isArchived ? 'bg-surface-1/20 opacity-60' : isDisabled ? 'bg-surface-1/30' : 'hover:bg-surface-1/50',
                   isPinned && 'border-l-2 border-l-accent'
                 )}>
                   {/* Pin */}
                   <button onClick={() => togglePin(ch.channel_id)} title={isPinned ? 'Unpin channel' : 'Pin to top'}
-                    className={cn('w-8 shrink-0 flex items-center justify-center text-content-tertiary hover:text-accent transition-colors',
+                    className={cn('w-9 shrink-0 flex items-center justify-center mt-1.5 text-content-tertiary hover:text-accent transition-colors',
                       isPinned && 'text-accent')}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
-                      <path d="M12 2L12 22M12 2L8 6M12 2L16 6" />
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 17v5" />
+                      <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1z" />
                     </svg>
                   </button>
 
@@ -546,7 +553,7 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Status */}
-                  <div className="w-24 text-center">
+                  <div className="w-24 text-center self-center">
                     <span className={cn('text-xs font-medium',
                       ch.status === 'active' ? 'text-status-success' : ch.status === 'archived' ? 'text-content-tertiary' : 'text-status-warning'
                     )}>
@@ -555,16 +562,16 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Delivered */}
-                  <div className="w-20 text-center text-xs text-content-primary font-medium">{ch.stats?.delivered || 0}</div>
+                  <div className="w-20 text-center text-sm text-content-primary font-medium self-center">{ch.stats?.delivered || 0}</div>
 
                   {/* In Progress */}
-                  <div className="w-20 text-center text-xs text-content-tertiary">{ch.stats?.in_progress || 0}</div>
+                  <div className="w-20 text-center text-sm text-content-tertiary self-center">{ch.stats?.in_progress || 0}</div>
 
                   {/* Weekly */}
-                  <div className="w-24 text-center text-xs text-content-tertiary">{weeklyLabel || '—'}</div>
+                  <div className="w-24 text-center text-sm text-content-tertiary self-center">{weeklyLabel || '—'}</div>
 
                   {/* Toggle */}
-                  <div className="w-16 flex justify-center">
+                  <div className="w-16 flex justify-center self-center">
                     {isArchived ? (
                       <span className="text-[10px] text-content-tertiary">—</span>
                     ) : (
@@ -573,7 +580,7 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="w-64 flex justify-end items-center gap-1.5">
+                  <div className="w-64 flex justify-end items-center gap-1.5 self-center">
                     {isArchived ? (
                       <>
                         <Tip text="Restore to disabled state">
@@ -650,7 +657,7 @@ export default function DashboardPage() {
                         <Link href={`/dashboard/channels/${ch.channel_id}/settings`}
                           className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-surface-2 transition-all text-content-tertiary hover:text-accent"
                           title="Channel settings">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <circle cx="12" cy="12" r="3" />
                             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                           </svg>
