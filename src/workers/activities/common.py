@@ -12,19 +12,26 @@ logger = structlog.get_logger()
 
 
 @activity.defn
-async def update_video_status(content_id: str, status: str) -> None:
+async def update_video_status(content_id: str, status: str,
+                               channel_id: str = "", title: str = "",
+                               content_mode: str = "") -> None:
     """Update the status column for a video in PostgreSQL."""
-    logger.info("activity.update_status", content_id=content_id, status=status)
+    logger.info("activity.update_status", content_id=content_id, status=status,
+                channel_id=channel_id or "N/A")
     try:
         from src.environment import get_mode_from_db
         env = await get_mode_from_db()
         pool = await get_pool()
         await pool.execute(
-            "INSERT INTO videos (content_id, status, environment, updated_at) VALUES ($1, $2, $3, NOW()) "
-            "ON CONFLICT (content_id) DO UPDATE SET status = $2, updated_at = NOW()",
-            content_id,
-            status,
-            env,
+            "INSERT INTO videos (content_id, channel_id, status, title, content_mode, environment, updated_at) "
+            "VALUES ($1, NULLIF($2,''), $3, NULLIF($4,''), NULLIF($5,''), $6, NOW()) "
+            "ON CONFLICT (content_id) DO UPDATE SET "
+            "status = $3, "
+            "channel_id = COALESCE(NULLIF($2,''), videos.channel_id), "
+            "title = COALESCE(NULLIF($4,''), videos.title), "
+            "content_mode = COALESCE(NULLIF($5,''), videos.content_mode), "
+            "updated_at = NOW()",
+            content_id, channel_id, status, title, content_mode, env,
         )
     except Exception as exc:
         logger.warning("activity.update_status.failed", error=str(exc))

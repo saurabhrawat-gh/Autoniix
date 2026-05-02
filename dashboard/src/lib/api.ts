@@ -119,6 +119,14 @@ export const api = {
   retryJob: (contentId: string) =>
     request(`/api/jobs/${contentId}/retry`, { method: 'POST' }),
 
+  // Per-job workflow control
+  pauseJob: (contentId: string) =>
+    request(`/api/jobs/${contentId}/pause`, { method: 'POST' }),
+  resumeJob: (contentId: string) =>
+    request(`/api/jobs/${contentId}/resume`, { method: 'POST' }),
+  stopJob: (contentId: string) =>
+    request(`/api/jobs/${contentId}/stop`, { method: 'POST' }),
+
   // Config
   config: () => request('/api/config'),
   updateConfig: (key: string, value: string) =>

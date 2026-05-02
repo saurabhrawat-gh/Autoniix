@@ -4,6 +4,8 @@ COPY package.json package-lock.json* ./
 RUN npm ci
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_PUBLIC_WS_URL=ws://localhost:8020
+ENV API_INTERNAL_URL=http://dashboard-bff:8020
 RUN npm run build
 
 FROM node:20-alpine AS runner

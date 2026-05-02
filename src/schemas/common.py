@@ -29,6 +29,7 @@ class VideoStatus(str, Enum):
     delivering = "delivering"
     delivered = "delivered"
     test_delivered = "test_delivered"
+    retrying = "retrying"
     failed = "failed"
     rejected = "rejected"
 
@@ -78,6 +79,7 @@ class VideoParams:
     human_review_required: bool = False
     resume_from: str | None = None
     original_content_id: str | None = None
+    content_id: str | None = None
     environment: str = "test"
 
 

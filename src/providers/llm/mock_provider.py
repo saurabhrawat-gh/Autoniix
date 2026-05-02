@@ -24,7 +24,9 @@ from src.providers.registry import ProviderRegistry
 
 logger = structlog.get_logger()
 
-CACHE_DIR = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "llm"
+# Prefer tests/fixtures/llm for local dev, /tmp/mock_llm_cache for Docker
+_LOCAL_CACHE = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "llm"
+CACHE_DIR = _LOCAL_CACHE if _LOCAL_CACHE.parent.exists() else Path("/tmp/mock_llm_cache")
 
 
 def _cache_key(messages: list[dict], model: str) -> str:
@@ -131,15 +133,266 @@ class MockLLM(LLMProvider):
         )
 
     def _static_response(self, request: LLMRequest) -> str:
-        """Return a plausible static response based on whether JSON was requested."""
+        """Return structurally valid mock data based on prompt content."""
+        # Use SYSTEM message for classification (clean, unique per call type)
+        # User messages often embed JSON payloads that confuse keyword matching
+        system_text = ""
+        user_text = ""
+        for m in request.messages:
+            content = m.get("content", "").lower()
+            if m.get("role") == "system":
+                system_text += content + " "
+            else:
+                user_text += content + " "
+
         if request.response_format == "json":
-            return json.dumps({
-                "result": "test_mock_response",
-                "score": 8.0,
-                "items": [],
-                "summary": "This is a mock response generated in test mode.",
-            })
+            data = self._detect_and_mock(system_text, user_text)
+            return json.dumps(data)
+
         return "This is a mock response generated in test mode. The pipeline is working correctly but no real LLM was called."
+
+    def _detect_and_mock(self, system_text: str, user_text: str) -> dict:
+        """Produce mock JSON matching the expected schema for each pipeline phase.
+
+        Classification uses system_text ONLY. User messages embed JSON payloads
+        from previous pipeline steps (e.g. research_data in script prompt) which
+        would cause false pattern matches if checked.
+        """
+
+        # Research synthesis — system prompt contains "research"
+        if "research" in system_text and "scriptwriter" not in system_text:
+            return {
+                "selected_topic": "The Future of AI in Everyday Life",
+                "research_depth_score": 8.5,
+                "title_candidates": [
+                    "How AI Is Secretly Changing Your Daily Routine",
+                    "5 Ways AI Already Runs Your Life",
+                    "AI in 2025: What Nobody Tells You",
+                ],
+                "sources": [
+                    {"url": "https://en.wikipedia.org/wiki/Artificial_intelligence", "title": "AI Overview", "key_facts": ["AI market growing 37% annually"]},
+                ],
+                "fact_claims": [
+                    {"claim": "AI market is projected to reach $190B by 2025", "confidence": 0.85},
+                    {"claim": "73% of businesses use at least one AI tool", "confidence": 0.80},
+                ],
+                "trend_data": {"momentum": 0.8, "search_volume": "high"},
+                "competitor_analysis": {"gap_found": True, "angle": "practical daily impact"},
+                "audience_pain_points": ["information overload", "job displacement fears", "privacy concerns"],
+                "key_statistics": ["37% annual growth", "$190B market by 2025"],
+                "unique_angle": "Focus on invisible AI that people already use without knowing",
+            }
+
+        # Fact-checking
+        if "fact" in system_text and ("check" in system_text or "verify" in system_text):
+            return {
+                "verified_claims": [
+                    {"claim": "AI market is projected to reach $190B by 2025", "status": "verified", "confidence": 0.9},
+                ],
+                "removed_claims": [],
+                "overall_accuracy": 0.92,
+            }
+
+        # Ideation
+        if "idea" in system_text or "ideation" in system_text:
+            return {
+                "ideas": [
+                    {
+                        "title": "How AI Is Secretly Changing Your Daily Routine",
+                        "hook_angle": "Most people don't realize AI makes 35+ decisions for them every day",
+                        "target_emotion": "curiosity",
+                        "estimated_appeal": 8.2,
+                    },
+                ],
+                "selected_idea": {
+                    "title": "How AI Is Secretly Changing Your Daily Routine",
+                    "hook_angle": "Most people don't realize AI makes 35+ decisions for them every day",
+                    "score": 8.5,
+                },
+            }
+
+        # Script critique / QC — detect by system prompt keywords
+        if "critique" in system_text or "score" in system_text and "dimension" in system_text:
+            return {
+                "overall_score": 9.5,
+                "hook_retention_score": 9.2,
+                "structure_score": 9.0,
+                "clarity_score": 9.1,
+                "engagement_score": 8.9,
+                "pacing_score": 9.0,
+                "scene_direction_quality": 8.8,
+                "audience_retention_curve": 9.0,
+                "emotional_arc_score": 9.1,
+                "weak_dimensions": [],
+                "improvements": [],
+                "rewrite_suggestions": [],
+                "pass": True,
+            }
+
+        # Script generation — detect by system prompt ("scriptwriter")
+        if "scriptwriter" in system_text or ("script" in system_text and "json" in system_text):
+            return {
+                "title": "How AI Is Secretly Changing Your Daily Routine",
+                "segments": [
+                    {
+                        "id": "seg_1",
+                        "section": "hook",
+                        "text": "Right now, as you're watching this, artificial intelligence is making decisions for you. And you don't even know it.",
+                        "narration": "Right now, as you're watching this, artificial intelligence is making decisions for you. And you don't even know it.",
+                        "duration_s": 8,
+                        "emotion": "curiosity",
+                        "scene_direction": "Close-up face shot, dramatic lighting, slow zoom in",
+                        "emphasis_words": ["artificial intelligence", "decisions", "don't even know"],
+                    },
+                    {
+                        "id": "seg_2",
+                        "section": "intro",
+                        "text": "From your morning alarm to your evening playlist, AI is everywhere. Today we're going to expose exactly how it works.",
+                        "narration": "From your morning alarm to your evening playlist, AI is everywhere. Today we're going to expose exactly how it works.",
+                        "duration_s": 10,
+                        "emotion": "intrigue",
+                        "scene_direction": "Montage of daily tech: phone, smart speaker, Netflix",
+                        "emphasis_words": ["everywhere", "expose"],
+                    },
+                    {
+                        "id": "seg_3",
+                        "section": "body_1",
+                        "text": "Let's start with something you do every single morning. You check your phone. That notification order? AI decided it. The news you see first? AI picked it.",
+                        "narration": "Let's start with something you do every single morning. You check your phone. That notification order? AI decided it. The news you see first? AI picked it.",
+                        "duration_s": 15,
+                        "emotion": "surprise",
+                        "scene_direction": "Split screen: person checking phone / algorithm visualization",
+                        "emphasis_words": ["every single morning", "AI decided", "AI picked"],
+                    },
+                    {
+                        "id": "seg_4",
+                        "section": "body_2",
+                        "text": "Your Spotify Discover Weekly? An AI that's analyzed 30 billion data points about your listening habits. It knows your taste better than your best friend.",
+                        "narration": "Your Spotify Discover Weekly? An AI that's analyzed 30 billion data points about your listening habits. It knows your taste better than your best friend.",
+                        "duration_s": 12,
+                        "emotion": "amazement",
+                        "scene_direction": "Spotify UI animation, data flow visualization",
+                        "emphasis_words": ["30 billion", "better than your best friend"],
+                    },
+                    {
+                        "id": "seg_5",
+                        "section": "conclusion",
+                        "text": "AI isn't coming. It's already here. The question isn't whether you'll use it — it's whether you'll understand it. And now, you do.",
+                        "narration": "AI isn't coming. It's already here. The question isn't whether you'll use it — it's whether you'll understand it. And now, you do.",
+                        "duration_s": 10,
+                        "emotion": "empowerment",
+                        "scene_direction": "Wide shot, confident posture, warm lighting",
+                        "emphasis_words": ["already here", "understand it"],
+                    },
+                    {
+                        "id": "seg_6",
+                        "section": "cta",
+                        "text": "If this opened your eyes, hit subscribe. We break down tech that matters, every single week.",
+                        "narration": "If this opened your eyes, hit subscribe. We break down tech that matters, every single week.",
+                        "duration_s": 6,
+                        "emotion": "friendly",
+                        "scene_direction": "Subscribe button animation, channel branding",
+                        "emphasis_words": ["subscribe", "every single week"],
+                    },
+                ],
+                "total_duration_s": 61,
+                "word_count": 180,
+                "script_structure_score": 9.5,
+            }
+
+        # Hook generation
+        if "hook" in system_text:
+            return {
+                "hooks": [
+                    {"text": "Right now, AI is making 35 decisions for you. And you have no idea.", "score": 8.8, "style": "provocative"},
+                    {"text": "What if I told you an algorithm knows you better than your mother?", "score": 8.5, "style": "question"},
+                    {"text": "I tracked every AI decision in my life for 24 hours. The results shocked me.", "score": 8.3, "style": "personal_experiment"},
+                ],
+                "selected_hook": "Right now, AI is making 35 decisions for you. And you have no idea.",
+                "hook_retention_score": 8.8,
+            }
+
+        # Thumbnail concepts
+        if "thumbnail" in system_text:
+            return {
+                "concepts": [
+                    {
+                        "description": "Shocked face looking at phone with glowing AI brain overlay, bold text 'AI CONTROLS YOU?'",
+                        "dall_e_prompt": "Photorealistic shocked young person looking at smartphone, glowing blue AI neural network hologram emerging from phone screen, dark moody background, cinematic lighting, high contrast, 4K quality, YouTube thumbnail style",
+                        "text_overlay": "AI CONTROLS YOU?",
+                        "text_style": "bold_impact",
+                        "composition_rule": "rule_of_thirds",
+                        "emotion_trigger": "curiosity",
+                        "score": 8.7,
+                    },
+                ],
+                "thumbnail_score": 8.7,
+            }
+
+        # Direction / scene direction
+        if "direction" in system_text or "camera" in system_text or "visual" in system_text:
+            return {
+                "direction_v3": {
+                    "segments": [
+                        {
+                            "section": "hook",
+                            "camera": {"shot": "close_up", "movement": "slow_zoom_in", "angle": "eye_level"},
+                            "text_strategy": {"style": "kinetic_bold", "position": "center", "animation": "fade_in"},
+                            "motion_design": {"bg_effect": "particle_flow", "transition_in": "cut", "transition_out": "dissolve"},
+                            "audio_cues": {"sfx": "tech_whoosh", "music_mood": "suspense", "volume": 0.3},
+                            "background_strategy": {"type": "gradient", "colors": ["#0a0a2e", "#1a1a4e"]},
+                        },
+                    ],
+                },
+                "direction_score": 8.5,
+            }
+
+        # Emotion mapping for voice
+        if "emotion" in system_text:
+            return {
+                "emotion_map": [
+                    {"section": "hook", "emotion": "curiosity", "stability": 0.4, "similarity_boost": 0.7, "style": 0.6, "speed": 1.05},
+                    {"section": "intro", "emotion": "intrigue", "stability": 0.5, "similarity_boost": 0.75, "style": 0.5, "speed": 1.0},
+                    {"section": "body_1", "emotion": "surprise", "stability": 0.45, "similarity_boost": 0.8, "style": 0.55, "speed": 1.02},
+                    {"section": "body_2", "emotion": "amazement", "stability": 0.4, "similarity_boost": 0.85, "style": 0.6, "speed": 0.98},
+                    {"section": "conclusion", "emotion": "empowerment", "stability": 0.55, "similarity_boost": 0.8, "style": 0.65, "speed": 0.95},
+                    {"section": "cta", "emotion": "friendly", "stability": 0.6, "similarity_boost": 0.75, "style": 0.5, "speed": 1.05},
+                ],
+                "emphasis_words": ["artificial intelligence", "decisions", "every single morning"],
+                "volume_shift": {"hook": 1.1, "conclusion": 1.05, "cta": 1.0},
+            }
+
+        # Brand DNA / identity
+        if "brand" in system_text:
+            return {
+                "brand_score": 8.5,
+                "consistency": 0.88,
+                "tone_match": True,
+                "suggestions": [],
+            }
+
+        # QC / quality check / inspector
+        if "quality" in system_text or "inspect" in system_text or "qc" in system_text:
+            return {
+                "score": 8.5,
+                "pass": True,
+                "dimensions": {
+                    "accuracy": 8.5,
+                    "engagement": 8.3,
+                    "production": 8.7,
+                    "originality": 8.4,
+                },
+                "issues": [],
+            }
+
+        # Generic fallback
+        return {
+            "result": "test_mock_response",
+            "score": 8.5,
+            "items": [],
+            "summary": "Mock response generated in test mode.",
+            "pass": True,
+        }
 
     def estimate_cost(self, tokens_in: int, tokens_out: int, model: str | None = None) -> float:
         return 0.0
@@ -163,6 +416,7 @@ ProviderRegistry.register("llm.research", "mock_llm", MockLLM)
 ProviderRegistry.register("llm.script", "mock_llm", MockLLM)
 ProviderRegistry.register("llm.factcheck", "mock_llm", MockLLM)
 ProviderRegistry.register("llm.qc", "mock_llm", MockLLM)
+ProviderRegistry.register("llm.vision", "mock_llm", MockLLM)
 ProviderRegistry.register("llm.ideation", "mock_llm", MockLLM)
 ProviderRegistry.register("llm.hook", "mock_llm", MockLLM)
 ProviderRegistry.register("llm.direction", "mock_llm", MockLLM)

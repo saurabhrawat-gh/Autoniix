@@ -13,7 +13,7 @@ from src.config import settings
 from src.db import close_pool, get_pool
 from src.schemas.common import HealthResponse, ServiceResponse
 
-import src.providers.llm.openai_provider  # noqa: F401
+import src.providers.boot  # noqa: F401
 from src.providers.registry import ProviderRegistry
 from src.providers.llm.base import LLMRequest
 

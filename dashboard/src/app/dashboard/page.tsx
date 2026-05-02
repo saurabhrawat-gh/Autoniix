@@ -43,6 +43,8 @@ export default function DashboardPage() {
   const [showEnvConfirm, setShowEnvConfirm] = useState(false);
   const [actionMenu, setActionMenu] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState<string | null>(null);
+  const [triggeringChannels, setTriggeringChannels] = useState<Set<string>>(new Set());
+  const [busyChannels, setBusyChannels] = useState<Set<string>>(new Set());
 
   // New: tabs, search, sort, pin
   const [tab, setTab] = useState<Tab>('all');
@@ -200,13 +202,18 @@ export default function DashboardPage() {
   }
 
   async function triggerChannel(id: string, contentMode: string) {
+    if (triggeringChannels.has(id)) return;
+    setTriggeringChannels(prev => new Set(prev).add(id));
     try {
       await api.trigger(id, { content_mode: contentMode });
-      loadData();
+      await loadData();
     } catch {}
+    setTriggeringChannels(prev => { const n = new Set(prev); n.delete(id); return n; });
   }
 
   async function togglePause(id: string) {
+    if (busyChannels.has(id)) return;
+    setBusyChannels(prev => new Set(prev).add(id));
     try {
       if (pausedMap[id]) {
         await api.resume(id);
@@ -216,13 +223,18 @@ export default function DashboardPage() {
         setPausedMap(prev => ({ ...prev, [id]: true }));
       }
     } catch {}
+    setBusyChannels(prev => { const n = new Set(prev); n.delete(id); return n; });
   }
 
   async function stopChannel(id: string) {
-    try { await api.stop(id); loadData(); } catch {}
+    if (busyChannels.has(id)) return;
+    setBusyChannels(prev => new Set(prev).add(id));
+    try { await api.stop(id); await loadData(); } catch {}
+    setBusyChannels(prev => { const n = new Set(prev); n.delete(id); return n; });
   }
 
   function getChannelState(ch: any): 'idle' | 'running' | 'paused' | 'pending_review' {
+    if (triggeringChannels.has(ch.channel_id)) return 'running';
     if (!ch.active_job) return 'idle';
     if (pausedMap[ch.channel_id]) return 'paused';
     if (ch.active_job.status === 'pending_review') return 'pending_review';
@@ -638,18 +650,18 @@ export default function DashboardPage() {
                         )}
 
                         {(state === 'running' || state === 'paused') && (
-                          <button onClick={() => togglePause(ch.channel_id)} disabled={isDisabled}
-                            className={cn('px-2.5 py-1 border rounded-md text-[11px] font-medium transition-all',
+                          <button onClick={() => togglePause(ch.channel_id)} disabled={isDisabled || busyChannels.has(ch.channel_id)}
+                            className={cn('px-2.5 py-1 border rounded-md text-[11px] font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed',
                               pausedMap[ch.channel_id]
                                 ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
                                 : 'text-status-warning bg-status-warning/5 border-status-warning/15 hover:bg-status-warning/10')}>
-                            {pausedMap[ch.channel_id] ? 'Resume' : 'Pause'}
+                            {busyChannels.has(ch.channel_id) ? '...' : (pausedMap[ch.channel_id] ? 'Resume' : 'Pause')}
                           </button>
                         )}
                         {(state === 'running' || state === 'paused') && (
-                          <button onClick={() => stopChannel(ch.channel_id)} disabled={isDisabled}
-                            className="px-2.5 py-1 border rounded-md text-[11px] font-medium text-status-error bg-status-error/5 border-status-error/15 hover:bg-status-error/10 transition-all">
-                            Stop
+                          <button onClick={() => stopChannel(ch.channel_id)} disabled={isDisabled || busyChannels.has(ch.channel_id)}
+                            className="px-2.5 py-1 border rounded-md text-[11px] font-medium text-status-error bg-status-error/5 border-status-error/15 hover:bg-status-error/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                            {busyChannels.has(ch.channel_id) ? '...' : 'Stop'}
                           </button>
                         )}
 

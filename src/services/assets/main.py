@@ -15,9 +15,7 @@ from src.config import settings
 from src.db import close_pool, get_pool
 from src.schemas.common import HealthResponse, ServiceResponse
 
-import src.providers.image.dalle_provider  # noqa: F401
-import src.providers.storage.minio_provider  # noqa: F401
-import src.providers.llm.openai_provider  # noqa: F401
+import src.providers.boot  # noqa: F401
 from src.providers.registry import ProviderRegistry
 from src.providers.llm.base import LLMRequest
 from src.providers.storage.base import StorageUpload
@@ -373,13 +371,16 @@ async def generate_assets(req: AssetsRequest):
 
             assets = []
             for i, img in enumerate(img_result.images):
-                img_url = img.get("url", "")
-                if not img_url:
-                    continue
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    resp = await client.get(img_url)
-                    resp.raise_for_status()
-                    img_bytes = resp.content
+                # Placeholder provider stores raw bytes in _bytes key
+                img_bytes = img.get("_bytes")
+                if not img_bytes:
+                    img_url = img.get("url", "")
+                    if not img_url or img_url.startswith("data:"):
+                        continue
+                    async with httpx.AsyncClient(timeout=30.0) as client:
+                        resp = await client.get(img_url)
+                        resp.raise_for_status()
+                        img_bytes = resp.content
 
                 key = f"assets/{req.content_id}/{seg_id}_{i}.png"
                 sr = await storage.upload(StorageUpload(key=key, data=img_bytes, content_type="image/png"))
