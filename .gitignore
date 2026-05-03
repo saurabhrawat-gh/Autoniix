@@ -15,6 +15,9 @@ venv/
 # IDE
 .vscode/
 .idea/
+
+# Claude Code personal preferences
+.claude/CLAUDE.local.md
 *.log
 .DS_Store
 tmp/
