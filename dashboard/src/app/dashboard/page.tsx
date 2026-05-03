@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { api, isLoggedIn, clearToken } from '@/lib/api';
 import { cn, statusDot } from '@/lib/utils';
 import { ThemeToggle } from '@/lib/theme';
+import { useToast } from '@/lib/toast';
 
 type Tab = 'all' | 'active' | 'disabled' | 'archived';
 type SortKey = 'name' | 'delivered' | 'status' | 'created';
@@ -36,15 +37,16 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<any>(null);
   const [allChannels, setAllChannels] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pausedMap, setPausedMap] = useState<Record<string, boolean>>({});
+  // pausedMap removed — is_paused is now per-job in active_jobs from backend
   const [systemStopped, setSystemStopped] = useState(false);
   const [envMode, setEnvMode] = useState<string>('test');
   const [envSwitching, setEnvSwitching] = useState(false);
   const [showEnvConfirm, setShowEnvConfirm] = useState(false);
   const [actionMenu, setActionMenu] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState<string | null>(null);
-  const [triggeringChannels, setTriggeringChannels] = useState<Set<string>>(new Set());
-  const [busyChannels, setBusyChannels] = useState<Set<string>>(new Set());
+  const [triggeringKeys, setTriggeringKeys] = useState<Set<string>>(new Set());
+  const [busyJobs, setBusyJobs] = useState<Set<string>>(new Set());
+  const { showToast } = useToast();
 
   // New: tabs, search, sort, pin
   const [tab, setTab] = useState<Tab>('all');
@@ -76,17 +78,9 @@ export default function DashboardPage() {
       setSystemStopped(s.data?.emergency_stop === true);
       setEnvMode(s.data?.environment_mode || 'test');
       setAllChannels(c.data || []);
-      const paused: Record<string, boolean> = {};
-      for (const ch of c.data || []) {
-        if (ch.active_job) {
-          try {
-            const ws = await api.workflowStatus(ch.channel_id);
-            paused[ch.channel_id] = ws.data?.is_paused || false;
-          } catch { paused[ch.channel_id] = false; }
-        }
-      }
-      setPausedMap(paused);
-    } catch {}
+    } catch (e: any) {
+      showToast(e?.message || 'Failed to load data', 'error');
+    }
     setLoading(false);
   }
 
@@ -155,7 +149,7 @@ export default function DashboardPage() {
       setEnvMode(target);
       setShowEnvConfirm(false);
       loadData();
-    } catch {}
+    } catch (e: any) { showToast(e?.message || 'Environment switch failed', 'error'); }
     setEnvSwitching(false);
   }
 
@@ -166,7 +160,7 @@ export default function DashboardPage() {
       setEnvMode('production');
       setShowEnvConfirm(false);
       loadData();
-    } catch {}
+    } catch (e: any) { showToast(e?.message || 'Environment switch failed', 'error'); }
     setEnvSwitching(false);
   }
 
@@ -175,19 +169,19 @@ export default function DashboardPage() {
       if (current === 'active') await api.disableChannel(id);
       else await api.enableChannel(id);
       loadData();
-    } catch {}
+    } catch (e: any) { showToast(e?.message || 'Toggle failed', 'error'); }
   }
 
   async function archiveChannel(id: string) {
-    try { await api.archiveChannel(id); setConfirmArchive(null); loadData(); } catch {}
+    try { await api.archiveChannel(id); setConfirmArchive(null); loadData(); } catch (e: any) { showToast(e?.message || 'Archive failed', 'error'); }
   }
 
   async function restoreChannel(id: string) {
-    try { await api.restoreChannel(id); loadData(); } catch {}
+    try { await api.restoreChannel(id); loadData(); } catch (e: any) { showToast(e?.message || 'Restore failed', 'error'); }
   }
 
   async function cloneChannel(id: string) {
-    try { await api.cloneChannel(id); setActionMenu(null); loadData(); } catch {}
+    try { await api.cloneChannel(id); setActionMenu(null); loadData(); } catch (e: any) { showToast(e?.message || 'Clone failed', 'error'); }
   }
 
   async function exportChannel(id: string) {
@@ -198,46 +192,57 @@ export default function DashboardPage() {
       const a = document.createElement('a'); a.href = url; a.download = `${id}-config.json`;
       a.click(); URL.revokeObjectURL(url);
       setActionMenu(null);
-    } catch {}
+    } catch (e: any) { showToast(e?.message || 'Export failed', 'error'); }
   }
 
   async function triggerChannel(id: string, contentMode: string) {
-    if (triggeringChannels.has(id)) return;
-    setTriggeringChannels(prev => new Set(prev).add(id));
+    const key = `${id}:${contentMode}`;
+    if (triggeringKeys.has(key)) return;
+    setTriggeringKeys(prev => new Set(prev).add(key));
     try {
       await api.trigger(id, { content_mode: contentMode });
       await loadData();
-    } catch {}
-    setTriggeringChannels(prev => { const n = new Set(prev); n.delete(id); return n; });
+    } catch (e: any) {
+      showToast(e?.message || 'Trigger failed', 'error');
+    }
+    setTriggeringKeys(prev => { const n = new Set(prev); n.delete(key); return n; });
   }
 
-  async function togglePause(id: string) {
-    if (busyChannels.has(id)) return;
-    setBusyChannels(prev => new Set(prev).add(id));
+  async function togglePauseJob(contentId: string, isPaused: boolean) {
+    if (busyJobs.has(contentId)) return;
+    setBusyJobs(prev => new Set(prev).add(contentId));
     try {
-      if (pausedMap[id]) {
-        await api.resume(id);
-        setPausedMap(prev => ({ ...prev, [id]: false }));
+      if (isPaused) {
+        await api.resumeJob(contentId);
       } else {
-        await api.pause(id);
-        setPausedMap(prev => ({ ...prev, [id]: true }));
+        await api.pauseJob(contentId);
       }
-    } catch {}
-    setBusyChannels(prev => { const n = new Set(prev); n.delete(id); return n; });
+      await loadData();
+    } catch (e: any) {
+      showToast(e?.message || 'Action failed', 'error');
+    }
+    setBusyJobs(prev => { const n = new Set(prev); n.delete(contentId); return n; });
   }
 
-  async function stopChannel(id: string) {
-    if (busyChannels.has(id)) return;
-    setBusyChannels(prev => new Set(prev).add(id));
-    try { await api.stop(id); await loadData(); } catch {}
-    setBusyChannels(prev => { const n = new Set(prev); n.delete(id); return n; });
+  async function stopJob(contentId: string) {
+    if (busyJobs.has(contentId)) return;
+    setBusyJobs(prev => new Set(prev).add(contentId));
+    try { await api.stopJob(contentId); await loadData(); } catch (e: any) {
+      showToast(e?.message || 'Stop failed', 'error');
+    }
+    setBusyJobs(prev => { const n = new Set(prev); n.delete(contentId); return n; });
   }
 
-  function getChannelState(ch: any): 'idle' | 'running' | 'paused' | 'pending_review' {
-    if (triggeringChannels.has(ch.channel_id)) return 'running';
-    if (!ch.active_job) return 'idle';
-    if (pausedMap[ch.channel_id]) return 'paused';
-    if (ch.active_job.status === 'pending_review') return 'pending_review';
+  function getModeJob(ch: any, mode: string): any | null {
+    return (ch.active_jobs || []).find((j: any) => j.content_mode === mode) || null;
+  }
+
+  function getModeState(ch: any, mode: string): 'idle' | 'running' | 'paused' | 'pending_review' {
+    if (triggeringKeys.has(`${ch.channel_id}:${mode}`)) return 'running';
+    const job = getModeJob(ch, mode);
+    if (!job) return 'idle';
+    if (job.is_paused) return 'paused';
+    if (job.status === 'pending_review') return 'pending_review';
     return 'running';
   }
 
@@ -514,13 +519,11 @@ export default function DashboardPage() {
           {/* Table body — scrollable */}
           <div className="flex-1 overflow-y-auto divide-y divide-border">
             {displayChannels.map((ch: any) => {
-              const state = getChannelState(ch);
               const isDisabled = ch.status !== 'active';
               const isArchived = ch.status === 'archived';
               const allLimitReached = isAllModesAtLimit(ch);
               const weeklyLabel = getWeeklyLabel(ch);
               const modes = getModes(ch);
-              const runningMode = ch.active_job?.content_mode;
               const isPinned = pinned.has(ch.channel_id);
 
               return (
@@ -610,60 +613,58 @@ export default function DashboardPage() {
                       </>
                     ) : (
                       <>
-                        {/* Trigger / Progress */}
-                        {state === 'idle' ? (
-                          modes.length > 1 ? (
-                            modes.map((m: string) => {
-                              const atLimit = isModeAtLimit(ch, m);
-                              const canTrigger = !isDisabled && !systemStopped && !atLimit;
-                              return (
-                                <button key={m} onClick={() => triggerChannel(ch.channel_id, m)} disabled={!canTrigger}
-                                  className={cn('px-2.5 py-1 border rounded-md text-[11px] font-medium transition-all',
-                                    canTrigger ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
-                                      : 'text-content-tertiary bg-surface-2 border-border cursor-not-allowed opacity-50')}>
-                                  {atLimit ? `${m === 'short' ? 'S' : 'L'} Limit` : `▶ ${m === 'short' ? 'Short' : 'Long'}`}
-                                </button>
-                              );
-                            })
-                          ) : (
-                            <button onClick={() => triggerChannel(ch.channel_id, modes[0])} disabled={isDisabled || systemStopped || allLimitReached}
-                              className={cn('px-2.5 py-1 border rounded-md text-[11px] font-medium transition-all',
-                                !isDisabled && !systemStopped && !allLimitReached
-                                  ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
-                                  : 'text-content-tertiary bg-surface-2 border-border cursor-not-allowed opacity-50')}>
-                              {allLimitReached ? 'Limit' : 'Trigger'}
-                            </button>
-                          )
-                        ) : state === 'pending_review' ? (
-                          <Link href={`/dashboard/jobs/${ch.active_job?.content_id}`}
-                            className="px-2.5 py-1 border rounded-md text-[11px] font-medium text-status-warning bg-status-warning/5 border-status-warning/15 hover:bg-status-warning/10 transition-all">
-                            Review
-                          </Link>
-                        ) : (
-                          <div className="flex items-center gap-1.5">
-                            <ProgressRing paused={state === 'paused'} />
-                            <span className="text-[10px] text-content-tertiary font-medium">
-                              {state === 'paused' ? 'Paused' : 'Running'}
-                              {runningMode && ` (${runningMode === 'short' ? 'S' : 'L'})`}
-                            </span>
-                          </div>
-                        )}
+                        {/* Per-mode trigger / running state */}
+                        {modes.map((m: string) => {
+                          const mState = getModeState(ch, m);
+                          const mJob = getModeJob(ch, m);
+                          const atLimit = isModeAtLimit(ch, m);
+                          const mLabel = m === 'short' ? 'S' : 'L';
 
-                        {(state === 'running' || state === 'paused') && (
-                          <button onClick={() => togglePause(ch.channel_id)} disabled={isDisabled || busyChannels.has(ch.channel_id)}
-                            className={cn('px-2.5 py-1 border rounded-md text-[11px] font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed',
-                              pausedMap[ch.channel_id]
-                                ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
-                                : 'text-status-warning bg-status-warning/5 border-status-warning/15 hover:bg-status-warning/10')}>
-                            {busyChannels.has(ch.channel_id) ? '...' : (pausedMap[ch.channel_id] ? 'Resume' : 'Pause')}
-                          </button>
-                        )}
-                        {(state === 'running' || state === 'paused') && (
-                          <button onClick={() => stopChannel(ch.channel_id)} disabled={isDisabled || busyChannels.has(ch.channel_id)}
-                            className="px-2.5 py-1 border rounded-md text-[11px] font-medium text-status-error bg-status-error/5 border-status-error/15 hover:bg-status-error/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                            {busyChannels.has(ch.channel_id) ? '...' : 'Stop'}
-                          </button>
-                        )}
+                          if (mState === 'idle') {
+                            const canTrigger = !isDisabled && !systemStopped && !atLimit;
+                            return (
+                              <button key={m} onClick={() => triggerChannel(ch.channel_id, m)} disabled={!canTrigger}
+                                className={cn('px-2.5 py-1 border rounded-md text-[11px] font-medium transition-all',
+                                  canTrigger ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
+                                    : 'text-content-tertiary bg-surface-2 border-border cursor-not-allowed opacity-50')}>
+                                {atLimit ? `${mLabel} Limit` : `▶ ${m === 'short' ? 'Short' : 'Long'}`}
+                              </button>
+                            );
+                          }
+                          if (mState === 'pending_review' && mJob) {
+                            return (
+                              <Link key={m} href={`/dashboard/jobs/${mJob.content_id}`}
+                                className="px-2.5 py-1 border rounded-md text-[11px] font-medium text-status-warning bg-status-warning/5 border-status-warning/15 hover:bg-status-warning/10 transition-all">
+                                Review ({mLabel})
+                              </Link>
+                            );
+                          }
+                          // running or paused
+                          const isBusy = mJob && busyJobs.has(mJob.content_id);
+                          return (
+                            <div key={m} className="flex items-center gap-1">
+                              <ProgressRing paused={mState === 'paused'} />
+                              <span className="text-[10px] text-content-tertiary font-medium">
+                                {mState === 'paused' ? 'Paused' : 'Running'} ({mLabel})
+                              </span>
+                              {mJob && (
+                                <>
+                                  <button onClick={() => togglePauseJob(mJob.content_id, mJob.is_paused)} disabled={isDisabled || isBusy}
+                                    className={cn('px-1.5 py-0.5 border rounded text-[10px] font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed',
+                                      mJob.is_paused
+                                        ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
+                                        : 'text-status-warning bg-status-warning/5 border-status-warning/15 hover:bg-status-warning/10')}>
+                                    {isBusy ? '...' : (mJob.is_paused ? '▶' : '⏸')}
+                                  </button>
+                                  <button onClick={() => stopJob(mJob.content_id)} disabled={isDisabled || isBusy}
+                                    className="px-1.5 py-0.5 border rounded text-[10px] font-medium text-status-error bg-status-error/5 border-status-error/15 hover:bg-status-error/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                                    {isBusy ? '...' : '■'}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
 
                         {/* Settings gear */}
                         <Link href={`/dashboard/channels/${ch.channel_id}/settings`}

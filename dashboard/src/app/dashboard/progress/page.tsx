@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { api, isLoggedIn } from '@/lib/api';
 import { cn, PHASE_ORDER, PHASE_LABELS } from '@/lib/utils';
 import { ThemeToggle, HomeLogo } from '@/lib/theme';
+import { useToast } from '@/lib/toast';
 
 /* ── Phase descriptions for the expanded timeline ─────── */
 const PHASE_DESC: Record<string, string> = {
@@ -32,22 +33,36 @@ export default function ProgressPage() {
   const [timelines, setTimelines] = useState<Record<string, any[]>>({});
   const [busyJobs, setBusyJobs] = useState<Set<string>>(new Set());
   const [retryingJobs, setRetryingJobs] = useState<Set<string>>(new Set());
+  const [restartingJobs, setRestartingJobs] = useState<Set<string>>(new Set());
+  const [timelineLoaded, setTimelineLoaded] = useState<Set<string>>(new Set());
+  const { showToast } = useToast();
 
   const loadJobs = useCallback(async () => {
     try {
       const res = await api.activeJobs();
       setJobs(res.data || []);
-    } catch {}
+    } catch (e: any) {
+      showToast(e?.message || 'Failed to load jobs', 'error');
+    }
     setLoading(false);
-  }, []);
+  }, [showToast]);
+
+  // Smart polling: stop when all jobs are terminal
+  const allTerminal = jobs.length > 0 && jobs.every(j =>
+    ['failed', 'delivered', 'test_delivered', 'rejected'].includes(j.status)
+  );
 
   useEffect(() => {
     if (!isLoggedIn()) { router.replace('/login'); return; }
     loadJobs();
     api.stats().then(res => setSystemStopped(res.data?.emergency_stop === true)).catch(() => {});
+  }, [router, loadJobs]);
+
+  useEffect(() => {
+    if (allTerminal) return; // Don't poll when all jobs are terminal
     const interval = setInterval(loadJobs, 5000);
     return () => clearInterval(interval);
-  }, [router, loadJobs]);
+  }, [allTerminal, loadJobs]);
 
   // Fetch timeline for the expanded job
   useEffect(() => {
@@ -57,13 +72,20 @@ export default function ProgressPage() {
     async function fetchTimeline() {
       try {
         const res = await api.jobProgress(cid);
-        if (!cancelled) setTimelines(prev => ({ ...prev, [cid]: res.data?.timeline || [] }));
+        if (!cancelled) {
+          setTimelines(prev => ({ ...prev, [cid]: res.data?.timeline || [] }));
+          setTimelineLoaded(prev => new Set(prev).add(cid));
+        }
       } catch {}
     }
     fetchTimeline();
+    // Only poll timeline for non-terminal jobs
+    const expandedJob = jobs.find(j => j.content_id === cid);
+    const isTerminal = expandedJob && ['failed', 'delivered', 'test_delivered', 'rejected'].includes(expandedJob.status);
+    if (isTerminal) return () => { cancelled = true; };
     const iv = setInterval(fetchTimeline, 5000);
     return () => { cancelled = true; clearInterval(iv); };
-  }, [expanded]);
+  }, [expanded, jobs]);
 
   function toggleExpand(contentId: string) {
     setExpanded(prev => prev === contentId ? null : contentId);
@@ -78,26 +100,54 @@ export default function ProgressPage() {
 
   async function handlePause(contentId: string) {
     markBusy(contentId);
-    try { await api.pauseJob(contentId); await loadJobs(); } catch {}
+    try { await api.pauseJob(contentId); await loadJobs(); } catch (e: any) {
+      showToast(e?.message || 'Pause failed', 'error');
+    }
     clearBusy(contentId);
   }
 
   async function handleResume(contentId: string) {
     markBusy(contentId);
-    try { await api.resumeJob(contentId); await loadJobs(); } catch {}
+    try { await api.resumeJob(contentId); await loadJobs(); } catch (e: any) {
+      showToast(e?.message || 'Resume failed', 'error');
+    }
     clearBusy(contentId);
   }
 
   async function handleStop(contentId: string) {
     markBusy(contentId);
-    try { await api.stopJob(contentId); await loadJobs(); } catch {}
+    try { await api.stopJob(contentId); await loadJobs(); } catch (e: any) {
+      showToast(e?.message || 'Stop failed', 'error');
+    }
     clearBusy(contentId);
   }
 
   async function handleRetry(contentId: string) {
     if (retryingJobs.has(contentId)) return;
     setRetryingJobs(prev => new Set(prev).add(contentId));
-    try { await api.retryJob(contentId); await loadJobs(); } catch {}
+    try {
+      await api.retryJob(contentId);
+      showToast('New video started', 'success');
+      await loadJobs();
+    } catch (e: any) {
+      showToast(e?.message || 'Retry failed', 'error');
+    } finally {
+      setRetryingJobs(prev => { const n = new Set(prev); n.delete(contentId); return n; });
+    }
+  }
+
+  async function handleRestart(contentId: string, checkpoint: string) {
+    if (restartingJobs.has(contentId)) return;
+    setRestartingJobs(prev => new Set(prev).add(contentId));
+    try {
+      await api.restartJob(contentId);
+      showToast(`Restarting from ${PHASE_LABELS[checkpoint] || checkpoint}`, 'success');
+      await loadJobs();
+    } catch (e: any) {
+      showToast(e?.message || 'Restart failed', 'error');
+    } finally {
+      setRestartingJobs(prev => { const n = new Set(prev); n.delete(contentId); return n; });
+    }
   }
 
   // Group jobs by channel
@@ -179,14 +229,19 @@ export default function ProgressPage() {
                       const isPaused = job.is_paused === true;
                       const isBusy = busyJobs.has(job.content_id);
                       const isRetrying = retryingJobs.has(job.content_id);
+                      const isRestarting = restartingJobs.has(job.content_id);
+                      const isSuperseded = job.is_superseded === true;
                       const isExpanded = expanded === job.content_id;
                       const timeline = timelines[job.content_id] || [];
+                      const tlLoaded = timelineLoaded.has(job.content_id);
 
                       return (
                         <div key={job.content_id} className={cn(
                           'card overflow-hidden',
-                          isFailed && 'border-status-error/30 bg-status-error/5',
+                          isFailed && !isSuperseded && 'border-status-error/30 bg-status-error/5',
+                          isSuperseded && 'opacity-50 border-border',
                           isPaused && !isFailed && 'border-status-warning/30',
+                          !isFailed && !isPaused && !isSuperseded && !systemStopped && 'card-in-progress',
                           systemStopped && !isFailed && 'lockdown-frost'
                         )}>
                           {/* ── Job Card Header ──────────────── */}
@@ -215,6 +270,7 @@ export default function ProgressPage() {
                                       {job.content_mode === 'short' ? 'Short' : 'Long'}
                                     </span>
                                     {isFailed && <span className="badge bg-status-error/10 text-status-error text-[10px] shrink-0">Failed</span>}
+                                    {isSuperseded && <span className="badge bg-surface-3 text-content-tertiary text-[10px] shrink-0">Superseded</span>}
                                     {isPaused && !isFailed && <span className="badge bg-status-warning/10 text-status-warning text-[10px] shrink-0">Paused</span>}
                                   </div>
                                   <div className="text-xs text-content-tertiary mt-0.5">
@@ -228,17 +284,21 @@ export default function ProgressPage() {
                               <div className="flex items-center gap-2 shrink-0 ml-3">
                                 <span className="text-xs text-content-tertiary">${(job.total_cost || 0).toFixed(2)}</span>
                                 {isFailed ? (
-                                  <button onClick={() => handleRetry(job.content_id)}
-                                    disabled={isRetrying}
-                                    title={job.checkpoint ? `Retry from ${job.checkpoint}` : 'Retry full workflow'}
-                                    className={cn(
-                                      'px-2.5 py-1 border rounded-md text-[11px] font-medium transition-all',
-                                      isRetrying
-                                        ? 'text-content-tertiary bg-surface-2 border-border cursor-not-allowed opacity-50'
-                                        : 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
-                                    )}>
-                                    {isRetrying ? 'Retrying...' : (job.checkpoint ? `Retry from ${PHASE_LABELS[job.checkpoint] || job.checkpoint}` : 'Retry')}
-                                  </button>
+                                  isSuperseded ? (
+                                    <span className="text-[10px] text-content-tertiary">Superseded</span>
+                                  ) : (
+                                    <button onClick={() => handleRetry(job.content_id)}
+                                      disabled={isRetrying}
+                                      title="Start a fresh new video"
+                                      className={cn(
+                                        'px-2.5 py-1 border rounded-md text-[11px] font-medium transition-all',
+                                        isRetrying
+                                          ? 'text-content-tertiary bg-surface-2 border-border cursor-not-allowed opacity-50'
+                                          : 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
+                                      )}>
+                                      {isRetrying ? 'Retrying...' : 'Retry'}
+                                    </button>
+                                  )
                                 ) : (
                                   <>
                                     {isPaused ? (
@@ -328,9 +388,13 @@ export default function ProgressPage() {
                           {/* ── Expanded Timeline ─────────────── */}
                           {isExpanded && (
                             <div className="border-t border-border bg-surface-1/50 px-5 py-4">
-                              {timeline.length === 0 ? (
+                              {timeline.length === 0 && !tlLoaded ? (
                                 <div className="text-xs text-content-tertiary text-center py-3">
                                   Loading timeline...
+                                </div>
+                              ) : timeline.length === 0 && tlLoaded ? (
+                                <div className="text-xs text-content-tertiary text-center py-3">
+                                  No events recorded for this job.
                                 </div>
                               ) : (
                                 <div className="space-y-0">
@@ -435,6 +499,20 @@ export default function ProgressPage() {
                                             <div className="mt-1 text-[10px] text-status-error font-mono bg-status-error/5 px-2 py-1 rounded truncate">
                                               {detail.error}
                                             </div>
+                                          )}
+                                          {/* Restart from Phase action — only in failed timeline step with checkpoint */}
+                                          {hasFailed && job.checkpoint && job.status === 'failed' && !isSuperseded && (
+                                            <button
+                                              onClick={() => handleRestart(job.content_id, job.checkpoint)}
+                                              disabled={isRestarting}
+                                              className={cn(
+                                                'mt-1.5 px-2 py-0.5 border rounded text-[10px] font-medium transition-all',
+                                                isRestarting
+                                                  ? 'text-content-tertiary bg-surface-2 border-border cursor-not-allowed opacity-50'
+                                                  : 'text-status-success bg-status-success/5 border-status-success/15 hover:bg-status-success/10'
+                                              )}>
+                                              {isRestarting ? 'Restarting...' : `Restart from ${PHASE_LABELS[job.checkpoint] || job.checkpoint}`}
+                                            </button>
                                           )}
                                         </div>
                                       </div>

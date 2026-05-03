@@ -6,9 +6,26 @@ import Link from 'next/link';
 import { api, isLoggedIn } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { HomeLogo } from '@/lib/theme';
+import { useToast } from '@/lib/toast';
+
+const DNA_FIELDS: { key: string; label: string; hint: string; placeholder: string }[] = [
+  { key: 'belief_territory', label: 'Belief Territory', hint: 'The misconception or idea you challenge', placeholder: 'sleep_is_just_rest' },
+  { key: 'intellectual_lens', label: 'Intellectual Lens', hint: 'The discipline / angle of authority', placeholder: 'sleep_neuroscience' },
+  { key: 'topic_domain', label: 'Topic Domain', hint: 'Subject area boundary', placeholder: 'health / sleep_recovery' },
+  { key: 'brand_voice', label: 'Brand Voice', hint: 'Tone and personality', placeholder: 'calm_authoritative' },
+  { key: 'narrative_rhythm', label: 'Narrative Rhythm', hint: 'Storytelling structure', placeholder: 'hook_payoff_loop' },
+  { key: 'emotional_contract', label: 'Emotional Contract', hint: 'Promise to the viewer', placeholder: 'curiosity_to_clarity' },
+  { key: 'target_audience', label: 'Target Audience', hint: 'Who this is for', placeholder: '25-45_health_curious' },
+  { key: 'thumbnail_style', label: 'Thumbnail Style', hint: 'Visual approach for thumbnails', placeholder: 'high_contrast_text_overlay' },
+  { key: 'primary_color', label: 'Primary Color', hint: 'Hex color for branding', placeholder: '#0EA5E9' },
+  { key: 'forbidden_words', label: 'Forbidden Words', hint: 'Comma-separated AI tells to avoid', placeholder: 'literally,actually,basically' },
+  { key: 'primary_format_long', label: 'Long Format', hint: 'Default format for long videos', placeholder: 'educational_explainer' },
+  { key: 'primary_format_short', label: 'Short Format', hint: 'Default format for shorts', placeholder: 'hook_fact_payoff' },
+];
 
 export default function NewChannelPage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [systemStopped, setSystemStopped] = useState(false);
 
   useEffect(() => {
@@ -28,6 +45,9 @@ export default function NewChannelPage() {
     human_review_required: 'first_10',
     max_daily_api_spend: 5.00,
   });
+  const [dna, setDna] = useState<Record<string, string>>({});
+  const [dnaSource, setDnaSource] = useState<'pristine' | 'llm' | 'fallback' | 'manual'>('pristine');
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -40,6 +60,42 @@ export default function NewChannelPage() {
     });
   }
 
+  async function generateDna() {
+    if (!form.channel_name || !form.niche) {
+      showToast('Channel Name and Niche are required to generate Brand DNA', 'error');
+      return;
+    }
+    setGenerating(true);
+    try {
+      const res = await api.generateBrandDna({
+        channel_name: form.channel_name,
+        niche: form.niche,
+        sub_niche: form.sub_niche,
+        content_modes: form.content_modes,
+      });
+      const generatedDna = res?.data?.dna || {};
+      setDna(generatedDna);
+      const source = res?.data?.source || 'fallback';
+      setDnaSource(source === 'llm' ? 'llm' : 'fallback');
+      showToast(
+        source === 'llm'
+          ? `Brand DNA generated (${res?.data?.model || 'LLM'}, $${res?.data?.cost_usd ?? 0})`
+          : 'LLM unavailable — using deterministic defaults you can edit',
+        source === 'llm' ? 'success' : 'info'
+      );
+    } catch (err: any) {
+      showToast(err?.message || 'Brand DNA generation failed', 'error');
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function updateDnaField(key: string, value: string) {
+    setDna(prev => ({ ...prev, [key]: value }));
+    if (dnaSource !== 'manual' && dnaSource !== 'pristine') setDnaSource('manual');
+    if (dnaSource === 'pristine') setDnaSource('manual');
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.channel_id || !form.channel_name || !form.niche) {
@@ -47,6 +103,11 @@ export default function NewChannelPage() {
     }
     setLoading(true); setError('');
     try {
+      // Only send DNA fields that have values (backend treats null as "use default")
+      const dnaPayload: Record<string, string> = {};
+      for (const [k, v] of Object.entries(dna)) {
+        if (v && v.trim()) dnaPayload[k] = v.trim();
+      }
       await api.createChannel({
         channel_id: form.channel_id,
         channel_name: form.channel_name,
@@ -61,15 +122,18 @@ export default function NewChannelPage() {
         schedule_enabled: form.schedule_enabled,
         human_review_required: form.human_review_required,
         max_daily_api_spend: form.max_daily_api_spend,
+        ...dnaPayload,
       });
+      showToast('Channel created', 'success');
       router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Failed to create channel');
+      showToast(err?.message || 'Failed to create channel', 'error');
     } finally { setLoading(false); }
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-8">
+    <div className="max-w-3xl mx-auto px-6 py-8">
       <div className="flex items-center gap-3 mb-8">
         <HomeLogo />
         <div>
@@ -125,6 +189,72 @@ export default function NewChannelPage() {
             ))}
           </div>
           <p className="text-xs text-content-tertiary mt-2">Select one or both content formats.</p>
+        </div>
+
+        {/* ── Brand DNA ──────────────────────────────────── */}
+        <div className="border-t border-border pt-5 mt-2">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-sm font-semibold text-content-primary">Brand DNA</h3>
+              <p className="text-xs text-content-tertiary mt-0.5">
+                What makes this channel distinct. Research, scripts &amp; thumbnails anchor on this.
+              </p>
+            </div>
+            <button type="button" onClick={generateDna} disabled={generating || !form.channel_name || !form.niche}
+              title="Auto-fill Brand DNA from niche + name using the configured LLM"
+              className={cn(
+                'px-3 py-1.5 border rounded-md text-xs font-medium transition-all whitespace-nowrap',
+                generating
+                  ? 'text-content-tertiary bg-surface-2 border-border cursor-wait'
+                  : (!form.channel_name || !form.niche)
+                    ? 'text-content-tertiary bg-surface-2 border-border cursor-not-allowed opacity-50'
+                    : 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
+              )}>
+              {generating ? 'Generating…' : (Object.keys(dna).length > 0 ? '↻ Regenerate' : '✨ Generate Brand DNA')}
+            </button>
+          </div>
+
+          {Object.keys(dna).length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border bg-surface-1 px-4 py-6 text-center">
+              <p className="text-xs text-content-tertiary mb-1">
+                Optional but strongly recommended. A channel without Brand DNA will produce generic content.
+              </p>
+              <p className="text-[10px] text-content-tertiary">
+                Fill <strong>Channel Name</strong> + <strong>Niche</strong> above, then click Generate. You can edit every field afterward.
+              </p>
+            </div>
+          ) : (
+            <>
+              {dnaSource !== 'manual' && (
+                <div className={cn(
+                  'mb-3 px-3 py-2 rounded-md text-[11px] font-medium',
+                  dnaSource === 'llm'
+                    ? 'bg-status-success/5 text-status-success border border-status-success/15'
+                    : 'bg-status-warning/5 text-status-warning border border-status-warning/15'
+                )}>
+                  {dnaSource === 'llm'
+                    ? '✓ Generated by LLM — review and edit anything before saving'
+                    : '⚠ LLM unavailable — using deterministic defaults you should customize'}
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                {DNA_FIELDS.map(({ key, label, hint, placeholder }) => (
+                  <div key={key} className={key === 'forbidden_words' ? 'col-span-2' : ''}>
+                    <label className="block text-xs font-medium text-content-primary mb-1" title={hint}>
+                      {label}
+                    </label>
+                    <input
+                      type={key === 'primary_color' ? 'text' : 'text'}
+                      value={dna[key] || ''}
+                      onChange={(e) => updateDnaField(key, e.target.value)}
+                      placeholder={placeholder}
+                      className="!text-xs !py-2"
+                    />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Production Settings */}

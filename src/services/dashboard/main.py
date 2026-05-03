@@ -97,6 +97,25 @@ class ChannelCreateRequest(BaseModel):
     schedule_enabled: bool = True
     human_review_required: str = "first_10"
     max_daily_api_spend: float = 5.00
+    # Brand DNA (optional — generated via /generate-brand-dna or filled by user)
+    belief_territory: str | None = None
+    intellectual_lens: str | None = None
+    topic_domain: str | None = None
+    brand_voice: str | None = None
+    narrative_rhythm: str | None = None
+    emotional_contract: str | None = None
+    target_audience: str | None = None
+    primary_format_long: str | None = None
+    primary_format_short: str | None = None
+    thumbnail_style: str | None = None
+    primary_color: str | None = None
+    forbidden_words: str | None = None
+
+class BrandDnaRequest(BaseModel):
+    channel_name: str
+    niche: str
+    sub_niche: str = ""
+    content_modes: list[str] = ["short"]
 
 class ChannelUpdateRequest(BaseModel):
     channel_name: str | None = None
@@ -174,6 +193,21 @@ async def list_channels(
         f"human_review_required, max_daily_api_spend, "
         f"created_at FROM channels {status_filter} ORDER BY channel_id"
     )
+    # Batch-query Temporal for paused state of all running workflows (once)
+    _paused_wf_map: dict[str, bool] = {}
+    try:
+        _tc = await _get_temporal_client()
+        _q = 'WorkflowType = "VideoProductionWorkflow" AND ExecutionStatus = "Running"'
+        async for _wf in _tc.list_workflows(query=_q):
+            try:
+                _h = _tc.get_workflow_handle(_wf.id)
+                _s = await _h.query("get_status")
+                _paused_wf_map[_wf.id] = _s.get("paused", False)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
     channels = []
     for r in rows:
         # Get latest video for this channel
@@ -200,11 +234,12 @@ async def list_channels(
             "FROM videos WHERE channel_id = $1 AND created_at >= date_trunc('week', NOW())",
             r["channel_id"],
         )
-        # Check if any workflow is currently running or paused
-        active_job = await pool.fetchrow(
-            "SELECT content_id, status, content_mode FROM videos WHERE channel_id = $1 "
-            "AND status NOT IN ('delivered', 'failed', 'rejected') "
-            "ORDER BY created_at DESC LIMIT 1",
+        # Check for all currently in-progress jobs (one per content_mode)
+        active_job_rows = await pool.fetch(
+            "SELECT DISTINCT ON (content_mode) content_id, status, content_mode "
+            "FROM videos WHERE channel_id = $1 "
+            "AND status NOT IN ('delivered', 'test_delivered', 'failed', 'rejected', 'retrying') "
+            "ORDER BY content_mode, created_at DESC",
             r["channel_id"],
         )
         # Parse schedule_config
@@ -243,11 +278,17 @@ async def list_channels(
             "long_form_duration": r["long_form_duration"] or 600,
             "human_review_required": r["human_review_required"] or "first_10",
             "max_daily_api_spend": float(r["max_daily_api_spend"]) if r["max_daily_api_spend"] else 5.0,
-            "active_job": {
-                "content_id": active_job["content_id"],
-                "status": active_job["status"],
-                "content_mode": active_job["content_mode"],
-            } if active_job else None,
+            "active_jobs": [
+                {
+                    "content_id": aj["content_id"],
+                    "status": aj["status"],
+                    "content_mode": aj["content_mode"],
+                    "is_paused": any(
+                        wp for wid, wp in _paused_wf_map.items()
+                        if aj["content_id"] in wid
+                    ),
+                } for aj in active_job_rows
+            ],
         })
     return R(status="ok", data=channels)
 
@@ -261,18 +302,111 @@ async def create_channel(req: ChannelCreateRequest, _: str = Depends(verify_toke
             "INSERT INTO channels (channel_id, channel_name, niche, sub_niche, "
             "content_mode, auto_upload, videos_per_week_short, videos_per_week_long, "
             "short_form_duration, long_form_duration, schedule_config, "
-            "human_review_required, max_daily_api_spend) "
-            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13)",
+            "human_review_required, max_daily_api_spend, "
+            "belief_territory, intellectual_lens, topic_domain, "
+            "brand_voice, narrative_rhythm, emotional_contract, target_audience, "
+            "primary_format_long, primary_format_short, thumbnail_style, "
+            "primary_color, forbidden_words) "
+            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, "
+            "$14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)",
             req.channel_id, req.channel_name, req.niche, req.sub_niche,
             req.content_mode, req.auto_upload, req.videos_per_week_short,
             req.videos_per_week_long, req.short_form_duration, req.long_form_duration,
             sched_json, req.human_review_required, req.max_daily_api_spend,
+            req.belief_territory, req.intellectual_lens, req.topic_domain,
+            req.brand_voice, req.narrative_rhythm, req.emotional_contract, req.target_audience,
+            req.primary_format_long, req.primary_format_short, req.thumbnail_style,
+            req.primary_color, req.forbidden_words,
         )
     except Exception as exc:
         if "duplicate" in str(exc).lower():
             raise HTTPException(status_code=409, detail="Channel already exists")
         raise HTTPException(status_code=500, detail=str(exc))
     return R(status="ok", data={"channel_id": req.channel_id})
+
+
+@app.post("/api/channels/generate-brand-dna")
+async def generate_brand_dna(req: BrandDnaRequest, _: str = Depends(verify_token)):
+    """Use the configured LLM provider to draft Brand DNA fields from niche + name.
+
+    Returns editable defaults the user can tweak before saving the channel.
+    Falls back to deterministic defaults if no LLM is reachable.
+    """
+    from src.providers import boot as _provider_boot  # noqa: F401  ensure providers register
+    from src.providers.llm.base import LLMRequest
+    from src.providers.registry import ProviderRegistry
+
+    fallback = {
+        "belief_territory": f"{req.niche}_misconceptions",
+        "intellectual_lens": f"{req.niche}_evidence_based",
+        "topic_domain": f"{req.niche} / {req.sub_niche}".strip(" /") or req.niche,
+        "brand_voice": "calm_authoritative",
+        "narrative_rhythm": "hook_payoff_loop",
+        "emotional_contract": "curiosity_to_clarity",
+        "target_audience": f"25-45_{req.niche}_curious",
+        "primary_format_long": "educational_explainer",
+        "primary_format_short": "hook_fact_payoff",
+        "thumbnail_style": "high_contrast_text_overlay",
+        "primary_color": "#0EA5E9",
+        "forbidden_words": "literally,actually,basically,obviously",
+    }
+
+    system_prompt = (
+        "You are a brand strategist for AI-generated YouTube channels. "
+        "Given a niche and channel name, produce a tight Brand DNA that downstream "
+        "research/script/thumbnail services will anchor on. "
+        "Each field must be a SHORT snake_case label (1-4 words) — NOT a sentence — "
+        "except target_audience (e.g. '25-45_health_curious'), primary_color (hex), "
+        "and forbidden_words (comma-separated list). "
+        "Respond with ONLY a valid JSON object, no markdown, with these exact keys: "
+        "belief_territory, intellectual_lens, topic_domain, brand_voice, narrative_rhythm, "
+        "emotional_contract, target_audience, primary_format_long, primary_format_short, "
+        "thumbnail_style, primary_color, forbidden_words."
+    )
+    user_prompt = (
+        f"Channel name: {req.channel_name}\n"
+        f"Niche: {req.niche}\n"
+        f"Sub-niche: {req.sub_niche or '(none)'}\n"
+        f"Content modes: {', '.join(req.content_modes)}\n\n"
+        "Examples for inspiration:\n"
+        "- belief_territory: 'sleep_is_just_rest', 'money_anxiety_myths', 'productivity_hustle_lies'\n"
+        "- intellectual_lens: 'sleep_neuroscience', 'behavioral_economics', 'cognitive_psychology'\n"
+        "- brand_voice: 'calm_authoritative', 'urgent_practical', 'witty_skeptical'\n"
+        "- narrative_rhythm: 'hook_payoff_loop', 'problem_twist_solution', 'myth_evidence_action'\n"
+        "- emotional_contract: 'curiosity_to_clarity', 'anxiety_to_control', 'confusion_to_confidence'\n"
+        "- thumbnail_style: 'high_contrast_text_overlay', 'human_face_emotion', 'data_chart_callout'"
+    )
+
+    try:
+        llm = ProviderRegistry.get("llm")
+        result = await llm.complete(LLMRequest(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.7,
+            max_tokens=600,
+            response_format="json",
+        ))
+        try:
+            parsed = json.loads(result.content)
+        except (json.JSONDecodeError, TypeError):
+            parsed = {}
+        # Merge: parsed values take precedence, fallback fills any missing keys
+        dna = {k: (parsed.get(k) or v) for k, v in fallback.items()}
+        return R(status="ok", data={
+            "dna": dna,
+            "source": "llm",
+            "model": result.model,
+            "cost_usd": round(result.cost_usd, 6),
+        })
+    except Exception as exc:
+        # No LLM provider configured / network error — return fallback so UI still works
+        return R(status="ok", data={
+            "dna": fallback,
+            "source": "fallback",
+            "reason": str(exc)[:200],
+        })
 
 
 @app.put("/api/channels/{channel_id}")
@@ -496,18 +630,17 @@ async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depe
     if float(ch_spent) >= ch_limit:
         raise HTTPException(status_code=400, detail=f"Channel daily budget exhausted (${ch_limit:.2f})")
 
-    # Prevent duplicate: check for already-running jobs on this channel
+    content_mode = req.content_mode or ch["content_mode"]
+
+    # Prevent duplicate: check for already-running jobs for this channel + mode
     running_count = await pool.fetchval(
-        "SELECT COUNT(*) FROM videos WHERE channel_id = $1 "
+        "SELECT COUNT(*) FROM videos WHERE channel_id = $1 AND content_mode = $2 "
         "AND status NOT IN ('delivered', 'test_delivered', 'failed', 'rejected', 'retrying')",
-        channel_id,
+        channel_id, content_mode,
     )
     if running_count and int(running_count) > 0:
-        raise HTTPException(status_code=409, detail="Channel already has an in-progress job")
-
-    content_mode = req.content_mode or ch["content_mode"]
+        raise HTTPException(status_code=409, detail=f"Channel already has an in-progress {content_mode} job")
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    workflow_id = f"manual-{channel_id}-{ts}"
 
     # Resolve environment mode from DB
     env_row = await pool.fetchrow(
@@ -519,6 +652,7 @@ async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depe
     is_test = env_mode != "production"
     prefix = "TEST_VID" if is_test else "VID"
     content_id = f"{prefix}_{channel_id}_{ts}"
+    workflow_id = f"manual-{content_id}"
 
     await pool.execute(
         "INSERT INTO videos (content_id, channel_id, status, content_mode, environment, updated_at) "
@@ -815,7 +949,76 @@ async def reject_job(content_id: str, _: str = Depends(verify_token)):
 
 @app.post("/api/jobs/{content_id}/retry")
 async def retry_job(content_id: str, _: str = Depends(verify_token)):
-    """Retry a failed job from its last checkpoint."""
+    """Retry a failed job — creates a brand new video from scratch."""
+    pool = await get_pool()
+    video = await pool.fetchrow(
+        "SELECT channel_id, content_mode, status "
+        "FROM videos WHERE content_id = $1",
+        content_id,
+    )
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    if video["status"] not in ("failed",):
+        raise HTTPException(status_code=400, detail=f"Can only retry failed jobs, current: '{video['status']}'")
+
+    content_mode = video["content_mode"] or "short"
+
+    # Prevent duplicate: check for in-progress jobs for this channel + mode
+    running = await pool.fetchval(
+        "SELECT COUNT(*) FROM videos WHERE channel_id = $1 AND content_mode = $2 "
+        "AND status NOT IN ('delivered', 'test_delivered', 'failed', 'rejected', 'retrying')",
+        video["channel_id"], content_mode,
+    )
+    if running and int(running) > 0:
+        raise HTTPException(status_code=409, detail=f"Channel already has an in-progress {content_mode} job")
+
+    # Resolve environment
+    env_row = await pool.fetchrow(
+        "SELECT config_value FROM system_config WHERE config_key = 'environment_mode'"
+    )
+    env_mode = env_row["config_value"] if env_row else get_mode()
+
+    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    is_test_env = env_mode != "production"
+    prefix = "TEST_VID" if is_test_env else "VID"
+    new_content_id = f"{prefix}_{video['channel_id']}_{ts}"
+    workflow_id = f"retry-{new_content_id}"
+
+    # Create new video row (fresh start); original stays as 'failed' for logging
+    await pool.execute(
+        "INSERT INTO videos (content_id, channel_id, status, content_mode, environment, updated_at) "
+        "VALUES ($1, $2, 'researching', $3, $4, NOW()) "
+        "ON CONFLICT (content_id) DO NOTHING",
+        new_content_id, video["channel_id"], content_mode, env_mode,
+    )
+
+    try:
+        client = await _get_temporal_client()
+        await client.start_workflow(
+            "VideoProductionWorkflow",
+            VideoParams(
+                channel_id=video["channel_id"],
+                content_mode=content_mode,
+                content_id=new_content_id,
+                environment=env_mode,
+            ),
+            id=workflow_id,
+            task_queue="video-production",
+        )
+    except Exception as exc:
+        # Clean up the new video record on failure
+        await pool.execute("DELETE FROM videos WHERE content_id = $1", new_content_id)
+        raise HTTPException(status_code=500, detail=f"Failed to start retry workflow: {exc}")
+    return R(status="ok", data={
+        "workflow_id": workflow_id,
+        "new_content_id": new_content_id,
+        "original_content_id": content_id,
+    })
+
+
+@app.post("/api/jobs/{content_id}/restart")
+async def restart_job(content_id: str, _: str = Depends(verify_token)):
+    """Restart a failed job from its last checkpoint (same video, same content_id)."""
     pool = await get_pool()
     video = await pool.fetchrow(
         "SELECT channel_id, content_mode, checkpoint, status "
@@ -825,16 +1028,21 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     if video["status"] not in ("failed",):
-        raise HTTPException(status_code=400, detail=f"Can only retry failed jobs, current: '{video['status']}'")
+        raise HTTPException(status_code=400, detail=f"Can only restart failed jobs, current: '{video['status']}'")
+    if not video["checkpoint"]:
+        raise HTTPException(status_code=400, detail="No checkpoint available — use retry for a fresh start")
 
-    # Prevent duplicate: check for existing in-progress jobs for this channel
+    content_mode = video["content_mode"] or "short"
+
+    # Prevent duplicate: check for in-progress jobs for this channel + mode (excluding self)
     running = await pool.fetchval(
-        "SELECT COUNT(*) FROM videos WHERE channel_id = $1 "
+        "SELECT COUNT(*) FROM videos WHERE channel_id = $1 AND content_mode = $2 "
+        "AND content_id != $3 "
         "AND status NOT IN ('delivered', 'test_delivered', 'failed', 'rejected', 'retrying')",
-        video["channel_id"],
+        video["channel_id"], content_mode, content_id,
     )
     if running and int(running) > 0:
-        raise HTTPException(status_code=409, detail="Channel already has an in-progress job — cannot retry")
+        raise HTTPException(status_code=409, detail=f"Channel already has an in-progress {content_mode} job")
 
     # Resolve environment
     env_row = await pool.fetchrow(
@@ -843,12 +1051,13 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
     env_mode = env_row["config_value"] if env_row else get_mode()
 
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    workflow_id = f"retry-{video['channel_id']}-{ts}"
+    workflow_id = f"restart-{content_id}-{ts}"
 
-    # Mark original as retrying to prevent re-retry
+    # Reset video status to the checkpoint phase
     await pool.execute(
-        "UPDATE videos SET status = 'retrying', updated_at = NOW() WHERE content_id = $1",
-        content_id,
+        "UPDATE videos SET status = $1, error_message = NULL, updated_at = NOW() "
+        "WHERE content_id = $2",
+        video["checkpoint"], content_id,
     )
 
     try:
@@ -857,7 +1066,8 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
             "VideoProductionWorkflow",
             VideoParams(
                 channel_id=video["channel_id"],
-                content_mode=video["content_mode"] or "short",
+                content_mode=content_mode,
+                content_id=content_id,
                 resume_from=video["checkpoint"],
                 original_content_id=content_id,
                 environment=env_mode,
@@ -868,13 +1078,14 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
     except Exception as exc:
         # Revert status on failure
         await pool.execute(
-            "UPDATE videos SET status = 'failed', updated_at = NOW() WHERE content_id = $1",
+            "UPDATE videos SET status = 'failed', error_message = 'Restart failed', updated_at = NOW() "
+            "WHERE content_id = $1",
             content_id,
         )
-        raise HTTPException(status_code=500, detail=f"Failed to start retry workflow: {exc}")
+        raise HTTPException(status_code=500, detail=f"Failed to start restart workflow: {exc}")
     return R(status="ok", data={
         "workflow_id": workflow_id,
-        "original_content_id": content_id,
+        "content_id": content_id,
         "resume_from": video["checkpoint"],
     })
 
@@ -883,22 +1094,26 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
 
 async def _find_workflow_for_job(content_id: str) -> str | None:
     """Find the Temporal workflow ID for a given content_id."""
-    pool = await get_pool()
-    video = await pool.fetchrow(
-        "SELECT channel_id FROM videos WHERE content_id = $1", content_id
-    )
-    if not video:
-        return None
-    channel_id = video["channel_id"]
     try:
         client = await _get_temporal_client()
         query = 'WorkflowType = "VideoProductionWorkflow" AND ExecutionStatus = "Running"'
         async for wf in client.list_workflows(query=query):
-            if channel_id in wf.id:
+            if content_id in wf.id:
                 return wf.id
     except Exception:
         pass
     return None
+
+
+async def _mark_job_failed(content_id: str, reason: str) -> bool:
+    """Mark a video as failed in DB if not already terminal. Returns True if updated."""
+    pool = await get_pool()
+    result = await pool.execute(
+        "UPDATE videos SET status = 'failed', error_message = $2, updated_at = NOW() "
+        "WHERE content_id = $1 AND status NOT IN ('delivered', 'test_delivered', 'failed', 'rejected')",
+        content_id, reason,
+    )
+    return "UPDATE 0" not in result
 
 
 @app.post("/api/jobs/{content_id}/pause")
@@ -906,7 +1121,13 @@ async def pause_job(content_id: str, _: str = Depends(verify_token)):
     """Pause a specific running job."""
     wf_id = await _find_workflow_for_job(content_id)
     if not wf_id:
-        raise HTTPException(status_code=404, detail="No running workflow found for this job")
+        # Phantom job: DB still says in-progress but the workflow has been
+        # terminated / garbage-collected. Pause is meaningless — tell the
+        # caller they should Stop it instead so it gets cleaned up.
+        raise HTTPException(
+            status_code=409,
+            detail="This job has no running workflow (orphaned state). Click Stop to clean it up.",
+        )
     try:
         client = await _get_temporal_client()
         handle = client.get_workflow_handle(wf_id)
@@ -921,7 +1142,10 @@ async def resume_job(content_id: str, _: str = Depends(verify_token)):
     """Resume a specific paused job."""
     wf_id = await _find_workflow_for_job(content_id)
     if not wf_id:
-        raise HTTPException(status_code=404, detail="No running workflow found for this job")
+        raise HTTPException(
+            status_code=409,
+            detail="This job has no running workflow (orphaned state). Click Stop to clean it up.",
+        )
     try:
         client = await _get_temporal_client()
         handle = client.get_workflow_handle(wf_id)
@@ -933,16 +1157,23 @@ async def resume_job(content_id: str, _: str = Depends(verify_token)):
 
 @app.post("/api/jobs/{content_id}/stop")
 async def stop_job(content_id: str, _: str = Depends(verify_token)):
-    """Terminate a specific running job immediately."""
+    """Terminate a specific running job immediately.
+
+    Self-healing: even if the Temporal workflow has already been terminated
+    or garbage-collected (orphaned phantom), this will still mark the video
+    as failed in the DB so it disappears from the active jobs list.
+    """
     wf_id = await _find_workflow_for_job(content_id)
-    if not wf_id:
-        raise HTTPException(status_code=404, detail="No running workflow found for this job")
-    try:
-        client = await _get_temporal_client()
-        handle = client.get_workflow_handle(wf_id)
-        await handle.terminate("Stopped by user")
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to stop: {exc}")
+    terminated = False
+    if wf_id:
+        try:
+            client = await _get_temporal_client()
+            handle = client.get_workflow_handle(wf_id)
+            await handle.terminate("Stopped by user")
+            terminated = True
+        except Exception as exc:
+            # Workflow exists but terminate failed — still update DB
+            logger.warning("stop_job.terminate_failed", content_id=content_id, error=str(exc))
     # Update DB immediately
     pool = await get_pool()
     await pool.execute(
@@ -950,7 +1181,13 @@ async def stop_job(content_id: str, _: str = Depends(verify_token)):
         "WHERE content_id = $1 AND status NOT IN ('delivered', 'test_delivered', 'failed', 'rejected')",
         content_id,
     )
-    return R(status="ok", data={"content_id": content_id, "workflow_id": wf_id, "stopped": True})
+    return R(status="ok", data={
+        "content_id": content_id,
+        "workflow_id": wf_id,
+        "stopped": True,
+        "terminated_workflow": terminated,
+        "cleaned_orphan": not terminated,
+    })
 
 
 # ── Active Jobs (all in-progress across channels) ────────
@@ -961,15 +1198,22 @@ async def active_jobs(_: str = Depends(verify_token)):
     pool = await get_pool()
     rows = await pool.fetch(
         "SELECT v.content_id, v.channel_id, v.status, v.title, v.content_mode, "
-        "v.total_cost, v.checkpoint, v.error_message, v.created_at, c.channel_name "
-        "FROM videos v LEFT JOIN channels c ON v.channel_id = c.channel_id "
+        "v.total_cost, v.checkpoint, v.error_message, v.created_at, v.updated_at, "
+        "c.channel_name, "
+        "je.phase AS last_phase, je.status AS last_phase_status, je.created_at AS last_event_at "
+        "FROM videos v "
+        "LEFT JOIN channels c ON v.channel_id = c.channel_id "
+        "LEFT JOIN LATERAL ("
+        "  SELECT phase, status, created_at FROM job_events "
+        "  WHERE content_id = v.content_id ORDER BY created_at DESC LIMIT 1"
+        ") je ON true "
         "WHERE v.status NOT IN ('delivered', 'test_delivered', 'rejected', 'retrying') "
         "AND (v.status != 'failed' OR v.updated_at > NOW() - INTERVAL '24 hours') "
         "ORDER BY v.created_at DESC"
     )
 
     # Batch-query Temporal for paused state of all running workflows
-    paused_channels: dict[str, bool] = {}
+    paused_workflows: dict[str, bool] = {}
     try:
         client = await _get_temporal_client()
         query = 'WorkflowType = "VideoProductionWorkflow" AND ExecutionStatus = "Running"'
@@ -977,44 +1221,54 @@ async def active_jobs(_: str = Depends(verify_token)):
             try:
                 handle = client.get_workflow_handle(wf.id)
                 status = await handle.query("get_status")
-                # Map workflow_id → paused state (workflow_id contains channel_id)
-                paused_channels[wf.id] = status.get("paused", False)
+                paused_workflows[wf.id] = status.get("paused", False)
             except Exception:
                 pass
     except Exception:
         pass
 
+    # Build a set of (channel_id, content_mode) pairs that have an in-progress job
+    # to detect superseded failed jobs
+    active_mode_set: set[tuple[str, str]] = set()
+    for r in rows:
+        if r["status"] not in ("failed",):
+            active_mode_set.add((r["channel_id"] or "", r["content_mode"] or "short"))
+
     jobs = []
     for r in rows:
-        # Get latest event for this job
-        last_event = await pool.fetchrow(
-            "SELECT phase, status, created_at FROM job_events "
-            "WHERE content_id = $1 ORDER BY created_at DESC LIMIT 1",
-            r["content_id"],
-        )
-        # Determine paused state: check if any workflow for this channel is paused
+        cid = r["content_id"]
         ch_id = r["channel_id"] or ""
+        mode = r["content_mode"] or "short"
+
+        # Determine paused state: check if workflow for this content_id is paused
         is_paused = False
-        for wf_id, wf_paused in paused_channels.items():
-            if ch_id and ch_id in wf_id:
+        for wf_id, wf_paused in paused_workflows.items():
+            if cid in wf_id:
                 is_paused = wf_paused
                 break
 
+        # Superseded: this job is failed but a newer job exists for same channel+mode
+        is_superseded = (
+            r["status"] == "failed"
+            and (ch_id, mode) in active_mode_set
+        )
+
         jobs.append({
-            "content_id": r["content_id"],
+            "content_id": cid,
             "channel_id": ch_id,
             "channel_name": r["channel_name"] or ch_id or "Unknown",
             "status": r["status"],
             "title": r["title"],
-            "content_mode": r["content_mode"] or "short",
+            "content_mode": mode,
             "total_cost": float(r["total_cost"]) if r["total_cost"] else 0,
             "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-            "current_phase": last_event["phase"] if last_event else None,
-            "phase_status": last_event["status"] if last_event else None,
-            "last_event_at": last_event["created_at"].isoformat() if last_event and last_event["created_at"] else None,
+            "current_phase": r["last_phase"],
+            "phase_status": r["last_phase_status"],
+            "last_event_at": r["last_event_at"].isoformat() if r["last_event_at"] else None,
             "checkpoint": r["checkpoint"],
             "error_message": r["error_message"],
             "is_paused": is_paused,
+            "is_superseded": is_superseded,
         })
     return R(status="ok", data=jobs)
 

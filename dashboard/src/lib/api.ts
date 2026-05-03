@@ -66,6 +66,8 @@ export const api = {
     request(`/api/channels?include_archived=${includeArchived}`),
   createChannel: (data: any) =>
     request('/api/channels', { method: 'POST', body: JSON.stringify(data) }),
+  generateBrandDna: (data: { channel_name: string; niche: string; sub_niche?: string; content_modes?: string[] }) =>
+    request('/api/channels/generate-brand-dna', { method: 'POST', body: JSON.stringify(data) }),
   updateChannel: (id: string, data: any) =>
     request(`/api/channels/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   enableChannel: (id: string) =>
@@ -118,6 +120,8 @@ export const api = {
     request(`/api/jobs/${contentId}/reject`, { method: 'POST' }),
   retryJob: (contentId: string) =>
     request(`/api/jobs/${contentId}/retry`, { method: 'POST' }),
+  restartJob: (contentId: string) =>
+    request(`/api/jobs/${contentId}/restart`, { method: 'POST' }),
 
   // Per-job workflow control
   pauseJob: (contentId: string) =>

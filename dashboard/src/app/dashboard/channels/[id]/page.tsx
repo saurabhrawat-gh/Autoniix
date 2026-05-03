@@ -131,12 +131,17 @@ export default function ChannelDetailPage() {
                   {/* Active job status */}
                   <div>
                     <div className="text-xs font-medium text-content-tertiary mb-1">Current Status</div>
-                    {channel.active_job ? (
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-                        <span className="text-sm font-medium text-content-primary">
-                          {PHASE_LABELS[channel.active_job.status] || channel.active_job.status}
-                        </span>
+                    {(channel.active_jobs || []).length > 0 ? (
+                      <div className="flex flex-col gap-1">
+                        {(channel.active_jobs || []).map((aj: any) => (
+                          <div key={aj.content_id} className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                            <span className="text-sm font-medium text-content-primary">
+                              {PHASE_LABELS[aj.status] || aj.status}
+                              <span className="text-content-tertiary ml-1 text-xs">({aj.content_mode === 'short' ? 'S' : 'L'})</span>
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <span className="text-sm text-content-tertiary">Idle</span>

@@ -1,13 +1,18 @@
-.PHONY: help infra bff ui dev stop logs
+.PHONY: help infra bff ui dev stop logs up down health restart-app
 
 help: ## Show available commands
 	@echo ""
 	@echo "  YouTube Automation — Dev Commands"
 	@echo "  ─────────────────────────────────"
-	@echo "  make infra   → Start DB, Redis, Temporal (Docker)"
-	@echo "  make bff     → Start Dashboard backend  (port 8020)"
-	@echo "  make ui      → Start Dashboard frontend  (port 3000)"
-	@echo "  make stop    → Stop everything"
+	@echo "  make up      → Start FULL stack (all 25 services) and wait for healthy"
+	@echo "  make health  → Verify every service is up and reachable"
+	@echo "  make down    → Stop everything"
+	@echo "  make restart-app → Rebuild + restart app code containers (bff, ui, workers)"
+	@echo ""
+	@echo "  Local-dev mode (3 terminals, app code on host):"
+	@echo "  make infra   → Start only DB, Redis, Temporal (Docker)"
+	@echo "  make bff     → Start Dashboard backend on host (port 8020)"
+	@echo "  make ui      → Start Dashboard frontend on host (port 3000)"
 	@echo "  make logs    → Tail infra logs"
 	@echo ""
 	@echo "  Quick start (3 terminals):"
@@ -57,3 +62,23 @@ logs: ## Tail Docker infra logs
 
 minio: ## Also start MinIO (object storage)
 	docker compose up -d minio
+
+# ── FULL STACK (25 services in Docker) ────────────────────
+up: ## Start full stack and wait until healthy
+	@docker compose up -d
+	@echo ""
+	@echo "⏳ Waiting for stack to become healthy (max 90s)..."
+	@bash scripts/check-stack.sh wait
+	@$(MAKE) health
+
+down: ## Stop and remove all containers
+	docker compose down
+	@echo "✅ All containers stopped"
+
+health: ## Run end-to-end health check on every service
+	@bash scripts/check-stack.sh
+
+restart-app: ## Rebuild + restart app code containers (use after editing src/ or dashboard/)
+	docker compose build dashboard-bff dashboard-ui worker-production worker-scheduler
+	docker compose up -d dashboard-bff dashboard-ui worker-production worker-scheduler
+	@echo "✅ App containers rebuilt and restarted"

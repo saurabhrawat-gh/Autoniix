@@ -645,29 +645,42 @@ class VideoProductionWorkflow:
                                            detail={"youtube_id": youtube_id})
                 workflow.logger.info(f"Delivered: https://youtu.be/{youtube_id}")
 
-            # ── Phase 9: Analytics + Intelligence Feedback ──
-            await self._set_phase(content_id, "analytics", ch)
-
-            try:
-                await workflow.execute_activity(
-                    "analytics_activity",
-                    args=[{
-                        "channel_id": params.channel_id,
-                        "youtube_video_ids": [youtube_id] if youtube_id and youtube_id != "TEST_SKIP" else [],
-                    }],
-                    start_to_close_timeout=timedelta(seconds=120),
+            # ── Phase 9: Analytics (skipped if nothing was actually published) ──
+            # Analytics measures real YouTube performance. If we didn't upload
+            # (test mode, auto_upload disabled, or upload skipped) there is
+            # nothing to measure — skip the phase entirely instead of running
+            # an empty no-op that keeps the job looking "in progress".
+            should_run_analytics = bool(youtube_id) and youtube_id != "TEST_SKIP"
+            if should_run_analytics:
+                await self._set_phase(content_id, "analytics", ch)
+                try:
+                    await workflow.execute_activity(
+                        "analytics_activity",
+                        args=[{
+                            "channel_id": params.channel_id,
+                            "youtube_video_ids": [youtube_id],
+                        }],
+                        start_to_close_timeout=timedelta(seconds=120),
+                    )
+                    await self._complete_phase(content_id, ch, "analytics")
+                except Exception as analytics_exc:
+                    workflow.logger.warning(f"Analytics activity failed — non-critical, continuing: {analytics_exc}")
+                    await self._complete_phase(content_id, ch, "analytics")
+            else:
+                workflow.logger.info(
+                    "Analytics phase skipped — no real YouTube upload to measure",
+                    youtube_id=youtube_id,
                 )
-                await self._complete_phase(content_id, ch, "analytics")
-            except Exception as analytics_exc:
-                workflow.logger.warning(f"Analytics activity failed — non-critical, continuing: {analytics_exc}")
-                await self._complete_phase(content_id, ch, "analytics")
 
             # Brand consistency check on final output
+            # NOTE: must call brand_activity with action='consistency' — there is
+            # no separate brand_consistency_activity registered on the worker.
             if brand_profile:
                 try:
                     await workflow.execute_activity(
-                        "brand_consistency_activity",
+                        "brand_activity",
                         args=[{
+                            "action": "consistency",
                             "channel_id": params.channel_id,
                             "content_id": content_id,
                             "title": final_title,
