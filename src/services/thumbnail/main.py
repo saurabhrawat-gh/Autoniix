@@ -15,10 +15,7 @@ from src.config import settings
 from src.db import close_pool, get_pool
 from src.schemas.common import HealthResponse, ServiceResponse
 
-import src.providers.image.dalle_provider  # noqa: F401
-import src.providers.storage.minio_provider  # noqa: F401
-import src.providers.llm.openai_provider  # noqa: F401
-import src.providers.llm.openai_vision_provider  # noqa: F401
+import src.providers.boot  # noqa: F401
 from src.providers.registry import ProviderRegistry
 from src.providers.llm.base import LLMRequest
 from src.providers.storage.base import StorageUpload
@@ -175,13 +172,18 @@ async def generate_thumbnail(req: ThumbnailRequest):
                 total_cost += img_result.cost_usd
 
                 if img_result.images:
-                    img_url = img_result.images[0].get("url", "")
-                    if img_url:
+                    img_data = img_result.images[0]
+                    img_bytes = img_data.get("_bytes")
+                    if not img_bytes:
+                        img_url = img_data.get("url", "")
+                        if not img_url or img_url.startswith("data:"):
+                            continue
                         async with httpx.AsyncClient(timeout=30.0) as client:
                             resp = await client.get(img_url)
                             resp.raise_for_status()
                             img_bytes = resp.content
 
+                    if img_bytes:
                         key = f"thumbnails/{req.content_id}/variant_{i}.png"
                         sr = await storage.upload(StorageUpload(key=key, data=img_bytes, content_type="image/png"))
                         url = sr.url
@@ -202,6 +204,46 @@ async def generate_thumbnail(req: ThumbnailRequest):
 
             except Exception as gen_err:
                 logger.warning("thumbnail.variant_failed", variant=i, error=str(gen_err))
+
+        if not variants:
+            # Last-resort fallback: generate one placeholder variant locally
+            try:
+                fallback_prompt = f"YouTube thumbnail: {req.title} [TEST FALLBACK]"
+                img_result = await image_provider.generate(ImageRequest(
+                    prompt=fallback_prompt,
+                    size="1280x720",
+                    quality="hd",
+                    style="vivid",
+                    n=1,
+                ))
+                if img_result.images:
+                    img_data = img_result.images[0]
+                    img_bytes = img_data.get("_bytes")
+                    if not img_bytes:
+                        img_url = img_data.get("url", "")
+                        if img_url and not img_url.startswith("data:"):
+                            async with httpx.AsyncClient(timeout=30.0) as client:
+                                resp = await client.get(img_url)
+                                resp.raise_for_status()
+                                img_bytes = resp.content
+                    if img_bytes:
+                        key = f"thumbnails/{req.content_id}/variant_fallback.png"
+                        sr = await storage.upload(StorageUpload(key=key, data=img_bytes, content_type="image/png"))
+                        variants.append({
+                            "variant_id": 0,
+                            "concept_name": "fallback",
+                            "url": sr.url,
+                            "key": key,
+                            "predicted_ctr": 0.10,
+                            "text_overlay": "",
+                            "text_style": {},
+                            "composition_rule": "",
+                            "emotion_trigger": "",
+                            "dall_e_prompt": fallback_prompt[:500],
+                            "revised_prompt": img_data.get("revised_prompt", ""),
+                        })
+            except Exception as fb_err:
+                logger.warning("thumbnail.fallback_failed", error=str(fb_err))
 
         if not variants:
             raise HTTPException(status_code=500, detail="All thumbnail variants failed to generate")
@@ -380,13 +422,17 @@ async def generate_thumbnail(req: ThumbnailRequest):
                 total_cost += regen_img.cost_usd
 
                 if regen_img.images:
-                    img_url = regen_img.images[0].get("url", "")
-                    if img_url:
-                        async with httpx.AsyncClient(timeout=30.0) as client:
-                            resp = await client.get(img_url)
-                            resp.raise_for_status()
-                            img_bytes = resp.content
+                    regen_data = regen_img.images[0]
+                    img_bytes = regen_data.get("_bytes")
+                    if not img_bytes:
+                        img_url = regen_data.get("url", "")
+                        if img_url and not img_url.startswith("data:"):
+                            async with httpx.AsyncClient(timeout=30.0) as client:
+                                resp = await client.get(img_url)
+                                resp.raise_for_status()
+                                img_bytes = resp.content
 
+                    if img_bytes:
                         key = f"thumbnails/{req.content_id}/regen_{regen_count}.png"
                         sr = await storage.upload(StorageUpload(key=key, data=img_bytes, content_type="image/png"))
                         regen_url = sr.url

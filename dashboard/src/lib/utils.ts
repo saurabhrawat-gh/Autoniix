@@ -24,12 +24,14 @@ export const PHASE_LABELS: Record<string, string> = {
   delivering: 'Delivery',
   analytics: 'Analytics',
   delivered: 'Delivered',
+  test_delivered: 'Delivered (Test)',
+  retrying: 'Retrying',
   failed: 'Failed',
   rejected: 'Rejected',
 };
 
 export function statusColor(status: string): string {
-  if (status === 'completed' || status === 'delivered') return 'text-status-success';
+  if (status === 'completed' || status === 'delivered' || status === 'test_delivered') return 'text-status-success';
   if (status === 'failed' || status === 'rejected') return 'text-status-error';
   if (status === 'started' || status === 'retrying') return 'text-accent';
   if (status === 'pending_review') return 'text-status-warning';
@@ -37,7 +39,7 @@ export function statusColor(status: string): string {
 }
 
 export function statusIcon(status: string): string {
-  if (status === 'completed' || status === 'delivered') return '✓';
+  if (status === 'completed' || status === 'delivered' || status === 'test_delivered') return '✓';
   if (status === 'failed' || status === 'rejected') return '✕';
   if (status === 'retrying') return '↻';
   if (status === 'started') return '●';

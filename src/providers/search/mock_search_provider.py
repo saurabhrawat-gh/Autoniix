@@ -22,7 +22,9 @@ from src.providers.search.base import SearchProvider, SearchRequest, SearchResul
 
 logger = structlog.get_logger()
 
-CACHE_DIR = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "search"
+# Prefer tests/fixtures/search for local dev, /tmp/mock_search_cache for Docker
+_LOCAL_CACHE = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "search"
+CACHE_DIR = _LOCAL_CACHE if _LOCAL_CACHE.parent.exists() else Path("/tmp/mock_search_cache")
 
 
 def _cache_key(query: str, search_type: str) -> str:

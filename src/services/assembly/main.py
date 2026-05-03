@@ -160,19 +160,21 @@ async def assemble(req: AssemblyRequest):
         remotion_url = settings.remotion_base_url
         is_test_mode = req.environment != "production"
         render_quality = "preview" if is_test_mode else "high"
-        render_payload = {
-            "direction": direction_v3,
+        composition = "ShortFormVideo" if req.content_mode == "short" else "MainVideo"
+        render_payload: dict = {
+            "composition": composition,
+            "inputProps": direction_v3,
             "outputFormat": "mp4",
-            "quality": render_quality,
+            "quality": 80 if render_quality == "high" else 40,
             "codec": "h264",
         }
         if is_test_mode:
-            render_payload["resolution"] = {"width": 640, "height": 360}
-            render_payload["fps"] = 15
-            logger.info("assembly.test_mode", quality="preview", resolution="640x360", fps=15)
+            render_payload["width"] = 640
+            render_payload["height"] = 360
+            logger.info("assembly.test_mode", quality="preview", resolution="640x360")
 
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(f"{remotion_url}/render", json=render_payload)
+            resp = await client.post(f"{remotion_url}/api/render", json=render_payload)
             resp.raise_for_status()
             render_data = resp.json()
 
@@ -194,12 +196,12 @@ async def assemble(req: AssemblyRequest):
 
             try:
                 async with httpx.AsyncClient(timeout=10.0) as client:
-                    status_resp = await client.get(f"{remotion_url}/render/{render_id}")
+                    status_resp = await client.get(f"{remotion_url}/api/render/{render_id}")
                     status_resp.raise_for_status()
                     render_result = status_resp.json()
 
                 status = render_result.get("status", "unknown")
-                if status == "completed":
+                if status in ("completed", "done"):
                     break
                 elif status == "failed":
                     error_msg = render_result.get("error", "Unknown render error")
@@ -222,9 +224,10 @@ async def assemble(req: AssemblyRequest):
             simplified = simplify_direction_for_retry(direction_v3)
             try:
                 async with httpx.AsyncClient(timeout=30.0) as client:
-                    resp2 = await client.post(f"{remotion_url}/render", json={
-                        "direction": simplified, "outputFormat": "mp4",
-                        "quality": "high", "codec": "h264",
+                    resp2 = await client.post(f"{remotion_url}/api/render", json={
+                        "composition": composition,
+                        "inputProps": simplified, "outputFormat": "mp4",
+                        "quality": 80, "codec": "h264",
                     })
                     resp2.raise_for_status()
                     retry_data = resp2.json()
@@ -236,10 +239,10 @@ async def assemble(req: AssemblyRequest):
                         await asyncio.sleep(5)
                         elapsed2 += 5
                         async with httpx.AsyncClient(timeout=10.0) as client:
-                            sr = await client.get(f"{remotion_url}/render/{retry_id}")
+                            sr = await client.get(f"{remotion_url}/api/render/{retry_id}")
                             sr.raise_for_status()
                             render_result = sr.json()
-                        if render_result.get("status") == "completed":
+                        if render_result.get("status") in ("completed", "done"):
                             render_id = retry_id
                             break
                         elif render_result.get("status") == "failed":
@@ -247,7 +250,7 @@ async def assemble(req: AssemblyRequest):
             except Exception as retry_err:
                 logger.error("assembly.retry_failed", error=str(retry_err))
 
-            if not render_result or render_result.get("status") != "completed":
+            if not render_result or render_result.get("status") not in ("completed", "done"):
                 await log_render_attempt(
                     req.content_id, req.channel_id, render_id,
                     complexity, success=False, retry_count=1, error_category="timeout_retry")

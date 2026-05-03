@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { api, isLoggedIn, wsProgress } from '@/lib/api';
 import { cn, statusColor, statusIcon, PHASE_ORDER, PHASE_LABELS } from '@/lib/utils';
 import { ThemeToggle, HomeLogo } from '@/lib/theme';
+import { useToast } from '@/lib/toast';
 
 export default function JobDetailPage() {
   const router = useRouter();
@@ -20,6 +21,9 @@ export default function JobDetailPage() {
   const [reviewAction, setReviewAction] = useState<'none' | 'approving' | 'rejecting' | 'approved' | 'rejected'>('none');
   const wsRef = useRef<WebSocket | null>(null);
   const [systemStopped, setSystemStopped] = useState(false);
+  const [retryBusy, setRetryBusy] = useState(false);
+  const [restartBusy, setRestartBusy] = useState(false);
+  const { showToast } = useToast();
 
   const loadAll = useCallback(async () => {
     const [p, o, m] = await Promise.all([
@@ -72,7 +76,11 @@ export default function JobDetailPage() {
     try {
       await api.approveJob(contentId);
       setReviewAction('approved');
-    } catch { setReviewAction('none'); }
+      showToast('Video approved', 'success');
+    } catch (e: any) {
+      showToast(e?.message || 'Approve failed', 'error');
+      setReviewAction('none');
+    }
   }
 
   async function handleReject() {
@@ -80,7 +88,11 @@ export default function JobDetailPage() {
     try {
       await api.rejectJob(contentId);
       setReviewAction('rejected');
-    } catch { setReviewAction('none'); }
+      showToast('Video rejected', 'info');
+    } catch (e: any) {
+      showToast(e?.message || 'Reject failed', 'error');
+      setReviewAction('none');
+    }
   }
 
   if (!progress) return (
@@ -96,10 +108,36 @@ export default function JobDetailPage() {
   const isRejected = reviewAction === 'rejected';
 
   async function handleRetry() {
+    if (retryBusy) return;
+    setRetryBusy(true);
     try {
-      await api.retryJob(contentId);
+      const res = await api.retryJob(contentId);
+      showToast('New video started', 'success');
+      const newId = res?.data?.new_content_id;
+      if (newId) {
+        router.push(`/dashboard/jobs/${newId}`);
+      } else {
+        loadAll();
+      }
+    } catch (e: any) {
+      showToast(e?.message || 'Retry failed', 'error');
+    } finally {
+      setRetryBusy(false);
+    }
+  }
+
+  async function handleRestart() {
+    if (restartBusy) return;
+    setRestartBusy(true);
+    try {
+      const res = await api.restartJob(contentId);
+      showToast(`Restarting from ${PHASE_LABELS[res?.data?.resume_from] || res?.data?.resume_from || 'checkpoint'}`, 'success');
       loadAll();
-    } catch {}
+    } catch (e: any) {
+      showToast(e?.message || 'Restart failed', 'error');
+    } finally {
+      setRestartBusy(false);
+    }
   }
 
   return (
@@ -206,11 +244,21 @@ export default function JobDetailPage() {
                     className="px-4 py-2 border rounded-lg text-xs font-medium text-content-primary bg-surface-0 border-border hover:bg-surface-1 transition-all">
                     Channel Settings
                   </Link>
+                  {progress.checkpoint && (
+                    <button
+                      onClick={handleRestart}
+                      disabled={restartBusy}
+                      className="px-4 py-2 border rounded-lg text-xs font-medium text-status-success bg-status-success/5 border-status-success/15 hover:bg-status-success/10 transition-all disabled:opacity-50"
+                    >
+                      {restartBusy ? 'Restarting...' : `Restart from ${PHASE_LABELS[progress.checkpoint] || progress.checkpoint}`}
+                    </button>
+                  )}
                   <button
                     onClick={handleRetry}
-                    className="px-4 py-2 border rounded-lg text-xs font-medium text-accent bg-accent/5 border-accent/15 hover:bg-accent/10 transition-all"
+                    disabled={retryBusy}
+                    className="px-4 py-2 border rounded-lg text-xs font-medium text-accent bg-accent/5 border-accent/15 hover:bg-accent/10 transition-all disabled:opacity-50"
                   >
-                    {progress.checkpoint ? `Retry from ${progress.checkpoint}` : 'Retry'}
+                    {retryBusy ? 'Retrying...' : 'Retry (Fresh)'}
                   </button>
                 </div>
               </div>

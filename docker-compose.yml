@@ -40,6 +40,8 @@ services:
       POSTGRES_PASSWORD: ${TEMPORAL_DB_PASSWORD:-change_me_temporal_64}
     volumes:
       - pg_temporal_data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
     networks: [yt-net]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U temporal -d temporal"]
@@ -391,7 +393,7 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4000/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/api/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -516,9 +518,12 @@ services:
       - NEXT_PUBLIC_API_URL=
       - NEXT_PUBLIC_WS_URL=
       - API_INTERNAL_URL=http://dashboard-bff:8020
+      # Next.js standalone uses HOSTNAME as bind address — force 0.0.0.0 so
+      # the in-container healthcheck (and any sidecar) can reach it.
+      - HOSTNAME=0.0.0.0
     networks: [yt-net]
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000"]
       interval: 30s
       timeout: 5s
       retries: 3

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { api, isLoggedIn, clearToken } from '@/lib/api';
 import { cn, statusDot } from '@/lib/utils';
 import { ThemeToggle } from '@/lib/theme';
+import { useToast } from '@/lib/toast';
 
 type Tab = 'all' | 'active' | 'disabled' | 'archived';
 type SortKey = 'name' | 'delivered' | 'status' | 'created';
@@ -36,13 +37,16 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<any>(null);
   const [allChannels, setAllChannels] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pausedMap, setPausedMap] = useState<Record<string, boolean>>({});
+  // pausedMap removed — is_paused is now per-job in active_jobs from backend
   const [systemStopped, setSystemStopped] = useState(false);
   const [envMode, setEnvMode] = useState<string>('test');
   const [envSwitching, setEnvSwitching] = useState(false);
   const [showEnvConfirm, setShowEnvConfirm] = useState(false);
   const [actionMenu, setActionMenu] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState<string | null>(null);
+  const [triggeringKeys, setTriggeringKeys] = useState<Set<string>>(new Set());
+  const [busyJobs, setBusyJobs] = useState<Set<string>>(new Set());
+  const { showToast } = useToast();
 
   // New: tabs, search, sort, pin
   const [tab, setTab] = useState<Tab>('all');
@@ -74,17 +78,9 @@ export default function DashboardPage() {
       setSystemStopped(s.data?.emergency_stop === true);
       setEnvMode(s.data?.environment_mode || 'test');
       setAllChannels(c.data || []);
-      const paused: Record<string, boolean> = {};
-      for (const ch of c.data || []) {
-        if (ch.active_job) {
-          try {
-            const ws = await api.workflowStatus(ch.channel_id);
-            paused[ch.channel_id] = ws.data?.is_paused || false;
-          } catch { paused[ch.channel_id] = false; }
-        }
-      }
-      setPausedMap(paused);
-    } catch {}
+    } catch (e: any) {
+      showToast(e?.message || 'Failed to load data', 'error');
+    }
     setLoading(false);
   }
 
@@ -153,7 +149,7 @@ export default function DashboardPage() {
       setEnvMode(target);
       setShowEnvConfirm(false);
       loadData();
-    } catch {}
+    } catch (e: any) { showToast(e?.message || 'Environment switch failed', 'error'); }
     setEnvSwitching(false);
   }
 
@@ -164,7 +160,7 @@ export default function DashboardPage() {
       setEnvMode('production');
       setShowEnvConfirm(false);
       loadData();
-    } catch {}
+    } catch (e: any) { showToast(e?.message || 'Environment switch failed', 'error'); }
     setEnvSwitching(false);
   }
 
@@ -173,19 +169,19 @@ export default function DashboardPage() {
       if (current === 'active') await api.disableChannel(id);
       else await api.enableChannel(id);
       loadData();
-    } catch {}
+    } catch (e: any) { showToast(e?.message || 'Toggle failed', 'error'); }
   }
 
   async function archiveChannel(id: string) {
-    try { await api.archiveChannel(id); setConfirmArchive(null); loadData(); } catch {}
+    try { await api.archiveChannel(id); setConfirmArchive(null); loadData(); } catch (e: any) { showToast(e?.message || 'Archive failed', 'error'); }
   }
 
   async function restoreChannel(id: string) {
-    try { await api.restoreChannel(id); loadData(); } catch {}
+    try { await api.restoreChannel(id); loadData(); } catch (e: any) { showToast(e?.message || 'Restore failed', 'error'); }
   }
 
   async function cloneChannel(id: string) {
-    try { await api.cloneChannel(id); setActionMenu(null); loadData(); } catch {}
+    try { await api.cloneChannel(id); setActionMenu(null); loadData(); } catch (e: any) { showToast(e?.message || 'Clone failed', 'error'); }
   }
 
   async function exportChannel(id: string) {
@@ -196,36 +192,57 @@ export default function DashboardPage() {
       const a = document.createElement('a'); a.href = url; a.download = `${id}-config.json`;
       a.click(); URL.revokeObjectURL(url);
       setActionMenu(null);
-    } catch {}
+    } catch (e: any) { showToast(e?.message || 'Export failed', 'error'); }
   }
 
   async function triggerChannel(id: string, contentMode: string) {
+    const key = `${id}:${contentMode}`;
+    if (triggeringKeys.has(key)) return;
+    setTriggeringKeys(prev => new Set(prev).add(key));
     try {
       await api.trigger(id, { content_mode: contentMode });
-      loadData();
-    } catch {}
+      await loadData();
+    } catch (e: any) {
+      showToast(e?.message || 'Trigger failed', 'error');
+    }
+    setTriggeringKeys(prev => { const n = new Set(prev); n.delete(key); return n; });
   }
 
-  async function togglePause(id: string) {
+  async function togglePauseJob(contentId: string, isPaused: boolean) {
+    if (busyJobs.has(contentId)) return;
+    setBusyJobs(prev => new Set(prev).add(contentId));
     try {
-      if (pausedMap[id]) {
-        await api.resume(id);
-        setPausedMap(prev => ({ ...prev, [id]: false }));
+      if (isPaused) {
+        await api.resumeJob(contentId);
       } else {
-        await api.pause(id);
-        setPausedMap(prev => ({ ...prev, [id]: true }));
+        await api.pauseJob(contentId);
       }
-    } catch {}
+      await loadData();
+    } catch (e: any) {
+      showToast(e?.message || 'Action failed', 'error');
+    }
+    setBusyJobs(prev => { const n = new Set(prev); n.delete(contentId); return n; });
   }
 
-  async function stopChannel(id: string) {
-    try { await api.stop(id); loadData(); } catch {}
+  async function stopJob(contentId: string) {
+    if (busyJobs.has(contentId)) return;
+    setBusyJobs(prev => new Set(prev).add(contentId));
+    try { await api.stopJob(contentId); await loadData(); } catch (e: any) {
+      showToast(e?.message || 'Stop failed', 'error');
+    }
+    setBusyJobs(prev => { const n = new Set(prev); n.delete(contentId); return n; });
   }
 
-  function getChannelState(ch: any): 'idle' | 'running' | 'paused' | 'pending_review' {
-    if (!ch.active_job) return 'idle';
-    if (pausedMap[ch.channel_id]) return 'paused';
-    if (ch.active_job.status === 'pending_review') return 'pending_review';
+  function getModeJob(ch: any, mode: string): any | null {
+    return (ch.active_jobs || []).find((j: any) => j.content_mode === mode) || null;
+  }
+
+  function getModeState(ch: any, mode: string): 'idle' | 'running' | 'paused' | 'pending_review' {
+    if (triggeringKeys.has(`${ch.channel_id}:${mode}`)) return 'running';
+    const job = getModeJob(ch, mode);
+    if (!job) return 'idle';
+    if (job.is_paused) return 'paused';
+    if (job.status === 'pending_review') return 'pending_review';
     return 'running';
   }
 
@@ -409,13 +426,13 @@ export default function DashboardPage() {
             {TABS.map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
                 className={cn(
-                  'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                  'px-3 py-1.5 text-sm font-medium rounded-md transition-all',
                   tab === t.key
                     ? 'bg-surface-0 text-content-primary shadow-sm'
                     : 'text-content-tertiary hover:text-content-secondary'
                 )}>
                 {t.label}
-                <span className={cn('ml-1.5 text-[10px]', tab === t.key ? 'text-accent' : 'text-content-tertiary')}>
+                <span className={cn('ml-1.5 text-[16px]', tab === t.key ? 'text-accent' : 'text-content-tertiary')}>
                   {tabCounts[t.key]}
                 </span>
               </button>
@@ -442,14 +459,20 @@ export default function DashboardPage() {
             </div>
 
             {/* Sort dropdown */}
-            <div className="relative">
+            <div className="relative flex items-center gap-2">
+              <span className="text-[14px] text-content-tertiary font-medium">Sort:</span>
               <button onClick={() => setShowSortMenu(!showSortMenu)}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-surface-1 border border-border rounded-md text-content-secondary hover:text-content-primary hover:border-border transition-colors">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 6h18M6 12h12M9 18h6" />
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M7 3v18" /><path d="m3 7 4-4 4 4" />
+                  <path d="M17 21V3" /><path d="m21 17-4 4-4-4" />
                 </svg>
                 <span>{SORT_OPTIONS.find(s => s.key === sortKey)?.label}</span>
-                <span className="text-accent text-[10px]">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
+                  {sortDir === 'asc'
+                    ? <path d="M18 15l-6-6-6 6" />
+                    : <path d="M6 9l6 6 6-6" />}
+                </svg>
               </button>
               {showSortMenu && (
                 <>
@@ -483,7 +506,7 @@ export default function DashboardPage() {
         <div className={cn('card h-full flex flex-col overflow-hidden', systemStopped && 'lockdown-frost')}>
           {/* Table header */}
           <div className="shrink-0 px-4 py-2.5 flex items-center bg-surface-1/50 text-[11px] font-semibold text-content-tertiary uppercase tracking-wider border-b border-border">
-            <span className="w-8"></span>
+            <span className="w-9"></span>
             <span className="flex-1 min-w-0">Channel</span>
             <span className="w-24 text-center">Status</span>
             <span className="w-20 text-center">Delivered</span>
@@ -496,27 +519,26 @@ export default function DashboardPage() {
           {/* Table body — scrollable */}
           <div className="flex-1 overflow-y-auto divide-y divide-border">
             {displayChannels.map((ch: any) => {
-              const state = getChannelState(ch);
               const isDisabled = ch.status !== 'active';
               const isArchived = ch.status === 'archived';
               const allLimitReached = isAllModesAtLimit(ch);
               const weeklyLabel = getWeeklyLabel(ch);
               const modes = getModes(ch);
-              const runningMode = ch.active_job?.content_mode;
               const isPinned = pinned.has(ch.channel_id);
 
               return (
                 <div key={ch.channel_id} className={cn(
-                  'px-4 py-3 flex items-center transition-colors group',
+                  'px-4 py-3 flex items-start transition-colors group',
                   isArchived ? 'bg-surface-1/20 opacity-60' : isDisabled ? 'bg-surface-1/30' : 'hover:bg-surface-1/50',
                   isPinned && 'border-l-2 border-l-accent'
                 )}>
                   {/* Pin */}
                   <button onClick={() => togglePin(ch.channel_id)} title={isPinned ? 'Unpin channel' : 'Pin to top'}
-                    className={cn('w-8 shrink-0 flex items-center justify-center text-content-tertiary hover:text-accent transition-colors',
+                    className={cn('w-9 shrink-0 flex items-center justify-center mt-1.5 text-content-tertiary hover:text-accent transition-colors',
                       isPinned && 'text-accent')}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
-                      <path d="M12 2L12 22M12 2L8 6M12 2L16 6" />
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 17v5" />
+                      <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1z" />
                     </svg>
                   </button>
 
@@ -546,7 +568,7 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Status */}
-                  <div className="w-24 text-center">
+                  <div className="w-24 text-center self-center">
                     <span className={cn('text-xs font-medium',
                       ch.status === 'active' ? 'text-status-success' : ch.status === 'archived' ? 'text-content-tertiary' : 'text-status-warning'
                     )}>
@@ -555,16 +577,16 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Delivered */}
-                  <div className="w-20 text-center text-xs text-content-primary font-medium">{ch.stats?.delivered || 0}</div>
+                  <div className="w-20 text-center text-sm text-content-primary font-medium self-center">{ch.stats?.delivered || 0}</div>
 
                   {/* In Progress */}
-                  <div className="w-20 text-center text-xs text-content-tertiary">{ch.stats?.in_progress || 0}</div>
+                  <div className="w-20 text-center text-sm text-content-tertiary self-center">{ch.stats?.in_progress || 0}</div>
 
                   {/* Weekly */}
-                  <div className="w-24 text-center text-xs text-content-tertiary">{weeklyLabel || '—'}</div>
+                  <div className="w-24 text-center text-sm text-content-tertiary self-center">{weeklyLabel || '—'}</div>
 
                   {/* Toggle */}
-                  <div className="w-16 flex justify-center">
+                  <div className="w-16 flex justify-center self-center">
                     {isArchived ? (
                       <span className="text-[10px] text-content-tertiary">—</span>
                     ) : (
@@ -573,7 +595,7 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="w-64 flex justify-end items-center gap-1.5">
+                  <div className="w-64 flex justify-end items-center gap-1.5 self-center">
                     {isArchived ? (
                       <>
                         <Tip text="Restore to disabled state">
@@ -591,66 +613,64 @@ export default function DashboardPage() {
                       </>
                     ) : (
                       <>
-                        {/* Trigger / Progress */}
-                        {state === 'idle' ? (
-                          modes.length > 1 ? (
-                            modes.map((m: string) => {
-                              const atLimit = isModeAtLimit(ch, m);
-                              const canTrigger = !isDisabled && !systemStopped && !atLimit;
-                              return (
-                                <button key={m} onClick={() => triggerChannel(ch.channel_id, m)} disabled={!canTrigger}
-                                  className={cn('px-2.5 py-1 border rounded-md text-[11px] font-medium transition-all',
-                                    canTrigger ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
-                                      : 'text-content-tertiary bg-surface-2 border-border cursor-not-allowed opacity-50')}>
-                                  {atLimit ? `${m === 'short' ? 'S' : 'L'} Limit` : `▶ ${m === 'short' ? 'Short' : 'Long'}`}
-                                </button>
-                              );
-                            })
-                          ) : (
-                            <button onClick={() => triggerChannel(ch.channel_id, modes[0])} disabled={isDisabled || systemStopped || allLimitReached}
-                              className={cn('px-2.5 py-1 border rounded-md text-[11px] font-medium transition-all',
-                                !isDisabled && !systemStopped && !allLimitReached
-                                  ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
-                                  : 'text-content-tertiary bg-surface-2 border-border cursor-not-allowed opacity-50')}>
-                              {allLimitReached ? 'Limit' : 'Trigger'}
-                            </button>
-                          )
-                        ) : state === 'pending_review' ? (
-                          <Link href={`/dashboard/jobs/${ch.active_job?.content_id}`}
-                            className="px-2.5 py-1 border rounded-md text-[11px] font-medium text-status-warning bg-status-warning/5 border-status-warning/15 hover:bg-status-warning/10 transition-all">
-                            Review
-                          </Link>
-                        ) : (
-                          <div className="flex items-center gap-1.5">
-                            <ProgressRing paused={state === 'paused'} />
-                            <span className="text-[10px] text-content-tertiary font-medium">
-                              {state === 'paused' ? 'Paused' : 'Running'}
-                              {runningMode && ` (${runningMode === 'short' ? 'S' : 'L'})`}
-                            </span>
-                          </div>
-                        )}
+                        {/* Per-mode trigger / running state */}
+                        {modes.map((m: string) => {
+                          const mState = getModeState(ch, m);
+                          const mJob = getModeJob(ch, m);
+                          const atLimit = isModeAtLimit(ch, m);
+                          const mLabel = m === 'short' ? 'S' : 'L';
 
-                        {(state === 'running' || state === 'paused') && (
-                          <button onClick={() => togglePause(ch.channel_id)} disabled={isDisabled}
-                            className={cn('px-2.5 py-1 border rounded-md text-[11px] font-medium transition-all',
-                              pausedMap[ch.channel_id]
-                                ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
-                                : 'text-status-warning bg-status-warning/5 border-status-warning/15 hover:bg-status-warning/10')}>
-                            {pausedMap[ch.channel_id] ? 'Resume' : 'Pause'}
-                          </button>
-                        )}
-                        {(state === 'running' || state === 'paused') && (
-                          <button onClick={() => stopChannel(ch.channel_id)} disabled={isDisabled}
-                            className="px-2.5 py-1 border rounded-md text-[11px] font-medium text-status-error bg-status-error/5 border-status-error/15 hover:bg-status-error/10 transition-all">
-                            Stop
-                          </button>
-                        )}
+                          if (mState === 'idle') {
+                            const canTrigger = !isDisabled && !systemStopped && !atLimit;
+                            return (
+                              <button key={m} onClick={() => triggerChannel(ch.channel_id, m)} disabled={!canTrigger}
+                                className={cn('px-2.5 py-1 border rounded-md text-[11px] font-medium transition-all',
+                                  canTrigger ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
+                                    : 'text-content-tertiary bg-surface-2 border-border cursor-not-allowed opacity-50')}>
+                                {atLimit ? `${mLabel} Limit` : `▶ ${m === 'short' ? 'Short' : 'Long'}`}
+                              </button>
+                            );
+                          }
+                          if (mState === 'pending_review' && mJob) {
+                            return (
+                              <Link key={m} href={`/dashboard/jobs/${mJob.content_id}`}
+                                className="px-2.5 py-1 border rounded-md text-[11px] font-medium text-status-warning bg-status-warning/5 border-status-warning/15 hover:bg-status-warning/10 transition-all">
+                                Review ({mLabel})
+                              </Link>
+                            );
+                          }
+                          // running or paused
+                          const isBusy = mJob && busyJobs.has(mJob.content_id);
+                          return (
+                            <div key={m} className="flex items-center gap-1">
+                              <ProgressRing paused={mState === 'paused'} />
+                              <span className="text-[10px] text-content-tertiary font-medium">
+                                {mState === 'paused' ? 'Paused' : 'Running'} ({mLabel})
+                              </span>
+                              {mJob && (
+                                <>
+                                  <button onClick={() => togglePauseJob(mJob.content_id, mJob.is_paused)} disabled={isDisabled || isBusy}
+                                    className={cn('px-1.5 py-0.5 border rounded text-[10px] font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed',
+                                      mJob.is_paused
+                                        ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
+                                        : 'text-status-warning bg-status-warning/5 border-status-warning/15 hover:bg-status-warning/10')}>
+                                    {isBusy ? '...' : (mJob.is_paused ? '▶' : '⏸')}
+                                  </button>
+                                  <button onClick={() => stopJob(mJob.content_id)} disabled={isDisabled || isBusy}
+                                    className="px-1.5 py-0.5 border rounded text-[10px] font-medium text-status-error bg-status-error/5 border-status-error/15 hover:bg-status-error/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                                    {isBusy ? '...' : '■'}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
 
                         {/* Settings gear */}
                         <Link href={`/dashboard/channels/${ch.channel_id}/settings`}
                           className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-surface-2 transition-all text-content-tertiary hover:text-accent"
                           title="Channel settings">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <circle cx="12" cy="12" r="3" />
                             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                           </svg>

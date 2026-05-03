@@ -17,10 +17,7 @@ from src.redis_client import close_redis, get_redis
 from src.schemas.common import HealthResponse, ServiceResponse
 
 # Import providers to trigger auto-registration
-import src.providers.llm.openai_provider  # noqa: F401
-import src.providers.llm.gemini_provider  # noqa: F401
-import src.providers.llm.claude_provider  # noqa: F401
-import src.providers.search.serpapi_provider  # noqa: F401
+import src.providers.boot  # noqa: F401
 
 from src.providers.registry import ProviderRegistry
 from src.providers.llm.base import LLMRequest
