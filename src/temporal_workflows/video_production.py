@@ -24,10 +24,34 @@ RETRY_RENDER = RetryPolicy(
 )
 
 
+WORKFLOW_PHASES = [
+    "researching",
+    "brand_check",
+    "scripting",
+    "generating_voice",
+    "generating_assets",
+    "directing",
+    "post_production",
+    "rendering",
+    "delivering",
+    "analytics",
+]
+
+
 def _add_cost(budget: dict, result: dict) -> float:
     cost = result.get("cost", {}).get("cost_usd", 0)
     budget["accrued_cost_usd"] = budget.get("accrued_cost_usd", 0) + cost
     return cost
+
+
+def _should_skip(phase: str, resume_from: str | None) -> bool:
+    """Return True if this phase should be skipped because it was completed before the checkpoint."""
+    if not resume_from:
+        return False
+    try:
+        return WORKFLOW_PHASES.index(phase) < WORKFLOW_PHASES.index(resume_from)
+    except ValueError:
+        return False
 
 
 @workflow.defn
@@ -130,11 +154,34 @@ class VideoProductionWorkflow:
                 f"Budget exceeded: ${budget['accrued_cost_usd']:.2f} > ${budget['max_cost_usd']:.2f}"
             )
 
+    async def _save_phase_data(self, content_id: str, phase: str, data: dict) -> None:
+        """Persist phase output data for resume-from-checkpoint."""
+        try:
+            await workflow.execute_activity(
+                "save_checkpoint_data",
+                args=[content_id, phase, data],
+                start_to_close_timeout=timedelta(seconds=30),
+            )
+        except Exception:
+            workflow.logger.warning(f"Failed to save checkpoint data for {phase} — non-critical")
+
+    async def _load_phase_data(self, content_id: str, phase: str) -> dict:
+        """Load previously saved phase output data."""
+        try:
+            return await workflow.execute_activity(
+                "load_checkpoint_data",
+                args=[content_id, phase],
+                start_to_close_timeout=timedelta(seconds=30),
+            )
+        except Exception:
+            workflow.logger.warning(f"Failed to load checkpoint data for {phase}")
+            return {}
+
     # ── Main Pipeline ────────────────────────────────────
 
     @workflow.run
     async def run(self, params: VideoParams) -> VideoResult:
-        ts = workflow.now().strftime("%Y%m%d_%H%M")
+        ts = workflow.now().strftime("%Y%m%d_%H%M%S")
         env = getattr(params, "environment", "test")
         is_test_mode = env != "production"
         prefix = "TEST_VID" if is_test_mode else "VID"
@@ -170,382 +217,532 @@ class VideoProductionWorkflow:
             ch = params.channel_id
             self._channel_id = ch
             self._content_mode = params.content_mode
+            resume_from = getattr(params, "resume_from", None)
+
+            # Initialize variables that phases produce (will be restored from checkpoint if resuming)
+            research_data: dict = {}
+            topic: str = params.topic_candidates[0] if params.topic_candidates else "Unknown"
+            title: str = topic
+            brand_profile: dict = {}
+            segments: list = []
+            final_title: str = title
+            script_data: dict = {}
+            script_voice_data: dict = {}
+            script_assets_data: dict = {}
+            script_direction_data: dict = {}
+            voice_data: dict = {}
+            voice_segments_input: list = []
+            assets_result: dict = {}
+            thumbnail_data: dict = {}
+            music_data: dict = {}
+            direction_data: dict = {}
+            direction_v3: dict = {}
+            assembly_data: dict = {}
+            video_url: str = ""
+            youtube_id: str = ""
+            prod_score: float = 7.0
+            composite_score: float = 0.0
+
+            # ── Resume: load checkpoint data for completed phases ──
+            if resume_from:
+                workflow.logger.info(f"Resuming from phase: {resume_from}")
+                # Load all phases before resume_from
+                for prev_phase in WORKFLOW_PHASES:
+                    if prev_phase == resume_from:
+                        break
+                    saved = await self._load_phase_data(content_id, prev_phase)
+                    if not saved:
+                        continue
+                    # Restore variables from each phase's saved data
+                    if prev_phase == "researching":
+                        research_data = saved.get("research_data", {})
+                        topic = saved.get("topic", topic)
+                        title = saved.get("title", title)
+                        self._title = title
+                        quality_scores["research_depth_score"] = saved.get("research_score", 7.0)
+                    elif prev_phase == "brand_check":
+                        brand_profile = saved.get("brand_profile", {})
+                    elif prev_phase == "scripting":
+                        script_data = saved.get("script_data", {})
+                        script_voice_data = saved.get("script_voice_data", {})
+                        script_assets_data = saved.get("script_assets_data", {})
+                        script_direction_data = saved.get("script_direction_data", {})
+                        segments = saved.get("segments", [])
+                        final_title = saved.get("final_title", title)
+                        self._title = final_title
+                        quality_scores["script_structure_score"] = saved.get("script_score", 7.0)
+                        quality_scores["hook_retention_score"] = saved.get("hook_score", 7.0)
+                    elif prev_phase == "generating_voice":
+                        voice_data = saved.get("voice_data", {})
+                        voice_segments_input = saved.get("voice_segments_input", [])
+                        quality_scores["voice_quality_score"] = saved.get("voice_score", 7.0)
+                    elif prev_phase == "generating_assets":
+                        assets_result = saved.get("assets_result", {})
+                        thumbnail_data = saved.get("thumbnail_data", {})
+                        music_data = saved.get("music_data", {})
+                        quality_scores["thumbnail_score"] = saved.get("thumb_score", 7.0)
+                    elif prev_phase == "directing":
+                        direction_data = saved.get("direction_data", {})
+                        direction_v3 = saved.get("direction_v3", {})
+                        quality_scores["direction_score"] = saved.get("dir_score", 7.0)
+                    elif prev_phase == "post_production":
+                        direction_v3 = saved.get("direction_v3", direction_v3)
+                    elif prev_phase == "rendering":
+                        assembly_data = saved.get("assembly_data", {})
+                        video_url = saved.get("video_url", "")
+                        quality_scores["production_score"] = saved.get("prod_score", 7.0)
+                    workflow.logger.info(f"Restored checkpoint: {prev_phase}")
 
             # ── Phase 1: Research ────────────────────────
-            await self._set_phase(content_id, "researching", ch)
+            if _should_skip("researching", resume_from):
+                workflow.logger.info("Skipping researching (already completed)")
+            else:
+                await self._set_phase(content_id, "researching", ch)
 
-            research = await workflow.execute_activity(
-                "research_activity",
-                args=[{
-                    "channel_id": params.channel_id,
-                    "content_mode": params.content_mode,
-                    "topic_candidates": params.topic_candidates,
-                    "budget_guard": budget,
-                }],
-                start_to_close_timeout=timedelta(minutes=5),
-                retry_policy=RETRY_STANDARD,
-            )
-            self._accrued_cost += _add_cost(budget, research)
-            self._check_budget(budget)
+                research = await workflow.execute_activity(
+                    "research_activity",
+                    args=[{
+                        "channel_id": params.channel_id,
+                        "content_mode": params.content_mode,
+                        "topic_candidates": params.topic_candidates,
+                        "budget_guard": budget,
+                    }],
+                    start_to_close_timeout=timedelta(minutes=5),
+                    retry_policy=RETRY_STANDARD,
+                )
+                self._accrued_cost += _add_cost(budget, research)
+                self._check_budget(budget)
 
-            research_data = research.get("data", {})
-            topic = research_data.get("selected_topic", params.topic_candidates[0] if params.topic_candidates else "Unknown")
-            titles = research_data.get("title_candidates", [])
-            title = titles[0] if titles else topic
-            self._title = title
-            research_score = research_data.get("research_depth_score", 7.0)
-            quality_scores["research_depth_score"] = research_score
+                research_data = research.get("data", {})
+                topic = research_data.get("selected_topic", params.topic_candidates[0] if params.topic_candidates else "Unknown")
+                titles = research_data.get("title_candidates", [])
+                title = titles[0] if titles else topic
+                self._title = title
+                research_score = research_data.get("research_depth_score", 7.0)
+                quality_scores["research_depth_score"] = research_score
 
-            # Quality gate: research
-            if research_score < THRESHOLDS["research_depth_score"]:
-                workflow.logger.warning(
-                    f"Research score {research_score} below threshold {THRESHOLDS['research_depth_score']} — proceeding with warning")
+                # Quality gate: research
+                if research_score < THRESHOLDS["research_depth_score"]:
+                    workflow.logger.warning(
+                        f"Research score {research_score} below threshold {THRESHOLDS['research_depth_score']} — proceeding with warning")
 
-            await self._complete_phase(content_id, ch, "researching",
-                                       cost=_add_cost({"accrued_cost_usd": 0}, research),
-                                       detail={"topic": topic, "score": research_score})
-            workflow.logger.info(f"Research done: {topic} (score: {research_score})")
+                await self._complete_phase(content_id, ch, "researching",
+                                           cost=_add_cost({"accrued_cost_usd": 0}, research),
+                                           detail={"topic": topic, "score": research_score})
+                workflow.logger.info(f"Research done: {topic} (score: {research_score})")
+
+                await self._save_phase_data(content_id, "researching", {
+                    "research_data": research_data,
+                    "topic": topic,
+                    "title": title,
+                    "research_score": research_score,
+                })
 
             await self._check_pause()
 
             # ── Phase 1B: Brand Identity ──────────────────
-            await self._set_phase(content_id, "brand_check", ch)
+            if _should_skip("brand_check", resume_from):
+                workflow.logger.info("Skipping brand_check (already completed)")
+            else:
+                await self._set_phase(content_id, "brand_check", ch)
 
-            brand_profile = {}
-            try:
-                brand_result = await workflow.execute_activity(
-                    "brand_activity",
-                    args=[{
-                        "channel_id": params.channel_id,
-                        "action": "get_or_create",
-                    }],
-                    start_to_close_timeout=timedelta(seconds=30),
-                    retry_policy=RETRY_STANDARD,
-                )
-                brand_profile = brand_result.get("data", {}).get("profile", {})
-                workflow.logger.info(
-                    f"Brand profile loaded: consistency_baseline={brand_profile.get('consistency_baseline', 'N/A')}")
-            except Exception:
-                workflow.logger.warning("Brand activity failed — non-critical, continuing")
-            await self._complete_phase(content_id, ch, "brand_check")
+                brand_profile = {}
+                try:
+                    brand_result = await workflow.execute_activity(
+                        "brand_activity",
+                        args=[{
+                            "channel_id": params.channel_id,
+                            "action": "get_or_create",
+                        }],
+                        start_to_close_timeout=timedelta(seconds=30),
+                        retry_policy=RETRY_STANDARD,
+                    )
+                    brand_profile = brand_result.get("data", {}).get("profile", {})
+                    workflow.logger.info(
+                        f"Brand profile loaded: consistency_baseline={brand_profile.get('consistency_baseline', 'N/A')}")
+                except Exception:
+                    workflow.logger.warning("Brand activity failed — non-critical, continuing")
+                await self._complete_phase(content_id, ch, "brand_check")
+
+                await self._save_phase_data(content_id, "brand_check", {
+                    "brand_profile": brand_profile,
+                })
 
             await self._check_pause()
 
             # ── Phase 2: Script ──────────────────────────
-            await self._set_phase(content_id, "scripting", ch)
+            if _should_skip("scripting", resume_from):
+                workflow.logger.info("Skipping scripting (already completed)")
+            else:
+                await self._set_phase(content_id, "scripting", ch)
 
-            script_result = await workflow.execute_activity(
-                "script_activity",
-                args=[{
-                    "channel_id": params.channel_id,
-                    "content_mode": params.content_mode,
-                    "topic": topic,
-                    "title": title,
-                    "research_data": research_data,
-                    "budget_guard": budget,
-                    "content_id": content_id,
-                }],
-                start_to_close_timeout=timedelta(minutes=8),
-                retry_policy=RETRY_STANDARD,
-            )
-            self._accrued_cost += _add_cost(budget, script_result)
-            self._check_budget(budget)
+                script_result = await workflow.execute_activity(
+                    "script_activity",
+                    args=[{
+                        "channel_id": params.channel_id,
+                        "content_mode": params.content_mode,
+                        "topic": topic,
+                        "title": title,
+                        "research_data": research_data,
+                        "budget_guard": budget,
+                        "content_id": content_id,
+                    }],
+                    start_to_close_timeout=timedelta(minutes=8),
+                    retry_policy=RETRY_STANDARD,
+                )
+                self._accrued_cost += _add_cost(budget, script_result)
+                self._check_budget(budget)
 
-            # Multi-view response: {script_base, script_voice, script_assets, script_direction}
-            full_script_data = script_result.get("data", {})
-            script_data = full_script_data.get("script_base", full_script_data)
-            script_voice_data = full_script_data.get("script_voice", {})
-            script_assets_data = full_script_data.get("script_assets", {})
-            script_direction_data = full_script_data.get("script_direction", {})
-            intelligence_scores = full_script_data.get("intelligence_scores", {})
+                # Multi-view response: {script_base, script_voice, script_assets, script_direction}
+                full_script_data = script_result.get("data", {})
+                script_data = full_script_data.get("script_base", full_script_data)
+                script_voice_data = full_script_data.get("script_voice", {})
+                script_assets_data = full_script_data.get("script_assets", {})
+                script_direction_data = full_script_data.get("script_direction", {})
+                intelligence_scores = full_script_data.get("intelligence_scores", {})
 
-            segments = script_data.get("segments", [])
-            final_title = script_data.get("title", title)
-            self._title = final_title
-            script_score = script_data.get("script_structure_score", 7.0)
-            quality_scores["script_structure_score"] = script_score
-            quality_scores["hook_retention_score"] = script_data.get("hook_retention_score", 7.0)
+                segments = script_data.get("segments", [])
+                final_title = script_data.get("title", title)
+                self._title = final_title
+                script_score = script_data.get("script_structure_score", 7.0)
+                quality_scores["script_structure_score"] = script_score
+                quality_scores["hook_retention_score"] = script_data.get("hook_retention_score", 7.0)
 
-            # Quality gate: script (hard gate — score must be reasonable)
-            if script_score < THRESHOLDS["script_structure_score"]:
-                workflow.logger.warning(
-                    f"Script score {script_score} below target {THRESHOLDS['script_structure_score']} "
-                    f"after rewrites — proceeding (rewrite loop already exhausted)")
+                # Quality gate: script (hard gate — score must be reasonable)
+                if script_score < THRESHOLDS["script_structure_score"]:
+                    workflow.logger.warning(
+                        f"Script score {script_score} below target {THRESHOLDS['script_structure_score']} "
+                        f"after rewrites — proceeding (rewrite loop already exhausted)")
 
-            await self._complete_phase(content_id, ch, "scripting",
-                                       detail={"segments": len(segments), "score": script_score})
-            workflow.logger.info(
-                f"Script done: {len(segments)} segments, score: {script_score}, "
-                f"rewrites: {script_data.get('rewrite_count', 0)}, "
-                f"intelligence: {intelligence_scores}")
+                await self._complete_phase(content_id, ch, "scripting",
+                                           detail={"segments": len(segments), "score": script_score})
+                workflow.logger.info(
+                    f"Script done: {len(segments)} segments, score: {script_score}, "
+                    f"rewrites: {script_data.get('rewrite_count', 0)}, "
+                    f"intelligence: {intelligence_scores}")
+
+                await self._save_phase_data(content_id, "scripting", {
+                    "script_data": script_data,
+                    "script_voice_data": script_voice_data,
+                    "script_assets_data": script_assets_data,
+                    "script_direction_data": script_direction_data,
+                    "segments": segments,
+                    "final_title": final_title,
+                    "script_score": script_score,
+                    "hook_score": quality_scores.get("hook_retention_score", 7.0),
+                })
 
             await self._check_pause()
 
             # ── Phase 3: Voice ───────────────────────────
-            await self._set_phase(content_id, "generating_voice", ch)
-
-            # Build voice segments with prosody data from Script Intelligence
-            voice_prosody_segs = script_voice_data.get("segments", []) if isinstance(script_voice_data, dict) else []
-            voice_segments_input = []
-            for i, s in enumerate(segments):
-                seg_input = {
-                    "id": s.get("id"),
-                    "section": s.get("section", "body"),
-                    "narration": s.get("narration", "") or s.get("text", ""),
-                    "emotion": s.get("emotion", ""),
-                    "emphasis_words": s.get("emphasis_words", []),
-                }
-                # Enrich with prosody engine data if available
-                if i < len(voice_prosody_segs):
-                    prosody = voice_prosody_segs[i]
-                    seg_input["tts_params"] = prosody.get("tts_params", {})
-                    seg_input["dominant_emotion"] = prosody.get("dominant_emotion", "")
-                    if not seg_input["emphasis_words"] and prosody.get("emphasis_words"):
-                        seg_input["emphasis_words"] = prosody["emphasis_words"]
-                voice_segments_input.append(seg_input)
-
-            voice_result = await workflow.execute_activity(
-                "voice_activity",
-                args=[{
-                    "content_id": content_id,
-                    "channel_id": params.channel_id,
-                    "content_mode": params.content_mode,
-                    "voice_id": "",
-                    "script_segments": voice_segments_input,
-                }],
-                start_to_close_timeout=timedelta(minutes=10),
-                retry_policy=RETRY_STANDARD,
-            )
-            self._accrued_cost += _add_cost(budget, voice_result)
-            self._check_budget(budget)
-
-            voice_data = voice_result.get("data", {})
-            voice_score = voice_data.get("voice_quality_score", 7.0)
-            quality_scores["voice_quality_score"] = voice_score
-
-            if voice_score < THRESHOLDS["voice_quality_score"]:
-                workflow.logger.warning(
-                    f"Voice score {voice_score} below threshold {THRESHOLDS['voice_quality_score']}")
-
-            await self._complete_phase(content_id, ch, "generating_voice",
-                                       detail={"duration_s": voice_data.get("duration_s", 0), "score": voice_score})
-            workflow.logger.info(f"Voice done: {voice_data.get('duration_s', 0)}s (score: {voice_score})")
-
-            await self._check_pause()
-
-            # ── Phase 4: Assets + Thumbnail + Music (parallel) ─
-            await self._set_phase(content_id, "generating_assets", ch)
-
-            # Build asset segments enriched with Script Intelligence queries
-            asset_intel_segs = script_assets_data.get("segments", []) if isinstance(script_assets_data, dict) else []
-            assets_segments_input = []
-            for i, s in enumerate(segments):
-                seg_input = {
-                    "id": s.get("id"),
-                    "scene_direction": s.get("scene_direction", ""),
-                    "asset_suggestions": s.get("asset_suggestions", []),
-                    "b_roll_keywords": s.get("b_roll_keywords", []),
-                    "emotion": s.get("emotion", ""),
-                }
-                # Enrich with asset engine queries if available
-                if i < len(asset_intel_segs):
-                    intel = asset_intel_segs[i]
-                    seg_input["primary_query"] = intel.get("primary_query", "")
-                    seg_input["alternate_queries"] = intel.get("alternate_queries", [])
-                    seg_input["shot_type"] = intel.get("shot_type", "")
-                    seg_input["mood"] = intel.get("mood", {})
-                assets_segments_input.append(seg_input)
-
-            assets_future = workflow.execute_activity(
-                "assets_activity",
-                args=[{
-                    "content_id": content_id,
-                    "channel_id": params.channel_id,
-                    "content_mode": params.content_mode,
-                    "segments": assets_segments_input,
-                }],
-                start_to_close_timeout=timedelta(minutes=15),
-                retry_policy=RETRY_STANDARD,
-            )
-
-            if is_test_mode:
-                # Skip thumbnail generation in test mode; synthesize a passing result
-                music_future = workflow.execute_activity(
-                    "music_activity",
-                    args=[{
-                        "content_id": content_id,
-                        "channel_id": params.channel_id,
-                        "mood": "",
-                        "duration_s": voice_data.get("duration_s", 45.0),
-                    }],
-                    start_to_close_timeout=timedelta(minutes=2),
-                    retry_policy=RETRY_STANDARD,
-                )
-
-                assets_result, music_result = await asyncio.gather(
-                    assets_future, music_future)
-                self._accrued_cost += _add_cost(budget, assets_result)
-                self._check_budget(budget)
-
-                thumbnail_result = {"data": {
-                    "thumbnail_score": 10.0,
-                    "regeneration_count": 0,
-                    "selected_thumbnail": {"url": ""},
-                }, "cost": {"cost_usd": 0.0}}
-                thumbnail_data = thumbnail_result.get("data", {})
-                thumb_score = thumbnail_data.get("thumbnail_score", 7.0)
-                quality_scores["thumbnail_score"] = thumb_score
-                music_data = music_result.get("data", {})
+            if _should_skip("generating_voice", resume_from):
+                workflow.logger.info("Skipping generating_voice (already completed)")
             else:
-                thumbnail_future = workflow.execute_activity(
-                    "thumbnail_activity",
+                await self._set_phase(content_id, "generating_voice", ch)
+
+                # Build voice segments with prosody data from Script Intelligence
+                voice_prosody_segs = script_voice_data.get("segments", []) if isinstance(script_voice_data, dict) else []
+                voice_segments_input = []
+                for i, s in enumerate(segments):
+                    seg_input = {
+                        "id": s.get("id"),
+                        "section": s.get("section", "body"),
+                        "narration": s.get("narration", "") or s.get("text", ""),
+                        "emotion": s.get("emotion", ""),
+                        "emphasis_words": s.get("emphasis_words", []),
+                    }
+                    # Enrich with prosody engine data if available
+                    if i < len(voice_prosody_segs):
+                        prosody = voice_prosody_segs[i]
+                        seg_input["tts_params"] = prosody.get("tts_params", {})
+                        seg_input["dominant_emotion"] = prosody.get("dominant_emotion", "")
+                        if not seg_input["emphasis_words"] and prosody.get("emphasis_words"):
+                            seg_input["emphasis_words"] = prosody["emphasis_words"]
+                    voice_segments_input.append(seg_input)
+
+                voice_result = await workflow.execute_activity(
+                    "voice_activity",
                     args=[{
                         "content_id": content_id,
                         "channel_id": params.channel_id,
-                        "title": final_title,
-                        "topic": topic,
-                        "niche": "",
+                        "content_mode": params.content_mode,
+                        "voice_id": "",
+                        "script_segments": voice_segments_input,
                     }],
                     start_to_close_timeout=timedelta(minutes=10),
                     retry_policy=RETRY_STANDARD,
                 )
+                self._accrued_cost += _add_cost(budget, voice_result)
+                self._check_budget(budget)
 
-                music_future = workflow.execute_activity(
-                    "music_activity",
+                voice_data = voice_result.get("data", {})
+                voice_score = voice_data.get("voice_quality_score", 7.0)
+                quality_scores["voice_quality_score"] = voice_score
+
+                if voice_score < THRESHOLDS["voice_quality_score"]:
+                    workflow.logger.warning(
+                        f"Voice score {voice_score} below threshold {THRESHOLDS['voice_quality_score']}")
+
+                await self._complete_phase(content_id, ch, "generating_voice",
+                                           detail={"duration_s": voice_data.get("duration_s", 0), "score": voice_score})
+                workflow.logger.info(f"Voice done: {voice_data.get('duration_s', 0)}s (score: {voice_score})")
+
+                await self._save_phase_data(content_id, "generating_voice", {
+                    "voice_data": voice_data,
+                    "voice_segments_input": voice_segments_input,
+                    "voice_score": voice_score,
+                })
+
+            await self._check_pause()
+
+            # ── Phase 4: Assets + Thumbnail + Music (parallel) ─
+            if _should_skip("generating_assets", resume_from):
+                workflow.logger.info("Skipping generating_assets (already completed)")
+            else:
+                await self._set_phase(content_id, "generating_assets", ch)
+
+                # Build asset segments enriched with Script Intelligence queries
+                asset_intel_segs = script_assets_data.get("segments", []) if isinstance(script_assets_data, dict) else []
+                assets_segments_input = []
+                for i, s in enumerate(segments):
+                    seg_input = {
+                        "id": s.get("id"),
+                        "scene_direction": s.get("scene_direction", ""),
+                        "asset_suggestions": s.get("asset_suggestions", []),
+                        "b_roll_keywords": s.get("b_roll_keywords", []),
+                        "emotion": s.get("emotion", ""),
+                    }
+                    # Enrich with asset engine queries if available
+                    if i < len(asset_intel_segs):
+                        intel = asset_intel_segs[i]
+                        seg_input["primary_query"] = intel.get("primary_query", "")
+                        seg_input["alternate_queries"] = intel.get("alternate_queries", [])
+                        seg_input["shot_type"] = intel.get("shot_type", "")
+                        seg_input["mood"] = intel.get("mood", {})
+                    assets_segments_input.append(seg_input)
+
+                assets_future = workflow.execute_activity(
+                    "assets_activity",
                     args=[{
                         "content_id": content_id,
                         "channel_id": params.channel_id,
-                        "mood": "",
-                        "duration_s": voice_data.get("duration_s", 45.0),
+                        "content_mode": params.content_mode,
+                        "segments": assets_segments_input,
                     }],
-                    start_to_close_timeout=timedelta(minutes=2),
+                    start_to_close_timeout=timedelta(minutes=15),
                     retry_policy=RETRY_STANDARD,
                 )
 
-                assets_result, thumbnail_result, music_result = await asyncio.gather(
-                    assets_future, thumbnail_future, music_future)
-                self._accrued_cost += _add_cost(budget, assets_result)
-                self._accrued_cost += _add_cost(budget, thumbnail_result)
-                self._check_budget(budget)
+                if is_test_mode:
+                    # Skip thumbnail generation in test mode; synthesize a passing result
+                    music_future = workflow.execute_activity(
+                        "music_activity",
+                        args=[{
+                            "content_id": content_id,
+                            "channel_id": params.channel_id,
+                            "mood": "",
+                            "duration_s": voice_data.get("duration_s", 45.0),
+                        }],
+                        start_to_close_timeout=timedelta(minutes=2),
+                        retry_policy=RETRY_STANDARD,
+                    )
 
-                thumbnail_data = thumbnail_result.get("data", {})
-                thumb_score = thumbnail_data.get("thumbnail_score", 7.0)
-                quality_scores["thumbnail_score"] = thumb_score
-                music_data = music_result.get("data", {})
+                    assets_result, music_result = await asyncio.gather(
+                        assets_future, music_future)
+                    self._accrued_cost += _add_cost(budget, assets_result)
+                    self._check_budget(budget)
 
-            if thumb_score < THRESHOLDS["thumbnail_score"]:
-                workflow.logger.warning(
-                    f"Thumbnail score {thumb_score} below target {THRESHOLDS['thumbnail_score']} "
-                    f"after regenerations — proceeding")
+                    thumbnail_result = {"data": {
+                        "thumbnail_score": 10.0,
+                        "regeneration_count": 0,
+                        "selected_thumbnail": {"url": ""},
+                    }, "cost": {"cost_usd": 0.0}}
+                    thumbnail_data = thumbnail_result.get("data", {})
+                    thumb_score = thumbnail_data.get("thumbnail_score", 7.0)
+                    quality_scores["thumbnail_score"] = thumb_score
+                    music_data = music_result.get("data", {})
+                else:
+                    thumbnail_future = workflow.execute_activity(
+                        "thumbnail_activity",
+                        args=[{
+                            "content_id": content_id,
+                            "channel_id": params.channel_id,
+                            "title": final_title,
+                            "topic": topic,
+                            "niche": "",
+                        }],
+                        start_to_close_timeout=timedelta(minutes=10),
+                        retry_policy=RETRY_STANDARD,
+                    )
 
-            await self._complete_phase(content_id, ch, "generating_assets",
-                                       detail={"thumb_score": thumb_score})
-            workflow.logger.info(
-                f"Assets + Thumbnail + Music done (thumb score: {thumb_score}, "
-                f"regens: {thumbnail_data.get('regeneration_count', 0)})")
+                    music_future = workflow.execute_activity(
+                        "music_activity",
+                        args=[{
+                            "content_id": content_id,
+                            "channel_id": params.channel_id,
+                            "mood": "",
+                            "duration_s": voice_data.get("duration_s", 45.0),
+                        }],
+                        start_to_close_timeout=timedelta(minutes=2),
+                        retry_policy=RETRY_STANDARD,
+                    )
+
+                    assets_result, thumbnail_result, music_result = await asyncio.gather(
+                        assets_future, thumbnail_future, music_future)
+                    self._accrued_cost += _add_cost(budget, assets_result)
+                    self._accrued_cost += _add_cost(budget, thumbnail_result)
+                    self._check_budget(budget)
+
+                    thumbnail_data = thumbnail_result.get("data", {})
+                    thumb_score = thumbnail_data.get("thumbnail_score", 7.0)
+                    quality_scores["thumbnail_score"] = thumb_score
+                    music_data = music_result.get("data", {})
+
+                if thumb_score < THRESHOLDS["thumbnail_score"]:
+                    workflow.logger.warning(
+                        f"Thumbnail score {thumb_score} below target {THRESHOLDS['thumbnail_score']} "
+                        f"after regenerations — proceeding")
+
+                await self._complete_phase(content_id, ch, "generating_assets",
+                                           detail={"thumb_score": thumb_score})
+                workflow.logger.info(
+                    f"Assets + Thumbnail + Music done (thumb score: {thumb_score}, "
+                    f"regens: {thumbnail_data.get('regeneration_count', 0)})")
+
+                await self._save_phase_data(content_id, "generating_assets", {
+                    "assets_result": assets_result,
+                    "thumbnail_data": thumbnail_data,
+                    "music_data": music_data,
+                    "thumb_score": quality_scores.get("thumbnail_score", 7.0),
+                })
 
             await self._check_pause()
 
             # ── Phase 5: Direction ───────────────────────
-            await self._set_phase(content_id, "directing", ch)
+            if _should_skip("directing", resume_from):
+                workflow.logger.info("Skipping directing (already completed)")
+            else:
+                await self._set_phase(content_id, "directing", ch)
 
-            direction_result = await workflow.execute_activity(
-                "direction_activity",
-                args=[{
-                    "content_id": content_id,
-                    "channel_id": params.channel_id,
-                    "content_mode": params.content_mode,
-                    "title": final_title,
-                    "script_segments": segments,
-                    "voice_manifest": voice_data,
-                    "asset_manifest": assets_result.get("data", {}).get("manifest", []),
-                    "thumbnail_result": thumbnail_data,
-                    "music_data": music_data,
-                    "script_direction_hint": script_direction_data,
-                }],
-                start_to_close_timeout=timedelta(minutes=3),
-                retry_policy=RETRY_STANDARD,
-            )
-            self._accrued_cost += _add_cost(budget, direction_result)
-
-            direction_data = direction_result.get("data", {})
-            direction_v3 = direction_data.get("direction_v3", {})
-            dir_score = direction_data.get("direction_score", 7.0)
-            quality_scores["direction_score"] = dir_score
-
-            if dir_score < THRESHOLDS["direction_score"]:
-                workflow.logger.warning(
-                    f"Direction score {dir_score} below threshold {THRESHOLDS['direction_score']}")
-
-            await self._complete_phase(content_id, ch, "directing",
-                                       detail={"score": dir_score})
-            workflow.logger.info(
-                f"Direction done: {direction_data.get('segment_count', 0)} segments "
-                f"(score: {dir_score})")
-
-            await self._check_pause()
-
-            # ── Phase 5B: Editor / Post-Production ────────
-            await self._set_phase(content_id, "post_production", ch)
-
-            try:
-                editor_result = await workflow.execute_activity(
-                    "editor_activity",
+                direction_result = await workflow.execute_activity(
+                    "direction_activity",
                     args=[{
                         "content_id": content_id,
                         "channel_id": params.channel_id,
-                        "direction_v3": direction_v3,
+                        "content_mode": params.content_mode,
+                        "title": final_title,
+                        "script_segments": segments,
                         "voice_manifest": voice_data,
-                        "brand_profile": brand_profile,
+                        "asset_manifest": assets_result.get("data", {}).get("manifest", []),
+                        "thumbnail_result": thumbnail_data,
+                        "music_data": music_data,
+                        "script_direction_hint": script_direction_data,
                     }],
                     start_to_close_timeout=timedelta(minutes=3),
                     retry_policy=RETRY_STANDARD,
                 )
+                self._accrued_cost += _add_cost(budget, direction_result)
 
-                editor_data = editor_result.get("data", {})
-                # Apply editor optimizations back to direction_v3
-                if editor_data.get("optimized_direction"):
-                    direction_v3 = editor_data["optimized_direction"]
-                    workflow.logger.info(
-                        f"Editor applied: pacing_optimized={editor_data.get('pacing_optimized', False)}, "
-                        f"qc_passed={editor_data.get('qc_passed', False)}, "
-                        f"qc_score={editor_data.get('qc_score', 'N/A')}")
-                else:
-                    workflow.logger.info("Editor returned no optimized direction — using original")
+                direction_data = direction_result.get("data", {})
+                direction_v3 = direction_data.get("direction_v3", {})
+                dir_score = direction_data.get("direction_score", 7.0)
+                quality_scores["direction_score"] = dir_score
 
-            except Exception as editor_err:
-                workflow.logger.warning(f"Editor activity failed — using original direction: {editor_err}")
-            await self._complete_phase(content_id, ch, "post_production")
+                if dir_score < THRESHOLDS["direction_score"]:
+                    workflow.logger.warning(
+                        f"Direction score {dir_score} below threshold {THRESHOLDS['direction_score']}")
+
+                await self._complete_phase(content_id, ch, "directing",
+                                           detail={"score": dir_score})
+                workflow.logger.info(
+                    f"Direction done: {direction_data.get('segment_count', 0)} segments "
+                    f"(score: {dir_score})")
+
+                await self._save_phase_data(content_id, "directing", {
+                    "direction_data": direction_data,
+                    "direction_v3": direction_v3,
+                    "dir_score": dir_score,
+                })
+
+            await self._check_pause()
+
+            # ── Phase 5B: Editor / Post-Production ────────
+            if _should_skip("post_production", resume_from):
+                workflow.logger.info("Skipping post_production (already completed)")
+            else:
+                await self._set_phase(content_id, "post_production", ch)
+
+                try:
+                    editor_result = await workflow.execute_activity(
+                        "editor_activity",
+                        args=[{
+                            "content_id": content_id,
+                            "channel_id": params.channel_id,
+                            "direction_v3": direction_v3,
+                            "voice_manifest": voice_data,
+                            "brand_profile": brand_profile,
+                        }],
+                        start_to_close_timeout=timedelta(minutes=3),
+                        retry_policy=RETRY_STANDARD,
+                    )
+
+                    editor_data = editor_result.get("data", {})
+                    # Apply editor optimizations back to direction_v3
+                    if editor_data.get("optimized_direction"):
+                        direction_v3 = editor_data["optimized_direction"]
+                        workflow.logger.info(
+                            f"Editor applied: pacing_optimized={editor_data.get('pacing_optimized', False)}, "
+                            f"qc_passed={editor_data.get('qc_passed', False)}, "
+                            f"qc_score={editor_data.get('qc_score', 'N/A')}")
+                    else:
+                        workflow.logger.info("Editor returned no optimized direction — using original")
+
+                except Exception as editor_err:
+                    workflow.logger.warning(f"Editor activity failed — using original direction: {editor_err}")
+                await self._complete_phase(content_id, ch, "post_production")
+
+                await self._save_phase_data(content_id, "post_production", {
+                    "direction_v3": direction_v3,
+                })
 
             await self._check_pause()
 
             # ── Phase 6: Assembly (Remotion render) ──────
-            await self._set_phase(content_id, "rendering", ch)
+            if _should_skip("rendering", resume_from):
+                workflow.logger.info("Skipping rendering (already completed)")
+            else:
+                await self._set_phase(content_id, "rendering", ch)
 
-            assembly_result = await workflow.execute_activity(
-                "assembly_activity",
-                args=[{
-                    "content_id": content_id,
-                    "channel_id": params.channel_id,
-                    "content_mode": params.content_mode,
-                    "title": final_title,
-                    "direction_v3": direction_v3,
-                    "thumbnail_url": thumbnail_data.get("selected_thumbnail", {}).get("url", ""),
-                    "environment": env,
-                }],
-                start_to_close_timeout=timedelta(hours=1),
-                heartbeat_timeout=timedelta(minutes=2),
-                retry_policy=RETRY_RENDER,
-            )
+                assembly_result = await workflow.execute_activity(
+                    "assembly_activity",
+                    args=[{
+                        "content_id": content_id,
+                        "channel_id": params.channel_id,
+                        "content_mode": params.content_mode,
+                        "title": final_title,
+                        "direction_v3": direction_v3,
+                        "thumbnail_url": thumbnail_data.get("selected_thumbnail", {}).get("url", ""),
+                        "environment": env,
+                    }],
+                    start_to_close_timeout=timedelta(hours=1),
+                    heartbeat_timeout=timedelta(minutes=2),
+                    retry_policy=RETRY_RENDER,
+                )
 
-            assembly_data = assembly_result.get("data", {})
-            video_url = assembly_data.get("video_url", "")
-            prod_score = assembly_data.get("production_score", 7.0)
-            quality_scores["production_score"] = prod_score
+                assembly_data = assembly_result.get("data", {})
+                video_url = assembly_data.get("video_url", "")
+                prod_score = assembly_data.get("production_score", 7.0)
+                quality_scores["production_score"] = prod_score
 
-            await self._complete_phase(content_id, ch, "rendering",
-                                       detail={"video_url": video_url[:80], "score": prod_score})
-            workflow.logger.info(f"Render done: {video_url[:80]} (score: {prod_score})")
+                await self._complete_phase(content_id, ch, "rendering",
+                                           detail={"video_url": video_url[:80], "score": prod_score})
+                workflow.logger.info(f"Render done: {video_url[:80]} (score: {prod_score})")
+
+                await self._save_phase_data(content_id, "rendering", {
+                    "assembly_data": assembly_data,
+                    "video_url": video_url,
+                    "prod_score": prod_score,
+                })
 
             # ── Phase 7: Compute Composite & Human Review Gate ─
             score_values = [v for v in quality_scores.values() if isinstance(v, (int, float))]
@@ -605,72 +802,76 @@ class VideoProductionWorkflow:
             await self._check_pause()
 
             # ── Phase 8: Delivery ────────────────────────
-            await self._set_phase(content_id, "delivering", ch)
-
             packaging = script_data.get("packaging", {})
             description = packaging.get("description", script_data.get("description", ""))
             tags = packaging.get("tags", script_data.get("tags", []))
 
-            youtube_id = ""
-
-            if is_test_mode:
-                # TEST MODE: Skip YouTube upload entirely
-                youtube_id = "TEST_SKIP"
-                workflow.logger.info("Test mode — skipping YouTube upload")
-                await self._complete_phase(content_id, ch, "delivering",
-                                           detail={"youtube_id": youtube_id, "skipped": True, "reason": "test_mode"})
+            if _should_skip("delivering", resume_from):
+                workflow.logger.info("Skipping delivering (already completed)")
             else:
-                delivery_result = await workflow.execute_activity(
-                    "delivery_activity",
-                    args=[{
-                        "content_id": content_id,
-                        "channel_id": params.channel_id,
-                        "content_mode": params.content_mode,
-                        "title": final_title,
-                        "description": description,
-                        "tags": tags,
-                        "video_url": video_url,
-                        "thumbnail_url": thumbnail_data.get("selected_thumbnail", {}).get("url", ""),
-                        "privacy_status": "private",
-                        "is_short": params.content_mode == "short",
-                        "quality_scores": quality_scores,
-                        "human_review_required": False,
-                    }],
-                    start_to_close_timeout=timedelta(minutes=10),
-                    retry_policy=RETRY_STANDARD,
-                )
+                await self._set_phase(content_id, "delivering", ch)
 
-                youtube_id = delivery_result.get("data", {}).get("youtube_video_id", "")
-                await self._complete_phase(content_id, ch, "delivering",
-                                           detail={"youtube_id": youtube_id})
-                workflow.logger.info(f"Delivered: https://youtu.be/{youtube_id}")
+                if is_test_mode:
+                    # TEST MODE: Skip YouTube upload entirely
+                    youtube_id = "TEST_SKIP"
+                    workflow.logger.info("Test mode — skipping YouTube upload")
+                    await self._complete_phase(content_id, ch, "delivering",
+                                               detail={"youtube_id": youtube_id, "skipped": True, "reason": "test_mode"})
+                else:
+                    delivery_result = await workflow.execute_activity(
+                        "delivery_activity",
+                        args=[{
+                            "content_id": content_id,
+                            "channel_id": params.channel_id,
+                            "content_mode": params.content_mode,
+                            "title": final_title,
+                            "description": description,
+                            "tags": tags,
+                            "video_url": video_url,
+                            "thumbnail_url": thumbnail_data.get("selected_thumbnail", {}).get("url", ""),
+                            "privacy_status": "private",
+                            "is_short": params.content_mode == "short",
+                            "quality_scores": quality_scores,
+                            "human_review_required": False,
+                        }],
+                        start_to_close_timeout=timedelta(minutes=10),
+                        retry_policy=RETRY_STANDARD,
+                    )
+
+                    youtube_id = delivery_result.get("data", {}).get("youtube_video_id", "")
+                    await self._complete_phase(content_id, ch, "delivering",
+                                               detail={"youtube_id": youtube_id})
+                    workflow.logger.info(f"Delivered: https://youtu.be/{youtube_id}")
 
             # ── Phase 9: Analytics (skipped if nothing was actually published) ──
-            # Analytics measures real YouTube performance. If we didn't upload
-            # (test mode, auto_upload disabled, or upload skipped) there is
-            # nothing to measure — skip the phase entirely instead of running
-            # an empty no-op that keeps the job looking "in progress".
-            should_run_analytics = bool(youtube_id) and youtube_id != "TEST_SKIP"
-            if should_run_analytics:
-                await self._set_phase(content_id, "analytics", ch)
-                try:
-                    await workflow.execute_activity(
-                        "analytics_activity",
-                        args=[{
-                            "channel_id": params.channel_id,
-                            "youtube_video_ids": [youtube_id],
-                        }],
-                        start_to_close_timeout=timedelta(seconds=120),
-                    )
-                    await self._complete_phase(content_id, ch, "analytics")
-                except Exception as analytics_exc:
-                    workflow.logger.warning(f"Analytics activity failed — non-critical, continuing: {analytics_exc}")
-                    await self._complete_phase(content_id, ch, "analytics")
+            if _should_skip("analytics", resume_from):
+                workflow.logger.info("Skipping analytics (already completed)")
             else:
-                workflow.logger.info(
-                    "Analytics phase skipped — no real YouTube upload to measure",
-                    youtube_id=youtube_id,
-                )
+                # Analytics measures real YouTube performance. If we didn't upload
+                # (test mode, auto_upload disabled, or upload skipped) there is
+                # nothing to measure — skip the phase entirely instead of running
+                # an empty no-op that keeps the job looking "in progress".
+                should_run_analytics = bool(youtube_id) and youtube_id != "TEST_SKIP"
+                if should_run_analytics:
+                    await self._set_phase(content_id, "analytics", ch)
+                    try:
+                        await workflow.execute_activity(
+                            "analytics_activity",
+                            args=[{
+                                "channel_id": params.channel_id,
+                                "youtube_video_ids": [youtube_id],
+                            }],
+                            start_to_close_timeout=timedelta(seconds=120),
+                        )
+                        await self._complete_phase(content_id, ch, "analytics")
+                    except Exception as analytics_exc:
+                        workflow.logger.warning(f"Analytics activity failed — non-critical, continuing: {analytics_exc}")
+                        await self._complete_phase(content_id, ch, "analytics")
+                else:
+                    workflow.logger.info(
+                        "Analytics phase skipped — no real YouTube upload to measure",
+                        youtube_id=youtube_id,
+                    )
 
             # Brand consistency check on final output
             # NOTE: must call brand_activity with action='consistency' — there is

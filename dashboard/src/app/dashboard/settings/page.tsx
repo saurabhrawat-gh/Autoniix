@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { api, isLoggedIn } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { ThemeToggle, HomeLogo } from '@/lib/theme';
+import { useToast } from '@/lib/toast';
 
 const FRIENDLY_LABELS: Record<string, string> = {
   dashboard_admin_password: 'Admin Password',
@@ -74,6 +75,10 @@ export default function SettingsPage() {
   const [emergency, setEmergency] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [jsonError, setJsonError] = useState('');
+  const [cleanSlateOpen, setCleanSlateOpen] = useState(false);
+  const [cleanSlateInput, setCleanSlateInput] = useState('');
+  const [cleanSlateRunning, setCleanSlateRunning] = useState(false);
+  const { showToast } = useToast();
   const systemStopped = emergency;
 
   useEffect(() => {
@@ -148,6 +153,28 @@ export default function SettingsPage() {
         setEditValue(JSON.stringify(arr));
       }
     } catch {}
+  }
+
+  async function handleCleanSlate() {
+    if (cleanSlateInput !== 'RESET') return;
+    setCleanSlateRunning(true);
+    try {
+      const res = await api.cleanSlate();
+      const d = res?.data || {};
+      showToast(
+        `Clean slate done: ${d.workflows_terminated || 0} workflow(s) terminated, ` +
+        `${(d.tables_truncated || []).length} table(s) cleared, ` +
+        `${d.storage_objects_deleted || 0} object(s) removed`,
+        'success'
+      );
+      setCleanSlateOpen(false);
+      setCleanSlateInput('');
+      setTimeout(() => { router.push('/dashboard'); }, 500);
+    } catch (err: any) {
+      showToast(err?.message || 'Clean slate failed', 'error');
+    } finally {
+      setCleanSlateRunning(false);
+    }
   }
 
   if (loading) return (
@@ -250,8 +277,106 @@ export default function SettingsPage() {
               </div>
             )
           ))}
+
+          {/* Danger Zone */}
+          <div className="mb-8">
+            <h2 className="text-xs font-semibold text-status-error mb-3 flex items-center gap-2">
+              Danger Zone
+            </h2>
+            <div className="card border-status-error/30 bg-status-error/5 p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-content-primary">Clean Slate — Reset All Jobs</div>
+                  <div className="text-xs text-content-tertiary mt-1">
+                    Wipes all video history, job events, analytics, renders, and checkpoints.
+                    Preserves channels, brand profiles, config, prompts, and ML models.
+                    Dashboard returns to <span className="font-mono">0 delivered · 0 in-progress · 0 total</span>.
+                  </div>
+                </div>
+                <button
+                  onClick={() => setCleanSlateOpen(true)}
+                  disabled={systemStopped}
+                  className={cn(
+                    'shrink-0 px-3 py-1.5 rounded-md text-xs font-medium transition-all border',
+                    'bg-status-error/10 text-status-error border-status-error/30 hover:bg-status-error/20',
+                    systemStopped && 'opacity-50 cursor-not-allowed'
+                  )}>
+                  Clean Slate
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </main>
+
+      {/* Clean Slate Confirmation Modal */}
+      {cleanSlateOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+             onClick={() => !cleanSlateRunning && setCleanSlateOpen(false)}>
+          <div className="bg-surface-0 border border-status-error/30 rounded-xl shadow-elevated max-w-md w-full p-6"
+               onClick={e => e.stopPropagation()}>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="shrink-0 w-10 h-10 rounded-full bg-status-error/10 flex items-center justify-center text-status-error text-lg">!</div>
+              <div>
+                <h3 className="text-base font-semibold text-content-primary">This will delete ALL job history</h3>
+                <p className="text-xs text-content-tertiary mt-1">This action cannot be undone.</p>
+              </div>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <div className="font-medium text-status-error mb-1">Will be wiped:</div>
+                <ul className="list-disc pl-5 text-content-secondary space-y-0.5">
+                  <li>All videos, job events, and analytics records</li>
+                  <li>All feedback and experiment data</li>
+                  <li>All MinIO blobs (renders, checkpoints, assets)</li>
+                  <li>All running Temporal workflows (terminated)</li>
+                  <li>All Redis channel locks</li>
+                </ul>
+              </div>
+              <div>
+                <div className="font-medium text-status-success mb-1">Will be preserved:</div>
+                <ul className="list-disc pl-5 text-content-secondary space-y-0.5">
+                  <li>Channel configurations and brand profiles</li>
+                  <li>System config, prompt registry, ML models</li>
+                </ul>
+              </div>
+            </div>
+            <div className="mt-5">
+              <label className="text-xs text-content-secondary block mb-1.5">
+                Type <span className="font-mono font-semibold text-status-error">RESET</span> to confirm:
+              </label>
+              <input
+                type="text"
+                value={cleanSlateInput}
+                onChange={e => setCleanSlateInput(e.target.value)}
+                disabled={cleanSlateRunning}
+                placeholder="RESET"
+                className="w-full px-3 py-2 bg-surface-1 border border-border rounded-md text-sm font-mono text-content-primary focus:outline-none focus:border-status-error"
+                autoFocus
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 mt-5">
+              <button
+                onClick={() => { setCleanSlateOpen(false); setCleanSlateInput(''); }}
+                disabled={cleanSlateRunning}
+                className="px-3 py-1.5 rounded-md text-xs font-medium text-content-secondary bg-surface-1 border border-border hover:bg-surface-2 transition-all disabled:opacity-50">
+                Cancel
+              </button>
+              <button
+                onClick={handleCleanSlate}
+                disabled={cleanSlateInput !== 'RESET' || cleanSlateRunning}
+                className={cn(
+                  'px-3 py-1.5 rounded-md text-xs font-medium text-white transition-all',
+                  cleanSlateInput === 'RESET' && !cleanSlateRunning
+                    ? 'bg-status-error hover:opacity-90'
+                    : 'bg-status-error/40 cursor-not-allowed'
+                )}>
+                {cleanSlateRunning ? 'Wiping…' : 'Clean Slate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

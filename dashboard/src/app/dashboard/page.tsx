@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, isLoggedIn, clearToken } from '@/lib/api';
+import { api, isLoggedIn, clearToken, wsEvents } from '@/lib/api';
 import { cn, statusDot } from '@/lib/utils';
 import { ThemeToggle } from '@/lib/theme';
 import { useToast } from '@/lib/toast';
@@ -70,6 +70,38 @@ export default function DashboardPage() {
     setPinned(loadPinned());
     loadData();
   }, [router]);
+
+  // Cross-tab sync via WebSocket + fallback polling
+  useEffect(() => {
+    if (!isLoggedIn()) return;
+
+    let ws: WebSocket | null = null;
+    let reconnectTimer: NodeJS.Timeout;
+
+    function connectWs() {
+      try {
+        ws = wsEvents();
+        ws.onmessage = (ev) => {
+          try {
+            const msg = JSON.parse(ev.data);
+            if (msg.type === 'job_update') loadData();
+          } catch {}
+        };
+        ws.onclose = () => { reconnectTimer = setTimeout(connectWs, 5000); };
+        ws.onerror = () => { ws?.close(); };
+      } catch {}
+    }
+    connectWs();
+
+    // Fallback polling every 15s
+    const pollInterval = setInterval(loadData, 15000);
+
+    return () => {
+      ws?.close();
+      clearTimeout(reconnectTimer);
+      clearInterval(pollInterval);
+    };
+  }, []);
 
   async function loadData() {
     try {
@@ -237,10 +269,11 @@ export default function DashboardPage() {
     return (ch.active_jobs || []).find((j: any) => j.content_mode === mode) || null;
   }
 
-  function getModeState(ch: any, mode: string): 'idle' | 'running' | 'paused' | 'pending_review' {
+  function getModeState(ch: any, mode: string): 'idle' | 'running' | 'paused' | 'pending_review' | 'stopped' {
     if (triggeringKeys.has(`${ch.channel_id}:${mode}`)) return 'running';
     const job = getModeJob(ch, mode);
     if (!job) return 'idle';
+    if (job.status === 'stopped' || job.status === 'failed' || job.status === 'superseded') return 'idle';
     if (job.is_paused) return 'paused';
     if (job.status === 'pending_review') return 'pending_review';
     return 'running';
@@ -595,7 +628,7 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="w-64 flex justify-end items-center gap-1.5 self-center">
+                  <div className="min-w-[16rem] flex justify-end items-start gap-1.5 self-center">
                     {isArchived ? (
                       <>
                         <Tip text="Restore to disabled state">
@@ -614,57 +647,67 @@ export default function DashboardPage() {
                     ) : (
                       <>
                         {/* Per-mode trigger / running state */}
-                        {modes.map((m: string) => {
-                          const mState = getModeState(ch, m);
-                          const mJob = getModeJob(ch, m);
-                          const atLimit = isModeAtLimit(ch, m);
-                          const mLabel = m === 'short' ? 'S' : 'L';
-
-                          if (mState === 'idle') {
-                            const canTrigger = !isDisabled && !systemStopped && !atLimit;
-                            return (
-                              <button key={m} onClick={() => triggerChannel(ch.channel_id, m)} disabled={!canTrigger}
-                                className={cn('px-2.5 py-1 border rounded-md text-[11px] font-medium transition-all',
-                                  canTrigger ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
-                                    : 'text-content-tertiary bg-surface-2 border-border cursor-not-allowed opacity-50')}>
-                                {atLimit ? `${mLabel} Limit` : `▶ ${m === 'short' ? 'Short' : 'Long'}`}
-                              </button>
-                            );
-                          }
-                          if (mState === 'pending_review' && mJob) {
-                            return (
-                              <Link key={m} href={`/dashboard/jobs/${mJob.content_id}`}
-                                className="px-2.5 py-1 border rounded-md text-[11px] font-medium text-status-warning bg-status-warning/5 border-status-warning/15 hover:bg-status-warning/10 transition-all">
-                                Review ({mLabel})
-                              </Link>
-                            );
-                          }
-                          // running or paused
-                          const isBusy = mJob && busyJobs.has(mJob.content_id);
+                        {(() => {
+                          const hasRunning = modes.some((m: string) => {
+                            const s = getModeState(ch, m);
+                            return s === 'running' || s === 'paused';
+                          });
                           return (
-                            <div key={m} className="flex items-center gap-1">
-                              <ProgressRing paused={mState === 'paused'} />
-                              <span className="text-[10px] text-content-tertiary font-medium">
-                                {mState === 'paused' ? 'Paused' : 'Running'} ({mLabel})
-                              </span>
-                              {mJob && (
-                                <>
-                                  <button onClick={() => togglePauseJob(mJob.content_id, mJob.is_paused)} disabled={isDisabled || isBusy}
-                                    className={cn('px-1.5 py-0.5 border rounded text-[10px] font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed',
-                                      mJob.is_paused
-                                        ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
-                                        : 'text-status-warning bg-status-warning/5 border-status-warning/15 hover:bg-status-warning/10')}>
-                                    {isBusy ? '...' : (mJob.is_paused ? '▶' : '⏸')}
-                                  </button>
-                                  <button onClick={() => stopJob(mJob.content_id)} disabled={isDisabled || isBusy}
-                                    className="px-1.5 py-0.5 border rounded text-[10px] font-medium text-status-error bg-status-error/5 border-status-error/15 hover:bg-status-error/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                                    {isBusy ? '...' : '■'}
-                                  </button>
-                                </>
-                              )}
+                            <div className={cn('flex gap-1.5', hasRunning ? 'flex-col items-end' : 'items-center')}>
+                              {modes.map((m: string) => {
+                                const mState = getModeState(ch, m);
+                                const mJob = getModeJob(ch, m);
+                                const atLimit = isModeAtLimit(ch, m);
+                                const mLabel = m === 'short' ? 'S' : 'L';
+
+                                if (mState === 'idle') {
+                                  const canTrigger = !isDisabled && !systemStopped && !atLimit;
+                                  return (
+                                    <button key={m} onClick={() => triggerChannel(ch.channel_id, m)} disabled={!canTrigger}
+                                      className={cn('px-2.5 py-1 border rounded-md text-[11px] font-medium transition-all',
+                                        canTrigger ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
+                                          : 'text-content-tertiary bg-surface-2 border-border cursor-not-allowed opacity-50')}>
+                                      {atLimit ? `${mLabel} Limit` : `▶ ${m === 'short' ? 'Short' : 'Long'}`}
+                                    </button>
+                                  );
+                                }
+                                if (mState === 'pending_review' && mJob) {
+                                  return (
+                                    <Link key={m} href={`/dashboard/jobs/${mJob.content_id}`}
+                                      className="px-2.5 py-1 border rounded-md text-[11px] font-medium text-status-warning bg-status-warning/5 border-status-warning/15 hover:bg-status-warning/10 transition-all">
+                                      Review ({mLabel})
+                                    </Link>
+                                  );
+                                }
+                                // running or paused — compact row
+                                const isBusy = mJob && busyJobs.has(mJob.content_id);
+                                return (
+                                  <div key={m} className="flex items-center gap-1">
+                                    <ProgressRing paused={mState === 'paused'} />
+                                    <span className="text-[10px] text-content-tertiary font-medium whitespace-nowrap">
+                                      {mState === 'paused' ? 'Paused' : 'Running'} ({mLabel})
+                                    </span>
+                                    {mJob && (
+                                      <>
+                                        <button onClick={() => togglePauseJob(mJob.content_id, mJob.is_paused)} disabled={isDisabled || isBusy}
+                                          className={cn('px-1.5 py-0.5 border rounded text-[10px] font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed',
+                                            mJob.is_paused
+                                              ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
+                                              : 'text-status-warning bg-status-warning/5 border-status-warning/15 hover:bg-status-warning/10')}>
+                                          {isBusy ? '...' : (mJob.is_paused ? '▶' : '⏸')}
+                                        </button>
+                                        <button onClick={() => stopJob(mJob.content_id)} disabled={isDisabled || isBusy}
+                                          className="px-1.5 py-0.5 border rounded text-[10px] font-medium text-status-error bg-status-error/5 border-status-error/15 hover:bg-status-error/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                                          {isBusy ? '...' : '■'}
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           );
-                        })}
+                        })()}
 
                         {/* Settings gear */}
                         <Link href={`/dashboard/channels/${ch.channel_id}/settings`}

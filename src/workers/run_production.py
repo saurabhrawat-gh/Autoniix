@@ -18,7 +18,9 @@ from src.workers.activities.common import (
     check_system_status,
     emit_job_event,
     get_eligible_channels,
+    load_checkpoint_data,
     release_channel_lock,
+    save_checkpoint_data,
     send_notification,
     update_video_status,
 )
@@ -79,6 +81,8 @@ async def main() -> None:
             get_eligible_channels,
             acquire_channel_lock,
             send_notification,
+            save_checkpoint_data,
+            load_checkpoint_data,
         ],
         max_concurrent_activities=5,
         max_concurrent_workflow_tasks=10,

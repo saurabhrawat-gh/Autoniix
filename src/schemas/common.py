@@ -30,6 +30,8 @@ class VideoStatus(str, Enum):
     delivered = "delivered"
     test_delivered = "test_delivered"
     retrying = "retrying"
+    stopped = "stopped"
+    superseded = "superseded"
     failed = "failed"
     rejected = "rejected"
 
