@@ -77,6 +77,41 @@ async def assemble(req: AssemblyRequest):
         if not direction_v3 or not direction_v3.get("segments"):
             raise HTTPException(status_code=400, detail="No direction_v3 data provided")
 
+        # ── Test Mode: skip Remotion, return mock render ──
+        is_test_mode = req.environment != "production"
+        if is_test_mode:
+            seg_count = len(direction_v3.get("segments", []))
+            total_ms = sum(s.get("duration_ms", 0) for s in direction_v3.get("segments", []))
+            mock_url = f"test://mock-render/{req.content_id}.mp4"
+            logger.info("assembly.test_mode_mock", content_id=req.content_id, segments=seg_count)
+            try:
+                pool = await get_pool()
+                await pool.execute(
+                    "UPDATE videos SET render_url = $1, production_score = $2, "
+                    "status = 'rendered', updated_at = NOW() WHERE content_id = $3",
+                    mock_url, 8.0, req.content_id,
+                )
+            except Exception as e:
+                logger.warning("assembly.test_mock_db_update_failed", error=str(e))
+            return ServiceResponse(
+                status="success",
+                data={
+                    "render_id": f"mock-{req.content_id}",
+                    "video_url": mock_url,
+                    "render_duration_s": 0,
+                    "video_duration_s": round(total_ms / 1000, 1) if total_ms else 30.0,
+                    "production_score": 8.0,
+                    "production_issues": [],
+                    "segment_count": seg_count,
+                    "intelligence": {
+                        "complexity": {"complexity": 0, "risk": "low"},
+                        "estimated_render_s": 0,
+                    },
+                    "test_mode": True,
+                },
+                cost={"cost_usd": 0, "provider": "mock"},
+            )
+
         segments = direction_v3.get("segments", [])
 
         # ── Pre-Render Sync Validation ────────────────────

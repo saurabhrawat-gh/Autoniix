@@ -68,7 +68,7 @@ class DailySchedulerWorkflow:
                     max_cost_usd=per_video_budget,
                     environment=environment_mode,
                 )],
-                id=f"video-{ch['channel_id']}-{mode[:1]}-{workflow.now().strftime('%Y%m%d-%H%M')}",
+                id=f"video-{ch['channel_id']}-{mode[:1]}-{workflow.now().strftime('%Y%m%d-%H%M%S')}",
                 task_queue="video-production",
             )
             triggered += 1

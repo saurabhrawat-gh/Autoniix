@@ -26,6 +26,8 @@ export const PHASE_LABELS: Record<string, string> = {
   delivered: 'Delivered',
   test_delivered: 'Delivered (Test)',
   retrying: 'Retrying',
+  stopped: 'Stopped',
+  superseded: 'Superseded',
   failed: 'Failed',
   rejected: 'Rejected',
 };
@@ -33,6 +35,8 @@ export const PHASE_LABELS: Record<string, string> = {
 export function statusColor(status: string): string {
   if (status === 'completed' || status === 'delivered' || status === 'test_delivered') return 'text-status-success';
   if (status === 'failed' || status === 'rejected') return 'text-status-error';
+  if (status === 'stopped') return 'text-orange-400';
+  if (status === 'superseded') return 'text-content-tertiary';
   if (status === 'started' || status === 'retrying') return 'text-accent';
   if (status === 'pending_review') return 'text-status-warning';
   return 'text-content-tertiary';
@@ -41,6 +45,8 @@ export function statusColor(status: string): string {
 export function statusIcon(status: string): string {
   if (status === 'completed' || status === 'delivered' || status === 'test_delivered') return '✓';
   if (status === 'failed' || status === 'rejected') return '✕';
+  if (status === 'stopped') return '■';
+  if (status === 'superseded') return '⊘';
   if (status === 'retrying') return '↻';
   if (status === 'started') return '●';
   if (status === 'pending_review') return '◐';
@@ -52,5 +58,19 @@ export function statusDot(status: string): string {
   if (status === 'disabled') return 'bg-content-tertiary';
   if (status === 'archived') return 'bg-surface-3';
   if (status === 'failed' || status === 'rejected') return 'bg-status-error';
+  if (status === 'stopped') return 'bg-orange-400';
+  if (status === 'superseded') return 'bg-surface-3';
   return 'bg-status-warning';
+}
+
+export function isTerminalStatus(status: string): boolean {
+  return ['failed', 'stopped', 'superseded', 'delivered', 'test_delivered', 'rejected'].includes(status);
+}
+
+export function isStopped(status: string): boolean {
+  return status === 'stopped';
+}
+
+export function isSuperseded(status: string): boolean {
+  return status === 'superseded';
 }

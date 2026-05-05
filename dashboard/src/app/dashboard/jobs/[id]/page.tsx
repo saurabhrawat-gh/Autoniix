@@ -103,6 +103,7 @@ export default function JobDetailPage() {
 
   const isDelivered = progress.current_status === 'delivered';
   const isFailed = progress.current_status === 'failed';
+  const isStopped = progress.current_status === 'stopped';
   const showReviewPanel = isDelivered && reviewAction !== 'approved' && reviewAction !== 'rejected';
   const isApproved = reviewAction === 'approved';
   const isRejected = reviewAction === 'rejected';
@@ -228,6 +229,43 @@ export default function JobDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Stopped Panel — shown when job has been stopped by user */}
+          {isStopped && (
+            <div className="card p-5 mb-6 border-2 border-orange-400/30 bg-orange-400/5">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-orange-400">Job Stopped</h3>
+                  <p className="text-xs text-content-tertiary mt-1">
+                    This job was stopped by user. You can resume from the last checkpoint or start fresh.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {progress.checkpoint && (
+                    <button
+                      onClick={handleRestart}
+                      disabled={restartBusy}
+                      className="px-4 py-2 border rounded-lg text-xs font-medium text-status-success bg-status-success/5 border-status-success/15 hover:bg-status-success/10 transition-all disabled:opacity-50"
+                    >
+                      {restartBusy ? 'Restarting...' : `Restart from ${PHASE_LABELS[progress.checkpoint] || progress.checkpoint}`}
+                    </button>
+                  )}
+                  <button
+                    onClick={handleRetry}
+                    disabled={retryBusy}
+                    className="px-4 py-2 border rounded-lg text-xs font-medium text-accent bg-accent/5 border-accent/15 hover:bg-accent/10 transition-all disabled:opacity-50"
+                  >
+                    {retryBusy ? 'Retrying...' : 'Retry (Fresh)'}
+                  </button>
+                </div>
+              </div>
+              {progress.error_message && (
+                <div className="px-3 py-2 rounded bg-orange-400/10 text-xs text-orange-400 font-mono">
+                  {progress.error_message}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Failed Panel — shown when job has failed */}
           {isFailed && (

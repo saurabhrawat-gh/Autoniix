@@ -144,10 +144,20 @@ export const api = {
     request('/api/environment', { method: 'PUT', body: JSON.stringify({ mode, confirm }) }),
   testDataStats: () => request('/api/test-data/stats'),
   cleanupTestData: () => request('/api/test-data', { method: 'DELETE' }),
+
+  // Clean slate — full reset
+  cleanSlate: () =>
+    request('/api/admin/clean-slate', { method: 'POST', body: JSON.stringify({ confirm: 'RESET' }) }),
 };
 
 export function wsProgress(contentId: string): WebSocket {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = process.env.NEXT_PUBLIC_WS_URL || `${proto}//${window.location.host}`;
   return new WebSocket(`${host}/api/ws/progress/${contentId}`);
+}
+
+export function wsEvents(): WebSocket {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = process.env.NEXT_PUBLIC_WS_URL || `${proto}//${window.location.host}`;
+  return new WebSocket(`${host}/api/ws/events`);
 }

@@ -218,8 +218,8 @@ async def list_channels(
         )
         # Get counts
         counts = await pool.fetchrow(
-            "SELECT COUNT(*) FILTER (WHERE status = 'delivered') as delivered, "
-            "COUNT(*) FILTER (WHERE status NOT IN ('delivered','failed','rejected')) as in_progress, "
+            "SELECT COUNT(*) FILTER (WHERE status IN ('delivered','test_delivered')) as delivered, "
+            "COUNT(*) FILTER (WHERE status NOT IN ('delivered','test_delivered','failed','stopped','superseded','rejected')) as in_progress, "
             "COUNT(*) as total "
             "FROM videos WHERE channel_id = $1",
             r["channel_id"],
@@ -227,8 +227,8 @@ async def list_channels(
         # Weekly usage: how many videos produced this week per content mode
         weekly = await pool.fetchrow(
             "SELECT "
-            "COUNT(*) FILTER (WHERE content_mode = 'short' AND status NOT IN ('failed','rejected')) as short_used, "
-            "COUNT(*) FILTER (WHERE content_mode = 'long_form' AND status NOT IN ('failed','rejected')) as long_used, "
+            "COUNT(*) FILTER (WHERE content_mode = 'short' AND status NOT IN ('failed','stopped','superseded','rejected')) as short_used, "
+            "COUNT(*) FILTER (WHERE content_mode = 'long_form' AND status NOT IN ('failed','stopped','superseded','rejected')) as long_used, "
             "COUNT(*) FILTER (WHERE content_mode = 'short' AND status = 'delivered' AND approved_at IS NOT NULL) as short_approved, "
             "COUNT(*) FILTER (WHERE content_mode = 'long_form' AND status = 'delivered' AND approved_at IS NOT NULL) as long_approved "
             "FROM videos WHERE channel_id = $1 AND created_at >= date_trunc('week', NOW())",
@@ -238,7 +238,7 @@ async def list_channels(
         active_job_rows = await pool.fetch(
             "SELECT DISTINCT ON (content_mode) content_id, status, content_mode "
             "FROM videos WHERE channel_id = $1 "
-            "AND status NOT IN ('delivered', 'test_delivered', 'failed', 'rejected', 'retrying') "
+            "AND status NOT IN ('delivered', 'test_delivered', 'failed', 'stopped', 'superseded', 'rejected', 'retrying') "
             "ORDER BY content_mode, created_at DESC",
             r["channel_id"],
         )
@@ -635,7 +635,7 @@ async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depe
     # Prevent duplicate: check for already-running jobs for this channel + mode
     running_count = await pool.fetchval(
         "SELECT COUNT(*) FROM videos WHERE channel_id = $1 AND content_mode = $2 "
-        "AND status NOT IN ('delivered', 'test_delivered', 'failed', 'rejected', 'retrying')",
+        "AND status NOT IN ('delivered', 'test_delivered', 'failed', 'stopped', 'superseded', 'rejected', 'retrying')",
         channel_id, content_mode,
     )
     if running_count and int(running_count) > 0:
@@ -653,6 +653,13 @@ async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depe
     prefix = "TEST_VID" if is_test else "VID"
     content_id = f"{prefix}_{channel_id}_{ts}"
     workflow_id = f"manual-{content_id}"
+
+    # Mark all older failed/stopped jobs for this channel+mode as superseded
+    await pool.execute(
+        "UPDATE videos SET status = 'superseded', updated_at = NOW() "
+        "WHERE channel_id = $1 AND content_mode = $2 AND status IN ('failed', 'stopped')",
+        channel_id, content_mode,
+    )
 
     await pool.execute(
         "INSERT INTO videos (content_id, channel_id, status, content_mode, environment, updated_at) "
@@ -681,6 +688,7 @@ async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depe
         await pool.execute("DELETE FROM videos WHERE content_id = $1", content_id)
         raise HTTPException(status_code=500, detail=f"Failed to start workflow: {exc}")
 
+    await _broadcast_job_event(content_id, "researching", channel_id)
     return R(status="ok", data={"workflow_id": workflow_id, "channel_id": channel_id, "content_id": content_id})
 
 
@@ -749,11 +757,11 @@ async def _terminate_channel_workflows(channel_id: str) -> list[str]:
     except Exception as list_exc:
         logger.warning("workflow.list.failed", error=str(list_exc))
 
-    # Mark all in-progress videos for this channel as failed
+    # Mark all in-progress videos for this channel as stopped (not failed)
     if terminated:
         await pool.execute(
-            "UPDATE videos SET status = 'failed', error_message = 'Stopped by user', updated_at = NOW() "
-            "WHERE channel_id = $1 AND status NOT IN ('delivered', 'test_delivered', 'failed', 'rejected', 'retrying')",
+            "UPDATE videos SET status = 'stopped', error_message = 'Stopped by user', updated_at = NOW() "
+            "WHERE channel_id = $1 AND status NOT IN ('delivered', 'test_delivered', 'failed', 'stopped', 'superseded', 'rejected', 'retrying')",
             channel_id,
         )
     return terminated
@@ -816,7 +824,7 @@ async def job_progress(content_id: str, _: str = Depends(verify_token)):
     )
     # Also get current video status
     video = await pool.fetchrow(
-        "SELECT status, total_cost FROM videos WHERE content_id = $1", content_id
+        "SELECT status, total_cost, checkpoint, error_message, channel_id FROM videos WHERE content_id = $1", content_id
     )
 
     # Try to get live status from Temporal
@@ -850,6 +858,9 @@ async def job_progress(content_id: str, _: str = Depends(verify_token)):
         "content_id": content_id,
         "current_status": video["status"] if video else "unknown",
         "total_cost": float(video["total_cost"]) if video and video["total_cost"] else 0,
+        "checkpoint": video["checkpoint"] if video else None,
+        "error_message": video["error_message"] if video else None,
+        "channel_id": video["channel_id"] if video else None,
         "live": live_status,
         "timeline": timeline,
     })
@@ -958,19 +969,26 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
     )
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
-    if video["status"] not in ("failed",):
-        raise HTTPException(status_code=400, detail=f"Can only retry failed jobs, current: '{video['status']}'")
+    if video["status"] not in ("failed", "stopped"):
+        raise HTTPException(status_code=400, detail=f"Can only retry failed/stopped jobs, current: '{video['status']}'")
 
     content_mode = video["content_mode"] or "short"
 
     # Prevent duplicate: check for in-progress jobs for this channel + mode
     running = await pool.fetchval(
         "SELECT COUNT(*) FROM videos WHERE channel_id = $1 AND content_mode = $2 "
-        "AND status NOT IN ('delivered', 'test_delivered', 'failed', 'rejected', 'retrying')",
+        "AND status NOT IN ('delivered', 'test_delivered', 'failed', 'stopped', 'superseded', 'rejected', 'retrying')",
         video["channel_id"], content_mode,
     )
     if running and int(running) > 0:
         raise HTTPException(status_code=409, detail=f"Channel already has an in-progress {content_mode} job")
+
+    # Mark ALL older failed/stopped jobs for this channel+mode as superseded
+    await pool.execute(
+        "UPDATE videos SET status = 'superseded', updated_at = NOW() "
+        "WHERE channel_id = $1 AND content_mode = $2 AND status IN ('failed', 'stopped')",
+        video["channel_id"], content_mode,
+    )
 
     # Resolve environment
     env_row = await pool.fetchrow(
@@ -984,7 +1002,7 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
     new_content_id = f"{prefix}_{video['channel_id']}_{ts}"
     workflow_id = f"retry-{new_content_id}"
 
-    # Create new video row (fresh start); original stays as 'failed' for logging
+    # Create new video row (fresh start); original is now 'superseded'
     await pool.execute(
         "INSERT INTO videos (content_id, channel_id, status, content_mode, environment, updated_at) "
         "VALUES ($1, $2, 'researching', $3, $4, NOW()) "
@@ -1009,6 +1027,7 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
         # Clean up the new video record on failure
         await pool.execute("DELETE FROM videos WHERE content_id = $1", new_content_id)
         raise HTTPException(status_code=500, detail=f"Failed to start retry workflow: {exc}")
+    await _broadcast_job_event(new_content_id, "researching", video["channel_id"])
     return R(status="ok", data={
         "workflow_id": workflow_id,
         "new_content_id": new_content_id,
@@ -1018,7 +1037,7 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
 
 @app.post("/api/jobs/{content_id}/restart")
 async def restart_job(content_id: str, _: str = Depends(verify_token)):
-    """Restart a failed job from its last checkpoint (same video, same content_id)."""
+    """Restart a stopped/failed job from its last checkpoint (same video, same content_id)."""
     pool = await get_pool()
     video = await pool.fetchrow(
         "SELECT channel_id, content_mode, checkpoint, status "
@@ -1027,8 +1046,8 @@ async def restart_job(content_id: str, _: str = Depends(verify_token)):
     )
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
-    if video["status"] not in ("failed",):
-        raise HTTPException(status_code=400, detail=f"Can only restart failed jobs, current: '{video['status']}'")
+    if video["status"] not in ("failed", "stopped"):
+        raise HTTPException(status_code=400, detail=f"Can only restart failed/stopped jobs, current: '{video['status']}'")
     if not video["checkpoint"]:
         raise HTTPException(status_code=400, detail="No checkpoint available — use retry for a fresh start")
 
@@ -1038,7 +1057,7 @@ async def restart_job(content_id: str, _: str = Depends(verify_token)):
     running = await pool.fetchval(
         "SELECT COUNT(*) FROM videos WHERE channel_id = $1 AND content_mode = $2 "
         "AND content_id != $3 "
-        "AND status NOT IN ('delivered', 'test_delivered', 'failed', 'rejected', 'retrying')",
+        "AND status NOT IN ('delivered', 'test_delivered', 'failed', 'stopped', 'superseded', 'rejected', 'retrying')",
         video["channel_id"], content_mode, content_id,
     )
     if running and int(running) > 0:
@@ -1078,11 +1097,12 @@ async def restart_job(content_id: str, _: str = Depends(verify_token)):
     except Exception as exc:
         # Revert status on failure
         await pool.execute(
-            "UPDATE videos SET status = 'failed', error_message = 'Restart failed', updated_at = NOW() "
+            "UPDATE videos SET status = 'stopped', error_message = 'Restart failed', updated_at = NOW() "
             "WHERE content_id = $1",
             content_id,
         )
         raise HTTPException(status_code=500, detail=f"Failed to start restart workflow: {exc}")
+    await _broadcast_job_event(content_id, video["checkpoint"], video["channel_id"])
     return R(status="ok", data={
         "workflow_id": workflow_id,
         "content_id": content_id,
@@ -1110,7 +1130,7 @@ async def _mark_job_failed(content_id: str, reason: str) -> bool:
     pool = await get_pool()
     result = await pool.execute(
         "UPDATE videos SET status = 'failed', error_message = $2, updated_at = NOW() "
-        "WHERE content_id = $1 AND status NOT IN ('delivered', 'test_delivered', 'failed', 'rejected')",
+        "WHERE content_id = $1 AND status NOT IN ('delivered', 'test_delivered', 'failed', 'stopped', 'superseded', 'rejected')",
         content_id, reason,
     )
     return "UPDATE 0" not in result
@@ -1134,6 +1154,7 @@ async def pause_job(content_id: str, _: str = Depends(verify_token)):
         await handle.signal("pause_workflow")
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to pause: {exc}")
+    await _broadcast_job_event(content_id, "paused", "")
     return R(status="ok", data={"content_id": content_id, "workflow_id": wf_id, "paused": True})
 
 
@@ -1152,6 +1173,7 @@ async def resume_job(content_id: str, _: str = Depends(verify_token)):
         await handle.signal("resume_workflow")
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to resume: {exc}")
+    await _broadcast_job_event(content_id, "resumed", "")
     return R(status="ok", data={"content_id": content_id, "workflow_id": wf_id, "resumed": True})
 
 
@@ -1174,13 +1196,14 @@ async def stop_job(content_id: str, _: str = Depends(verify_token)):
         except Exception as exc:
             # Workflow exists but terminate failed — still update DB
             logger.warning("stop_job.terminate_failed", content_id=content_id, error=str(exc))
-    # Update DB immediately
+    # Update DB immediately — mark as stopped, not failed
     pool = await get_pool()
     await pool.execute(
-        "UPDATE videos SET status = 'failed', error_message = 'Stopped by user', updated_at = NOW() "
-        "WHERE content_id = $1 AND status NOT IN ('delivered', 'test_delivered', 'failed', 'rejected')",
+        "UPDATE videos SET status = 'stopped', error_message = 'Stopped by user', updated_at = NOW() "
+        "WHERE content_id = $1 AND status NOT IN ('delivered', 'test_delivered', 'failed', 'stopped', 'superseded', 'rejected')",
         content_id,
     )
+    await _broadcast_job_event(content_id, "stopped", "")
     return R(status="ok", data={
         "content_id": content_id,
         "workflow_id": wf_id,
@@ -1194,7 +1217,7 @@ async def stop_job(content_id: str, _: str = Depends(verify_token)):
 
 @app.get("/api/jobs/active")
 async def active_jobs(_: str = Depends(verify_token)):
-    """Get all currently in-progress + recently failed (24h) video jobs."""
+    """Get all currently in-progress + recently stopped/failed (24h) video jobs."""
     pool = await get_pool()
     rows = await pool.fetch(
         "SELECT v.content_id, v.channel_id, v.status, v.title, v.content_mode, "
@@ -1207,8 +1230,8 @@ async def active_jobs(_: str = Depends(verify_token)):
         "  SELECT phase, status, created_at FROM job_events "
         "  WHERE content_id = v.content_id ORDER BY created_at DESC LIMIT 1"
         ") je ON true "
-        "WHERE v.status NOT IN ('delivered', 'test_delivered', 'rejected', 'retrying') "
-        "AND (v.status != 'failed' OR v.updated_at > NOW() - INTERVAL '24 hours') "
+        "WHERE v.status NOT IN ('delivered', 'test_delivered', 'rejected', 'retrying', 'superseded') "
+        "AND (v.status NOT IN ('failed', 'stopped') OR v.updated_at > NOW() - INTERVAL '24 hours') "
         "ORDER BY v.created_at DESC"
     )
 
@@ -1227,13 +1250,6 @@ async def active_jobs(_: str = Depends(verify_token)):
     except Exception:
         pass
 
-    # Build a set of (channel_id, content_mode) pairs that have an in-progress job
-    # to detect superseded failed jobs
-    active_mode_set: set[tuple[str, str]] = set()
-    for r in rows:
-        if r["status"] not in ("failed",):
-            active_mode_set.add((r["channel_id"] or "", r["content_mode"] or "short"))
-
     jobs = []
     for r in rows:
         cid = r["content_id"]
@@ -1246,12 +1262,6 @@ async def active_jobs(_: str = Depends(verify_token)):
             if cid in wf_id:
                 is_paused = wf_paused
                 break
-
-        # Superseded: this job is failed but a newer job exists for same channel+mode
-        is_superseded = (
-            r["status"] == "failed"
-            and (ch_id, mode) in active_mode_set
-        )
 
         jobs.append({
             "content_id": cid,
@@ -1268,7 +1278,6 @@ async def active_jobs(_: str = Depends(verify_token)):
             "checkpoint": r["checkpoint"],
             "error_message": r["error_message"],
             "is_paused": is_paused,
-            "is_superseded": is_superseded,
         })
     return R(status="ok", data=jobs)
 
@@ -1281,7 +1290,7 @@ async def workflow_status(channel_id: str, _: str = Depends(verify_token)):
     pool = await get_pool()
     active = await pool.fetchrow(
         "SELECT content_id, status FROM videos WHERE channel_id = $1 "
-        "AND status NOT IN ('delivered', 'failed', 'rejected') "
+        "AND status NOT IN ('delivered', 'test_delivered', 'failed', 'stopped', 'superseded', 'rejected') "
         "ORDER BY created_at DESC LIMIT 1",
         channel_id,
     )
@@ -1521,6 +1530,99 @@ async def cleanup_test_data(_: str = Depends(verify_token)):
     })
 
 
+class CleanSlateRequest(BaseModel):
+    confirm: str = Field(..., description="Must be the literal string 'RESET' to proceed")
+
+
+@app.post("/api/admin/clean-slate")
+async def clean_slate(req: CleanSlateRequest, _: str = Depends(verify_token)):
+    """Full reset: cancel running workflows, truncate job tables, wipe MinIO blobs, clear Redis locks.
+    Preserves: channels, brand_profiles, system_config, prompt_registry, ML models, bandit state.
+    """
+    if req.confirm != "RESET":
+        raise HTTPException(status_code=400, detail="Must pass confirm='RESET' to proceed")
+
+    results: dict = {
+        "workflows_terminated": 0,
+        "tables_truncated": [],
+        "storage_objects_deleted": 0,
+        "redis_keys_deleted": 0,
+    }
+
+    # 1. Cancel / terminate all running Temporal workflows (VideoProduction + DailyScheduler)
+    try:
+        client = await _get_temporal_client()
+        for wf_type in ("VideoProductionWorkflow", "DailySchedulerWorkflow"):
+            query = f'WorkflowType = "{wf_type}" AND ExecutionStatus = "Running"'
+            async for wf in client.list_workflows(query=query):
+                try:
+                    handle = client.get_workflow_handle(wf.id)
+                    await handle.terminate("Clean slate requested")
+                    results["workflows_terminated"] += 1
+                except Exception as exc:
+                    logger.warning("clean_slate.terminate_failed", workflow_id=wf.id, error=str(exc))
+    except Exception as exc:
+        logger.warning("clean_slate.temporal_scan_failed", error=str(exc))
+
+    # 2. Truncate job tables (CASCADE handles FK deps). Order-independent with TRUNCATE CASCADE.
+    pool = await get_pool()
+    tables = [
+        "videos", "job_events", "analytics_records", "feedback_loop",
+        "experiment_assignments", "experiment_outcomes",
+        "performance_outcomes", "script_outcomes",
+    ]
+    for t in tables:
+        try:
+            await pool.execute(f"TRUNCATE TABLE {t} RESTART IDENTITY CASCADE")
+            results["tables_truncated"].append(t)
+        except Exception as exc:
+            # Table may not exist in all environments
+            logger.warning("clean_slate.truncate_failed", table=t, error=str(exc))
+
+    # 3. Wipe MinIO test/ and prod/ prefixes
+    try:
+        from src.providers.storage.minio_provider import MinIOStorage
+        storage = MinIOStorage()
+        for prefix in ("test/", "prod/"):
+            try:
+                results["storage_objects_deleted"] += storage.delete_prefix(prefix)
+            except Exception as exc:
+                logger.warning("clean_slate.storage_prefix_failed", prefix=prefix, error=str(exc))
+    except Exception as exc:
+        logger.warning("clean_slate.storage_init_failed", error=str(exc))
+
+    # 4. Clear Redis locks and progress keys
+    try:
+        from src.redis_client import get_redis
+        r = await get_redis()
+        for pattern in ("lock:channel:*", "progress:*"):
+            try:
+                cursor = 0
+                while True:
+                    cursor, keys = await r.scan(cursor=cursor, match=pattern, count=100)
+                    if keys:
+                        await r.delete(*keys)
+                        results["redis_keys_deleted"] += len(keys)
+                    if cursor == 0:
+                        break
+            except Exception as exc:
+                logger.warning("clean_slate.redis_scan_failed", pattern=pattern, error=str(exc))
+    except Exception as exc:
+        logger.warning("clean_slate.redis_init_failed", error=str(exc))
+
+    # 5. Broadcast to connected dashboards so open tabs refresh to zero state
+    try:
+        await _event_broadcaster.broadcast({
+            "type": "clean_slate",
+            "timestamp": datetime.utcnow().isoformat(),
+        })
+    except Exception:
+        pass
+
+    logger.info("clean_slate.done", **results)
+    return R(status="ok", data=results)
+
+
 # ── Dashboard Stats ────────────────────────────────────────
 
 @app.get("/api/stats")
@@ -1537,7 +1639,7 @@ async def dashboard_stats(_: str = Depends(verify_token)):
         "SELECT COUNT(*) as total, "
         "COUNT(*) FILTER (WHERE status IN ('delivered','test_delivered')) as delivered, "
         "COUNT(*) FILTER (WHERE status = 'failed') as failed, "
-        "COUNT(*) FILTER (WHERE status NOT IN ('delivered','test_delivered','failed','rejected')) as in_progress, "
+        "COUNT(*) FILTER (WHERE status NOT IN ('delivered','test_delivered','failed','stopped','superseded','rejected')) as in_progress, "
         "COALESCE(SUM(total_cost), 0) as total_cost "
         "FROM videos WHERE created_at::date = CURRENT_DATE"
     )
@@ -1576,6 +1678,64 @@ async def dashboard_stats(_: str = Depends(verify_token)):
     })
 
 
+# ── WebSocket: Global Event Broadcast (cross-tab sync) ────
+
+class EventBroadcaster:
+    """Manages global WebSocket connections for cross-tab sync."""
+
+    def __init__(self) -> None:
+        self._connections: set[WebSocket] = set()
+
+    async def connect(self, ws: WebSocket) -> None:
+        await ws.accept()
+        self._connections.add(ws)
+
+    def disconnect(self, ws: WebSocket) -> None:
+        self._connections.discard(ws)
+
+    async def broadcast(self, event: dict) -> None:
+        dead: list[WebSocket] = []
+        for ws in self._connections:
+            try:
+                await ws.send_json(event)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self._connections.discard(ws)
+
+
+_event_broadcaster = EventBroadcaster()
+
+
+async def _broadcast_job_event(content_id: str, status: str, channel_id: str = "") -> None:
+    """Fire-and-forget broadcast to all connected dashboards."""
+    try:
+        await _event_broadcaster.broadcast({
+            "type": "job_update",
+            "content_id": content_id,
+            "status": status,
+            "channel_id": channel_id,
+        })
+    except Exception:
+        pass
+
+
+@app.websocket("/api/ws/events")
+async def ws_events(websocket: WebSocket):
+    """Global event stream for cross-tab sync. No auth required (read-only)."""
+    await _event_broadcaster.connect(websocket)
+    try:
+        while True:
+            # Keep connection alive by waiting for client pings/messages
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        _event_broadcaster.disconnect(websocket)
+
+
 # ── WebSocket: Real-time Progress ─────────────────────────
 
 @app.websocket("/api/ws/progress/{content_id}")
@@ -1609,7 +1769,7 @@ async def ws_progress(websocket: WebSocket, content_id: str):
             video = await pool.fetchrow(
                 "SELECT status FROM videos WHERE content_id = $1", content_id
             )
-            if video and video["status"] in ("delivered", "test_delivered", "failed", "rejected"):
+            if video and video["status"] in ("delivered", "test_delivered", "failed", "stopped", "superseded", "rejected"):
                 await websocket.send_json({
                     "type": "done",
                     "final_status": video["status"],
