@@ -812,9 +812,28 @@ class VideoProductionWorkflow:
                 await self._set_phase(content_id, "delivering", ch)
 
                 if is_test_mode:
-                    # TEST MODE: Skip YouTube upload entirely
+                    # TEST MODE: Skip YouTube upload but compute + store metadata
                     youtube_id = "TEST_SKIP"
-                    workflow.logger.info("Test mode — skipping YouTube upload")
+                    workflow.logger.info("Test mode — computing metadata without YouTube upload")
+                    try:
+                        await workflow.execute_activity(
+                            "compute_metadata_activity",
+                            args=[{
+                                "content_id": content_id,
+                                "channel_id": params.channel_id,
+                                "content_mode": params.content_mode,
+                                "title": final_title,
+                                "description": description,
+                                "tags": tags,
+                                "niche": "",
+                                "quality_scores": quality_scores,
+                                "is_short": params.content_mode == "short",
+                            }],
+                            start_to_close_timeout=timedelta(minutes=2),
+                            retry_policy=RETRY_STANDARD,
+                        )
+                    except Exception as meta_err:
+                        workflow.logger.warning(f"Metadata computation failed (non-critical): {meta_err}")
                     await self._complete_phase(content_id, ch, "delivering",
                                                detail={"youtube_id": youtube_id, "skipped": True, "reason": "test_mode"})
                 else:

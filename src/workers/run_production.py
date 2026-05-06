@@ -33,7 +33,7 @@ from src.workers.activities.direction import direction_activity
 from src.workers.activities.music import music_activity
 from src.workers.activities.assembly import assembly_activity
 from src.workers.activities.render import render_activity
-from src.workers.activities.delivery import delivery_activity
+from src.workers.activities.delivery import delivery_activity, compute_metadata_activity
 from src.workers.activities.analytics import analytics_activity
 from src.workers.activities.brand import brand_activity
 from src.workers.activities.editor import editor_activity
@@ -70,6 +70,7 @@ async def main() -> None:
             assembly_activity,
             render_activity,
             delivery_activity,
+            compute_metadata_activity,
             analytics_activity,
             brand_activity,
             editor_activity,

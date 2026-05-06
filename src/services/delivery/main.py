@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 import httpx
 import structlog
@@ -13,6 +14,7 @@ from src.db import close_pool, get_pool
 from src.schemas.common import HealthResponse, ServiceResponse
 
 from src.services.delivery.seo_optimizer import (
+    CATEGORY_MAP,
     score_title_seo,
     optimize_description,
     suggest_tags,
@@ -332,6 +334,110 @@ async def seo_score(req: SEORequest):
             "optimal_upload_time": timing,
         },
     )
+
+
+class ComputeMetadataRequest(BaseModel):
+    content_id: str
+    channel_id: str
+    content_mode: str = "short"
+    title: str
+    description: str = ""
+    tags: list[str] = Field(default_factory=list)
+    niche: str = ""
+    quality_scores: dict = Field(default_factory=dict)
+    is_short: bool = False
+
+
+@app.post("/compute-metadata", response_model=ServiceResponse)
+async def compute_metadata(req: ComputeMetadataRequest):
+    """Compute all YouTube metadata (SEO, tags, description, category) without uploading.
+
+    Stores the result in delivery_result JSON so the dashboard metadata tab is populated.
+    Used in test mode when YouTube upload is skipped.
+    """
+    logger.info("delivery.compute_metadata", content_id=req.content_id, title=req.title[:50])
+
+    try:
+        # Compute SEO analysis
+        seo_result = score_title_seo(req.title)
+        desc_result = optimize_description(req.description, req.title, req.tags, req.niche)
+        optimized_tags = suggest_tags(req.title, req.niche, req.tags)
+        upload_timing = await predict_optimal_upload_time(req.channel_id)
+
+        # Derive category from niche
+        category_id = CATEGORY_MAP.get(req.niche, "22")
+
+        # Generate hashtags from top tags
+        hashtags = [f"#{t.replace(' ', '')}" for t in optimized_tags[:5]]
+        if req.is_short:
+            hashtags.append("#Shorts")
+
+        # Build full metadata description if empty
+        if not req.description:
+            req.description = (
+                f"{req.title}\n\n"
+                f"In this video, we explore the topic in depth.\n\n"
+                f"Tags: {', '.join(optimized_tags[:10])}\n\n"
+                f"{' '.join(hashtags)}"
+            )
+            desc_result = optimize_description(req.description, req.title, req.tags, req.niche)
+
+        # Final composite score
+        final_score = _compute_final_score(req.quality_scores)
+
+        # Build delivery_result JSON
+        import json as json_mod
+
+        delivery_result = {
+            "title": req.title,
+            "description": req.description,
+            "tags": optimized_tags,
+            "hashtags": hashtags,
+            "category_id": category_id,
+            "privacy_status": "private",
+            "is_short": req.is_short,
+            "seo_score": seo_result.get("seo_score", 5.0),
+            "seo_factors": seo_result.get("factors", []),
+            "description_score": desc_result.get("score", 5.0),
+            "description_suggestions": desc_result.get("suggestions", []),
+            "keyword_density": desc_result.get("keyword_density", 0),
+            "optimal_upload_time": upload_timing,
+            "final_composite_score": final_score,
+            "computed_at": datetime.utcnow().isoformat(),
+            "youtube_video_id": "TEST_SKIP",
+            "mode": "test",
+        }
+
+        # Store in DB
+        try:
+            pool = await get_pool()
+            await pool.execute(
+                "UPDATE videos SET delivery_result = $1, final_composite_score = $2, "
+                "updated_at = NOW() WHERE content_id = $3",
+                json_mod.dumps(delivery_result), final_score, req.content_id,
+            )
+        except Exception as db_err:
+            logger.warning("delivery.compute_metadata_db_failed", error=str(db_err))
+
+        # Store delivery features for learning
+        await store_delivery_features(
+            req.content_id, req.channel_id,
+            req.title, req.description, optimized_tags, seo_result)
+
+        logger.info("delivery.metadata_computed",
+                     content_id=req.content_id,
+                     seo_score=seo_result.get("seo_score"),
+                     tags_count=len(optimized_tags))
+
+        return ServiceResponse(
+            status="success",
+            data=delivery_result,
+            cost={"cost_usd": 0, "provider": "local_seo"},
+        )
+
+    except Exception as exc:
+        logger.error("delivery.compute_metadata_failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 if __name__ == "__main__":

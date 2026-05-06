@@ -28,6 +28,75 @@ from src.db import get_pool
 from src.environment import get_mode, set_db_mode_override, is_test
 from src.schemas.common import VideoParams
 
+
+def _public_url(video_url: str) -> str:
+    """Convert internal MinIO URL (http://minio:9000/...) to a browser-reachable URL.
+
+    Uses presigned URLs if boto3 is available (preferred for security).
+    Falls back to s3_public_base_url substitution.
+    """
+    if not video_url:
+        return ""
+
+    # If already a localhost/external URL, return as-is
+    if "minio:9000" not in video_url and "://minio" not in video_url:
+        return video_url
+
+    # Try presigned URL first
+    try:
+        import boto3
+        from botocore.config import Config as BotoConfig
+        from urllib.parse import urlparse
+
+        parsed = urlparse(video_url)
+        path = parsed.path.lstrip("/")
+        bucket = settings.s3_bucket
+        if path.startswith(f"{bucket}/"):
+            key = path[len(bucket) + 1:]
+        else:
+            key = path
+
+        # Use public endpoint for presigned URL host so browser can reach it
+        public_endpoint = settings.s3_public_base_url
+        if public_endpoint:
+            # Strip the bucket from the public base URL for endpoint config
+            pub_parsed = urlparse(public_endpoint)
+            endpoint = f"{pub_parsed.scheme}://{pub_parsed.netloc}"
+        else:
+            endpoint = settings.s3_endpoint.replace("minio:9000", "localhost:9000")
+
+        s3_client = boto3.client(
+            "s3",
+            endpoint_url=endpoint,
+            aws_access_key_id=settings.s3_access_key,
+            aws_secret_access_key=settings.s3_secret_key,
+            config=BotoConfig(signature_version="s3v4"),
+        )
+        presigned = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": key},
+            ExpiresIn=3600,  # 1 hour
+        )
+        return presigned
+    except Exception:
+        # Fallback: simple host substitution
+        if settings.s3_public_base_url:
+            # Replace internal minio host with public base URL
+            from urllib.parse import urlparse
+            parsed = urlparse(video_url)
+            path = parsed.path.lstrip("/")
+            bucket = settings.s3_bucket
+            if path.startswith(f"{bucket}/"):
+                key = path[len(bucket) + 1:]
+            else:
+                key = path
+            return f"{settings.s3_public_base_url.rstrip('/')}/{key}"
+        return video_url.replace("minio:9000", "localhost:9000")
+
+
+# Backwards-compat alias
+_generate_download_url = _public_url
+
 logger = structlog.get_logger()
 
 app = FastAPI(title="Dashboard BFF", version="1.0.0")
@@ -881,6 +950,15 @@ async def job_metadata(content_id: str, _: str = Depends(verify_token)):
     delivery = json.loads(row["delivery_result"]) if row["delivery_result"] else {}
     thumbnails = json.loads(row["thumbnail_variants_urls"]) if row["thumbnail_variants_urls"] else []
 
+    # Resolve category_id to name
+    CATEGORY_NAMES = {
+        "22": "People & Blogs", "26": "How-to & Style", "27": "Education",
+        "28": "Science & Technology", "24": "Entertainment", "20": "Gaming",
+        "10": "Music", "17": "Sports", "25": "News & Politics",
+    }
+    cat_id = delivery.get("category_id", "")
+    category = delivery.get("category", "") or CATEGORY_NAMES.get(cat_id, cat_id)
+
     return R(status="ok", data={
         "content_id": content_id,
         "content_mode": row["content_mode"],
@@ -889,9 +967,12 @@ async def job_metadata(content_id: str, _: str = Depends(verify_token)):
         "tags": delivery.get("tags", []),
         "seo_score": delivery.get("seo_score"),
         "hashtags": delivery.get("hashtags", []),
-        "category": delivery.get("category", ""),
+        "category": category,
         "privacy_status": delivery.get("privacy_status", "private"),
         "thumbnails": thumbnails,
+        "seo_factors": delivery.get("seo_factors", []),
+        "description_score": delivery.get("description_score"),
+        "final_composite_score": delivery.get("final_composite_score"),
     })
 
 
@@ -914,8 +995,8 @@ async def job_output(content_id: str, _: str = Depends(verify_token)):
         "content_id": content_id,
         "title": row["title"],
         "status": row["status"],
-        "video_url": row["rendered_video_url"],
-        "download_url": row["rendered_video_url"],  # MinIO direct URL
+        "video_url": _public_url(row["rendered_video_url"]),
+        "download_url": _public_url(row["rendered_video_url"]),
         "thumbnails": thumbnails,
         "youtube_video_id": row["youtube_video_id"],
         "youtube_url": f"https://youtu.be/{row['youtube_video_id']}" if row["youtube_video_id"] else None,

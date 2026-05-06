@@ -41,22 +41,26 @@ export async function uploadFile(
   const size = statSync(localPath).size;
   const body = createReadStream(localPath);
 
-  logger.info({ key, size, contentType }, "uploading to s3");
+  const prefix = env.S3_KEY_PREFIX.replace(/^\/+|\/+$/g, "");
+  const finalKey =
+    prefix && !key.startsWith(`${prefix}/`) ? `${prefix}/${key}` : key;
+
+  logger.info({ key: finalKey, size, contentType }, "uploading to s3");
 
   await getClient().send(
     new PutObjectCommand({
       Bucket: env.S3_BUCKET,
-      Key: key,
+      Key: finalKey,
       Body: body,
       ContentType: contentType,
     }),
   );
 
   const url = env.S3_PUBLIC_BASE_URL
-    ? `${env.S3_PUBLIC_BASE_URL.replace(/\/$/, "")}/${key}`
+    ? `${env.S3_PUBLIC_BASE_URL.replace(/\/$/, "")}/${finalKey}`
     : env.S3_ENDPOINT
-      ? `${env.S3_ENDPOINT.replace(/\/$/, "")}/${env.S3_BUCKET}/${key}`
-      : `https://${env.S3_BUCKET}.s3.${env.S3_REGION}.amazonaws.com/${key}`;
+      ? `${env.S3_ENDPOINT.replace(/\/$/, "")}/${env.S3_BUCKET}/${finalKey}`
+      : `https://${env.S3_BUCKET}.s3.${env.S3_REGION}.amazonaws.com/${finalKey}`;
 
-  return { key, url, size };
+  return { key: finalKey, url, size };
 }
