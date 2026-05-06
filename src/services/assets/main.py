@@ -73,6 +73,59 @@ async def _log_usage(content_id: str, service: str, provider: str, cost: float):
         logger.warning("assets.db_log_failed", error=str(e))
 
 
+# ── Niche-Aware Query Expansion ──────────────────────────
+
+NICHE_KEYWORDS: dict[str, list[str]] = {
+    "tech": ["technology", "digital", "futuristic", "code", "circuit"],
+    "health": ["wellness", "nature", "calm", "medical", "fitness"],
+    "finance": ["money", "trading", "graph", "growth", "business"],
+    "education": ["learning", "classroom", "knowledge", "books", "study"],
+    "entertainment": ["fun", "colorful", "party", "celebration", "performance"],
+    "gaming": ["gaming", "esports", "controller", "neon", "cyber"],
+    "travel": ["landscape", "adventure", "aerial", "destination", "scenic"],
+    "food": ["cooking", "kitchen", "ingredients", "delicious", "plating"],
+    "sports": ["athletic", "competition", "stadium", "training", "action"],
+}
+
+
+def _expand_query_for_niche(query: str, niche: str, content_mode: str = "short") -> str:
+    """Expand search query with niche-specific keywords and aspect ratio hints."""
+    niche_terms = NICHE_KEYWORDS.get(niche, [])
+    if niche_terms:
+        # Add 1-2 niche terms to diversify results
+        import random
+        extras = random.sample(niche_terms, min(2, len(niche_terms)))
+        query = f"{query} {' '.join(extras)}"
+
+    # Add orientation hint for better aspect ratio matches
+    if content_mode == "short":
+        query = f"{query} vertical"
+    return query
+
+
+def _filter_by_aspect_ratio(clips: list[dict], content_mode: str = "short") -> list[dict]:
+    """Filter clips by aspect ratio preference: 9:16 for shorts, 16:9 for long."""
+    if not clips:
+        return clips
+
+    target_ratio = 9 / 16 if content_mode == "short" else 16 / 9
+    scored = []
+    for clip in clips:
+        w = clip.get("width", 1920)
+        h = clip.get("height", 1080)
+        if w and h:
+            clip_ratio = w / h
+            ratio_diff = abs(clip_ratio - target_ratio)
+            clip["aspect_score"] = max(0, 1.0 - ratio_diff)
+        else:
+            clip["aspect_score"] = 0.5
+        scored.append(clip)
+
+    # Sort by aspect match (prefer matching aspect ratio)
+    scored.sort(key=lambda c: c.get("aspect_score", 0), reverse=True)
+    return scored
+
+
 # ── Stock Video Search ───────────────────────────────────────
 
 async def _search_pixabay_videos(query: str, min_duration: int = 5) -> list[dict]:
@@ -294,26 +347,33 @@ async def generate_assets(req: AssetsRequest):
                                      search_time_ms=int((_time.time() - search_start) * 1000))
                     continue
 
-            # ── Step 1: Search stock footage (parallel) ──
-            pixabay_task = _search_pixabay_videos(query)
-            pexels_task = _search_pexels_videos(query)
-            envato_task = _search_envato_videos(query)
+            # ── Step 1: Expand query with niche context ──
+            niche = channel.get("niche", "") if channel else ""
+            expanded_query = _expand_query_for_niche(query, niche, req.content_mode)
+
+            # ── Step 2: Search stock footage (parallel) ──
+            pixabay_task = _search_pixabay_videos(expanded_query)
+            pexels_task = _search_pexels_videos(expanded_query)
+            envato_task = _search_envato_videos(expanded_query)
             pixabay_clips, pexels_clips, envato_clips = await asyncio.gather(
                 pixabay_task, pexels_task, envato_task)
 
             all_clips = pixabay_clips + pexels_clips + envato_clips
 
-            # ── Step 2: Filter by resolution (>= 720p) ──
+            # ── Step 3: Filter by resolution (>= 720p) ──
             filtered = [c for c in all_clips if c.get("height", 0) >= 720 or c.get("width", 0) >= 1280]
             if not filtered:
                 filtered = all_clips
+
+            # ── Step 4: Filter by aspect ratio preference ──
+            filtered = _filter_by_aspect_ratio(filtered, req.content_mode)
 
             # ── Intelligence: Score relevance ─────────────
             selected_clip = None
             if filtered:
                 for clip in filtered:
                     clip["relevance_score"] = score_asset_relevance(clip, query)
-                filtered.sort(key=lambda c: c.get("relevance_score", 0), reverse=True)
+                filtered.sort(key=lambda c: c.get("relevance_score", 0) + c.get("aspect_score", 0) * 0.3, reverse=True)
                 selected_clip = filtered[0]
 
             if selected_clip and selected_clip.get("url"):

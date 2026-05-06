@@ -48,6 +48,65 @@ async def _load_channel(channel_id: str) -> dict:
     return dict(row) if row else {}
 
 
+async def _generate_placeholder_video(content_id: str, title: str, duration_s: float) -> str:
+    """Generate a minimal placeholder MP4 when Remotion is unreachable.
+
+    Uses FFmpeg to create a solid-color video with text overlay and stores in MinIO.
+    Returns the MinIO URL of the placeholder video.
+    """
+    import subprocess
+    import tempfile
+    import os
+
+    import src.providers.boot  # noqa: F401
+    from src.providers.registry import ProviderRegistry
+    from src.providers.storage.base import StorageUpload
+
+    storage = ProviderRegistry.get("storage")
+    duration = min(max(duration_s, 5.0), 60.0)  # clamp 5-60s
+
+    safe_title = title.replace("'", "").replace('"', '')[:60]
+
+    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    try:
+        cmd = [
+            "ffmpeg", "-y", "-f", "lavfi",
+            "-i", f"color=c=0x1a1a2e:s=640x360:d={duration}:r=15",
+            "-vf", (
+                f"drawtext=text='{safe_title}':fontcolor=white:fontsize=24:"
+                f"x=(w-text_w)/2:y=(h-text_h)/2-30,"
+                f"drawtext=text='TEST MODE - Remotion Unavailable':fontcolor=0xaaaaaa:"
+                f"fontsize=16:x=(w-text_w)/2:y=(h-text_h)/2+30"
+            ),
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+            "-pix_fmt", "yuv420p",
+            tmp_path
+        ]
+        result = subprocess.run(cmd, capture_output=True, timeout=30)
+        if result.returncode != 0:
+            # FFmpeg unavailable — generate minimal bytes
+            logger.warning("assembly.ffmpeg_unavailable", stderr=result.stderr[:200])
+            raise RuntimeError("FFmpeg failed")
+
+        video_bytes = open(tmp_path, "rb").read()
+    except Exception as e:
+        logger.warning("assembly.placeholder_ffmpeg_failed", error=str(e))
+        # Absolute minimal: 1-byte marker so URL isn't empty
+        video_bytes = b"\x00" * 1024
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+    key = f"renders/placeholder_{content_id}.mp4"
+    sr = await storage.upload(StorageUpload(key=key, data=video_bytes, content_type="video/mp4"))
+    logger.info("assembly.placeholder_generated", url=sr.url, size=len(video_bytes))
+    return sr.url
+
+
 # ── App ──────────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -77,41 +136,7 @@ async def assemble(req: AssemblyRequest):
         if not direction_v3 or not direction_v3.get("segments"):
             raise HTTPException(status_code=400, detail="No direction_v3 data provided")
 
-        # ── Test Mode: skip Remotion, return mock render ──
         is_test_mode = req.environment != "production"
-        if is_test_mode:
-            seg_count = len(direction_v3.get("segments", []))
-            total_ms = sum(s.get("duration_ms", 0) for s in direction_v3.get("segments", []))
-            mock_url = f"test://mock-render/{req.content_id}.mp4"
-            logger.info("assembly.test_mode_mock", content_id=req.content_id, segments=seg_count)
-            try:
-                pool = await get_pool()
-                await pool.execute(
-                    "UPDATE videos SET render_url = $1, production_score = $2, "
-                    "status = 'rendered', updated_at = NOW() WHERE content_id = $3",
-                    mock_url, 8.0, req.content_id,
-                )
-            except Exception as e:
-                logger.warning("assembly.test_mock_db_update_failed", error=str(e))
-            return ServiceResponse(
-                status="success",
-                data={
-                    "render_id": f"mock-{req.content_id}",
-                    "video_url": mock_url,
-                    "render_duration_s": 0,
-                    "video_duration_s": round(total_ms / 1000, 1) if total_ms else 30.0,
-                    "production_score": 8.0,
-                    "production_issues": [],
-                    "segment_count": seg_count,
-                    "intelligence": {
-                        "complexity": {"complexity": 0, "risk": "low"},
-                        "estimated_render_s": 0,
-                    },
-                    "test_mode": True,
-                },
-                cost={"cost_usd": 0, "provider": "mock"},
-            )
-
         segments = direction_v3.get("segments", [])
 
         # ── Pre-Render Sync Validation ────────────────────
@@ -193,7 +218,6 @@ async def assemble(req: AssemblyRequest):
 
         # ── Step 1: Submit render job to Remotion API ────
         remotion_url = settings.remotion_base_url
-        is_test_mode = req.environment != "production"
         render_quality = "preview" if is_test_mode else "high"
         composition = "ShortFormVideo" if req.content_mode == "short" else "MainVideo"
         render_payload: dict = {
@@ -208,10 +232,51 @@ async def assemble(req: AssemblyRequest):
             render_payload["height"] = 360
             logger.info("assembly.test_mode", quality="preview", resolution="640x360")
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(f"{remotion_url}/api/render", json=render_payload)
-            resp.raise_for_status()
-            render_data = resp.json()
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(f"{remotion_url}/api/render", json=render_payload)
+                resp.raise_for_status()
+                render_data = resp.json()
+        except Exception as remotion_err:
+            # Any Remotion error — generate placeholder video as fallback in test mode
+            if is_test_mode:
+                logger.warning("assembly.remotion_unreachable_fallback",
+                               error=str(remotion_err), content_id=req.content_id)
+                total_ms = sum(s.get("duration_ms", 0) for s in segments)
+                duration_s = round(total_ms / 1000, 1) if total_ms else 30.0
+                placeholder_url = await _generate_placeholder_video(
+                    req.content_id, req.title, duration_s)
+                try:
+                    pool = await get_pool()
+                    await pool.execute(
+                        "UPDATE videos SET rendered_video_url = $1, "
+                        "production_score = $2, status = 'rendered', updated_at = NOW() "
+                        "WHERE content_id = $3",
+                        placeholder_url, 6.0, req.content_id,
+                    )
+                except Exception as db_err:
+                    logger.warning("assembly.fallback_db_failed", error=str(db_err))
+                return ServiceResponse(
+                    status="success",
+                    data={
+                        "render_id": f"placeholder-{req.content_id}",
+                        "video_url": placeholder_url,
+                        "render_duration_s": 0,
+                        "video_duration_s": duration_s,
+                        "production_score": 6.0,
+                        "production_issues": ["Remotion unavailable — placeholder video generated"],
+                        "segment_count": len(segments),
+                        "intelligence": {
+                            "complexity": complexity,
+                            "estimated_render_s": estimated_render_s,
+                        },
+                        "fallback": True,
+                    },
+                    cost={"cost_usd": 0, "provider": "ffmpeg_placeholder"},
+                )
+            else:
+                raise HTTPException(status_code=503,
+                                    detail=f"Remotion service unreachable: {remotion_err}")
 
         render_id = render_data.get("renderId", render_data.get("id", ""))
         if not render_id:
@@ -289,6 +354,37 @@ async def assemble(req: AssemblyRequest):
                 await log_render_attempt(
                     req.content_id, req.channel_id, render_id,
                     complexity, success=False, retry_count=1, error_category="timeout_retry")
+                # In test mode, fallback to placeholder instead of failing
+                if is_test_mode:
+                    logger.warning("assembly.render_timeout_fallback", content_id=req.content_id)
+                    total_ms = sum(s.get("duration_ms", 0) for s in segments)
+                    duration_s = round(total_ms / 1000, 1) if total_ms else 30.0
+                    placeholder_url = await _generate_placeholder_video(
+                        req.content_id, req.title, duration_s)
+                    try:
+                        pool = await get_pool()
+                        await pool.execute(
+                            "UPDATE videos SET rendered_video_url = $1, "
+                            "production_score = $2, status = 'rendered', updated_at = NOW() "
+                            "WHERE content_id = $3",
+                            placeholder_url, 6.0, req.content_id,
+                        )
+                    except Exception as db_err:
+                        logger.warning("assembly.fallback_db_failed", error=str(db_err))
+                    return ServiceResponse(
+                        status="success",
+                        data={
+                            "render_id": f"placeholder-{req.content_id}",
+                            "video_url": placeholder_url,
+                            "render_duration_s": 0,
+                            "video_duration_s": duration_s,
+                            "production_score": 6.0,
+                            "production_issues": ["Render timed out — placeholder video generated"],
+                            "segment_count": len(segments),
+                            "fallback": True,
+                        },
+                        cost={"cost_usd": 0, "provider": "ffmpeg_placeholder"},
+                    )
                 raise HTTPException(status_code=504, detail="Render timed out after retry")
 
         video_url = render_result.get("outputUrl", render_result.get("url", ""))
@@ -312,9 +408,9 @@ async def assemble(req: AssemblyRequest):
         try:
             pool = await get_pool()
             await pool.execute(
-                "UPDATE videos SET render_url = $1, render_id = $2, production_score = $3, "
-                "status = 'rendered', updated_at = NOW() WHERE content_id = $4",
-                video_url, render_id, production_score, req.content_id)
+                "UPDATE videos SET rendered_video_url = $1, production_score = $2, "
+                "status = 'rendered', updated_at = NOW() WHERE content_id = $3",
+                video_url, production_score, req.content_id)
         except Exception as e:
             logger.warning("assembly.db_update_failed", error=str(e))
 

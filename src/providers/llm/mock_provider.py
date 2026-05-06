@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import random
 import time
 from pathlib import Path
 
@@ -23,6 +24,86 @@ from src.providers.llm.base import LLMProvider, LLMRequest, LLMResult
 from src.providers.registry import ProviderRegistry
 
 logger = structlog.get_logger()
+
+
+# ── Topic variety pool for test mode ──────────────────────────
+# Each topic has: selected_topic, title_candidates, hook, key_facts
+TOPIC_POOL = [
+    {
+        "selected_topic": "The Future of AI in Everyday Life",
+        "title_candidates": [
+            "How AI Is Secretly Changing Your Daily Routine",
+            "5 Ways AI Already Runs Your Life",
+            "AI in 2025: What Nobody Tells You",
+        ],
+        "hook": "Right now, as you're watching this, artificial intelligence is making decisions for you.",
+        "key_facts": ["AI market growing 37% annually", "73% of businesses use AI"],
+        "niche_hint": "tech",
+    },
+    {
+        "selected_topic": "The Hidden Psychology of Habits",
+        "title_candidates": [
+            "Why You Can't Stop Scrolling (Backed by Science)",
+            "The 21-Day Habit Myth: What Actually Works",
+            "How Your Brain Sabotages Every Goal You Set",
+        ],
+        "hook": "Your brain just made 35,000 decisions today, and most of them were on autopilot.",
+        "key_facts": ["Habits drive 45% of daily behavior", "Most habits form in 66 days"],
+        "niche_hint": "self-improvement",
+    },
+    {
+        "selected_topic": "Money Mistakes Most People Make",
+        "title_candidates": [
+            "5 Money Habits That Keep You Broke",
+            "Why Saving Money Is Making You Poorer",
+            "The $1,000 Mistake 90% of People Make Every Year",
+        ],
+        "hook": "If you have less than $1,000 in savings, this video could change everything.",
+        "key_facts": ["64% of Americans live paycheck to paycheck", "Average inflation 3.5%"],
+        "niche_hint": "finance",
+    },
+    {
+        "selected_topic": "Sleep Science Breakthroughs",
+        "title_candidates": [
+            "The Sleep Trick Doctors Don't Tell You",
+            "Why You Wake Up Tired (Even After 8 Hours)",
+            "This 90-Minute Rule Will Change How You Sleep",
+        ],
+        "hook": "You're sleeping wrong, and it's destroying your energy.",
+        "key_facts": ["Sleep cycles run 90 mins", "Deep sleep restores immunity"],
+        "niche_hint": "health",
+    },
+    {
+        "selected_topic": "Productivity Myths That Waste Your Time",
+        "title_candidates": [
+            "The Productivity Hack That Actually Works",
+            "Why Multitasking Is Making You Slower",
+            "Stop Doing This — It's Killing Your Focus",
+        ],
+        "hook": "You're working 8 hours a day but only producing 3 hours of real value.",
+        "key_facts": ["Avg focus span: 47 seconds", "Multitasking drops IQ by 10"],
+        "niche_hint": "productivity",
+    },
+    {
+        "selected_topic": "Space Discoveries That Sound Fake",
+        "title_candidates": [
+            "5 Space Facts That Sound Made Up",
+            "What NASA Just Found Will Blow Your Mind",
+            "The Universe Is Weirder Than You Think",
+        ],
+        "hook": "There's a planet where it rains glass sideways. And it gets weirder.",
+        "key_facts": ["Diamond rain on Neptune", "1 day on Venus = 243 Earth days"],
+        "niche_hint": "science",
+    },
+]
+
+
+def _pick_topic(seed: str | None = None) -> dict:
+    """Pick a topic from the pool. Uses seed (e.g. content_id) for determinism if provided."""
+    if seed:
+        idx = int(hashlib.md5(seed.encode()).hexdigest(), 16) % len(TOPIC_POOL)
+        return TOPIC_POOL[idx]
+    return random.choice(TOPIC_POOL)
 
 # Prefer tests/fixtures/llm for local dev, /tmp/mock_llm_cache for Docker
 _LOCAL_CACHE = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "llm"
@@ -46,6 +127,21 @@ class MockLLM(LLMProvider):
         model = request.model or "gpt-4o-mini"
         key = _cache_key(request.messages, model)
         cache_file = CACHE_DIR / f"{key}.json"
+
+        # If no real LLM key, skip cache entirely to allow variety in static fallback
+        if not self.api_key:
+            logger.info("mock_llm.no_api_key_static_response", key=key)
+            static_content = self._static_response(request)
+            return LLMResult(
+                content=static_content,
+                model="mock-static",
+                tokens_in=0,
+                tokens_out=0,
+                cost_usd=0.0,
+                provider="mock_llm",
+                latency_ms=0,
+                finish_reason="stop",
+            )
 
         # 1. Check disk cache
         if cache_file.exists():
@@ -159,28 +255,32 @@ class MockLLM(LLMProvider):
         would cause false pattern matches if checked.
         """
 
+        # Extract content_id or channel_id from prompts as seed for variety
+        seed = None
+        for token in (user_text + system_text).split():
+            if token.startswith("TEST_VID") or token.startswith("VID_"):
+                seed = token.strip(",.\"'")
+                break
+        topic = _pick_topic(seed)
+
         # Research synthesis — system prompt contains "research"
         if "research" in system_text and "scriptwriter" not in system_text:
             return {
-                "selected_topic": "The Future of AI in Everyday Life",
+                "selected_topic": topic["selected_topic"],
                 "research_depth_score": 8.5,
-                "title_candidates": [
-                    "How AI Is Secretly Changing Your Daily Routine",
-                    "5 Ways AI Already Runs Your Life",
-                    "AI in 2025: What Nobody Tells You",
-                ],
+                "title_candidates": topic["title_candidates"],
                 "sources": [
-                    {"url": "https://en.wikipedia.org/wiki/Artificial_intelligence", "title": "AI Overview", "key_facts": ["AI market growing 37% annually"]},
+                    {"url": "https://en.wikipedia.org/wiki/Main_Page", "title": "Reference", "key_facts": topic["key_facts"]},
                 ],
                 "fact_claims": [
-                    {"claim": "AI market is projected to reach $190B by 2025", "confidence": 0.85},
-                    {"claim": "73% of businesses use at least one AI tool", "confidence": 0.80},
+                    {"claim": topic["key_facts"][0], "confidence": 0.85},
+                    {"claim": topic["key_facts"][-1] if len(topic["key_facts"]) > 1 else topic["key_facts"][0], "confidence": 0.80},
                 ],
                 "trend_data": {"momentum": 0.8, "search_volume": "high"},
-                "competitor_analysis": {"gap_found": True, "angle": "practical daily impact"},
-                "audience_pain_points": ["information overload", "job displacement fears", "privacy concerns"],
-                "key_statistics": ["37% annual growth", "$190B market by 2025"],
-                "unique_angle": "Focus on invisible AI that people already use without knowing",
+                "competitor_analysis": {"gap_found": True, "angle": "fresh perspective"},
+                "audience_pain_points": ["information overload", "uncertainty", "lack of clarity"],
+                "key_statistics": topic["key_facts"],
+                "unique_angle": f"Practical insights on {topic['selected_topic']}",
             }
 
         # Fact-checking
@@ -195,18 +295,19 @@ class MockLLM(LLMProvider):
 
         # Ideation
         if "idea" in system_text or "ideation" in system_text:
+            primary_title = topic["title_candidates"][0]
             return {
                 "ideas": [
                     {
-                        "title": "How AI Is Secretly Changing Your Daily Routine",
-                        "hook_angle": "Most people don't realize AI makes 35+ decisions for them every day",
+                        "title": primary_title,
+                        "hook_angle": topic["hook"],
                         "target_emotion": "curiosity",
                         "estimated_appeal": 8.2,
                     },
                 ],
                 "selected_idea": {
-                    "title": "How AI Is Secretly Changing Your Daily Routine",
-                    "hook_angle": "Most people don't realize AI makes 35+ decisions for them every day",
+                    "title": primary_title,
+                    "hook_angle": topic["hook"],
                     "score": 8.5,
                 },
             }
@@ -232,13 +333,13 @@ class MockLLM(LLMProvider):
         # Script generation — detect by system prompt ("scriptwriter")
         if "scriptwriter" in system_text or ("script" in system_text and "json" in system_text):
             return {
-                "title": "How AI Is Secretly Changing Your Daily Routine",
+                "title": topic["title_candidates"][0],
                 "segments": [
                     {
                         "id": "seg_1",
                         "section": "hook",
-                        "text": "Right now, as you're watching this, artificial intelligence is making decisions for you. And you don't even know it.",
-                        "narration": "Right now, as you're watching this, artificial intelligence is making decisions for you. And you don't even know it.",
+                        "text": topic["hook"] + " And you don't even know it.",
+                        "narration": topic["hook"] + " And you don't even know it.",
                         "duration_s": 8,
                         "emotion": "curiosity",
                         "scene_direction": "Close-up face shot, dramatic lighting, slow zoom in",

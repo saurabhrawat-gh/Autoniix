@@ -1,19 +1,24 @@
-.PHONY: help infra bff ui dev stop logs up down health restart-app
+.PHONY: help infra bff ui dev stop logs up down health restart-app use-test use-prod env-status
 
 help: ## Show available commands
 	@echo ""
 	@echo "  YouTube Automation — Dev Commands"
 	@echo "  ─────────────────────────────────"
-	@echo "  make up      → Start FULL stack (all 25 services) and wait for healthy"
-	@echo "  make health  → Verify every service is up and reachable"
-	@echo "  make down    → Stop everything"
-	@echo "  make restart-app → Rebuild + restart app code containers (bff, ui, workers)"
+	@echo "  make up         → Start FULL stack (all 25 services) and wait for healthy"
+	@echo "  make health     → Verify every service is up and reachable"
+	@echo "  make down       → Stop everything"
+	@echo "  make restart-app→ Rebuild + restart app code containers (bff, ui, workers)"
+	@echo ""
+	@echo "  Environment switching:"
+	@echo "  make use-test   → Activate .env.test (mock providers, ~\$$0/video)"
+	@echo "  make use-prod   → Activate .env.prod (real APIs, requires confirmation)"
+	@echo "  make env-status → Show which env is currently active"
 	@echo ""
 	@echo "  Local-dev mode (3 terminals, app code on host):"
-	@echo "  make infra   → Start only DB, Redis, Temporal (Docker)"
-	@echo "  make bff     → Start Dashboard backend on host (port 8020)"
-	@echo "  make ui      → Start Dashboard frontend on host (port 3000)"
-	@echo "  make logs    → Tail infra logs"
+	@echo "  make infra      → Start only DB, Redis, Temporal (Docker)"
+	@echo "  make bff        → Start Dashboard backend on host (port 8020)"
+	@echo "  make ui         → Start Dashboard frontend on host (port 3000)"
+	@echo "  make logs       → Tail infra logs"
 	@echo ""
 	@echo "  Quick start (3 terminals):"
 	@echo "    Terminal 1:  make infra"
@@ -82,3 +87,44 @@ restart-app: ## Rebuild + restart app code containers (use after editing src/ or
 	docker compose build dashboard-bff dashboard-ui worker-production worker-scheduler
 	docker compose up -d dashboard-bff dashboard-ui worker-production worker-scheduler
 	@echo "✅ App containers rebuilt and restarted"
+
+# ── Environment switching ─────────────────────────────────
+use-test: ## Activate .env.test (mock providers, ~$0/video)
+	@if [ ! -f .env.test ]; then echo "❌ .env.test not found"; exit 1; fi
+	@if [ -f .env ]; then cp .env .env.backup.$$(date +%s); echo "📦 Backed up current .env"; fi
+	@cp .env.test .env
+	@echo "✅ Activated TEST mode (.env ← .env.test)"
+	@echo "   Run: make restart-app  (or: docker compose up -d)"
+
+use-prod: ## Activate .env.prod (real paid APIs — requires confirmation)
+	@if [ ! -f .env.prod ]; then echo "❌ .env.prod not found"; exit 1; fi
+	@if grep -q "CHANGE_ME" .env.prod; then \
+		echo "⚠  .env.prod still contains CHANGE_ME placeholders."; \
+		echo "   Edit .env.prod and replace ALL CHANGE_ME values before activating."; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "  ⚠  PRODUCTION MODE will:"
+	@echo "    • Use real paid APIs (OpenAI, Fish Audio, etc.)"
+	@echo "    • Upload videos to YouTube"
+	@echo "    • Cost ~\$$0.12-0.35 per video"
+	@echo ""
+	@read -p "  Type 'production' to confirm: " confirm; \
+	if [ "$$confirm" != "production" ]; then echo "❌ Aborted"; exit 1; fi
+	@if [ -f .env ]; then cp .env .env.backup.$$(date +%s); echo "📦 Backed up current .env"; fi
+	@cp .env.prod .env
+	@echo "✅ Activated PRODUCTION mode (.env ← .env.prod)"
+	@echo "   Run: make restart-app  (or: docker compose up -d)"
+
+env-status: ## Show which environment is currently active
+	@if [ ! -f .env ]; then echo "❌ No .env file found. Run 'make use-test' or 'make use-prod'"; exit 1; fi
+	@mode=$$(grep -E '^ENVIRONMENT_MODE=' .env | cut -d= -f2); \
+	if [ "$$mode" = "production" ]; then \
+		echo "🔴 PRODUCTION mode active"; \
+	elif [ "$$mode" = "test" ]; then \
+		echo "🟢 TEST mode active"; \
+	else \
+		echo "⚠  Unknown mode: $$mode"; \
+	fi
+	@echo "   .env size: $$(wc -l < .env) lines"
+	@echo "   To switch: make use-test  |  make use-prod"

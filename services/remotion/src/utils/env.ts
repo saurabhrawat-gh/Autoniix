@@ -42,6 +42,7 @@ export const env = {
   S3_SECRET_ACCESS_KEY: str("S3_SECRET_ACCESS_KEY", ""),
   S3_PUBLIC_BASE_URL: str("S3_PUBLIC_BASE_URL", ""),
   S3_FORCE_PATH_STYLE: bool("S3_FORCE_PATH_STYLE", true),
+  S3_KEY_PREFIX: str("S3_KEY_PREFIX", ""),
 };
 
 export type Env = typeof env;

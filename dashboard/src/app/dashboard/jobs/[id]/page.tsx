@@ -389,8 +389,11 @@ export default function JobDetailPage() {
                               {ev.cost_usd > 0 && <span className="text-xs text-content-tertiary">${ev.cost_usd.toFixed(3)}</span>}
                             </div>
                             {ev.detail && Object.keys(ev.detail).length > 0 && (
-                              <div className="text-xs text-content-tertiary mt-1">
-                                {Object.entries(ev.detail).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                              <div className="text-xs text-content-tertiary mt-1 truncate max-w-[500px]">
+                                {Object.entries(ev.detail).map(([k, v]) => {
+                                  const val = typeof v === 'string' && v.length > 60 ? v.slice(0, 60) + '…' : String(v);
+                                  return `${k}: ${val}`;
+                                }).join(' · ')}
                               </div>
                             )}
                           </div>
@@ -410,19 +413,43 @@ export default function JobDetailPage() {
                   {output?.video_url ? (
                     <div>
                       <video src={output.video_url} controls className="w-full rounded-lg max-h-[400px] bg-black" />
-                      <div className="mt-4 flex gap-2">
-                        <a href={output.download_url} target="_blank" rel="noreferrer" className="btn-primary !text-xs">
-                          Download Video
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <a href={output.download_url} download className="btn-primary !text-xs">
+                          ⬇ Download Video
                         </a>
                         {output.youtube_url && (
                           <a href={output.youtube_url} target="_blank" rel="noreferrer" className="btn-secondary !text-xs">
                             View on YouTube ↗
                           </a>
                         )}
+                        <button
+                          onClick={async () => {
+                            try {
+                              await api.restartJob(contentId);
+                              showToast('Re-rendering video...', 'success');
+                              loadAll();
+                            } catch { showToast('Recreate failed', 'error'); }
+                          }}
+                          className="btn-secondary !text-xs"
+                        >
+                          ↻ Recreate Video
+                        </button>
                       </div>
+                      {output.total_cost > 0 && (
+                        <div className="mt-2 text-xs text-content-tertiary">Total cost: ${output.total_cost.toFixed(4)}</div>
+                      )}
                     </div>
                   ) : (
-                    <div className="text-center py-12 text-content-tertiary text-sm">Video not yet rendered.</div>
+                    <div className="text-center py-12">
+                      <div className="text-content-tertiary text-sm mb-3">
+                        {progress?.current_phase === 'rendering' ? 'Rendering in progress...' : 'Video not yet rendered.'}
+                      </div>
+                      {progress?.current_phase === 'rendering' && (
+                        <div className="w-32 mx-auto h-1.5 bg-surface-2 rounded-full overflow-hidden">
+                          <div className="h-full bg-accent rounded-full animate-pulse w-2/3" />
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   {output?.thumbnails && output.thumbnails.length > 0 && (
@@ -447,16 +474,40 @@ export default function JobDetailPage() {
                     <>
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="text-xs font-semibold text-content-secondary">YouTube Metadata</h3>
-                        <span className="text-[11px] text-content-tertiary">Click any field to copy</span>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => {
+                              const all = [
+                                metadata.title,
+                                '',
+                                metadata.description || '',
+                                '',
+                                (metadata.tags || []).join(', '),
+                                '',
+                                (metadata.hashtags || []).join(' '),
+                              ].join('\n');
+                              copyToClipboard(all, 'All');
+                            }}
+                            className="text-[11px] font-medium text-accent hover:text-accent/80 transition-colors"
+                          >
+                            {copied === 'All' ? '✓ Copied All' : 'Copy All'}
+                          </button>
+                          <span className="text-[11px] text-content-tertiary">Click any field to copy</span>
+                        </div>
                       </div>
                       <MetaField label="Title" value={metadata.title} onCopy={copyToClipboard} copied={copied} />
                       <MetaField label="Description" value={metadata.description} onCopy={copyToClipboard} copied={copied} multiline />
                       <MetaField label="Tags" value={(metadata.tags || []).join(', ')} onCopy={copyToClipboard} copied={copied} />
                       <MetaField label="Hashtags" value={(metadata.hashtags || []).join(' ')} onCopy={copyToClipboard} copied={copied} />
                       <MetaField label="Category" value={metadata.category} onCopy={copyToClipboard} copied={copied} />
+                      <MetaField label="Privacy Status" value={metadata.privacy_status} onCopy={copyToClipboard} copied={copied} />
+                      <MetaField label="Content Mode" value={metadata.content_mode} onCopy={copyToClipboard} copied={copied} />
                       {metadata.seo_score != null && (
-                        <div className="text-xs text-content-secondary pt-3 border-t border-border">
-                          SEO Score: <span className="font-semibold text-content-primary">{metadata.seo_score}</span>
+                        <div className="flex items-center gap-4 text-xs text-content-secondary pt-3 border-t border-border">
+                          <span>SEO Score: <span className="font-semibold text-content-primary">{metadata.seo_score}</span>/10</span>
+                          {metadata.content_mode && (
+                            <span className="badge bg-accent/10 text-accent text-[10px]">{metadata.content_mode}</span>
+                          )}
                         </div>
                       )}
                     </>
