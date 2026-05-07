@@ -5,8 +5,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, isLoggedIn } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { ThemeToggle, HomeLogo } from '@/lib/theme';
 import { useToast } from '@/lib/toast';
+import { PageHeader } from '@/lib/components/PageHeader';
+import { Skeleton } from '@/lib/components/Skeleton';
+import { Power, PowerOff } from '@/lib/components/Icon';
+import { useAppState } from '@/lib/components/AppStateProvider';
+import { useTheme } from '@/lib/theme';
 
 const FRIENDLY_LABELS: Record<string, string> = {
   dashboard_admin_password: 'Admin Password',
@@ -133,6 +137,23 @@ export default function SettingsPage() {
     setChipInput('');
   }
 
+  // Live JSON validation as user types
+  useEffect(() => {
+    if (!editing) return;
+    if (!isJsonObject(editValue) && !isJsonArray(editValue)) {
+      setJsonError('');
+      return;
+    }
+    try {
+      JSON.parse(editValue);
+      setJsonError('');
+    } catch (e: any) {
+      const msg = e?.message || 'Invalid JSON';
+      // Trim noisy "JSON.parse:" prefixes for cleaner inline display
+      setJsonError(msg.replace(/^JSON\.parse:\s*/, ''));
+    }
+  }, [editValue, editing]);
+
   function addChip() {
     if (!chipInput.trim()) return;
     try {
@@ -178,8 +199,20 @@ export default function SettingsPage() {
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="animate-spin h-5 w-5 border-2 border-accent border-t-transparent rounded-full" />
+    <div className="flex-1 flex flex-col">
+      <PageHeader
+        title="Settings"
+        subtitle="Loading configuration…"
+        crumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Settings' }]}
+        containerClassName="max-w-4xl"
+      />
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto px-6 py-6 space-y-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </div>
+      </main>
     </div>
   );
 
@@ -196,19 +229,14 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col">
-      {/* Fixed Header */}
-      <header className="sticky top-0 z-10 bg-surface-0 border-b border-border px-6 py-4">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+    <div className="flex-1 flex flex-col">
+      <PageHeader
+        title="Settings"
+        subtitle="Manage configuration"
+        crumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Settings' }]}
+        containerClassName="max-w-4xl"
+        actions={(
           <div className="flex items-center gap-3">
-            <HomeLogo />
-            <div>
-              <h1 className="text-lg font-semibold text-content-primary">Settings</h1>
-              <p className="text-xs text-content-tertiary mt-0.5">Manage configuration</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Edit Mode Toggle */}
             <label className="flex items-center gap-2 cursor-pointer">
               <span className={cn('text-xs font-medium', systemStopped ? 'text-content-tertiary' : 'text-content-secondary')}
                 title={systemStopped ? 'Resume the system to edit settings' : 'Toggle to enable editing'}>
@@ -217,6 +245,7 @@ export default function SettingsPage() {
               <button
                 onClick={systemStopped ? undefined : () => setEditMode(!editMode)}
                 disabled={systemStopped}
+                aria-label="Toggle edit mode"
                 className={cn(
                   'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
                   editMode && !systemStopped ? 'bg-accent' : 'bg-surface-3',
@@ -228,24 +257,24 @@ export default function SettingsPage() {
                 )} />
               </button>
             </label>
-            <ThemeToggle />
             <button onClick={toggleEmergency}
               title={emergency ? 'Resume all paused workflows and re-enable the system' : 'Freeze the entire system and pause all running workflows'}
               className={cn(
-                'px-4 py-2 rounded-lg text-xs font-medium transition-all',
+                'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all',
                 emergency
                   ? 'bg-status-success text-white hover:opacity-90'
                   : 'bg-status-error text-white hover:opacity-90 hover:shadow-lg'
               )}>
-              {emergency ? '▶ Resume System' : '■ Emergency Stop'}
+              {emergency ? <Power size={14} /> : <PowerOff size={14} />}
+              {emergency ? 'Resume System' : 'Emergency Stop'}
             </button>
           </div>
-        </div>
-      </header>
+        )}
+      />
 
-      {/* Scrollable Content */}
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-6 py-6">
+          <DisplayPreferences />
           {Object.entries(groups).map(([group, items]) => (
             items.length > 0 && (
               <div key={group} className="mb-8">
@@ -493,14 +522,45 @@ function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
               </div>
             </div>
           ) : isJson ? (
-            /* JSON editor: textarea */
+            /* JSON editor: textarea with live validation */
             <div>
-              <textarea
-                value={(() => { try { return JSON.stringify(JSON.parse(editValue), null, 2); } catch { return editValue; } })()}
-                onChange={(e) => onEditValueChange(e.target.value)}
-                className="!w-full !py-2 !px-3 !text-xs font-mono !min-h-[120px] !resize-y"
-              />
-              {jsonError && <p className="text-xs text-status-error mt-1">{jsonError}</p>}
+              <div className="relative">
+                <textarea
+                  value={editValue}
+                  onChange={(e) => onEditValueChange(e.target.value)}
+                  spellCheck={false}
+                  aria-invalid={!!jsonError}
+                  aria-describedby={jsonError ? 'json-error' : undefined}
+                  className={cn(
+                    '!w-full !py-2 !px-3 !text-xs font-mono !min-h-[120px] !resize-y',
+                    jsonError && '!border-status-error/50 focus:!ring-status-error/30',
+                  )}
+                />
+                <div className="absolute top-2 right-2 text-[10px] font-medium pointer-events-none">
+                  {jsonError ? (
+                    <span className="text-status-error">● Invalid</span>
+                  ) : (
+                    <span className="text-status-success">● Valid</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center justify-between mt-1">
+                {jsonError ? (
+                  <p id="json-error" className="text-xs text-status-error" role="alert">{jsonError}</p>
+                ) : (
+                  <p className="text-[10px] text-content-tertiary">JSON is valid.</p>
+                )}
+                <button
+                  type="button"
+                  disabled={!!jsonError}
+                  onClick={() => {
+                    try { onEditValueChange(JSON.stringify(JSON.parse(editValue), null, 2)); } catch {}
+                  }}
+                  className="text-[10px] text-content-tertiary hover:text-accent disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Pretty-print
+                </button>
+              </div>
             </div>
           ) : (
             /* Regular text input */
@@ -514,10 +574,95 @@ function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
           )}
           <div className="flex justify-end gap-2 mt-3">
             <button onClick={onCancel} className="btn-secondary !py-1.5 !px-3 !text-xs">Cancel</button>
-            <button onClick={onSave} className="btn-primary !py-1.5 !px-3 !text-xs">Save</button>
+            <button
+              onClick={onSave}
+              disabled={!!jsonError}
+              className="btn-primary !py-1.5 !px-3 !text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+            >Save</button>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Display Preferences card — theme + density
+// ──────────────────────────────────────────────────────────────
+function DisplayPreferences() {
+  const { theme, setTheme } = useTheme();
+  const { density, setDensity } = useAppState();
+
+  const themeOpts: { value: 'light' | 'dark' | 'system'; label: string }[] = [
+    { value: 'light', label: 'Light' },
+    { value: 'dark', label: 'Dark' },
+    { value: 'system', label: 'System' },
+  ];
+  const densityOpts: { value: 'comfortable' | 'compact'; label: string }[] = [
+    { value: 'comfortable', label: 'Comfortable' },
+    { value: 'compact', label: 'Compact' },
+  ];
+
+  return (
+    <div className="mb-8">
+      <h2 className="text-xs font-semibold text-content-secondary mb-3 flex items-center gap-2">
+        Display
+      </h2>
+      <div className="card p-5 space-y-5">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <div className="text-sm font-medium text-content-primary">Theme</div>
+            <div className="text-xs text-content-tertiary mt-0.5">
+              Light, dark, or follow your operating system.
+            </div>
+          </div>
+          <div role="radiogroup" aria-label="Theme" className="inline-flex rounded-lg bg-surface-2 p-1">
+            {themeOpts.map((opt) => (
+              <button
+                key={opt.value}
+                role="radio"
+                aria-checked={theme === opt.value}
+                onClick={() => setTheme(opt.value)}
+                className={cn(
+                  'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                  theme === opt.value
+                    ? 'bg-surface text-content-primary shadow-sm'
+                    : 'text-content-tertiary hover:text-content-primary',
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <div className="text-sm font-medium text-content-primary">Density</div>
+            <div className="text-xs text-content-tertiary mt-0.5">
+              Compact tightens spacing in cards and list rows.
+            </div>
+          </div>
+          <div role="radiogroup" aria-label="Density" className="inline-flex rounded-lg bg-surface-2 p-1">
+            {densityOpts.map((opt) => (
+              <button
+                key={opt.value}
+                role="radio"
+                aria-checked={density === opt.value}
+                onClick={() => setDensity(opt.value)}
+                className={cn(
+                  'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                  density === opt.value
+                    ? 'bg-surface text-content-primary shadow-sm'
+                    : 'text-content-tertiary hover:text-content-primary',
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

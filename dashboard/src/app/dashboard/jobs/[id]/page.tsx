@@ -5,9 +5,12 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { api, isLoggedIn, wsProgress } from '@/lib/api';
-import { cn, statusColor, statusIcon, PHASE_ORDER, PHASE_LABELS } from '@/lib/utils';
-import { ThemeToggle, HomeLogo } from '@/lib/theme';
+import { cn, statusColor, PHASE_LABELS, PHASE_ORDER } from '@/lib/utils';
+import { StatusIcon } from '@/lib/components/StatusIcon';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/lib/toast';
+import { PageHeader } from '@/lib/components/PageHeader';
+import { SkeletonCard } from '@/lib/components/Skeleton';
 
 export default function JobDetailPage() {
   const router = useRouter();
@@ -96,8 +99,18 @@ export default function JobDetailPage() {
   }
 
   if (!progress) return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="animate-spin h-5 w-5 border-2 border-accent border-t-transparent rounded-full" />
+    <div className="flex-1 flex flex-col">
+      <PageHeader
+        title={contentId}
+        subtitle="Loading job details…"
+        crumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Progress', href: '/dashboard/progress' }, { label: contentId }]}
+      />
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-5xl mx-auto px-6 py-6 space-y-4">
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      </main>
     </div>
   );
 
@@ -142,31 +155,30 @@ export default function JobDetailPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col">
-      {/* Fixed Header */}
-      <header className="sticky top-0 z-10 bg-surface-0 border-b border-border px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <HomeLogo />
-            <div>
-              <h1 className="text-lg font-semibold text-content-primary">{contentId}</h1>
-              <div className="flex items-center gap-2 mt-1">
-                <span className={cn('text-xs font-medium', statusColor(progress.current_status))}>
-                  {statusIcon(progress.current_status)} {PHASE_LABELS[progress.current_status] || progress.current_status}
-                </span>
-                {progress.total_cost > 0 && (
-                  <span className="text-xs text-content-tertiary">· ${progress.total_cost.toFixed(2)}</span>
-                )}
-                {isApproved && <span className="badge bg-status-success/10 text-status-success">✓ Approved</span>}
-                {isRejected && <span className="badge bg-status-error/10 text-status-error">✕ Rejected</span>}
-              </div>
-            </div>
+    <div className="flex-1 flex flex-col">
+      <PageHeader
+        title={contentId}
+        crumbs={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Progress', href: '/dashboard/progress' },
+          { label: contentId },
+        ]}
+        fallbackHref="/dashboard/progress"
+        subtitle={(
+          <div className="flex items-center gap-2">
+            <span className={cn('inline-flex items-center gap-1 text-xs font-medium', statusColor(progress.current_status))}>
+              <StatusIcon status={progress.current_status} size={12} colored={false} />
+              {PHASE_LABELS[progress.current_status] || progress.current_status}
+            </span>
+            {progress.total_cost > 0 && (
+              <span className="text-xs text-content-tertiary">· ${progress.total_cost.toFixed(2)}</span>
+            )}
+            {isApproved && <span className="badge bg-status-success/10 text-status-success">✓ Approved</span>}
+            {isRejected && <span className="badge bg-status-error/10 text-status-error">✕ Rejected</span>}
           </div>
-          <ThemeToggle />
-        </div>
-      </header>
+        )}
+      />
 
-      {/* Scrollable Content */}
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-6 py-6">
           {/* Lockdown banner */}
@@ -356,23 +368,41 @@ export default function JobDetailPage() {
 
           {/* Tabs */}
           <div className="card overflow-hidden">
-            <div className="flex border-b border-border px-5">
+            <div className="flex border-b border-border px-5" role="tablist" aria-label="Job sections">
               {(['progress', 'output', 'metadata'] as const).map((t) => (
-                <button key={t} onClick={() => setActiveTab(t)}
+                <button
+                  key={t}
+                  role="tab"
+                  aria-selected={activeTab === t}
+                  onClick={() => setActiveTab(t)}
                   className={cn(
-                    'px-4 py-3 text-sm font-medium capitalize transition-colors relative',
+                    'px-4 py-3 text-sm font-medium capitalize transition-colors relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded-t',
                     activeTab === t ? 'text-accent' : 'text-content-tertiary hover:text-content-primary'
-                  )}>
+                  )}
+                >
                   {t === 'progress' ? 'Event Log' : t}
-                  {activeTab === t && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full" />}
+                  {activeTab === t && (
+                    <motion.span
+                      layoutId="job-tab-underline"
+                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full"
+                      transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                    />
+                  )}
                 </button>
               ))}
             </div>
 
             <div className="p-6">
+              <AnimatePresence mode="wait">
               {/* Progress Timeline */}
               {activeTab === 'progress' && (
-                <div>
+                <motion.div
+                  key="tab-progress"
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.15 }}
+                >
                   {(progress.timeline || []).length === 0 ? (
                     <div className="text-center py-12 text-content-tertiary text-sm">
                       No events yet. Trigger a video to see real-time progress here.
@@ -381,7 +411,9 @@ export default function JobDetailPage() {
                     <div className="space-y-0">
                       {(progress.timeline || []).map((ev: any, i: number) => (
                         <div key={i} className="flex items-start gap-3 py-2.5 border-b border-border/50 last:border-0">
-                          <span className={cn('mt-0.5 text-sm', statusColor(ev.status))}>{statusIcon(ev.status)}</span>
+                          <span className={cn('mt-0.5 inline-flex', statusColor(ev.status))}>
+                            <StatusIcon status={ev.status} size={14} colored={false} />
+                          </span>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium text-content-primary">{PHASE_LABELS[ev.phase] || ev.phase}</span>
@@ -404,12 +436,19 @@ export default function JobDetailPage() {
                       ))}
                     </div>
                   )}
-                </div>
+                </motion.div>
               )}
 
               {/* Output */}
               {activeTab === 'output' && (
-                <div className="space-y-6">
+                <motion.div
+                  key="tab-output"
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.15 }}
+                  className="space-y-6"
+                >
                   {output?.video_url ? (
                     <div>
                       <video src={output.video_url} controls className="w-full rounded-lg max-h-[400px] bg-black" />
@@ -464,12 +503,19 @@ export default function JobDetailPage() {
                       </div>
                     </div>
                   )}
-                </div>
+                </motion.div>
               )}
 
               {/* Metadata */}
               {activeTab === 'metadata' && (
-                <div className="space-y-3">
+                <motion.div
+                  key="tab-metadata"
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.15 }}
+                  className="space-y-3"
+                >
                   {metadata ? (
                     <>
                       <div className="flex items-center justify-between mb-2">
@@ -514,8 +560,9 @@ export default function JobDetailPage() {
                   ) : (
                     <div className="text-center py-12 text-content-tertiary text-sm">Metadata not yet generated.</div>
                   )}
-                </div>
+                </motion.div>
               )}
+              </AnimatePresence>
             </div>
           </div>
         </div>

@@ -5,7 +5,8 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api, isLoggedIn } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { ThemeToggle, HomeLogo } from '@/lib/theme';
+import { PageHeader } from '@/lib/components/PageHeader';
+import { Skeleton } from '@/lib/components/Skeleton';
 
 interface ChannelConfig {
   channel_name: string;
@@ -101,30 +102,50 @@ export default function ChannelSettingsPage() {
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="animate-spin h-5 w-5 border-2 border-accent border-t-transparent rounded-full" />
+    <div className="flex-1 flex flex-col">
+      <PageHeader
+        title="Channel Settings"
+        subtitle="Loading…"
+        crumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Channels' }, { label: channelId }, { label: 'Settings' }]}
+        containerClassName="max-w-3xl"
+      />
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto px-6 py-6 space-y-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-14 w-full" />
+          ))}
+        </div>
+      </main>
     </div>
   );
 
   if (!form) return (
-    <div className="flex items-center justify-center min-h-screen text-content-tertiary text-sm">
-      Channel not found.
+    <div className="flex-1 flex flex-col">
+      <PageHeader
+        title="Channel Settings"
+        crumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Channels' }, { label: channelId }, { label: 'Settings' }]}
+        containerClassName="max-w-3xl"
+      />
+      <main className="flex-1 flex items-center justify-center text-content-tertiary text-sm">
+        Channel not found.
+      </main>
     </div>
   );
 
   return (
-    <div className="h-screen flex flex-col">
-      <header className="sticky top-0 z-10 bg-surface-0 border-b border-border px-6 py-4">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
+    <div className="flex-1 flex flex-col">
+      <PageHeader
+        title={channel?.channel_name}
+        subtitle="Channel Settings"
+        crumbs={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Channels' },
+          { label: channel?.channel_name || channelId, href: `/dashboard/channels/${channelId}` },
+          { label: 'Settings' },
+        ]}
+        containerClassName="max-w-3xl"
+        actions={(
           <div className="flex items-center gap-3">
-            <HomeLogo />
-            <div>
-              <h1 className="text-lg font-semibold text-content-primary">{channel?.channel_name}</h1>
-              <p className="text-xs text-content-tertiary mt-0.5">Channel Settings</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Edit Mode Toggle — matches global settings UI */}
             <label className="flex items-center gap-2 cursor-pointer">
               <span className={cn('text-xs font-medium', locked ? 'text-content-tertiary' : 'text-content-secondary')}
                 title={locked ? (systemStopped ? 'System is stopped' : isArchived ? 'Channel is archived' : 'Channel is disabled') : 'Toggle to edit settings'}>
@@ -136,6 +157,7 @@ export default function ChannelSettingsPage() {
                   else setEditMode(true);
                 }}
                 disabled={locked}
+                aria-label="Toggle edit mode"
                 className={cn(
                   'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
                   editMode && !locked ? 'bg-accent' : 'bg-surface-3',
@@ -150,10 +172,9 @@ export default function ChannelSettingsPage() {
             {editMode && (
               <button onClick={handleCancel} className="btn-ghost !py-1 !text-xs">Cancel</button>
             )}
-            <ThemeToggle />
           </div>
-        </div>
-      </header>
+        )}
+      />
 
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">

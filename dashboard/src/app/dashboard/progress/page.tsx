@@ -3,10 +3,16 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
 import { api, isLoggedIn, wsEvents } from '@/lib/api';
 import { cn, PHASE_ORDER, PHASE_LABELS } from '@/lib/utils';
-import { ThemeToggle, HomeLogo } from '@/lib/theme';
 import { useToast } from '@/lib/toast';
+import { PageHeader } from '@/lib/components/PageHeader';
+import { SkeletonCard } from '@/lib/components/Skeleton';
+import { EmptyState } from '@/lib/components/EmptyState';
+import { PhaseStepper } from '@/lib/components/PhaseStepper';
+import { AnimatedNumber } from '@/lib/components/AnimatedNumber';
+import { ChevronDown, Inbox, RotateCcw } from '@/lib/components/Icon';
 
 /* ── Phase descriptions for the expanded timeline ─────── */
 const PHASE_DESC: Record<string, string> = {
@@ -76,7 +82,33 @@ export default function ProgressPage() {
         ws.onmessage = (ev) => {
           try {
             const msg = JSON.parse(ev.data);
-            if (msg.type === 'job_update' || msg.type === 'clean_slate') loadJobs();
+            if (msg.type === 'clean_slate') { loadJobs(); return; }
+            if (msg.type !== 'job_update') return;
+
+            // Optimistic local patch for instant PhaseStepper feedback.
+            // Backend payload `status` is overloaded — it's either a workflow
+            // phase ('researching', 'scripting', …) or a lifecycle event
+            // ('paused', 'resumed', 'stopped'). Map accordingly so the stepper
+            // animates as soon as the event arrives, then refetch as backup.
+            const cid: string = msg.content_id;
+            const s: string = msg.status || '';
+            if (cid && s) {
+              setJobs(prev => prev.map(j => {
+                if (j.content_id !== cid) return j;
+                if (s === 'paused') return { ...j, is_paused: true };
+                if (s === 'resumed') return { ...j, is_paused: false };
+                if (s === 'stopped') return { ...j, status: 'stopped', is_paused: false };
+                if (s === 'failed') return { ...j, status: 'failed' };
+                // Phase advance — only move forward, never backward.
+                const nextIdx = PHASE_ORDER.indexOf(s);
+                const curIdx = j.current_phase ? PHASE_ORDER.indexOf(j.current_phase) : -1;
+                if (nextIdx > curIdx) return { ...j, current_phase: s, is_paused: false };
+                return j;
+              }));
+            }
+            // Refetch (debounced via existing polling cadence) to reconcile
+            // any fields the optimistic patch can't infer (phase_status, etc.).
+            loadJobs();
           } catch {}
         };
         ws.onclose = () => { reconnectTimer = setTimeout(connectWs, 5000); };
@@ -121,25 +153,48 @@ export default function ProgressPage() {
     setBusyJobs(prev => { const n = new Set(prev); n.delete(contentId); return n; });
   }
 
+  /** Optimistically patch a job in local state and revert on error. */
+  function patchJob(contentId: string, patch: Partial<any>) {
+    setJobs(prev => prev.map(j => j.content_id === contentId ? { ...j, ...patch } : j));
+  }
+
   async function handlePause(contentId: string) {
+    const prev = jobs.find(j => j.content_id === contentId);
     markBusy(contentId);
-    try { await api.pauseJob(contentId); await loadJobs(); } catch (e: any) {
+    patchJob(contentId, { is_paused: true });
+    try {
+      await api.pauseJob(contentId);
+      await loadJobs();
+    } catch (e: any) {
+      if (prev) patchJob(contentId, { is_paused: prev.is_paused });
       showToast(e?.message || 'Pause failed', 'error');
     }
     clearBusy(contentId);
   }
 
   async function handleResume(contentId: string) {
+    const prev = jobs.find(j => j.content_id === contentId);
     markBusy(contentId);
-    try { await api.resumeJob(contentId); await loadJobs(); } catch (e: any) {
+    patchJob(contentId, { is_paused: false });
+    try {
+      await api.resumeJob(contentId);
+      await loadJobs();
+    } catch (e: any) {
+      if (prev) patchJob(contentId, { is_paused: prev.is_paused });
       showToast(e?.message || 'Resume failed', 'error');
     }
     clearBusy(contentId);
   }
 
   async function handleStop(contentId: string) {
+    const prev = jobs.find(j => j.content_id === contentId);
     markBusy(contentId);
-    try { await api.stopJob(contentId); await loadJobs(); } catch (e: any) {
+    patchJob(contentId, { status: 'stopped', is_paused: false });
+    try {
+      await api.stopJob(contentId);
+      await loadJobs();
+    } catch (e: any) {
+      if (prev) patchJob(contentId, { status: prev.status, is_paused: prev.is_paused });
       showToast(e?.message || 'Stop failed', 'error');
     }
     clearBusy(contentId);
@@ -186,39 +241,28 @@ export default function ProgressPage() {
   const stoppedCount = jobs.filter(j => j.status === 'stopped').length;
 
   return (
-    <div className="h-screen flex flex-col">
-      {/* Fixed Header */}
-      <header className="sticky top-0 z-10 bg-surface-0 border-b border-border px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <HomeLogo />
-            <div>
-              <h1 className="text-lg font-semibold text-content-primary">Active Jobs</h1>
-              <p className="text-xs text-content-tertiary mt-0.5">
-                {activeCount} in progress{stoppedCount > 0 && ` · ${stoppedCount} stopped`}{failedCount > 0 && ` · ${failedCount} failed`} · Auto-refreshes every 5s
-              </p>
-            </div>
-          </div>
-          <ThemeToggle />
-        </div>
-      </header>
+    <div className="flex-1 flex flex-col">
+      <PageHeader
+        title="Active Jobs"
+        subtitle={`${activeCount} in progress${stoppedCount > 0 ? ` · ${stoppedCount} stopped` : ''}${failedCount > 0 ? ` · ${failedCount} failed` : ''} · Auto-refreshes every 5s`}
+        crumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Progress' }]}
+      />
 
-      {/* Scrollable Content */}
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-6 py-6">
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="animate-spin h-5 w-5 border-2 border-accent border-t-transparent rounded-full" />
+            <div className="space-y-4">
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
             </div>
           ) : jobs.length === 0 ? (
-            <div className="text-center py-20">
-              <div className="text-content-tertiary text-sm">No active jobs right now.</div>
-              <p className="text-xs text-content-tertiary mt-2">
-                Trigger a channel from the{' '}
-                <Link href="/dashboard" className="text-accent hover:underline font-medium">dashboard</Link>
-                {' '}to see progress here.
-              </p>
-            </div>
+            <EmptyState
+              icon={Inbox}
+              title="No active jobs"
+              body="Trigger a channel from the dashboard to start producing a video and watch its progress here in real time."
+              cta={{ label: 'Go to Dashboard', href: '/dashboard' }}
+            />
           ) : (
             <div className="space-y-6">
               {systemStopped && (
@@ -307,7 +351,9 @@ export default function ProgressPage() {
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 shrink-0 ml-3">
-                                <span className="text-xs text-content-tertiary">${(job.total_cost || 0).toFixed(2)}</span>
+                                <span className="text-xs text-content-tertiary">
+                                  <AnimatedNumber value={job.total_cost || 0} prefix="$" />
+                                </span>
                                 {isFailed ? (
                                   <div className="flex items-center gap-1.5">
                                     {job.checkpoint && (
@@ -383,11 +429,9 @@ export default function ProgressPage() {
                                 )}
                                 {/* Expand/collapse chevron */}
                                 <button onClick={() => toggleExpand(job.content_id)}
+                                  aria-label={isExpanded ? 'Collapse timeline' : 'Expand timeline'}
                                   className="ml-1 p-1 rounded hover:bg-surface-2 transition-colors text-content-tertiary">
-                                  <svg className={cn('w-4 h-4 transition-transform', isExpanded && 'rotate-180')}
-                                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                                  </svg>
+                                  <ChevronDown size={16} className={cn('transition-transform', isExpanded && 'rotate-180')} />
                                 </button>
                               </div>
                             </div>
@@ -399,57 +443,28 @@ export default function ProgressPage() {
                               </div>
                             )}
 
-                            {/* Mini Stepper (always visible) */}
-                            <div className="flex items-center gap-0.5 mt-4">
-                              {PHASE_ORDER.map((phase, idx) => {
-                                const isCurrent = job.current_phase === phase;
-                                const currentIdx = PHASE_ORDER.indexOf(job.current_phase || '');
-                                const isCompleted = currentIdx > idx;
-                                const isPhaseFailed = isCurrent && (job.phase_status === 'failed' || isFailed);
-                                const isPhasePaused = isCurrent && isPaused;
-
-                                return (
-                                  <div key={phase} className="flex-1 flex flex-col items-center">
-                                    <div className="flex items-center w-full">
-                                      {idx > 0 && (
-                                        <div className={cn(
-                                          'flex-1 h-0.5',
-                                          isCompleted ? 'bg-status-success' : 'bg-surface-3'
-                                        )} />
-                                      )}
-                                      <div className={cn(
-                                        'w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold shrink-0',
-                                        isPhaseFailed ? 'bg-status-error text-white' :
-                                        isPhasePaused ? 'bg-status-warning text-white' :
-                                        isCompleted ? 'bg-status-success text-white' :
-                                        isCurrent ? 'bg-accent text-white ring-2 ring-accent/20 animate-pulse' :
-                                        'bg-surface-3 text-content-tertiary'
-                                      )}>
-                                        {isPhaseFailed ? '✕' : isPhasePaused ? '❚❚' : isCompleted ? '✓' : ''}
-                                      </div>
-                                      {idx < PHASE_ORDER.length - 1 && (
-                                        <div className={cn(
-                                          'flex-1 h-0.5',
-                                          isCompleted ? 'bg-status-success' : 'bg-surface-3'
-                                        )} />
-                                      )}
-                                    </div>
-                                    <span className={cn(
-                                      'text-[8px] mt-1 font-medium text-center leading-tight',
-                                      isPhaseFailed ? 'text-status-error' :
-                                      isPhasePaused ? 'text-status-warning' :
-                                      isCurrent ? 'text-accent' : isCompleted ? 'text-status-success' : 'text-content-tertiary/50'
-                                    )}>
-                                      {PHASE_LABELS[phase]}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
+                            {/* Animated Stepper */}
+                            <PhaseStepper
+                              jobId={job.content_id}
+                              currentPhase={job.current_phase}
+                              isFailed={isFailed}
+                              isStopped={isStopped}
+                              isPaused={isPaused}
+                              phaseStatus={job.phase_status}
+                            />
                           </div>
 
-                          {/* ── Expanded Timeline ─────────────── */}
+                          {/* ── Expanded Timeline (animated) ───── */}
+                          <AnimatePresence initial={false}>
                           {isExpanded && (
+                            <motion.div
+                              key="timeline"
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.28, ease: 'easeOut' }}
+                              className="overflow-hidden"
+                            >
                             <div className="border-t border-border bg-surface-1/50 px-5 py-4">
                               {timeline.length === 0 && !tlLoaded ? (
                                 <div className="text-xs text-content-tertiary text-center py-3">
@@ -584,7 +599,9 @@ export default function ProgressPage() {
                                 </div>
                               )}
                             </div>
+                            </motion.div>
                           )}
+                          </AnimatePresence>
                         </div>
                       );
                     })}
@@ -596,19 +613,34 @@ export default function ProgressPage() {
         </div>
       </main>
 
-      {/* Retry Fresh Confirmation Modal */}
+      <AnimatePresence>
       {retryConfirm && (() => {
         const job = jobs.find(j => j.content_id === retryConfirm);
         const checkpointPhase = job?.checkpoint;
         const checkpointLabel = checkpointPhase ? (PHASE_LABELS[checkpointPhase] || checkpointPhase) : null;
         const running = retryingJobs.has(retryConfirm);
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-               onClick={() => !running && setRetryConfirm(null)}>
-            <div className="bg-surface-0 border border-border rounded-xl shadow-elevated max-w-md w-full p-6"
-                 onClick={e => e.stopPropagation()}>
+          <motion.div
+            key="retry-confirm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => !running && setRetryConfirm(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="bg-surface-0 border border-border rounded-xl shadow-elevated max-w-md w-full p-6"
+              onClick={e => e.stopPropagation()}
+            >
               <div className="flex items-start gap-3 mb-4">
-                <div className="shrink-0 w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent text-lg">↻</div>
+                <div className="shrink-0 w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent">
+                  <RotateCcw size={18} />
+                </div>
                 <div>
                   <h3 className="text-base font-semibold text-content-primary">Start Fresh?</h3>
                   <p className="text-xs text-content-tertiary mt-1">A brand new job will begin from the very first step.</p>
@@ -634,10 +666,11 @@ export default function ProgressPage() {
                   {running ? 'Starting…' : 'Yes, Retry Fresh'}
                 </button>
               </div>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         );
       })()}
+      </AnimatePresence>
     </div>
   );
 }

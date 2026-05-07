@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, isLoggedIn } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { HomeLogo } from '@/lib/theme';
 import { useToast } from '@/lib/toast';
+import { PageHeader } from '@/lib/components/PageHeader';
 
 const DNA_FIELDS: { key: string; label: string; hint: string; placeholder: string }[] = [
   { key: 'belief_territory', label: 'Belief Territory', hint: 'The misconception or idea you challenge', placeholder: 'sleep_is_just_rest' },
@@ -133,14 +133,14 @@ export default function NewChannelPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8">
-      <div className="flex items-center gap-3 mb-8">
-        <HomeLogo />
-        <div>
-          <h1 className="text-lg font-semibold text-content-primary">Add Channel</h1>
-          <p className="text-xs text-content-tertiary mt-0.5">Create a new YouTube channel entry</p>
-        </div>
-      </div>
+    <div className="flex-1 flex flex-col">
+      <PageHeader
+        title="Add Channel"
+        subtitle="Create a new YouTube channel entry"
+        crumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'New Channel' }]}
+        containerClassName="max-w-3xl"
+      />
+      <main className="max-w-3xl mx-auto w-full px-6 py-8">
 
       {systemStopped && (
         <div className="mb-6 p-4 rounded-lg bg-status-error/10 border border-status-error/20">
@@ -318,6 +318,7 @@ export default function NewChannelPage() {
           {systemStopped ? 'System Stopped' : loading ? 'Creating…' : 'Create Channel'}
         </button>
       </form>
+      </main>
     </div>
   );
 }

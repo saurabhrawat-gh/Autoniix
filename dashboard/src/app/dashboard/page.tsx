@@ -3,10 +3,14 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, isLoggedIn, clearToken, wsEvents } from '@/lib/api';
+import { useAutoAnimate } from '@formkit/auto-animate/react';
+import { api, isLoggedIn, wsEvents } from '@/lib/api';
+import { useUrlState } from '@/lib/hooks/useUrlState';
 import { cn, statusDot } from '@/lib/utils';
-import { ThemeToggle } from '@/lib/theme';
 import { useToast } from '@/lib/toast';
+import { Skeleton, SkeletonCard } from '@/lib/components/Skeleton';
+import { EmptyState } from '@/lib/components/EmptyState';
+import { Plus } from '@/lib/components/Icon';
 
 type Tab = 'all' | 'active' | 'disabled' | 'archived';
 type SortKey = 'name' | 'delivered' | 'status' | 'created';
@@ -40,20 +44,33 @@ export default function DashboardPage() {
   // pausedMap removed — is_paused is now per-job in active_jobs from backend
   const [systemStopped, setSystemStopped] = useState(false);
   const [envMode, setEnvMode] = useState<string>('test');
-  const [envSwitching, setEnvSwitching] = useState(false);
-  const [showEnvConfirm, setShowEnvConfirm] = useState(false);
   const [actionMenu, setActionMenu] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState<string | null>(null);
   const [triggeringKeys, setTriggeringKeys] = useState<Set<string>>(new Set());
   const [busyJobs, setBusyJobs] = useState<Set<string>>(new Set());
   const { showToast } = useToast();
+  const [channelListRef] = useAutoAnimate<HTMLDivElement>();
 
-  // New: tabs, search, sort, pin
-  const [tab, setTab] = useState<Tab>('all');
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [sortKey, setSortKey] = useState<SortKey>('name');
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  // New: tabs, search, sort, pin (URL-synced)
+  const TAB_VALUES: Tab[] = ['all', 'active', 'disabled', 'archived'];
+  const SORT_VALUES: SortKey[] = ['name', 'delivered', 'status', 'created'];
+  const [tab, setTab] = useUrlState<Tab>('tab', {
+    defaultValue: 'all',
+    deserialize: (raw) => (TAB_VALUES.includes(raw as Tab) ? (raw as Tab) : 'all'),
+  });
+  const [search, setSearch] = useUrlState<string>('q', {
+    defaultValue: '',
+    deserialize: (raw) => raw ?? '',
+  });
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  const [sortKey, setSortKey] = useUrlState<SortKey>('sort', {
+    defaultValue: 'name',
+    deserialize: (raw) => (SORT_VALUES.includes(raw as SortKey) ? (raw as SortKey) : 'name'),
+  });
+  const [sortDir, setSortDir] = useUrlState<SortDir>('dir', {
+    defaultValue: 'asc',
+    deserialize: (raw) => (raw === 'desc' ? 'desc' : 'asc'),
+  });
   const [pinned, setPinned] = useState<Set<string>>(new Set());
   const [showSortMenu, setShowSortMenu] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout>();
@@ -126,7 +143,7 @@ export default function DashboardPage() {
   }
 
   function cycleSort(key: SortKey) {
-    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    if (sortKey === key) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir('asc'); }
   }
 
@@ -170,46 +187,64 @@ export default function DashboardPage() {
     return [...pinnedList, ...unpinned];
   }, [allChannels, tab, debouncedSearch, sortKey, sortDir, pinned]);
 
-  async function switchEnvMode(target: string) {
-    if (target === 'production') {
-      setShowEnvConfirm(true);
-      return;
-    }
-    setEnvSwitching(true);
-    try {
-      await api.switchEnvironment(target);
-      setEnvMode(target);
-      setShowEnvConfirm(false);
-      loadData();
-    } catch (e: any) { showToast(e?.message || 'Environment switch failed', 'error'); }
-    setEnvSwitching(false);
-  }
-
-  async function confirmProductionSwitch() {
-    setEnvSwitching(true);
-    try {
-      await api.switchEnvironment('production', true);
-      setEnvMode('production');
-      setShowEnvConfirm(false);
-      loadData();
-    } catch (e: any) { showToast(e?.message || 'Environment switch failed', 'error'); }
-    setEnvSwitching(false);
-  }
-
+  // Optimistic: flip status locally first, revert on error.
   async function toggleChannel(id: string, current: string) {
+    const next = current === 'active' ? 'disabled' : 'active';
+    const snapshot = allChannels;
+    setAllChannels(prev => prev.map(c => c.channel_id === id ? { ...c, status: next } : c));
     try {
       if (current === 'active') await api.disableChannel(id);
       else await api.enableChannel(id);
+      // Defer reconciliation; let optimistic state stand for snappy UX
       loadData();
-    } catch (e: any) { showToast(e?.message || 'Toggle failed', 'error'); }
+    } catch (e: any) {
+      setAllChannels(snapshot);
+      showToast(e?.message || 'Toggle failed', 'error');
+    }
   }
 
   async function archiveChannel(id: string) {
-    try { await api.archiveChannel(id); setConfirmArchive(null); loadData(); } catch (e: any) { showToast(e?.message || 'Archive failed', 'error'); }
+    const snapshot = allChannels;
+    const channel = allChannels.find(c => c.channel_id === id);
+    const channelName = channel?.channel_name || 'channel';
+    // Optimistic: mark archived locally + close confirm
+    setAllChannels(prev => prev.map(c => c.channel_id === id ? { ...c, status: 'archived' } : c));
+    setConfirmArchive(null);
+    try {
+      await api.archiveChannel(id);
+      showToast(`${channelName} archived`, {
+        variant: 'info',
+        duration: 6000,
+        action: {
+          label: 'Undo',
+          onAct: async () => {
+            try {
+              await api.restoreChannel(id);
+              loadData();
+              showToast('Restored', 'success');
+            } catch (err: any) {
+              showToast(err?.message || 'Undo failed', 'error');
+            }
+          },
+        },
+      });
+      loadData();
+    } catch (e: any) {
+      setAllChannels(snapshot);
+      showToast(e?.message || 'Archive failed', 'error');
+    }
   }
 
   async function restoreChannel(id: string) {
-    try { await api.restoreChannel(id); loadData(); } catch (e: any) { showToast(e?.message || 'Restore failed', 'error'); }
+    const snapshot = allChannels;
+    setAllChannels(prev => prev.map(c => c.channel_id === id ? { ...c, status: 'disabled' } : c));
+    try {
+      await api.restoreChannel(id);
+      loadData();
+    } catch (e: any) {
+      setAllChannels(snapshot);
+      showToast(e?.message || 'Restore failed', 'error');
+    }
   }
 
   async function cloneChannel(id: string) {
@@ -322,81 +357,20 @@ export default function DashboardPage() {
   ];
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="animate-spin h-5 w-5 border-2 border-accent border-t-transparent rounded-full" />
+    <div className="flex-1 flex flex-col">
+      <div className="max-w-[1400px] mx-auto w-full px-6 py-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <SkeletonCard key={i} />
+        ))}
+      </div>
     </div>
   );
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
-      {/* ── Fixed Header ── */}
-      <header className="shrink-0 bg-surface-0 border-b border-border px-6 py-3">
-        <div className="max-w-[1400px] mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="text-accent">
-                <path d="M23 7l-7 5 7 5V7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <rect x="1" y="5" width="15" height="14" rx="2" stroke="currentColor" strokeWidth="2"/>
-              </svg>
-            </div>
-            <h1 className="text-lg font-semibold text-content-primary">YouTube Automation</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <Tip text={envMode === 'test' ? 'Test mode: free/mock providers, no uploads' : 'Production mode: paid APIs, YouTube uploads'} pos="bottom">
-              <div className="flex items-center gap-2">
-                <span className={cn('text-xs font-semibold', envMode === 'test' ? 'text-amber-400' : 'text-content-tertiary')}>TEST</span>
-                <button onClick={() => switchEnvMode(envMode === 'test' ? 'production' : 'test')} disabled={envSwitching}
-                  className={cn('relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
-                    envMode === 'production' ? 'bg-emerald-500' : 'bg-amber-500', envSwitching && 'opacity-50 cursor-wait')}
-                  role="switch" aria-checked={envMode === 'production'}>
-                  <span className={cn('inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform',
-                    envMode === 'production' ? 'translate-x-[18px]' : 'translate-x-[3px]')} />
-                </button>
-                <span className={cn('text-xs font-semibold', envMode === 'production' ? 'text-emerald-400' : 'text-content-tertiary')}>PROD</span>
-              </div>
-            </Tip>
-            <ThemeToggle />
-            <Tip text="View all running & failed jobs" pos="bottom">
-              <Link href="/dashboard/progress" className="btn-secondary !py-2 !text-xs">Progress</Link>
-            </Tip>
-            <Tip text="System configuration & emergency stop" pos="bottom">
-              <Link href="/dashboard/settings" className="btn-secondary !py-2 !text-xs">Settings</Link>
-            </Tip>
-            {systemStopped ? (
-              <Tip text="Resume system from Settings to add channels" pos="bottom">
-                <span className="btn-primary !py-2 !text-xs opacity-50 cursor-not-allowed">+ Add Channel</span>
-              </Tip>
-            ) : (
-              <Tip text="Create a new YouTube channel entry" pos="bottom">
-                <Link href="/dashboard/channels/new" className="btn-primary !py-2 !text-xs">+ Add Channel</Link>
-              </Tip>
-            )}
-            <button onClick={() => { clearToken(); router.push('/login'); }} className="btn-ghost !text-xs" title="Sign out">Logout</button>
-          </div>
-        </div>
-      </header>
+    <div className="flex-1 flex flex-col overflow-hidden">
 
       {/* ── Fixed Banners ── */}
       <div className="shrink-0 max-w-[1400px] w-full mx-auto px-6">
-        {showEnvConfirm && (
-          <div className="mt-4 p-4 rounded-lg bg-red-500/10 border border-red-500/20">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-red-400">Switch to Production Mode?</h3>
-                <p className="text-xs text-content-tertiary mt-1">
-                  This will use <span className="text-red-400 font-medium">paid APIs</span>. Estimated cost: <span className="text-red-400 font-medium">$0.12–$0.35 per video</span>.
-                </p>
-              </div>
-              <div className="flex gap-2 ml-4">
-                <button onClick={() => setShowEnvConfirm(false)} className="px-3 py-1.5 text-xs font-medium border border-border rounded-lg hover:bg-surface-2 transition-colors">Cancel</button>
-                <button onClick={confirmProductionSwitch} disabled={envSwitching}
-                  className="px-3 py-1.5 text-xs font-semibold bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50">
-                  {envSwitching ? 'Switching…' : 'Confirm Production'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
         {envMode === 'test' && !systemStopped && (
           <div className="mt-4 p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/15">
             <div className="flex items-center gap-2 text-xs text-amber-400">
@@ -431,7 +405,15 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Fixed Stats Row ── */}
-      {stats && (
+      {!stats ? (
+        <div className="shrink-0 max-w-[1400px] w-full mx-auto px-6 pt-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-20 w-full" />
+            ))}
+          </div>
+        </div>
+      ) : (
         <div className="shrink-0 max-w-[1400px] w-full mx-auto px-6 pt-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard label="Active Channels" value={stats.channels.active}
@@ -550,7 +532,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Table body — scrollable */}
-          <div className="flex-1 overflow-y-auto divide-y divide-border">
+          <div ref={channelListRef} className="flex-1 overflow-y-auto divide-y divide-border">
             {displayChannels.map((ch: any) => {
               const isDisabled = ch.status !== 'active';
               const isArchived = ch.status === 'archived';
@@ -748,13 +730,21 @@ export default function DashboardPage() {
             })}
 
             {displayChannels.length === 0 && (
-              <div className="text-center py-16 text-content-tertiary text-sm">
+              <div className="p-6">
                 {debouncedSearch ? (
-                  <>No channels match &ldquo;{debouncedSearch}&rdquo;</>
+                  <EmptyState
+                    title={`No channels match “${debouncedSearch}”`}
+                    body="Try a different search term or clear filters."
+                  />
                 ) : tab === 'archived' ? (
-                  'No archived channels.'
+                  <EmptyState title="No archived channels" body="Channels you archive will appear here." />
                 ) : (
-                  <>No channels yet. <Link href="/dashboard/channels/new" className="text-accent hover:underline font-medium">Add your first channel</Link></>
+                  <EmptyState
+                    icon={Plus}
+                    title="No channels yet"
+                    body="Create your first YouTube channel to start producing videos automatically."
+                    cta={{ label: 'Add your first channel', href: '/dashboard/channels/new' }}
+                  />
                 )}
               </div>
             )}

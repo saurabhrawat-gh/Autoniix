@@ -4,8 +4,13 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api, isLoggedIn } from '@/lib/api';
-import { cn, statusColor, statusIcon, PHASE_LABELS } from '@/lib/utils';
-import { ThemeToggle, HomeLogo } from '@/lib/theme';
+import { cn, statusColor, PHASE_LABELS } from '@/lib/utils';
+import { PageHeader } from '@/lib/components/PageHeader';
+import { Settings as SettingsIcon, Inbox } from '@/lib/components/Icon';
+import { Tip } from '@/lib/components/Tooltip';
+import { SkeletonCard } from '@/lib/components/Skeleton';
+import { EmptyState } from '@/lib/components/EmptyState';
+import { StatusIcon } from '@/lib/components/StatusIcon';
 
 export default function ChannelDetailPage() {
   const router = useRouter();
@@ -43,34 +48,27 @@ export default function ChannelDetailPage() {
   }, [router, loadJobs]);
 
   return (
-    <div className="h-screen flex flex-col">
-      {/* Fixed Header */}
-      <header className="sticky top-0 z-10 bg-surface-0 border-b border-border px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <HomeLogo />
-            <div>
-              <h1 className="text-lg font-semibold text-content-primary">
-                {channel?.channel_name || channelId}
-              </h1>
-              <p className="text-xs text-content-tertiary mt-0.5">Channel Detail</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-              <Link href={`/dashboard/channels/${channelId}/settings`}
-                className="w-9 h-9 flex items-center justify-center rounded-lg bg-surface-2 hover:bg-surface-3 transition-all text-content-secondary hover:text-accent"
-                title="View and edit channel configuration">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                </svg>
-              </Link>
-              <ThemeToggle />
-            </div>
-        </div>
-      </header>
+    <div className="flex-1 flex flex-col">
+      <PageHeader
+        title={channel?.channel_name || channelId}
+        subtitle="Channel Detail"
+        crumbs={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Channels' },
+          { label: channel?.channel_name || channelId },
+        ]}
+        actions={(
+          <Tip text="View and edit channel configuration" pos="bottom">
+            <Link href={`/dashboard/channels/${channelId}/settings`}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-surface-2 hover:bg-surface-3 transition-colors text-content-secondary hover:text-accent text-xs font-medium"
+              aria-label="Channel settings">
+              <SettingsIcon size={14} />
+              <span className="hidden sm:inline">Channel Settings</span>
+            </Link>
+          </Tip>
+        )}
+      />
 
-      {/* Scrollable Content */}
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-6 py-6">
           {/* Channel archived banner */}
@@ -228,15 +226,19 @@ export default function ChannelDetailPage() {
 
             {/* Jobs */}
             {loading ? (
-              <div className="flex justify-center py-16">
-                <div className="animate-spin h-5 w-5 border-2 border-accent border-t-transparent rounded-full" />
+              <div className="space-y-3 p-4">
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
               </div>
             ) : jobs.length === 0 ? (
-              <div className="text-center py-20">
-                <div className="text-content-tertiary text-sm">No videos yet for this mode.</div>
-                <p className="text-xs text-content-tertiary mt-2">
-                  Go to the dashboard to trigger video production.
-                </p>
+              <div className="p-6">
+                <EmptyState
+                  icon={Inbox}
+                  title={`No ${tab === 'short' ? 'shorts' : 'long-form videos'} yet`}
+                  body="Trigger this channel from the dashboard to start producing your first video in this format."
+                  cta={{ label: 'Go to Dashboard', href: '/dashboard' }}
+                />
               </div>
             ) : (
               <div className="divide-y divide-border">
@@ -244,7 +246,7 @@ export default function ChannelDetailPage() {
                   <Link key={job.content_id} href={`/dashboard/jobs/${job.content_id}`}
                     className="flex items-center px-5 py-4 hover:bg-surface-1/50 transition-colors">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <span className={cn('text-sm font-medium', statusColor(job.status))}>{statusIcon(job.status)}</span>
+                      <StatusIcon status={job.status} size={16} />
                       <div className="min-w-0">
                         <div className="text-sm font-medium text-content-primary truncate">
                           {job.title || job.content_id}

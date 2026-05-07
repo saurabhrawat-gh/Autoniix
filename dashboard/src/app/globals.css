@@ -148,4 +148,27 @@
     animation: glow-border 2.5s ease-in-out infinite;
     border-color: rgb(var(--accent) / 0.35);
   }
+
+  /* ── Skeleton shimmer ─────────────────────────────── */
+  @keyframes shimmer {
+    100% { transform: translateX(100%); }
+  }
+  .animate-shimmer {
+    animation: shimmer 1.6s infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-shimmer,
+    .card-in-progress {
+      animation: none !important;
+    }
+  }
+
+  /* ── Density modes ──────────────────────────────────
+     Applied via [data-density="compact"] on <html>.
+     Tightens padding on cards and list rows. */
+  [data-density="compact"] .card { padding: 0.75rem; }
+  [data-density="compact"] .card.p-5,
+  [data-density="compact"] .card.p-6 { padding: 0.875rem; }
+  [data-density="compact"] [data-row] { padding-top: 0.5rem; padding-bottom: 0.5rem; }
 }
