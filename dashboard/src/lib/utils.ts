@@ -53,6 +53,20 @@ export function statusIcon(status: string): string {
   return '○';
 }
 
+/** Map a status string to a Lucide icon name (resolved via `<StatusIcon />`). */
+export type StatusIconName =
+  | 'check' | 'x' | 'square' | 'ban' | 'rotate-cw' | 'circle-dot' | 'hourglass' | 'circle';
+export function statusIconName(status: string): StatusIconName {
+  if (status === 'completed' || status === 'delivered' || status === 'test_delivered') return 'check';
+  if (status === 'failed' || status === 'rejected') return 'x';
+  if (status === 'stopped') return 'square';
+  if (status === 'superseded') return 'ban';
+  if (status === 'retrying') return 'rotate-cw';
+  if (status === 'started') return 'circle-dot';
+  if (status === 'pending_review') return 'hourglass';
+  return 'circle';
+}
+
 export function statusDot(status: string): string {
   if (status === 'active') return 'bg-status-success';
   if (status === 'disabled') return 'bg-content-tertiary';
@@ -67,7 +81,7 @@ export function isTerminalStatus(status: string): boolean {
   return ['failed', 'stopped', 'superseded', 'delivered', 'test_delivered', 'rejected'].includes(status);
 }
 
-export function isStopped(status: string): boolean {
+export function isStopped(status: string): boolean {                          
   return status === 'stopped';
 }
 

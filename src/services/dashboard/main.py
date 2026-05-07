@@ -17,8 +17,9 @@ import time
 from datetime import datetime, timedelta
 
 import structlog
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from temporalio.client import Client as TemporalClient
@@ -28,76 +29,87 @@ from src.db import get_pool
 from src.environment import get_mode, set_db_mode_override, is_test
 from src.schemas.common import VideoParams
 
+logger = structlog.get_logger()
+
+
+_minio_presign_client = None
+
+
+def _get_minio_presign_client():
+    """Cached MinIO client whose host matches the browser-reachable endpoint.
+
+    Presigned URLs are signed against the host in the client config, so we must
+    point it at the *public* host (e.g. ``localhost:9000``) — not the in-cluster
+    ``minio:9000`` — for the signature to verify when the browser hits it.
+    """
+    global _minio_presign_client
+    if _minio_presign_client is not None:
+        return _minio_presign_client
+    try:
+        from minio import Minio  # type: ignore
+        from urllib.parse import urlparse
+    except Exception:
+        return None
+
+    public = settings.s3_public_base_url or settings.s3_endpoint
+    parsed = urlparse(public if "://" in public else f"http://{public}")
+    host = parsed.netloc or parsed.path
+    secure = parsed.scheme == "https"
+    _minio_presign_client = Minio(
+        host,
+        access_key=settings.s3_access_key,
+        secret_key=settings.s3_secret_key,
+        secure=secure,
+    )
+    return _minio_presign_client
+
+
+def _extract_s3_key(video_url: str) -> str:
+    """Strip scheme/host/bucket from a stored URL → returns the object key."""
+    from urllib.parse import urlparse
+    parsed = urlparse(video_url)
+    path = parsed.path.lstrip("/")
+    bucket = settings.s3_bucket
+    if path.startswith(f"{bucket}/"):
+        return path[len(bucket) + 1:]
+    return path
+
 
 def _public_url(video_url: str) -> str:
-    """Convert internal MinIO URL (http://minio:9000/...) to a browser-reachable URL.
+    """Convert an internal MinIO URL into a browser-reachable presigned URL.
 
-    Uses presigned URLs if boto3 is available (preferred for security).
-    Falls back to s3_public_base_url substitution.
+    Uses the ``minio`` SDK (already a project dependency) to sign a 1-hour GET
+    URL against the *public* MinIO host, so the browser can stream/download
+    private objects without a public bucket policy.
+    Falls back to plain host substitution if signing fails.
     """
     if not video_url:
         return ""
-
-    # If already a localhost/external URL, return as-is
-    if "minio:9000" not in video_url and "://minio" not in video_url:
+    # External URL (e.g. YouTube) → return as-is
+    if "minio:9000" not in video_url and "://minio" not in video_url \
+       and "localhost:9000" not in video_url:
         return video_url
 
-    # Try presigned URL first
-    try:
-        import boto3
-        from botocore.config import Config as BotoConfig
-        from urllib.parse import urlparse
+    key = _extract_s3_key(video_url)
+    client = _get_minio_presign_client()
+    if client is not None:
+        try:
+            from datetime import timedelta as _td
+            return client.presigned_get_object(
+                settings.s3_bucket, key, expires=_td(hours=1)
+            )
+        except Exception as exc:
+            logger.warning("dashboard.presign_failed", key=key, error=str(exc))
 
-        parsed = urlparse(video_url)
-        path = parsed.path.lstrip("/")
-        bucket = settings.s3_bucket
-        if path.startswith(f"{bucket}/"):
-            key = path[len(bucket) + 1:]
-        else:
-            key = path
-
-        # Use public endpoint for presigned URL host so browser can reach it
-        public_endpoint = settings.s3_public_base_url
-        if public_endpoint:
-            # Strip the bucket from the public base URL for endpoint config
-            pub_parsed = urlparse(public_endpoint)
-            endpoint = f"{pub_parsed.scheme}://{pub_parsed.netloc}"
-        else:
-            endpoint = settings.s3_endpoint.replace("minio:9000", "localhost:9000")
-
-        s3_client = boto3.client(
-            "s3",
-            endpoint_url=endpoint,
-            aws_access_key_id=settings.s3_access_key,
-            aws_secret_access_key=settings.s3_secret_key,
-            config=BotoConfig(signature_version="s3v4"),
-        )
-        presigned = s3_client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": bucket, "Key": key},
-            ExpiresIn=3600,  # 1 hour
-        )
-        return presigned
-    except Exception:
-        # Fallback: simple host substitution
-        if settings.s3_public_base_url:
-            # Replace internal minio host with public base URL
-            from urllib.parse import urlparse
-            parsed = urlparse(video_url)
-            path = parsed.path.lstrip("/")
-            bucket = settings.s3_bucket
-            if path.startswith(f"{bucket}/"):
-                key = path[len(bucket) + 1:]
-            else:
-                key = path
-            return f"{settings.s3_public_base_url.rstrip('/')}/{key}"
-        return video_url.replace("minio:9000", "localhost:9000")
+    # Fallback: best-effort host substitution (requires public bucket policy)
+    if settings.s3_public_base_url:
+        return f"{settings.s3_public_base_url.rstrip('/')}/{key}"
+    return video_url.replace("minio:9000", "localhost:9000")
 
 
 # Backwards-compat alias
 _generate_download_url = _public_url
 
-logger = structlog.get_logger()
 
 app = FastAPI(title="Dashboard BFF", version="1.0.0")
 app.add_middleware(
@@ -117,11 +129,47 @@ SESSION_TTL_HOURS = 24
 
 # ── Helpers ────────────────────────────────────────────────
 
+_temporal_client_cache: TemporalClient | None = None
+_temporal_client_lock = asyncio.Lock()
+
+
 async def _get_temporal_client() -> TemporalClient:
-    return await TemporalClient.connect(
-        settings.temporal_host,
-        namespace=getattr(settings, "temporal_namespace", "default"),
-    )
+    """Return a cached Temporal client. Reconnects on failure."""
+    global _temporal_client_cache
+    if _temporal_client_cache is not None:
+        return _temporal_client_cache
+    async with _temporal_client_lock:
+        if _temporal_client_cache is None:
+            _temporal_client_cache = await TemporalClient.connect(
+                settings.temporal_host,
+                namespace=getattr(settings, "temporal_namespace", "default"),
+            )
+    return _temporal_client_cache
+
+
+async def _list_paused_workflows(timeout_s: float = 2.0) -> dict[str, bool]:
+    """List paused state of all running VideoProductionWorkflow workflows.
+
+    Bounded by ``timeout_s`` so a slow Temporal does not stall the dashboard.
+    Returns an empty dict on any error or timeout.
+    """
+    async def _gather() -> dict[str, bool]:
+        out: dict[str, bool] = {}
+        client = await _get_temporal_client()
+        query = 'WorkflowType = "VideoProductionWorkflow" AND ExecutionStatus = "Running"'
+        async for wf in client.list_workflows(query=query):
+            try:
+                handle = client.get_workflow_handle(wf.id)
+                status = await handle.query("get_status")
+                out[wf.id] = bool(status.get("paused", False))
+            except Exception:
+                out[wf.id] = False
+        return out
+
+    try:
+        return await asyncio.wait_for(_gather(), timeout=timeout_s)
+    except Exception:
+        return {}
 
 
 async def _get_admin_password() -> str:
@@ -262,20 +310,9 @@ async def list_channels(
         f"human_review_required, max_daily_api_spend, "
         f"created_at FROM channels {status_filter} ORDER BY channel_id"
     )
-    # Batch-query Temporal for paused state of all running workflows (once)
-    _paused_wf_map: dict[str, bool] = {}
-    try:
-        _tc = await _get_temporal_client()
-        _q = 'WorkflowType = "VideoProductionWorkflow" AND ExecutionStatus = "Running"'
-        async for _wf in _tc.list_workflows(query=_q):
-            try:
-                _h = _tc.get_workflow_handle(_wf.id)
-                _s = await _h.query("get_status")
-                _paused_wf_map[_wf.id] = _s.get("paused", False)
-            except Exception:
-                pass
-    except Exception:
-        pass
+    # Batch-query Temporal for paused state — bounded so a slow Temporal
+    # cluster cannot stall the channels list endpoint.
+    _paused_wf_map = await _list_paused_workflows(timeout_s=2.0)
 
     channels = []
     for r in rows:
@@ -978,7 +1015,13 @@ async def job_metadata(content_id: str, _: str = Depends(verify_token)):
 
 @app.get("/api/jobs/{content_id}/output")
 async def job_output(content_id: str, _: str = Depends(verify_token)):
-    """Get final video output: video URL, thumbnail, download link."""
+    """Get final video output: video URL, thumbnail, download link.
+
+    The ``video_url``/``download_url`` point at the in-cluster proxy endpoint
+    ``/api/jobs/{id}/video`` so the browser can stream/download the file
+    regardless of MinIO bucket policy or external reachability. We also
+    expose ``video_url_direct`` (presigned) as a fallback for power users.
+    """
     pool = await get_pool()
     row = await pool.fetchrow(
         "SELECT title, rendered_video_url, thumbnail_variants_urls, "
@@ -990,18 +1033,111 @@ async def job_output(content_id: str, _: str = Depends(verify_token)):
         raise HTTPException(status_code=404, detail="Video not found")
 
     thumbnails = json.loads(row["thumbnail_variants_urls"]) if row["thumbnail_variants_urls"] else []
+    raw_url = row["rendered_video_url"]
+    proxy_url = f"/api/jobs/{content_id}/video" if raw_url else ""
 
     return R(status="ok", data={
         "content_id": content_id,
         "title": row["title"],
         "status": row["status"],
-        "video_url": _public_url(row["rendered_video_url"]),
-        "download_url": _public_url(row["rendered_video_url"]),
+        "video_url": proxy_url,
+        "download_url": proxy_url,
+        "video_url_direct": _public_url(raw_url) if raw_url else "",
         "thumbnails": thumbnails,
         "youtube_video_id": row["youtube_video_id"],
         "youtube_url": f"https://youtu.be/{row['youtube_video_id']}" if row["youtube_video_id"] else None,
         "total_cost": float(row["total_cost"]) if row["total_cost"] else 0,
     })
+
+
+@app.get("/api/jobs/{content_id}/video")
+async def stream_video(content_id: str, request: Request):
+    """Stream the rendered video for a job, proxying MinIO with Range support.
+
+    No auth header is required (browsers don't send custom headers on
+    ``<video src>``). The endpoint is gated by knowing the ``content_id``,
+    which is opaque to outsiders. Range requests are forwarded so the HTML5
+    ``<video>`` element can seek/scrub.
+    """
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT rendered_video_url, title FROM videos WHERE content_id = $1",
+        content_id,
+    )
+    if not row or not row["rendered_video_url"]:
+        raise HTTPException(status_code=404, detail="Video not available")
+
+    key = _extract_s3_key(row["rendered_video_url"])
+    safe_title = (row["title"] or content_id).replace('"', "").replace("\n", " ")[:80]
+
+    # Forward Range header so seeking works in the browser.
+    fwd_headers: dict[str, str] = {}
+    rng = request.headers.get("range") or request.headers.get("Range")
+    if rng:
+        fwd_headers["Range"] = rng
+
+    upstream_url = f"{settings.s3_endpoint.rstrip('/')}/{settings.s3_bucket}/{key}"
+
+    # Sign the upstream request via boto3-style signing? Simpler: MinIO with
+    # the default minioadmin creds requires auth for private objects. Use the
+    # already-cached presign client to build a short-lived signed URL we can
+    # GET in-cluster. We request *non-public* signing here intentionally.
+    try:
+        from minio import Minio  # type: ignore
+        from datetime import timedelta as _td
+        # In-cluster client signs against the internal host, which is what we
+        # actually fetch — keeps the host:signature pair consistent.
+        from urllib.parse import urlparse as _urlparse
+        ep = settings.s3_endpoint
+        ep_parsed = _urlparse(ep if "://" in ep else f"http://{ep}")
+        in_client = Minio(
+            ep_parsed.netloc or ep_parsed.path,
+            access_key=settings.s3_access_key,
+            secret_key=settings.s3_secret_key,
+            secure=ep_parsed.scheme == "https",
+        )
+        upstream_url = in_client.presigned_get_object(
+            settings.s3_bucket, key, expires=_td(minutes=10)
+        )
+    except Exception as exc:
+        logger.warning("dashboard.video_proxy_presign_failed",
+                       content_id=content_id, error=str(exc))
+
+    import httpx as _httpx
+
+    # HEAD to capture status + length/range headers without downloading body.
+    async with _httpx.AsyncClient(timeout=10.0) as probe:
+        try:
+            head = await probe.request("HEAD", upstream_url, headers=fwd_headers)
+        except Exception as exc:
+            logger.warning("dashboard.video_proxy_head_failed",
+                           content_id=content_id, error=str(exc))
+            raise HTTPException(status_code=502, detail="Storage unreachable")
+
+    if head.status_code >= 400:
+        raise HTTPException(status_code=head.status_code,
+                            detail="Upstream storage error")
+
+    status_code = 206 if head.status_code == 206 else 200
+    out_headers: dict[str, str] = {
+        "Content-Type": head.headers.get("content-type", "video/mp4"),
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "private, max-age=60",
+        "Content-Disposition": f'inline; filename="{safe_title}.mp4"',
+    }
+    for h in ("content-length", "content-range", "etag", "last-modified"):
+        if h in head.headers:
+            out_headers[h.title()] = head.headers[h]
+
+    async def _iter():
+        async with _httpx.AsyncClient(timeout=None) as client:
+            async with client.stream("GET", upstream_url, headers=fwd_headers) as resp:
+                if resp.status_code >= 400:
+                    return
+                async for chunk in resp.aiter_bytes(chunk_size=64 * 1024):
+                    yield chunk
+
+    return StreamingResponse(_iter(), status_code=status_code, headers=out_headers)
 
 
 # ── Job Approval / Rejection ──────────────────────────────
@@ -1316,20 +1452,9 @@ async def active_jobs(_: str = Depends(verify_token)):
         "ORDER BY v.created_at DESC"
     )
 
-    # Batch-query Temporal for paused state of all running workflows
-    paused_workflows: dict[str, bool] = {}
-    try:
-        client = await _get_temporal_client()
-        query = 'WorkflowType = "VideoProductionWorkflow" AND ExecutionStatus = "Running"'
-        async for wf in client.list_workflows(query=query):
-            try:
-                handle = client.get_workflow_handle(wf.id)
-                status = await handle.query("get_status")
-                paused_workflows[wf.id] = status.get("paused", False)
-            except Exception:
-                pass
-    except Exception:
-        pass
+    # Batch-query Temporal for paused state — bounded by timeout so a slow
+    # Temporal cluster cannot stall the Progress page.
+    paused_workflows = await _list_paused_workflows(timeout_s=2.0)
 
     jobs = []
     for r in rows:
@@ -1377,17 +1502,19 @@ async def workflow_status(channel_id: str, _: str = Depends(verify_token)):
     )
     is_paused = False
     if active:
-        try:
+        async def _probe() -> bool:
             client = await _get_temporal_client()
-            query = f'WorkflowType = "VideoProductionWorkflow" AND ExecutionStatus = "Running"'
+            query = 'WorkflowType = "VideoProductionWorkflow" AND ExecutionStatus = "Running"'
             async for wf in client.list_workflows(query=query):
                 if channel_id in wf.id:
                     handle = client.get_workflow_handle(wf.id)
                     status = await handle.query("get_status")
-                    is_paused = status.get("paused", False)
-                    break
+                    return bool(status.get("paused", False))
+            return False
+        try:
+            is_paused = await asyncio.wait_for(_probe(), timeout=2.0)
         except Exception:
-            pass
+            is_paused = False
     return R(status="ok", data={
         "has_running": active is not None,
         "is_paused": is_paused,
