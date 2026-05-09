@@ -1,7 +1,7 @@
 import React from "react";
 import { AbsoluteFill, useVideoConfig } from "remotion";
 import { resolvePreset, resolveSfx } from "../../registry";
-import { PlaceholderScene } from "./PlaceholderScene";
+import { DiagnosticScene } from "./DiagnosticScene";
 import { EffectErrorBoundary } from "../effects/EffectErrorBoundary";
 import { SFXTrigger } from "../audio/SFXTrigger";
 import { msToFrames } from "../../utils/timing";
@@ -27,7 +27,11 @@ export const SegmentRenderer: React.FC<SegmentRendererProps> = ({ segment }) => 
   let sceneEl: React.ReactNode;
   if (!sceneResolved) {
     sceneEl = (
-      <PlaceholderScene label={`unknown: ${segment.scene_preset}`} bg="#200" fg="#f55" />
+      <DiagnosticScene
+        reason="unresolved scene_preset"
+        presetId={segment.scene_preset}
+        segmentId={segment.id}
+      />
     );
   } else {
     const { Component, props } = sceneResolved;

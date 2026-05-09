@@ -22,6 +22,7 @@ from src.services.direction.direction_merger import (
     score_merged_direction,
     store_direction_features,
 )
+from src.observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -95,6 +96,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Direction Service", version="0.1.0", lifespan=lifespan)
 
 
+instrument_app(app, service_name="direction")
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="direction")

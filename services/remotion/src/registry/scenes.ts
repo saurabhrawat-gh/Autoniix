@@ -21,6 +21,7 @@ import { CodeTyping } from "../components/scenes/CodeTyping";
 import { FlowchartAnimation } from "../components/scenes/FlowchartAnimation";
 import { AdvancedKineticText } from "../components/scenes/AdvancedKineticText";
 import { TextStrokeReveal } from "../components/scenes/TextStrokeReveal";
+import { DiagnosticScene } from "../components/scenes/DiagnosticScene";
 import type { PresetRegistry } from "./types";
 
 export const SCENE_PRESETS: PresetRegistry = {
@@ -32,12 +33,24 @@ export const SCENE_PRESETS: PresetRegistry = {
     category: "scene",
     tags: ["debug"],
   },
+  // NOTE: previously rendered fully black (bg=#000, fg=#000). Now visibly
+  // labelled — black-screen renders are a regression and must be caught by
+  // post-render QC, never produced silently.
   "scene.placeholder.black": {
     id: "scene.placeholder.black",
     component: PlaceholderScene,
-    defaultProps: { label: "", bg: "#000000", fg: "#000000" },
+    defaultProps: { label: "(no scene set)", bg: "#0A0A0A", fg: "#FFFFFF" },
     category: "scene",
-    tags: ["debug", "black"],
+    tags: ["debug", "fallback"],
+  },
+  // Loud, animated fallback — used by the simplifier and any unresolved
+  // preset path. Never confusable with a real, shippable render.
+  "scene.error.diagnostic": {
+    id: "scene.error.diagnostic",
+    component: DiagnosticScene,
+    defaultProps: { reason: "fallback path triggered" },
+    category: "scene",
+    tags: ["debug", "diagnostic", "fallback"],
   },
 
   // --- Stock footage ---

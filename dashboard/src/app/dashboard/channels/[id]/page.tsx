@@ -58,14 +58,24 @@ export default function ChannelDetailPage() {
           { label: channel?.channel_name || channelId },
         ]}
         actions={(
-          <Tip text="View and edit channel configuration" pos="bottom">
-            <Link href={`/dashboard/channels/${channelId}/settings`}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-surface-2 hover:bg-surface-3 transition-colors text-content-secondary hover:text-accent text-xs font-medium"
-              aria-label="Channel settings">
-              <SettingsIcon size={14} />
-              <span className="hidden sm:inline">Channel Settings</span>
-            </Link>
-          </Tip>
+          <div className="flex items-center gap-2">
+            <Tip text="View and edit channel configuration" pos="bottom">
+              <Link href={`/dashboard/channels/${channelId}/settings`}
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-surface-2 hover:bg-surface-3 transition-colors text-content-secondary hover:text-accent text-xs font-medium"
+                aria-label="Channel settings">
+                <SettingsIcon size={14} />
+                <span className="hidden sm:inline">Channel Settings</span>
+              </Link>
+            </Tip>
+            <Tip text="What the self-learning loop has learned for this channel" pos="bottom">
+              <Link href={`/dashboard/channels/${channelId}/learning`}
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-surface-2 hover:bg-surface-3 transition-colors text-content-secondary hover:text-accent text-xs font-medium"
+                aria-label="Learning insights">
+                <span aria-hidden="true">★</span>
+                <span className="hidden sm:inline">Learning</span>
+              </Link>
+            </Tip>
+          </div>
         )}
       />
 

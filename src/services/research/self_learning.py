@@ -56,8 +56,26 @@ async def _load_model(niche: str | None = None):
     return model, metrics
 
 
-async def predict_success(features: dict, niche: str | None = None) -> dict:
+async def predict_success(
+    features: dict,
+    niche: str | None = None,
+    *,
+    content_id: str | None = None,
+) -> dict:
     """Predict probability of success for a topic given its features.
+
+    Phase 11: when ``content_id`` is provided we log the prediction +
+    confidence to ``prediction_log``. The feedback ingestor later
+    fills in the actual outcome and computes ``sample_weight`` so
+    the next training pass biases toward high-confidence misses.
+
+    ``content_id`` is optional for backward compatibility; without it
+    no logging occurs and behaviour matches the pre-Phase-11 path.
+
+    Rule-based fallback predictions are deliberately *not* logged —
+    they carry no model signal so weighting them in retraining would
+    be meaningless. Once the model has trained even once, every
+    subsequent call is logged.
 
     Returns:
         dict with predicted_probability, model_version, confidence.
@@ -85,11 +103,29 @@ async def predict_success(features: dict, niche: str | None = None) -> dict:
         return float(prob[1]) if len(prob) > 1 else float(prob[0])
 
     predicted = await asyncio.to_thread(_predict)
+    confidence = float(metrics.get("roc_auc", 0.5))
+
+    # Phase 11 — audit-log the prediction for the calibration loop.
+    # Best-effort; log_prediction itself swallows DB errors so this
+    # never blocks the prediction path.
+    if content_id:
+        try:
+            from src.intelligence.prediction_calibration import log_prediction
+            await log_prediction(
+                content_id=content_id,
+                model_kind="topic_success",
+                niche=niche,
+                predicted_prob=predicted,
+                confidence=confidence,
+                model_version=int(metrics.get("model_version", 0)) or None,
+            )
+        except Exception as exc:
+            logger.warning("predict.log_failed", content_id=content_id, error=str(exc))
 
     return {
         "predicted_probability": round(predicted, 4),
         "model_type": "gradient_boosted",
-        "confidence": round(float(metrics.get("roc_auc", 0.5)), 3),
+        "confidence": round(confidence, 3),
         "training_samples": int(metrics.get("n_samples", 0)),
     }
 
@@ -98,14 +134,31 @@ async def predict_success(features: dict, niche: str | None = None) -> dict:
 # THOMPSON SAMPLING BANDIT
 # ═══════════════════════════════════════════════════════════
 
-async def thompson_sample(niche: str, arms: list[str]) -> dict:
-    """Select a topic cluster using Thompson Sampling.
+async def thompson_sample(
+    niche: str,
+    arms: list[str],
+    *,
+    channel_id: str | None = None,
+) -> dict:
+    """Select a topic cluster using Thompson Sampling, with diversity floor.
 
     Each arm = a topic cluster/angle. Maintains Beta(alpha, beta)
     priors updated by success/failure outcomes.
 
+    Phase 10 (anti-mode-collapse): before sampling, the diversity floor
+    inspects this channel's recent picks for ``topic_cluster``. If the
+    Shannon entropy of recent arm selections is below threshold the
+    Thompson sample is overridden with the least-pulled arm — a hard
+    exploration nudge. Either way the resulting pick is logged to
+    ``bandit_picks`` for future diversity calls.
+
+    ``channel_id`` is optional for backward compatibility: callers that
+    don't pass it skip the diversity check entirely (useful for tests
+    and any code path that genuinely wants pure Thompson).
+
     Returns:
-        dict with selected_arm, sampled_value, exploration_bonus.
+        dict with selected_arm, sampled_value, exploration_bonus,
+        forced_exploration (Phase 10), entropy (Phase 10).
     """
     pool = await get_pool()
 
@@ -134,8 +187,48 @@ async def thompson_sample(niche: str, arms: list[str]) -> dict:
         b = float(state["beta"])
         samples[arm] = float(np.random.beta(a, b))
 
-    # Select best sample
-    selected = max(samples, key=samples.get)
+    # Thompson selection.
+    thompson_pick = max(samples, key=samples.get)
+
+    # Phase 10 — diversity floor check. Cold-start safe: returns
+    # force=False on missing channel_id, empty history, or DB error.
+    forced_exploration = False
+    entropy = None
+    selected = thompson_pick
+    if channel_id:
+        try:
+            from src.intelligence.diversity_floor import evaluate_diversity_floor
+            decision = await evaluate_diversity_floor(
+                channel_id=channel_id,
+                bandit_type="topic_cluster",
+                available_arms=arms,
+            )
+            entropy = decision["entropy"]
+            if decision["force"] and decision["forced_arm"]:
+                selected = decision["forced_arm"]
+                forced_exploration = True
+                logger.info("bandit.diversity_override",
+                            niche=niche, channel_id=channel_id,
+                            entropy=entropy,
+                            thompson_pick=thompson_pick,
+                            forced_pick=selected)
+        except Exception as exc:
+            logger.warning("bandit.diversity_check_failed",
+                           niche=niche, error=str(exc))
+
+    # Audit-log the pick (always, regardless of whether floor fired) so
+    # the next call has data to compute entropy from.
+    if channel_id:
+        try:
+            from src.intelligence.diversity_floor import log_bandit_pick
+            await log_bandit_pick(
+                niche=niche, bandit_type="topic_cluster",
+                channel_id=channel_id, arm_name=selected,
+                forced_exploration=forced_exploration,
+            )
+        except Exception:
+            pass  # log_bandit_pick already logs on failure
+
     exploration = 1.0 / (1 + arm_states.get(selected, {}).get("pulls", 0))
 
     result = {
@@ -143,10 +236,16 @@ async def thompson_sample(niche: str, arms: list[str]) -> dict:
         "sampled_value": round(samples[selected], 4),
         "all_samples": {k: round(v, 4) for k, v in samples.items()},
         "exploration_bonus": round(exploration, 4),
+        # Phase 10 fields. ``forced_exploration`` is the canonical
+        # signal that the diversity floor fired this round.
+        "forced_exploration": forced_exploration,
+        "entropy": entropy,
     }
 
     logger.info("bandit.sampled", niche=niche, selected=selected,
-                value=round(samples[selected], 3), pulls=arm_states.get(selected, {}).get("pulls", 0))
+                value=round(samples[selected], 3),
+                pulls=arm_states.get(selected, {}).get("pulls", 0),
+                forced=forced_exploration)
     return result
 
 
@@ -275,6 +374,22 @@ async def ingest_performance(content_id: str, analytics: dict) -> dict:
             reward = 1.0 if is_success else 0.0
             await bandit_update(ch_row["niche"], feat_row["bandit_arm"], reward)
 
+    # Phase 11 — close the prediction-error loop. The actual outcome
+    # is now known; reach back into prediction_log, compute abs_error
+    # and sample_weight, and stamp them on the row. The next training
+    # run picks these up via LEFT JOIN. No-op when there's no logged
+    # prediction (e.g. rule-based fallback skipped logging by design).
+    try:
+        from src.intelligence.prediction_calibration import update_prediction_actual
+        await update_prediction_actual(
+            content_id=content_id,
+            model_kind="topic_success",
+            actual_outcome=1.0 if is_success else 0.0,
+        )
+    except Exception as exc:
+        logger.warning("feedback.calibration_update_failed",
+                       content_id=content_id, error=str(exc))
+
     result = {
         "is_success": is_success,
         "success_tier": tier,
@@ -306,14 +421,21 @@ async def train_model(niche: str | None = None, min_samples: int = 20) -> dict:
     """
     pool = await get_pool()
 
-    # Build training set
+    # Build training set.
+    # Phase 11: LEFT JOIN against prediction_log so we can pull the
+    # confidence-weighted sample_weight per row. NULL coalesces to 1.0
+    # so unscored rows (rule-based predictions, predictions never
+    # back-filled) train at uniform weight — never zeroed out.
     query = """
         SELECT rf.freshness_score, rf.novelty_score, rf.trend_momentum,
                rf.supply_demand_gap, rf.hookability_score, rf.competitor_gap,
                rf.burst_score, rf.seasonality_score, rf.phrase_novelty,
-               po.is_success
-        FROM research_features rf
-        JOIN performance_outcomes po ON rf.content_id = po.content_id
+               po.is_success,
+               COALESCE(pl.sample_weight, 1.0)::float AS sample_weight
+        FROM      research_features rf
+        JOIN      performance_outcomes po ON rf.content_id = po.content_id
+        LEFT JOIN prediction_log       pl ON pl.content_id = rf.content_id
+                                         AND pl.model_kind = 'topic_success'
         WHERE po.is_success IS NOT NULL
     """
     params = []
@@ -333,6 +455,9 @@ async def train_model(niche: str | None = None, min_samples: int = 20) -> dict:
     # Build numpy arrays
     X = np.array([[float(r[f]) for f in FEATURE_NAMES] for r in rows])
     y = np.array([1 if r["is_success"] else 0 for r in rows])
+    # Phase 11: per-sample weights from the calibration loop.
+    sample_weights = np.array([float(r["sample_weight"]) for r in rows])
+    n_weighted = int((sample_weights > 1.0).sum())
 
     def _train():
         from sklearn.ensemble import GradientBoostingClassifier
@@ -349,13 +474,23 @@ async def train_model(niche: str | None = None, min_samples: int = 20) -> dict:
             random_state=42,
         )
 
-        # CV scores
+        # CV scores. Note: cross_val_score does *not* take sample_weight
+        # in older sklearn versions, so we run unweighted CV for a
+        # stable benchmark and reserve sample_weight for the final fit.
+        # This is intentional — CV measures the model's intrinsic
+        # ability on this data; sample_weight is a *training* hint, not
+        # a *measurement* hint.
         cv_scores = cross_val_score(base_model, X, y, cv=min(5, len(y) // 4), scoring="roc_auc")
 
-        # Train final model with isotonic calibration
-        base_model.fit(X, y)
+        # Train final model with isotonic calibration. Pass
+        # sample_weight to .fit() so high-confidence misses (Phase 11)
+        # pull the gradient harder than uniform retraining would.
+        base_model.fit(X, y, sample_weight=sample_weights)
         cal_model = CalibratedClassifierCV(base_model, cv=3, method="isotonic")
-        cal_model.fit(X, y)
+        # CalibratedClassifierCV.fit also accepts sample_weight — keep
+        # them aligned so the calibration layer doesn't undo what the
+        # base model just learned.
+        cal_model.fit(X, y, sample_weight=sample_weights)
 
         # Feature importances from base model
         importances = dict(zip(FEATURE_NAMES, base_model.feature_importances_.tolist()))
@@ -377,6 +512,12 @@ async def train_model(niche: str | None = None, min_samples: int = 20) -> dict:
             "positive_rate": round(float(y.mean()), 4),
             "feature_importances": importances,
             "weights": new_weights,
+            # Phase 11 — visibility into how aggressively the
+            # calibration loop is steering this training run.
+            "n_weighted_samples":   n_weighted,
+            "weighted_fraction":    round(n_weighted / len(y), 4) if len(y) else 0.0,
+            "mean_sample_weight":   round(float(sample_weights.mean()), 3),
+            "max_sample_weight":    round(float(sample_weights.max()), 3),
         }
 
     model, metrics = await asyncio.to_thread(_train)

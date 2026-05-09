@@ -27,6 +27,7 @@ from src.services.thumbnail.ctr_predictor import (
     ingest_ctr_outcome,
     train_ctr_model,
 )
+from src.observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -95,6 +96,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Thumbnail Service", version="0.1.0", lifespan=lifespan)
 
 
+instrument_app(app, service_name="thumbnail")
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="thumbnail")

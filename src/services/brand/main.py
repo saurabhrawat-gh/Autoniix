@@ -25,6 +25,7 @@ from src.services.brand.brand_dna import (
     save_brand_profile,
     score_brand_consistency,
 )
+from src.observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -66,6 +67,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Brand Identity Service", version="0.1.0", lifespan=lifespan)
 
 
+instrument_app(app, service_name="brand")
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="brand")

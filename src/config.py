@@ -66,6 +66,32 @@ class Settings(BaseSettings):
     # ── Temporal ────────────────────────────────────────
     temporal_host: str = "temporal:7233"
     temporal_namespace: str = "default"
+    # Phase 6 — scale-out knobs. Defaults match the previous hard-coded
+    # values so existing deployments don't change behaviour silently;
+    # ops scales by setting env vars instead of editing code.
+    temporal_production_max_activities: int = 5
+    temporal_production_max_workflow_tasks: int = 10
+    temporal_scheduler_max_activities: int = 3
+    # Default per-activity timeout. Render activity has its own much
+    # larger ladder (60 min poll cap inside the activity body), so this
+    # only constrains the smaller activities that should never run long.
+    temporal_default_activity_start_to_close_s: int = 1800   # 30 min
+    temporal_default_activity_heartbeat_s: int = 60
+
+    # ── Postgres pool ──────────────────────────────────
+    # The pool is *per-process*. Each FastAPI service + each Temporal
+    # worker creates its own. With ~6 services and 2 workers, the
+    # default of max=10 caps the fleet at ~80 simultaneous DB ops —
+    # which is plenty for a single-box Postgres but should be tuned
+    # down on Postgres-per-tenant SaaS deployments.
+    db_pool_min_size: int = 2
+    db_pool_max_size: int = 10
+    # Hard ceiling per query — protects against runaway scans hanging
+    # an activity forever. asyncpg ms; Postgres applies via SET LOCAL.
+    db_statement_timeout_ms: int = 30_000
+    # Per-acquire ceiling — if the pool is saturated, fail fast rather
+    # than letting requests pile up.
+    db_pool_acquire_timeout_s: float = 10.0
 
     # ── Remotion ────────────────────────────────────────
     remotion_base_url: str = "http://remotion-api:4000"

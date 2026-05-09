@@ -35,6 +35,7 @@ from src.services.editor.caption_generator import (
     generate_audio_mix_config,
 )
 from src.services.editor.final_qc import run_final_qc
+from src.observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -82,6 +83,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Editor Service", version="0.1.0", lifespan=lifespan)
 
 
+instrument_app(app, service_name="editor")
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="editor")

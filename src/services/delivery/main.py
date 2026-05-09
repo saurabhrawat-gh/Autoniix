@@ -21,6 +21,20 @@ from src.services.delivery.seo_optimizer import (
     predict_optimal_upload_time,
     store_delivery_features,
 )
+from src.observability.metrics import instrument_app
+
+try:
+    from prometheus_client import Counter
+    QUALITY_GATE_BLOCKS_TOTAL = Counter(
+        "quality_gate_blocks_total",
+        "Pre-publish quality-gate blocks (segmented by threshold profile).",
+        labelnames=("profile",),
+    )
+except Exception:  # pragma: no cover
+    class _Noop:
+        def labels(self, *a, **kw): return self
+        def inc(self, *a, **kw): return None
+    QUALITY_GATE_BLOCKS_TOTAL = _Noop()  # type: ignore
 
 logger = structlog.get_logger()
 
@@ -40,6 +54,12 @@ class DeliveryRequest(BaseModel):
     scheduled_at: str = ""  # ISO datetime for scheduled publish
     quality_scores: dict = Field(default_factory=dict)
     human_review_required: bool = False
+    # Phase 4: bypass the strict pre-publish quality gate. Recorded as an
+    # 'override' decision in quality_gate_decisions with the reason supplied
+    # by the caller (admin UI / Temporal workflow on explicit operator input).
+    quality_gate_override: bool = False
+    quality_gate_override_reason: str = ""
+    quality_gate_override_by: str = ""
 
 
 class HumanReviewRequest(BaseModel):
@@ -60,6 +80,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Delivery Service", version="0.1.0", lifespan=lifespan)
 
 
+instrument_app(app, service_name="delivery")
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="delivery")
@@ -140,9 +161,76 @@ async def upload(req: DeliveryRequest):
                 },
             )
 
-        # ── Pre-flight: Compute final composite score ────
-        final_score = _compute_final_score(req.quality_scores)
-        logger.info("delivery.final_score", score=final_score)
+        # ── Pre-flight: strict quality gate ────────────────
+        # Hard floors per dimension + composite threshold. Failing the gate
+        # blocks the upload unless the caller explicitly sets
+        # quality_gate_override=True (audited).
+        # Phase 7: in production we use the niche-aware evaluator that
+        # reads live thresholds from gate_thresholds. The function falls
+        # back to PRODUCTION_THRESHOLDS for any (niche, dim) the
+        # calibrator hasn't covered yet, so cold-start channels behave
+        # exactly as before.
+        from src.environment import is_test
+        from src.quality import evaluate as qg_evaluate, record_decision as qg_record
+        from src.quality.gate import evaluate_for_niche as qg_evaluate_niche
+        gate_profile = "test" if is_test() else "production"
+        # Look up the channel's niche for per-niche threshold tuning.
+        # Wrapped defensively — a DB blip here must not block delivery.
+        niche: str | None = None
+        try:
+            pool = await get_pool()
+            niche = await pool.fetchval(
+                "SELECT niche FROM channels WHERE channel_id = $1",
+                req.channel_id,
+            )
+        except Exception as exc:
+            logger.warning("delivery.niche_lookup_failed",
+                           channel_id=req.channel_id, error=str(exc))
+        gate_decision = await qg_evaluate_niche(
+            req.quality_scores, niche=niche, profile=gate_profile,
+        )
+        final_score = gate_decision.composite_score
+        logger.info(
+            "delivery.quality_gate",
+            score=final_score,
+            passed=gate_decision.passed,
+            failures=gate_decision.failures,
+            profile=gate_profile,
+            niche=niche,
+        )
+
+        if not gate_decision.passed and not req.quality_gate_override:
+            await qg_record(content_id=req.content_id, channel_id=req.channel_id,
+                            decision=gate_decision)
+            QUALITY_GATE_BLOCKS_TOTAL.labels(profile=gate_profile).inc()
+            try:
+                pool = await get_pool()
+                await pool.execute(
+                    "UPDATE videos SET status = 'blocked_quality_gate', "
+                    "final_composite_score = $1, updated_at = NOW() WHERE content_id = $2",
+                    final_score, req.content_id,
+                )
+            except Exception as db_err:
+                logger.warning("delivery.gate_block_db_failed", error=str(db_err))
+            return ServiceResponse(
+                status="blocked",
+                data={
+                    "content_id": req.content_id,
+                    "reason": "quality_gate_failed",
+                    "final_score": final_score,
+                    "failures": gate_decision.failures,
+                    "sub_scores": gate_decision.sub_scores,
+                    "profile": gate_profile,
+                    "hint": ("Re-run failing phase, or call /upload again with "
+                             "quality_gate_override=true and a reason if you must publish."),
+                },
+            )
+
+        await qg_record(content_id=req.content_id, channel_id=req.channel_id,
+                        decision=gate_decision,
+                        overridden=req.quality_gate_override and not gate_decision.passed,
+                        override_reason=req.quality_gate_override_reason,
+                        override_by=req.quality_gate_override_by)
 
         # ── Intelligence: SEO Analysis ─────────────────
         seo_result = score_title_seo(req.title)

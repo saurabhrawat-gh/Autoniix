@@ -20,6 +20,20 @@ from src.temporal_workflows.model_activities import (
     retrain_model,
     update_model_health_activity,
 )
+from src.temporal_workflows.gate_calibration import GateCalibrationWorkflow
+from src.temporal_workflows.gate_activities import (
+    list_niches_with_outcomes_activity,
+    calibrate_gate_for_niche_activity,
+)
+from src.temporal_workflows.niche_pulse import NichePulseRefreshWorkflow
+from src.temporal_workflows.niche_pulse_activities import (
+    refresh_niche_pulse_activity,
+)
+from src.temporal_workflows.retention_fetch import RetentionFetchWorkflow
+from src.temporal_workflows.retention_activities import (
+    list_videos_needing_retention_activity,
+    fetch_retention_for_video_activity,
+)
 from src.workers.activities.common import (
     acquire_channel_lock,
     check_system_status,
@@ -45,7 +59,13 @@ async def main() -> None:
     worker = Worker(
         client,
         task_queue="scheduler",
-        workflows=[DailySchedulerWorkflow, ModelMaintenanceWorkflow],
+        workflows=[
+            DailySchedulerWorkflow,
+            ModelMaintenanceWorkflow,
+            GateCalibrationWorkflow,
+            NichePulseRefreshWorkflow,
+            RetentionFetchWorkflow,
+        ],
         activities=[
             check_system_status,
             get_eligible_channels,
@@ -56,11 +76,21 @@ async def main() -> None:
             check_model_drift,
             retrain_model,
             update_model_health_activity,
+            # Phase 7 — gate calibration activities
+            list_niches_with_outcomes_activity,
+            calibrate_gate_for_niche_activity,
+            # Phase 8 — niche pulse activities (re-uses
+            # list_niches_with_outcomes_activity from Phase 7)
+            refresh_niche_pulse_activity,
+            # Phase 9 — retention-curve fetch activities
+            list_videos_needing_retention_activity,
+            fetch_retention_for_video_activity,
         ],
-        max_concurrent_activities=3,
+        max_concurrent_activities=settings.temporal_scheduler_max_activities,
     )
 
-    logger.info("worker.scheduler.listening", task_queue="scheduler")
+    logger.info("worker.scheduler.listening", task_queue="scheduler",
+                max_activities=settings.temporal_scheduler_max_activities)
     await worker.run()
 
 

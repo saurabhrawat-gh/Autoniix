@@ -176,17 +176,63 @@ async def _store_competitor_channel(our_channel_id: str, comp: dict) -> None:
 
 
 async def _store_competitor_videos(niche: str, videos: list[dict], competitor_yt_id: str) -> int:
+    """Persist competitor videos with title embeddings (Phase 8).
+
+    The schema has carried ``title_embedding vector(384)`` and an IVFFlat
+    index since day one, but the column was never written. Phase 8's
+    saturation scorer needs it populated so cosine queries can compare
+    candidate topics against recent niche output.
+
+    Embeddings are batch-encoded (one model invocation per call) before
+    the row-level insert loop. A failure to compute embeddings is *not*
+    fatal — we fall back to NULL so the rest of the row still lands and
+    the scorer treats the video as "no embedding, skip" instead of
+    breaking the pipeline.
+    """
+    if not videos:
+        return 0
+
     pool = await get_pool()
+
+    # Batch encode all titles in one model call.
+    embeddings: list[list[float] | None] = [None] * len(videos)
+    try:
+        from src.services.research.similarity import compute_embeddings_batch
+        titles = [(v.get("title") or "").strip() for v in videos]
+        # Filter out empties — they'd waste model time and produce
+        # near-meaningless vectors. Track positions so we can splice
+        # results back into the right slots.
+        idx_with_text = [(i, t) for i, t in enumerate(titles) if t]
+        if idx_with_text:
+            non_empty = [t for _, t in idx_with_text]
+            vecs = await compute_embeddings_batch(non_empty)
+            for (orig_idx, _), vec in zip(idx_with_text, vecs):
+                embeddings[orig_idx] = vec
+    except Exception as exc:
+        # Model load failure / OOM / unrelated import error. Log once
+        # at the batch level — don't poison every row's log.
+        logger.warning("competitor.embed_batch_failed",
+                       count=len(videos), error=str(exc))
+
     stored = 0
-    for v in videos:
+    for v, emb in zip(videos, embeddings):
         try:
+            # pgvector accepts the literal string form '[v1,v2,...]' or
+            # a list when the asyncpg type codec is registered. asyncpg
+            # without the codec needs the string form, so we always
+            # encode that way for portability.
+            emb_param = (
+                "[" + ",".join(f"{x:.6f}" for x in emb) + "]"
+                if emb is not None else None
+            )
             await pool.execute("""
                 INSERT INTO competitor_videos
                     (competitor_yt_id, video_yt_id, title, description, tags,
                      published_at, view_count, like_count, comment_count,
                      duration_seconds, view_velocity_24h, is_outlier,
-                     outlier_multiplier, niche)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                     outlier_multiplier, niche, title_embedding)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+                        $13, $14, $15::vector)
                 ON CONFLICT (video_yt_id) DO UPDATE SET
                     view_count = EXCLUDED.view_count,
                     like_count = EXCLUDED.like_count,
@@ -194,6 +240,12 @@ async def _store_competitor_videos(niche: str, videos: list[dict], competitor_yt
                     view_velocity_24h = EXCLUDED.view_velocity_24h,
                     is_outlier = EXCLUDED.is_outlier,
                     outlier_multiplier = EXCLUDED.outlier_multiplier,
+                    -- Only overwrite the embedding if we computed one
+                    -- this round; otherwise keep the existing vector
+                    -- so a transient encode failure doesn't blank prior
+                    -- good data.
+                    title_embedding = COALESCE(EXCLUDED.title_embedding,
+                                               competitor_videos.title_embedding),
                     updated_at = NOW()
             """,
                 competitor_yt_id, v["video_id"], v["title"],
@@ -202,7 +254,7 @@ async def _store_competitor_videos(niche: str, videos: list[dict], competitor_yt
                 v["views"], v["likes"], v["comments"],
                 v.get("duration_seconds", 0), v.get("view_velocity_24h", 0),
                 v.get("is_outlier", False), v.get("outlier_multiplier", 1.0),
-                niche,
+                niche, emb_param,
             )
             stored += 1
         except Exception as e:

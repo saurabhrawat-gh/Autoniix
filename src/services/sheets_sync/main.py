@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from src.config import settings
 from src.db import close_pool, get_pool
+from src.observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -40,6 +41,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Google Sheets Sync Service", version="0.1.0", lifespan=lifespan)
 
 
+instrument_app(app, service_name="sheets-sync")
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "sheets_sync"}

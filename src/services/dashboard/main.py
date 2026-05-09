@@ -28,6 +28,7 @@ from src.config import settings
 from src.db import get_pool
 from src.environment import get_mode, set_db_mode_override, is_test
 from src.schemas.common import VideoParams
+from src.observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -112,6 +113,7 @@ _generate_download_url = _public_url
 
 
 app = FastAPI(title="Dashboard BFF", version="1.0.0")
+instrument_app(app, service_name="dashboard")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -227,6 +229,11 @@ class ChannelCreateRequest(BaseModel):
     thumbnail_style: str | None = None
     primary_color: str | None = None
     forbidden_words: str | None = None
+    # Phase 5 — niche-template wizard can seed a starter topics queue.
+    # Stored as a comma-separated string in the legacy `topics_queue`
+    # column (TEXT) to match the existing schema; downstream services
+    # already split on commas.
+    starter_topics: list[str] | None = None
 
 class BrandDnaRequest(BaseModel):
     channel_name: str
@@ -402,6 +409,10 @@ async def list_channels(
 @app.post("/api/channels")
 async def create_channel(req: ChannelCreateRequest, _: str = Depends(verify_token)):
     pool = await get_pool()
+    # Comma-join starter topics into the legacy topics_queue TEXT column.
+    # Empty string when no starter topics — matches the existing
+    # "no preset chosen" case so downstream code paths don't change.
+    topics_queue = ",".join(t.strip() for t in (req.starter_topics or []) if t and t.strip())
     try:
         sched_json = json.dumps({"enabled": req.schedule_enabled})
         await pool.execute(
@@ -412,9 +423,9 @@ async def create_channel(req: ChannelCreateRequest, _: str = Depends(verify_toke
             "belief_territory, intellectual_lens, topic_domain, "
             "brand_voice, narrative_rhythm, emotional_contract, target_audience, "
             "primary_format_long, primary_format_short, thumbnail_style, "
-            "primary_color, forbidden_words) "
+            "primary_color, forbidden_words, topics_queue) "
             "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, "
-            "$14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)",
+            "$14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)",
             req.channel_id, req.channel_name, req.niche, req.sub_niche,
             req.content_mode, req.auto_upload, req.videos_per_week_short,
             req.videos_per_week_long, req.short_form_duration, req.long_form_duration,
@@ -422,7 +433,7 @@ async def create_channel(req: ChannelCreateRequest, _: str = Depends(verify_toke
             req.belief_territory, req.intellectual_lens, req.topic_domain,
             req.brand_voice, req.narrative_rhythm, req.emotional_contract, req.target_audience,
             req.primary_format_long, req.primary_format_short, req.thumbnail_style,
-            req.primary_color, req.forbidden_words,
+            req.primary_color, req.forbidden_words, topics_queue,
         )
     except Exception as exc:
         if "duplicate" in str(exc).lower():
@@ -513,6 +524,108 @@ async def generate_brand_dna(req: BrandDnaRequest, _: str = Depends(verify_token
             "source": "fallback",
             "reason": str(exc)[:200],
         })
+
+
+# ── Phase 5 — Niche templates & self-learning insights ───────
+
+
+@app.get("/api/niche-templates")
+async def list_niche_templates(_: str = Depends(verify_token)):
+    """Starter presets for the channel-creation wizard.
+
+    Returns a static list (no DB hit) so the wizard can render instantly.
+    Templates are defined in ``src/intelligence/niche_templates.json`` and
+    can be edited without code changes.
+    """
+    from src.intelligence import list_templates
+    return R(status="ok", data={"templates": list_templates()})
+
+
+@app.get("/api/channels/{channel_id}/learning-insights")
+async def channel_learning_insights(channel_id: str, _: str = Depends(verify_token)):
+    """Surface what the self-learning system has actually learned for one channel.
+
+    Aggregates four signals so operators can audit the loop:
+
+    * Performance memory (the same prompt context the LLMs see)
+    * Bandit state — which hook style / pacing strategy is currently winning
+    * Drift — has the script-success model degraded since last train?
+    * Tier distribution — how many S/A/B/C/D videos in the last 30 days?
+    """
+    from src.intelligence import build_performance_context
+
+    pool = await get_pool()
+
+    # 1. Performance memory text — same string the LLMs receive.
+    perf_text = await build_performance_context(channel_id)
+
+    # 2. Bandit state — which arms are winning?
+    try:
+        niche_row = await pool.fetchrow(
+            "SELECT niche FROM channels WHERE channel_id = $1", channel_id,
+        )
+        niche = niche_row["niche"] if niche_row else None
+        bandits: list[dict] = []
+        if niche:
+            rows = await pool.fetch(
+                "SELECT bandit_type, arm_name, alpha, beta, pulls, rewards "
+                "FROM script_bandit_state WHERE niche = $1 "
+                "ORDER BY bandit_type, (rewards / NULLIF(pulls, 0)) DESC NULLS LAST",
+                niche,
+            )
+            for r in rows:
+                pulls = r["pulls"] or 0
+                rewards = float(r["rewards"] or 0)
+                bandits.append({
+                    "type": r["bandit_type"],
+                    "arm": r["arm_name"],
+                    "pulls": pulls,
+                    "win_rate": round(rewards / pulls, 3) if pulls else None,
+                    "alpha": float(r["alpha"] or 0),
+                    "beta":  float(r["beta"] or 0),
+                })
+    except Exception as exc:
+        logger.warning("learning_insights.bandit_failed", error=str(exc))
+        bandits = []
+
+    # 3. Drift status — best-effort; the table may not exist on fresh installs.
+    try:
+        drift_row = await pool.fetchrow(
+            "SELECT model_name, last_trained_at, last_auc, current_auc, "
+            "       needs_retrain, sample_count "
+            "FROM ml_model_state WHERE channel_id = $1 "
+            "ORDER BY last_trained_at DESC NULLS LAST LIMIT 1",
+            channel_id,
+        )
+        drift = dict(drift_row) if drift_row else None
+        if drift and drift.get("last_trained_at"):
+            drift["last_trained_at"] = drift["last_trained_at"].isoformat()
+    except Exception:
+        drift = None
+
+    # 4. Tier distribution over the last 30 days.
+    tiers: dict[str, int] = {"S": 0, "A": 0, "B": 0, "C": 0, "D": 0}
+    try:
+        rows = await pool.fetch(
+            "SELECT performance_tier, COUNT(*) AS n FROM feedback_loop "
+            "WHERE channel_id = $1 AND updated_at > NOW() - INTERVAL '30 days' "
+            "  AND performance_tier IS NOT NULL "
+            "GROUP BY performance_tier",
+            channel_id,
+        )
+        for r in rows:
+            tiers[r["performance_tier"]] = int(r["n"])
+    except Exception as exc:
+        logger.warning("learning_insights.tier_failed", error=str(exc))
+
+    return R(status="ok", data={
+        "channel_id": channel_id,
+        "performance_memory": perf_text,            # Plain text, ready for display.
+        "performance_memory_attached": bool(perf_text),
+        "bandits": bandits,
+        "drift": drift,
+        "tier_distribution_30d": tiers,
+    })
 
 
 @app.put("/api/channels/{channel_id}")
@@ -1019,8 +1132,14 @@ async def job_output(content_id: str, _: str = Depends(verify_token)):
 
     The ``video_url``/``download_url`` point at the in-cluster proxy endpoint
     ``/api/jobs/{id}/video`` so the browser can stream/download the file
-    regardless of MinIO bucket policy or external reachability. We also
-    expose ``video_url_direct`` (presigned) as a fallback for power users.
+    regardless of MinIO bucket policy or external reachability.
+
+    NOTE: a previous version of this payload exposed ``video_url_direct``
+    (raw MinIO URL). That URL hosts ``minio:9000`` which is internal-only;
+    clicking it returned an XML AccessDenied page that browsers rendered
+    as text — the cause of the "download = page source" bug. Use the proxy
+    for both inline playback and download; clients that need a short-lived
+    signed URL can call ``GET /api/jobs/{id}/presigned`` explicitly.
     """
     pool = await get_pool()
     row = await pool.fetchrow(
@@ -1042,7 +1161,6 @@ async def job_output(content_id: str, _: str = Depends(verify_token)):
         "status": row["status"],
         "video_url": proxy_url,
         "download_url": proxy_url,
-        "video_url_direct": _public_url(raw_url) if raw_url else "",
         "thumbnails": thumbnails,
         "youtube_video_id": row["youtube_video_id"],
         "youtube_url": f"https://youtu.be/{row['youtube_video_id']}" if row["youtube_video_id"] else None,
@@ -1138,6 +1256,26 @@ async def stream_video(content_id: str, request: Request):
                     yield chunk
 
     return StreamingResponse(_iter(), status_code=status_code, headers=out_headers)
+
+
+@app.get("/api/jobs/{content_id}/presigned")
+async def job_presigned(content_id: str, _: str = Depends(verify_token)):
+    """Return a short-lived (10-minute) presigned MinIO URL for power-users
+    who explicitly need a direct link (e.g. external download tools that
+    don't go through the proxy). Authenticated only — never embedded in the
+    default UI payload to avoid the broken-direct-link footgun.
+    """
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT rendered_video_url FROM videos WHERE content_id = $1",
+        content_id,
+    )
+    if not row or not row["rendered_video_url"]:
+        raise HTTPException(status_code=404, detail="Video not available")
+    url = _public_url(row["rendered_video_url"])
+    if not url:
+        raise HTTPException(status_code=502, detail="Could not generate presigned URL")
+    return R(status="ok", data={"presigned_url": url, "expires_in_seconds": 600})
 
 
 # ── Job Approval / Rejection ──────────────────────────────
@@ -1829,6 +1967,309 @@ async def clean_slate(req: CleanSlateRequest, _: str = Depends(verify_token)):
 
     logger.info("clean_slate.done", **results)
     return R(status="ok", data=results)
+
+
+# ── Phase 6 — Fleet health ─────────────────────────────────
+
+
+# Service hosts — kept here (not in config) because the dashboard BFF is
+# already the only place that needs the full topology. Each entry maps a
+# friendly name to its in-cluster /health URL.
+_FLEET_SERVICES: dict[str, str] = {
+    "research":   "http://research:8011/health",
+    "script":     "http://script:8012/health",
+    "voice":      "http://voice:8013/health",
+    "assets":     "http://assets:8014/health",
+    "thumbnail":  "http://thumbnail:8015/health",
+    "direction":  "http://direction:8016/health",
+    "music":      "http://music:8017/health",
+    "assembly":   "http://assembly:8018/health",
+    "delivery":   "http://delivery:8019/health",
+    "analytics":  "http://analytics:8020/health",
+    "brand":      "http://brand:8021/health",
+    "editor":     "http://editor:8022/health",
+    "admin":      "http://admin:8023/health",
+}
+
+
+async def _probe_service(name: str, url: str, timeout_s: float) -> dict:
+    """One-shot health probe. Never raises; classifies the failure."""
+    import httpx as _httpx
+    import time as _time
+    start = _time.monotonic()
+    try:
+        async with _httpx.AsyncClient(timeout=timeout_s) as cli:
+            r = await cli.get(url)
+        latency_ms = int((_time.monotonic() - start) * 1000)
+        return {
+            "name": name,
+            "ok": r.status_code == 200,
+            "status_code": r.status_code,
+            "latency_ms": latency_ms,
+        }
+    except Exception as exc:
+        return {
+            "name": name,
+            "ok": False,
+            "status_code": 0,
+            "error": type(exc).__name__,
+            "latency_ms": int((_time.monotonic() - start) * 1000),
+        }
+
+
+@app.get("/api/fleet-health")
+async def fleet_health(_: str = Depends(verify_token)):
+    """Aggregate live health across the fleet.
+
+    Goals:
+    * One request → full picture for the ops dashboard.
+    * Per-service probe is bounded (3s each) and parallel, so a single
+      slow service can't push total latency above ~3.5s.
+    * Failure-tolerant: if any subsystem is unreachable, its block is
+      replaced with an error marker; the rest of the response is intact.
+    """
+    import asyncio as _asyncio
+    import httpx as _httpx
+    from src.db import get_pool_stats
+
+    # 1. Fan-out service probes in parallel, bounded per-call timeout.
+    probes = await _asyncio.gather(*[
+        _probe_service(name, url, timeout_s=3.0)
+        for name, url in _FLEET_SERVICES.items()
+    ])
+    services_ok = sum(1 for p in probes if p["ok"])
+    services_total = len(probes)
+
+    # 2. DB pool snapshot — local to this process; useful as a sanity gauge.
+    db_stats = get_pool_stats()
+    pool_pressure = (
+        round(db_stats["size"] / db_stats["max_size"], 2)
+        if db_stats.get("max_size") else None
+    )
+
+    # 3. Remotion queue (single source of truth for render capacity).
+    remotion: dict
+    try:
+        async with _httpx.AsyncClient(timeout=3.0) as cli:
+            r = await cli.get(f"{settings.remotion_base_url}/api/health")
+        if r.status_code == 200:
+            d = r.json()
+            remotion = {
+                "ok": True,
+                "active":   d.get("activeRenders", 0),
+                "waiting":  d.get("waiting", 0),
+                "max":      d.get("maxConcurrent", 0),
+                "memory_mb": int((d.get("memoryUsage", {}).get("rss", 0)) / 1_048_576),
+            }
+        else:
+            remotion = {"ok": False, "status_code": r.status_code}
+    except Exception as exc:
+        remotion = {"ok": False, "error": type(exc).__name__}
+
+    # 4. Recent quality-gate blocks + LLM router-budget exhaustions —
+    #    stored in our own DB as audit rows, so a quick count is enough
+    #    to show "system pushing back" pressure on the dashboard.
+    pool = await get_pool()
+    try:
+        gate_blocks_24h = await pool.fetchval(
+            "SELECT COUNT(*) FROM quality_gate_decisions "
+            "WHERE decision = 'block' AND created_at > NOW() - INTERVAL '24 hours'"
+        )
+    except Exception:
+        gate_blocks_24h = None
+    try:
+        recent_failures = await pool.fetchval(
+            "SELECT COUNT(*) FROM videos "
+            "WHERE status = 'failed' AND updated_at > NOW() - INTERVAL '24 hours'"
+        )
+    except Exception:
+        recent_failures = None
+
+    # 6. Phase 8 — niche-pulse freshness. How recently has the
+    #    saturation scorer's input been refreshed, across how many niches.
+    pulse: dict
+    try:
+        from src.services.research.saturation import get_pulse_freshness
+        pulse_data = await get_pulse_freshness()
+        pulse = {"ok": True, **pulse_data}
+    except Exception as exc:
+        pulse = {"ok": False, "error": type(exc).__name__}
+
+    # 8. Phase 10 — diversity-floor activity. Surface how many forced
+    #    explorations the floor has triggered in the last 7 days and
+    #    the lowest current per-channel entropy across active bandits.
+    #    Persistent low entropy without any forces means the bandits
+    #    are exploring naturally; persistent high force-rate means
+    #    we're fighting collapse — both are operator-relevant.
+    diversity_health: dict
+    try:
+        forced_row = await pool.fetchrow(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE picked_at > NOW() - INTERVAL '7 days')::int
+                                                                       AS picks_7d,
+                COUNT(*) FILTER (WHERE picked_at > NOW() - INTERVAL '7 days'
+                                   AND forced_exploration)::int        AS forced_7d
+            FROM bandit_picks
+            """
+        )
+        picks_7d = int(forced_row["picks_7d"] or 0)
+        forced_7d = int(forced_row["forced_7d"] or 0)
+        force_rate = round(forced_7d / picks_7d, 3) if picks_7d else None
+        diversity_health = {
+            "ok":          True,
+            "picks_7d":    picks_7d,
+            "forced_7d":   forced_7d,
+            "force_rate":  force_rate,
+        }
+    except Exception as exc:
+        diversity_health = {"ok": False, "error": type(exc).__name__}
+
+    # 9. Phase 11 — prediction calibration health. Brier score and
+    #    Expected Calibration Error over the last 30 days of scored
+    #    predictions. Brier ~0.21 is the random-baseline floor for a
+    #    balanced binary problem; lower is better. ECE > 0.15 means
+    #    the model's confidence is meaningfully miscalibrated.
+    calibration_health: dict
+    try:
+        from src.intelligence.prediction_calibration import get_calibration_metrics
+        cal_metrics = await get_calibration_metrics(model_kind="topic_success")
+        calibration_health = {"ok": True, **cal_metrics}
+        # Surface how aggressively the loop is steering training too.
+        # The mean_sample_weight on the latest active model is the
+        # most direct read on "is the calibration loop actually doing
+        # anything yet."
+        try:
+            ml_row = await pool.fetchrow(
+                """
+                SELECT metrics FROM ml_models
+                WHERE model_name = 'topic_success_predictor' AND is_active = TRUE
+                ORDER BY created_at DESC NULLS LAST, model_version DESC
+                LIMIT 1
+                """
+            )
+            if ml_row and ml_row["metrics"]:
+                import json as _json
+                m = ml_row["metrics"]
+                m = _json.loads(m) if isinstance(m, str) else m
+                calibration_health["weighted_fraction"] = m.get("weighted_fraction")
+                calibration_health["mean_sample_weight"] = m.get("mean_sample_weight")
+        except Exception:
+            pass
+    except Exception as exc:
+        calibration_health = {"ok": False, "error": type(exc).__name__}
+
+    # 7. Phase 9 — retention-curve coverage. Of delivered videos in
+    #    the curve-stable window (7-30 days old), what fraction have
+    #    a fetched curve? Low coverage means the calibrator is mostly
+    #    falling back to tier labels — surfacing this lets the
+    #    operator notice when the daily fetch workflow is wedged.
+    retention_cov: dict
+    try:
+        cov_row = await pool.fetchrow(
+            """
+            SELECT
+                COUNT(*) FILTER (
+                    WHERE v.status = 'delivered'
+                      AND v.youtube_video_id IS NOT NULL
+                      AND v.created_at <  NOW() - INTERVAL '7 days'
+                      AND v.created_at >= NOW() - INTERVAL '30 days'
+                )::int                                            AS eligible,
+                COUNT(*) FILTER (
+                    WHERE v.status = 'delivered'
+                      AND v.youtube_video_id IS NOT NULL
+                      AND v.created_at <  NOW() - INTERVAL '7 days'
+                      AND v.created_at >= NOW() - INTERVAL '30 days'
+                      AND rc.video_id IS NOT NULL
+                )::int                                            AS with_curve,
+                MAX(rc.fetched_at)                                AS last_fetch
+            FROM videos v
+            LEFT JOIN retention_curves rc ON rc.video_id = v.content_id
+            """
+        )
+        eligible = int(cov_row["eligible"] or 0)
+        with_curve = int(cov_row["with_curve"] or 0)
+        retention_cov = {
+            "ok":         True,
+            "eligible":   eligible,
+            "with_curve": with_curve,
+            "coverage":   round(with_curve / eligible, 3) if eligible else None,
+            "last_fetch": cov_row["last_fetch"].isoformat() if cov_row["last_fetch"] else None,
+        }
+    except Exception as exc:
+        retention_cov = {"ok": False, "error": type(exc).__name__}
+
+    # 5. Phase 7 — gate calibration status. Aggregate counts are enough
+    #    for the dashboard pill; per-niche detail lives in a separate
+    #    endpoint for the gate-thresholds drawer.
+    gate_calib: dict
+    try:
+        row = await pool.fetchrow(
+            """
+            SELECT COUNT(DISTINCT niche)                                   AS niches_calibrated,
+                   COUNT(*) FILTER (WHERE source = 'auto')                 AS dims_auto,
+                   COUNT(*) FILTER (WHERE source = 'default')              AS dims_default,
+                   MAX(last_calibrated_at)                                 AS last_run
+            FROM gate_thresholds
+            """
+        )
+        gate_calib = {
+            "ok": True,
+            "niches_calibrated": int(row["niches_calibrated"] or 0),
+            "dims_auto":         int(row["dims_auto"] or 0),
+            "dims_default":      int(row["dims_default"] or 0),
+            "last_run":          row["last_run"].isoformat() if row["last_run"] else None,
+        }
+    except Exception as exc:
+        # Table may not exist on a fresh install yet — that's fine,
+        # surface a clear "not yet" rather than a hard error.
+        gate_calib = {"ok": False, "error": type(exc).__name__}
+
+    # Overall status — green if every probe and Remotion succeeded.
+    overall_ok = (services_ok == services_total) and remotion.get("ok") is True
+
+    payload: dict = {
+        "overall_ok": overall_ok,
+        "services": {
+            "ok_count": services_ok,
+            "total":    services_total,
+            "probes":   probes,
+        },
+        "db_pool": {
+            "size":     db_stats.get("size"),
+            "idle":     db_stats.get("idle"),
+            "min_size": db_stats.get("min_size"),
+            "max_size": db_stats.get("max_size"),
+            "pressure": pool_pressure,        # 0..1, where 1 == saturated
+        },
+        "remotion": remotion,
+        "scale_config": {
+            "temporal_production_max_activities": settings.temporal_production_max_activities,
+            "temporal_scheduler_max_activities":  settings.temporal_scheduler_max_activities,
+            "db_statement_timeout_ms":            settings.db_statement_timeout_ms,
+        },
+        "pressure_24h": {
+            "quality_gate_blocks": gate_blocks_24h,
+            "video_failures":      recent_failures,
+        },
+        "gate_calibration":   gate_calib,
+        "niche_pulse":        pulse,
+        "retention_coverage": retention_cov,
+        "diversity_floor":    diversity_health,
+        "calibration":        calibration_health,
+    }
+
+    # Phase 12 — collapse the 8 subsystem cards into one weighted
+    # health score with traffic-light band + per-subsystem breakdown.
+    # Pure-function aggregation off the existing payload; no new I/O.
+    try:
+        from src.intelligence.system_health import aggregate_health
+        payload["health"] = aggregate_health(payload)
+    except Exception as exc:
+        payload["health"] = {"score": None, "band": "unknown",
+                             "error": type(exc).__name__}
+
+    return R(status="ok", data=payload)
 
 
 # ── Dashboard Stats ────────────────────────────────────────

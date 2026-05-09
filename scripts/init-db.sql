@@ -1089,3 +1089,212 @@ CREATE INDEX IF NOT EXISTS idx_job_events_created   ON job_events(created_at DES
 -- These require data to build; create with small nlist for initial use
 CREATE INDEX IF NOT EXISTS idx_topic_emb_vector        ON topic_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 10);
 CREATE INDEX IF NOT EXISTS idx_comp_video_emb_vector   ON competitor_videos USING ivfflat (title_embedding vector_cosine_ops) WITH (lists = 10);
+
+-- ══════════════════════════════════════════════════════════
+-- ── Phase 4: Quality gate + LLM router additions ─────────
+-- ══════════════════════════════════════════════════════════
+
+-- Per-channel daily LLM cost cap. Router blocks all LLM calls for a channel
+-- once today's spend (UTC midnight rollover) reaches this value. NULL or 0
+-- = unlimited (router still records spend; just doesn't block).
+ALTER TABLE channels
+    ADD COLUMN IF NOT EXISTS daily_cost_cap_usd  DECIMAL(8,2)  DEFAULT 25.00;
+
+-- Permanent record of every quality-gate decision, even when overridden.
+-- Two purposes: audit trail for "why was this published with score 7.4?"
+-- and ML training data for future per-channel threshold auto-tuning.
+CREATE TABLE IF NOT EXISTS quality_gate_decisions (
+    id                  BIGSERIAL     PRIMARY KEY,
+    content_id          VARCHAR(100)  NOT NULL,
+    channel_id          VARCHAR(20)   REFERENCES channels(channel_id),
+    decision            VARCHAR(20)   NOT NULL,  -- pass | block | override
+    composite_score     DECIMAL(5,2)  NOT NULL,
+    hard_floor_failures TEXT[]        DEFAULT '{}',  -- e.g. ['hook_retention_score<7']
+    sub_scores          JSONB         DEFAULT '{}',
+    threshold_profile   VARCHAR(20)   DEFAULT 'production',  -- production | test
+    override_reason     TEXT,
+    override_by         VARCHAR(100),
+    created_at          TIMESTAMPTZ   DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_qgd_content   ON quality_gate_decisions(content_id);
+CREATE INDEX IF NOT EXISTS idx_qgd_channel   ON quality_gate_decisions(channel_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_qgd_decision  ON quality_gate_decisions(decision);
+
+
+-- ── Phase 7: per-niche self-tuning gate thresholds ─────────────────
+--
+-- The static PRODUCTION_THRESHOLDS dict in src/quality/gate.py is the
+-- floor. This table layers per-niche overrides on top so a calibrator
+-- can raise or lower thresholds based on which scores actually predict
+-- S/A vs D performance for that niche.
+--
+-- Source: weekly job joins quality_gate_decisions.sub_scores ↔
+-- feedback_loop.performance_tier and finds, per dimension, the threshold
+-- value that best separates wins from flops (subject to a monotonicity
+-- guard — see calibrator).
+--
+-- Cold-start: if no row exists for a (niche, dimension) the evaluator
+-- falls back to PRODUCTION_THRESHOLDS. So this table is purely additive
+-- and removing it would only reset behaviour to the static defaults.
+CREATE TABLE IF NOT EXISTS gate_thresholds (
+    niche               VARCHAR(50)   NOT NULL,
+    dimension           VARCHAR(50)   NOT NULL,
+    floor               DECIMAL(5,2)  NOT NULL,
+    n_samples           INT           NOT NULL DEFAULT 0,
+    win_rate_at_floor   DECIMAL(5,4),       -- precision among scripts ≥ floor
+    s_tier_preserved    DECIMAL(5,4),       -- frac of S-tier that would still pass
+    source              VARCHAR(20)   NOT NULL DEFAULT 'auto',  -- auto | manual | default
+    last_calibrated_at  TIMESTAMPTZ   DEFAULT NOW(),
+    PRIMARY KEY (niche, dimension)
+);
+
+CREATE INDEX IF NOT EXISTS idx_gate_thresholds_niche
+    ON gate_thresholds(niche);
+
+-- Speed up the daily-cost rollup the router performs on every LLM call.
+CREATE INDEX IF NOT EXISTS idx_api_usage_channel_date ON api_usage(channel_id, date);
+
+
+-- ── Phase 9: retention curves ────────────────────────────────────────
+--
+-- The Phase 7 calibrator currently labels each (sub_score, sample) with
+-- the noisy compound `performance_tier` (S/A/B/C/D). That works, but it
+-- throws away the *shape* of the audience-retention curve, which is
+-- where the actual diagnostic signal lives. A video that drops 40% in
+-- the first 30s has a hook problem; a video that flatlines for 90s
+-- then drops has a payoff problem. Tier alone cannot distinguish them.
+--
+-- This table stores the per-video curve plus three derived features.
+-- Phase 9's calibrator augmentation reads ``hook_dropoff_30s`` to label
+-- ``hook_retention_score`` samples directly against measured behaviour
+-- (rather than against an LLM judge's *prediction* of hook quality),
+-- and ``mid_video_decay`` for ``script_structure_score``.
+--
+-- Cold-start: if no row exists for a video, the calibrator falls back
+-- to its existing tier-based labelling. So this table is purely
+-- additive — Phase 7 keeps working unchanged on rows without curves.
+CREATE TABLE IF NOT EXISTS retention_curves (
+    video_id            VARCHAR(100)  PRIMARY KEY
+                        REFERENCES videos(content_id) ON DELETE CASCADE,
+    channel_id          VARCHAR(20)   NOT NULL
+                        REFERENCES channels(channel_id) ON DELETE CASCADE,
+    yt_video_id         VARCHAR(50)   NOT NULL,
+    -- Derived features (precomputed once at fetch time, in [0, 1]).
+    hook_dropoff_30s    DECIMAL(5,4),  -- 1 - audience_watch_ratio at 30s; lower is better
+    mid_video_decay     DECIMAL(5,4),  -- retention_at_30s − retention_at_60pct; lower is better
+    end_retention       DECIMAL(5,4),  -- audience_watch_ratio averaged over last 20%
+    -- Raw curve points: array of {elapsed_ratio: 0..1, watch_ratio: 0..1}.
+    -- Stored so future analyses (slope changes, plateaus, payoff bumps)
+    -- can re-derive features without another API hit.
+    curve_points        JSONB         NOT NULL,
+    sample_count        INTEGER,       -- number of points returned by YT API
+    fetched_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    -- Track which video age the curve was sampled at: retention curves
+    -- shift over the first ~14 days as the algorithm finds the audience.
+    -- A curve fetched at day 3 is meaningfully different from day 30.
+    video_age_days      INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_retention_curves_channel
+    ON retention_curves(channel_id, fetched_at DESC);
+CREATE INDEX IF NOT EXISTS idx_retention_curves_yt
+    ON retention_curves(yt_video_id);
+
+
+-- ── Phase 10: bandit pick audit + diversity floor ────────────────────
+--
+-- The Thompson-sampling bandits in research/script services maintain
+-- aggregated Beta(α, β) state in `bandit_state`, which is enough for
+-- exploitation but loses the *temporal* structure of picks. Mode-collapse
+-- detection needs the recent picks histogram, not the lifetime average:
+-- a bandit can have lifetime-balanced pulls but still pick the same arm
+-- 18 of the last 20 times (collapse).
+--
+-- This table logs every arm selection so the diversity floor can compute
+-- Shannon entropy over the last N picks per channel × bandit_type. When
+-- entropy drops below threshold, the bandit forces exploration (least-
+-- pulled arm) for the next selection regardless of Thompson sample.
+--
+-- Append-only by design. A retention sweep can prune rows older than
+-- 90 days if the table grows large.
+CREATE TABLE IF NOT EXISTS bandit_picks (
+    id              BIGSERIAL     PRIMARY KEY,
+    niche           VARCHAR(50)   NOT NULL,
+    bandit_type     VARCHAR(30)   NOT NULL,  -- topic_cluster | hook_style | pacing_strategy
+    channel_id      VARCHAR(20)   REFERENCES channels(channel_id) ON DELETE SET NULL,
+    arm_name        VARCHAR(150)  NOT NULL,
+    -- True when the diversity floor overrode Thompson sampling. Lets us
+    -- audit how often the safety net actually fires; persistent high
+    -- rates suggest the threshold is too aggressive for the niche.
+    forced_exploration BOOLEAN     DEFAULT FALSE,
+    picked_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_bandit_picks_lookup
+    ON bandit_picks(channel_id, bandit_type, picked_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bandit_picks_niche
+    ON bandit_picks(niche, bandit_type, picked_at DESC);
+
+
+-- ── Phase 11: prediction-error correction loop ───────────────────────
+--
+-- The Phase 5 success predictor (`predict_success`) returns a probability
+-- and a confidence. After delivery the feedback ingestor learns the
+-- actual outcome (`is_success` from performance_outcomes). The gap
+-- between predicted and actual is signal — and *high-confidence misses
+-- should dominate retraining gradients* — but until Phase 11 we
+-- discarded that signal entirely, retraining on raw outcomes with
+-- uniform sample weights.
+--
+-- This table closes the loop:
+--
+-- 1. Every call to `predict_success` writes one row with the prediction
+--    and confidence at the time of decision.
+-- 2. After analytics ingest, the actual outcome (0.0 / 1.0) is filled
+--    in along with `abs_error` = |predicted - actual| and a
+--    `sample_weight` derived from `1 + k * confidence * abs_error`.
+-- 3. The next training run LEFT JOINs this table and passes
+--    `sample_weight` to `model.fit()` so high-confidence misses pull
+--    the model harder than uniform retraining would.
+--
+-- Calibration health metrics (Brier score, expected calibration error)
+-- are computed off this table and surfaced on the fleet panel.
+--
+-- Audit-only beyond training: a retention sweep can prune rows older
+-- than 180 days when storage matters; the calibration metrics window
+-- defaults to 30 days.
+CREATE TABLE IF NOT EXISTS prediction_log (
+    id              BIGSERIAL     PRIMARY KEY,
+    content_id      VARCHAR(100)  NOT NULL,
+    -- 'topic_success' (research/self_learning) or
+    -- 'script_success' (script/self_learning) — leaves room for future
+    -- predictors without schema churn.
+    model_kind      VARCHAR(40)   NOT NULL,
+    niche           VARCHAR(50),
+    -- Stored at prediction time so calibration is computable even if
+    -- the model is later retrained or replaced.
+    predicted_prob  DECIMAL(5,4)  NOT NULL,
+    confidence      DECIMAL(5,4)  NOT NULL,
+    model_version   INTEGER,
+    predicted_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    -- Filled in by `update_prediction_actual` after analytics ingest.
+    -- NULL until then.
+    actual_outcome  DECIMAL(5,4),
+    abs_error       DECIMAL(5,4),
+    sample_weight   DECIMAL(6,3),
+    scored_at       TIMESTAMPTZ,
+    -- Idempotency: one prediction row per (content_id, model_kind).
+    -- A retry of `predict_success` for the same content updates the
+    -- prediction in place rather than logging a second row.
+    UNIQUE (content_id, model_kind)
+);
+
+CREATE INDEX IF NOT EXISTS idx_prediction_log_kind
+    ON prediction_log(model_kind, predicted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_prediction_log_niche
+    ON prediction_log(niche, model_kind, scored_at DESC NULLS LAST);
+-- Partial index for the join in train_model: only rows with actuals.
+CREATE INDEX IF NOT EXISTS idx_prediction_log_scored
+    ON prediction_log(content_id, model_kind)
+    WHERE actual_outcome IS NOT NULL;

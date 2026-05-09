@@ -32,6 +32,7 @@ from src.services.script.self_learning import (
     train_model as train_script_model,
     detect_drift as detect_script_drift,
 )
+from src.observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -131,6 +132,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Script Service", version="0.2.0", lifespan=lifespan)
 
 
+instrument_app(app, service_name="script")
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="script")
@@ -156,9 +158,52 @@ async def generate_script(req: ScriptRequest):
         seg_count = "8-12" if is_long else "3-4"
         forbidden = channel.get("forbidden_words", "")
 
-        # ── Step 1: Generate Script v1 (Claude Sonnet) ───
+        # ── Step 0: Bandit-driven prompt steering (Phase 5 polish) ─
+        # Sample winning hook style + pacing strategy *before* script
+        # generation so the v1 prompt is actually steered by what's
+        # working. The original Step-5 sampling (further down) wrote the
+        # arm choice to DB without ever using it — that's now a no-op.
+        niche_for_bandit = channel.get("niche", "")
+        hook_styles = ["shocking_stat", "open_loop", "pattern_interrupt",
+                       "story_hook", "authority_challenge", "contrarian", "outcome_promise"]
+        pacing_strategies = ["slow_build", "fast_punchy", "wave_rhythm",
+                             "escalating", "conversational"]
+        try:
+            # Phase 10: pass channel_id so the diversity floor can
+            # check this channel's recent hook/pacing picks and force
+            # exploration when entropy collapses.
+            hook_bandit = await thompson_sample(
+                niche_for_bandit, "hook_style", hook_styles,
+                channel_id=req.channel_id,
+            )
+            pacing_bandit = await thompson_sample(
+                niche_for_bandit, "pacing_strategy", pacing_strategies,
+                channel_id=req.channel_id,
+            )
+            selected_hook_style = hook_bandit["selected_arm"]
+            selected_pacing = pacing_bandit["selected_arm"]
+            logger.info("script.bandit_pre_generation",
+                        hook_style=selected_hook_style, pacing=selected_pacing,
+                        hook_forced=hook_bandit.get("forced_exploration"),
+                        pacing_forced=pacing_bandit.get("forced_exploration"))
+        except Exception as exc:
+            logger.warning("script.bandit_pre_failed", error=str(exc))
+            selected_hook_style = "open_loop"
+            selected_pacing = "wave_rhythm"
+
+        # ── Step 1: Generate Script v1 (via router) ─────────
+        # Router enforces per-channel daily cost cap and falls back through
+        # the LLM_SCRIPT_LADDER (default: claude → openai → gemini) on
+        # transient provider failures. Existing _log_usage calls below are
+        # kept (richer service labels) so the router runs with
+        # record_usage=False to avoid double-counting.
+        from src.llm import route as _route, BudgetExceeded as _BudgetExceeded
+        from src.intelligence import build_performance_context
+        # Phase 5 — close the analytics → script loop. Empty for cold-start
+        # channels; for established channels the model sees concrete examples
+        # of which titles/structures earned views and which flopped.
+        perf_context = await build_performance_context(req.channel_id)
         prompt = await _load_prompt("PRM_B1_SCRIPT_V1")
-        script_llm = ProviderRegistry.get("llm.script")
 
         system_prompt = _safe_format(prompt.get("system_prompt",
             "You are a YouTube scriptwriter. Output valid JSON with segments."),
@@ -166,6 +211,15 @@ async def generate_script(req: ScriptRequest):
             narrative_rhythm=channel.get("narrative_rhythm", ""),
             emotional_contract=channel.get("emotional_contract", ""),
             content_mode=req.content_mode,
+        )
+        # Append bandit guidance — verbose, explicit, and *appended* (not
+        # interpolated) so we don't depend on the seeded prompt template
+        # carrying placeholders. The Thompson sampler picks these from
+        # learned win-rates per niche, so this is the loop closing.
+        system_prompt += (
+            f"\n\nBANDIT GUIDANCE (use these — they are winning on this niche):"
+            f"\n- HOOK STYLE: {selected_hook_style}"
+            f"\n- PACING STRATEGY: {selected_pacing}"
         )
         user_prompt = _safe_format(prompt.get("user_prompt_template",
             "Channel: {channel_id}\nTopic: {topic}\nTitle: {title}"),
@@ -179,15 +233,27 @@ async def generate_script(req: ScriptRequest):
             forbidden_words=forbidden,
         )
 
-        result = await script_llm.complete(LLMRequest(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.7,
-            max_tokens=4000,
-            response_format="json",
-        ))
+        user_with_memory = (
+            f"{perf_context}\n\n{user_prompt}" if perf_context else user_prompt
+        )
+        try:
+            result = await _route(
+                category="llm.script",
+                request=LLMRequest(
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_with_memory},
+                    ],
+                    temperature=0.7,
+                    max_tokens=4000,
+                    response_format="json",
+                ),
+                channel_id=req.channel_id,
+                content_id=f"script-{req.channel_id}",
+                record_usage=False,
+            )
+        except _BudgetExceeded as exc:
+            raise HTTPException(status_code=402, detail=str(exc))
         total_cost += result.cost_usd
         await _log_usage(f"script-{req.channel_id}", "script_v1", result.provider,
                          result.model, result.tokens_in, result.tokens_out,
@@ -219,9 +285,8 @@ async def generate_script(req: ScriptRequest):
 
         script_data["validation"] = validation
 
-        # ── Step 3: Script Critique (GPT-4o-mini) ────────
+        # ── Step 3: Script Critique (via router — llm.qc category) ──
         critique_prompt = await _load_prompt("PRM_B1_SCRIPT_CRITIQUE")
-        critique_llm = ProviderRegistry.get("llm.qc")
 
         crit_system = _safe_format(critique_prompt.get("system_prompt",
             "Critique this script. Score 8 dimensions 1-10. Respond in JSON."),
@@ -234,15 +299,24 @@ async def generate_script(req: ScriptRequest):
             target_audience=channel.get("target_audience", ""),
         )
 
-        crit_result = await critique_llm.complete(LLMRequest(
-            messages=[
-                {"role": "system", "content": crit_system},
-                {"role": "user", "content": crit_user},
-            ],
-            temperature=0.3,
-            max_tokens=2000,
-            response_format="json",
-        ))
+        try:
+            crit_result = await _route(
+                category="llm.qc",
+                request=LLMRequest(
+                    messages=[
+                        {"role": "system", "content": crit_system},
+                        {"role": "user", "content": crit_user},
+                    ],
+                    temperature=0.3,
+                    max_tokens=2000,
+                    response_format="json",
+                ),
+                channel_id=req.channel_id,
+                content_id=f"script-{req.channel_id}",
+                record_usage=False,
+            )
+        except _BudgetExceeded as exc:
+            raise HTTPException(status_code=402, detail=str(exc))
         total_cost += crit_result.cost_usd
         await _log_usage(f"script-{req.channel_id}", "script_critique", crit_result.provider,
                          crit_result.model, crit_result.tokens_in, crit_result.tokens_out,
@@ -287,15 +361,26 @@ async def generate_script(req: ScriptRequest):
                 f"Current script:\n{json.dumps(script_data)[:5000]}"
             )
 
-            rw_result = await script_llm.complete(LLMRequest(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": rewrite_prompt},
-                ],
-                temperature=max(0.5, 0.7 - rewrite_count * 0.1),
-                max_tokens=4000,
-                response_format="json",
-            ))
+            try:
+                rw_result = await _route(
+                    category="llm.script",
+                    request=LLMRequest(
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": rewrite_prompt},
+                        ],
+                        temperature=max(0.5, 0.7 - rewrite_count * 0.1),
+                        max_tokens=4000,
+                        response_format="json",
+                    ),
+                    channel_id=req.channel_id,
+                    content_id=f"script-{req.channel_id}",
+                    record_usage=False,
+                )
+            except _BudgetExceeded as exc:
+                # Mid-loop budget bust — stop rewriting, return current best.
+                logger.warning("script.rewrite_budget_exceeded", error=str(exc))
+                break
             total_cost += rw_result.cost_usd
             await _log_usage(f"script-{req.channel_id}", f"script_rewrite_{rewrite_count}",
                              rw_result.provider, rw_result.model, rw_result.tokens_in,
@@ -315,15 +400,25 @@ async def generate_script(req: ScriptRequest):
                 target_audience=channel.get("target_audience", ""),
             )
 
-            crit_result2 = await critique_llm.complete(LLMRequest(
-                messages=[
-                    {"role": "system", "content": crit_system},
-                    {"role": "user", "content": updated_crit_user},
-                ],
-                temperature=0.3,
-                max_tokens=2000,
-                response_format="json",
-            ))
+            try:
+                crit_result2 = await _route(
+                    category="llm.qc",
+                    request=LLMRequest(
+                        messages=[
+                            {"role": "system", "content": crit_system},
+                            {"role": "user", "content": updated_crit_user},
+                        ],
+                        temperature=0.3,
+                        max_tokens=2000,
+                        response_format="json",
+                    ),
+                    channel_id=req.channel_id,
+                    content_id=f"script-{req.channel_id}",
+                    record_usage=False,
+                )
+            except _BudgetExceeded as exc:
+                logger.warning("script.recritique_budget_exceeded", error=str(exc))
+                break
             total_cost += crit_result2.cost_usd
             await _log_usage(f"script-{req.channel_id}", f"script_recritique_{rewrite_count}",
                              crit_result2.provider, crit_result2.model, crit_result2.tokens_in,
@@ -348,20 +443,14 @@ async def generate_script(req: ScriptRequest):
         pacing_style = channel.get("pacing_style", "dynamic")
         brand_voice = channel.get("brand_voice", "")
 
-        # ── Step 5: Bandit selection (hook style + pacing) ───
-        hook_styles = ["shocking_stat", "open_loop", "pattern_interrupt",
-                       "story_hook", "authority_challenge", "contrarian", "outcome_promise"]
-        pacing_strategies = ["slow_build", "fast_punchy", "wave_rhythm", "escalating", "conversational"]
-
-        try:
-            hook_bandit = await thompson_sample(niche, "hook_style", hook_styles)
-            pacing_bandit = await thompson_sample(niche, "pacing_strategy", pacing_strategies)
-            selected_hook_style = hook_bandit["selected_arm"]
-            selected_pacing = pacing_bandit["selected_arm"]
-        except Exception as e:
-            logger.warning("script.bandit_failed", error=str(e))
-            selected_hook_style = "open_loop"
-            selected_pacing = "wave_rhythm"
+        # ── Step 5: Bandit selection — moved upstream to Step 0 ──
+        # The bandit pick now happens BEFORE script generation (see Step 0
+        # above) so the chosen arms actually steer the v1 prompt. The
+        # variables `selected_hook_style` and `selected_pacing` are
+        # already set by that earlier block; nothing to do here. The
+        # downstream feature-store + reward update paths read those
+        # variables unchanged.
+        pass
 
         # ── Step 6: Humanize script ──────────────────────────
         try:

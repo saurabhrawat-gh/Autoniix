@@ -25,8 +25,37 @@ from src.services.assets.query_optimizer import (
     check_asset_cache,
     store_in_cache,
     log_search,
-    score_asset_relevance,
 )
+from src.services.assets.provider_chain import (
+    run_chain,
+    provider_health_snapshot,
+)
+from src.observability.metrics import instrument_app
+
+try:
+    from prometheus_client import Counter, Histogram, Gauge
+    ASSET_COVERAGE_TOTAL = Counter(
+        "asset_coverage_total",
+        "Per-segment asset acquisition outcomes.",
+        labelnames=("outcome",),  # stock | cached | kinetic_fallback | dalle | failed
+    )
+    ASSET_RELEVANCE = Histogram(
+        "asset_relevance_score",
+        "Final semantic-ranker score of the picked clip per segment (0-1).",
+        buckets=(0.3, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95),
+    )
+    ASSET_PROVIDER_HEALTH = Gauge(
+        "asset_provider_error_rate",
+        "Rolling 5-min error rate per stock-footage provider.",
+        labelnames=("provider",),
+    )
+except Exception:  # pragma: no cover
+    class _Noop:
+        def labels(self, *a, **kw): return self
+        def inc(self, *a, **kw): return None
+        def observe(self, *a, **kw): return None
+        def set(self, *a, **kw): return None
+    ASSET_COVERAGE_TOTAL = ASSET_RELEVANCE = ASSET_PROVIDER_HEALTH = _Noop()  # type: ignore
 
 logger = structlog.get_logger()
 
@@ -291,6 +320,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Assets Service", version="0.1.0", lifespan=lifespan)
 
 
+instrument_app(app, service_name="assets")
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="assets")
@@ -342,6 +372,7 @@ async def generate_assets(req: AssetsRequest):
                                      "source": "cache", "cached": True}],
                     })
                     stock_count += 1
+                    ASSET_COVERAGE_TOTAL.labels(outcome="cached").inc()
                     await log_search(req.content_id, req.channel_id, seg_id,
                                      query, "cache", 1, used_cache=True,
                                      search_time_ms=int((_time.time() - search_start) * 1000))
@@ -351,30 +382,38 @@ async def generate_assets(req: AssetsRequest):
             niche = channel.get("niche", "") if channel else ""
             expanded_query = _expand_query_for_niche(query, niche, req.content_mode)
 
-            # ── Step 2: Search stock footage (parallel) ──
-            pixabay_task = _search_pixabay_videos(expanded_query)
-            pexels_task = _search_pexels_videos(expanded_query)
-            envato_task = _search_envato_videos(expanded_query)
-            pixabay_clips, pexels_clips, envato_clips = await asyncio.gather(
-                pixabay_task, pexels_task, envato_task)
+            # ── Step 2: Multi-provider chain with semantic re-rank ──
+            # Pulls top-K from every healthy provider in parallel, scores
+            # the union via the SBERT ranker, returns the best non-rejected
+            # clip (final score >= 0.55) or None.
+            target_dur_s = float(seg.get("duration_ms", 0) or 0) / 1000.0
+            motion_intent = (seg.get("motion_intent")
+                              or seg.get("mood", {}).get("name")
+                              or ("frenetic" if req.content_mode == "short" else "dynamic"))
+            brand_palette = (channel.get("brand_palette")
+                             or channel.get("brand_color_palette")
+                             or [])
+            if isinstance(brand_palette, str):
+                try:
+                    brand_palette = json.loads(brand_palette)
+                except Exception:
+                    brand_palette = []
 
-            all_clips = pixabay_clips + pexels_clips + envato_clips
+            chain_result = await run_chain(
+                query=expanded_query,
+                target_duration_s=target_dur_s,
+                motion_intent=motion_intent,
+                brand_palette=brand_palette if isinstance(brand_palette, list) else None,
+                prefer_1080p=(req.content_mode != "short"),
+            )
 
-            # ── Step 3: Filter by resolution (>= 720p) ──
-            filtered = [c for c in all_clips if c.get("height", 0) >= 720 or c.get("width", 0) >= 1280]
-            if not filtered:
-                filtered = all_clips
+            # Update provider health gauges so Grafana sees the rolling error
+            # rate per provider on every request.
+            for prov_name, prov in provider_health_snapshot().items():
+                ASSET_PROVIDER_HEALTH.labels(provider=prov_name).set(prov["error_rate"])
 
-            # ── Step 4: Filter by aspect ratio preference ──
-            filtered = _filter_by_aspect_ratio(filtered, req.content_mode)
-
-            # ── Intelligence: Score relevance ─────────────
-            selected_clip = None
-            if filtered:
-                for clip in filtered:
-                    clip["relevance_score"] = score_asset_relevance(clip, query)
-                filtered.sort(key=lambda c: c.get("relevance_score", 0) + c.get("aspect_score", 0) * 0.3, reverse=True)
-                selected_clip = filtered[0]
+            best = chain_result.best
+            selected_clip = best.clip if best else None
 
             if selected_clip and selected_clip.get("url"):
                 # Download and upload to MinIO
@@ -389,6 +428,7 @@ async def generate_assets(req: AssetsRequest):
                     sr = await storage.upload(StorageUpload(key=key, data=video_bytes, content_type=f"video/{ext}"))
                     url = sr.url
 
+                    relevance = float(best.final) if best else 0.0
                     manifest.append({
                         "segment_id": seg_id,
                         "type": "stock_video",
@@ -400,24 +440,58 @@ async def generate_assets(req: AssetsRequest):
                             "source_id": selected_clip["id"],
                             "duration": selected_clip.get("duration", 0),
                             "license": selected_clip.get("license", ""),
-                            "relevance_score": selected_clip.get("relevance_score", 7.0),
+                            "relevance_score": relevance,
+                            "sub_scores": best.as_dict() if best else {},
                         }],
                     })
                     stock_count += 1
-                    # Intelligence: Cache the asset for future reuse
+                    ASSET_COVERAGE_TOTAL.labels(outcome="stock").inc()
+                    ASSET_RELEVANCE.observe(relevance)
+                    # Cache the asset for future reuse (relevance is 0–1,
+                    # legacy quality_score column expects 0–10 — scale up).
                     await store_in_cache(
                         query, selected_clip["source"], selected_clip["url"],
-                        minio_key=key, quality_score=selected_clip.get("relevance_score", 7.0),
+                        minio_key=key, quality_score=round(relevance * 10, 2),
                         duration_s=float(selected_clip.get("duration", 0)))
                     await log_search(req.content_id, req.channel_id, seg_id,
-                                     query, selected_clip["source"], len(all_clips),
+                                     query, selected_clip["source"],
+                                     len(chain_result.all_scored),
                                      selected_id=selected_clip["id"],
                                      search_time_ms=int((_time.time() - search_start) * 1000))
                     continue
                 except Exception as dl_err:
                     logger.warning("assets.stock_download_failed", seg=seg_id, error=str(dl_err))
 
-            # ── Step 4: DALL-E Fallback ──────────────────
+            # ── Fallback: kinetic-typography (no asset, no cost) ───────
+            # When the chain returns no candidate above the 0.55 threshold,
+            # we DO NOT silently produce a black frame and we DO NOT burn a
+            # DALL-E call. Instead we emit a manifest entry that tells the
+            # downstream director to render the segment as kinetic typography
+            # (visible, on-brand, fast). DALL-E is opt-in via channel config
+            # `enable_dalle_fallback` for niches where stills genuinely help.
+            enable_dalle = bool(channel.get("enable_dalle_fallback", False))
+            if not enable_dalle:
+                manifest.append({
+                    "segment_id": seg_id,
+                    "type": "kinetic_text",
+                    "source": "fallback",
+                    "assets": [{
+                        "type": "kinetic_text",
+                        "text": (direction or query)[:140],
+                        "reason": "no stock candidate above relevance threshold",
+                        "chain_candidates": len(chain_result.all_scored),
+                        "providers_called": chain_result.providers_called,
+                    }],
+                })
+                ASSET_COVERAGE_TOTAL.labels(outcome="kinetic_fallback").inc()
+                await log_search(req.content_id, req.channel_id, seg_id,
+                                 query, "kinetic_fallback",
+                                 len(chain_result.all_scored),
+                                 used_fallback=True,
+                                 search_time_ms=int((_time.time() - search_start) * 1000))
+                continue
+
+            # Opt-in DALL-E fallback (channel-gated).
             image_provider = ProviderRegistry.get("image")
             from src.providers.image.base import ImageRequest
 
@@ -452,7 +526,7 @@ async def generate_assets(req: AssetsRequest):
                 generated_count += 1
 
             manifest.append({"segment_id": seg_id, "type": "generated_image", "assets": assets})
-            # Intelligence: Log DALL-E fallback
+            ASSET_COVERAGE_TOTAL.labels(outcome="dalle").inc()
             await log_search(req.content_id, req.channel_id, seg_id,
                              query, "dalle", 0, used_fallback=True,
                              search_time_ms=int((_time.time() - search_start) * 1000))
@@ -460,6 +534,7 @@ async def generate_assets(req: AssetsRequest):
         except Exception as exc:
             logger.warning("assets.segment_failed", segment_id=seg_id, error=str(exc))
             manifest.append({"segment_id": seg_id, "type": "failed", "error": str(exc), "assets": []})
+            ASSET_COVERAGE_TOTAL.labels(outcome="failed").inc()
 
     await _log_usage(req.content_id, "assets", "multi", total_cost)
 

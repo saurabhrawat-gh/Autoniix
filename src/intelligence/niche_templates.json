@@ -1,0 +1,167 @@
+{
+  "version": 1,
+  "templates": [
+    {
+      "id": "health_sleep",
+      "label": "Health — Sleep & Recovery",
+      "niche": "health",
+      "sub_niche": "sleep_recovery",
+      "summary": "Evidence-based sleep & recovery science. Calm, authoritative voice that turns anxiety into control.",
+      "starter_topics": [
+        "Why most sleep advice is wrong",
+        "The science of REM cycles in plain English",
+        "Caffeine half-life and the 2pm rule",
+        "Why your phone wrecks deep sleep"
+      ],
+      "dna": {
+        "belief_territory": "sleep_is_just_rest",
+        "intellectual_lens": "sleep_neuroscience",
+        "topic_domain": "health / sleep_recovery",
+        "brand_voice": "calm_authoritative",
+        "narrative_rhythm": "hook_payoff_loop",
+        "emotional_contract": "anxiety_to_control",
+        "target_audience": "25-45_health_curious",
+        "primary_format_long": "educational_explainer",
+        "primary_format_short": "hook_fact_payoff",
+        "thumbnail_style": "high_contrast_text_overlay",
+        "primary_color": "#0EA5E9",
+        "forbidden_words": "literally,actually,basically,obviously,delve,realm,landscape"
+      }
+    },
+    {
+      "id": "money_psychology",
+      "label": "Money — Behavioral Finance",
+      "niche": "money",
+      "sub_niche": "behavioral_finance",
+      "summary": "Personal finance through a behavioral-economics lens. Cuts through hustle-culture noise.",
+      "starter_topics": [
+        "Why budgeting apps make you spend more",
+        "The psychology of lifestyle creep",
+        "Compound interest you actually feel",
+        "Why your salary anchor is wrong"
+      ],
+      "dna": {
+        "belief_territory": "money_anxiety_myths",
+        "intellectual_lens": "behavioral_economics",
+        "topic_domain": "money / personal_finance",
+        "brand_voice": "calm_authoritative",
+        "narrative_rhythm": "myth_evidence_action",
+        "emotional_contract": "anxiety_to_control",
+        "target_audience": "25-40_money_anxious",
+        "primary_format_long": "myth_buster_explainer",
+        "primary_format_short": "counterintuitive_fact",
+        "thumbnail_style": "data_chart_callout",
+        "primary_color": "#16A34A",
+        "forbidden_words": "literally,obviously,guys,super,like_a_boss"
+      }
+    },
+    {
+      "id": "tech_ai_explainer",
+      "label": "Tech — AI & Software Explainers",
+      "niche": "tech",
+      "sub_niche": "ai_software",
+      "summary": "Demystifies AI/software concepts for curious adults. No hype, no jargon, no doomerism.",
+      "starter_topics": [
+        "What 'attention' actually means in transformers",
+        "Why local LLMs are catching up faster than you think",
+        "The real reason chips are getting expensive",
+        "Vector databases explained without lying"
+      ],
+      "dna": {
+        "belief_territory": "ai_hype_vs_reality",
+        "intellectual_lens": "computer_science_fundamentals",
+        "topic_domain": "technology / ai_software",
+        "brand_voice": "witty_skeptical",
+        "narrative_rhythm": "problem_twist_solution",
+        "emotional_contract": "confusion_to_confidence",
+        "target_audience": "22-40_technically_curious",
+        "primary_format_long": "concept_explainer",
+        "primary_format_short": "myth_in_60s",
+        "thumbnail_style": "high_contrast_text_overlay",
+        "primary_color": "#7C3AED",
+        "forbidden_words": "revolutionary,game_changer,literally,delve,landscape"
+      }
+    },
+    {
+      "id": "history_unknown",
+      "label": "History — Forgotten Stories",
+      "niche": "history",
+      "sub_niche": "forgotten_history",
+      "summary": "Stories your textbook skipped. Specific, dated, sourced — never \"some say\".",
+      "starter_topics": [
+        "The Roman emperor who ruled for 1 day",
+        "Why the Library of Alexandria didn't burn the way you think",
+        "The Soviet computer network that almost beat ARPANET",
+        "How a single ship changed the spice trade"
+      ],
+      "dna": {
+        "belief_territory": "history_is_textbook_only",
+        "intellectual_lens": "primary_source_history",
+        "topic_domain": "history / forgotten_stories",
+        "brand_voice": "warm_storyteller",
+        "narrative_rhythm": "scene_twist_lesson",
+        "emotional_contract": "curiosity_to_clarity",
+        "target_audience": "25-55_history_curious",
+        "primary_format_long": "narrative_explainer",
+        "primary_format_short": "single_fact_story",
+        "thumbnail_style": "vintage_photo_text",
+        "primary_color": "#B45309",
+        "forbidden_words": "literally,obviously,basically,super,just_imagine"
+      }
+    },
+    {
+      "id": "productivity_systems",
+      "label": "Productivity — Systems Over Hacks",
+      "niche": "productivity",
+      "sub_niche": "systems_thinking",
+      "summary": "Systems and habits, not 5am routines. For people who already tried the hacks.",
+      "starter_topics": [
+        "Why GTD breaks for knowledge workers",
+        "The two-list trick that beats every to-do app",
+        "Why your calendar lies to you",
+        "The myth of deep work in 4-hour blocks"
+      ],
+      "dna": {
+        "belief_territory": "productivity_hustle_lies",
+        "intellectual_lens": "cognitive_psychology",
+        "topic_domain": "productivity / systems",
+        "brand_voice": "calm_practical",
+        "narrative_rhythm": "problem_twist_solution",
+        "emotional_contract": "overwhelm_to_clarity",
+        "target_audience": "28-45_knowledge_workers",
+        "primary_format_long": "system_walkthrough",
+        "primary_format_short": "single_principle",
+        "thumbnail_style": "minimal_text_overlay",
+        "primary_color": "#0F766E",
+        "forbidden_words": "hustle,grind,literally,just,super_easy"
+      }
+    },
+    {
+      "id": "science_curiosity",
+      "label": "Science — Everyday Curiosity",
+      "niche": "science",
+      "sub_niche": "everyday_science",
+      "summary": "Why ordinary things behave the way they do. Physics, biology, chemistry without textbook voice.",
+      "starter_topics": [
+        "Why water bends light but air doesn't (much)",
+        "The reason your fridge whines at 3am",
+        "How crows use traffic to crack nuts",
+        "Why honey never spoils"
+      ],
+      "dna": {
+        "belief_territory": "science_is_for_school",
+        "intellectual_lens": "first_principles_physics",
+        "topic_domain": "science / everyday_phenomena",
+        "brand_voice": "warm_curious",
+        "narrative_rhythm": "question_demo_explanation",
+        "emotional_contract": "curiosity_to_clarity",
+        "target_audience": "20-50_science_curious",
+        "primary_format_long": "phenomenon_explainer",
+        "primary_format_short": "single_observation",
+        "thumbnail_style": "macro_photo_question",
+        "primary_color": "#DC2626",
+        "forbidden_words": "literally,obviously,scientists_say,just_so_you_know"
+      }
+    }
+  ]
+}

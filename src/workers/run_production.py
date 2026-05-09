@@ -85,11 +85,13 @@ async def main() -> None:
             save_checkpoint_data,
             load_checkpoint_data,
         ],
-        max_concurrent_activities=5,
-        max_concurrent_workflow_tasks=10,
+        max_concurrent_activities=settings.temporal_production_max_activities,
+        max_concurrent_workflow_tasks=settings.temporal_production_max_workflow_tasks,
     )
 
-    logger.info("worker.production.listening", task_queue="video-production")
+    logger.info("worker.production.listening", task_queue="video-production",
+                max_activities=settings.temporal_production_max_activities,
+                max_workflow_tasks=settings.temporal_production_max_workflow_tasks)
     await worker.run()
 
 

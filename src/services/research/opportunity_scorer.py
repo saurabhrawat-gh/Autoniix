@@ -17,17 +17,26 @@ from src.db import get_pool
 
 logger = structlog.get_logger()
 
-# Default weights (overridden from system_config or ML model)
+# Default weights (overridden from system_config or ML model).
+#
+# Phase 8 added ``saturation_gap`` — the inverse of niche saturation
+# (high gap == uncrowded topic). It's weighted 0.10 by default,
+# rebalancing freshness/novelty/trend_momentum down by ~0.03 each so the
+# total stays at 1.0. The rebalance reflects the fact that an external
+# saturation signal is more predictive of YouTube algorithm behaviour
+# than internal novelty alone — internal novelty asks "is this new for
+# *us*?", saturation asks "is this new for *the platform*?"
 DEFAULT_WEIGHTS = {
-    "freshness": 0.18,
-    "novelty": 0.15,
-    "trend_momentum": 0.18,
-    "supply_demand_gap": 0.12,
+    "freshness": 0.16,
+    "novelty": 0.13,
+    "trend_momentum": 0.16,
+    "supply_demand_gap": 0.11,
     "hookability": 0.12,
-    "competitor_gap": 0.08,
-    "burst_score": 0.07,
-    "seasonality": 0.05,
+    "competitor_gap": 0.07,
+    "burst_score": 0.06,
+    "seasonality": 0.04,
     "phrase_novelty": 0.05,
+    "saturation_gap": 0.10,
 }
 
 
@@ -233,6 +242,12 @@ async def score_opportunity(
 
     seasonality = compute_seasonality(topic)
 
+    # Phase 8 — niche saturation. Defaults to 1.0 (no penalty) on cold
+    # start so missing data never blocks a topic. Caller in
+    # services/research/main.py is expected to pass this in features
+    # via ``compute_saturation``; if absent we fall back gracefully.
+    saturation_gap = features.get("saturation_gap", 1.0)
+
     # Build feature vector
     feature_vec = {
         "freshness": freshness,
@@ -244,6 +259,7 @@ async def score_opportunity(
         "burst_score": min(1.0, burst),
         "seasonality": seasonality,
         "phrase_novelty": phrase_nov,
+        "saturation_gap": max(0.0, min(1.0, saturation_gap)),
     }
 
     # Weighted sum

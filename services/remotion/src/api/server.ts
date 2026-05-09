@@ -30,7 +30,13 @@ app.post("/api/render", async (req, res) => {
     ...(body.exportStems ? { exportStems: true } : {}),
   };
 
-  await renderQueue.add("render", data, { jobId: renderId, removeOnComplete: 100, removeOnFail: 100 });
+  await renderQueue.add("render", data, {
+    jobId: renderId,
+    removeOnComplete: 100,
+    removeOnFail: 100,
+    attempts: 2,
+    backoff: { type: "exponential", delay: 5_000 },
+  });
 
   res.json({
     renderId,
@@ -69,7 +75,18 @@ app.get("/api/render/:id", async (req, res) => {
   const state = await job.getState();
   const progress = typeof job.progress === "number" ? job.progress : 0;
   const result = job.returnvalue as
-    | { outputUrl?: string; fileSize?: number; duration?: number }
+    | {
+        outputUrl?: string;
+        fileSize?: number;
+        duration?: number;
+        qc?: {
+          pass: boolean;
+          durationSec: number | null;
+          meanLuminance: number | null;
+          blackFraction: number | null;
+          hasAudio: boolean;
+        };
+      }
     | undefined;
 
   const statusMap: Record<string, "rendering" | "done" | "failed"> = {
@@ -88,6 +105,7 @@ app.get("/api/render/:id", async (req, res) => {
     outputUrl: result?.outputUrl,
     fileSize: result?.fileSize,
     duration: result?.duration,
+    qc: result?.qc,
     error: job.failedReason,
   });
 });

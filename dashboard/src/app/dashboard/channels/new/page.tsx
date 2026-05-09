@@ -28,10 +28,42 @@ export default function NewChannelPage() {
   const { showToast } = useToast();
   const [systemStopped, setSystemStopped] = useState(false);
 
+  // Phase 5 — niche templates (starter presets)
+  type NicheTemplate = {
+    id: string; label: string; niche: string; sub_niche?: string;
+    summary: string; starter_topics?: string[]; dna: Record<string, string>;
+  };
+  const [templates, setTemplates] = useState<NicheTemplate[]>([]);
+  const [pickedTemplateId, setPickedTemplateId] = useState<string>('');
+  // Starter topics from the picked template — seeded into the channel's
+  // topics_queue on save so the very first scheduled run has ideas to chew on.
+  const [starterTopics, setStarterTopics] = useState<string[]>([]);
+
   useEffect(() => {
     if (!isLoggedIn()) { router.replace('/login'); return; }
     api.stats().then(res => setSystemStopped(res.data?.emergency_stop === true)).catch(() => {});
+    api.listNicheTemplates()
+      .then(res => setTemplates(res?.data?.templates || []))
+      .catch(() => {});
   }, [router]);
+
+  function applyTemplate(t: NicheTemplate) {
+    // Templates seed niche/sub_niche + DNA; user-chosen channel_id/name are
+    // never overwritten so the picker is safe to use mid-edit.
+    setPickedTemplateId(t.id);
+    setForm(prev => ({
+      ...prev,
+      niche: t.niche || prev.niche,
+      sub_niche: t.sub_niche || prev.sub_niche,
+    }));
+    setDna({ ...t.dna });
+    setStarterTopics(t.starter_topics || []);
+    setDnaSource('llm');  // visual: treated as a known-good preset
+    const topicMsg = (t.starter_topics?.length || 0) > 0
+      ? ` + ${t.starter_topics!.length} starter topics`
+      : '';
+    showToast(`Loaded preset: ${t.label}${topicMsg}`, 'success');
+  }
 
   const [form, setForm] = useState({
     channel_id: '', channel_name: '', niche: '', sub_niche: '',
@@ -122,6 +154,9 @@ export default function NewChannelPage() {
         schedule_enabled: form.schedule_enabled,
         human_review_required: form.human_review_required,
         max_daily_api_spend: form.max_daily_api_spend,
+        // Phase 5 — preset-derived starter topics seed the topics_queue.
+        // Empty array when no preset chosen → backend stores empty string.
+        starter_topics: starterTopics,
         ...dnaPayload,
       });
       showToast('Channel created', 'success');
@@ -161,6 +196,46 @@ export default function NewChannelPage() {
       )}
 
       <form onSubmit={handleSubmit} className={cn('card p-6 space-y-5', systemStopped && 'lockdown-frost')}>
+        {/* ── Niche template picker (optional starter) ───── */}
+        {templates.length > 0 && (
+          <div className="rounded-lg border border-border bg-surface-1 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="text-sm font-semibold text-content-primary">Start from a preset</h3>
+                <p className="text-xs text-content-tertiary mt-0.5">
+                  Optional. Pre-fills niche, sub-niche &amp; Brand DNA from a curated template — you can edit everything afterward.
+                </p>
+              </div>
+              {pickedTemplateId && (
+                <button type="button" onClick={() => setPickedTemplateId('')}
+                  className="text-xs text-content-tertiary hover:text-content-primary">
+                  clear
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {templates.map(t => {
+                const picked = pickedTemplateId === t.id;
+                return (
+                  <button key={t.id} type="button" onClick={() => applyTemplate(t)}
+                    className={cn(
+                      'text-left rounded-md border-2 p-3 transition-all',
+                      picked
+                        ? 'border-accent bg-accent/5'
+                        : 'border-border bg-surface-0 hover:border-border-hover'
+                    )}>
+                    <div className="flex items-center gap-2 mb-1">
+                      {picked && <span className="text-accent text-xs">✓</span>}
+                      <span className="text-xs font-semibold text-content-primary">{t.label}</span>
+                    </div>
+                    <p className="text-[11px] text-content-tertiary leading-snug line-clamp-2">{t.summary}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <Field label="Channel ID" placeholder="e.g., BS_SLEEP01" value={form.channel_id}
           onChange={(v) => setForm({ ...form, channel_id: v })} hint="Unique identifier, used internally. Cannot be changed later." />
         <Field label="Channel Name" placeholder="e.g., Body Signals - Sleep" value={form.channel_name}

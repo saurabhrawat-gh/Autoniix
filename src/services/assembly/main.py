@@ -20,6 +20,7 @@ from src.services.assembly.render_predictor import (
     simplify_direction_for_retry,
     log_render_attempt,
 )
+from src.observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -48,63 +49,123 @@ async def _load_channel(channel_id: str) -> dict:
     return dict(row) if row else {}
 
 
-async def _generate_placeholder_video(content_id: str, title: str, duration_s: float) -> str:
-    """Generate a minimal placeholder MP4 when Remotion is unreachable.
+def _build_diagnostic_direction(
+    title: str,
+    content_id: str,
+    reason: str,
+    duration_s: float,
+    aspect: str = "16:9",
+    fps: int = 30,
+) -> dict:
+    """Build a minimal Direction v3 that renders the loud DiagnosticScene.
 
-    Uses FFmpeg to create a solid-color video with text overlay and stores in MinIO.
-    Returns the MinIO URL of the placeholder video.
+    Used when assembly must produce *something* renderable in test mode while
+    a real direction is unavailable. The output is intentionally distinguishable
+    from a real render (red checkerboard, big yellow warning text) so operators
+    immediately see that a fallback path was hit.
     """
-    import subprocess
-    import tempfile
-    import os
+    duration_ms = int(max(3.0, min(duration_s, 60.0)) * 1000)
+    is_short = aspect in ("9:16", "vertical", "short", "shorts")
+    width, height = (1080, 1920) if is_short else (1920, 1080)
+    return {
+        "version": "3.0",
+        "meta": {
+            "video_id": content_id,
+            "channel_id": "diagnostic",
+            "title": title[:120],
+            "duration_target_seconds": duration_ms / 1000,
+            "aspect": "9:16" if is_short else "16:9",
+            "fps": fps,
+            "resolution": {"width": width, "height": height},
+        },
+        "template": "hybrid-kinetic",
+        "theme": {
+            "primary_color": "#FF3B30",
+            "accent_color": "#FFD60A",
+            "background_color": "#3A0000",
+            "text_color": "#FFFFFF",
+            "fonts": {"heading": "Inter", "body": "Inter"},
+        },
+        "segments": [
+            {
+                "id": "diag-1",
+                "start_ms": 0,
+                "duration_ms": duration_ms,
+                "scene_preset": "scene.error.diagnostic",
+                "scene_overrides": {
+                    "reason": reason,
+                    "videoId": content_id,
+                    "presetId": "(diagnostic fallback)",
+                },
+            },
+        ],
+    }
 
-    import src.providers.boot  # noqa: F401
-    from src.providers.registry import ProviderRegistry
-    from src.providers.storage.base import StorageUpload
 
-    storage = ProviderRegistry.get("storage")
-    duration = min(max(duration_s, 5.0), 60.0)  # clamp 5-60s
+async def _render_diagnostic_via_remotion(
+    *,
+    content_id: str,
+    channel_id: str,
+    title: str,
+    composition: str,
+    aspect: str,
+    duration_s: float,
+    reason: str,
+    remotion_url: str,
+) -> tuple[str, float] | None:
+    """Submit a DiagnosticScene-only direction to Remotion. Returns
+    ``(video_url, video_duration_s)`` on success, or ``None`` on any failure.
 
-    safe_title = title.replace("'", "").replace('"', '')[:60]
-
-    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
-        tmp_path = tmp.name
-
+    Test-mode-only fallback. Stays on the same render path (Remotion + post-QC
+    + S3 upload) so we never produce a "fake" placeholder MP4 that pollutes
+    storage and masks pipeline issues.
+    """
+    diag_direction = _build_diagnostic_direction(
+        title=title or content_id,
+        content_id=content_id,
+        reason=reason,
+        duration_s=duration_s,
+        aspect=aspect,
+    )
+    payload = {
+        "composition": composition,
+        "inputProps": diag_direction,
+        "outputFormat": "mp4",
+        "quality": 50,
+        "codec": "h264",
+        "width": 640 if not aspect.startswith("9") else 360,
+        "height": 360 if not aspect.startswith("9") else 640,
+    }
     try:
-        cmd = [
-            "ffmpeg", "-y", "-f", "lavfi",
-            "-i", f"color=c=0x1a1a2e:s=640x360:d={duration}:r=15",
-            "-vf", (
-                f"drawtext=text='{safe_title}':fontcolor=white:fontsize=24:"
-                f"x=(w-text_w)/2:y=(h-text_h)/2-30,"
-                f"drawtext=text='TEST MODE - Remotion Unavailable':fontcolor=0xaaaaaa:"
-                f"fontsize=16:x=(w-text_w)/2:y=(h-text_h)/2+30"
-            ),
-            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
-            "-pix_fmt", "yuv420p",
-            tmp_path
-        ]
-        result = subprocess.run(cmd, capture_output=True, timeout=30)
-        if result.returncode != 0:
-            # FFmpeg unavailable — generate minimal bytes
-            logger.warning("assembly.ffmpeg_unavailable", stderr=result.stderr[:200])
-            raise RuntimeError("FFmpeg failed")
-
-        video_bytes = open(tmp_path, "rb").read()
-    except Exception as e:
-        logger.warning("assembly.placeholder_ffmpeg_failed", error=str(e))
-        # Absolute minimal: 1-byte marker so URL isn't empty
-        video_bytes = b"\x00" * 1024
-    finally:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
-
-    key = f"renders/placeholder_{content_id}.mp4"
-    sr = await storage.upload(StorageUpload(key=key, data=video_bytes, content_type="video/mp4"))
-    logger.info("assembly.placeholder_generated", url=sr.url, size=len(video_bytes))
-    return sr.url
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(f"{remotion_url}/api/render", json=payload)
+            resp.raise_for_status()
+            render_id = resp.json().get("renderId", "")
+        if not render_id:
+            return None
+        elapsed = 0
+        while elapsed < 180:
+            await asyncio.sleep(3)
+            elapsed += 3
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                sr = await client.get(f"{remotion_url}/api/render/{render_id}")
+                sr.raise_for_status()
+                rr = sr.json()
+            if rr.get("status") in ("completed", "done"):
+                url = rr.get("outputUrl", "")
+                if not url:
+                    return None
+                return url, float(rr.get("qc", {}).get("durationSec") or duration_s)
+            if rr.get("status") == "failed":
+                logger.warning("assembly.diagnostic_render_failed",
+                               content_id=content_id, error=rr.get("error"))
+                return None
+        logger.warning("assembly.diagnostic_render_timeout", content_id=content_id)
+        return None
+    except Exception as exc:
+        logger.warning("assembly.diagnostic_render_exception",
+                       content_id=content_id, error=str(exc))
+        return None
 
 
 # ── App ──────────────────────────────────────────────────────
@@ -120,6 +181,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Assembly Service", version="0.1.0", lifespan=lifespan)
 
 
+instrument_app(app, service_name="assembly")
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="assembly")
@@ -238,45 +300,58 @@ async def assemble(req: AssemblyRequest):
                 resp.raise_for_status()
                 render_data = resp.json()
         except Exception as remotion_err:
-            # Any Remotion error — generate placeholder video as fallback in test mode
-            if is_test_mode:
-                logger.warning("assembly.remotion_unreachable_fallback",
-                               error=str(remotion_err), content_id=req.content_id)
-                total_ms = sum(s.get("duration_ms", 0) for s in segments)
-                duration_s = round(total_ms / 1000, 1) if total_ms else 30.0
-                placeholder_url = await _generate_placeholder_video(
-                    req.content_id, req.title, duration_s)
-                try:
-                    pool = await get_pool()
-                    await pool.execute(
-                        "UPDATE videos SET rendered_video_url = $1, "
-                        "production_score = $2, status = 'rendered', updated_at = NOW() "
-                        "WHERE content_id = $3",
-                        placeholder_url, 6.0, req.content_id,
-                    )
-                except Exception as db_err:
-                    logger.warning("assembly.fallback_db_failed", error=str(db_err))
-                return ServiceResponse(
-                    status="success",
-                    data={
-                        "render_id": f"placeholder-{req.content_id}",
-                        "video_url": placeholder_url,
-                        "render_duration_s": 0,
-                        "video_duration_s": duration_s,
-                        "production_score": 6.0,
-                        "production_issues": ["Remotion unavailable — placeholder video generated"],
-                        "segment_count": len(segments),
-                        "intelligence": {
-                            "complexity": complexity,
-                            "estimated_render_s": estimated_render_s,
-                        },
-                        "fallback": True,
-                    },
-                    cost={"cost_usd": 0, "provider": "ffmpeg_placeholder"},
-                )
-            else:
+            # Production: hard fail. Never silently produce a fake render.
+            if not is_test_mode:
                 raise HTTPException(status_code=503,
                                     detail=f"Remotion service unreachable: {remotion_err}")
+            # Test mode: render the DiagnosticScene via Remotion so we still
+            # exercise the full pipeline (bundle → render → QC → upload).
+            logger.warning("assembly.remotion_unreachable_diagnostic_fallback",
+                           error=str(remotion_err), content_id=req.content_id)
+            total_ms = sum(s.get("duration_ms", 0) for s in segments)
+            duration_s = round(total_ms / 1000, 1) if total_ms else 8.0
+            aspect = direction_v3.get("meta", {}).get("aspect", "16:9")
+            diag = await _render_diagnostic_via_remotion(
+                content_id=req.content_id, channel_id=req.channel_id,
+                title=req.title, composition=composition, aspect=aspect,
+                duration_s=duration_s,
+                reason=f"Remotion error on first submit: {str(remotion_err)[:120]}",
+                remotion_url=remotion_url,
+            )
+            if diag is None:
+                raise HTTPException(status_code=502,
+                                    detail=f"Remotion unreachable and diagnostic fallback failed: {remotion_err}")
+            diag_url, diag_dur = diag
+            try:
+                pool = await get_pool()
+                await pool.execute(
+                    "UPDATE videos SET rendered_video_url = $1, "
+                    "production_score = $2, status = 'rendered', updated_at = NOW() "
+                    "WHERE content_id = $3",
+                    diag_url, 3.0, req.content_id,
+                )
+            except Exception as db_err:
+                logger.warning("assembly.fallback_db_failed", error=str(db_err))
+            return ServiceResponse(
+                status="success",
+                data={
+                    "render_id": f"diagnostic-{req.content_id}",
+                    "video_url": diag_url,
+                    "render_duration_s": 0,
+                    "video_duration_s": diag_dur,
+                    "production_score": 3.0,
+                    "production_issues": [
+                        "DIAGNOSTIC FALLBACK — Remotion unreachable on first submit",
+                    ],
+                    "segment_count": len(segments),
+                    "intelligence": {
+                        "complexity": complexity,
+                        "estimated_render_s": estimated_render_s,
+                    },
+                    "fallback": True,
+                },
+                cost={"cost_usd": 0, "provider": "remotion_diagnostic"},
+            )
 
         render_id = render_data.get("renderId", render_data.get("id", ""))
         if not render_id:
@@ -354,38 +429,54 @@ async def assemble(req: AssemblyRequest):
                 await log_render_attempt(
                     req.content_id, req.channel_id, render_id,
                     complexity, success=False, retry_count=1, error_category="timeout_retry")
-                # In test mode, fallback to placeholder instead of failing
-                if is_test_mode:
-                    logger.warning("assembly.render_timeout_fallback", content_id=req.content_id)
-                    total_ms = sum(s.get("duration_ms", 0) for s in segments)
-                    duration_s = round(total_ms / 1000, 1) if total_ms else 30.0
-                    placeholder_url = await _generate_placeholder_video(
-                        req.content_id, req.title, duration_s)
-                    try:
-                        pool = await get_pool()
-                        await pool.execute(
-                            "UPDATE videos SET rendered_video_url = $1, "
-                            "production_score = $2, status = 'rendered', updated_at = NOW() "
-                            "WHERE content_id = $3",
-                            placeholder_url, 6.0, req.content_id,
-                        )
-                    except Exception as db_err:
-                        logger.warning("assembly.fallback_db_failed", error=str(db_err))
-                    return ServiceResponse(
-                        status="success",
-                        data={
-                            "render_id": f"placeholder-{req.content_id}",
-                            "video_url": placeholder_url,
-                            "render_duration_s": 0,
-                            "video_duration_s": duration_s,
-                            "production_score": 6.0,
-                            "production_issues": ["Render timed out — placeholder video generated"],
-                            "segment_count": len(segments),
-                            "fallback": True,
-                        },
-                        cost={"cost_usd": 0, "provider": "ffmpeg_placeholder"},
+                # Production: hard fail so the workflow surfaces the error.
+                if not is_test_mode:
+                    raise HTTPException(status_code=504, detail="Render timed out after retry")
+                # Test mode: render the diagnostic composition so the dashboard
+                # still has a playable artefact and operators can see the
+                # exact failure reason inline.
+                logger.warning("assembly.render_timeout_diagnostic_fallback",
+                               content_id=req.content_id)
+                total_ms = sum(s.get("duration_ms", 0) for s in segments)
+                duration_s = round(total_ms / 1000, 1) if total_ms else 8.0
+                aspect = direction_v3.get("meta", {}).get("aspect", "16:9")
+                diag = await _render_diagnostic_via_remotion(
+                    content_id=req.content_id, channel_id=req.channel_id,
+                    title=req.title, composition=composition, aspect=aspect,
+                    duration_s=duration_s,
+                    reason="Render + simplified retry both timed out",
+                    remotion_url=remotion_url,
+                )
+                if diag is None:
+                    raise HTTPException(status_code=504,
+                                        detail="Render timed out and diagnostic fallback failed")
+                diag_url, diag_dur = diag
+                try:
+                    pool = await get_pool()
+                    await pool.execute(
+                        "UPDATE videos SET rendered_video_url = $1, "
+                        "production_score = $2, status = 'rendered', updated_at = NOW() "
+                        "WHERE content_id = $3",
+                        diag_url, 3.0, req.content_id,
                     )
-                raise HTTPException(status_code=504, detail="Render timed out after retry")
+                except Exception as db_err:
+                    logger.warning("assembly.fallback_db_failed", error=str(db_err))
+                return ServiceResponse(
+                    status="success",
+                    data={
+                        "render_id": f"diagnostic-{req.content_id}",
+                        "video_url": diag_url,
+                        "render_duration_s": 0,
+                        "video_duration_s": diag_dur,
+                        "production_score": 3.0,
+                        "production_issues": [
+                            "DIAGNOSTIC FALLBACK — render + simplified retry both timed out",
+                        ],
+                        "segment_count": len(segments),
+                        "fallback": True,
+                    },
+                    cost={"cost_usd": 0, "provider": "remotion_diagnostic"},
+                )
 
         video_url = render_result.get("outputUrl", render_result.get("url", ""))
         render_duration = render_result.get("renderDuration", 0)

@@ -14,6 +14,7 @@ import { DirectionV3 } from "../schemas/directionV3";
 import { validateAgainstTemplate } from "../utils/compositionValidator";
 import { normalizeLoudness } from "../utils/loudnessNormalizer";
 import { stripAudio, extractMixedAudio } from "../utils/ffmpegStems";
+import { postRenderQc } from "../utils/postRenderQc";
 import type { RenderJobData } from "../api/queue";
 
 let cachedBundle: string | null = null;
@@ -34,11 +35,26 @@ export interface RenderResult {
   outputUrl: string;
   fileSize: number;
   duration: number;
+  /** Post-render QC metrics (always present for media renders). */
+  qc?: {
+    pass: boolean;
+    durationSec: number | null;
+    meanLuminance: number | null;
+    blackFraction: number | null;
+    hasAudio: boolean;
+  };
   /** Present only when `exportStems: true` was requested. */
   stems?: {
     videoOnlyUrl: string;
     audioMixUrl: string;
   };
+}
+
+export class RenderQcError extends Error {
+  constructor(public readonly reasons: string[]) {
+    super(`post-render QC rejected output: ${reasons.join("; ")}`);
+    this.name = "RenderQcError";
+  }
 }
 
 export async function runRender(
@@ -143,6 +159,25 @@ export async function runRender(
     }
   }
 
+  // ── Post-render QC ────────────────────────────────────────────
+  // Reject black-frame, zero-byte, missing-audio, or duration-off renders
+  // BEFORE uploading. Prevents broken outputs from polluting MinIO and the
+  // videos table. The caller (BullMQ) will retry once on RenderQcError.
+  const directionForQc = (job.inputProps as { direction?: { meta?: { duration_target_seconds?: number }; segments?: Array<{ duration_ms: number }>; audio?: { voiceover_url?: string } } }).direction;
+  const segMs = directionForQc?.segments?.reduce((a, s) => a + (s.duration_ms || 0), 0) ?? 0;
+  const expectedDurationSec = segMs > 0
+    ? segMs / 1000
+    : directionForQc?.meta?.duration_target_seconds ?? 0;
+  const expectAudio = Boolean(directionForQc?.audio?.voiceover_url);
+  const qcResult = await postRenderQc(outPath, {
+    expectedDurationSec,
+    expectAudio,
+  });
+  if (!qcResult.pass) {
+    try { fs.unlinkSync(outPath); } catch { /* ignore */ }
+    throw new RenderQcError(qcResult.reasons);
+  }
+
   const upload = await uploadFile(
     outPath,
     `renders/${job.renderId}.${ext}`,
@@ -177,6 +212,13 @@ export async function runRender(
     outputUrl: upload.url,
     fileSize: upload.size,
     duration: Math.round((Date.now() - startedAt) / 1000),
+    qc: {
+      pass: qcResult.pass,
+      durationSec: qcResult.metrics.durationSec,
+      meanLuminance: qcResult.metrics.meanLuminance,
+      blackFraction: qcResult.metrics.blackFraction,
+      hasAudio: qcResult.metrics.hasAudio,
+    },
     ...(stems ? { stems } : {}),
   };
 }

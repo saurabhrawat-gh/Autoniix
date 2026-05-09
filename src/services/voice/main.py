@@ -28,6 +28,7 @@ from src.services.voice.voice_style_learner import (
     ingest_voice_feedback,
     train_voice_model,
 )
+from src.observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -104,6 +105,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Voice Service", version="0.1.0", lifespan=lifespan)
 
 
+instrument_app(app, service_name="voice")
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="voice")

@@ -305,6 +305,12 @@ class VideoProductionWorkflow:
                         "channel_id": params.channel_id,
                         "content_mode": params.content_mode,
                         "topic_candidates": params.topic_candidates,
+                        # Phase 11: forward the workflow content_id so
+                        # research_features.content_id and the new
+                        # prediction_log.content_id match the delivered
+                        # video's id. Without this, the train_model
+                        # JOIN can't link predictions to actuals.
+                        "content_id": content_id,
                         "budget_guard": budget,
                     }],
                     start_to_close_timeout=timedelta(minutes=5),

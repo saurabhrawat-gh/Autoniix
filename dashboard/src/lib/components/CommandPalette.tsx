@@ -61,6 +61,7 @@ export function CommandPalette() {
     { id: 'nav-progress', label: 'Go to Progress', icon: Activity, run: () => go('/dashboard/progress'), keywords: 'jobs running active queue' },
     { id: 'nav-settings', label: 'Go to Settings', icon: SettingsIcon, run: () => go('/dashboard/settings'), keywords: 'config emergency stop budget' },
     { id: 'nav-new-channel', label: 'Add new channel', icon: Plus, run: () => go('/dashboard/channels/new'), keywords: 'create channel' },
+    { id: 'nav-fleet', label: 'Fleet health', icon: Activity, run: () => go('/dashboard/fleet'), keywords: 'fleet health services workers db pool render queue scale' },
   ]), [go]);
 
   const actionItems = useMemo(() => {

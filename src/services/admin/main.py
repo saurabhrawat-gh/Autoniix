@@ -26,6 +26,7 @@ from src.services.experiments.observability import (
     get_cost_savings,
     get_model_health_summary,
 )
+from src.observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -64,6 +65,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Admin Service", version="0.1.0", lifespan=lifespan)
 
 
+instrument_app(app, service_name="admin")
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="admin")

@@ -1,0 +1,25 @@
+{
+  "id": "hook_short_001",
+  "category": "llm.hook",
+  "description": "Short-form hook must mention the topic, fit on screen, and never break character.",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You write 1-sentence YouTube Shorts hooks. Be specific. No meta commentary. Output only the hook sentence — no quotes, no preamble."
+    },
+    {
+      "role": "user",
+      "content": "Topic: Why pasta water is the secret ingredient most home cooks waste."
+    }
+  ],
+  "spec": {
+    "must_include_any": ["pasta", "water", "starch", "sauce"],
+    "must_not_include": ["as an AI", "I cannot", "I can't", "I'm sorry"],
+    "min_chars": 25,
+    "max_chars": 240,
+    "must_match_regex": ["\\S"]
+  },
+  "temperature": 0.7,
+  "max_tokens": 80,
+  "response_format": "text"
+}

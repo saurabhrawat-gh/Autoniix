@@ -231,11 +231,22 @@ async def predict_script_success(features: dict, niche: str | None = None) -> di
 # THOMPSON SAMPLING BANDITS
 # ═══════════════════════════════════════════════════════════════
 
-async def thompson_sample(niche: str, bandit_type: str, arms: list[str]) -> dict:
-    """Select an arm using Thompson Sampling.
+async def thompson_sample(
+    niche: str,
+    bandit_type: str,
+    arms: list[str],
+    *,
+    channel_id: str | None = None,
+) -> dict:
+    """Select an arm using Thompson Sampling, with diversity floor.
 
     bandit_type: "hook_style" or "pacing_strategy"
     arms: list of arm names
+    channel_id: optional. When provided, the Phase 10 diversity floor
+        checks this channel's recent picks for the same bandit_type
+        and overrides Thompson with the least-pulled arm if entropy
+        of recent picks is below threshold. Without it, behaviour is
+        identical to pure Thompson sampling — useful for tests.
     """
     pool = await get_pool()
 
@@ -265,17 +276,62 @@ async def thompson_sample(niche: str, bandit_type: str, arms: list[str]) -> dict
         b = float(state["beta"])
         samples[arm] = float(np.random.beta(a, b))
 
-    selected = max(samples, key=samples.get)
+    thompson_pick = max(samples, key=samples.get)
+
+    # Phase 10 — diversity floor for hook_style / pacing_strategy.
+    # Hook and pacing especially benefit from forced diversity: a
+    # bandit that locks onto one hook style will produce visibly
+    # repetitive content within weeks.
+    forced_exploration = False
+    entropy = None
+    selected = thompson_pick
+    if channel_id:
+        try:
+            from src.intelligence.diversity_floor import evaluate_diversity_floor
+            decision = await evaluate_diversity_floor(
+                channel_id=channel_id,
+                bandit_type=bandit_type,  # hook_style or pacing_strategy
+                available_arms=arms,
+            )
+            entropy = decision["entropy"]
+            if decision["force"] and decision["forced_arm"]:
+                selected = decision["forced_arm"]
+                forced_exploration = True
+                logger.info("script_bandit.diversity_override",
+                            niche=niche, type=bandit_type,
+                            channel_id=channel_id, entropy=entropy,
+                            thompson_pick=thompson_pick,
+                            forced_pick=selected)
+        except Exception as exc:
+            logger.warning("script_bandit.diversity_check_failed",
+                           niche=niche, type=bandit_type, error=str(exc))
+
+    if channel_id:
+        try:
+            from src.intelligence.diversity_floor import log_bandit_pick
+            await log_bandit_pick(
+                niche=niche, bandit_type=bandit_type,
+                channel_id=channel_id, arm_name=selected,
+                forced_exploration=forced_exploration,
+            )
+        except Exception:
+            pass
+
     exploration = 1.0 / (1 + arm_states.get(selected, {}).get("pulls", 0))
 
     logger.info("script_bandit.sampled", niche=niche, type=bandit_type,
-                selected=selected, pulls=arm_states.get(selected, {}).get("pulls", 0))
+                selected=selected,
+                pulls=arm_states.get(selected, {}).get("pulls", 0),
+                forced=forced_exploration)
 
     return {
         "selected_arm": selected,
         "sampled_value": round(samples[selected], 4),
         "all_samples": {k: round(v, 4) for k, v in samples.items()},
         "exploration_bonus": round(exploration, 4),
+        # Phase 10 fields.
+        "forced_exploration": forced_exploration,
+        "entropy": entropy,
     }
 
 

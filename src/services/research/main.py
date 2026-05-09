@@ -39,6 +39,7 @@ from src.services.research.burst_detector import (
     detect_bursts, mine_phrases, get_rising_phrases,
     compute_phrase_novelty, compute_advanced_seasonality,
 )
+from src.observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -49,6 +50,12 @@ class ResearchRequest(BaseModel):
     channel_id: str
     content_mode: str = "short"
     topic_candidates: list[str] = Field(default_factory=list)
+    # Phase 11: workflow-issued content_id. Optional for backward
+    # compatibility — when omitted we synthesize one as before. Passing
+    # it through lets `research_features.content_id` and the new
+    # `prediction_log.content_id` actually match the delivered video's
+    # id, so downstream training joins work.
+    content_id: str | None = None
     budget_guard: dict = Field(default_factory=lambda: {"max_cost_usd": 2.50, "accrued_cost_usd": 0.0})
 
 
@@ -298,6 +305,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Research Service", version="0.1.0", lifespan=lifespan)
 
 
+instrument_app(app, service_name="research")
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="research")
@@ -344,9 +352,13 @@ async def research(req: ResearchRequest):
                      youtube=len(youtube_results), serp=len(serp_results),
                      reddit=len(reddit_results), news=len(news_results), wiki=len(wiki_results))
 
-        # ── Step 2: LLM Research Synthesis ───────────────
+        # ── Step 2: LLM Research Synthesis (via router) ──────
+        # The router handles per-channel daily cost cap + provider-ladder
+        # fallback (gemini → openai → claude). We keep the existing
+        # _log_usage call below for richer service-label telemetry, so the
+        # router itself is told record_usage=False to avoid double-counting.
+        from src.llm import route as _route, BudgetExceeded as _BudgetExceeded
         prompt = await _load_prompt("PRM_B1_RESEARCH_SYNTH")
-        llm = ProviderRegistry.get("llm.research")
 
         # Build source context strings
         yt_text = "\n".join(f"- [{r['title']}]({r['url']}) by {r.get('channel','')}" for r in youtube_results[:8])
@@ -376,20 +388,6 @@ async def research(req: ResearchRequest):
         research_data = None
 
         for attempt in range(1, max_retries + 2):
-            synthesis = await llm.complete(LLMRequest(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=0.4,
-                max_tokens=3000,
-                response_format="json",
-            ))
-            total_cost += synthesis.cost_usd
-            await _log_usage(f"research-{req.channel_id}", "research", synthesis.provider,
-                             synthesis.model, synthesis.tokens_in, synthesis.tokens_out,
-                             synthesis.cost_usd, synthesis.latency_ms)
-
             try:
                 research_data = _parse_json(synthesis.content)
             except json.JSONDecodeError:
@@ -415,7 +413,6 @@ async def research(req: ResearchRequest):
         # ── Step 3: Fact-Check Claims ────────────────────
         fact_claims = research_data.get("fact_claims", [])
         if fact_claims:
-            factcheck_llm = ProviderRegistry.get("llm.factcheck")
             fc_prompt = await _load_prompt("PRM_B1_FACT_CHECK")
 
             fc_system = fc_prompt.get("system_prompt", "You are a fact-checking specialist. Respond in JSON.")
@@ -424,16 +421,25 @@ async def research(req: ResearchRequest):
                 sources=json.dumps(research_data.get("sources", [])),
             )
 
-            fc_result = await factcheck_llm.complete(LLMRequest(
-                messages=[
-                    {"role": "system", "content": fc_system},
-                    {"role": "user", "content": fc_user},
-                ],
-                model="gpt-4o",
-                temperature=0.1,
-                max_tokens=2000,
-                response_format="json",
-            ))
+            try:
+                fc_result = await _route(
+                    category="llm.factcheck",
+                    request=LLMRequest(
+                        messages=[
+                            {"role": "system", "content": fc_system},
+                            {"role": "user", "content": fc_user},
+                        ],
+                        model="gpt-4o",
+                        temperature=0.1,
+                        max_tokens=2000,
+                        response_format="json",
+                    ),
+                    channel_id=req.channel_id,
+                    content_id=f"research-{req.channel_id}",
+                    record_usage=False,
+                )
+            except _BudgetExceeded as exc:
+                raise HTTPException(status_code=402, detail=str(exc))
             total_cost += fc_result.cost_usd
             await _log_usage(f"research-{req.channel_id}", "factcheck", fc_result.provider,
                              fc_result.model, fc_result.tokens_in, fc_result.tokens_out,
@@ -540,6 +546,25 @@ async def research(req: ResearchRequest):
         except Exception:
             season = {"seasonality_score": 0.3}
 
+        # 4h-bis. Phase 8 — external niche saturation pulse.
+        # Forward-looking: how crowded is this topic in the niche
+        # *right now*, weighted by recency and view velocity? Cold-start
+        # safe — returns saturation_gap=1.0 (no penalty) when there's
+        # no embedded data for the niche yet.
+        try:
+            from src.services.research.saturation import compute_saturation
+            sat = await compute_saturation(selected_topic, niche)
+            research_data["saturation"] = {
+                "score":               sat.saturation,
+                "gap":                 sat.saturation_gap,
+                "n_matches":           sat.n_matches,
+                "top_match_similarity": sat.top_match_similarity,
+                "cold_start":          sat.cold_start,
+            }
+        except Exception as e:
+            logger.warning("research.saturation_failed", error=str(e))
+            sat = None
+
         # 4i. Opportunity score
         try:
             features = {
@@ -551,6 +576,9 @@ async def research(req: ResearchRequest):
                 "trend_volume_index": next(
                     (m.get("current_index", 50) for m in momentum_data.values()), 50
                 ) if momentum_data else 50,
+                # Phase 8: pass the saturation_gap so the scorer
+                # down-weights candidates already covered by competitors.
+                "saturation_gap": sat.saturation_gap if sat is not None else 1.0,
             }
             opp = await score_opportunity(selected_topic, niche=niche, features=features)
             research_data["opportunity_score"] = opp.get("opportunity_score", 0.5)
@@ -559,26 +587,47 @@ async def research(req: ResearchRequest):
             logger.warning("research.scoring_failed", error=str(e))
             opp = {"opportunity_score": 0.5, "features": {}}
 
+        # Phase 11: synthesize/adopt one content_id for this research
+        # call and reuse it across prediction logging, embedding store,
+        # and feature store so all three tables share a join key.
+        # When the workflow passes its own content_id, prefer that —
+        # research_features.content_id then matches the delivered
+        # video's content_id and the train_model JOIN actually works.
+        content_id_for_pred = req.content_id or (
+            f"research-{req.channel_id}-{datetime.utcnow().strftime('%Y%m%d%H%M')}"
+        )
+
         # 4j. ML prediction (if model exists)
         try:
-            ml_pred = await predict_success(opp.get("features", {}), niche)
+            ml_pred = await predict_success(
+                opp.get("features", {}),
+                niche=niche,
+                content_id=content_id_for_pred,
+            )
             research_data["ml_prediction"] = ml_pred
         except Exception:
             ml_pred = {"predicted_probability": 0.5}
 
         # 4k. Thompson Sampling (if topic clusters available)
+        # Phase 10: pass channel_id so the diversity floor can check
+        # this channel's recent topic-cluster picks and force exploration
+        # when entropy drops below threshold.
         try:
             topic_clusters = research_data.get("title_candidates", [])
             if topic_clusters and len(topic_clusters) >= 2:
-                bandit_result = await thompson_sample(niche, topic_clusters[:10])
+                bandit_result = await thompson_sample(
+                    niche, topic_clusters[:10], channel_id=req.channel_id,
+                )
                 research_data["bandit_selection"] = bandit_result
         except Exception:
             pass
 
         # 4l. Store topic embedding for future dedup
+        # Phase 11: reuse the same content_id used for prediction +
+        # research_features so all three tables share a join key.
         try:
             await store_topic_embedding(
-                f"research-{req.channel_id}-{datetime.utcnow().strftime('%Y%m%d%H%M')}",
+                content_id_for_pred,
                 req.channel_id, "topic", selected_topic,
             )
         except Exception:
@@ -586,9 +635,8 @@ async def research(req: ResearchRequest):
 
         # 4m. Store research features for ML training
         try:
-            content_id = f"research-{req.channel_id}-{datetime.utcnow().strftime('%Y%m%d%H%M')}"
             await store_research_features(
-                content_id=content_id,
+                content_id=content_id_for_pred,
                 channel_id=req.channel_id,
                 topic=selected_topic,
                 features=opp.get("features", {}),
@@ -656,6 +704,12 @@ async def ideate(req: IdeationRequest):
         prompt = await _load_prompt("PRM_B1_IDEATION")
         llm = ProviderRegistry.get("llm.ideation")
 
+        # Close the analytics → ideation loop: inject what's worked and
+        # what's flopped on this channel before. Empty string for new
+        # channels, no-op for the prompt either way.
+        from src.intelligence import build_performance_context
+        perf_context = await build_performance_context(req.channel_id)
+
         system_prompt = _safe_format(prompt.get("system_prompt", "Generate 10 YouTube video concepts. Respond in JSON."),
             niche=channel.get("niche", ""),
             belief_territory=selected_belief["belief"] if selected_belief else channel.get("belief_territory", ""),
@@ -674,10 +728,15 @@ async def ideate(req: IdeationRequest):
         ideation_data = None
 
         for attempt in range(1, max_retries + 2):
+            # Prepend channel-specific performance memory only if we have
+            # any. Keeps prompts unchanged for cold-start channels.
+            user_with_memory = (
+                f"{perf_context}\n\n{user_prompt}" if perf_context else user_prompt
+            )
             idea_result = await llm.complete(LLMRequest(
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
+                    {"role": "user", "content": user_with_memory},
                 ],
                 model="gpt-4o",
                 temperature=0.8,

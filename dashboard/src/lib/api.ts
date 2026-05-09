@@ -68,6 +68,12 @@ export const api = {
     request('/api/channels', { method: 'POST', body: JSON.stringify(data) }),
   generateBrandDna: (data: { channel_name: string; niche: string; sub_niche?: string; content_modes?: string[] }) =>
     request('/api/channels/generate-brand-dna', { method: 'POST', body: JSON.stringify(data) }),
+  listNicheTemplates: () =>
+    request('/api/niche-templates'),
+  channelLearningInsights: (channel_id: string) =>
+    request(`/api/channels/${channel_id}/learning-insights`),
+  fleetHealth: () =>
+    request('/api/fleet-health'),
   updateChannel: (id: string, data: any) =>
     request(`/api/channels/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   enableChannel: (id: string) =>
