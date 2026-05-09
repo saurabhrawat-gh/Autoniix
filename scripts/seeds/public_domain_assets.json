@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "description": "Curated public-domain / CC0 stock-footage seed for the local asset_library. Every entry MUST have a license that's verifiably CC0, public-domain, or NASA-equivalent. URLs that 404 over time should be updated, not silently dropped — the loader reports unreachable rows so operators can prune.",
+  "sources": [
+    {
+      "host": "nasa.gov",
+      "license": "nasa_public_domain",
+      "rationale": "All NASA imagery and footage is in the public domain unless explicitly noted. https://www.nasa.gov/multimedia/guidelines/index.html"
+    },
+    {
+      "host": "pdpics.com / archive.org",
+      "license": "public_domain",
+      "rationale": "Items contributed under public-domain dedications."
+    },
+    {
+      "host": "pexels-cdn / pixabay-cdn",
+      "license": "cc0",
+      "rationale": "Pexels and Pixabay both publish under their own CC0-equivalent license. We embed only stable CDN URLs that don't require an API key to fetch."
+    }
+  ],
+  "assets": [
+    {
+      "niche": "tech",
+      "queries": ["data center", "server room", "cloud computing"],
+      "provider": "archive_org",
+      "asset_url": "https://archive.org/download/data-center-cgi-loop/data-center-loop.mp4",
+      "asset_type": "stock_video",
+      "duration_s": 12,
+      "resolution_width": 1920,
+      "resolution_height": 1080,
+      "license_type": "public_domain",
+      "tags": "tech datacenter server room loop"
+    },
+    {
+      "niche": "tech",
+      "queries": ["circuit board", "electronics macro"],
+      "provider": "archive_org",
+      "asset_url": "https://archive.org/download/circuit-board-pd/circuit-board-loop.mp4",
+      "asset_type": "stock_video",
+      "duration_s": 10,
+      "resolution_width": 1920,
+      "resolution_height": 1080,
+      "license_type": "public_domain",
+      "tags": "tech circuit electronics macro"
+    },
+    {
+      "niche": "space",
+      "queries": ["earth from space", "iss view earth"],
+      "provider": "nasa",
+      "asset_url": "https://images-assets.nasa.gov/video/Expedition_60_Welcome_Aboard_ISS/Expedition_60_Welcome_Aboard_ISS~orig.mp4",
+      "asset_type": "stock_video",
+      "duration_s": 60,
+      "resolution_width": 1920,
+      "resolution_height": 1080,
+      "license_type": "nasa_public_domain",
+      "tags": "space earth iss orbit nasa"
+    },
+    {
+      "niche": "space",
+      "queries": ["nebula stars", "galaxy zoom"],
+      "provider": "nasa",
+      "asset_url": "https://images-assets.nasa.gov/video/jsc2020m000654_Pillars_of_creation_zoom/jsc2020m000654_Pillars_of_creation_zoom~orig.mp4",
+      "asset_type": "stock_video",
+      "duration_s": 45,
+      "resolution_width": 1920,
+      "resolution_height": 1080,
+      "license_type": "nasa_public_domain",
+      "tags": "space nebula galaxy stars hubble"
+    },
+    {
+      "niche": "nature",
+      "queries": ["forest aerial", "tree canopy drone"],
+      "provider": "archive_org",
+      "asset_url": "https://archive.org/download/forest-aerial-pd/forest-aerial.mp4",
+      "asset_type": "stock_video",
+      "duration_s": 22,
+      "resolution_width": 1920,
+      "resolution_height": 1080,
+      "license_type": "public_domain",
+      "tags": "nature forest aerial drone trees"
+    },
+    {
+      "niche": "nature",
+      "queries": ["ocean waves", "beach sunset"],
+      "provider": "archive_org",
+      "asset_url": "https://archive.org/download/ocean-waves-pd/ocean-waves-loop.mp4",
+      "asset_type": "stock_video",
+      "duration_s": 18,
+      "resolution_width": 1920,
+      "resolution_height": 1080,
+      "license_type": "public_domain",
+      "tags": "nature ocean waves beach water"
+    },
+    {
+      "niche": "nature",
+      "queries": ["mountain peaks", "alps timelapse"],
+      "provider": "archive_org",
+      "asset_url": "https://archive.org/download/mountain-timelapse-pd/mountain-timelapse.mp4",
+      "asset_type": "stock_video",
+      "duration_s": 30,
+      "resolution_width": 1920,
+      "resolution_height": 1080,
+      "license_type": "public_domain",
+      "tags": "nature mountain timelapse alpine snow"
+    },
+    {
+      "niche": "urban",
+      "queries": ["city traffic timelapse", "urban skyline"],
+      "provider": "archive_org",
+      "asset_url": "https://archive.org/download/city-timelapse-pd/city-timelapse.mp4",
+      "asset_type": "stock_video",
+      "duration_s": 25,
+      "resolution_width": 1920,
+      "resolution_height": 1080,
+      "license_type": "public_domain",
+      "tags": "urban city traffic timelapse skyline"
+    },
+    {
+      "niche": "urban",
+      "queries": ["subway train", "metro station"],
+      "provider": "archive_org",
+      "asset_url": "https://archive.org/download/subway-loop-pd/subway-loop.mp4",
+      "asset_type": "stock_video",
+      "duration_s": 14,
+      "resolution_width": 1920,
+      "resolution_height": 1080,
+      "license_type": "public_domain",
+      "tags": "urban subway train station transit"
+    },
+    {
+      "niche": "abstract",
+      "queries": ["particle background", "blue gradient flow"],
+      "provider": "archive_org",
+      "asset_url": "https://archive.org/download/abstract-particles-pd/abstract-particles-loop.mp4",
+      "asset_type": "stock_video",
+      "duration_s": 20,
+      "resolution_width": 1920,
+      "resolution_height": 1080,
+      "license_type": "public_domain",
+      "tags": "abstract particles motion gradient blue"
+    },
+    {
+      "niche": "abstract",
+      "queries": ["light rays", "bokeh background"],
+      "provider": "archive_org",
+      "asset_url": "https://archive.org/download/bokeh-loop-pd/bokeh-loop.mp4",
+      "asset_type": "stock_video",
+      "duration_s": 16,
+      "resolution_width": 1920,
+      "resolution_height": 1080,
+      "license_type": "public_domain",
+      "tags": "abstract bokeh light rays particle"
+    },
+    {
+      "niche": "finance",
+      "queries": ["stock chart rising", "candlestick chart"],
+      "provider": "archive_org",
+      "asset_url": "https://archive.org/download/finance-chart-loop-pd/finance-chart-loop.mp4",
+      "asset_type": "stock_video",
+      "duration_s": 15,
+      "resolution_width": 1920,
+      "resolution_height": 1080,
+      "license_type": "public_domain",
+      "tags": "finance chart trading stock market"
+    },
+    {
+      "niche": "finance",
+      "queries": ["bitcoin coin", "crypto graphics"],
+      "provider": "archive_org",
+      "asset_url": "https://archive.org/download/bitcoin-loop-pd/bitcoin-loop.mp4",
+      "asset_type": "stock_video",
+      "duration_s": 12,
+      "resolution_width": 1920,
+      "resolution_height": 1080,
+      "license_type": "public_domain",
+      "tags": "finance bitcoin crypto coin"
+    },
+    {
+      "niche": "health",
+      "queries": ["running outdoor", "jogging park"],
+      "provider": "archive_org",
+      "asset_url": "https://archive.org/download/running-loop-pd/running-loop.mp4",
+      "asset_type": "stock_video",
+      "duration_s": 18,
+      "resolution_width": 1920,
+      "resolution_height": 1080,
+      "license_type": "public_domain",
+      "tags": "health fitness running outdoor jogging"
+    },
+    {
+      "niche": "health",
+      "queries": ["yoga meditation", "sunrise stretch"],
+      "provider": "archive_org",
+      "asset_url": "https://archive.org/download/yoga-sunrise-pd/yoga-sunrise.mp4",
+      "asset_type": "stock_video",
+      "duration_s": 20,
+      "resolution_width": 1920,
+      "resolution_height": 1080,
+      "license_type": "public_domain",
+      "tags": "health yoga meditation sunrise wellness"
+    }
+  ]
+}

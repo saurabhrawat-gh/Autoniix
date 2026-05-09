@@ -1,0 +1,47 @@
+{
+  "version": "3.0",
+  "meta": {
+    "video_id": "fixture-001",
+    "channel_id": "ch-demo",
+    "title": "Scene graph fixture",
+    "duration_target_seconds": 6,
+    "aspect": "16:9",
+    "fps": 30,
+    "resolution": { "width": 1920, "height": 1080 }
+  },
+  "template": "documentary",
+  "theme": {
+    "primary_color": "#ffffff",
+    "accent_color": "#ffcc00",
+    "background_color": "#0a0a0a",
+    "text_color": "#f5f5f5",
+    "fonts": { "heading": "Inter", "body": "Inter" }
+  },
+  "grade_preset": "cinematic-warm",
+  "global_effects": ["FilmGrain"],
+  "audio": {
+    "voiceover_url": "https://example.com/vo.mp3",
+    "music_url": "https://example.com/music.mp3",
+    "music_volume_db": -18,
+    "ducking": { "enabled": true, "threshold_db": -24, "attack_ms": 40, "release_ms": 220 },
+    "loudness_target_lufs": -14
+  },
+  "segments": [
+    {
+      "id": "s1",
+      "start_ms": 0,
+      "duration_ms": 3000,
+      "scene_preset": "HookOpener",
+      "scene_overrides": { "headline": "The 1973 oil crisis" },
+      "effects": ["Vignette"],
+      "sfx": [{ "preset": "riser", "at_ms": 500, "volume_db": -6 }]
+    },
+    {
+      "id": "s2",
+      "start_ms": 3000,
+      "duration_ms": 3000,
+      "scene_preset": "StockFootageScene",
+      "scene_overrides": { "assets": ["oil-rig-dusk"] }
+    }
+  ]
+}

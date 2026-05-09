@@ -8,6 +8,7 @@ volumes:
   redis_data:
   minio_data:
   remotion_tmp:
+  remotion_bundle_cache:
   prometheus_data:
   grafana_data:
   loki_data:
@@ -477,6 +478,119 @@ services:
       resources:
         limits:
           memory: 4G
+
+  # ── Remotion Vision: tier-aware workers (P0.11) ──────────
+  # Off by default. Enable with `docker compose --profile vision up`.
+  remotion-worker-tier1:
+    profiles: ["vision"]
+    build:
+      context: ./services/remotion
+      dockerfile: Dockerfile
+    command: ["npm", "run", "start:worker"]
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+      - WORKER_ROLE=tier1
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RENDER_CONCURRENCY=2
+      - RENDER_TMP_DIR=/app/tmp
+      - DIFF_CACHE_ENABLED=true
+      - BUNDLE_CACHE_DIR=/bundle-cache
+      - S3_ENDPOINT=http://minio:9000
+      - S3_BUCKET=${S3_BUCKET:-yt-automation}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY:-minioadmin}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_KEY:-minioadmin}
+      - S3_FORCE_PATH_STYLE=true
+      - S3_KEY_PREFIX=${ENVIRONMENT_MODE:-test}
+    volumes:
+      - remotion_tmp:/app/tmp
+      - remotion_bundle_cache:/bundle-cache
+    networks: [yt-net]
+    depends_on:
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 4G } } }
+
+  remotion-worker-tier2:
+    profiles: ["vision"]
+    build:
+      context: ./services/remotion
+      dockerfile: Dockerfile
+    command: ["npm", "run", "start:worker"]
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+      - WORKER_ROLE=tier2
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RENDER_CONCURRENCY=4
+      - RENDER_TMP_DIR=/app/tmp
+      - DIFF_CACHE_ENABLED=true
+      - S3_ENDPOINT=http://minio:9000
+      - S3_BUCKET=${S3_BUCKET:-yt-automation}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY:-minioadmin}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_KEY:-minioadmin}
+      - S3_FORCE_PATH_STYLE=true
+      - S3_KEY_PREFIX=${ENVIRONMENT_MODE:-test}
+    volumes:
+      - remotion_tmp:/app/tmp
+    networks: [yt-net]
+    depends_on:
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 2G } } }
+
+  remotion-worker-concat:
+    profiles: ["vision"]
+    build:
+      context: ./services/remotion
+      dockerfile: Dockerfile
+    command: ["npm", "run", "start:worker"]
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+      - WORKER_ROLE=concat
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RENDER_CONCURRENCY=2
+      - RENDER_TMP_DIR=/app/tmp
+      - S3_ENDPOINT=http://minio:9000
+      - S3_BUCKET=${S3_BUCKET:-yt-automation}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY:-minioadmin}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_KEY:-minioadmin}
+      - S3_FORCE_PATH_STYLE=true
+      - S3_KEY_PREFIX=${ENVIRONMENT_MODE:-test}
+    volumes:
+      - remotion_tmp:/app/tmp
+    networks: [yt-net]
+    depends_on:
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 1G } } }
+
+  remotion-mcp:
+    profiles: ["vision"]
+    build:
+      context: ./services/remotion
+      dockerfile: Dockerfile
+    command: ["npm", "run", "mcp"]
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+      - MCP_PORT=4100
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "4100:4100"
+    networks: [yt-net]
+    depends_on:
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 512M } } }
 
   # ── Temporal Workers ─────────────────────────────────────
   worker-production:

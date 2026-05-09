@@ -10,6 +10,10 @@ import { ElasticIn } from "../components/animations/ElasticIn";
 import { Pulse } from "../components/animations/Pulse";
 import { WaveText } from "../components/animations/WaveText";
 import { Shake } from "../components/animations/Shake";
+// Phase 1B
+import { ScrambleDecode } from "../components/animations/ScrambleDecode";
+import { PathFollow } from "../components/animations/PathFollow";
+import { StaggerWords } from "../components/animations/StaggerWords";
 import type { PresetRegistry } from "./types";
 
 /**
@@ -228,5 +232,71 @@ export const ANIMATION_PRESETS: PresetRegistry = {
     defaultProps: { intensity: 16, rotationDeg: 2, durationInFrames: 30 },
     category: "animation",
     tags: ["emphasis", "shake", "impact"],
+  },
+
+  // --- Phase 1B: ScrambleDecode (Mr. Robot style glyph cycling) ---
+  "anim.text.scramble_decode": {
+    id: "anim.text.scramble_decode",
+    component: ScrambleDecode,
+    defaultProps: {
+      durationInFrames: 30,
+      revealMode: "left_to_right" as const,
+      scrambleFps: 24,
+    },
+    category: "animation",
+    tags: ["text", "scramble", "decode", "glitch"],
+  },
+  "anim.text.scramble_random": {
+    id: "anim.text.scramble_random",
+    component: ScrambleDecode,
+    defaultProps: {
+      durationInFrames: 36,
+      revealMode: "random" as const,
+      scrambleFps: 30,
+    },
+    category: "animation",
+    tags: ["text", "scramble", "decode", "random"],
+  },
+
+  // --- Phase 1B: PathFollow (text along a Bezier curve) ---
+  "anim.text.path_follow": {
+    id: "anim.text.path_follow",
+    component: PathFollow,
+    defaultProps: {
+      spreadFrom: 0,
+      spreadTo: 1,
+      durationInFrames: 40,
+      alignToPath: true,
+      fontSizePx: 32,
+      fontWeight: 600,
+    },
+    category: "animation",
+    tags: ["text", "path", "calligraphy"],
+  },
+
+  // --- Phase 1B: StaggerWords (per-word staggered reveal) ---
+  "anim.text.stagger_slide_up": {
+    id: "anim.text.stagger_slide_up",
+    component: StaggerWords,
+    defaultProps: {
+      delayPerWordInFrames: 4,
+      wordDurationInFrames: 12,
+      childAnim: "slide_up" as const,
+      easing: "ease_out_cubic" as const,
+    },
+    category: "animation",
+    tags: ["text", "stagger", "reveal"],
+  },
+  "anim.text.stagger_scale_pop": {
+    id: "anim.text.stagger_scale_pop",
+    component: StaggerWords,
+    defaultProps: {
+      delayPerWordInFrames: 5,
+      wordDurationInFrames: 14,
+      childAnim: "scale_pop" as const,
+      easing: "ease_out_cubic" as const,
+    },
+    category: "animation",
+    tags: ["text", "stagger", "punch"],
   },
 };

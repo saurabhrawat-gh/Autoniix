@@ -1298,3 +1298,171 @@ CREATE INDEX IF NOT EXISTS idx_prediction_log_niche
 CREATE INDEX IF NOT EXISTS idx_prediction_log_scored
     ON prediction_log(content_id, model_kind)
     WHERE actual_outcome IS NOT NULL;
+
+-- ============================================================================
+-- Remotion Vision (P0.12) — scene-graph + agent telemetry tables.
+--
+-- These tables back the IR persistence and observability described in
+-- docs/remotion-vision/03-INTELLIGENCE-LAYER.md §3.8 (memory tiers) and
+-- docs/remotion-vision/08-IMPLEMENTATION-PLAN.md §8.2 (P0.12 deliverable).
+--
+-- All migrations are additive and idempotent. The `pgvector` extension is
+-- already declared earlier in this file.
+-- ============================================================================
+
+-- Scene graphs — the canonical IR per render job. Keeping the full graph in
+-- a JSONB column means tools (analytics, debug, replay) can inspect it
+-- without hitting a separate object store.
+CREATE TABLE IF NOT EXISTS scene_graphs (
+    id            BIGSERIAL    PRIMARY KEY,
+    -- Stable IR root hash (sha256 hex) computed by `hashNode` in the TS layer.
+    -- One row per (job_id, version, hash) triple.
+    job_id        VARCHAR(80)  NOT NULL,
+    -- IR schema version (currently 1). Bumped when types.ts changes shape.
+    version       SMALLINT     NOT NULL DEFAULT 1,
+    hash          CHAR(64)     NOT NULL,
+    graph         JSONB        NOT NULL,
+    -- 768-dim embedding for similarity queries (filled by an offline job in
+    -- P1; nullable so the IR commit doesn't depend on inference).
+    embedding     VECTOR(768),
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    -- Soft-uniqueness so the orchestrator can replay without duplicating rows.
+    UNIQUE (job_id, hash)
+);
+
+CREATE INDEX IF NOT EXISTS idx_scene_graphs_job
+    ON scene_graphs (job_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scene_graphs_hash
+    ON scene_graphs (hash);
+
+-- Per-invocation agent run telemetry. Drives the cost + decision-funnel
+-- panels on Grafana and underpins the audit trail required for enterprise.
+CREATE TABLE IF NOT EXISTS agent_runs (
+    id              BIGSERIAL    PRIMARY KEY,
+    job_id          VARCHAR(80)  NOT NULL,
+    agent           VARCHAR(40)  NOT NULL,        -- 'director', 'editor', ...
+    agent_version   VARCHAR(40)  NOT NULL,
+    started_at      TIMESTAMPTZ  NOT NULL,
+    finished_at     TIMESTAMPTZ  NOT NULL,
+    latency_ms      INTEGER      NOT NULL,
+    token_input     INTEGER,
+    token_output    INTEGER,
+    cost_usd        NUMERIC(10,6),
+    fallback_used   BOOLEAN      NOT NULL DEFAULT FALSE,
+    success         BOOLEAN      NOT NULL DEFAULT TRUE,
+    -- Hash of the input + ctx — lets us detect duplicate work + flaky reruns.
+    input_hash      CHAR(64),
+    output_hash     CHAR(64),
+    error_message   TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_runs_job
+    ON agent_runs (job_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_runs_agent_time
+    ON agent_runs (agent, started_at DESC);
+
+-- Critic reports. One row per render attempt (P0.6 dual-gate).
+CREATE TABLE IF NOT EXISTS critic_reports (
+    id              BIGSERIAL    PRIMARY KEY,
+    job_id          VARCHAR(80)  NOT NULL,
+    attempt         SMALLINT     NOT NULL DEFAULT 0,
+    overall_score   NUMERIC(4,2) NOT NULL,
+    pass            BOOLEAN      NOT NULL,
+    rubric          JSONB        NOT NULL,        -- per-dim {score, issues[]}
+    flagged         JSONB        NOT NULL DEFAULT '[]'::jsonb,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    UNIQUE (job_id, attempt)
+);
+
+CREATE INDEX IF NOT EXISTS idx_critic_reports_job
+    ON critic_reports (job_id, attempt DESC);
+
+-- Bandit state per (channel, cluster, arm). Updated by the analytics service
+-- after published-video performance arrives (vision docs §3.3.3 / §3.17).
+CREATE TABLE IF NOT EXISTS channel_style_priors (
+    channel_id   VARCHAR(80)  NOT NULL,
+    cluster      VARCHAR(60)  NOT NULL,           -- 'hook_style', 'pacing', ...
+    arm          VARCHAR(60)  NOT NULL,
+    -- Beta(alpha, beta) prior parameters for Thompson sampling.
+    alpha        NUMERIC(10,4) NOT NULL DEFAULT 1.0,
+    beta         NUMERIC(10,4) NOT NULL DEFAULT 1.0,
+    pulls        INTEGER       NOT NULL DEFAULT 0,
+    updated_at   TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (channel_id, cluster, arm)
+);
+
+-- Repair rule outcomes. Tracks how often each rule fixes the issue it claims
+-- to fix; feeds the rule-table tuning pass in P1.
+CREATE TABLE IF NOT EXISTS repair_rule_outcomes (
+    id            BIGSERIAL    PRIMARY KEY,
+    job_id        VARCHAR(80)  NOT NULL,
+    rule_reason   VARCHAR(40)  NOT NULL,          -- e.g. 'text_overflow'
+    applied       BOOLEAN      NOT NULL,
+    -- Whether the next critic pass succeeded after this repair fired.
+    succeeded     BOOLEAN,
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_repair_rule_outcomes_reason
+    ON repair_rule_outcomes (rule_reason, created_at DESC);
+
+-- Per-window features used by the retention predictor (vision docs §3.5).
+-- Filled when the analytics service joins published video metrics with the
+-- scene graph that produced them.
+CREATE TABLE IF NOT EXISTS retention_features (
+    id                BIGSERIAL    PRIMARY KEY,
+    job_id            VARCHAR(80)  NOT NULL,
+    channel_id        VARCHAR(80)  NOT NULL,
+    window_start_s    INTEGER      NOT NULL,
+    features          JSONB        NOT NULL,
+    label_retention   NUMERIC(5,4),               -- NULL until analytics ingest
+    created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    UNIQUE (job_id, window_start_s)
+);
+
+CREATE INDEX IF NOT EXISTS idx_retention_features_channel
+    ON retention_features (channel_id, created_at DESC);
+
+-- ============================================================================
+-- Phase 1E — Per-clip render cache for advanced editing features.
+-- Tracks the four content hashes that determine whether a clip needs to be
+-- re-rendered after a diff:
+--   • blend_mode_hash    sha256(JSON(compositing))
+--   • mask_hash          sha256(JSON(masks[]))
+--   • color_grade_hash   sha256(JSON(colorGradeTrack))
+--   • text_anim_hash     sha256(JSON(animationsIn|Out|text presets))
+--
+-- One row per (scene_graph_hash, clip_id). Diff cache lookups in the renderer
+-- do an O(1) probe on these hashes before scheduling work.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS clip_render_cache (
+    id                BIGSERIAL    PRIMARY KEY,
+    scene_graph_hash  CHAR(64)     NOT NULL,
+    clip_id           VARCHAR(80)  NOT NULL,
+    -- Phase 1A
+    blend_mode        VARCHAR(20),                 -- nullable; 'normal' equivalent
+    blend_mode_hash   CHAR(64),
+    -- Phase 1C
+    mask_count        SMALLINT     NOT NULL DEFAULT 0,
+    mask_hash         CHAR(64),
+    -- Phase 1D
+    color_grade_hash  CHAR(64),
+    -- Phase 1B
+    text_anim_hash    CHAR(64),
+    -- Pointer to the rendered shard MP4 in MinIO (nullable until first render).
+    rendered_url      TEXT,
+    rendered_at       TIMESTAMPTZ,
+    created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    UNIQUE (scene_graph_hash, clip_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_clip_render_cache_graph
+    ON clip_render_cache (scene_graph_hash);
+CREATE INDEX IF NOT EXISTS idx_clip_render_cache_blend
+    ON clip_render_cache (blend_mode_hash) WHERE blend_mode_hash IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_clip_render_cache_mask
+    ON clip_render_cache (mask_hash) WHERE mask_hash IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_clip_render_cache_grade
+    ON clip_render_cache (color_grade_hash) WHERE color_grade_hash IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_clip_render_cache_textanim
+    ON clip_render_cache (text_anim_hash) WHERE text_anim_hash IS NOT NULL;

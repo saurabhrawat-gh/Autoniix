@@ -34,6 +34,8 @@ export const env = {
 
   RENDER_CONCURRENCY: num("RENDER_CONCURRENCY", 1),
   RENDER_TMP_DIR: str("RENDER_TMP_DIR", "./tmp"),
+  /** Worker role. Selects which queue this process consumes. P0.11. */
+  WORKER_ROLE: str("WORKER_ROLE", "legacy"), // "legacy" | "tier0" | "tier1" | "tier2" | "concat"
 
   S3_ENDPOINT: str("S3_ENDPOINT", ""),
   S3_REGION: str("S3_REGION", "auto"),
@@ -43,6 +45,20 @@ export const env = {
   S3_PUBLIC_BASE_URL: str("S3_PUBLIC_BASE_URL", ""),
   S3_FORCE_PATH_STYLE: bool("S3_FORCE_PATH_STYLE", true),
   S3_KEY_PREFIX: str("S3_KEY_PREFIX", ""),
+
+  // ── Remotion Vision P0 flags ────────────────────────────────────────────
+  /** Enable scene-graph aware path: lower direction-v3 → SceneGraph → render. */
+  SCENE_GRAPH_ENABLED: bool("SCENE_GRAPH_ENABLED", false),
+  /** Enable frame-range sharding via BullMQ FlowProducer. */
+  SHARDING_ENABLED: bool("SHARDING_ENABLED", false),
+  /** Target shard count per render. */
+  SHARDING_TARGET: num("SHARDING_TARGET", 4),
+  /** Enable diff-cache shard lookup before dispatch. */
+  DIFF_CACHE_ENABLED: bool("DIFF_CACHE_ENABLED", false),
+  /** Shared bundle directory for warm-pool reuse. Empty = per-process cache. */
+  BUNDLE_CACHE_DIR: str("BUNDLE_CACHE_DIR", ""),
+  /** Hardware encoder hint: "auto" | "nvenc" | "qsv" | "vaapi" | "x264". */
+  ENCODER_HINT: str("ENCODER_HINT", "auto"),
 };
 
 export type Env = typeof env;

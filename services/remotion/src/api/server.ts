@@ -4,6 +4,9 @@ import { nanoid } from "nanoid";
 import { env } from "../utils/env";
 import { logger } from "../utils/logger";
 import { renderQueue, RENDER_QUEUE, type RenderJobData } from "./queue";
+import { dispatchSharded } from "./flow";
+import { lower } from "../scene-graph";
+import { DirectionV3 } from "../schemas/directionV3";
 
 const app = express();
 app.use(express.json({ limit: "20mb" }));
@@ -17,6 +20,42 @@ app.post("/api/render", async (req, res) => {
   }
 
   const renderId = `render_${nanoid(10)}`;
+
+  // Sharded path (P0.2): SCENE_GRAPH_ENABLED + SHARDING_ENABLED + MainVideo composition
+  // with inputProps containing a `direction` matching DirectionV3.
+  if (
+    env.SCENE_GRAPH_ENABLED &&
+    env.SHARDING_ENABLED &&
+    body.composition === "MainVideo" &&
+    body.inputProps &&
+    typeof body.inputProps === "object" &&
+    "direction" in body.inputProps
+  ) {
+    const parsed = DirectionV3.safeParse((body.inputProps as { direction: unknown }).direction);
+    if (parsed.success) {
+      const graph = lower(parsed.data);
+      const dispatch = await dispatchSharded({
+        renderId,
+        graph,
+        codec: body.codec ?? "h264",
+        outputFormat: (body.outputFormat as "mp4" | "webm") ?? "mp4",
+        ...(body.callbackUrl ? { callbackUrl: body.callbackUrl } : {}),
+        ...(body.exportStems ? { exportStems: true } : {}),
+      });
+      return res.json({
+        renderId,
+        status: "rendering",
+        mode: "sharded",
+        shardCount: dispatch.shardCount,
+        shards: dispatch.shards,
+        graphHash: graph.hash,
+        estimatedDuration: 180,
+      });
+    }
+    logger.warn({ renderId, issues: parsed.error.issues }, "scene-graph dispatch fallback: direction-v3 parse failed");
+  }
+
+  // Legacy single-queue path (default).
   const data: RenderJobData = {
     renderId,
     composition: body.composition,
@@ -41,6 +80,7 @@ app.post("/api/render", async (req, res) => {
   res.json({
     renderId,
     status: "rendering",
+    mode: "legacy",
     estimatedDuration: 180,
   });
 });

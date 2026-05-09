@@ -1,6 +1,5 @@
 import path from "node:path";
 import fs from "node:fs";
-import { bundle } from "@remotion/bundler";
 import {
   renderMedia,
   renderStill,
@@ -15,20 +14,15 @@ import { validateAgainstTemplate } from "../utils/compositionValidator";
 import { normalizeLoudness } from "../utils/loudnessNormalizer";
 import { stripAudio, extractMixedAudio } from "../utils/ffmpegStems";
 import { postRenderQc } from "../utils/postRenderQc";
+import { selectEncoder, type CodecFamily } from "../utils/encoder";
+import { getOrBuildBundle } from "../utils/bundleCache";
 import type { RenderJobData } from "../api/queue";
 
-let cachedBundle: string | null = null;
-
-/** Bundle the Remotion entry once per worker process. */
+/** Bundle the Remotion entry, using the shared cache when available (P0.5). */
 async function getBundle(): Promise<string> {
-  if (cachedBundle) return cachedBundle;
-  const entryPoint = path.resolve(process.cwd(), "src/index.ts");
-  logger.info({ entryPoint }, "bundling remotion project");
-  cachedBundle = await bundle({
-    entryPoint,
-    // Pass webpack-config override here if needed (e.g. TailwindCSS).
-  });
-  return cachedBundle;
+  const stats = await getOrBuildBundle();
+  logger.info({ source: stats.source, hash: stats.hash.slice(0, 12), warmMs: stats.warmMs }, "bundle ready");
+  return stats.bundlePath;
 }
 
 export interface RenderResult {
@@ -132,7 +126,18 @@ export async function runRender(
   // Map quality (0-100) to CRF (0-51 for h264, lower = better quality).
   // quality=100 → CRF 1, quality=80 → CRF 18, quality=50 → CRF 28
   const quality = job.quality ?? 80;
-  const crf = Math.max(1, Math.round(51 - (quality / 100) * 50));
+  const baseCrf = Math.max(1, Math.round(51 - (quality / 100) * 50));
+
+  // Hardware encoder routing (P0.4). Detect once per process.
+  const codecFamily = (codec === "h264" || codec === "h265" || codec === "vp8" || codec === "vp9"
+    ? codec
+    : "h264") as CodecFamily;
+  const enc = await selectEncoder(codecFamily);
+  const crf = Math.max(1, Math.min(51, baseCrf + enc.crfOffset));
+  logger.info(
+    { encoder: enc.encoder, hwAccel: enc.hardwareAcceleration, baseCrf, crf },
+    "encoder selected",
+  );
 
   await renderMedia({
     composition,
@@ -145,6 +150,7 @@ export async function runRender(
     imageFormat: "png",
     crf,
     jpegQuality: Math.max(80, quality),
+    hardwareAcceleration: enc.hardwareAcceleration,
   });
 
   // Phase 2: post-process loudness normalization if target LUFS was specified.

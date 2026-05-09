@@ -17,7 +17,16 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write .",
-    "smoke": "tsx scripts/smoke.ts"
+    "smoke": "tsx scripts/smoke.ts",
+    "smoke:scene-graph": "tsx scripts/scene-graph-smoke.ts",
+    "smoke:sharder": "tsx scripts/sharder-smoke.ts",
+    "smoke:critic": "tsx scripts/critic-smoke.ts",
+    "smoke:repair": "tsx scripts/repair-smoke.ts",
+    "smoke:director-editor": "tsx scripts/director-editor-smoke.ts",
+    "smoke:mcp": "tsx scripts/mcp-smoke.ts",
+    "mcp": "tsx src/mcp/server.ts",
+    "mcp:dev": "tsx watch src/mcp/server.ts",
+    "bundle:warmup": "tsx scripts/bundle-warmup.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.645.0",

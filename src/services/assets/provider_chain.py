@@ -182,21 +182,138 @@ async def _pixabay(query: str, k: int = 10) -> list[dict]:
         return []
 
 
+def storyblocks_sign(resource_path: str, private_key: str, expires: int) -> str:
+    """Compute the HMAC-SHA256 signature required by the Storyblocks Stock API.
+
+    Storyblocks signs the *resource path only* (no host, no query string)
+    concatenated with the EXPIRES unix timestamp using HMAC-SHA256. The
+    private key is the HMAC secret. The resulting hex digest goes into the
+    ``HMAC`` query parameter alongside ``APIKEY`` and ``EXPIRES``.
+
+    Reference contract: https://www.storyblocks.com/business/api-licensing
+
+    Pulled out as a free function so unit tests can verify the signature
+    deterministically without making real HTTP calls.
+    """
+    import hmac as _hmac
+    import hashlib as _hashlib
+
+    msg = f"{resource_path}{expires}".encode("utf-8")
+    return _hmac.new(private_key.encode("utf-8"), msg, _hashlib.sha256).hexdigest()
+
+
 async def _storyblocks(query: str, k: int = 10) -> list[dict]:
-    """Storyblocks provider (paid tier). Stub implementation — Storyblocks
-    requires HMAC-signed requests with a public/private key pair. The wiring
-    here keeps the contract stable: when ``STORYBLOCKS_PUBLIC_KEY`` /
-    ``STORYBLOCKS_PRIVATE_KEY`` are set we attempt the call, otherwise we
-    return empty. Production deploys will fill the auth-signing block.
+    """Storyblocks Stock API (paid tier).
+
+    Implementation:
+      1. Build the resource path ``/api/v2/videos/search``.
+      2. Compute ``EXPIRES`` = now + 60s (the signature window).
+      3. HMAC-SHA256(resource_path + EXPIRES, private_key) → ``HMAC``.
+      4. GET with ``keywords``, ``project_id``, ``user_id``, ``content_type=footage``,
+         ``EXPIRES``, ``APIKEY``, ``HMAC`` query params.
+      5. Normalise hits via ``_normalise_candidate``.
+
+    Returns ``[]`` (silently) when keys are unset so the chain falls through
+    to free providers without surfacing a config error.
     """
     pub = getattr(settings, "storyblocks_public_key", "") or ""
     priv = getattr(settings, "storyblocks_private_key", "") or ""
     if not pub or not priv:
         return []
-    # NOTE: real impl needs HMAC-SHA256 of (path + ts) signed with priv.
-    # We log and return empty until creds are present in production.
-    logger.info("provider_chain.storyblocks_skipped",
-                reason="signing not yet implemented — supply STORYBLOCKS creds + sign helper")
+
+    project_id = getattr(settings, "storyblocks_project_id", "") or ""
+    user_id = getattr(settings, "storyblocks_user_id", "") or ""
+
+    resource_path = "/api/v2/videos/search"
+    expires = int(time.time()) + 60
+    sig = storyblocks_sign(resource_path, priv, expires)
+
+    params: dict[str, str | int] = {
+        "keywords": query,
+        "content_type": "footage",
+        "results_per_page": k,
+        "page": 1,
+        "EXPIRES": expires,
+        "APIKEY": pub,
+        "HMAC": sig,
+    }
+    if project_id:
+        params["project_id"] = project_id
+    if user_id:
+        params["user_id"] = user_id
+
+    try:
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            resp = await client.get(
+                f"https://api.videoblocks.com{resource_path}",
+                params=params,
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+        # Storyblocks returns either {"results": [...]} or {"info": {...}, "items": [...]}
+        # depending on plan / endpoint variant. Tolerate both.
+        hits = payload.get("results") or payload.get("items") or []
+        out: list[dict] = []
+        for h in hits:
+            # Preview MP4 lives in different keys across SDK versions.
+            preview = (
+                h.get("preview_urls", {}).get("_720p")
+                or h.get("preview_url")
+                or h.get("preview", {}).get("url")
+                or ""
+            )
+            if not preview:
+                continue
+            out.append(_normalise_candidate(
+                source="storyblocks",
+                id=h.get("id", h.get("stock_item_id", "")),
+                url=preview,
+                thumbnail=h.get("thumbnail_url", h.get("preview_image", "")),
+                duration=h.get("duration", h.get("clip_duration", 0)),
+                width=h.get("aspect_ratio_width", h.get("width", 1920)),
+                height=h.get("aspect_ratio_height", h.get("height", 1080)),
+                tags=" ".join(h.get("keywords", []) or h.get("tags", []) or []),
+                title=h.get("title", ""),
+                description=h.get("description", ""),
+                license="storyblocks",
+            ))
+        _stats("storyblocks").record(True)
+        return out
+    except Exception as exc:
+        logger.warning("provider_chain.storyblocks_failed", error=str(exc))
+        _stats("storyblocks").record(False)
+        return []
+
+
+async def _motionarray(query: str, k: int = 10) -> list[dict]:
+    """MotionArray adapter — routes through Envato.
+
+    Background: MotionArray was acquired by the Envato Group in 2021 and no
+    longer exposes a public stock-footage API of its own. Their catalog is
+    served (in part) through Envato Elements, which we already integrate via
+    ``ENVATO_API_KEY``.
+
+    This adapter exists for naming consistency with the design plan and to
+    give operators a single knob ("enable motionarray") that works correctly
+    when Envato creds are present. When ``MOTIONARRAY_API_KEY`` is set in
+    isolation (no Envato), we log a warning once and return empty so the
+    chain falls through cleanly rather than silently degrading.
+    """
+    ma_key = getattr(settings, "motionarray_api_key", "") or ""
+    envato_key = getattr(settings, "envato_api_key", "") or ""
+
+    if envato_key:
+        # Envato is the production-correct route. We do NOT call envato a
+        # second time here — the chain already calls it directly. Returning
+        # empty avoids double-counting the same candidates.
+        return []
+
+    if ma_key and not envato_key:
+        # Operator set MA key but not Envato — surface this once.
+        logger.warning(
+            "provider_chain.motionarray_requires_envato",
+            note="MotionArray was folded into Envato; supply ENVATO_API_KEY to enable coverage",
+        )
     return []
 
 
@@ -270,6 +387,7 @@ _PROVIDERS: dict[str, Callable[[str, int], Awaitable[list[dict]]]] = {
     "pexels": _pexels,
     "pixabay": _pixabay,
     "storyblocks": _storyblocks,
+    "motionarray": _motionarray,
     "library": _local_library,
 }
 

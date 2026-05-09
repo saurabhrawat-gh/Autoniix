@@ -46,6 +46,17 @@ class Settings(BaseSettings):
     pexels_api_key: str = ""
     envato_api_key: str = ""
     freesound_api_key: str = ""
+    # Storyblocks (paid; HMAC-signed). Both keys required when enabling.
+    # Get them from https://www.storyblocks.com/business/pricing/api-licensing
+    storyblocks_public_key: str = ""
+    storyblocks_private_key: str = ""
+    # Optional Storyblocks project_id / user_id (some endpoints require these).
+    storyblocks_project_id: str = ""
+    storyblocks_user_id: str = ""
+    # MotionArray (folded into Envato Group post-2021). Reserved here for
+    # config completeness; the actual provider routes through Envato. See
+    # `_motionarray` in provider_chain.py for the rationale.
+    motionarray_api_key: str = ""
     image_provider: str = "dalle"
 
     # ── Storage ─────────────────────────────────────────

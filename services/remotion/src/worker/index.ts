@@ -4,7 +4,29 @@ import { env } from "../utils/env";
 import { logger } from "../utils/logger";
 import { runRender } from "./renderer";
 import { dispatchCallback } from "../utils/callback";
+import { startShardWorker } from "./shardWorker";
+import { startConcatWorker } from "./concatWorker";
 
+// ── Role-aware boot (P0.11) ────────────────────────────────────────────────
+// WORKER_ROLE selects which queue this process consumes.
+//   "legacy"           ← default; single-queue render-queue (no behavior change)
+//   "tier0|tier1|tier2"← shard worker on the matching tier queue
+//   "concat"           ← FlowProducer parent worker (concat + audio mux)
+const role = env.WORKER_ROLE.toLowerCase();
+if (role === "tier0" || role === "tier1" || role === "tier2") {
+  startShardWorker(role);
+  // No legacy worker on this process.
+  process.on("SIGTERM", () => process.exit(0));
+  process.on("SIGINT", () => process.exit(0));
+} else if (role === "concat") {
+  startConcatWorker();
+  process.on("SIGTERM", () => process.exit(0));
+  process.on("SIGINT", () => process.exit(0));
+} else {
+  bootLegacyWorker();
+}
+
+function bootLegacyWorker() {
 const worker = new Worker<RenderJobData>(
   RENDER_QUEUE,
   async (job) => {
@@ -49,4 +71,5 @@ const worker = new Worker<RenderJobData>(
 worker.on("completed", (job) => logger.info({ jobId: job.id }, "job completed"));
 worker.on("failed", (job, err) => logger.error({ jobId: job?.id, err }, "job failed"));
 
-logger.info({ concurrency: env.RENDER_CONCURRENCY }, "worker started");
+  logger.info({ role: "legacy", concurrency: env.RENDER_CONCURRENCY }, "worker started");
+}
