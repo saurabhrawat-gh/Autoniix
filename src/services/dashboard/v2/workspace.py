@@ -1,0 +1,699 @@
+"""Workspace / Brand / Series / Campaign / Project hierarchy — Wave 1.
+
+Endpoints
+---------
+Workspaces
+  GET    /workspace                           current workspace info
+  PUT    /workspace                           update workspace settings
+
+Brands
+  GET    /workspace/brands
+  POST   /workspace/brands
+  GET    /workspace/brands/{id}
+  PUT    /workspace/brands/{id}
+
+Series
+  GET    /workspace/series?channel_id=
+  POST   /workspace/series
+  PUT    /workspace/series/{id}
+  DELETE /workspace/series/{id}
+
+Campaigns
+  GET    /workspace/campaigns
+  POST   /workspace/campaigns
+  PUT    /workspace/campaigns/{id}
+
+Projects
+  GET    /workspace/projects?channel_id=&status=&series_id=&campaign_id=
+  POST   /workspace/projects
+  GET    /workspace/projects/{id}
+  PUT    /workspace/projects/{id}
+  DELETE /workspace/projects/{id}
+
+Members
+  GET    /workspace/members
+  PUT    /workspace/members/{user_id}/role
+  DELETE /workspace/members/{user_id}
+
+Entity settings
+  GET    /workspace/settings?scope=&scope_id=
+  PUT    /workspace/settings          (upsert key/value)
+"""
+from __future__ import annotations
+
+import json
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
+
+from src.db import get_pool
+from ._deps import Principal, audit, principal_dep, require_role
+
+router = APIRouter()
+
+# ────────────────────────────────────────────────────────────────
+# Pydantic models
+# ────────────────────────────────────────────────────────────────
+
+class WorkspacePatch(BaseModel):
+    name: str | None = None
+    timezone: str | None = None
+    monthly_budget_usd: float | None = None
+    logo_url: str | None = None
+    settings: dict | None = None
+
+
+class BrandIn(BaseModel):
+    name: str
+    slug: str | None = None
+    description: str | None = None
+    legal_name: str | None = None
+    website: str | None = None
+    primary_color: str | None = None
+    secondary_color: str | None = None
+    logo_url: str | None = None
+    voice_summary: str | None = None
+    settings: dict = Field(default_factory=dict)
+
+
+class BrandPatch(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    legal_name: str | None = None
+    website: str | None = None
+    primary_color: str | None = None
+    secondary_color: str | None = None
+    logo_url: str | None = None
+    voice_summary: str | None = None
+    settings: dict | None = None
+
+
+class SeriesIn(BaseModel):
+    channel_id: str
+    name: str
+    description: str | None = None
+    format: str | None = None
+    target_duration_s: int | None = None
+    cadence: str | None = None
+    thumbnail_style: str | None = None
+    settings: dict = Field(default_factory=dict)
+
+
+class SeriesPatch(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    format: str | None = None
+    target_duration_s: int | None = None
+    cadence: str | None = None
+    thumbnail_style: str | None = None
+    is_active: bool | None = None
+    settings: dict | None = None
+
+
+class CampaignIn(BaseModel):
+    brand_id: int
+    name: str
+    description: str | None = None
+    theme: str | None = None
+    start_at: str | None = None
+    end_at: str | None = None
+    kpi_targets: dict = Field(default_factory=dict)
+
+
+class CampaignPatch(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    theme: str | None = None
+    start_at: str | None = None
+    end_at: str | None = None
+    kpi_targets: dict | None = None
+    status: str | None = None
+
+
+class ProjectIn(BaseModel):
+    channel_id: str
+    title: str
+    brief: str | None = None
+    series_id: int | None = None
+    campaign_id: int | None = None
+    parent_project_id: int | None = None
+    branch_label: str | None = None
+    status: str = "idea"
+    priority: int = 5
+    target_publish_at: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    settings: dict = Field(default_factory=dict)
+
+
+class ProjectPatch(BaseModel):
+    title: str | None = None
+    brief: str | None = None
+    status: str | None = None
+    priority: int | None = None
+    target_publish_at: str | None = None
+    tags: list[str] | None = None
+    series_id: int | None = None
+    campaign_id: int | None = None
+    settings: dict | None = None
+
+
+class MemberRolePatch(BaseModel):
+    role: str
+
+
+class EntitySettingUpsert(BaseModel):
+    scope: str
+    scope_id: str
+    key: str
+    value: Any
+    locked: bool = False
+
+
+# ────────────────────────────────────────────────────────────────
+# Workspace
+# ────────────────────────────────────────────────────────────────
+
+@router.get("")
+async def get_workspace(_: Principal = Depends(principal_dep)):
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT id, name, slug, plan, billing_email, monthly_budget_usd, timezone, logo_url, settings, created_at, updated_at "
+        "FROM workspaces WHERE id = 1"
+    )
+    if not row:
+        return {"data": None}
+    w = dict(row)
+    w["settings"] = json.loads(w["settings"]) if isinstance(w["settings"], str) else w["settings"]
+    return {"data": w}
+
+
+@router.put("")
+async def update_workspace(
+    body: WorkspacePatch,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin")),
+):
+    pool = await get_pool()
+    updates = body.model_dump(exclude_unset=True)
+    if not updates:
+        return {"status": "noop"}
+    sets, vals = [], []
+    for k, v in updates.items():
+        sets.append(f"{k}=${len(vals)+1}" + ("::jsonb" if k == "settings" else ""))
+        vals.append(json.dumps(v) if k == "settings" else v)
+    vals.append(1)
+    await pool.execute(
+        f"UPDATE workspaces SET {', '.join(sets)}, updated_at=NOW() WHERE id=${len(vals)}",
+        *vals,
+    )
+    await audit(actor=actor, action="workspace.update", target_type="workspace",
+                target_id="1", after=updates, request=request)
+    return {"status": "ok"}
+
+
+# ────────────────────────────────────────────────────────────────
+# Brands
+# ────────────────────────────────────────────────────────────────
+
+@router.get("/brands")
+async def list_brands(_: Principal = Depends(principal_dep)):
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT id, name, slug, description, legal_name, website, primary_color, secondary_color, "
+        "logo_url, voice_summary, settings, created_at, updated_at "
+        "FROM brands WHERE workspace_id = 1 ORDER BY name"
+    )
+    return {"data": [dict(r) for r in rows]}
+
+
+@router.post("/brands")
+async def create_brand(
+    body: BrandIn,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin")),
+):
+    pool = await get_pool()
+    slug = body.slug or "".join(c for c in body.name.lower().replace(" ", "-") if c.isalnum() or c == "-")
+    bid = await pool.fetchval(
+        """INSERT INTO brands (workspace_id, name, slug, description, legal_name, website,
+               primary_color, secondary_color, logo_url, voice_summary, settings, created_by)
+           VALUES (1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11) RETURNING id""",
+        body.name, slug, body.description, body.legal_name, body.website,
+        body.primary_color, body.secondary_color, body.logo_url, body.voice_summary,
+        json.dumps(body.settings), actor.user_id,
+    )
+    await audit(actor=actor, action="brand.create", target_type="brand",
+                target_id=str(bid), after={"name": body.name}, request=request)
+    return {"status": "ok", "id": bid}
+
+
+@router.get("/brands/{brand_id}")
+async def get_brand(brand_id: int, _: Principal = Depends(principal_dep)):
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT id, name, slug, description, legal_name, website, primary_color, secondary_color, "
+        "logo_url, voice_summary, settings, created_at, updated_at FROM brands WHERE id=$1 AND workspace_id=1",
+        brand_id,
+    )
+    if not row:
+        raise HTTPException(404, "Brand not found")
+    return {"data": dict(row)}
+
+
+@router.put("/brands/{brand_id}")
+async def update_brand(
+    brand_id: int,
+    body: BrandPatch,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin", "producer")),
+):
+    pool = await get_pool()
+    updates = body.model_dump(exclude_unset=True)
+    if not updates:
+        return {"status": "noop"}
+    sets, vals = [], []
+    for k, v in updates.items():
+        sets.append(f"{k}=${len(vals)+1}" + ("::jsonb" if k == "settings" else ""))
+        vals.append(json.dumps(v) if k == "settings" else v)
+    vals.append(brand_id)
+    res = await pool.execute(
+        f"UPDATE brands SET {', '.join(sets)}, updated_at=NOW() WHERE id=${len(vals)} AND workspace_id=1",
+        *vals,
+    )
+    if res.endswith("0"):
+        raise HTTPException(404, "Brand not found")
+    await audit(actor=actor, action="brand.update", target_type="brand",
+                target_id=str(brand_id), after=updates, request=request)
+    return {"status": "ok"}
+
+
+# ────────────────────────────────────────────────────────────────
+# Series
+# ────────────────────────────────────────────────────────────────
+
+@router.get("/series")
+async def list_series(
+    channel_id: str | None = Query(None),
+    _: Principal = Depends(principal_dep),
+):
+    pool = await get_pool()
+    if channel_id:
+        rows = await pool.fetch(
+            "SELECT id, channel_id, name, description, format, target_duration_s, cadence, "
+            "thumbnail_style, is_active, settings, created_at FROM series WHERE channel_id=$1 ORDER BY name",
+            channel_id,
+        )
+    else:
+        rows = await pool.fetch(
+            "SELECT s.id, s.channel_id, s.name, s.description, s.format, s.target_duration_s, s.cadence, "
+            "s.thumbnail_style, s.is_active, s.settings, s.created_at "
+            "FROM series s JOIN channels c ON c.channel_id = s.channel_id "
+            "WHERE c.workspace_id = 1 ORDER BY s.name"
+        )
+    return {"data": [dict(r) for r in rows]}
+
+
+@router.post("/series")
+async def create_series(
+    body: SeriesIn,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin", "producer")),
+):
+    pool = await get_pool()
+    sid = await pool.fetchval(
+        """INSERT INTO series (channel_id, name, description, format, target_duration_s,
+               cadence, thumbnail_style, settings, created_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9) RETURNING id""",
+        body.channel_id, body.name, body.description, body.format,
+        body.target_duration_s, body.cadence, body.thumbnail_style,
+        json.dumps(body.settings), actor.user_id,
+    )
+    await audit(actor=actor, action="series.create", target_type="series",
+                target_id=str(sid), after={"name": body.name}, request=request)
+    return {"status": "ok", "id": sid}
+
+
+@router.put("/series/{series_id}")
+async def update_series(
+    series_id: int,
+    body: SeriesPatch,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin", "producer")),
+):
+    pool = await get_pool()
+    updates = body.model_dump(exclude_unset=True)
+    if not updates:
+        return {"status": "noop"}
+    sets, vals = [], []
+    for k, v in updates.items():
+        sets.append(f"{k}=${len(vals)+1}" + ("::jsonb" if k == "settings" else ""))
+        vals.append(json.dumps(v) if k == "settings" else v)
+    vals.append(series_id)
+    res = await pool.execute(
+        f"UPDATE series SET {', '.join(sets)}, updated_at=NOW() WHERE id=${len(vals)}",
+        *vals,
+    )
+    if res.endswith("0"):
+        raise HTTPException(404, "Series not found")
+    await audit(actor=actor, action="series.update", target_type="series",
+                target_id=str(series_id), after=updates, request=request)
+    return {"status": "ok"}
+
+
+@router.delete("/series/{series_id}")
+async def delete_series(
+    series_id: int,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin")),
+):
+    pool = await get_pool()
+    res = await pool.execute("DELETE FROM series WHERE id=$1", series_id)
+    if res.endswith("0"):
+        raise HTTPException(404, "Series not found")
+    await audit(actor=actor, action="series.delete", target_type="series",
+                target_id=str(series_id), request=request)
+    return {"status": "ok"}
+
+
+# ────────────────────────────────────────────────────────────────
+# Campaigns
+# ────────────────────────────────────────────────────────────────
+
+@router.get("/campaigns")
+async def list_campaigns(
+    brand_id: int | None = Query(None),
+    status: str | None = Query(None),
+    _: Principal = Depends(principal_dep),
+):
+    pool = await get_pool()
+    where, args = ["b.workspace_id = 1"], []
+    if brand_id:
+        args.append(brand_id)
+        where.append(f"c.brand_id = ${len(args)}")
+    if status:
+        args.append(status)
+        where.append(f"c.status = ${len(args)}")
+    rows = await pool.fetch(
+        f"""SELECT c.id, c.brand_id, c.name, c.description, c.theme, c.start_at, c.end_at,
+                   c.kpi_targets, c.status, c.created_at
+              FROM campaigns c JOIN brands b ON b.id = c.brand_id
+             WHERE {' AND '.join(where)}
+             ORDER BY c.created_at DESC""",
+        *args,
+    )
+    return {"data": [dict(r) for r in rows]}
+
+
+@router.post("/campaigns")
+async def create_campaign(
+    body: CampaignIn,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin", "producer")),
+):
+    pool = await get_pool()
+    cid = await pool.fetchval(
+        """INSERT INTO campaigns (brand_id, name, description, theme, start_at, end_at,
+               kpi_targets, created_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8) RETURNING id""",
+        body.brand_id, body.name, body.description, body.theme,
+        body.start_at, body.end_at, json.dumps(body.kpi_targets), actor.user_id,
+    )
+    await audit(actor=actor, action="campaign.create", target_type="campaign",
+                target_id=str(cid), after={"name": body.name}, request=request)
+    return {"status": "ok", "id": cid}
+
+
+@router.put("/campaigns/{campaign_id}")
+async def update_campaign(
+    campaign_id: int,
+    body: CampaignPatch,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin", "producer")),
+):
+    pool = await get_pool()
+    updates = body.model_dump(exclude_unset=True)
+    if not updates:
+        return {"status": "noop"}
+    sets, vals = [], []
+    for k, v in updates.items():
+        sets.append(f"{k}=${len(vals)+1}" + ("::jsonb" if k == "kpi_targets" else ""))
+        vals.append(json.dumps(v) if k == "kpi_targets" else v)
+    vals.append(campaign_id)
+    res = await pool.execute(
+        f"UPDATE campaigns SET {', '.join(sets)}, updated_at=NOW() WHERE id=${len(vals)}",
+        *vals,
+    )
+    if res.endswith("0"):
+        raise HTTPException(404, "Campaign not found")
+    await audit(actor=actor, action="campaign.update", target_type="campaign",
+                target_id=str(campaign_id), after=updates, request=request)
+    return {"status": "ok"}
+
+
+# ────────────────────────────────────────────────────────────────
+# Projects
+# ────────────────────────────────────────────────────────────────
+
+@router.get("/projects")
+async def list_projects(
+    channel_id: str | None = Query(None),
+    status: str | None = Query(None),
+    series_id: int | None = Query(None),
+    campaign_id: int | None = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    _: Principal = Depends(principal_dep),
+):
+    pool = await get_pool()
+    where, args = ["c.workspace_id = 1"], []
+    if channel_id:
+        args.append(channel_id)
+        where.append(f"p.channel_id = ${len(args)}")
+    if status:
+        args.append(status)
+        where.append(f"p.status = ${len(args)}")
+    if series_id:
+        args.append(series_id)
+        where.append(f"p.series_id = ${len(args)}")
+    if campaign_id:
+        args.append(campaign_id)
+        where.append(f"p.campaign_id = ${len(args)}")
+    args.append(limit)
+    rows = await pool.fetch(
+        f"""SELECT p.id, p.channel_id, p.series_id, p.campaign_id, p.parent_project_id,
+                   p.branch_label, p.title, p.brief, p.status, p.priority,
+                   p.target_publish_at, p.tags, p.estimated_cost_usd, p.actual_cost_usd,
+                   p.settings, p.created_at, p.updated_at,
+                   ch.channel_name,
+                   (SELECT COUNT(*) FROM videos v WHERE v.project_id = p.id) AS video_count
+              FROM projects p
+              JOIN channels ch ON ch.channel_id = p.channel_id
+              JOIN channels c  ON c.channel_id  = p.channel_id
+             WHERE {' AND '.join(where)}
+             ORDER BY p.priority DESC, p.created_at DESC
+             LIMIT ${len(args)}""",
+        *args,
+    )
+    return {"data": [dict(r) for r in rows]}
+
+
+@router.post("/projects")
+async def create_project(
+    body: ProjectIn,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin", "producer", "editor")),
+):
+    pool = await get_pool()
+    pid = await pool.fetchval(
+        """INSERT INTO projects (channel_id, title, brief, series_id, campaign_id,
+               parent_project_id, branch_label, status, priority, target_publish_at,
+               tags, settings, created_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13) RETURNING id""",
+        body.channel_id, body.title, body.brief, body.series_id, body.campaign_id,
+        body.parent_project_id, body.branch_label, body.status, body.priority,
+        body.target_publish_at, body.tags, json.dumps(body.settings), actor.user_id,
+    )
+    await audit(actor=actor, action="project.create", target_type="project",
+                target_id=str(pid), after={"title": body.title}, request=request)
+    return {"status": "ok", "id": pid}
+
+
+@router.get("/projects/{project_id}")
+async def get_project(project_id: int, _: Principal = Depends(principal_dep)):
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """SELECT p.id, p.channel_id, p.series_id, p.campaign_id, p.parent_project_id,
+                  p.branch_label, p.title, p.brief, p.status, p.priority,
+                  p.target_publish_at, p.tags, p.estimated_cost_usd, p.actual_cost_usd,
+                  p.settings, p.created_at, p.updated_at, ch.channel_name
+             FROM projects p
+             JOIN channels ch ON ch.channel_id = p.channel_id
+            WHERE p.id = $1""",
+        project_id,
+    )
+    if not row:
+        raise HTTPException(404, "Project not found")
+    # Fetch child branches
+    branches = await pool.fetch(
+        "SELECT id, branch_label, status, title FROM projects WHERE parent_project_id = $1",
+        project_id,
+    )
+    # Fetch linked videos
+    videos = await pool.fetch(
+        "SELECT content_id, title, status, created_at FROM videos WHERE project_id = $1 ORDER BY created_at DESC LIMIT 20",
+        project_id,
+    )
+    return {
+        "data": {
+            **dict(row),
+            "branches": [dict(b) for b in branches],
+            "videos": [dict(v) for v in videos],
+        }
+    }
+
+
+@router.put("/projects/{project_id}")
+async def update_project(
+    project_id: int,
+    body: ProjectPatch,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin", "producer", "editor")),
+):
+    pool = await get_pool()
+    updates = body.model_dump(exclude_unset=True)
+    if not updates:
+        return {"status": "noop"}
+    sets, vals = [], []
+    for k, v in updates.items():
+        if k == "tags":
+            sets.append(f"{k}=${len(vals)+1}")
+            vals.append(v)
+        elif k == "settings":
+            sets.append(f"{k}=${len(vals)+1}::jsonb")
+            vals.append(json.dumps(v))
+        else:
+            sets.append(f"{k}=${len(vals)+1}")
+            vals.append(v)
+    vals.append(project_id)
+    res = await pool.execute(
+        f"UPDATE projects SET {', '.join(sets)}, updated_at=NOW() WHERE id=${len(vals)}",
+        *vals,
+    )
+    if res.endswith("0"):
+        raise HTTPException(404, "Project not found")
+    await audit(actor=actor, action="project.update", target_type="project",
+                target_id=str(project_id), after=updates, request=request)
+    return {"status": "ok"}
+
+
+@router.delete("/projects/{project_id}")
+async def delete_project(
+    project_id: int,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin")),
+):
+    pool = await get_pool()
+    res = await pool.execute("DELETE FROM projects WHERE id=$1", project_id)
+    if res.endswith("0"):
+        raise HTTPException(404, "Project not found")
+    await audit(actor=actor, action="project.delete", target_type="project",
+                target_id=str(project_id), request=request)
+    return {"status": "ok"}
+
+
+# ────────────────────────────────────────────────────────────────
+# Members
+# ────────────────────────────────────────────────────────────────
+
+@router.get("/members")
+async def list_members(_: Principal = Depends(principal_dep)):
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """SELECT wm.user_id, wm.role, wm.joined_at,
+                  u.email, u.display_name, u.last_login_at
+             FROM workspace_members wm
+             JOIN users u ON u.id = wm.user_id
+            WHERE wm.workspace_id = 1
+            ORDER BY wm.role, u.email"""
+    )
+    return {"data": [dict(r) for r in rows]}
+
+
+@router.put("/members/{user_id}/role")
+async def set_member_role(
+    user_id: int,
+    body: MemberRolePatch,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin")),
+):
+    pool = await get_pool()
+    VALID_ROLES = {"owner","admin","producer","editor","reviewer","analyst","viewer"}
+    if body.role not in VALID_ROLES:
+        raise HTTPException(400, f"Invalid role. Must be one of: {', '.join(sorted(VALID_ROLES))}")
+    res = await pool.execute(
+        "UPDATE workspace_members SET role=$1 WHERE workspace_id=1 AND user_id=$2",
+        body.role, user_id,
+    )
+    if res.endswith("0"):
+        raise HTTPException(404, "Member not found")
+    await audit(actor=actor, action="member.role_change", target_type="workspace_member",
+                target_id=str(user_id), after={"role": body.role}, request=request)
+    return {"status": "ok"}
+
+
+@router.delete("/members/{user_id}")
+async def remove_member(
+    user_id: int,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin")),
+):
+    pool = await get_pool()
+    res = await pool.execute(
+        "DELETE FROM workspace_members WHERE workspace_id=1 AND user_id=$1", user_id
+    )
+    if res.endswith("0"):
+        raise HTTPException(404, "Member not found")
+    await audit(actor=actor, action="member.remove", target_type="workspace_member",
+                target_id=str(user_id), request=request)
+    return {"status": "ok"}
+
+
+# ────────────────────────────────────────────────────────────────
+# Entity settings
+# ────────────────────────────────────────────────────────────────
+
+@router.get("/settings")
+async def get_settings(
+    scope: str = Query(...),
+    scope_id: str = Query(...),
+    _: Principal = Depends(principal_dep),
+):
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT key, value, locked FROM entity_settings WHERE scope=$1 AND scope_id=$2",
+        scope, scope_id,
+    )
+    return {"data": [dict(r) for r in rows]}
+
+
+@router.put("/settings")
+async def upsert_setting(
+    body: EntitySettingUpsert,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin")),
+):
+    pool = await get_pool()
+    VALID_SCOPES = {"system","workspace","brand","channel","series","campaign","project"}
+    if body.scope not in VALID_SCOPES:
+        raise HTTPException(400, f"Invalid scope. Must be one of: {', '.join(sorted(VALID_SCOPES))}")
+    await pool.execute(
+        """INSERT INTO entity_settings (scope, scope_id, key, value, locked)
+           VALUES ($1,$2,$3,$4::jsonb,$5)
+           ON CONFLICT (scope, scope_id, key) DO UPDATE
+           SET value=$4::jsonb, locked=$5, updated_at=NOW()""",
+        body.scope, body.scope_id, body.key, json.dumps(body.value), body.locked,
+    )
+    await audit(actor=actor, action="settings.upsert", target_type="entity_settings",
+                target_id=f"{body.scope}/{body.scope_id}/{body.key}",
+                after={"value": body.value, "locked": body.locked}, request=request)
+    return {"status": "ok"}

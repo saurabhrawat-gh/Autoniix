@@ -10,15 +10,19 @@ import { Tip } from './Tooltip';
 import {
   Home,
   Tv,
-  Film,
   Archive,
   Activity,
-  Zap,
   Plug,
   Settings,
   ChevronLeft,
   ChevronRight,
   Video,
+  LayoutDashboard,
+  Clapperboard,
+  ClipboardCheck,
+  FlaskConical,
+  Users,
+  Bell,
 } from './Icon';
 
 const COLLAPSED_KEY = 'sidebar_collapsed_v1';
@@ -28,6 +32,7 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   shortcut?: string;
+  badge?: string;
 }
 
 interface NavGroup {
@@ -37,30 +42,33 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Main',
+    label: 'Overview',
     items: [
-      { href: '/dashboard', label: 'Home', icon: Home, shortcut: 'g d' },
+      { href: '/dashboard', label: 'Home', icon: LayoutDashboard, shortcut: 'g d' },
       { href: '/dashboard/channels', label: 'Channels', icon: Tv, shortcut: 'g c' },
     ],
   },
   {
-    label: 'Content',
+    label: 'Production',
     items: [
-      { href: '/dashboard/content', label: 'Content', icon: Film, shortcut: 'g v' },
-      { href: '/dashboard/library', label: 'Library', icon: Archive, shortcut: 'g l' },
+      { href: '/dashboard/content', label: 'Content', icon: Clapperboard, shortcut: 'g v' },
+      { href: '/dashboard/review', label: 'Review', icon: ClipboardCheck, shortcut: 'g r' },
+      { href: '/dashboard/progress', label: 'Queue', icon: Activity, shortcut: 'g p' },
     ],
   },
   {
-    label: 'Operations',
+    label: 'Resources',
     items: [
-      { href: '/dashboard/progress', label: 'Progress', icon: Activity, shortcut: 'g p' },
-      { href: '/dashboard/experiments', label: 'Experiments', icon: Zap, shortcut: 'g e' },
+      { href: '/dashboard/library', label: 'Library', icon: Archive, shortcut: 'g l' },
       { href: '/dashboard/providers', label: 'Providers', icon: Plug, shortcut: 'g i' },
+      { href: '/dashboard/experiments', label: 'Experiments', icon: FlaskConical, shortcut: 'g e' },
     ],
   },
   {
     label: 'System',
     items: [
+      { href: '/dashboard/notifications', label: 'Notifications', icon: Bell, shortcut: 'g n' },
+      { href: '/dashboard/users', label: 'Team', icon: Users, shortcut: 'g u' },
       { href: '/dashboard/settings', label: 'Settings', icon: Settings, shortcut: 'g s' },
     ],
   },
@@ -140,10 +148,13 @@ export function Sidebar() {
   useHotkeys('d', () => { if (gPressed) { setGPressed(false); router.push('/dashboard'); } }, [gPressed]);
   useHotkeys('c', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/channels'); } }, [gPressed]);
   useHotkeys('v', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/content'); } }, [gPressed]);
+  useHotkeys('r', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/review'); } }, [gPressed]);
   useHotkeys('l', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/library'); } }, [gPressed]);
   useHotkeys('p', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/progress'); } }, [gPressed]);
   useHotkeys('e', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/experiments'); } }, [gPressed]);
   useHotkeys('i', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/providers'); } }, [gPressed]);
+  useHotkeys('n', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/notifications'); } }, [gPressed]);
+  useHotkeys('u', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/users'); } }, [gPressed]);
   useHotkeys('s', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/settings'); } }, [gPressed]);
 
   return (

@@ -6,7 +6,8 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import {
   Search, Archive, ShieldCheck, Music, Palette, Type, Film,
-  Layout, Headphones, UploadCloud, X, Trash2, FileImage, Music2
+  Layout, Headphones, UploadCloud, X, Trash2, FileImage, Music2,
+  RotateCw, Tag, Layers, Hash, Boxes,
 } from '@/lib/components/Icon';
 
 type TabKey = 'stock' | 'brand' | 'music' | 'bgmusic' | 'sfx' | 'luts' | 'fonts' | 'broll' | 'templates';
@@ -19,18 +20,19 @@ interface TabConfig {
   accept: string;
   readOnly?: boolean;
   endpointPrefix: string;
+  color: string;
 }
 
 const TABS: TabConfig[] = [
-  { key: 'stock',     label: 'Stock',     icon: <Archive size={14} />,     purpose: 'Cached Pixabay/Pexels clips & images used by automation',         accept: 'image/*,video/*', readOnly: true,  endpointPrefix: 'assets' },
-  { key: 'brand',     label: 'Brand',     icon: <ShieldCheck size={14} />, purpose: 'Per-channel logos, overlays, watermarks',                          accept: 'image/*,video/*', endpointPrefix: 'brand' },
-  { key: 'music',     label: 'Music',     icon: <Music size={14} />,       purpose: 'Background music tracks for video production',                     accept: 'audio/*',         endpointPrefix: 'music' },
-  { key: 'bgmusic',   label: 'BG Music',  icon: <Music2 size={14} />,      purpose: 'Ambient/loop tracks — softer than main music',                     accept: 'audio/*',         endpointPrefix: 'bgmusic' },
-  { key: 'sfx',       label: 'Sound FX',  icon: <Headphones size={14} />,  purpose: 'Short audio clips: whoosh, ding, transitions, etc.',               accept: 'audio/*',         endpointPrefix: 'sfx' },
-  { key: 'luts',      label: 'LUTs',      icon: <Palette size={14} />,     purpose: '.cube color grading files applied by Remotion to match visual style', accept: '.cube,.3dl',     endpointPrefix: 'luts' },
-  { key: 'fonts',     label: 'Fonts',     icon: <Type size={14} />,        purpose: 'Custom typefaces (.ttf/.woff2) used in Remotion text scenes',      accept: '.ttf,.woff,.woff2,.otf', endpointPrefix: 'fonts' },
-  { key: 'broll',     label: 'B-Roll',    icon: <Film size={14} />,        purpose: 'Pre-approved stock video clips for manual curation',               accept: 'video/*',         endpointPrefix: 'broll' },
-  { key: 'templates', label: 'Templates', icon: <Layout size={14} />,      purpose: 'Remotion scene presets (JSON configs) for reusable layouts',        accept: '.json',           endpointPrefix: 'templates' },
+  { key: 'stock',     label: 'Stock',     icon: <Archive size={14} />,     purpose: 'Cached Pixabay/Pexels clips & images used by automation',            accept: 'image/*,video/*',       readOnly: true, endpointPrefix: 'assets',    color: 'text-blue-500' },
+  { key: 'brand',     label: 'Brand',     icon: <ShieldCheck size={14} />, purpose: 'Per-channel logos, overlays, watermarks, brand kit assets',          accept: 'image/*,video/*',                       endpointPrefix: 'brand',     color: 'text-violet-500' },
+  { key: 'music',     label: 'Music',     icon: <Music size={14} />,       purpose: 'Background music tracks for video production',                       accept: 'audio/*',                               endpointPrefix: 'music',     color: 'text-emerald-500' },
+  { key: 'bgmusic',   label: 'BG Music',  icon: <Music2 size={14} />,      purpose: 'Ambient/loop tracks — softer than main music',                       accept: 'audio/*',                               endpointPrefix: 'bgmusic',   color: 'text-teal-500' },
+  { key: 'sfx',       label: 'Sound FX',  icon: <Headphones size={14} />,  purpose: 'Short audio clips: whoosh, ding, transitions, etc.',                 accept: 'audio/*',                               endpointPrefix: 'sfx',       color: 'text-amber-500' },
+  { key: 'luts',      label: 'LUTs',      icon: <Palette size={14} />,     purpose: '.cube color grading files applied by Remotion to match visual style', accept: '.cube,.3dl',                            endpointPrefix: 'luts',      color: 'text-pink-500' },
+  { key: 'fonts',     label: 'Fonts',     icon: <Type size={14} />,        purpose: 'Custom typefaces (.ttf/.woff2) used in Remotion text scenes',        accept: '.ttf,.woff,.woff2,.otf',                endpointPrefix: 'fonts',     color: 'text-orange-500' },
+  { key: 'broll',     label: 'B-Roll',    icon: <Film size={14} />,        purpose: 'Pre-approved stock video clips for manual curation',                 accept: 'video/*',                               endpointPrefix: 'broll',     color: 'text-red-500' },
+  { key: 'templates', label: 'Templates', icon: <Layout size={14} />,      purpose: 'Remotion scene presets (JSON configs) for reusable layouts',         accept: '.json',                                 endpointPrefix: 'templates', color: 'text-cyan-500' },
 ];
 
 export default function LibraryPage() {
@@ -43,6 +45,8 @@ export default function LibraryPage() {
   const [channelId, setChannelId] = useState('');
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+  const [selectedItem, setSelectedItem] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const tab = TABS.find(t => t.key === activeTab)!;
@@ -108,40 +112,79 @@ export default function LibraryPage() {
     handleUpload(e.dataTransfer.files);
   }
 
+  const totalItems = TABS.reduce((sum, t) => sum + (t.key === activeTab ? items.length : 0), items.length);
+
   return (
-    <main className="flex-1 px-4 sm:px-6 py-6 max-w-[1400px] mx-auto w-full">
+    <main className="flex-1 flex flex-col min-h-0 px-4 sm:px-6 py-6 max-w-[1400px] mx-auto w-full">
       {/* Header */}
-      <div className="mb-5">
-        <h1 className="text-xl font-semibold text-content-primary">Asset Library</h1>
-        <p className="text-xs text-content-tertiary mt-0.5">
-          Manage all media assets used across your automation pipeline. Upload assets to make them available to Remotion and production services.
-        </p>
+      <div className="flex items-start justify-between gap-4 mb-5">
+        <div>
+          <h1 className="text-xl font-semibold text-content-primary flex items-center gap-2">
+            <Archive size={18} className="text-accent" /> Asset Library
+          </h1>
+          <p className="text-xs text-content-tertiary mt-0.5">
+            Centralised media DAM — stock cache, brand kits, music, LUTs, fonts and Remotion templates.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* View toggle */}
+          <div className="flex items-center gap-0.5 bg-surface-1 border border-border rounded-md p-0.5">
+            {(['list', 'grid'] as const).map(v => (
+              <button key={v} onClick={() => setViewMode(v)}
+                className={cn('w-7 h-7 flex items-center justify-center rounded text-xs transition-colors',
+                  viewMode === v ? 'bg-surface-0 text-content-primary shadow-sm' : 'text-content-tertiary hover:text-content-secondary')}>
+                {v === 'list' ? <Layers size={13} /> : <Boxes size={13} />}
+              </button>
+            ))}
+          </div>
+          <button onClick={loadItems} disabled={loading}
+            className="h-8 w-8 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary transition-colors">
+            <RotateCw size={13} className={cn(loading && 'animate-spin')} />
+          </button>
+        </div>
       </div>
 
-      {/* Tab bar (scrollable) */}
-      <div className="flex items-center gap-0.5 bg-surface-1 p-0.5 rounded-md mb-4 overflow-x-auto">
+      {/* Scope summary row */}
+      <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2 mb-4">
         {TABS.map(t => (
-          <button key={t.key} onClick={() => { setActiveTab(t.key); setQ(''); }}
+          <button key={t.key}
+            onClick={() => { setActiveTab(t.key); setQ(''); setSelectedItem(null); }}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium whitespace-nowrap transition-all shrink-0',
-              activeTab === t.key ? 'bg-surface-0 text-content-primary shadow-sm' : 'text-content-tertiary hover:text-content-secondary'
+              'flex flex-col items-center gap-1 rounded-xl border p-2.5 transition-all text-center',
+              activeTab === t.key
+                ? 'border-accent/40 bg-accent/5 shadow-sm'
+                : 'border-border bg-surface-0 hover:bg-surface-1 hover:border-border-hover'
             )}>
-            {t.icon}
-            {t.label}
+            <span className={cn('transition-colors', activeTab === t.key ? t.color : 'text-content-tertiary')}>
+              {t.icon}
+            </span>
+            <span className={cn('text-[10px] font-medium leading-none',
+              activeTab === t.key ? 'text-content-primary' : 'text-content-tertiary')}>
+              {t.label}
+            </span>
+            {t.readOnly && (
+              <span className="text-[8px] px-1 rounded bg-surface-2 text-content-tertiary leading-3 py-0.5">AUTO</span>
+            )}
           </button>
         ))}
       </div>
 
-      {/* Purpose banner */}
-      <div className="mb-4 text-xs text-content-tertiary bg-surface-1 border border-border rounded-md px-3 py-2">
-        {tab.icon} <span className="text-content-secondary font-medium ml-1.5">{tab.label}:</span>
-        <span className="ml-1">{tab.purpose}</span>
-        {tab.readOnly && <span className="ml-2 text-amber-400">(read-only — populated by automation)</span>}
+      {/* Active tab purpose */}
+      <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-md bg-surface-1 border border-border">
+        <span className={cn('shrink-0', tab.color)}>{tab.icon}</span>
+        <span className="text-xs text-content-secondary">
+          <span className="font-medium text-content-primary">{tab.label}: </span>{tab.purpose}
+        </span>
+        {tab.readOnly && (
+          <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 font-medium shrink-0">
+            Read-only
+          </span>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
-        {/* Main content */}
-        <div className="space-y-3">
+      <div className="flex gap-4 flex-1 min-h-0">
+        {/* Main asset area */}
+        <div className="flex-1 min-w-0 flex flex-col gap-3">
           {/* Search + filter bar */}
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
@@ -150,14 +193,11 @@ export default function LibraryPage() {
                 value={q}
                 onChange={e => setQ(e.target.value)}
                 placeholder={`Search ${tab.label.toLowerCase()} assets…`}
-                className="w-full h-9 pl-9 pr-9 rounded-md bg-surface-0 border border-border text-sm placeholder:text-content-tertiary outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/15 transition-colors"
+                className="w-full h-9 pl-9 pr-9 rounded-md bg-surface-0 border border-border text-sm placeholder:text-content-tertiary outline-none focus:border-accent/50 transition-colors"
               />
               {q && (
-                <button
-                  onClick={() => setQ('')}
-                  aria-label="Clear search"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded text-content-tertiary hover:text-content-primary hover:bg-surface-2"
-                >
+                <button onClick={() => setQ('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded text-content-tertiary hover:text-content-primary hover:bg-surface-2">
                   <X size={12} />
                 </button>
               )}
@@ -174,87 +214,175 @@ export default function LibraryPage() {
 
           {/* Asset grid/list */}
           {loading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="rounded-md bg-surface-2 animate-pulse aspect-video" />
+            <div className={cn('grid gap-2', viewMode === 'grid' ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4' : 'grid-cols-1')}>
+              {Array.from({ length: viewMode === 'grid' ? 12 : 6 }).map((_, i) => (
+                <div key={i} className={cn('rounded-md bg-surface-2 animate-pulse', viewMode === 'grid' ? 'aspect-video' : 'h-12')} />
               ))}
             </div>
           ) : items.length === 0 ? (
-            <div className="py-16 text-center rounded-md border border-dashed border-border">
-              <div className="text-3xl mb-3 opacity-30">{tab.readOnly ? '📦' : '📁'}</div>
+            <div className="flex-1 py-20 text-center rounded-xl border border-dashed border-border">
+              <div className="text-4xl mb-3 opacity-20">{tab.readOnly ? '📦' : '📁'}</div>
               <div className="text-sm font-medium text-content-primary">No {tab.label.toLowerCase()} assets</div>
-              <div className="text-xs text-content-tertiary mt-1">
-                {tab.readOnly ? 'Assets will appear here once automation runs.' : 'Upload files using the panel →'}
+              <div className="text-xs text-content-tertiary mt-1.5">
+                {tab.readOnly ? 'Assets will appear here once automation runs.' : 'Drop files in the upload zone to get started.'}
               </div>
             </div>
-          ) : (
-            <div className="rounded-md border border-border bg-surface-0 divide-y divide-border overflow-hidden">
+          ) : viewMode === 'grid' ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2">
               {items.map((item: any, i: number) => (
-                <AssetRow key={item.id || item.asset_id || i} item={item} tab={activeTab} onDeleted={loadItems} />
+                <button key={item.id || item.asset_id || item.key || i}
+                  onClick={() => setSelectedItem(selectedItem?.id === item.id ? null : item)}
+                  className={cn(
+                    'rounded-lg border overflow-hidden text-left transition-all hover:shadow-card group',
+                    selectedItem?.id === item.id ? 'border-accent ring-1 ring-accent/30' : 'border-border hover:border-border-hover'
+                  )}>
+                  <div className="aspect-video bg-surface-2 flex items-center justify-center">
+                    <FileImage size={20} className="text-content-tertiary opacity-30" />
+                  </div>
+                  <div className="px-2 py-1.5">
+                    <div className="text-[10px] font-medium text-content-primary truncate">
+                      {item.file_name || item.title || item.name || item.key?.split('/').pop() || 'Unknown'}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-border bg-surface-0 divide-y divide-border overflow-hidden">
+              {items.map((item: any, i: number) => (
+                <AssetRow
+                  key={item.id || item.asset_id || item.key || i}
+                  item={item} tab={activeTab}
+                  selected={selectedItem?.id === item.id}
+                  onSelect={() => setSelectedItem(selectedItem?.id === item.id ? null : item)}
+                  onDeleted={loadItems}
+                />
               ))}
             </div>
           )}
         </div>
 
-        {/* Upload panel */}
-        {!tab.readOnly && (
-          <div>
-            <div
-              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={onDrop}
-              className={cn(
-                'rounded-md border-2 border-dashed p-6 text-center transition-colors cursor-pointer',
-                dragOver ? 'border-accent bg-accent/5' : 'border-border hover:border-accent/40 hover:bg-surface-1',
-              )}
-              onClick={() => !uploading && fileInputRef.current?.click()}
-            >
-              <UploadCloud size={28} className={cn('mx-auto mb-3', dragOver ? 'text-accent' : 'text-content-tertiary')} />
-              <div className="text-sm font-medium text-content-primary mb-1">
-                {uploading ? 'Uploading…' : 'Drop files here'}
+        {/* Right panel: upload zone + detail drawer */}
+        <div className="w-[260px] shrink-0 space-y-3">
+          {/* Upload zone */}
+          {!tab.readOnly && (
+            <div>
+              <div
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={onDrop}
+                className={cn(
+                  'rounded-xl border-2 border-dashed p-5 text-center transition-colors cursor-pointer',
+                  dragOver ? 'border-accent bg-accent/5' : 'border-border hover:border-accent/40 hover:bg-surface-1',
+                )}
+                onClick={() => !uploading && fileInputRef.current?.click()}
+              >
+                <UploadCloud size={24} className={cn('mx-auto mb-2', dragOver ? 'text-accent' : 'text-content-tertiary')} />
+                <div className="text-xs font-medium text-content-primary mb-0.5">
+                  {uploading ? 'Uploading…' : 'Drop files here'}
+                </div>
+                <div className="text-[10px] text-content-tertiary">
+                  {uploading ? 'Please wait…' : `or click to browse`}
+                </div>
+                <div className="mt-1.5 text-[9px] text-content-tertiary font-mono bg-surface-2 rounded px-2 py-0.5 inline-block">
+                  {tab.accept}
+                </div>
               </div>
-              <div className="text-xs text-content-tertiary">
-                {uploading ? 'Please wait…' : `or click to browse · ${tab.accept}`}
+              <input ref={fileInputRef} type="file" multiple accept={tab.accept} className="hidden"
+                onChange={e => handleUpload(e.target.files)} />
+            </div>
+          )}
+
+          {/* Asset detail panel */}
+          {selectedItem ? (
+            <div className="rounded-xl border border-border bg-surface-0 overflow-hidden">
+              <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+                <span className="text-xs font-semibold text-content-primary">Asset detail</span>
+                <button onClick={() => setSelectedItem(null)}
+                  className="w-6 h-6 flex items-center justify-center rounded hover:bg-surface-2 text-content-tertiary">
+                  <X size={12} />
+                </button>
+              </div>
+              <div className="p-3 space-y-2.5">
+                <div className="aspect-video bg-surface-2 rounded-md flex items-center justify-center">
+                  <FileImage size={24} className="text-content-tertiary opacity-30" />
+                </div>
+                {[
+                  ['Name', selectedItem.file_name || selectedItem.title || selectedItem.name || selectedItem.key?.split('/').pop() || '—'],
+                  ['Provider', selectedItem.provider || selectedItem.source || '—'],
+                  ['Type', selectedItem.media_type || selectedItem.type || '—'],
+                  ['Size', selectedItem.file_size ? `${(selectedItem.file_size / 1024).toFixed(0)} KB` : selectedItem.size ? `${(selectedItem.size / 1024).toFixed(0)} KB` : '—'],
+                  ['Score', selectedItem.quality_score != null ? `${(selectedItem.quality_score * 100).toFixed(0)}%` : '—'],
+                ].map(([label, value]) => (
+                  <div key={label as string}>
+                    <div className="text-[9px] uppercase tracking-wider text-content-tertiary mb-0.5">{label}</div>
+                    <div className="text-xs text-content-primary truncate">{value}</div>
+                  </div>
+                ))}
+                {!tab.readOnly && (
+                  <button
+                    onClick={async () => {
+                      if (!confirm('Delete this asset?')) return;
+                      try {
+                        const token = typeof window !== 'undefined' ? localStorage.getItem('dashboard_token') : null;
+                        const base = process.env.NEXT_PUBLIC_API_URL || '';
+                        await fetch(`${base}/api/v2/library/${activeTab}/${selectedItem.id || selectedItem.asset_id}`, {
+                          method: 'DELETE',
+                          headers: token ? { Authorization: `Bearer ${token}` } : {},
+                        });
+                        showToast('Asset deleted', 'success');
+                        setSelectedItem(null);
+                        loadItems();
+                      } catch { showToast('Delete failed', 'error'); }
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md border border-red-500/30 text-red-500 text-xs hover:bg-red-500/10 transition-colors mt-1">
+                    <Trash2 size={11} /> Delete asset
+                  </button>
+                )}
               </div>
             </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept={tab.accept}
-              className="hidden"
-              onChange={e => handleUpload(e.target.files)}
-            />
+          ) : (
+            <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
+              <Tag size={20} className="mx-auto text-content-tertiary opacity-30 mb-2" />
+              <div className="text-xs text-content-tertiary">Select an asset to view details</div>
+            </div>
+          )}
 
-            {activeTab === 'brand' && (
-              <div className="mt-3 p-3 rounded-md bg-surface-1 border border-border text-xs text-content-tertiary space-y-1">
-                <div className="font-medium text-content-secondary">💡 Brand assets</div>
-                <p>Upload per-channel logos (PNG/SVG), watermark overlays, and brand kit images. Select a channel filter to scope uploads to a specific channel.</p>
-              </div>
-            )}
-            {activeTab === 'luts' && (
-              <div className="mt-3 p-3 rounded-md bg-surface-1 border border-border text-xs text-content-tertiary">
-                <div className="font-medium text-content-secondary">💡 LUT format</div>
-                <p className="mt-0.5">Upload .cube files (standard 3D LUT format). These are applied during Remotion post-processing to set a consistent visual style per channel.</p>
-              </div>
-            )}
-            {activeTab === 'templates' && (
-              <div className="mt-3 p-3 rounded-md bg-surface-1 border border-border text-xs text-content-tertiary">
-                <div className="font-medium text-content-secondary">💡 Template format</div>
-                <p className="mt-0.5">Upload JSON preset files that define Remotion scene configurations. These become reusable layout options for your channels.</p>
-              </div>
-            )}
-          </div>
-        )}
+          {/* Tips */}
+          {activeTab === 'brand' && (
+            <div className="p-3 rounded-xl bg-surface-1 border border-border text-[11px] text-content-tertiary space-y-1">
+              <div className="font-medium text-content-secondary">💡 Brand assets</div>
+              <p>Logos (PNG/SVG), watermarks, overlays. Scope by channel filter to organise per-channel kits.</p>
+            </div>
+          )}
+          {activeTab === 'luts' && (
+            <div className="p-3 rounded-xl bg-surface-1 border border-border text-[11px] text-content-tertiary">
+              <div className="font-medium text-content-secondary">💡 LUT format</div>
+              <p className="mt-0.5">.cube files (standard 3D LUT). Applied by Remotion post-processing to set a consistent look per channel.</p>
+            </div>
+          )}
+          {activeTab === 'templates' && (
+            <div className="p-3 rounded-xl bg-surface-1 border border-border text-[11px] text-content-tertiary">
+              <div className="font-medium text-content-secondary">💡 Template format</div>
+              <p className="mt-0.5">JSON preset files defining Remotion scene configurations. Becomes a reusable layout for your channels.</p>
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );
 }
 
-function AssetRow({ item, tab, onDeleted }: { item: any; tab: TabKey; onDeleted: () => void }) {
+function AssetRow({ item, tab, selected, onSelect, onDeleted }: {
+  item: any; tab: TabKey;
+  selected?: boolean;
+  onSelect?: () => void;
+  onDeleted: () => void;
+}) {
   const { showToast } = useToast();
 
-  async function deleteAsset() {
+  async function deleteAsset(e: React.MouseEvent) {
+    e.stopPropagation();
     if (!confirm('Delete this asset?')) return;
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('dashboard_token') : null;
@@ -268,20 +396,27 @@ function AssetRow({ item, tab, onDeleted }: { item: any; tab: TabKey; onDeleted:
     } catch { showToast('Delete failed', 'error'); }
   }
 
-  const name = item.file_name || item.title || item.name || item.url?.split('/').pop() || 'Unknown';
+  const name = item.file_name || item.title || item.name || item.key?.split('/').pop() || item.url?.split('/').pop() || 'Unknown';
   const provider = item.provider || item.source || '';
   const type = item.media_type || item.type || '';
-  const size = item.file_size ? `${(item.file_size / 1024).toFixed(0)} KB` : '';
+  const size = item.file_size ? `${(item.file_size / 1024).toFixed(0)} KB` :
+               item.size     ? `${(item.size / 1024).toFixed(0)} KB` : '';
+  const score = item.quality_score != null ? `${(item.quality_score * 100).toFixed(0)}%` : '';
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2.5 hover:bg-surface-1 transition-colors">
-      <div className="w-10 h-8 rounded bg-surface-2 shrink-0 flex items-center justify-center">
+    <button
+      onClick={onSelect}
+      className={cn(
+        'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors',
+        selected ? 'bg-accent/5 border-l-2 border-accent' : 'hover:bg-surface-1 border-l-2 border-transparent'
+      )}>
+      <div className="w-10 h-8 rounded-md bg-surface-2 shrink-0 flex items-center justify-center">
         <FileImage size={13} className="text-content-tertiary" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-xs font-medium text-content-primary truncate">{name}</div>
         <div className="text-[10px] text-content-tertiary truncate">
-          {[provider, type, size].filter(Boolean).join(' · ')}
+          {[provider, type, size, score].filter(Boolean).join(' · ')}
         </div>
       </div>
       {tab !== 'stock' && (
@@ -290,6 +425,6 @@ function AssetRow({ item, tab, onDeleted }: { item: any; tab: TabKey; onDeleted:
           <Trash2 size={13} />
         </button>
       )}
-    </div>
+    </button>
   );
 }

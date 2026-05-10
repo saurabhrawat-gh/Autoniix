@@ -24,6 +24,7 @@ from . import (
     providers as _providers,
     review as _review,
     users as _users,
+    workspace as _workspace,
 )
 
 router = APIRouter(tags=["v2"])
@@ -35,5 +36,6 @@ router.include_router(_providers.router,     prefix="/providers",     tags=["v2.
 router.include_router(_content.router,       prefix="/content",       tags=["v2.content"])
 router.include_router(_review.router,        prefix="/review",        tags=["v2.review"])
 router.include_router(_notifications.router, prefix="/notifications", tags=["v2.notifications"])
-router.include_router(_library.router,        prefix="/library",       tags=["v2.library"])
-router.include_router(_experiments.router,    prefix="/experiments",   tags=["v2.experiments"])
+router.include_router(_library.router,       prefix="/library",       tags=["v2.library"])
+router.include_router(_experiments.router,   prefix="/experiments",   tags=["v2.experiments"])
+router.include_router(_workspace.router,     prefix="/workspace",     tags=["v2.workspace"])

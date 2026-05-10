@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import {
   Search, X, Play, Download, Link2, AlertTriangle,
-  Wrench, Clock, ClipboardCheck,
+  Wrench, Clock, ClipboardCheck, Clapperboard, Layers, Boxes,
 } from '@/lib/components/Icon';
 
 const STATUS_CHIP: Record<string, string> = {
@@ -93,6 +93,7 @@ export default function ContentPage() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [channels, setChannels] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
   /* search */
   const [q, setQ] = useState('');
@@ -194,6 +195,15 @@ export default function ContentPage() {
 
   const activeFilterCount = selChannels.length + selStatuses.length + selReviews.length + selModes.length + (dateRange !== 'all' ? 1 : 0);
 
+  const pipelineStats = useMemo(() => ({
+    total:     allItems.length,
+    running:   allItems.filter(v => v.status === 'running').length,
+    pending:   allItems.filter(v => v.status === 'pending').length,
+    review:    allItems.filter(v => v.review_state === 'pending').length,
+    completed: allItems.filter(v => ['completed','published','delivered'].includes(v.status)).length,
+    failed:    allItems.filter(v => v.status === 'failed').length,
+  }), [allItems]);
+
   /* actions */
   const openPreview = async (contentId: string) => {
     setPreviewId(contentId);
@@ -260,12 +270,24 @@ export default function ContentPage() {
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* ── Toolbar ── */}
       <div className="shrink-0 max-w-[1400px] w-full mx-auto px-6 pt-5 pb-3">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center justify-between gap-4 flex-wrap mb-3">
           <div>
-            <h1 className="text-xl font-semibold text-content-primary">Generated content</h1>
+            <h1 className="text-xl font-semibold text-content-primary flex items-center gap-2">
+              <Clapperboard size={18} className="text-accent" /> Content Pipeline
+            </h1>
             <p className="text-xs text-content-tertiary mt-0.5">All videos created by your automation pipeline.</p>
           </div>
           <div className="flex items-center gap-2">
+            {/* View toggle */}
+            <div className="flex items-center gap-0.5 bg-surface-1 border border-border rounded-md p-0.5">
+              {(['table', 'grid'] as const).map(v => (
+                <button key={v} onClick={() => setViewMode(v)}
+                  className={cn('w-7 h-7 flex items-center justify-center rounded text-xs transition-colors',
+                    viewMode === v ? 'bg-surface-0 text-content-primary shadow-sm' : 'text-content-tertiary hover:text-content-secondary')}>
+                  {v === 'table' ? <Layers size={13} /> : <Boxes size={13} />}
+                </button>
+              ))}
+            </div>
             {/* Search */}
             <div className="relative w-80">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-content-tertiary" />
@@ -330,6 +352,23 @@ export default function ContentPage() {
               )}
             </button>
           </div>
+        </div>
+
+        {/* Pipeline stats strip */}
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          {[
+            { label: 'Total',    value: pipelineStats.total,     color: 'text-content-primary' },
+            { label: 'Running',  value: pipelineStats.running,   color: 'text-accent' },
+            { label: 'Pending',  value: pipelineStats.pending,   color: 'text-content-tertiary' },
+            { label: 'Review',   value: pipelineStats.review,    color: 'text-amber-500' },
+            { label: 'Done',     value: pipelineStats.completed, color: 'text-emerald-500' },
+            { label: 'Failed',   value: pipelineStats.failed,    color: 'text-red-500' },
+          ].map(s => (
+            <div key={s.label} className="rounded-lg border border-border bg-surface-0 px-3 py-2">
+              <div className={cn('text-lg font-bold tabular-nums leading-none', s.color)}>{s.value}</div>
+              <div className="text-[10px] text-content-tertiary mt-0.5">{s.label}</div>
+            </div>
+          ))}
         </div>
       </div>
 

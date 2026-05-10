@@ -243,3 +243,59 @@ export const usersApi = {
   disable: (id: number) => request(`/api/v2/users/${id}/disable`, { method: 'PUT' }),
   enable: (id: number) => request(`/api/v2/users/${id}/enable`, { method: 'PUT' }),
 };
+
+// ── Workspace ──────────────────────────────────────────────
+export const workspaceApi = {
+  get: () => request<{ data: any }>('/api/v2/workspace'),
+  update: (body: any) => request('/api/v2/workspace', { method: 'PUT', body: JSON.stringify(body) }),
+};
+
+// ── Brands ────────────────────────────────────────────────
+export const brandsApi = {
+  list: () => request<{ data: any[] }>('/api/v2/workspace/brands'),
+  get: (id: number) => request<{ data: any }>(`/api/v2/workspace/brands/${id}`),
+  create: (body: any) => request<{ id: number }>('/api/v2/workspace/brands', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id: number, body: any) => request(`/api/v2/workspace/brands/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+};
+
+// ── Series ────────────────────────────────────────────────
+export const seriesApi = {
+  list: (channel_id?: string) =>
+    request<{ data: any[] }>(`/api/v2/workspace/series${channel_id ? `?channel_id=${channel_id}` : ''}`),
+  create: (body: any) => request<{ id: number }>('/api/v2/workspace/series', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id: number, body: any) => request(`/api/v2/workspace/series/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  delete: (id: number) => request(`/api/v2/workspace/series/${id}`, { method: 'DELETE' }),
+};
+
+// ── Campaigns ─────────────────────────────────────────────
+export const campaignsApi = {
+  list: (brand_id?: number, status?: string) => {
+    const p = new URLSearchParams();
+    if (brand_id) p.set('brand_id', String(brand_id));
+    if (status) p.set('status', status);
+    return request<{ data: any[] }>(`/api/v2/workspace/campaigns?${p}`);
+  },
+  create: (body: any) => request<{ id: number }>('/api/v2/workspace/campaigns', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id: number, body: any) => request(`/api/v2/workspace/campaigns/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+};
+
+// ── Projects ──────────────────────────────────────────────
+export const projectsApi = {
+  list: (params: { channel_id?: string; status?: string; series_id?: number; campaign_id?: number; limit?: number } = {}) => {
+    const p = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => v !== undefined && p.set(k, String(v)));
+    return request<{ data: any[] }>(`/api/v2/workspace/projects?${p}`);
+  },
+  get: (id: number) => request<{ data: any }>(`/api/v2/workspace/projects/${id}`),
+  create: (body: any) => request<{ id: number }>('/api/v2/workspace/projects', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id: number, body: any) => request(`/api/v2/workspace/projects/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  delete: (id: number) => request(`/api/v2/workspace/projects/${id}`, { method: 'DELETE' }),
+};
+
+// ── Members ───────────────────────────────────────────────
+export const membersApi = {
+  list: () => request<{ data: any[] }>('/api/v2/workspace/members'),
+  setRole: (user_id: number, role: string) =>
+    request(`/api/v2/workspace/members/${user_id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
+  remove: (user_id: number) => request(`/api/v2/workspace/members/${user_id}`, { method: 'DELETE' }),
+};

@@ -2,11 +2,78 @@
 
 import { useEffect, useState } from 'react';
 import { experimentsApi } from '@/lib/api-v2';
-import { useToast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/lib/toast';
 import {
-  FlaskConical, Play, Pause, CheckCircle2, Plus, X, BarChart3, Users, Crosshair, Loader2
+  Zap, Plus, Trash2, RotateCw, X, Check, Loader2,
+  TrendingUp, TrendingDown, ChevronDown, ChevronRight,
+  BarChart3, AlertCircle, FlaskConical, Target, Sparkles,
+  Activity, Gauge, SlidersHorizontal, Play,
+  Users, Crosshair, Pause, CheckCircle2,
 } from '@/lib/components/Icon';
+
+const EXP_TEMPLATES = [
+  {
+    id: 'hook_style',
+    title: 'Hook Style',
+    icon: '🎯',
+    desc: 'Compare hook styles: question vs. bold claim vs. stat-first',
+    arms: ['question_hook', 'bold_claim', 'stat_first'],
+    metric: 'ctr',
+    color: 'border-violet-500/30 bg-violet-500/5',
+    accentColor: 'text-violet-500',
+  },
+  {
+    id: 'pacing_strategy',
+    title: 'Pacing Strategy',
+    icon: '⚡',
+    desc: 'Test fast-cut vs. measured pacing vs. cinematic style',
+    arms: ['fast_cut', 'measured', 'cinematic'],
+    metric: 'retention',
+    color: 'border-blue-500/30 bg-blue-500/5',
+    accentColor: 'text-blue-500',
+  },
+  {
+    id: 'thumbnail_style',
+    title: 'Thumbnail Style',
+    icon: '🖼️',
+    desc: 'Face vs. text-overlay vs. abstract visual thumbnails',
+    arms: ['face_close_up', 'bold_text', 'abstract_visual'],
+    metric: 'ctr',
+    color: 'border-pink-500/30 bg-pink-500/5',
+    accentColor: 'text-pink-500',
+  },
+  {
+    id: 'title_format',
+    title: 'Title Format',
+    icon: '📝',
+    desc: 'Compare numbered lists vs. how-to vs. curiosity-gap titles',
+    arms: ['numbered_list', 'how_to', 'curiosity_gap'],
+    metric: 'ctr',
+    color: 'border-amber-500/30 bg-amber-500/5',
+    accentColor: 'text-amber-500',
+  },
+  {
+    id: 'content_length',
+    title: 'Content Length',
+    icon: '⏱️',
+    desc: 'Short (< 3 min) vs. mid (5–8 min) vs. long (10–15 min)',
+    arms: ['short', 'mid', 'long'],
+    metric: 'watch_time',
+    color: 'border-emerald-500/30 bg-emerald-500/5',
+    accentColor: 'text-emerald-500',
+  },
+  {
+    id: 'voice_style',
+    title: 'Voice Style',
+    icon: '🎙️',
+    desc: 'Authoritative vs. conversational vs. storytelling narration',
+    arms: ['authoritative', 'conversational', 'storytelling'],
+    metric: 'retention',
+    color: 'border-teal-500/30 bg-teal-500/5',
+    accentColor: 'text-teal-500',
+  },
+];
 
 const STATUS_CHIP: Record<string, string> = {
   active:    'bg-emerald-500/15 text-emerald-500',
@@ -21,9 +88,11 @@ export default function ExperimentsPage() {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
+  const [templateSeed, setTemplateSeed] = useState<(typeof EXP_TEMPLATES)[0] | null>(null);
   const [active, setActive] = useState<string | null>(null);
   const [results, setResults] = useState<any>(null);
   const [resultsLoading, setResultsLoading] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
 
   const refresh = () => {
     setLoading(true);
@@ -48,16 +117,68 @@ export default function ExperimentsPage() {
   return (
     <main className="flex-1 px-4 sm:px-6 py-6 max-w-[1400px] mx-auto w-full">
       {/* Header */}
-      <div className="mb-5">
-        <h1 className="text-xl font-semibold text-content-primary flex items-center gap-2">
-          <FlaskConical size={20} className="text-accent" /> Experiments
-        </h1>
-        <div className="mt-2 p-3 rounded-md bg-surface-1 border border-border text-xs text-content-secondary leading-relaxed">
-          <span className="font-semibold text-content-primary">A/B Testing</span> — Run controlled experiments across your automation pipeline.
-          Test different prompts, voice styles, thumbnail strategies, or SEO formulas. Traffic is split by a deterministic hash so each channel always gets the same variant.
-          <span className="text-content-tertiary ml-1">Activate a draft to start · Complete to declare a winner · Results show Welch's t-test significance.</span>
+      <div className="flex items-start justify-between gap-4 mb-5">
+        <div>
+          <h1 className="text-xl font-semibold text-content-primary flex items-center gap-2">
+            <FlaskConical size={20} className="text-accent" /> AI Innovation Lab
+          </h1>
+          <p className="text-xs text-content-tertiary mt-0.5">
+            Controlled A/B experiments across your pipeline. Traffic split by deterministic hash — same channel always gets the same variant.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button onClick={refresh} disabled={loading}
+            className="h-8 w-8 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary transition-colors">
+            <RotateCw size={13} className={cn(loading && 'animate-spin')} />
+          </button>
+          <button onClick={() => setShowTemplates(v => !v)}
+            className={cn('flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
+              showTemplates ? 'border-accent/40 bg-accent/5 text-accent' : 'border-border text-content-secondary hover:bg-surface-2')}>
+            <Sparkles size={12} /> Templates
+          </button>
+          <button onClick={() => { setTemplateSeed(null); setShowNew(true); }}
+            className="flex items-center gap-1.5 h-8 px-3 rounded-md bg-accent text-white text-xs font-medium hover:opacity-90 transition-opacity">
+            <Plus size={13} /> New experiment
+          </button>
         </div>
       </div>
+
+      {/* Quick-start template gallery */}
+      {showTemplates && (
+        <div className="mb-5">
+          <div className="text-xs font-semibold text-content-tertiary uppercase tracking-wider mb-2 flex items-center gap-2">
+            <Sparkles size={11} /> Quick-start templates
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            {EXP_TEMPLATES.map(t => (
+              <button key={t.id} onClick={() => { setTemplateSeed(t); setShowNew(true); }}
+                className={cn('rounded-xl border p-3 text-left hover:shadow-card transition-all group', t.color)}>
+                <div className="text-xl mb-2">{t.icon}</div>
+                <div className={cn('text-xs font-semibold mb-1', t.accentColor)}>{t.title}</div>
+                <div className="text-[10px] text-content-tertiary leading-relaxed line-clamp-2">{t.desc}</div>
+                <div className="mt-2 text-[9px] text-content-tertiary font-mono">{t.metric} metric · {t.arms.length} arms</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Summary stats */}
+      {rows.length > 0 && (
+        <div className="grid grid-cols-4 gap-2 mb-4">
+          {[
+            { label: 'Total',     value: rows.length, color: 'text-content-primary' },
+            { label: 'Active',    value: rows.filter(r => r.status === 'active').length, color: 'text-emerald-500' },
+            { label: 'Drafts',    value: rows.filter(r => r.status === 'draft').length, color: 'text-content-tertiary' },
+            { label: 'Completed', value: rows.filter(r => r.status === 'completed').length, color: 'text-accent' },
+          ].map(s => (
+            <div key={s.label} className="rounded-lg border border-border bg-surface-0 px-3 py-2">
+              <div className={cn('text-xl font-bold tabular-nums leading-none', s.color)}>{s.value}</div>
+              <div className="text-[10px] text-content-tertiary mt-0.5">{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Controls */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
@@ -79,10 +200,6 @@ export default function ExperimentsPage() {
           ))}
         </div>
         <span className="text-xs text-content-tertiary ml-1">{rows.length} experiment{rows.length !== 1 ? 's' : ''}</span>
-        <button onClick={() => setShowNew(true)}
-          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-white text-xs font-medium hover:opacity-90 transition-opacity">
-          <Plus size={13} /> New experiment
-        </button>
       </div>
 
       {/* Content */}
@@ -258,18 +375,28 @@ export default function ExperimentsPage() {
         </div>
       </div>
 
-      {showNew && <NewExperimentDialog onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); refresh(); }} />}
+      {showNew && (
+        <NewExperimentDialog
+          template={templateSeed}
+          onClose={() => { setShowNew(false); setTemplateSeed(null); }}
+          onCreated={() => { setShowNew(false); setTemplateSeed(null); refresh(); }}
+        />
+      )}
     </main>
   );
 }
 
-function NewExperimentDialog({ onClose, onCreated }: any) {
+function NewExperimentDialog({ onClose, onCreated, template }: any) {
   const { showToast } = useToast();
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [variantsRaw, setVariantsRaw] = useState('[\n  { "name": "control" },\n  { "name": "treatment" }\n]');
+  const [name, setName] = useState(template ? template.id + '_' + Date.now().toString(36) : '');
+  const [description, setDescription] = useState(template ? template.desc : '');
+  const [variantsRaw, setVariantsRaw] = useState(
+    template
+      ? JSON.stringify(template.arms.map((a: string) => ({ name: a })), null, 2)
+      : '[\n  { "name": "control" },\n  { "name": "treatment" }\n]'
+  );
   const [traffic, setTraffic] = useState(100);
-  const [metric, setMetric] = useState('views');
+  const [metric, setMetric] = useState(template ? template.metric : 'views');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 

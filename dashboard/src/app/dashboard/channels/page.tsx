@@ -10,7 +10,10 @@ import { useToast } from '@/lib/toast';
 import { Skeleton, SkeletonCard } from '@/lib/components/Skeleton';
 import { EmptyState } from '@/lib/components/EmptyState';
 import { Tip } from '@/lib/components/Tooltip';
-import { Plus, ChevronUp, ChevronDown } from '@/lib/components/Icon';
+import {
+  Plus, ChevronUp, ChevronDown, Tv, Search, X,
+  Settings, Layers, Boxes, Play, RotateCw,
+} from '@/lib/components/Icon';
 import { useUrlState } from '@/lib/hooks/useUrlState';
 
 type Tab = 'all' | 'active' | 'disabled' | 'archived';
@@ -58,7 +61,21 @@ export default function ChannelsPage() {
   });
   const [pinned, setPinned] = useState<Set<string>>(new Set());
   const [showSortMenu, setShowSortMenu] = useState(false);
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const debounceRef = useRef<NodeJS.Timeout>();
+
+  const AVATAR_COLORS = [
+    'bg-violet-500','bg-blue-500','bg-emerald-500','bg-amber-500',
+    'bg-pink-500','bg-teal-500','bg-orange-500','bg-cyan-500',
+  ];
+  function avatarColor(id: string) {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+    return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+  }
+  function avatarInitials(name: string) {
+    return name ? name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() : '?';
+  }
 
   useEffect(() => {
     debounceRef.current && clearTimeout(debounceRef.current);
@@ -238,9 +255,11 @@ export default function ChannelsPage() {
     { key: 'status', label: 'Status' }, { key: 'created', label: 'Created' },
   ];
 
+  const totalRunning = allChannels.reduce((acc, ch) => acc + (ch.stats?.in_progress || 0), 0);
+
   if (loading) return (
     <div className="flex-1 flex flex-col">
-      <div className="max-w-[1400px] mx-auto w-full px-6 py-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="max-w-[1400px] mx-auto w-full px-6 py-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
       </div>
     </div>
@@ -248,176 +267,251 @@ export default function ChannelsPage() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Toolbar */}
+      {/* ── Header ── */}
       <div className="shrink-0 max-w-[1400px] w-full mx-auto px-6 pt-5 pb-3">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-1 bg-surface-1 rounded-md p-0.5">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h1 className="text-xl font-semibold text-content-primary flex items-center gap-2">
+              <Tv size={18} className="text-accent" /> Channels
+            </h1>
+            <p className="text-xs text-content-tertiary mt-0.5">Manage and trigger your YouTube automation channels.</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={() => loadData()}
+              className="h-8 w-8 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary transition-colors">
+              <RotateCw size={13} />
+            </button>
+            {/* View toggle */}
+            <div className="flex items-center gap-0.5 bg-surface-1 border border-border rounded-md p-0.5">
+              {(['table', 'grid'] as const).map(v => (
+                <button key={v} onClick={() => setViewMode(v)}
+                  className={cn('w-7 h-7 flex items-center justify-center rounded text-xs transition-colors',
+                    viewMode === v ? 'bg-surface-0 text-content-primary shadow-sm' : 'text-content-tertiary hover:text-content-secondary')}>
+                  {v === 'table' ? <Layers size={13} /> : <Boxes size={13} />}
+                </button>
+              ))}
+            </div>
+            <Link href="/dashboard/channels/new"
+              className="flex items-center gap-1.5 h-8 px-3 rounded-md bg-accent text-white text-xs font-medium hover:opacity-90 transition-opacity">
+              <Plus size={13} /> Add Channel
+            </Link>
+          </div>
+        </div>
+
+        {/* Stats strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+          {[
+            { label: 'Total',    value: tabCounts.all,      color: 'text-content-primary' },
+            { label: 'Active',   value: tabCounts.active,   color: 'text-emerald-500' },
+            { label: 'Running',  value: totalRunning,       color: 'text-accent' },
+            { label: 'Disabled', value: tabCounts.disabled, color: 'text-content-tertiary' },
+          ].map(s => (
+            <div key={s.label} className="rounded-lg border border-border bg-surface-0 px-3 py-2">
+              <div className={cn('text-xl font-bold tabular-nums leading-none', s.color)}>{s.value}</div>
+              <div className="text-[10px] text-content-tertiary mt-0.5">{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Toolbar */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-0.5 bg-surface-1 rounded-md p-0.5">
             {TABS.map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
-                className={cn('px-3 py-1.5 text-sm font-medium rounded transition-all',
+                className={cn('px-3 py-1.5 text-xs font-medium rounded transition-all',
                   tab === t.key ? 'bg-surface-0 text-content-primary shadow-sm' : 'text-content-tertiary hover:text-content-secondary')}>
                 {t.label}
-                <span className={cn('ml-1.5 text-[11px]', tab === t.key ? 'text-accent' : 'text-content-tertiary')}>
+                <span className={cn('ml-1', tab === t.key ? 'text-accent' : 'text-content-tertiary')}>
                   {tabCounts[t.key]}
                 </span>
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2">
-            <div className="relative w-80">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-content-tertiary" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
-              <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search by name, ID, niche…"
-                className="w-full pl-9 pr-8 py-2 text-xs bg-surface-0 border border-border rounded-lg text-content-primary placeholder:text-content-tertiary focus:outline-none focus:ring-1 focus:ring-accent/30 focus:border-accent/30 transition-shadow" />
-              {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-tertiary hover:text-content-primary text-xs w-5 h-5 flex items-center justify-center rounded-md hover:bg-surface-2 transition-colors">✕</button>}
-            </div>
-            <div className="relative">
-              <button onClick={() => setShowSortMenu(!showSortMenu)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-surface-1 border border-border rounded-md text-content-secondary hover:text-content-primary transition-colors">
-                <span className="text-content-tertiary">Sort</span>
-                <span className="text-content-primary">{SORT_OPTIONS.find(s => s.key === sortKey)?.label}</span>
-                <span className="text-accent">{sortDir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</span>
+          <div className="relative flex-1 min-w-[180px] max-w-sm ml-auto">
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-content-tertiary pointer-events-none" />
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search name, ID, niche…"
+              className="w-full h-8 pl-8 pr-7 rounded-md bg-surface-0 border border-border text-xs placeholder:text-content-tertiary outline-none focus:border-accent/50 transition-colors" />
+            {search && (
+              <button onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded text-content-tertiary hover:text-content-primary">
+                <X size={10} />
               </button>
-              {showSortMenu && (
-                <>
-                  <div className="fixed inset-0 z-20" onClick={() => setShowSortMenu(false)} />
-                  <div className="absolute right-0 top-9 z-30 w-40 bg-surface-0 border border-border rounded-md shadow-elevated py-1">
-                    {SORT_OPTIONS.map(s => (
-                      <button key={s.key} onClick={() => { cycleSort(s.key); setShowSortMenu(false); }}
-                        className={cn('w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between',
-                          sortKey === s.key ? 'text-accent bg-accent/5 font-medium' : 'text-content-secondary hover:bg-surface-1')}>
-                        <span>{s.label}</span>
-                        {sortKey === s.key && <span className="text-accent flex items-center gap-0.5">{sortDir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />} <span className="text-[10px] font-semibold">{sortDir === 'asc' ? 'Asc' : 'Desc'}</span></span>}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+            )}
+          </div>
+          <div className="relative">
+            <button onClick={() => setShowSortMenu(!showSortMenu)}
+              className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium bg-surface-1 border border-border rounded-md text-content-secondary hover:text-content-primary transition-colors">
+              <span className="text-content-tertiary">Sort:</span>
+              <span>{SORT_OPTIONS.find(s => s.key === sortKey)?.label}</span>
+              {sortDir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+            </button>
+            {showSortMenu && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setShowSortMenu(false)} />
+                <div className="absolute right-0 top-9 z-30 w-40 bg-surface-0 border border-border rounded-md shadow-elevated py-1">
+                  {SORT_OPTIONS.map(s => (
+                    <button key={s.key} onClick={() => { cycleSort(s.key); setShowSortMenu(false); }}
+                      className={cn('w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between',
+                        sortKey === s.key ? 'text-accent bg-accent/5 font-medium' : 'text-content-secondary hover:bg-surface-1')}>
+                      {s.label}
+                      {sortKey === s.key && (
+                        <span className="flex items-center gap-0.5 text-accent">
+                          {sortDir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Channel table */}
-      <div className="flex-1 min-h-0 max-w-[1400px] w-full mx-auto px-6 pb-4">
-        <div className={cn('card h-full flex flex-col overflow-hidden', systemStopped && 'lockdown-frost')}>
-          <div className="shrink-0 px-4 py-2.5 flex items-center bg-surface-1/50 text-[11px] font-semibold text-content-tertiary uppercase tracking-wider border-b border-border">
-            <span className="w-9"></span>
-            <span className="flex-1 min-w-0">Channel</span>
-            <span className="w-24 text-center">Status</span>
-            <span className="w-20 text-center">Delivered</span>
-            <span className="w-20 text-center">In Prog</span>
-            <span className="w-24 text-center">Weekly</span>
-            <span className="w-16 text-center">On</span>
-            <span className="w-64 text-right">Actions</span>
+      {/* ── Content ── */}
+      <div className="flex-1 min-h-0 max-w-[1400px] w-full mx-auto px-6 pb-4 overflow-y-auto">
+        {displayChannels.length === 0 ? (
+          <div className="rounded-xl border border-border bg-surface-0 p-8">
+            {debouncedSearch ? (
+              <EmptyState title={`No channels match "${debouncedSearch}"`} body="Try a different search or clear filters." />
+            ) : tab === 'archived' ? (
+              <EmptyState title="No archived channels" body="Channels you archive will appear here." />
+            ) : (
+              <EmptyState icon={Plus} title="No channels yet" body="Create your first YouTube channel to start producing videos automatically."
+                cta={{ label: 'Add your first channel', href: '/dashboard/channels/new' }} />
+            )}
           </div>
-
-          <div ref={channelListRef} className="flex-1 overflow-y-auto divide-y divide-border">
+        ) : viewMode === 'grid' ? (
+          /* ── Grid View ── */
+          <div className={cn('grid gap-3 sm:grid-cols-2 lg:grid-cols-3', systemStopped && 'lockdown-frost')}>
             {displayChannels.map((ch: any) => {
               const isDisabled = ch.status !== 'active';
               const isArchived = ch.status === 'archived';
-              const weeklyLabel = getWeeklyLabel(ch);
               const modes = getModes(ch);
               const isPinned = pinned.has(ch.channel_id);
+              const aColor = avatarColor(ch.channel_id);
+              const initials = avatarInitials(ch.channel_name);
               return (
-                <div key={ch.channel_id} className={cn(
-                  'px-4 py-3 flex items-start transition-colors group',
-                  isArchived ? 'bg-surface-1/20 opacity-60' : isDisabled ? 'bg-surface-1/30' : 'hover:bg-surface-1/50',
-                  isPinned && 'border-l-2 border-l-accent'
-                )}>
-                  <button onClick={() => togglePin(ch.channel_id)} title={isPinned ? 'Unpin' : 'Pin to top'}
-                    className={cn('w-9 shrink-0 flex items-center justify-center mt-1.5 text-content-tertiary hover:text-accent transition-colors', isPinned && 'text-accent')}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 17v5" /><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1z" />
-                    </svg>
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <Link href={`/dashboard/channels/${ch.channel_id}`} className="block">
-                      <div className="flex items-center gap-2">
-                        <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', statusDot(ch.status))} />
-                        <span className="font-medium text-sm text-content-primary truncate">{ch.channel_name}</span>
-                        <span className="badge bg-surface-2 text-content-tertiary text-[10px]">{ch.niche}</span>
-                        {modes.map((m: string) => <span key={m} className="badge bg-surface-2 text-content-tertiary text-[10px]">{m === 'short' ? 'Short' : 'Long'}</span>)}
-                        {ch.auto_upload && <span className="badge bg-accent/10 text-accent text-[10px]">Auto</span>}
-                        {isArchived && <span className="badge bg-surface-3 text-content-tertiary text-[10px]">Archived</span>}
+                <div key={ch.channel_id}
+                  className={cn(
+                    'rounded-xl border bg-surface-0 p-4 flex flex-col gap-3 transition-all hover:shadow-card',
+                    isPinned ? 'border-accent/40' : 'border-border',
+                    isArchived && 'opacity-60'
+                  )}>
+                  {/* Card header */}
+                  <div className="flex items-start gap-3">
+                    <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0', aColor)}>
+                      {initials}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <Link href={`/dashboard/channels/${ch.channel_id}`}
+                        className="font-semibold text-sm text-content-primary hover:text-accent truncate block">
+                        {ch.channel_name}
+                      </Link>
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {ch.niche && <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">{ch.niche}</span>}
+                        {modes.map((m: string) => (
+                          <span key={m} className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium',
+                            m === 'short' ? 'bg-violet-500/10 text-violet-500' : 'bg-blue-500/10 text-blue-500')}>
+                            {m === 'short' ? 'Short' : 'Long'}
+                          </span>
+                        ))}
+                        {ch.auto_upload && <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent">Auto</span>}
                       </div>
-                      <div className="text-[10px] text-content-tertiary mt-0.5 ml-3.5">{ch.channel_id}</div>
-                    </Link>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className={cn('w-1.5 h-1.5 rounded-full', statusDot(ch.status))} />
+                      {!isArchived && (
+                        <Toggle checked={ch.status === 'active'} onChange={() => toggleChannel(ch.channel_id, ch.status)} disabled={systemStopped} />
+                      )}
+                    </div>
                   </div>
-                  <div className="w-24 text-center self-center">
-                    <span className={cn('text-xs font-medium', ch.status === 'active' ? 'text-status-success' : ch.status === 'archived' ? 'text-content-tertiary' : 'text-status-warning')}>
-                      {ch.status === 'active' ? 'Active' : ch.status === 'archived' ? 'Archived' : 'Disabled'}
-                    </span>
+
+                  {/* Stats row */}
+                  <div className="grid grid-cols-3 gap-2 border-t border-border pt-3">
+                    {[
+                      { label: 'Delivered', value: ch.stats?.delivered || 0, color: 'text-emerald-500' },
+                      { label: 'Running',   value: ch.stats?.in_progress || 0, color: 'text-accent' },
+                      { label: 'Weekly',    value: getWeeklyLabel(ch) || '—', color: 'text-content-tertiary' },
+                    ].map(s => (
+                      <div key={s.label} className="text-center">
+                        <div className={cn('text-sm font-bold tabular-nums', s.color)}>{s.value}</div>
+                        <div className="text-[9px] text-content-tertiary uppercase tracking-wide">{s.label}</div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="w-20 text-center text-sm text-content-primary font-medium self-center">{ch.stats?.delivered || 0}</div>
-                  <div className="w-20 text-center text-sm text-content-tertiary self-center">{ch.stats?.in_progress || 0}</div>
-                  <div className="w-24 text-center text-xs text-content-tertiary self-center">{weeklyLabel || '—'}</div>
-                  <div className="w-16 flex justify-center self-center">
-                    {isArchived ? <span className="text-[10px] text-content-tertiary">—</span> : (
-                      <Toggle checked={ch.status === 'active'} onChange={() => toggleChannel(ch.channel_id, ch.status)} disabled={systemStopped} />
-                    )}
-                  </div>
-                  <div className="min-w-[16rem] flex justify-end items-start gap-1.5 self-center">
+
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-1.5 flex-wrap border-t border-border pt-3">
                     {isArchived ? (
                       <>
-                        <Tip text="Restore to disabled"><button onClick={() => restoreChannel(ch.channel_id)} className="px-2.5 py-1 border rounded text-[11px] font-medium text-accent bg-accent/5 border-accent/15 hover:bg-accent/10 transition-all">Restore</button></Tip>
-                        <Link href={`/dashboard/channels/${ch.channel_id}`} className="px-2.5 py-1 border rounded text-[11px] font-medium text-content-tertiary bg-surface-1 border-border hover:bg-surface-2 transition-all">View</Link>
+                        <button onClick={() => restoreChannel(ch.channel_id)}
+                          className="flex-1 h-7 rounded-md border border-accent/30 bg-accent/5 text-accent text-[11px] font-medium hover:bg-accent/10 transition-colors">
+                          Restore
+                        </button>
+                        <Link href={`/dashboard/channels/${ch.channel_id}`}
+                          className="flex-1 h-7 rounded-md border border-border bg-surface-1 text-content-tertiary text-[11px] font-medium hover:bg-surface-2 transition-colors flex items-center justify-center">
+                          View
+                        </Link>
                       </>
                     ) : (
                       <>
-                        {(() => {
-                          const hasRunning = modes.some((m: string) => ['running','paused'].includes(getModeState(ch, m)));
+                        {modes.map((m: string) => {
+                          const mState = getModeState(ch, m);
+                          const mJob = getModeJob(ch, m);
+                          const atLimit = isModeAtLimit(ch, m);
+                          const canTrigger = !isDisabled && !systemStopped && !atLimit && mState === 'idle';
+                          if (mState === 'idle') return (
+                            <button key={m} onClick={() => canTrigger && triggerChannel(ch.channel_id, m)} disabled={!canTrigger}
+                              className={cn('flex-1 h-7 rounded-md border text-[11px] font-medium flex items-center justify-center gap-1 transition-all',
+                                canTrigger
+                                  ? 'border-accent/30 bg-accent/5 text-accent hover:bg-accent/10'
+                                  : 'border-border bg-surface-2 text-content-tertiary opacity-50 cursor-not-allowed')}>
+                              <Play size={9} /> {atLimit ? 'Limit' : m === 'short' ? 'Short' : 'Long'}
+                            </button>
+                          );
+                          if (mState === 'pending_review' && mJob) return (
+                            <Link key={m} href={`/dashboard/jobs/${mJob.content_id}`}
+                              className="flex-1 h-7 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[11px] font-medium flex items-center justify-center transition-all">
+                              Review
+                            </Link>
+                          );
+                          const isBusy = mJob && busyJobs.has(mJob.content_id);
                           return (
-                            <div className={cn('flex gap-1.5', hasRunning ? 'flex-col items-end' : 'items-center')}>
-                              {modes.map((m: string) => {
-                                const mState = getModeState(ch, m);
-                                const mJob = getModeJob(ch, m);
-                                const atLimit = isModeAtLimit(ch, m);
-                                const mLabel = m === 'short' ? 'S' : 'L';
-                                if (mState === 'idle') {
-                                  const canTrigger = !isDisabled && !systemStopped && !atLimit;
-                                  return <button key={m} onClick={() => triggerChannel(ch.channel_id, m)} disabled={!canTrigger}
-                                    className={cn('px-2.5 py-1 border rounded text-[11px] font-medium transition-all',
-                                      canTrigger ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10' : 'text-content-tertiary bg-surface-2 border-border cursor-not-allowed opacity-50')}>
-                                    {atLimit ? `${mLabel} Limit` : `▶ ${m === 'short' ? 'Short' : 'Long'}`}
-                                  </button>;
-                                }
-                                if (mState === 'pending_review' && mJob) return <Link key={m} href={`/dashboard/jobs/${mJob.content_id}`} className="px-2.5 py-1 border rounded text-[11px] font-medium text-status-warning bg-status-warning/5 border-status-warning/15 hover:bg-status-warning/10 transition-all">Review ({mLabel})</Link>;
-                                const isBusy = mJob && busyJobs.has(mJob.content_id);
-                                return <div key={m} className="flex items-center gap-1">
-                                  <ProgressRing paused={mState === 'paused'} />
-                                  <span className="text-[10px] text-content-tertiary font-medium whitespace-nowrap">{mState === 'paused' ? 'Paused' : 'Running'} ({mLabel})</span>
-                                  {mJob && <>
-                                    <button onClick={() => togglePauseJob(mJob.content_id, mJob.is_paused)} disabled={isBusy as boolean}
-                                      className={cn('px-1.5 py-0.5 border rounded text-[10px] font-medium transition-all disabled:opacity-50',
-                                        mJob.is_paused ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10' : 'text-status-warning bg-status-warning/5 border-status-warning/15')}>
-                                      {isBusy ? '...' : (mJob.is_paused ? '▶' : '⏸')}
-                                    </button>
-                                    <button onClick={() => stopJob(mJob.content_id)} disabled={isBusy as boolean}
-                                      className="px-1.5 py-0.5 border rounded text-[10px] font-medium text-status-error bg-status-error/5 border-status-error/15 hover:bg-status-error/10 transition-all disabled:opacity-50">
-                                      {isBusy ? '...' : '■'}
-                                    </button>
-                                  </>}
-                                </div>;
-                              })}
+                            <div key={m} className="flex items-center gap-1 flex-1 justify-center">
+                              <ProgressRing paused={mState === 'paused'} />
+                              <span className="text-[10px] text-content-tertiary">{mState === 'paused' ? 'Paused' : 'Running'}</span>
+                              {mJob && (
+                                <>
+                                  <button onClick={() => togglePauseJob(mJob.content_id, mJob.is_paused)} disabled={!!isBusy}
+                                    className="h-5 px-1.5 rounded border text-[10px] border-border hover:bg-surface-2 text-content-tertiary disabled:opacity-50">
+                                    {isBusy ? '…' : mJob.is_paused ? '▶' : '⏸'}
+                                  </button>
+                                  <button onClick={() => stopJob(mJob.content_id)} disabled={!!isBusy}
+                                    className="h-5 px-1.5 rounded border text-[10px] border-red-500/30 bg-red-500/5 text-red-500 hover:bg-red-500/10 disabled:opacity-50">
+                                    {isBusy ? '…' : '■'}
+                                  </button>
+                                </>
+                              )}
                             </div>
                           );
-                        })()}
+                        })}
                         <Link href={`/dashboard/channels/${ch.channel_id}`}
-                          className="w-7 h-7 flex items-center justify-center rounded hover:bg-surface-2 transition-all text-content-tertiary hover:text-accent" title="Settings">
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+                          className="w-7 h-7 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary hover:text-accent transition-colors">
+                          <Settings size={12} />
                         </Link>
                         <div className="relative">
                           <button onClick={() => setActionMenu(actionMenu === ch.channel_id ? null : ch.channel_id)}
-                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-surface-2 transition-all text-content-tertiary hover:text-content-primary" title="More">
+                            className="w-7 h-7 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary transition-colors">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></svg>
                           </button>
                           {actionMenu === ch.channel_id && (
-                            <div className="absolute right-0 top-8 z-30 w-44 bg-surface-0 border border-border rounded-md shadow-elevated py-1">
-                              <button onClick={() => cloneChannel(ch.channel_id)} className="w-full text-left px-3 py-2 text-xs text-content-secondary hover:bg-surface-1">Duplicate Channel</button>
-                              <button onClick={() => exportChannel(ch.channel_id)} className="w-full text-left px-3 py-2 text-xs text-content-secondary hover:bg-surface-1">Export Config (JSON)</button>
+                            <div className="absolute right-0 bottom-8 z-30 w-44 bg-surface-0 border border-border rounded-md shadow-elevated py-1">
+                              <button onClick={() => cloneChannel(ch.channel_id)} className="w-full text-left px-3 py-2 text-xs text-content-secondary hover:bg-surface-1">Duplicate</button>
+                              <button onClick={() => exportChannel(ch.channel_id)} className="w-full text-left px-3 py-2 text-xs text-content-secondary hover:bg-surface-1">Export JSON</button>
                               <div className="border-t border-border my-1" />
-                              <button onClick={() => { setConfirmArchive(ch.channel_id); setActionMenu(null); }} className="w-full text-left px-3 py-2 text-xs text-status-warning hover:bg-status-warning/5">Archive Channel</button>
+                              <button onClick={() => { setConfirmArchive(ch.channel_id); setActionMenu(null); }} className="w-full text-left px-3 py-2 text-xs text-amber-500 hover:bg-amber-500/5">Archive</button>
                             </div>
                           )}
                         </div>
@@ -427,30 +521,202 @@ export default function ChannelsPage() {
                 </div>
               );
             })}
-            {displayChannels.length === 0 && (
-              <div className="p-6">
-                {debouncedSearch ? (
-                  <EmptyState title={`No channels match "${debouncedSearch}"`} body="Try a different search or clear filters." />
-                ) : tab === 'archived' ? (
-                  <EmptyState title="No archived channels" body="Channels you archive will appear here." />
-                ) : (
-                  <EmptyState icon={Plus} title="No channels yet" body="Create your first YouTube channel to start producing videos automatically."
-                    cta={{ label: 'Add your first channel', href: '/dashboard/channels/new' }} />
-                )}
-              </div>
-            )}
           </div>
-        </div>
+        ) : (
+          /* ── Table View ── */
+          <div className={cn('rounded-xl border border-border bg-surface-0 overflow-hidden', systemStopped && 'lockdown-frost')}>
+            <div className="shrink-0 px-4 py-2.5 grid grid-cols-[44px_1fr_100px_72px_72px_100px_56px_260px] items-center bg-surface-1/50 text-[10px] font-semibold text-content-tertiary uppercase tracking-wider border-b border-border">
+              <span />
+              <span>Channel</span>
+              <span className="text-center">Status</span>
+              <span className="text-center">Done</span>
+              <span className="text-center">Active</span>
+              <span className="text-center">Weekly</span>
+              <span className="text-center">On</span>
+              <span className="text-right">Actions</span>
+            </div>
+            <div ref={channelListRef} className="divide-y divide-border">
+              {displayChannels.map((ch: any) => {
+                const isDisabled = ch.status !== 'active';
+                const isArchived = ch.status === 'archived';
+                const weeklyLabel = getWeeklyLabel(ch);
+                const modes = getModes(ch);
+                const isPinned = pinned.has(ch.channel_id);
+                const aColor = avatarColor(ch.channel_id);
+                const initials = avatarInitials(ch.channel_name);
+                return (
+                  <div key={ch.channel_id}
+                    className={cn(
+                      'px-4 py-3 grid grid-cols-[44px_1fr_100px_72px_72px_100px_56px_260px] items-center transition-colors group',
+                      isArchived ? 'opacity-60 bg-surface-1/20' : isDisabled ? 'bg-surface-1/20' : 'hover:bg-surface-1/50',
+                      isPinned && 'border-l-2 border-l-accent'
+                    )}>
+                    {/* Pin + avatar */}
+                    <div className="flex items-center justify-start gap-1.5">
+                      <button onClick={() => togglePin(ch.channel_id)} title={isPinned ? 'Unpin' : 'Pin'}
+                        className={cn('w-5 h-5 flex items-center justify-center rounded text-content-tertiary hover:text-accent transition-colors', isPinned && 'text-accent')}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 17v5" /><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1z" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {/* Channel identity */}
+                    <div className="flex items-center gap-2.5 min-w-0 pr-3">
+                      <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs shrink-0', aColor)}>
+                        {initials}
+                      </div>
+                      <Link href={`/dashboard/channels/${ch.channel_id}`} className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-medium text-sm text-content-primary hover:text-accent truncate">{ch.channel_name}</span>
+                          {ch.niche && <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">{ch.niche}</span>}
+                          {modes.map((m: string) => (
+                            <span key={m} className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium',
+                              m === 'short' ? 'bg-violet-500/10 text-violet-500' : 'bg-blue-500/10 text-blue-500')}>
+                              {m === 'short' ? 'S' : 'L'}
+                            </span>
+                          ))}
+                          {ch.auto_upload && <span className="text-[10px] px-1 py-0.5 rounded bg-accent/10 text-accent">Auto</span>}
+                          {isArchived && <span className="text-[10px] px-1 py-0.5 rounded bg-surface-3 text-content-tertiary">Archived</span>}
+                        </div>
+                        <div className="text-[10px] text-content-tertiary mt-0.5 font-mono truncate">{ch.channel_id}</div>
+                      </Link>
+                    </div>
+
+                    {/* Status */}
+                    <div className="text-center">
+                      <span className={cn('text-xs font-medium',
+                        ch.status === 'active' ? 'text-emerald-500' :
+                        ch.status === 'archived' ? 'text-content-tertiary' : 'text-amber-500')}>
+                        {ch.status === 'active' ? '● Active' : ch.status === 'archived' ? '⊘ Archived' : '○ Disabled'}
+                      </span>
+                    </div>
+
+                    {/* Delivered */}
+                    <div className="text-center text-sm font-semibold text-content-primary tabular-nums">{ch.stats?.delivered || 0}</div>
+
+                    {/* In progress */}
+                    <div className="text-center text-sm text-content-tertiary tabular-nums">{ch.stats?.in_progress || 0}</div>
+
+                    {/* Weekly */}
+                    <div className="text-center text-xs text-content-tertiary font-mono">{weeklyLabel || '—'}</div>
+
+                    {/* Toggle */}
+                    <div className="flex justify-center">
+                      {isArchived ? <span className="text-[10px] text-content-tertiary">—</span> : (
+                        <Toggle checked={ch.status === 'active'} onChange={() => toggleChannel(ch.channel_id, ch.status)} disabled={systemStopped} />
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-end gap-1.5">
+                      {isArchived ? (
+                        <>
+                          <Tip text="Restore to disabled">
+                            <button onClick={() => restoreChannel(ch.channel_id)}
+                              className="h-7 px-2.5 border rounded-md text-[11px] font-medium text-accent bg-accent/5 border-accent/15 hover:bg-accent/10 transition-all">
+                              Restore
+                            </button>
+                          </Tip>
+                          <Link href={`/dashboard/channels/${ch.channel_id}`}
+                            className="h-7 px-2.5 border rounded-md text-[11px] font-medium text-content-tertiary bg-surface-1 border-border hover:bg-surface-2 transition-all flex items-center">
+                            View
+                          </Link>
+                        </>
+                      ) : (
+                        <>
+                          {(() => {
+                            const hasRunning = modes.some((m: string) => ['running','paused'].includes(getModeState(ch, m)));
+                            return (
+                              <div className={cn('flex gap-1', hasRunning ? 'flex-col items-end' : 'items-center')}>
+                                {modes.map((m: string) => {
+                                  const mState = getModeState(ch, m);
+                                  const mJob = getModeJob(ch, m);
+                                  const atLimit = isModeAtLimit(ch, m);
+                                  const mLabel = m === 'short' ? 'S' : 'L';
+                                  if (mState === 'idle') {
+                                    const canTrigger = !isDisabled && !systemStopped && !atLimit;
+                                    return (
+                                      <button key={m} onClick={() => triggerChannel(ch.channel_id, m)} disabled={!canTrigger}
+                                        className={cn('h-7 px-2.5 border rounded-md text-[11px] font-medium flex items-center gap-1 transition-all',
+                                          canTrigger
+                                            ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
+                                            : 'text-content-tertiary bg-surface-2 border-border opacity-50 cursor-not-allowed')}>
+                                        <Play size={9} /> {atLimit ? `${mLabel} Limit` : m === 'short' ? 'Short' : 'Long'}
+                                      </button>
+                                    );
+                                  }
+                                  if (mState === 'pending_review' && mJob) return (
+                                    <Link key={m} href={`/dashboard/jobs/${mJob.content_id}`}
+                                      className="h-7 px-2.5 border rounded-md text-[11px] font-medium text-amber-500 bg-amber-500/5 border-amber-500/30 hover:bg-amber-500/10 transition-all flex items-center">
+                                      Review ({mLabel})
+                                    </Link>
+                                  );
+                                  const isBusy = mJob && busyJobs.has(mJob.content_id);
+                                  return (
+                                    <div key={m} className="flex items-center gap-1">
+                                      <ProgressRing paused={mState === 'paused'} />
+                                      <span className="text-[10px] text-content-tertiary whitespace-nowrap">{mState === 'paused' ? 'Paused' : 'Running'} ({mLabel})</span>
+                                      {mJob && (
+                                        <>
+                                          <button onClick={() => togglePauseJob(mJob.content_id, mJob.is_paused)} disabled={!!isBusy}
+                                            className={cn('h-5 px-1.5 border rounded text-[10px] font-medium transition-all disabled:opacity-50',
+                                              mJob.is_paused ? 'text-accent border-accent/20 bg-accent/5' : 'text-amber-500 border-amber-500/20 bg-amber-500/5')}>
+                                            {isBusy ? '…' : mJob.is_paused ? '▶' : '⏸'}
+                                          </button>
+                                          <button onClick={() => stopJob(mJob.content_id)} disabled={!!isBusy}
+                                            className="h-5 px-1.5 border rounded text-[10px] font-medium text-red-500 border-red-500/20 bg-red-500/5 hover:bg-red-500/10 transition-all disabled:opacity-50">
+                                            {isBusy ? '…' : '■'}
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
+                          <Link href={`/dashboard/channels/${ch.channel_id}`}
+                            className="w-7 h-7 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary hover:text-accent transition-all">
+                            <Settings size={12} />
+                          </Link>
+                          <div className="relative">
+                            <button onClick={() => setActionMenu(actionMenu === ch.channel_id ? null : ch.channel_id)}
+                              className="w-7 h-7 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary transition-all">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></svg>
+                            </button>
+                            {actionMenu === ch.channel_id && (
+                              <div className="absolute right-0 top-8 z-30 w-44 bg-surface-0 border border-border rounded-md shadow-elevated py-1">
+                                <button onClick={() => cloneChannel(ch.channel_id)} className="w-full text-left px-3 py-2 text-xs text-content-secondary hover:bg-surface-1">Duplicate Channel</button>
+                                <button onClick={() => exportChannel(ch.channel_id)} className="w-full text-left px-3 py-2 text-xs text-content-secondary hover:bg-surface-1">Export Config (JSON)</button>
+                                <div className="border-t border-border my-1" />
+                                <button onClick={() => { setConfirmArchive(ch.channel_id); setActionMenu(null); }} className="w-full text-left px-3 py-2 text-xs text-amber-500 hover:bg-amber-500/5">Archive Channel</button>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
+      {/* ── Archive confirm modal ── */}
       {confirmArchive && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="card p-6 max-w-md w-full mx-4">
-            <h3 className="text-sm font-semibold text-content-primary mb-2">Archive Channel?</h3>
-            <p className="text-xs text-content-tertiary mb-4"><span className="font-medium text-content-secondary">{confirmArchive}</span> will be removed from the active list. Configuration and history preserved.</p>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setConfirmArchive(null)} className="px-3 py-1.5 text-xs font-medium border border-border rounded hover:bg-surface-2">Cancel</button>
-              <button onClick={() => archiveChannel(confirmArchive)} className="px-3 py-1.5 text-xs font-semibold bg-status-warning text-white rounded hover:opacity-90">Archive</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="rounded-xl bg-surface-0 border border-border shadow-elevated p-5 max-w-sm w-full space-y-3">
+            <h3 className="text-sm font-semibold text-content-primary">Archive channel?</h3>
+            <p className="text-xs text-content-tertiary">
+              <span className="font-medium text-content-secondary">{confirmArchive}</span> will be hidden from the active list.
+              All configuration and history is preserved and can be restored.
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setConfirmArchive(null)} className="h-8 px-3 rounded-md border border-border text-xs text-content-secondary hover:bg-surface-2">Cancel</button>
+              <button onClick={() => archiveChannel(confirmArchive)} className="h-8 px-3 rounded-md bg-amber-500 text-white text-xs font-semibold hover:opacity-90">Archive</button>
             </div>
           </div>
         </div>

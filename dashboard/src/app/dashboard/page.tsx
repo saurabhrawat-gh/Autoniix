@@ -11,7 +11,7 @@ import { AnimatedNumber } from '@/lib/components/AnimatedNumber';
 import {
   Tv, Film, Activity, Settings, RefreshCw,
   AlertTriangle, CheckCircle2, Clock, ClipboardCheck, ShieldCheck, ShieldAlert,
-  TrendingUp,
+  TrendingUp, Archive, FlaskConical, LayoutDashboard, Users,
 } from '@/lib/components/Icon';
 
 const JOB_STATUS_ICON: Record<string, React.ReactNode> = {
@@ -97,8 +97,49 @@ export default function DashboardPage() {
   const budgetPct   = dailyLimit > 0 ? Math.min(100, Math.round((costToday / dailyLimit) * 100)) : null;
   const systemHealthy = !systemStopped && failedJobs.length === 0;
 
+  const quickActions = [
+    { label: 'Channels',    href: '/dashboard/channels',    icon: <Tv size={14} />,           color: 'text-accent' },
+    { label: 'Content',     href: '/dashboard/content',     icon: <Film size={14} />,          color: 'text-blue-500' },
+    { label: 'Review',      href: '/dashboard/review',      icon: <ClipboardCheck size={14} />, color: 'text-amber-500', badge: pendingReview.length || undefined },
+    { label: 'Library',     href: '/dashboard/library',     icon: <Archive size={14} />,       color: 'text-violet-500' },
+    { label: 'Experiments', href: '/dashboard/experiments', icon: <FlaskConical size={14} />,  color: 'text-pink-500' },
+    { label: 'Queue',       href: '/dashboard/queue',       icon: <Activity size={14} />,      color: 'text-emerald-500', badge: runningJobs.length || undefined },
+    { label: 'Team',        href: '/dashboard/users',       icon: <Users size={14} />,         color: 'text-teal-500' },
+    { label: 'Settings',    href: '/dashboard/settings',    icon: <Settings size={14} />,      color: 'text-content-tertiary' },
+  ];
+
   return (
-    <main className="flex-1 px-4 sm:px-6 py-6 max-w-[1400px] mx-auto w-full space-y-6">
+    <main className="flex-1 px-4 sm:px-6 py-6 max-w-[1400px] mx-auto w-full space-y-5">
+      {/* ── Page header ── */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-content-primary flex items-center gap-2">
+            <LayoutDashboard size={18} className="text-accent" /> Mission Control
+          </h1>
+          <p className="text-xs text-content-tertiary mt-0.5">Live pipeline overview — real-time stats and activity feed.</p>
+        </div>
+        <button onClick={refresh} disabled={refreshing}
+          className="h-8 w-8 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary transition-colors">
+          <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+        </button>
+      </div>
+
+      {/* ── Quick actions ── */}
+      <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+        {quickActions.map(a => (
+          <Link key={a.href} href={a.href}
+            className="relative flex flex-col items-center gap-1.5 rounded-xl border border-border bg-surface-0 px-2 py-3 hover:bg-surface-1 hover:border-border-hover transition-all text-center group">
+            <span className={cn('transition-colors group-hover:scale-110 transform transition-transform', a.color)}>{a.icon}</span>
+            <span className="text-[10px] text-content-tertiary group-hover:text-content-secondary leading-none">{a.label}</span>
+            {a.badge != null && a.badge > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-accent text-white text-[9px] font-bold flex items-center justify-center">
+                {a.badge}
+              </span>
+            )}
+          </Link>
+        ))}
+      </div>
+
       {/* ── Env / system banners ── */}
       {systemStopped && (
         <div className="p-3 rounded-md bg-red-500/10 border border-red-500/20 flex items-center gap-3">
@@ -128,7 +169,7 @@ export default function DashboardPage() {
       )}
 
       {/* ── Primary stats row ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 !mt-4">
         {loading ? Array.from({ length: 4 }).map((_, i) => (
           <Skeleton key={i} className="h-24 w-full rounded-md" />
         )) : (<>
@@ -200,7 +241,7 @@ export default function DashboardPage() {
             <span className="font-semibold text-amber-400">{pendingReview.length} video{pendingReview.length > 1 ? 's' : ''} pending review</span>
             <span className="text-content-tertiary ml-2">Approve or reject before upload.</span>
           </div>
-          <Link href="/dashboard/content?review_state=pending"
+          <Link href="/dashboard/review"
             className="inline-flex items-center gap-1.5 h-7 px-3 rounded-md bg-amber-500 text-white text-xs font-medium hover:opacity-90 transition-opacity shrink-0">
             Review now →
           </Link>
@@ -208,7 +249,7 @@ export default function DashboardPage() {
       )}
 
       {/* ── Live activity ── */}
-      <div className="rounded-md border border-border bg-surface-0">
+      <div className="rounded-xl border border-border bg-surface-0">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h2 className="text-sm font-semibold text-content-primary">Live activity</h2>
           <button onClick={refresh} disabled={refreshing}
@@ -318,10 +359,10 @@ function StatCard({
     </>
   );
 
-  const baseClass = 'rounded-md border border-border bg-surface-0 p-4 transition-colors';
+  const baseClass = 'rounded-xl border border-border bg-surface-0 p-4 transition-colors';
   if (href) {
     return (
-      <Link href={href} className={cn(baseClass, 'block hover:border-accent/40 hover:bg-surface-1')}>
+      <Link href={href} className={cn(baseClass, 'block hover:border-accent/40 hover:bg-surface-1 hover:shadow-card')}>
         {inner}
       </Link>
     );

@@ -1,0 +1,324 @@
+'use client';
+
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import Link from 'next/link';
+import { reviewApi, channelsApi } from '@/lib/api-v2';
+import { cn } from '@/lib/utils';
+import { useToast } from '@/lib/toast';
+import {
+  Search, X, ClipboardCheck, ChevronRight, RotateCw,
+  Inbox, ThumbsUp, ThumbsDown,
+} from '@/lib/components/Icon';
+
+const STATE_TABS = [
+  { key: 'pending',     label: 'Pending',     color: 'text-amber-500',   bg: 'bg-amber-500/10 text-amber-500' },
+  { key: 'needs_edits', label: 'Needs edits', color: 'text-orange-500',  bg: 'bg-orange-500/10 text-orange-500' },
+  { key: 'approved',    label: 'Approved',    color: 'text-emerald-500', bg: 'bg-emerald-500/10 text-emerald-500' },
+  { key: 'rejected',    label: 'Rejected',    color: 'text-red-500',     bg: 'bg-red-500/10 text-red-500' },
+  { key: 'regenerating',label: 'Regenerating',color: 'text-accent',      bg: 'bg-accent/10 text-accent' },
+];
+
+const PRIORITY_MAP: Record<string, { label: string; color: string }> = {
+  approved:     { label: 'Done',       color: 'text-emerald-500' },
+  rejected:     { label: 'Rejected',   color: 'text-red-500' },
+  needs_edits:  { label: 'Edits',      color: 'text-orange-500' },
+  pending:      { label: 'Pending',    color: 'text-amber-500' },
+  regenerating: { label: 'Regen…',     color: 'text-accent' },
+};
+
+export default function ReviewQueuePage() {
+  const { showToast } = useToast();
+  const [tab, setTab] = useState('pending');
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [channels, setChannels] = useState<any[]>([]);
+  const [selChannel, setSelChannel] = useState('');
+  const [q, setQ] = useState('');
+  const [counts, setCounts] = useState<Record<string, number>>({});
+
+  const load = useCallback(async (state: string) => {
+    setLoading(true);
+    try {
+      const r = await reviewApi.queue(state, selChannel || undefined, 200);
+      setItems((r as any).data?.data || r.data || []);
+    } finally { setLoading(false); }
+  }, [selChannel]);
+
+  useEffect(() => { channelsApi.list(false).then(r => setChannels(r.data || [])); }, []);
+  useEffect(() => { load(tab); }, [tab, selChannel, load]);
+
+  // Fetch all-state counts in parallel for the header stats
+  useEffect(() => {
+    Promise.all(
+      STATE_TABS.map(t =>
+        reviewApi.queue(t.key, undefined, 200)
+          .then(r => ({ key: t.key, count: ((r as any).data?.data || r.data || []).length }))
+          .catch(() => ({ key: t.key, count: 0 }))
+      )
+    ).then(results => {
+      const map: Record<string, number> = {};
+      results.forEach(r => { map[r.key] = r.count; });
+      setCounts(map);
+    });
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (!q) return items;
+    const lq = q.toLowerCase();
+    return items.filter(v =>
+      (v.title || v.topic || v.content_id || '').toLowerCase().includes(lq) ||
+      (v.channel_name || v.channel_id || '').toLowerCase().includes(lq)
+    );
+  }, [items, q]);
+
+  const channelName = (v: any) =>
+    channels.find(c => c.channel_id === v.channel_id)?.channel_name || v.channel_id || '—';
+
+  const quickDecide = async (v: any, decision: string) => {
+    try {
+      await reviewApi.decide(v.content_id, decision);
+      showToast(`${decision === 'approve' ? 'Approved' : 'Rejected'}: ${v.title || v.content_id}`, 'success');
+      load(tab);
+    } catch (e: any) { showToast(e?.message || 'Failed', 'error'); }
+  };
+
+  return (
+    <main className="flex-1 flex flex-col min-h-0 px-4 sm:px-6 py-6 max-w-[1400px] mx-auto w-full">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 mb-5">
+        <div>
+          <h1 className="text-xl font-semibold text-content-primary flex items-center gap-2">
+            <ClipboardCheck size={18} className="text-accent" /> Review Queue
+          </h1>
+          <p className="text-xs text-content-tertiary mt-0.5">
+            Human review gate — approve, reject, or request edits before videos are delivered.
+          </p>
+        </div>
+        <button onClick={() => load(tab)} disabled={loading}
+          className="h-8 w-8 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary transition-colors shrink-0">
+          <RotateCw size={13} className={cn(loading && 'animate-spin')} />
+        </button>
+      </div>
+
+      {/* Stats strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
+        {STATE_TABS.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={cn(
+              'rounded-lg border px-3 py-2 text-left transition-all',
+              tab === t.key ? 'border-accent/40 bg-accent/5 shadow-sm' : 'border-border bg-surface-0 hover:bg-surface-1'
+            )}>
+            <div className={cn('text-xl font-bold tabular-nums leading-none', t.color)}>
+              {counts[t.key] ?? '—'}
+            </div>
+            <div className="text-[10px] text-content-tertiary mt-0.5">{t.label}</div>
+          </button>
+        ))}
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        {/* State tabs */}
+        <div className="flex items-center gap-0.5 bg-surface-1 rounded-md p-0.5">
+          {STATE_TABS.map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className={cn(
+                'px-3 py-1.5 rounded text-xs font-medium transition-all',
+                tab === t.key
+                  ? 'bg-surface-0 text-content-primary shadow-sm'
+                  : 'text-content-tertiary hover:text-content-secondary'
+              )}>
+              {t.label}
+              {counts[t.key] != null && counts[t.key] > 0 && (
+                <span className={cn('ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold', t.bg)}>
+                  {counts[t.key]}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Channel filter */}
+        <select value={selChannel} onChange={e => setSelChannel(e.target.value)}
+          className="h-8 px-2.5 rounded-md bg-surface-0 border border-border text-xs focus:outline-none focus:border-accent/50">
+          <option value="">All channels</option>
+          {channels.map(c => <option key={c.channel_id} value={c.channel_id}>{c.channel_name}</option>)}
+        </select>
+
+        {/* Search */}
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-content-tertiary pointer-events-none" />
+          <input value={q} onChange={e => setQ(e.target.value)}
+            placeholder="Search title or channel…"
+            className="w-full h-8 pl-8 pr-7 rounded-md bg-surface-0 border border-border text-xs placeholder:text-content-tertiary outline-none focus:border-accent/50 transition-colors" />
+          {q && (
+            <button onClick={() => setQ('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded text-content-tertiary hover:text-content-primary">
+              <X size={10} />
+            </button>
+          )}
+        </div>
+
+        <span className="text-xs text-content-tertiary ml-auto whitespace-nowrap">
+          {filtered.length} item{filtered.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      {/* Queue list */}
+      <div className="flex-1 min-h-0 rounded-xl border border-border bg-surface-0 overflow-hidden flex flex-col">
+        {/* Column headers */}
+        <div className="shrink-0 grid grid-cols-[1fr_140px_90px_80px_120px] px-4 py-2.5 border-b border-border bg-surface-1/50 text-[10px] font-semibold uppercase tracking-wider text-content-tertiary">
+          <span>Title / Channel</span>
+          <span className="text-center">Status</span>
+          <span className="text-center hidden sm:block">Mode</span>
+          <span className="text-center hidden md:block">Score</span>
+          <span className="text-right pr-1">Actions</span>
+        </div>
+
+        {/* Rows */}
+        <div className="flex-1 overflow-y-auto divide-y divide-border">
+          {loading && items.length === 0 ? (
+            <div className="divide-y divide-border">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="px-4 py-3 flex items-center gap-3 animate-pulse">
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 w-2/3 bg-surface-2 rounded" />
+                    <div className="h-2 w-1/3 bg-surface-2 rounded" />
+                  </div>
+                  <div className="w-20 h-5 bg-surface-2 rounded" />
+                  <div className="w-24 h-6 bg-surface-2 rounded" />
+                </div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <Inbox size={36} className="text-content-tertiary opacity-30" />
+              <div className="text-sm font-medium text-content-primary">
+                {tab === 'pending' ? 'Queue is empty' : `No ${tab.replace('_', ' ')} items`}
+              </div>
+              <div className="text-xs text-content-tertiary">
+                {tab === 'pending'
+                  ? 'No videos are waiting for human review right now.'
+                  : 'Nothing in this state at the moment.'}
+              </div>
+            </div>
+          ) : (
+            filtered.map((v: any) => (
+              <ReviewRow
+                key={v.content_id}
+                v={v}
+                channelName={channelName(v)}
+                tab={tab}
+                onApprove={() => quickDecide(v, 'approve')}
+                onReject={() => quickDecide(v, 'reject')}
+              />
+            ))
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="shrink-0 px-4 py-2 border-t border-border bg-surface-1/30 text-[10px] text-content-tertiary">
+          {filtered.length} of {items.length} items shown
+          {tab === 'pending' && items.length > 0 && (
+            <span className="ml-2 text-amber-500 font-medium">● {items.length} awaiting decision</span>
+          )}
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function ReviewRow({
+  v, channelName, tab, onApprove, onReject,
+}: {
+  v: any;
+  channelName: string;
+  tab: string;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  const isPending = tab === 'pending' || tab === 'needs_edits';
+  const stateInfo = PRIORITY_MAP[v.review_state] || PRIORITY_MAP[tab];
+  const score = v.authenticity_score != null ? Number(v.authenticity_score).toFixed(2) : null;
+
+  return (
+    <div className="grid grid-cols-[1fr_140px_90px_80px_120px] items-center px-4 py-3 hover:bg-surface-1/60 transition-colors group">
+      {/* Title + channel */}
+      <div className="min-w-0 pr-3">
+        <Link href={`/dashboard/review/${v.content_id}`}
+          className="text-sm font-medium text-content-primary hover:text-accent hover:underline truncate block">
+          {v.title || v.topic || v.content_id}
+        </Link>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[10px] text-content-tertiary truncate">{channelName}</span>
+          {v.created_at && (
+            <>
+              <span className="text-content-tertiary opacity-40">·</span>
+              <span className="text-[10px] text-content-tertiary whitespace-nowrap">
+                {new Date(v.created_at).toLocaleDateString()}
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Review state */}
+      <div className="flex justify-center">
+        <span className={cn(
+          'text-[10px] font-medium px-2 py-0.5 rounded-full',
+          stateInfo?.color || 'text-content-tertiary',
+          'bg-current/10'
+        )}>
+          {(v.review_state || tab).replace('_', ' ')}
+        </span>
+      </div>
+
+      {/* Mode */}
+      <div className="hidden sm:flex justify-center">
+        <span className={cn(
+          'text-[10px] font-medium px-2 py-0.5 rounded',
+          v.content_mode === 'short'
+            ? 'bg-violet-500/10 text-violet-500'
+            : 'bg-blue-500/10 text-blue-500'
+        )}>
+          {v.content_mode === 'short' ? 'Short' : 'Long'}
+        </span>
+      </div>
+
+      {/* Score */}
+      <div className="hidden md:flex justify-center">
+        {score ? (
+          <span className={cn(
+            'text-xs font-mono',
+            Number(score) >= 8 ? 'text-emerald-500' :
+            Number(score) >= 6 ? 'text-amber-500' : 'text-red-500'
+          )}>
+            {score}
+          </span>
+        ) : (
+          <span className="text-[11px] text-content-tertiary">—</span>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center justify-end gap-1 pr-1">
+        {isPending && (
+          <>
+            <button onClick={onApprove} title="Quick approve"
+              className="w-7 h-7 flex items-center justify-center rounded hover:bg-emerald-500/10 text-content-tertiary hover:text-emerald-500 transition-colors">
+              <ThumbsUp size={13} />
+            </button>
+            <button onClick={onReject} title="Quick reject"
+              className="w-7 h-7 flex items-center justify-center rounded hover:bg-red-500/10 text-content-tertiary hover:text-red-500 transition-colors">
+              <ThumbsDown size={13} />
+            </button>
+          </>
+        )}
+        <Link href={`/dashboard/review/${v.content_id}`} title="Open review"
+          className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent/10 text-content-tertiary hover:text-accent transition-colors">
+          <ChevronRight size={14} />
+        </Link>
+      </div>
+    </div>
+  );
+}
