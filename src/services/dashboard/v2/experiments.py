@@ -1,6 +1,6 @@
 """A/B testing — proxy to the Admin service's experiments API.
 
-The Admin service (``http://admin:8023``) owns the canonical endpoints
+The Admin service (``http://admin:8009``) owns the canonical endpoints
 under :pyfunc:`src.services.experiments.ab_framework`. We expose a thin
 v2 wrapper so the dashboard UI can use a single ``/api/v2/...`` namespace
 and benefit from the principal/role checks and audit logging.
@@ -17,7 +17,7 @@ from ._deps import Principal, audit, principal_dep, require_role
 
 router = APIRouter()
 
-ADMIN_BASE = "http://admin:8023"
+ADMIN_BASE = "http://admin:8009"
 
 
 class ExperimentCreateIn(BaseModel):

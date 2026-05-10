@@ -19,10 +19,12 @@ from . import (
     content as _content,
     experiments as _experiments,
     flags as _flags,
+    jobs as _jobs,
     library as _library,
     notifications as _notifications,
     providers as _providers,
     review as _review,
+    system as _system,
     users as _users,
     workspace as _workspace,
 )
@@ -33,7 +35,9 @@ router.include_router(_auth.router,          prefix="/auth",          tags=["v2.
 router.include_router(_users.router,         prefix="/users",         tags=["v2.users"])
 router.include_router(_channels.router,      prefix="/channels",      tags=["v2.channels"])
 router.include_router(_providers.router,     prefix="/providers",     tags=["v2.providers"])
+router.include_router(_jobs.router,          prefix="/jobs",          tags=["v2.jobs"])
 router.include_router(_content.router,       prefix="/content",       tags=["v2.content"])
+router.include_router(_system.router,        prefix="/system",        tags=["v2.system"])
 router.include_router(_review.router,        prefix="/review",        tags=["v2.review"])
 router.include_router(_notifications.router, prefix="/notifications", tags=["v2.notifications"])
 router.include_router(_library.router,       prefix="/library",       tags=["v2.library"])

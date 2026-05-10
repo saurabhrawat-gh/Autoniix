@@ -607,7 +607,9 @@ async def sandbox_run(
         raise HTTPException(400, "API key not found in vault — add credential first")
 
     started = time.perf_counter()
-    ok, error, output: bool = False, None, {}
+    ok: bool = False
+    error: str | None = None
+    output: dict = {}
     cost_usd = None
 
     try:

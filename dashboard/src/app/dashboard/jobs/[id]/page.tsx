@@ -4,7 +4,8 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { api, isLoggedIn, wsProgress } from '@/lib/api';
+import { jobsApi, dashboardApi } from '@/lib/api-v2';
+import { isLoggedIn, wsProgress } from '@/lib/api';
 import { cn, statusColor, PHASE_LABELS, PHASE_ORDER } from '@/lib/utils';
 import { StatusIcon } from '@/lib/components/StatusIcon';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -30,9 +31,9 @@ export default function JobDetailPage() {
 
   const loadAll = useCallback(async () => {
     const [p, o, m] = await Promise.all([
-      api.jobProgress(contentId).catch(() => null),
-      api.jobOutput(contentId).catch(() => null),
-      api.jobMetadata(contentId).catch(() => null),
+      jobsApi.progress(contentId).catch(() => null),
+      jobsApi.output(contentId).catch(() => null),
+      jobsApi.metadata(contentId).catch(() => null),
     ]);
     if (p) setProgress(p.data);
     if (o) {
@@ -64,7 +65,7 @@ export default function JobDetailPage() {
     if (!isLoggedIn()) { router.replace('/login'); return; }
     loadAll();
     connectWs();
-    api.stats().then(res => setSystemStopped(res.data?.emergency_stop === true)).catch(() => {});
+    dashboardApi.stats().then(res => setSystemStopped(res.data?.emergency_stop === true)).catch(() => {});
     return () => { wsRef.current?.close(); };
   }, [router, contentId, loadAll, connectWs]);
 
@@ -77,7 +78,7 @@ export default function JobDetailPage() {
   async function handleApprove() {
     setReviewAction('approving');
     try {
-      await api.approveJob(contentId);
+      await jobsApi.approve(contentId);
       setReviewAction('approved');
       showToast('Video approved', 'success');
     } catch (e: any) {
@@ -89,7 +90,7 @@ export default function JobDetailPage() {
   async function handleReject() {
     setReviewAction('rejecting');
     try {
-      await api.rejectJob(contentId);
+      await jobsApi.reject(contentId);
       setReviewAction('rejected');
       showToast('Video rejected', 'info');
     } catch (e: any) {
@@ -125,9 +126,9 @@ export default function JobDetailPage() {
     if (retryBusy) return;
     setRetryBusy(true);
     try {
-      const res = await api.retryJob(contentId);
+      const res = await jobsApi.retry(contentId);
       showToast('New video started', 'success');
-      const newId = res?.data?.new_content_id;
+      const newId = (res as any)?.data?.new_content_id;
       if (newId) {
         router.push(`/dashboard/jobs/${newId}`);
       } else {
@@ -144,8 +145,8 @@ export default function JobDetailPage() {
     if (restartBusy) return;
     setRestartBusy(true);
     try {
-      const res = await api.restartJob(contentId);
-      showToast(`Restarting from ${PHASE_LABELS[res?.data?.resume_from] || res?.data?.resume_from || 'checkpoint'}`, 'success');
+      const res = await jobsApi.restart(contentId);
+      showToast(`Restarting from ${PHASE_LABELS[(res as any)?.data?.resume_from] || (res as any)?.data?.resume_from || 'checkpoint'}`, 'success');
       loadAll();
     } catch (e: any) {
       showToast(e?.message || 'Restart failed', 'error');
@@ -464,7 +465,7 @@ export default function JobDetailPage() {
                         <button
                           onClick={async () => {
                             try {
-                              await api.restartJob(contentId);
+                              await jobsApi.restart(contentId);
                               showToast('Re-rendering video...', 'success');
                               loadAll();
                             } catch { showToast('Recreate failed', 'error'); }

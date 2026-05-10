@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { api, isLoggedIn, wsEvents } from '@/lib/api';
+import { jobsApi, dashboardApi } from '@/lib/api-v2';
+import { isLoggedIn, wsEvents } from '@/lib/api';
 import { cn, PHASE_ORDER, PHASE_LABELS } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import { PageHeader } from '@/lib/components/PageHeader';
@@ -46,7 +47,7 @@ export default function ProgressPage() {
 
   const loadJobs = useCallback(async () => {
     try {
-      const res = await api.activeJobs();
+      const res = await jobsApi.active();
       setJobs(res.data || []);
     } catch (e: any) {
       showToast(e?.message || 'Failed to load jobs', 'error');
@@ -62,7 +63,7 @@ export default function ProgressPage() {
   useEffect(() => {
     if (!isLoggedIn()) { router.replace('/login'); return; }
     loadJobs();
-    api.stats().then(res => setSystemStopped(res.data?.emergency_stop === true)).catch(() => {});
+    dashboardApi.stats().then(res => setSystemStopped(res.data?.emergency_stop === true)).catch(() => {});
   }, [router, loadJobs]);
 
   useEffect(() => {
@@ -126,7 +127,7 @@ export default function ProgressPage() {
     const cid = expanded;
     async function fetchTimeline() {
       try {
-        const res = await api.jobProgress(cid);
+        const res = await jobsApi.progress(cid);
         if (!cancelled) {
           setTimelines(prev => ({ ...prev, [cid]: res.data?.timeline || [] }));
           setTimelineLoaded(prev => new Set(prev).add(cid));
@@ -163,7 +164,7 @@ export default function ProgressPage() {
     markBusy(contentId);
     patchJob(contentId, { is_paused: true });
     try {
-      await api.pauseJob(contentId);
+      await jobsApi.pause(contentId);
       await loadJobs();
     } catch (e: any) {
       if (prev) patchJob(contentId, { is_paused: prev.is_paused });
@@ -177,7 +178,7 @@ export default function ProgressPage() {
     markBusy(contentId);
     patchJob(contentId, { is_paused: false });
     try {
-      await api.resumeJob(contentId);
+      await jobsApi.resume(contentId);
       await loadJobs();
     } catch (e: any) {
       if (prev) patchJob(contentId, { is_paused: prev.is_paused });
@@ -191,7 +192,7 @@ export default function ProgressPage() {
     markBusy(contentId);
     patchJob(contentId, { status: 'stopped', is_paused: false });
     try {
-      await api.stopJob(contentId);
+      await jobsApi.stop(contentId);
       await loadJobs();
     } catch (e: any) {
       if (prev) patchJob(contentId, { status: prev.status, is_paused: prev.is_paused });
@@ -204,7 +205,7 @@ export default function ProgressPage() {
     if (retryingJobs.has(contentId)) return;
     setRetryingJobs(prev => new Set(prev).add(contentId));
     try {
-      await api.retryJob(contentId);
+      await jobsApi.retry(contentId);
       showToast('New video started', 'success');
       await loadJobs();
     } catch (e: any) {
@@ -218,7 +219,7 @@ export default function ProgressPage() {
     if (restartingJobs.has(contentId)) return;
     setRestartingJobs(prev => new Set(prev).add(contentId));
     try {
-      await api.restartJob(contentId);
+      await jobsApi.restart(contentId);
       showToast(`Restarting from ${PHASE_LABELS[checkpoint] || checkpoint}`, 'success');
       await loadJobs();
     } catch (e: any) {

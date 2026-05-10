@@ -2000,7 +2000,7 @@ _FLEET_SERVICES: dict[str, str] = {
     "analytics":  "http://analytics:8020/health",
     "brand":      "http://brand:8021/health",
     "editor":     "http://editor:8022/health",
-    "admin":      "http://admin:8023/health",
+    "admin":      "http://admin:8009/health",
 }
 
 

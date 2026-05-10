@@ -10,7 +10,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, isLoggedIn } from '@/lib/api';
+import { systemApi } from '@/lib/api-v2';
+import { isLoggedIn } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/lib/components/PageHeader';
 import { SkeletonCard } from '@/lib/components/Skeleton';
@@ -108,7 +109,7 @@ export default function FleetPage() {
 
     const tick = async () => {
       try {
-        const res = await api.fleetHealth();
+        const res = await systemApi.fleetHealth();
         if (!alive) return;
         setData(res?.data || null);
         setError('');

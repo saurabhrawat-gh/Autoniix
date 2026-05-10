@@ -3,8 +3,7 @@
 import React, { useEffect, useState, useMemo, useCallback, useDeferredValue } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { contentApi, channelsApi } from '@/lib/api-v2';
-import { api } from '@/lib/api';
+import { contentApi, channelsApi, jobsApi } from '@/lib/api-v2';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import {
@@ -267,18 +266,18 @@ export default function ContentPage() {
     setPreviewId(contentId);
     setPreviewLoading(true);
     try {
-      const output = await api.jobOutput(contentId).catch(() => null);
-      const meta = await api.jobMetadata(contentId).catch(() => null);
-      setPreviewMeta(meta);
-      setPreviewUrl(output?.url || output?.video_url || null);
+      const output = await jobsApi.output(contentId).catch(() => null);
+      const meta = await jobsApi.metadata(contentId).catch(() => null);
+      setPreviewMeta(meta?.data ?? null);
+      setPreviewUrl(output?.data?.video_url || null);
     } catch { setPreviewUrl(null); }
     finally { setPreviewLoading(false); }
   };
 
   const handleDownload = async (v: any) => {
     try {
-      const output = await api.jobOutput(v.content_id).catch(() => null);
-      const url = output?.url || output?.video_url;
+      const output = await jobsApi.output(v.content_id).catch(() => null);
+      const url = (output as any)?.data?.video_url || (output as any)?.url || (output as any)?.video_url;
       if (!url) { showToast('Video not yet available', 'error'); return; }
       const a = document.createElement('a');
       a.href = url; a.download = `${v.title || v.content_id}.mp4`; a.target = '_blank';

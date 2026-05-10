@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, isLoggedIn } from '@/lib/api';
+import { systemApi } from '@/lib/api-v2';
+import { isLoggedIn } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import { PageHeader } from '@/lib/components/PageHeader';
@@ -76,6 +77,7 @@ export default function SettingsPage() {
   const [editValue, setEditValue] = useState('');
   const [chipInput, setChipInput] = useState('');
   const [loading, setLoading] = useState(true);
+  const [configError, setConfigError] = useState<string | null>(null);
   const [emergency, setEmergency] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [jsonError, setJsonError] = useState('');
@@ -92,12 +94,15 @@ export default function SettingsPage() {
 
   async function loadConfigs() {
     try {
-      const res = await api.config();
-      setConfigs(res.data);
-      const isStopped = res.data.some((c: any) => c.key === 'emergency_stop' && c.value === 'true');
+      const res = await systemApi.config();
+      setConfigs(res.data ?? []);
+      setConfigError(null);
+      const isStopped = (res.data ?? []).some((c: any) => c.key === 'emergency_stop' && c.value === 'true');
       setEmergency(isStopped);
       if (isStopped) { setEditMode(false); setEditing(null); }
-    } catch {}
+    } catch (e: any) {
+      setConfigError(e?.message || 'Failed to load config from v2 API');
+    }
     setLoading(false);
   }
 
@@ -110,7 +115,7 @@ export default function SettingsPage() {
       }
     }
     try {
-      await api.updateConfig(key, val);
+      await systemApi.updateConfig(key, val);
       setEditing(null);
       setJsonError('');
       loadConfigs();
@@ -124,8 +129,8 @@ export default function SettingsPage() {
 
   async function toggleEmergency() {
     try {
-      if (emergency) await api.emergencyResume();
-      else await api.emergencyStop();
+      if (emergency) await systemApi.emergencyResume();
+      else await systemApi.emergencyStop();
       loadConfigs();
     } catch {}
   }
@@ -180,7 +185,7 @@ export default function SettingsPage() {
     if (cleanSlateInput !== 'RESET') return;
     setCleanSlateRunning(true);
     try {
-      const res = await api.cleanSlate();
+      const res = await systemApi.cleanSlate();
       const d = res?.data || {};
       showToast(
         `Clean slate done: ${d.workflows_terminated || 0} workflow(s) terminated, ` +
@@ -275,6 +280,13 @@ export default function SettingsPage() {
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-6 py-6">
           <DisplayPreferences />
+          {configError && (
+            <div className="mb-6 p-4 rounded-lg bg-status-error/10 border border-status-error/20 text-sm">
+              <span className="font-semibold text-status-error">Config load failed: </span>
+              <span className="text-content-secondary">{configError}</span>
+              <button onClick={loadConfigs} className="ml-3 underline text-xs text-accent">Retry</button>
+            </div>
+          )}
           {Object.entries(groups).map(([group, items]) => (
             items.length > 0 && (
               <div key={group} className="mb-8">

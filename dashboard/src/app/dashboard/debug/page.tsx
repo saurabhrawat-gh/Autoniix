@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { api } from '@/lib/api';
-import { notifyApi } from '@/lib/api-v2';
+import { systemApi, notifyApi } from '@/lib/api-v2';
 
 export default function Debug() {
   const [fleet, setFleet] = useState<any>(null);
@@ -10,7 +9,7 @@ export default function Debug() {
   const [recentDeliveries, setRecentDeliveries] = useState<any[]>([]);
 
   useEffect(() => {
-    api.fleetHealth().then(setFleet).catch(() => setFleet(null));
+    systemApi.fleetHealth().then(r => setFleet(r?.data || r)).catch(() => setFleet(null));
     notifyApi.list(false, 'critical', 20).then(r => setCrit(r.data || []));
     notifyApi.deliveries(undefined, 30).then(r => setRecentDeliveries(r.data || []));
   }, []);

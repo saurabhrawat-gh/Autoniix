@@ -1,4 +1,4 @@
-.PHONY: help infra bff ui dev stop logs up down health restart-app use-test use-prod env-status \
+.PHONY: help infra bff ui dev stop logs up down health restart-app restart-bff verify-bff use-test use-prod env-status \
         migrate migrate-status backfill auth-enable smoke setup fresh
 
 help: ## Show available commands
@@ -93,9 +93,29 @@ health: ## Run end-to-end health check on every service
 	@bash scripts/check-stack.sh
 
 restart-app: ## Rebuild + restart app code containers (use after editing src/ or dashboard/)
-	docker compose build dashboard-bff dashboard-ui worker-production worker-scheduler
-	docker compose up -d dashboard-bff dashboard-ui worker-production worker-scheduler
+	docker compose build dashboard-bff dashboard-ui admin worker-production worker-scheduler
+	docker compose up -d dashboard-bff dashboard-ui admin worker-production worker-scheduler
 	@echo "✅ App containers rebuilt and restarted"
+	@$(MAKE) verify-bff
+
+restart-bff: ## Rebuild + restart ONLY dashboard-bff, then verify v2 router mounted
+	@docker compose build dashboard-bff
+	@docker compose up -d dashboard-bff
+	@echo "⏳ Waiting for BFF to become healthy..."
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+		if curl -sf http://localhost:8020/health > /dev/null 2>&1; then break; fi; \
+		sleep 1; \
+	done
+	@$(MAKE) verify-bff
+
+verify-bff: ## Verify v2 router is mounted (fails loud if it silently disabled)
+	@v2count=$$(curl -sf http://localhost:8020/openapi.json 2>/dev/null | python3 -c "import json,sys; print(sum(1 for p in json.load(sys.stdin)['paths'] if '/v2/' in p))" 2>/dev/null || echo 0); \
+	if [ "$$v2count" -lt 30 ]; then \
+		echo "❌ v2 router NOT mounted (only $$v2count routes). Inspect logs:"; \
+		docker compose logs --tail=30 dashboard-bff | grep -E 'v2_router|error|Error' || true; \
+		exit 1; \
+	fi; \
+	echo "✅ BFF healthy — $$v2count v2 routes mounted"
 
 # ── Environment switching ─────────────────────────────────
 use-test: ## Activate .env.test (mock providers, ~$0/video)

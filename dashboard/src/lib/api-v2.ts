@@ -444,3 +444,30 @@ export const membersApi = {
     request(`/api/v2/workspace/members/${user_id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
   remove: (user_id: number) => request(`/api/v2/workspace/members/${user_id}`, { method: 'DELETE' }),
 };
+
+// ── Jobs (Wave 6) ─────────────────────────────────────────
+export const jobsApi = {
+  active: () => request<{ status: string; data: any[] }>('/api/v2/jobs/active'),
+  progress: (id: string) => request<{ status: string; data: any }>(`/api/v2/jobs/${encodeURIComponent(id)}/progress`),
+  output: (id: string) => request<{ status: string; data: any }>(`/api/v2/jobs/${encodeURIComponent(id)}/output`),
+  metadata: (id: string) => request<{ status: string; data: any }>(`/api/v2/jobs/${encodeURIComponent(id)}/metadata`),
+  approve: (id: string) => request(`/api/v2/jobs/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+  reject: (id: string) => request(`/api/v2/jobs/${encodeURIComponent(id)}/reject`, { method: 'POST' }),
+  retry: (id: string) => request<{ status: string; data?: { new_content_id?: string } }>(`/api/v2/jobs/${encodeURIComponent(id)}/retry`, { method: 'POST' }),
+  restart: (id: string) => request<{ status: string; data?: { resume_from?: string } }>(`/api/v2/jobs/${encodeURIComponent(id)}/restart`, { method: 'POST' }),
+  pause: (id: string) => request(`/api/v2/jobs/${encodeURIComponent(id)}/pause`, { method: 'POST' }),
+  resume: (id: string) => request(`/api/v2/jobs/${encodeURIComponent(id)}/resume`, { method: 'POST' }),
+  stop: (id: string) => request(`/api/v2/jobs/${encodeURIComponent(id)}/stop`, { method: 'POST' }),
+};
+
+// ── System (Wave 6) ───────────────────────────────────────
+export const systemApi = {
+  config: () => request<{ status: string; data: { key: string; value: string; description: string }[] }>('/api/v2/system/config'),
+  updateConfig: (config_key: string, config_value: string) =>
+    request('/api/v2/system/config', { method: 'PUT', body: JSON.stringify({ config_key, config_value }) }),
+  emergencyStop: () => request('/api/v2/system/emergency-stop', { method: 'POST' }),
+  emergencyResume: () => request('/api/v2/system/emergency-resume', { method: 'POST' }),
+  fleetHealth: () => request<{ status: string; data: any }>('/api/v2/system/fleet-health'),
+  environment: () => request<{ status: string; data: any }>('/api/v2/system/environment'),
+  cleanSlate: () => request('/api/v2/system/clean-slate', { method: 'POST' }),
+};
