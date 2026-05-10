@@ -95,6 +95,7 @@ export {
   GripVertical,
   Cpu,
   FileImage,
+  FileAudio,
   Link2,
   Users,
   Star,
@@ -123,4 +124,6 @@ export {
   Hash,
   ThumbsUp,
   ThumbsDown,
+  Store,
+  ShoppingBag,
 } from 'lucide-react';

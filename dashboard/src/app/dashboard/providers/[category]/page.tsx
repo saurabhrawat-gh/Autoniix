@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { providersApi } from '@/lib/api-v2';
@@ -8,7 +8,8 @@ import { useToast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import {
   Plus, Activity, Trash2, ArrowUp, ArrowDown, X, Check, ChevronLeft,
-  ShieldCheck, AlertTriangle, HelpCircle, Loader2, Eye, EyeOff, RotateCw
+  ShieldCheck, AlertTriangle, HelpCircle, Loader2, Eye, EyeOff, RotateCw,
+  Terminal, SlidersHorizontal, Play,
 } from '@/lib/components/Icon';
 
 type HealthStatus = 'healthy' | 'failing' | 'untested';
@@ -28,6 +29,13 @@ const HEALTH_ICON: Record<HealthStatus, React.ReactNode> = {
   untested: <HelpCircle size={11} className="text-content-tertiary" />,
 };
 
+const POLICY_OPTIONS = [
+  { value: 'balanced',        label: 'Balanced',        desc: 'Cost + quality + speed tradeoff' },
+  { value: 'cheapest',        label: 'Cheapest',        desc: 'Minimize cost per call' },
+  { value: 'fastest',         label: 'Fastest',         desc: 'Minimize latency p95' },
+  { value: 'highest_quality', label: 'Highest quality', desc: 'Maximize output quality score' },
+];
+
 export default function ProviderCategoryPage() {
   const { category } = useParams<{ category: string }>();
   const decoded = decodeURIComponent(category);
@@ -38,16 +46,44 @@ export default function ProviderCategoryPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [testingId, setTestingId] = useState<number | null>(null);
   const [testResults, setTestResults] = useState<Record<number, any>>({});
-  const [rotateId, setRotateId] = useState<number | null>(null);
+  // Wave 2 — routing policy
+  const [route, setRoute] = useState<any | null>(null);
+  const [savingRoute, setSavingRoute] = useState(false);
+  const [selectedPolicy, setSelectedPolicy] = useState('balanced');
+  const [primaryCredId, setPrimaryCredId] = useState<number | null>(null);
+  // Wave 2 — sandbox runner
+  const [sandboxCredId, setSandboxCredId] = useState<number | null>(null);
+  const [sandboxCapability, setSandboxCapability] = useState('text-gen');
+  const [sandboxPrompt, setSandboxPrompt] = useState('');
+  const [sandboxRunning, setSandboxRunning] = useState(false);
+  const [sandboxResult, setSandboxResult] = useState<any | null>(null);
+  // Wave 2 — health sparklines (last 20 per cred)
+  const [healthHistory, setHealthHistory] = useState<Record<number, any[]>>({});
 
-  const refresh = () => {
+  const refresh = useCallback(() => {
     setLoading(true);
     Promise.all([
       providersApi.credentials(decoded).then(r => setCreds(r.data || [])),
       providersApi.chain(decoded).then(r => setChain(r.data || [])).catch(() => setChain([])),
+      providersApi.routes('workspace').then(r => {
+        const found = (r.data || []).find((rt: any) => rt.category === decoded);
+        if (found) {
+          setRoute(found);
+          setSelectedPolicy(found.policy || 'balanced');
+          setPrimaryCredId(found.primary_credential_id || null);
+        }
+      }).catch(() => {}),
     ]).finally(() => setLoading(false));
-  };
-  useEffect(() => { refresh(); }, [decoded]);
+  }, [decoded]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  useEffect(() => {
+    if (creds.length > 0) {
+      creds.forEach(c => loadHealthHistory(c.id));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [creds.length]);
 
   const moveChain = (idx: number, dir: -1 | 1) => {
     const ids = chain.map(c => c.credential_id);
@@ -93,6 +129,43 @@ export default function ProviderCategoryPage() {
       showToast('Credential deleted', 'success');
       refresh();
     } catch (e: any) { showToast(e?.message || 'Delete failed', 'error'); }
+  };
+
+  const loadHealthHistory = async (credId: number) => {
+    try {
+      const r = await providersApi.health(credId, 20);
+      setHealthHistory(prev => ({ ...prev, [credId]: r.data || [] }));
+    } catch {}
+  };
+
+  const saveRoute = async () => {
+    setSavingRoute(true);
+    try {
+      await providersApi.upsertRoute(decoded, {
+        policy: selectedPolicy, primary_credential_id: primaryCredId,
+      });
+      showToast('Routing policy saved', 'success');
+      refresh();
+    } catch (e: any) { showToast(e?.message || 'Save failed', 'error'); }
+    setSavingRoute(false);
+  };
+
+  const runSandbox = async () => {
+    if (!sandboxCredId) return;
+    setSandboxRunning(true);
+    setSandboxResult(null);
+    try {
+      const r = await providersApi.sandboxRun({
+        credential_id: sandboxCredId,
+        capability: sandboxCapability,
+        prompt: sandboxPrompt || undefined,
+        text: sandboxCapability.startsWith('tts') ? (sandboxPrompt || 'Hello, this is a test.') : undefined,
+      });
+      setSandboxResult(r.data);
+    } catch (e: any) {
+      setSandboxResult({ ok: false, error: e?.message || 'Run failed', latency_ms: 0, output: {} });
+    }
+    setSandboxRunning(false);
   };
 
   return (
@@ -215,6 +288,12 @@ export default function ProviderCategoryPage() {
                             <div className="text-[11px] text-content-tertiary font-mono mt-0.5">
                               {c.provider_name} · {c.vault_path}
                             </div>
+                            {/* Health sparkline */}
+                            {healthHistory[c.id] && healthHistory[c.id].length > 0 && (
+                              <div className="mt-1.5">
+                                <HealthSparkline data={healthHistory[c.id]} />
+                              </div>
+                            )}
                           </div>
 
                           {/* Actions */}
@@ -261,6 +340,149 @@ export default function ProviderCategoryPage() {
               )}
             </div>
           </section>
+          {/* ── Routing policy ─────────────────────────── */}
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h2 className="text-sm font-semibold text-content-primary flex items-center gap-1.5">
+                  <SlidersHorizontal size={13} className="text-accent" /> Routing policy
+                </h2>
+                <p className="text-xs text-content-tertiary mt-0.5">
+                  How the runtime resolves which credential to use for this category.
+                </p>
+              </div>
+            </div>
+            <div className="rounded-md border border-border bg-surface-0 p-4 space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {POLICY_OPTIONS.map(opt => (
+                  <button key={opt.value} onClick={() => setSelectedPolicy(opt.value)}
+                    className={cn('text-left rounded-md border px-3 py-2.5 transition-all',
+                      selectedPolicy === opt.value
+                        ? 'border-accent/50 bg-accent/5 text-content-primary'
+                        : 'border-border text-content-tertiary hover:border-border hover:bg-surface-1')}>
+                    <div className="text-xs font-semibold">{opt.label}</div>
+                    <div className="text-[10px] text-content-tertiary mt-0.5">{opt.desc}</div>
+                  </button>
+                ))}
+              </div>
+              {creds.length > 0 && (
+                <div>
+                  <div className="text-[10px] uppercase text-content-tertiary mb-1">Primary credential (optional)</div>
+                  <select value={primaryCredId ?? ''} onChange={e => setPrimaryCredId(e.target.value ? Number(e.target.value) : null)}
+                    className="w-full sm:w-72 px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-sm focus:outline-none focus:border-accent/50">
+                    <option value="">Auto (from chain)</option>
+                    {creds.filter(c => c.enabled).map((c: any) => (
+                      <option key={c.id} value={c.id}>{c.label} ({c.provider_name})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div className="flex items-center gap-2 pt-1">
+                <button onClick={saveRoute} disabled={savingRoute}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-white text-xs font-medium disabled:opacity-40 hover:opacity-90 transition-opacity">
+                  {savingRoute ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+                  Save policy
+                </button>
+                {route && (
+                  <span className="text-[11px] text-content-tertiary">
+                    Current: <span className="text-content-secondary font-medium">{route.policy}</span>
+                  </span>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* ── Sandbox runner ──────────────────────────── */}
+          {creds.length > 0 && (
+            <section>
+              <div className="mb-2">
+                <h2 className="text-sm font-semibold text-content-primary flex items-center gap-1.5">
+                  <Terminal size={13} className="text-accent" /> Sandbox runner
+                </h2>
+                <p className="text-xs text-content-tertiary mt-0.5">
+                  Run a live test inference against a credential. Results are logged but never stored in production.
+                </p>
+              </div>
+              <div className="rounded-md border border-border bg-surface-0 p-4 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <div className="text-[10px] uppercase text-content-tertiary mb-1">Credential</div>
+                    <select value={sandboxCredId ?? ''} onChange={e => setSandboxCredId(e.target.value ? Number(e.target.value) : null)}
+                      className="w-full px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-sm focus:outline-none focus:border-accent/50">
+                      <option value="">Select…</option>
+                      {creds.map((c: any) => (
+                        <option key={c.id} value={c.id}>{c.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase text-content-tertiary mb-1">Capability</div>
+                    <select value={sandboxCapability} onChange={e => setSandboxCapability(e.target.value)}
+                      className="w-full px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-sm focus:outline-none focus:border-accent/50">
+                      <option value="text-gen">text-gen</option>
+                      <option value="tts-standard">tts-standard</option>
+                      <option value="image-gen">image-gen</option>
+                      <option value="health">health-check</option>
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <button onClick={runSandbox} disabled={!sandboxCredId || sandboxRunning}
+                      className="flex items-center gap-1.5 w-full h-[34px] px-3 rounded-md bg-accent text-white text-xs font-medium disabled:opacity-40 hover:opacity-90 transition-opacity justify-center">
+                      {sandboxRunning ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+                      Run
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase text-content-tertiary mb-1">
+                    {sandboxCapability === 'tts-standard' ? 'Text to speak' : 'Prompt'}
+                  </div>
+                  <textarea
+                    value={sandboxPrompt}
+                    onChange={e => setSandboxPrompt(e.target.value)}
+                    placeholder={sandboxCapability === 'tts-standard'
+                      ? 'Hello, this is a voice test.'
+                      : sandboxCapability === 'image-gen'
+                      ? 'A colorful sunset over mountains'
+                      : 'Say hello in one sentence.'}
+                    className="w-full px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-sm h-16 font-mono resize-none focus:outline-none focus:border-accent/50"
+                  />
+                </div>
+                {/* Result */}
+                {sandboxResult && (
+                  <div className={cn('rounded-md border px-3 py-2.5 text-xs space-y-1',
+                    sandboxResult.ok ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/5')}>
+                    <div className="flex items-center gap-2 font-semibold">
+                      {sandboxResult.ok
+                        ? <><Check size={11} className="text-emerald-500" /><span className="text-emerald-500">Success</span></>
+                        : <><X size={11} className="text-red-500" /><span className="text-red-500">Error</span></>}
+                      <span className="text-content-tertiary font-normal ml-auto">{sandboxResult.latency_ms}ms</span>
+                      {sandboxResult.cost_usd != null && (
+                        <span className="text-content-tertiary font-normal font-mono">${sandboxResult.cost_usd.toFixed(6)}</span>
+                      )}
+                    </div>
+                    {sandboxResult.error && (
+                      <div className="text-red-400 font-mono text-[11px]">{sandboxResult.error}</div>
+                    )}
+                    {sandboxResult.output?.text && (
+                      <div className="text-content-secondary bg-surface-1 rounded p-2 font-mono text-[11px] whitespace-pre-wrap">
+                        {sandboxResult.output.text}
+                      </div>
+                    )}
+                    {sandboxResult.output?.image_url && (
+                      <a href={sandboxResult.output.image_url} target="_blank" rel="noopener noreferrer"
+                        className="text-accent hover:underline font-mono text-[11px] flex items-center gap-1">
+                        View generated image →
+                      </a>
+                    )}
+                    {sandboxResult.output?.note && (
+                      <div className="text-content-tertiary text-[11px]">{sandboxResult.output.note}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
         </div>
       )}
 
@@ -359,5 +581,38 @@ function Inp({ label, hint, value, onChange, placeholder, type = 'text' }: any) 
         type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} />
       {hint && <div className="text-[10px] text-content-tertiary mt-1">{hint}</div>}
     </label>
+  );
+}
+
+function HealthSparkline({ data }: { data: Array<{ ok: boolean; latency_ms: number | null; checked_at: string }> }) {
+  const W = 80, H = 16, pad = 1;
+  const sorted = [...data].reverse(); // oldest first
+  const n = sorted.length;
+  if (n === 0) return null;
+  const latencies = sorted.map(d => d.latency_ms ?? 0).filter(v => v > 0);
+  const maxL = latencies.length > 0 ? Math.max(...latencies) : 1;
+  const xStep = (W - pad * 2) / Math.max(n - 1, 1);
+  const points = sorted.map((d, i) => {
+    const x = pad + i * xStep;
+    const y = d.latency_ms && maxL > 0
+      ? H - pad - ((d.latency_ms / maxL) * (H - pad * 2))
+      : H / 2;
+    return { x, y, ok: d.ok };
+  });
+  const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+
+  return (
+    <div className="flex items-center gap-2">
+      <svg width={W} height={H} className="shrink-0" viewBox={`0 0 ${W} ${H}`}>
+        <path d={pathD} fill="none" stroke="currentColor"
+          className="text-surface-3" strokeWidth="1" />
+        {points.map((p, i) => (
+          <circle key={i} cx={p.x.toFixed(1)} cy={p.y.toFixed(1)} r="1.5"
+            className={p.ok ? 'text-emerald-500' : 'text-red-500'}
+            fill="currentColor" />
+        ))}
+      </svg>
+      <span className="text-[9px] text-content-tertiary">{n} checks</span>
+    </div>
   );
 }

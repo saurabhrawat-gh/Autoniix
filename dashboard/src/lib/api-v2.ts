@@ -133,6 +133,48 @@ export const providersApi = {
     }),
   health: (id: number, limit = 50) =>
     request<{ data: any[] }>(`/api/v2/providers/health/${id}?limit=${limit}`),
+  // Wave 2
+  marketplace: () => request<{ data: any[] }>('/api/v2/providers/marketplace'),
+  probeAll: () =>
+    request<{ data: any[]; summary: { total: number; ok: number } }>(
+      '/api/v2/providers/health/probe-all', { method: 'POST' }
+    ),
+  routes: (scope = 'workspace', scope_id?: string) => {
+    const q = new URLSearchParams({ scope });
+    if (scope_id) q.set('scope_id', scope_id);
+    return request<{ data: any[] }>(`/api/v2/providers/routes?${q}`);
+  },
+  upsertRoute: (category: string, body: {
+    policy: string; scope?: string; scope_id?: string;
+    primary_credential_id?: number | null; fallback_chain?: number[]; custom_rules?: object;
+  }) =>
+    request<{ id: number }>(`/api/v2/providers/routes/${category}`, {
+      method: 'PUT', body: JSON.stringify({ scope: 'workspace', fallback_chain: [], ...body }),
+    }),
+  quotas: (scope = 'workspace', scope_id?: string) => {
+    const q = new URLSearchParams({ scope });
+    if (scope_id) q.set('scope_id', scope_id);
+    return request<{ data: any[] }>(`/api/v2/providers/quotas?${q}`);
+  },
+  createQuota: (body: {
+    monthly_cap_usd: number; alert_pct?: number; hard_limit?: boolean;
+    scope?: string; scope_id?: string; category?: string;
+  }) =>
+    request<{ id: number }>('/api/v2/providers/quotas', { method: 'POST', body: JSON.stringify(body) }),
+  updateQuota: (id: number, body: { monthly_cap_usd: number; alert_pct?: number; hard_limit?: boolean }) =>
+    request(`/api/v2/providers/quotas/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  sandboxRun: (body: {
+    credential_id: number; capability: string;
+    prompt?: string; text?: string; input_payload?: object;
+  }) =>
+    request<{ status: string; data: { run_id: number; ok: boolean; latency_ms: number; cost_usd: number | null; output: any; error: string | null } }>(
+      '/api/v2/providers/sandbox/run', { method: 'POST', body: JSON.stringify(body) }
+    ),
+  sandboxRuns: (credential_id?: number, limit = 20) => {
+    const q = new URLSearchParams({ limit: String(limit) });
+    if (credential_id) q.set('credential_id', String(credential_id));
+    return request<{ data: any[] }>(`/api/v2/providers/sandbox/runs?${q}`);
+  },
 };
 
 // ── Content ───────────────────────────────────────────────
@@ -187,6 +229,57 @@ export const libraryApi = {
   brand:  (channel_id?: string) =>
     request<{ data: any[] }>(`/api/v2/library/brand${channel_id ? `?channel_id=${channel_id}` : ''}`),
   music:  () => request<{ data: any[] }>(`/api/v2/library/music`),
+};
+
+// ── DAM (Wave 3 scoped asset store) ───────────────────────
+export const damApi = {
+  list: (params: {
+    scope?: string; scope_id?: string; kind?: string;
+    q?: string; tag?: string; origin?: string; limit?: number; offset?: number;
+  } = {}) => {
+    const p = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => v !== undefined && p.set(k, String(v)));
+    return request<{ data: any[] }>(`/api/v2/library/dam/assets?${p}`);
+  },
+  preflight: (sha256: string) =>
+    request<{ exists: boolean; asset?: any }>(`/api/v2/library/dam/assets/preflight?sha256=${sha256}`, { method: 'POST' }),
+  get: (id: number) =>
+    request<{ data: any }>(`/api/v2/library/dam/assets/${id}`),
+  patch: (id: number, body: { display_name?: string; tags?: string[]; license?: string; expires_at?: string }) =>
+    request(`/api/v2/library/dam/assets/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  delete: (id: number) =>
+    request(`/api/v2/library/dam/assets/${id}`, { method: 'DELETE' }),
+
+  tags: (scope = 'workspace', scope_id?: string) => {
+    const p = new URLSearchParams({ scope });
+    if (scope_id) p.set('scope_id', scope_id);
+    return request<{ data: string[] }>(`/api/v2/library/dam/tags?${p}`);
+  },
+
+  search: (body: { q: string; scope?: string; scope_id?: string; kind?: string; tags?: string[]; limit?: number }) =>
+    request<{ data: any[]; count: number }>('/api/v2/library/dam/search', { method: 'POST', body: JSON.stringify(body) }),
+
+  collections: (scope = 'workspace', scope_id?: string) => {
+    const p = new URLSearchParams({ scope });
+    if (scope_id) p.set('scope_id', scope_id);
+    return request<{ data: any[] }>(`/api/v2/library/dam/collections?${p}`);
+  },
+  createCollection: (body: { name: string; description?: string; kind?: string; query?: object; asset_ids?: number[]; scope?: string; scope_id?: string }) =>
+    request<{ id: number }>('/api/v2/library/dam/collections', { method: 'POST', body: JSON.stringify(body) }),
+  updateCollection: (id: number, body: any) =>
+    request(`/api/v2/library/dam/collections/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteCollection: (id: number) =>
+    request(`/api/v2/library/dam/collections/${id}`, { method: 'DELETE' }),
+
+  brandKits: (scope = 'brand', scope_id?: string) => {
+    const p = new URLSearchParams({ scope });
+    if (scope_id) p.set('scope_id', scope_id);
+    return request<{ data: any[] }>(`/api/v2/library/dam/brand-kits?${p}`);
+  },
+  createBrandKit: (body: { name: string; scope?: string; scope_id?: string; palette?: object; notes?: string }) =>
+    request<{ id: number }>('/api/v2/library/dam/brand-kits', { method: 'POST', body: JSON.stringify(body) }),
+  updateBrandKit: (id: number, body: any) =>
+    request(`/api/v2/library/dam/brand-kits/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
 };
 
 // ── Review ────────────────────────────────────────────────
