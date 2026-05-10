@@ -77,6 +77,9 @@ async def lifespan(app: FastAPI):
     logger.info("delivery.stopped")
 
 
+from src.observability.sentry import init_sentry
+init_sentry("delivery")
+
 app = FastAPI(title="Delivery Service", version="0.1.0", lifespan=lifespan)
 
 

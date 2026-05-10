@@ -317,6 +317,9 @@ async def lifespan(app: FastAPI):
     logger.info("assets.stopped")
 
 
+from src.observability.sentry import init_sentry
+init_sentry("assets")
+
 app = FastAPI(title="Assets Service", version="0.1.0", lifespan=lifespan)
 
 

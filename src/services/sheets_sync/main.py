@@ -38,6 +38,9 @@ async def lifespan(app: FastAPI):
     logger.info("sheets_sync.stopped")
 
 
+from src.observability.sentry import init_sentry
+init_sentry("sheets_sync")
+
 app = FastAPI(title="Google Sheets Sync Service", version="0.1.0", lifespan=lifespan)
 
 

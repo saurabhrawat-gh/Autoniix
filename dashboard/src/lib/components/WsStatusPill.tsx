@@ -7,7 +7,7 @@ import { cn } from '../utils';
 
 const LABEL: Record<string, string> = {
   live: 'Live',
-  connecting: 'Connecting…',
+  connecting: 'Connecting',
   offline: 'Offline',
 };
 const TIP: Record<string, string> = {
@@ -25,8 +25,9 @@ export function WsStatusPill() {
   return (
     <Tip text={TIP[wsStatus]} pos="bottom">
       <span
-        className="inline-flex items-center gap-1.5 h-6 px-2 rounded-full bg-surface-1 border border-border text-[10px] font-medium text-content-secondary"
+        className="inline-flex items-center gap-1.5 h-7 px-2 rounded-full bg-surface-1 border border-border text-[10px] font-medium text-content-secondary"
         aria-live="polite"
+        aria-label={`Realtime status: ${LABEL[wsStatus]}`}
       >
         <span className="relative flex h-2 w-2">
           {wsStatus === 'live' && (
@@ -38,7 +39,7 @@ export function WsStatusPill() {
           )}
           <span className={cn('relative inline-flex rounded-full h-2 w-2', color)} />
         </span>
-        <span className="hidden sm:inline">{LABEL[wsStatus]}</span>
+        <span className="hidden md:inline">{LABEL[wsStatus]}</span>
       </span>
     </Tip>
   );

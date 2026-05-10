@@ -64,6 +64,9 @@ async def lifespan(app: FastAPI):
     logger.info("brand.stopped")
 
 
+from src.observability.sentry import init_sentry
+init_sentry("brand")
+
 app = FastAPI(title="Brand Identity Service", version="0.1.0", lifespan=lifespan)
 
 

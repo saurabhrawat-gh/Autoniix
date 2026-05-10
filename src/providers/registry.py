@@ -62,11 +62,19 @@ class ProviderRegistry:
     def get(cls, category: str, *, override: str | None = None) -> Any:
         from src.environment import is_test
 
+        # 1) Explicit override always wins
         if override:
             name = override
+        # 2) Test mode short-circuits to free providers
         elif is_test() and category in _TEST_PROVIDER_MAP:
             name = _TEST_PROVIDER_MAP[category]
         else:
+            # 3) Try the DB-driven priority chain (Phase 2). Synchronous
+            #    callers get a thread-isolated event loop; if no chain
+            #    is configured we fall through to env vars.
+            chain = cls._try_db_chain(category)
+            if chain is not None:
+                return chain
             name = os.getenv(_ENV_MAP.get(category, ""), "")
 
         if not name:
@@ -88,6 +96,31 @@ class ProviderRegistry:
         cls._instances[cache_key] = instance
         logger.info("provider.instantiated", category=category, name=name)
         return instance
+
+    @classmethod
+    def _try_db_chain(cls, category: str) -> Any | None:
+        """Best-effort DB chain resolution. Returns None on any failure
+        so callers fall back to env-based lookup unchanged.
+        """
+        try:
+            import asyncio as _asyncio
+            from src.providers.chain import resolve_chain
+            registry = cls._registries.get(category, {})
+            try:
+                loop = _asyncio.get_running_loop()
+            except RuntimeError:
+                # No running loop — safe to run synchronously
+                return _asyncio.run(resolve_chain(category, registry))
+            # We're inside an event loop; schedule and wait on a
+            # background thread to keep the call signature sync.
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                fut = ex.submit(_asyncio.run, resolve_chain(category, registry))
+                return fut.result(timeout=5)
+        except Exception as exc:
+            logger.debug("provider.db_chain_unavailable",
+                         category=category, error=str(exc))
+            return None
 
     @classmethod
     def list_providers(cls, category: str) -> list[str]:

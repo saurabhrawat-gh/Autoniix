@@ -62,6 +62,9 @@ async def lifespan(app: FastAPI):
     logger.info("admin.stopped")
 
 
+from src.observability.sentry import init_sentry
+init_sentry("admin")
+
 app = FastAPI(title="Admin Service", version="0.1.0", lifespan=lifespan)
 
 

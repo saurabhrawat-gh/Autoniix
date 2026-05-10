@@ -10,6 +10,7 @@ import { useAppState } from './AppStateProvider';
 import {
   Home, Activity, Settings as SettingsIcon, Plus, Video, Inbox, Search,
   Beaker, Rocket, Power, PowerOff, Sparkles,
+  Archive, Zap, Film, ClipboardCheck, Tv, Plug,
 } from './Icon';
 
 interface ChannelLite { channel_id: string; channel_name: string; status: string }
@@ -57,11 +58,15 @@ export function CommandPalette() {
   }, [setPaletteOpen]);
 
   const navItems = useMemo(() => ([
-    { id: 'nav-dashboard', label: 'Go to Dashboard', icon: Home, run: () => go('/dashboard'), keywords: 'home channels overview' },
-    { id: 'nav-progress', label: 'Go to Progress', icon: Activity, run: () => go('/dashboard/progress'), keywords: 'jobs running active queue' },
+    { id: 'nav-dashboard', label: 'Go to Home', icon: Home, run: () => go('/dashboard'), keywords: 'home overview dashboard' },
+    { id: 'nav-channels', label: 'Go to Channels', icon: Tv, run: () => go('/dashboard/channels'), keywords: 'channels list manage trigger' },
+    { id: 'nav-content', label: 'Go to Content', icon: Film, run: () => go('/dashboard/content'), keywords: 'videos pipeline kanban calendar review approve' },
+    { id: 'nav-library', label: 'Go to Library', icon: Archive, run: () => go('/dashboard/library'), keywords: 'assets music brand stock media files' },
+    { id: 'nav-progress', label: 'Go to Progress', icon: Activity, run: () => go('/dashboard/progress'), keywords: 'jobs running active queue render' },
+    { id: 'nav-experiments', label: 'Go to Experiments', icon: Zap, run: () => go('/dashboard/experiments'), keywords: 'ab test experiments variants split test' },
+    { id: 'nav-providers', label: 'Go to Providers', icon: Plug, run: () => go('/dashboard/providers'), keywords: 'providers credentials api keys vault' },
     { id: 'nav-settings', label: 'Go to Settings', icon: SettingsIcon, run: () => go('/dashboard/settings'), keywords: 'config emergency stop budget' },
-    { id: 'nav-new-channel', label: 'Add new channel', icon: Plus, run: () => go('/dashboard/channels/new'), keywords: 'create channel' },
-    { id: 'nav-fleet', label: 'Fleet health', icon: Activity, run: () => go('/dashboard/fleet'), keywords: 'fleet health services workers db pool render queue scale' },
+    { id: 'nav-new-channel', label: 'Add new channel', icon: Plus, run: () => go('/dashboard/channels/new'), keywords: 'create channel new' },
   ]), [go]);
 
   const actionItems = useMemo(() => {
@@ -111,20 +116,20 @@ export function CommandPalette() {
               label="Command Palette"
               className="bg-surface-0 border border-border rounded-xl shadow-elevated overflow-hidden"
             >
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-                <Search size={16} className="text-content-tertiary shrink-0" />
+              <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border bg-surface-0">
+                <Search size={18} className="text-content-tertiary shrink-0 ml-1" />
                 <Command.Input
                   value={search}
                   onValueChange={setSearch}
                   placeholder="Search channels, jobs, actions…"
-                  className="flex-1 bg-transparent text-sm text-content-primary placeholder:text-content-tertiary outline-none"
+                  className="flex-1 bg-transparent text-[15px] text-content-primary placeholder:text-content-tertiary outline-none font-normal"
                 />
-                <kbd className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-content-tertiary border border-border bg-surface-1">
+                <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-content-tertiary border border-border bg-surface-1">
                   ESC
                 </kbd>
               </div>
 
-              <Command.List className="max-h-[60vh] overflow-y-auto p-2">
+              <Command.List className="max-h-[60vh] overflow-y-auto p-2 scrollbar-hide">
                 <Command.Empty className="px-3 py-8 text-center text-xs text-content-tertiary">
                   No matches for &ldquo;{search}&rdquo;
                 </Command.Empty>
@@ -196,14 +201,14 @@ export function CommandPalette() {
                 )}
               </Command.List>
 
-              <div className="flex items-center justify-between px-3 py-2 border-t border-border text-[10px] text-content-tertiary bg-surface-1/40">
+              <div className="flex items-center justify-between px-4 py-2.5 border-t border-border text-xs text-content-secondary bg-surface-1/40 font-medium">
                 <div className="flex items-center gap-2">
-                  <Sparkles size={11} />
+                  <Sparkles size={13} />
                   <span>Command Palette</span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span><kbd className="px-1 py-0.5 rounded border border-border bg-surface-0">↑↓</kbd> navigate</span>
-                  <span><kbd className="px-1 py-0.5 rounded border border-border bg-surface-0">↵</kbd> select</span>
+                <div className="flex items-center gap-4">
+                  <span><kbd className="px-1.5 py-0.5 rounded border border-border bg-surface-0 text-[11px] font-semibold">↑↓</kbd> navigate</span>
+                  <span><kbd className="px-1.5 py-0.5 rounded border border-border bg-surface-0 text-[11px] font-semibold">↵</kbd> select</span>
                 </div>
               </div>
             </Command>

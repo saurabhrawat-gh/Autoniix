@@ -290,7 +290,7 @@ export default function JobDetailPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Link href={`/dashboard/channels/${progress.channel_id}/settings`}
+                  <Link href={`/dashboard/channels/${progress.channel_id}`}
                     className="px-4 py-2 border rounded-lg text-xs font-medium text-content-primary bg-surface-0 border-border hover:bg-surface-1 transition-all">
                     Channel Settings
                   </Link>

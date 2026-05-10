@@ -70,6 +70,9 @@ async def lifespan(app: FastAPI):
     logger.info("analytics.stopped")
 
 
+from src.observability.sentry import init_sentry
+init_sentry("analytics")
+
 app = FastAPI(title="Analytics Service", version="0.1.0", lifespan=lifespan)
 
 

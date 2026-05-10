@@ -1,4 +1,5 @@
-.PHONY: help infra bff ui dev stop logs up down health restart-app use-test use-prod env-status
+.PHONY: help infra bff ui dev stop logs up down health restart-app use-test use-prod env-status \
+        migrate migrate-status backfill auth-enable smoke setup fresh
 
 help: ## Show available commands
 	@echo ""
@@ -19,6 +20,14 @@ help: ## Show available commands
 	@echo "  make bff        → Start Dashboard backend on host (port 8020)"
 	@echo "  make ui         → Start Dashboard frontend on host (port 3000)"
 	@echo "  make logs       → Tail infra logs"
+	@echo ""
+	@echo "  Setup & migrations:"
+	@echo "  make setup      → Full bring-up: containers + migrate + backfill + smoke"
+	@echo "  make migrate    → Apply pending DB migrations"
+	@echo "  make backfill   → Backfill channel profiles (idempotent)"
+	@echo "  make auth-enable→ Switch to real auth (first /register = Owner)"
+	@echo "  make smoke      → Run smoke tests"
+	@echo "  make fresh      → Wipe volumes + rebuild from zero"
 	@echo ""
 	@echo "  Quick start (3 terminals):"
 	@echo "    Terminal 1:  make infra"
@@ -128,3 +137,39 @@ env-status: ## Show which environment is currently active
 	fi
 	@echo "   .env size: $$(wc -l < .env) lines"
 	@echo "   To switch: make use-test  |  make use-prod"
+
+# ── v2 Revamp shortcuts ───────────────────────────────────
+migrate: ## Apply all pending DB migrations
+	python -m scripts.run_migrations
+
+migrate-status: ## Show pending migrations
+	python -m scripts.run_migrations --status
+
+backfill: ## Backfill channel_profiles for existing channels (idempotent)
+	python -m scripts.backfill_channel_profiles
+
+auth-enable: ## Turn ON real auth (first /register becomes Owner)
+	@docker compose exec -T postgres-app psql -U app -d yt_automation -c \
+	  "UPDATE feature_flags SET enabled = TRUE  WHERE key = 'auth.v2.enabled'; \
+	   UPDATE feature_flags SET enabled = FALSE WHERE key = 'auth.legacy.enabled';" \
+	  && echo "✅ v2 auth enabled — register at http://localhost:3000/register"
+
+smoke: ## Run smoke tests
+	python -m pytest tests/test_v2_secrets_and_registry.py -q
+
+setup: ## Full bring-up: containers + rebuild app + migrate + backfill + smoke
+	@$(MAKE) up
+	@$(MAKE) restart-app
+	@$(MAKE) migrate
+	@$(MAKE) backfill
+	@$(MAKE) smoke
+	@echo ""
+	@echo "🎉 Dashboard is live at http://localhost:3000/dashboard"
+	@echo "   Optional:  make auth-enable   (real users + JWT)"
+
+fresh: ## Stop everything, wipe volumes, then rebuild from zero
+	docker compose down -v
+	docker compose up -d --build
+	@$(MAKE) migrate
+	@$(MAKE) backfill
+	@echo "✅ Fresh stack ready: http://localhost:3000/dashboard"

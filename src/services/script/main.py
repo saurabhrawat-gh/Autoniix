@@ -129,6 +129,9 @@ async def lifespan(app: FastAPI):
     logger.info("script.stopped")
 
 
+from src.observability.sentry import init_sentry
+init_sentry("script")
+
 app = FastAPI(title="Script Service", version="0.2.0", lifespan=lifespan)
 
 

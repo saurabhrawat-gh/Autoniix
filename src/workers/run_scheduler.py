@@ -12,6 +12,8 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 from src.config import settings
+from src.observability.sentry import init_sentry
+init_sentry("worker-scheduler")
 from src.temporal_workflows.daily_scheduler import DailySchedulerWorkflow
 from src.temporal_workflows.model_maintenance import ModelMaintenanceWorkflow
 from src.temporal_workflows.model_activities import (

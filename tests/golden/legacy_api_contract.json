@@ -1,0 +1,272 @@
+[
+  {
+    "path": "/api/admin/clean-slate",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/auth/login",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/auth/logout",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/auth/me",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/channels",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/channels",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/channels/generate-brand-dna",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/channels/{channel_id}",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/channels/{channel_id}/archive",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/channels/{channel_id}/clone",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/channels/{channel_id}/disable",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/channels/{channel_id}/enable",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/channels/{channel_id}/export",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/channels/{channel_id}/jobs",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/channels/{channel_id}/learning-insights",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/channels/{channel_id}/pause",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/channels/{channel_id}/restore",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/channels/{channel_id}/resume",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/channels/{channel_id}/stop",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/channels/{channel_id}/trigger",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/channels/{channel_id}/workflow-status",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/config",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/config",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/emergency-resume",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/emergency-stop",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/environment",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/environment",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/fleet-health",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/jobs/active",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/jobs/{content_id}/approve",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/jobs/{content_id}/metadata",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/jobs/{content_id}/output",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/jobs/{content_id}/pause",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/jobs/{content_id}/presigned",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/jobs/{content_id}/progress",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/jobs/{content_id}/reject",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/jobs/{content_id}/restart",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/jobs/{content_id}/resume",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/jobs/{content_id}/retry",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/jobs/{content_id}/stop",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/jobs/{content_id}/video",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/niche-templates",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/stats",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/test-data",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "path": "/api/test-data/stats",
+    "methods": [
+      "GET"
+    ]
+  }
+]

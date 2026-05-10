@@ -61,10 +61,16 @@
 @layer base {
   body {
     @apply bg-surface-1 text-content-primary font-sans antialiased;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01', 'ss03';
+    letter-spacing: -0.011em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* Apple/Netflix-style display headings — tighter tracking */
+  h1, h2, h3 {
+    letter-spacing: -0.022em;
   }
 
   ::selection {
@@ -72,10 +78,59 @@
   }
 
   input, select, textarea {
-    @apply w-full bg-surface-0 border border-border text-content-primary rounded-lg
+    @apply w-full bg-surface-0 border border-border text-content-primary rounded-md
            px-3.5 py-2.5 text-sm transition-all
            placeholder:text-content-tertiary
            focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/10;
+  }
+
+  /* Themed checkbox + radio (replace native chrome) */
+  input[type="checkbox"], input[type="radio"] {
+    @apply appearance-none w-[15px] h-[15px] shrink-0 cursor-pointer
+           bg-surface-0 border border-border-hover transition-all
+           hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20
+           inline-block align-middle relative;
+    width: 15px; height: 15px; padding: 0;
+  }
+  input[type="checkbox"] { @apply rounded-sm; }
+  input[type="radio"] { @apply rounded-full; }
+  input[type="checkbox"]:checked, input[type="radio"]:checked {
+    @apply bg-accent border-accent;
+  }
+  input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='3,8.5 6.5,12 13,4.5'/></svg>");
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+  }
+  input[type="radio"]:checked::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 6px; height: 6px;
+    border-radius: 9999px;
+    background: white;
+  }
+  input[type="checkbox"]:disabled, input[type="radio"]:disabled {
+    @apply opacity-40 cursor-not-allowed;
+  }
+
+  /* Subtle, sleek scrollbar (Apple-style) */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--border));
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--border-hover));
+    background-clip: content-box;
+    border: 2px solid transparent;
   }
 }
 
@@ -86,22 +141,48 @@
   .card-elevated {
     @apply bg-surface-0 border border-border rounded-xl shadow-elevated;
   }
+
+  /* ── Buttons mirror nav menu styling ───────────────
+     Nav: rounded-md, text-sm font-medium, gap-3 px-2.5 py-2,
+          active=bg-accent/10 text-accent  inactive=hover:bg-surface-2 */
   .btn-primary {
-    @apply bg-accent hover:bg-accent-hover text-content-inverse font-medium text-sm
-           rounded-lg px-4 py-2.5 transition-all hover:shadow-glow
-           disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-1.5
+           bg-accent hover:bg-accent-hover text-content-inverse font-medium text-sm
+           rounded-md px-3.5 py-2 transition-all
+           disabled:opacity-50 disabled:cursor-not-allowed
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40;
   }
   .btn-secondary {
-    @apply bg-surface-0 border border-border hover:border-border-hover
+    @apply inline-flex items-center justify-center gap-1.5
+           bg-surface-0 border border-border hover:border-border-hover hover:bg-surface-1
            text-content-secondary hover:text-content-primary font-medium text-sm
-           rounded-lg px-4 py-2.5 transition-all;
+           rounded-md px-3.5 py-2 transition-all
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40;
   }
   .btn-ghost {
-    @apply text-content-tertiary hover:text-content-primary hover:bg-surface-2
-           font-medium text-sm rounded-lg px-3 py-2 transition-all;
+    @apply inline-flex items-center justify-center gap-1.5
+           text-content-secondary hover:text-content-primary hover:bg-surface-2
+           font-medium text-sm rounded-md px-2.5 py-2 transition-colors
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40;
+  }
+  /* Like nav active state — accent tinted */
+  .btn-tonal {
+    @apply inline-flex items-center justify-center gap-1.5
+           bg-accent/10 text-accent hover:bg-accent/15
+           font-medium text-sm rounded-md px-3 py-2 transition-colors
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40;
   }
   .badge {
     @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium;
+  }
+  /* Type chip — used everywhere content type appears */
+  .chip-short {
+    @apply inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider
+           bg-accent/10 text-accent;
+  }
+  .chip-long {
+    @apply inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider
+           bg-secondary/10 text-secondary;
   }
 
   /* Frosted glass lockdown overlay — used for disabled/emergency freeze.
@@ -171,4 +252,13 @@
   [data-density="compact"] .card.p-5,
   [data-density="compact"] .card.p-6 { padding: 0.875rem; }
   [data-density="compact"] [data-row] { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+
+  /* ── Scrollbar hide utility ─────────────────────── */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }

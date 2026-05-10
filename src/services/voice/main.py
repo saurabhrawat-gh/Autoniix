@@ -102,6 +102,9 @@ async def lifespan(app: FastAPI):
     logger.info("voice.stopped")
 
 
+from src.observability.sentry import init_sentry
+init_sentry("voice")
+
 app = FastAPI(title="Voice Service", version="0.1.0", lifespan=lifespan)
 
 

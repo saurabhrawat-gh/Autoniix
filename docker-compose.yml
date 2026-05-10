@@ -117,6 +117,35 @@ services:
         echo 'minio bootstrap complete'
     restart: "no"
 
+  # ── Secrets backend (Infisical) ──────────────────────────
+  # Optional. Enabled when SECRETS_BACKEND=infisical (default: env).
+  # The dashboard-bff and workers read provider credentials from here
+  # via src/providers/secrets.py. If this service is down the chain
+  # falls back to env, so the stack still boots cleanly.
+  infisical:
+    image: infisical/infisical:latest-postgres
+    profiles: ["secrets"]
+    environment:
+      ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY:-6c1fe4e407b8911c104518103505b218}
+      AUTH_SECRET: ${INFISICAL_AUTH_SECRET:-5lrMXKKWCVocS/uerPsl7V+TX/aaUaI7iizgsSC0Lw0=}
+      DB_CONNECTION_URI: postgres://${DB_USER:-app}:${DB_PASSWORD:-change_me_strong_random_64}@postgres-app:5432/infisical?sslmode=disable
+      REDIS_URL: redis://redis:6379/3
+      SITE_URL: http://localhost:8222
+      TELEMETRY_ENABLED: "false"
+    ports:
+      - "8222:8080"
+    networks: [yt-net]
+    depends_on:
+      postgres-app:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
   # ── Temporal ─────────────────────────────────────────────
   temporal:
     image: temporalio/auto-setup:latest
@@ -751,7 +780,7 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./observability/grafana/dashboards:/etc/grafana/provisioning/dashboards-json:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards-json:ro
     ports:
       - "3001:3000"
     networks: [yt-net]

@@ -178,6 +178,9 @@ async def lifespan(app: FastAPI):
     logger.info("assembly.stopped")
 
 
+from src.observability.sentry import init_sentry
+init_sentry("assembly")
+
 app = FastAPI(title="Assembly Service", version="0.1.0", lifespan=lifespan)
 
 

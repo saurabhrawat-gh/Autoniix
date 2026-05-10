@@ -80,6 +80,9 @@ async def lifespan(app: FastAPI):
     logger.info("editor.stopped")
 
 
+from src.observability.sentry import init_sentry
+init_sentry("editor")
+
 app = FastAPI(title="Editor Service", version="0.1.0", lifespan=lifespan)
 
 

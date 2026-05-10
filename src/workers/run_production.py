@@ -12,6 +12,8 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 from src.config import settings
+from src.observability.sentry import init_sentry
+init_sentry("worker-production")
 from src.temporal_workflows.video_production import VideoProductionWorkflow
 from src.workers.activities.common import (
     acquire_channel_lock,

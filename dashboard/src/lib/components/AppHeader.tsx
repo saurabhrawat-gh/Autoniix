@@ -1,94 +1,57 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
-import type { LucideIcon } from 'lucide-react';
-import { ThemeToggle } from '../theme';
-import { clearToken } from '../api';
-import { useToast } from '../toast';
-import { cn } from '../utils';
 import { useAppState } from './AppStateProvider';
+import { useToast } from '../toast';
 import { Tip } from './Tooltip';
 import { ShortcutHelp } from './ShortcutHelp';
-import { EnvProductionDialog } from './EnvProductionDialog';
 import { CommandPalette } from './CommandPalette';
 import { NotificationBell } from './NotificationBell';
 import { WsStatusPill } from './WsStatusPill';
 import { MobileDrawer } from './MobileDrawer';
+import { EnvProductionDialog } from './EnvProductionDialog';
+import { ThemeToggle } from '../theme';
+import { cn } from '../utils';
 import {
   Video,
   Activity,
   Settings,
   Plus,
-  LogOut,
   HelpCircle,
-  Beaker,
-  Rocket,
   Search,
   MoreHorizontal as MenuIcon,
+  Tv,
+  Film,
+  ClipboardCheck,
+  Plug,
+  Bell,
+  Home,
+  Archive,
+  Zap,
+  LogOut,
+  Beaker,
+  Rocket,
 } from './Icon';
-
-interface NavLinkProps {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  active: boolean;
-  shortcut?: string;
-}
-
-function NavLink({ href, label, icon: Icon, active, shortcut }: NavLinkProps) {
-  return (
-    <Tip text={shortcut ? `${label} · g ${shortcut}` : label} pos="bottom">
-      <Link
-        href={href}
-        className={cn(
-          'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-medium transition-colors',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40',
-          active
-            ? 'bg-accent/10 text-accent'
-            : 'text-content-secondary hover:text-content-primary hover:bg-surface-2',
-        )}
-      >
-        <Icon size={14} />
-        <span className="hidden md:inline">{label}</span>
-      </Link>
-    </Tip>
-  );
-}
+import { clearToken } from '../api';
 
 export function AppHeader() {
-  const router = useRouter();
   const pathname = usePathname() || '';
-  const { envMode, envSwitching, systemStopped, switchEnv, setPaletteOpen } = useAppState();
+  const router = useRouter();
+  const { systemStopped, setPaletteOpen, envMode, envSwitching, switchEnv } = useAppState();
   const { showToast } = useToast();
   const [helpOpen, setHelpOpen] = useState(false);
-  const [envConfirmOpen, setEnvConfirmOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [gPressed, setGPressed] = useState(false);
+  const [envConfirmOpen, setEnvConfirmOpen] = useState(false);
 
-  const isActive = (path: string) => {
-    if (path === '/dashboard') return pathname === '/dashboard';
-    return pathname.startsWith(path);
-  };
+  useHotkeys('shift+slash', (e) => { e.preventDefault(); setHelpOpen(v => !v); }, []);
+  useHotkeys('escape', () => setHelpOpen(false), []);
+  useHotkeys('mod+k', (e) => { e.preventDefault(); setPaletteOpen(true); }, [setPaletteOpen]);
+  useHotkeys('n', () => { if (!systemStopped) router.push('/dashboard/channels/new'); }, [systemStopped]);
 
-  // ── Keyboard shortcuts ────────────────────────────────────────────
-  useHotkeys('shift+slash', (e) => { e.preventDefault(); setHelpOpen((v) => !v); }, []);
-  useHotkeys('escape', () => { setHelpOpen(false); setEnvConfirmOpen(false); }, []);
-  useHotkeys('g', () => { setGPressed(true); setTimeout(() => setGPressed(false), 1200); }, []);
-  useHotkeys('d', () => { if (gPressed) { setGPressed(false); router.push('/dashboard'); } }, [gPressed, router]);
-  useHotkeys('p', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/progress'); } }, [gPressed, router]);
-  useHotkeys('s', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/settings'); } }, [gPressed, router]);
-  useHotkeys('n', () => { if (!systemStopped) router.push('/dashboard/channels/new'); }, [systemStopped, router]);
-
-  // Close drawer on route change
-  // (covered by Link onClick in MobileDrawer; nothing to do here)
-
-  function logout() {
-    clearToken();
-    router.push('/login');
-  }
+  function logout() { clearToken(); router.push('/login'); }
 
   async function handleEnvToggle() {
     if (envMode === 'test') {
@@ -115,156 +78,125 @@ export function AppHeader() {
 
   return (
     <>
-      <header className="shrink-0 bg-surface-0 border-b border-border px-4 sm:px-6 py-3 sticky top-0 z-30">
-        <div className="max-w-[1400px] mx-auto flex items-center justify-between gap-3">
-          {/* Mobile hamburger */}
+      {/* Thin top bar — logo area (md+: just brand text since sidebar shows logo) + right controls */}
+      <header className="shrink-0 h-12 bg-surface-0 border-b border-border px-3 flex items-center gap-3 sticky top-0 z-30">
+        {/* Mobile hamburger */}
+        <button
+          onClick={() => setDrawerOpen(true)}
+          aria-label="Open menu"
+          className="md:hidden w-8 h-8 flex items-center justify-center rounded-md hover:bg-surface-2 text-content-secondary"
+        >
+          <MenuIcon size={18} />
+        </button>
+
+        {/* Mobile brand (visible only on mobile since sidebar has it on desktop) */}
+        <Link href="/dashboard" className="md:hidden flex items-center gap-2" aria-label="Home">
+          <div className="w-7 h-7 rounded-md bg-accent/10 flex items-center justify-center">
+            <Video size={14} className="text-accent" />
+          </div>
+          <span className="text-sm font-semibold text-content-primary">YT Automation</span>
+        </Link>
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* ENV mode pill */}
+        <Tip text={envMode === 'test' ? 'TEST mode — click to switch to Production' : 'PRODUCTION mode — click to switch to Test'} pos="bottom">
           <button
-            onClick={() => setDrawerOpen(true)}
-            aria-label="Open menu"
-            className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-2 text-content-secondary"
-          >
-            <MenuIcon size={18} />
-          </button>
-
-          {/* Brand */}
-          <Link href="/dashboard" className="flex items-center gap-2 group shrink-0" aria-label="YouTube Automation home">
-            <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center group-hover:bg-accent/20 transition-colors">
-              <Video size={16} className="text-accent" />
-            </div>
-            <span className="text-sm font-semibold text-content-primary hidden lg:inline">
-              YouTube Automation
-            </span>
-          </Link>
-
-          {/* Primary nav (desktop) */}
-          <nav className="hidden md:flex items-center gap-1 ml-2">
-            <NavLink href="/dashboard" label="Dashboard" icon={Video} active={isActive('/dashboard') && !pathname.startsWith('/dashboard/progress') && !pathname.startsWith('/dashboard/settings') && !pathname.startsWith('/dashboard/channels') && !pathname.startsWith('/dashboard/jobs')} shortcut="d" />
-            <NavLink href="/dashboard/progress" label="Progress" icon={Activity} active={pathname.startsWith('/dashboard/progress') || pathname.startsWith('/dashboard/jobs')} shortcut="p" />
-            <NavLink href="/dashboard/settings" label="Settings" icon={Settings} active={pathname.startsWith('/dashboard/settings')} shortcut="s" />
-          </nav>
-
-          {/* WS status (always on right of nav) */}
-          <div className="hidden sm:block ml-2">
-            <WsStatusPill />
-          </div>
-
-          {/* Right side */}
-          <div className="flex items-center gap-2 ml-auto">
-            {/* Command palette trigger */}
-            <Tip text="Search & commands (⌘K)" pos="bottom">
-              <button
-                onClick={() => setPaletteOpen(true)}
-                aria-label="Open command palette"
-                className="hidden sm:inline-flex items-center gap-2 h-8 px-2.5 rounded-lg text-xs text-content-tertiary bg-surface-1 hover:bg-surface-2 border border-border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-              >
-                <Search size={12} />
-                <span className="hidden lg:inline">Search…</span>
-                <kbd className="hidden lg:inline-flex items-center px-1 py-0.5 rounded text-[9px] border border-border bg-surface-0">⌘K</kbd>
-              </button>
-            </Tip>
-            <Tip text="Search & commands (⌘K)" pos="bottom">
-              <button
-                onClick={() => setPaletteOpen(true)}
-                aria-label="Open command palette"
-                className="sm:hidden w-8 h-8 flex items-center justify-center rounded-lg bg-surface-2 hover:bg-surface-3 text-content-secondary"
-              >
-                <Search size={14} />
-              </button>
-            </Tip>
-
-            <NotificationBell />
-            <Tip
-              text={envMode === 'test'
-                ? 'Test mode: free/mock providers, no uploads'
-                : 'Production mode: paid APIs, YouTube uploads'}
-              pos="bottom"
-            >
-              <div className="flex items-center gap-2">
-                <span className={cn('text-[10px] font-semibold flex items-center gap-1', envMode === 'test' ? 'text-amber-400' : 'text-content-tertiary')}>
-                  <Beaker size={11} />
-                  <span className="hidden sm:inline">TEST</span>
-                </span>
-                <button
-                  onClick={handleEnvToggle}
-                  disabled={envSwitching}
-                  className={cn(
-                    'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
-                    envMode === 'production' ? 'bg-emerald-500' : 'bg-amber-500',
-                    envSwitching && 'opacity-50 cursor-wait',
-                  )}
-                  role="switch"
-                  aria-checked={envMode === 'production'}
-                  aria-label="Toggle environment mode"
-                >
-                  <span
-                    className={cn(
-                      'inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform',
-                      envMode === 'production' ? 'translate-x-[18px]' : 'translate-x-[3px]',
-                    )}
-                  />
-                </button>
-                <span className={cn('text-[10px] font-semibold flex items-center gap-1', envMode === 'production' ? 'text-emerald-400' : 'text-content-tertiary')}>
-                  <Rocket size={11} />
-                  <span className="hidden sm:inline">PROD</span>
-                </span>
-              </div>
-            </Tip>
-
-            <ThemeToggle />
-
-            <Tip text="Keyboard shortcuts (?)" pos="bottom">
-              <button
-                onClick={() => setHelpOpen(true)}
-                aria-label="Keyboard shortcuts"
-                className="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-2 hover:bg-surface-3 text-content-secondary hover:text-content-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-              >
-                <HelpCircle size={14} />
-              </button>
-            </Tip>
-
-            {systemStopped ? (
-              <Tip text="Resume system from Settings to add channels" pos="bottom">
-                <span className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-xs font-medium opacity-50 cursor-not-allowed bg-accent text-white">
-                  <Plus size={14} /> <span className="hidden sm:inline">Add Channel</span>
-                </span>
-              </Tip>
-            ) : (
-              <Tip text="Create a new channel (n)" pos="bottom">
-                <Link
-                  href="/dashboard/channels/new"
-                  className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-xs font-medium bg-accent text-white hover:opacity-90 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-                >
-                  <Plus size={14} /> <span className="hidden sm:inline">Add Channel</span>
-                </Link>
-              </Tip>
+            onClick={handleEnvToggle}
+            disabled={envSwitching}
+            className={cn(
+              'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-semibold tracking-wider transition-colors border',
+              envMode === 'test'
+                ? 'border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/15'
+                : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/15',
+              envSwitching && 'opacity-50 cursor-wait'
             )}
+          >
+            {envMode === 'test' ? <Beaker size={12} /> : <Rocket size={12} />}
+            <span className="hidden sm:inline">{envMode === 'test' ? 'TEST' : 'LIVE'}</span>
+          </button>
+        </Tip>
 
-            <Tip text="Sign out" pos="bottom">
-              <button
-                onClick={logout}
-                aria-label="Logout"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-content-tertiary hover:text-content-primary hover:bg-surface-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-              >
-                <LogOut size={14} />
-              </button>
-            </Tip>
-          </div>
-        </div>
+        {/* WS status */}
+        <WsStatusPill />
+
+        {/* Command palette — icon button only */}
+        <Tip text="Search & commands (⌘K)" pos="bottom">
+          <button
+            onClick={() => setPaletteOpen(true)}
+            aria-label="Open command palette"
+            className="w-8 h-8 flex items-center justify-center rounded-md bg-surface-1 hover:bg-surface-2 border border-border text-content-secondary hover:text-content-primary transition-colors"
+          >
+            <Search size={14} />
+          </button>
+        </Tip>
+
+        {/* Theme toggle */}
+        <ThemeToggle />
+
+        <NotificationBell />
+
+        <Tip text="Keyboard shortcuts (?)" pos="bottom">
+          <button
+            onClick={() => setHelpOpen(true)}
+            aria-label="Keyboard shortcuts"
+            className="w-8 h-8 flex items-center justify-center rounded-md bg-surface-2 hover:bg-surface-3 text-content-secondary hover:text-content-primary transition-colors"
+          >
+            <HelpCircle size={14} />
+          </button>
+        </Tip>
+
+        {/* Sign out */}
+        <Tip text="Sign out" pos="bottom">
+          <button
+            onClick={logout}
+            aria-label="Sign out"
+            className="w-8 h-8 flex items-center justify-center rounded-md bg-surface-2 hover:bg-surface-3 text-content-secondary hover:text-content-primary transition-colors"
+          >
+            <LogOut size={14} />
+          </button>
+        </Tip>
+
+        {/* Add Channel — styled like Long/Short buttons */}
+        {systemStopped ? (
+          <Tip text="Resume system from Settings to add channels" pos="bottom">
+            <span className="inline-flex items-center justify-center gap-1.5 h-8 w-8 lg:w-auto lg:px-3 rounded-md text-xs font-medium opacity-50 cursor-not-allowed border text-content-tertiary bg-surface-2 border-border">
+              <Plus size={14} /> <span className="hidden lg:inline">Add Channel</span>
+            </span>
+          </Tip>
+        ) : (
+          <Tip text="Create a new channel (n)" pos="bottom">
+            <Link
+              href="/dashboard/channels/new"
+              aria-label="Add channel"
+              className="inline-flex items-center justify-center gap-1.5 h-8 w-8 lg:w-auto lg:px-3 rounded-md text-xs font-medium border text-accent bg-accent/5 border-accent/15 hover:bg-accent/10 transition-colors"
+            >
+              <Plus size={14} /> <span className="hidden lg:inline">Add Channel</span>
+            </Link>
+          </Tip>
+        )}
       </header>
 
-      <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
       <EnvProductionDialog
         open={envConfirmOpen}
         switching={envSwitching}
         onCancel={() => setEnvConfirmOpen(false)}
         onConfirm={confirmProduction}
       />
+
+      <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
       <CommandPalette />
       <MobileDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         items={[
-          { href: '/dashboard', label: 'Dashboard', icon: Video, active: isActive('/dashboard') && !pathname.startsWith('/dashboard/progress') && !pathname.startsWith('/dashboard/settings') && !pathname.startsWith('/dashboard/channels') && !pathname.startsWith('/dashboard/jobs') },
+          { href: '/dashboard', label: 'Home', icon: Home, active: pathname === '/dashboard' },
+          { href: '/dashboard/channels', label: 'Channels', icon: Tv, active: pathname.startsWith('/dashboard/channels') },
+          { href: '/dashboard/content', label: 'Content', icon: Film, active: pathname.startsWith('/dashboard/content') },
+          { href: '/dashboard/library', label: 'Library', icon: Archive, active: pathname.startsWith('/dashboard/library') },
+          { href: '/dashboard/experiments', label: 'Experiments', icon: Zap, active: pathname.startsWith('/dashboard/experiments') },
+          { href: '/dashboard/providers', label: 'Providers', icon: Plug, active: pathname.startsWith('/dashboard/providers') },
           { href: '/dashboard/progress', label: 'Progress', icon: Activity, active: pathname.startsWith('/dashboard/progress') || pathname.startsWith('/dashboard/jobs') },
           { href: '/dashboard/settings', label: 'Settings', icon: Settings, active: pathname.startsWith('/dashboard/settings') },
           { href: '/dashboard/channels/new', label: 'Add Channel', icon: Plus },
@@ -272,7 +204,7 @@ export function AppHeader() {
         footer={(
           <button
             onClick={() => { setDrawerOpen(false); logout(); }}
-            className="w-full inline-flex items-center justify-center gap-2 h-9 rounded-lg bg-surface-2 hover:bg-surface-3 text-sm font-medium text-content-secondary"
+            className="w-full inline-flex items-center justify-center gap-2 h-9 rounded-md bg-surface-2 hover:bg-surface-3 text-sm font-medium text-content-secondary"
           >
             <LogOut size={14} /> Sign out
           </button>

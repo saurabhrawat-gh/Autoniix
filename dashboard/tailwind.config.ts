@@ -49,11 +49,14 @@ const config: Config = {
         },
       },
       borderRadius: {
-        sm: '4px',
-        DEFAULT: '6px',
+        none: '0px',
+        sm: '6px',
+        DEFAULT: '8px',
         md: '8px',
-        lg: '12px',
-        xl: '16px',
+        lg: '10px',
+        xl: '12px',
+        '2xl': '14px',
+        full: '9999px',
       },
       boxShadow: {
         card: 'var(--shadow-card)',

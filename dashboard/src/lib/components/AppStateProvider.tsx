@@ -158,14 +158,26 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let stopped = false;
 
+    let connectTimeout: ReturnType<typeof setTimeout> | null = null;
     function connect() {
       if (stopped) return;
       setWsStatus('connecting');
       try {
         const ws = wsEvents();
         wsRef.current = ws;
-        ws.onopen = () => setWsStatus('live');
+        // If the socket doesn't open within 5s, treat as offline
+        connectTimeout = setTimeout(() => {
+          if (ws.readyState !== WebSocket.OPEN) {
+            setWsStatus('offline');
+            try { ws.close(); } catch {}
+          }
+        }, 5000);
+        ws.onopen = () => {
+          if (connectTimeout) { clearTimeout(connectTimeout); connectTimeout = null; }
+          setWsStatus('live');
+        };
         ws.onclose = () => {
+          if (connectTimeout) { clearTimeout(connectTimeout); connectTimeout = null; }
           if (stopped) return;
           setWsStatus('offline');
           reconnectTimer = setTimeout(connect, 5000);
@@ -206,6 +218,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     return () => {
       stopped = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (connectTimeout) clearTimeout(connectTimeout);
       try { wsRef.current?.close(); } catch {}
     };
   }, [pushNotification]);

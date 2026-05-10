@@ -93,6 +93,9 @@ async def lifespan(app: FastAPI):
     logger.info("direction.stopped")
 
 
+from src.observability.sentry import init_sentry
+init_sentry("direction")
+
 app = FastAPI(title="Direction Service", version="0.1.0", lifespan=lifespan)
 
 

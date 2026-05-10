@@ -302,6 +302,9 @@ async def lifespan(app: FastAPI):
     logger.info("research.stopped")
 
 
+from src.observability.sentry import init_sentry
+init_sentry("research")
+
 app = FastAPI(title="Research Service", version="0.1.0", lifespan=lifespan)
 
 

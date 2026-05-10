@@ -29,6 +29,10 @@ from src.db import get_pool
 from src.environment import get_mode, set_db_mode_override, is_test
 from src.schemas.common import VideoParams
 from src.observability.metrics import instrument_app
+from src.observability.sentry import init_sentry
+
+# Initialize Sentry as early as possible. No-op when SENTRY_DSN is unset.
+init_sentry("dashboard-bff")
 
 logger = structlog.get_logger()
 
@@ -114,6 +118,14 @@ _generate_download_url = _public_url
 
 app = FastAPI(title="Dashboard BFF", version="1.0.0")
 instrument_app(app, service_name="dashboard")
+
+# Mount v2 router (Phase 0+ revamp). Strictly additive: every existing
+# /api/... endpoint below keeps its contract.
+try:
+    from src.services.dashboard.v2 import router as _v2_router
+    app.include_router(_v2_router, prefix="/api/v2")
+except Exception as _exc:  # pragma: no cover — never fail boot on v2
+    logger.warning("dashboard.v2_router_disabled", error=str(_exc))
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
