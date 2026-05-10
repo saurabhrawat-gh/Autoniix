@@ -71,7 +71,7 @@ async def list_content(
                topic, selected_hook, review_state, authenticity_score,
                uniqueness_score, thumbnail_variants_urls, rendered_video_url,
                youtube_video_id, total_cost, final_composite_score,
-               created_at, scheduled_at, published_at,
+               current_phase, created_at, scheduled_at, published_at,
                date_trunc('{_GROUP_TRUNC[group]}', created_at)::date AS bucket
           FROM videos
          WHERE {' AND '.join(where)}

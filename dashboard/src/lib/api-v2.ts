@@ -99,6 +99,41 @@ export const channelsApi = {
   draftSave: (id: number, current_step: number, payload: any) =>
     request(`/api/v2/channels/drafts/${id}`, { method: 'PUT', body: JSON.stringify({ current_step, payload }) }),
   draftGet: (id: number) => request<{ data: any }>(`/api/v2/channels/drafts/${id}`),
+  // Wave 5: status actions
+  enable:  (id: string) => request(`/api/v2/channels/${id}/enable`,  { method: 'PUT' }),
+  disable: (id: string) => request(`/api/v2/channels/${id}/disable`, { method: 'PUT' }),
+  archive: (id: string) => request(`/api/v2/channels/${id}/archive`, { method: 'PUT' }),
+  restore: (id: string) => request(`/api/v2/channels/${id}/restore`, { method: 'PUT' }),
+  clone:   (id: string) => request(`/api/v2/channels/${id}/clone`,   { method: 'POST' }),
+  export:  (id: string) => request<{ data: any }>(`/api/v2/channels/${id}/export`),
+  trigger: (id: string, body: { content_mode?: string; topic_hint?: string; topic_candidates?: string[]; max_cost_usd?: number } = {}) =>
+    request(`/api/v2/channels/${id}/trigger`, { method: 'POST', body: JSON.stringify(body) }),
+  pauseJob:  (channelId: string, contentId: string) =>
+    request(`/api/v2/channels/${channelId}/jobs/${contentId}/pause`,  { method: 'POST' }),
+  resumeJob: (channelId: string, contentId: string) =>
+    request(`/api/v2/channels/${channelId}/jobs/${contentId}/resume`, { method: 'POST' }),
+  stopJob:   (channelId: string, contentId: string) =>
+    request(`/api/v2/channels/${channelId}/jobs/${contentId}/stop`,   { method: 'POST' }),
+};
+
+// ── Dashboard ─────────────────────────────────────────────
+export const dashboardApi = {
+  stats: () =>
+    request<{
+      data: {
+        channels: { total: number; active: number; disabled: number; archived: number };
+        today: { videos_total: number; delivered: number; failed: number; in_progress: number; cost: number };
+        budget: { daily_limit: number; today_cost: number };
+        environment_mode: string;
+        emergency_stop: boolean;
+      };
+    }>('/api/v2/channels/stats'),
+  activeJobs: (limit = 30) => {
+    const q = new URLSearchParams({ limit: String(limit) });
+    return request<{ data: { groups: { label: string; items: any[] }[]; next_cursor: string | null } }>(
+      `/api/v2/content?${q}`
+    );
+  },
 };
 
 // ── Providers ─────────────────────────────────────────────

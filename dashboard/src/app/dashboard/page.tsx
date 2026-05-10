@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, isLoggedIn, wsEvents } from '@/lib/api';
+import { isLoggedIn, wsEvents } from '@/lib/api';
+import { dashboardApi, contentApi } from '@/lib/api-v2';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import { Skeleton } from '@/lib/components/Skeleton';
@@ -38,11 +39,16 @@ export default function DashboardPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [s, j] = await Promise.all([api.stats(), api.activeJobs()]);
-      setStats(s.data ?? s);
-      setSystemStopped(!!(s.data ?? s).emergency_stop);
-      setEnvMode((s.data ?? s).environment_mode || 'test');
-      setJobs(j.data || []);
+      const [s, j] = await Promise.all([
+        dashboardApi.stats(),
+        contentApi.list({ limit: 30 }).catch(() => null),
+      ]);
+      const d = s.data;
+      setStats(d);
+      setSystemStopped(!!d.emergency_stop);
+      setEnvMode(d.environment_mode || 'test');
+      const items = j ? (j.data.groups ?? []).flatMap((g: any) => g.items ?? []) : [];
+      setJobs(items);
     } catch (e: any) {
       showToast(e?.message || 'Failed to load', 'error');
     }

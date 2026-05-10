@@ -308,6 +308,7 @@ async def create_channel(
 @router.get("")
 async def list_channels(
     include_archived: bool = False,
+    enrich: bool = True,
     _: Principal = Depends(principal_dep),
 ):
     pool = await get_pool()
@@ -320,6 +321,8 @@ async def list_channels(
                c.created_at,
                c.primary_language       AS language,
                c.publish_cadence,
+               c.videos_per_week_short,
+               c.videos_per_week_long,
                cp.completeness_score, cp.tone, cp.brand_personality,
                (SELECT COUNT(*) FROM channel_pillars p WHERE p.channel_id = c.channel_id) AS pillar_count,
                (SELECT COUNT(*) FROM channel_references r WHERE r.channel_id = c.channel_id) AS reference_count
@@ -329,7 +332,10 @@ async def list_channels(
           ORDER BY c.created_at DESC, c.channel_id
         """
     )
-    return {"data": [dict(r) for r in rows]}
+    data = [dict(r) for r in rows]
+    if enrich and data:
+        data = await _enrich_channel_list(pool, data)
+    return {"data": data}
 
 
 @router.get("/presets")
@@ -339,6 +345,12 @@ async def list_presets(_: Principal = Depends(principal_dep)):
         "SELECT id, name, description, payload, is_system FROM channel_presets ORDER BY is_system DESC, name"
     )
     return {"data": [dict(r) for r in rows]}
+
+
+@router.get("/stats")
+async def dashboard_stats_early(_: Principal = Depends(principal_dep)):
+    """Forwarded to the real implementation registered after enrichment helper."""
+    return await _dashboard_stats_impl(_)
 
 
 @router.get("/{channel_id}")
@@ -687,6 +699,346 @@ async def field_suggest(
         import structlog
         structlog.get_logger().info("v2.field_suggest.fallback", error=str(exc))
     return {"data": {"suggestion": fallback, "rationale": "heuristic"}}
+
+
+# ── Wave 5: enrichment helper + action endpoints ─────────────────────────────
+
+async def _enrich_channel_list(pool: Any, channels: list[dict]) -> list[dict]:
+    """Batch-attach stats, weekly_usage, and active_jobs to each channel dict."""
+    ids = [c["channel_id"] for c in channels]
+
+    # Lifetime per-channel stats
+    stat_rows = await pool.fetch(
+        """SELECT channel_id,
+                  COUNT(*) FILTER (WHERE status IN ('delivered','test_delivered')) AS delivered,
+                  COUNT(*) FILTER (WHERE status NOT IN
+                      ('delivered','test_delivered','failed','stopped','superseded','rejected')) AS in_progress,
+                  COUNT(*) AS total
+             FROM videos WHERE channel_id = ANY($1::text[])
+             GROUP BY channel_id""",
+        ids,
+    )
+    stats_map = {r["channel_id"]: r for r in stat_rows}
+
+    # Weekly usage (current ISO week)
+    weekly_rows = await pool.fetch(
+        """SELECT channel_id,
+                  COUNT(*) FILTER (WHERE content_mode = 'short'
+                      AND status NOT IN ('failed','stopped','superseded','rejected')) AS short_used,
+                  COUNT(*) FILTER (WHERE content_mode = 'long_form'
+                      AND status NOT IN ('failed','stopped','superseded','rejected')) AS long_used
+             FROM videos
+            WHERE channel_id = ANY($1::text[])
+              AND created_at >= date_trunc('week', NOW())
+            GROUP BY channel_id""",
+        ids,
+    )
+    weekly_map = {r["channel_id"]: r for r in weekly_rows}
+
+    # Active (non-terminal) jobs — latest per channel+mode
+    job_rows = await pool.fetch(
+        """SELECT DISTINCT ON (channel_id, content_mode)
+                  channel_id, content_id, status, content_mode
+             FROM videos
+            WHERE channel_id = ANY($1::text[])
+              AND status NOT IN ('delivered','test_delivered','failed','stopped',
+                                 'superseded','rejected','retrying')
+            ORDER BY channel_id, content_mode, created_at DESC""",
+        ids,
+    )
+    job_map: dict[str, list] = {}
+    for r in job_rows:
+        job_map.setdefault(r["channel_id"], []).append({
+            "content_id": r["content_id"],
+            "status": r["status"],
+            "content_mode": r["content_mode"],
+            "is_paused": False,
+        })
+
+    for ch in channels:
+        cid = ch["channel_id"]
+        s = stats_map.get(cid)
+        w = weekly_map.get(cid)
+        ch["stats"] = {
+            "delivered":   int(s["delivered"])   if s else 0,
+            "in_progress": int(s["in_progress"]) if s else 0,
+            "total":       int(s["total"])       if s else 0,
+        }
+        ch["weekly_usage"] = {
+            "short":    {"used": int(w["short_used"])  if w else 0,
+                         "limit": ch.get("videos_per_week_short") or 7},
+            "long_form": {"used": int(w["long_used"]) if w else 0,
+                          "limit": ch.get("videos_per_week_long") or 1},
+        }
+        ch["active_jobs"] = job_map.get(cid, [])
+    return channels
+
+
+async def _dashboard_stats_impl(_: Principal):
+    """Shared implementation for GET /stats (registered early to beat /{channel_id})."""  # noqa
+    pool = await get_pool()
+    ch = await pool.fetchrow(
+        """SELECT COUNT(*) AS total,
+                  COUNT(*) FILTER (WHERE status = 'active')   AS active,
+                  COUNT(*) FILTER (WHERE status = 'disabled') AS disabled,
+                  COUNT(*) FILTER (WHERE status = 'archived') AS archived
+             FROM channels"""
+    )
+    vid = await pool.fetchrow(
+        """SELECT COUNT(*) AS total,
+                  COUNT(*) FILTER (WHERE status IN ('delivered','test_delivered')) AS delivered,
+                  COUNT(*) FILTER (WHERE status = 'failed')   AS failed,
+                  COUNT(*) FILTER (WHERE status NOT IN
+                      ('delivered','test_delivered','failed','stopped','superseded','rejected')) AS in_progress,
+                  COALESCE(SUM(total_cost), 0) AS total_cost
+             FROM videos WHERE created_at::date = CURRENT_DATE"""
+    )
+    budget_row = await pool.fetchrow(
+        "SELECT config_value FROM system_config WHERE config_key = 'daily_budget_limit'"
+    )
+    env_row = await pool.fetchrow(
+        "SELECT config_value FROM system_config WHERE config_key = 'environment_mode'"
+    )
+    stop_row = await pool.fetchrow(
+        "SELECT config_value FROM system_config WHERE config_key = 'emergency_stop'"
+    )
+    return {
+        "data": {
+            "channels": dict(ch),
+            "today": {
+                "videos_total": int(vid["total"]),
+                "delivered":    int(vid["delivered"]),
+                "failed":       int(vid["failed"]),
+                "in_progress":  int(vid["in_progress"]),
+                "cost":         float(vid["total_cost"]),
+            },
+            "budget": {
+                "daily_limit": float(budget_row["config_value"]) if budget_row else 0.0,
+                "today_cost":  float(vid["total_cost"]),
+            },
+            "environment_mode": (env_row["config_value"] if env_row else "test"),
+            "emergency_stop": (stop_row["config_value"] or "").lower() in ("true", "1") if stop_row else False,
+        }
+    }
+
+
+# ── Channel status actions ───────────────────────────────────────────────────
+
+@router.put("/{channel_id}/enable")
+async def enable_channel(
+    channel_id: str, request: Request,
+    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+):
+    pool = await get_pool()
+    res = await pool.execute(
+        "UPDATE channels SET status='active', updated_at=NOW() WHERE channel_id=$1", channel_id
+    )
+    if res.endswith("0"):
+        raise HTTPException(404, "Channel not found")
+    await audit(actor=actor, action="channel.enable", target_type="channel",
+                target_id=channel_id, request=request)
+    return {"status": "ok"}
+
+
+@router.put("/{channel_id}/disable")
+async def disable_channel(
+    channel_id: str, request: Request,
+    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+):
+    pool = await get_pool()
+    res = await pool.execute(
+        "UPDATE channels SET status='disabled', updated_at=NOW() WHERE channel_id=$1", channel_id
+    )
+    if res.endswith("0"):
+        raise HTTPException(404, "Channel not found")
+    await audit(actor=actor, action="channel.disable", target_type="channel",
+                target_id=channel_id, request=request)
+    return {"status": "ok"}
+
+
+@router.put("/{channel_id}/archive")
+async def archive_channel(
+    channel_id: str, request: Request,
+    actor: Principal = Depends(require_role("owner", "admin")),
+):
+    pool = await get_pool()
+    res = await pool.execute(
+        "UPDATE channels SET status='archived', updated_at=NOW() WHERE channel_id=$1", channel_id
+    )
+    if res.endswith("0"):
+        raise HTTPException(404, "Channel not found")
+    await audit(actor=actor, action="channel.archive", target_type="channel",
+                target_id=channel_id, request=request)
+    return {"status": "ok"}
+
+
+@router.put("/{channel_id}/restore")
+async def restore_channel(
+    channel_id: str, request: Request,
+    actor: Principal = Depends(require_role("owner", "admin")),
+):
+    pool = await get_pool()
+    res = await pool.execute(
+        "UPDATE channels SET status='disabled', updated_at=NOW() WHERE channel_id=$1 AND status='archived'",
+        channel_id,
+    )
+    if res.endswith("0"):
+        raise HTTPException(404, "Channel not found or not archived")
+    await audit(actor=actor, action="channel.restore", target_type="channel",
+                target_id=channel_id, request=request)
+    return {"status": "ok"}
+
+
+@router.post("/{channel_id}/clone")
+async def clone_channel(
+    channel_id: str, request: Request,
+    actor: Principal = Depends(require_role("owner", "admin")),
+):
+    """Proxy to legacy clone endpoint (Temporal-aware)."""
+    import httpx
+    token = request.headers.get("Authorization", "")
+    bff_base = "http://localhost:8020"
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                f"{bff_base}/api/channels/{channel_id}/clone",
+                headers={"Authorization": token},
+            )
+        if resp.status_code >= 400:
+            raise HTTPException(resp.status_code, resp.json().get("detail", "Clone failed"))
+        result = resp.json()
+    except httpx.RequestError as exc:
+        raise HTTPException(502, f"Legacy BFF unreachable: {exc}") from exc
+    await audit(actor=actor, action="channel.clone", target_type="channel",
+                target_id=channel_id, request=request)
+    return result
+
+
+@router.get("/{channel_id}/export")
+async def export_channel(
+    channel_id: str,
+    _: Principal = Depends(principal_dep),
+):
+    """Return full channel config as a JSON download."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        ch = await conn.fetchrow("SELECT * FROM channels WHERE channel_id=$1", channel_id)
+        if not ch:
+            raise HTTPException(404, "Channel not found")
+        profile = await conn.fetchrow("SELECT * FROM channel_profiles WHERE channel_id=$1", channel_id)
+        pillars = await conn.fetch("SELECT * FROM channel_pillars WHERE channel_id=$1 ORDER BY position", channel_id)
+        rules = await conn.fetch("SELECT * FROM channel_topic_rules WHERE channel_id=$1", channel_id)
+    return {
+        "data": {
+            "channel":     dict(ch),
+            "profile":     dict(profile) if profile else None,
+            "pillars":     [dict(p) for p in pillars],
+            "topic_rules": [dict(r) for r in rules],
+        }
+    }
+
+
+class TriggerIn(BaseModel):
+    content_mode: str | None = None
+    topic_hint: str | None = None
+    topic_candidates: list[str] = Field(default_factory=list)
+    max_cost_usd: float | None = None
+
+
+@router.post("/{channel_id}/trigger")
+async def trigger_channel(
+    channel_id: str,
+    body: TriggerIn,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+):
+    """Proxy trigger to the legacy BFF which handles Temporal start + budget checks."""
+    import httpx
+    token = request.headers.get("Authorization", "")
+    bff_base = "http://localhost:8020"
+    payload: dict = {}
+    if body.content_mode:
+        payload["content_mode"] = body.content_mode
+    if body.topic_hint:
+        payload["topic_candidates"] = [body.topic_hint]
+    if body.topic_candidates:
+        payload["topic_candidates"] = body.topic_candidates
+    if body.max_cost_usd is not None:
+        payload["max_cost_usd"] = body.max_cost_usd
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.post(
+                f"{bff_base}/api/channels/{channel_id}/trigger",
+                headers={"Authorization": token},
+                json=payload,
+            )
+        if resp.status_code >= 400:
+            raise HTTPException(resp.status_code, resp.json().get("detail", "Trigger failed"))
+        result = resp.json()
+    except httpx.RequestError as exc:
+        raise HTTPException(502, f"Legacy BFF unreachable: {exc}") from exc
+    await audit(actor=actor, action="channel.trigger", target_type="channel",
+                target_id=channel_id, after=payload, request=request)
+    return result
+
+
+# ── Job control (pause / resume / stop) ─────────────────────────────────────
+
+@router.post("/{channel_id}/jobs/{content_id}/pause")
+async def pause_job(
+    channel_id: str, content_id: str, request: Request,
+    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+):
+    import httpx
+    token = request.headers.get("Authorization", "")
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.post(
+            f"http://localhost:8020/api/channels/{channel_id}/jobs/{content_id}/pause",
+            headers={"Authorization": token},
+        )
+    if resp.status_code >= 400:
+        raise HTTPException(resp.status_code, resp.json().get("detail", "Pause failed"))
+    await audit(actor=actor, action="job.pause", target_type="video",
+                target_id=content_id, request=request)
+    return resp.json()
+
+
+@router.post("/{channel_id}/jobs/{content_id}/resume")
+async def resume_job(
+    channel_id: str, content_id: str, request: Request,
+    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+):
+    import httpx
+    token = request.headers.get("Authorization", "")
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.post(
+            f"http://localhost:8020/api/channels/{channel_id}/jobs/{content_id}/resume",
+            headers={"Authorization": token},
+        )
+    if resp.status_code >= 400:
+        raise HTTPException(resp.status_code, resp.json().get("detail", "Resume failed"))
+    await audit(actor=actor, action="job.resume", target_type="video",
+                target_id=content_id, request=request)
+    return resp.json()
+
+
+@router.post("/{channel_id}/jobs/{content_id}/stop")
+async def stop_job(
+    channel_id: str, content_id: str, request: Request,
+    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+):
+    import httpx
+    token = request.headers.get("Authorization", "")
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.post(
+            f"http://localhost:8020/api/channels/{channel_id}/jobs/{content_id}/stop",
+            headers={"Authorization": token},
+        )
+    if resp.status_code >= 400:
+        raise HTTPException(resp.status_code, resp.json().get("detail", "Stop failed"))
+    await audit(actor=actor, action="job.stop", target_type="video",
+                target_id=content_id, request=request)
+    return resp.json()
 
 
 def _is_async(fn):

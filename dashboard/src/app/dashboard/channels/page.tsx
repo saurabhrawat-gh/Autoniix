@@ -4,7 +4,8 @@ import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
-import { api, isLoggedIn, wsEvents } from '@/lib/api';
+import { channelsApi, dashboardApi } from '@/lib/api-v2';
+import { isLoggedIn, wsEvents } from '@/lib/api';
 import { cn, statusDot } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import { Skeleton, SkeletonCard } from '@/lib/components/Skeleton';
@@ -85,9 +86,9 @@ export default function ChannelsPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [s, c] = await Promise.all([api.stats(), api.channels(true)]);
-      setSystemStopped(s.data?.emergency_stop === true);
+      const [c, s] = await Promise.all([channelsApi.list(true), dashboardApi.stats().catch(() => null)]);
       setAllChannels(c.data || []);
+      setSystemStopped(s?.data?.emergency_stop === true);
     } catch (e: any) {
       showToast(e?.message || 'Failed to load data', 'error');
     }
@@ -163,8 +164,8 @@ export default function ChannelsPage() {
     const snapshot = allChannels;
     setAllChannels(prev => prev.map(c => c.channel_id === id ? { ...c, status: next } : c));
     try {
-      if (current === 'active') await api.disableChannel(id);
-      else await api.enableChannel(id);
+      if (current === 'active') await channelsApi.disable(id);
+      else await channelsApi.enable(id);
       loadData();
     } catch (e: any) { setAllChannels(snapshot); showToast(e?.message || 'Toggle failed', 'error'); }
   }
@@ -175,8 +176,8 @@ export default function ChannelsPage() {
     setAllChannels(prev => prev.map(c => c.channel_id === id ? { ...c, status: 'archived' } : c));
     setConfirmArchive(null);
     try {
-      await api.archiveChannel(id);
-      showToast(`${name} archived`, { variant: 'info', duration: 6000, action: { label: 'Undo', onAct: async () => { await api.restoreChannel(id); loadData(); } } });
+      await channelsApi.archive(id);
+      showToast(`${name} archived`, { variant: 'info', duration: 6000, action: { label: 'Undo', onAct: async () => { await channelsApi.restore(id); loadData(); } } });
       loadData();
     } catch (e: any) { setAllChannels(snapshot); showToast(e?.message || 'Archive failed', 'error'); }
   }
@@ -184,16 +185,16 @@ export default function ChannelsPage() {
   async function restoreChannel(id: string) {
     const snapshot = allChannels;
     setAllChannels(prev => prev.map(c => c.channel_id === id ? { ...c, status: 'disabled' } : c));
-    try { await api.restoreChannel(id); loadData(); } catch (e: any) { setAllChannels(snapshot); showToast(e?.message || 'Restore failed', 'error'); }
+    try { await channelsApi.restore(id); loadData(); } catch (e: any) { setAllChannels(snapshot); showToast(e?.message || 'Restore failed', 'error'); }
   }
 
   async function cloneChannel(id: string) {
-    try { await api.cloneChannel(id); setActionMenu(null); loadData(); } catch (e: any) { showToast(e?.message || 'Clone failed', 'error'); }
+    try { await channelsApi.clone(id); setActionMenu(null); loadData(); } catch (e: any) { showToast(e?.message || 'Clone failed', 'error'); }
   }
 
   async function exportChannel(id: string) {
     try {
-      const res = await api.exportChannel(id);
+      const res = await channelsApi.export(id);
       const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = `${id}-config.json`; a.click(); URL.revokeObjectURL(url);
@@ -205,21 +206,25 @@ export default function ChannelsPage() {
     const key = `${id}:${contentMode}`;
     if (triggeringKeys.has(key)) return;
     setTriggeringKeys(prev => new Set(prev).add(key));
-    try { await api.trigger(id, { content_mode: contentMode }); await loadData(); } catch (e: any) { showToast(e?.message || 'Trigger failed', 'error'); }
+    try { await channelsApi.trigger(id, { content_mode: contentMode }); await loadData(); } catch (e: any) { showToast(e?.message || 'Trigger failed', 'error'); }
     setTriggeringKeys(prev => { const n = new Set(prev); n.delete(key); return n; });
   }
 
-  async function togglePauseJob(contentId: string, isPaused: boolean) {
+  async function togglePauseJob(channelId: string, contentId: string, isPaused: boolean) {
     if (busyJobs.has(contentId)) return;
     setBusyJobs(prev => new Set(prev).add(contentId));
-    try { if (isPaused) await api.resumeJob(contentId); else await api.pauseJob(contentId); await loadData(); } catch (e: any) { showToast(e?.message || 'Action failed', 'error'); }
+    try {
+      if (isPaused) await channelsApi.resumeJob(channelId, contentId);
+      else await channelsApi.pauseJob(channelId, contentId);
+      await loadData();
+    } catch (e: any) { showToast(e?.message || 'Action failed', 'error'); }
     setBusyJobs(prev => { const n = new Set(prev); n.delete(contentId); return n; });
   }
 
-  async function stopJob(contentId: string) {
+  async function stopJob(channelId: string, contentId: string) {
     if (busyJobs.has(contentId)) return;
     setBusyJobs(prev => new Set(prev).add(contentId));
-    try { await api.stopJob(contentId); await loadData(); } catch (e: any) { showToast(e?.message || 'Stop failed', 'error'); }
+    try { await channelsApi.stopJob(channelId, contentId); await loadData(); } catch (e: any) { showToast(e?.message || 'Stop failed', 'error'); }
     setBusyJobs(prev => { const n = new Set(prev); n.delete(contentId); return n; });
   }
 
@@ -484,11 +489,11 @@ export default function ChannelsPage() {
                               <span className="text-[10px] text-content-tertiary">{mState === 'paused' ? 'Paused' : 'Running'}</span>
                               {mJob && (
                                 <>
-                                  <button onClick={() => togglePauseJob(mJob.content_id, mJob.is_paused)} disabled={!!isBusy}
+                                  <button onClick={() => togglePauseJob(ch.channel_id, mJob.content_id, mJob.is_paused)} disabled={!!isBusy}
                                     className="h-5 px-1.5 rounded border text-[10px] border-border hover:bg-surface-2 text-content-tertiary disabled:opacity-50">
                                     {isBusy ? '…' : mJob.is_paused ? '▶' : '⏸'}
                                   </button>
-                                  <button onClick={() => stopJob(mJob.content_id)} disabled={!!isBusy}
+                                  <button onClick={() => stopJob(ch.channel_id, mJob.content_id)} disabled={!!isBusy}
                                     className="h-5 px-1.5 rounded border text-[10px] border-red-500/30 bg-red-500/5 text-red-500 hover:bg-red-500/10 disabled:opacity-50">
                                     {isBusy ? '…' : '■'}
                                   </button>
@@ -659,12 +664,12 @@ export default function ChannelsPage() {
                                       <span className="text-[10px] text-content-tertiary whitespace-nowrap">{mState === 'paused' ? 'Paused' : 'Running'} ({mLabel})</span>
                                       {mJob && (
                                         <>
-                                          <button onClick={() => togglePauseJob(mJob.content_id, mJob.is_paused)} disabled={!!isBusy}
+                                          <button onClick={() => togglePauseJob(ch.channel_id, mJob.content_id, mJob.is_paused)} disabled={!!isBusy}
                                             className={cn('h-5 px-1.5 border rounded text-[10px] font-medium transition-all disabled:opacity-50',
                                               mJob.is_paused ? 'text-accent border-accent/20 bg-accent/5' : 'text-amber-500 border-amber-500/20 bg-amber-500/5')}>
                                             {isBusy ? '…' : mJob.is_paused ? '▶' : '⏸'}
                                           </button>
-                                          <button onClick={() => stopJob(mJob.content_id)} disabled={!!isBusy}
+                                          <button onClick={() => stopJob(ch.channel_id, mJob.content_id)} disabled={!!isBusy}
                                             className="h-5 px-1.5 border rounded text-[10px] font-medium text-red-500 border-red-500/20 bg-red-500/5 hover:bg-red-500/10 transition-all disabled:opacity-50">
                                             {isBusy ? '…' : '■'}
                                           </button>
