@@ -126,4 +126,7 @@ export {
   ThumbsDown,
   Store,
   ShoppingBag,
+  CalendarDays,
+  BarChart2,
+  CheckSquare,
 } from 'lucide-react';

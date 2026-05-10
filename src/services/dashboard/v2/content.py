@@ -231,3 +231,224 @@ async def bulk_action(
                 after={"ids": body.ids, "affected": affected, "note": body.note},
                 request=request)
     return {"status": "ok", "affected": affected}
+
+
+# ── Wave 4: detail, stats, trigger, series listing ────────────────────────
+
+
+@router.get("/triggers/history")
+async def list_triggers(
+    channel_id: str | None = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    _: Principal = Depends(principal_dep),
+):
+    pool = await get_pool()
+    if not await _table_exists(pool, "content_triggers"):
+        return {"data": []}
+    where = ["1=1"]
+    args: list[Any] = []
+    if channel_id:
+        args.append(channel_id); where.append(f"channel_id=${len(args)}")
+    args.append(limit)
+    rows = await pool.fetch(
+        f"""
+        SELECT * FROM content_triggers
+         WHERE {' AND '.join(where)}
+         ORDER BY created_at DESC
+         LIMIT ${len(args)}
+        """,
+        *args,
+    )
+    return {"data": [dict(r) for r in rows]}
+
+
+@router.get("/stats")
+async def content_stats(
+    channel_id: str | None = Query(None),
+    period: str = Query("week", description="day|week|month"),
+    _: Principal = Depends(principal_dep),
+):
+    """Per-status + per-channel aggregates for the pipeline stat strip."""
+    pool = await get_pool()
+    where = ["1=1"]
+    args: list[Any] = []
+    if channel_id:
+        args.append(channel_id); where.append(f"channel_id=${len(args)}")
+    trunc = _GROUP_TRUNC.get(period, "week")
+    args.append(30 if period == "day" else 12 if period == "week" else 12)
+    rows = await pool.fetch(
+        f"""
+        SELECT
+            status,
+            content_mode,
+            COUNT(*)                                       AS cnt,
+            AVG(total_cost)                                AS avg_cost,
+            AVG(final_composite_score)                     AS avg_score,
+            date_trunc('{trunc}', created_at)::date        AS bucket
+        FROM videos
+        WHERE {' AND '.join(where)}
+          AND created_at >= NOW() - (${len(args)} || ' {trunc}s')::INTERVAL
+        GROUP BY status, content_mode, bucket
+        ORDER BY bucket DESC
+        """,
+        *args,
+    )
+    # Channel breakdown
+    chan_rows = await pool.fetch(
+        f"""
+        SELECT channel_id,
+               COUNT(*) FILTER (WHERE status IN ('completed','published','delivered')) AS done,
+               COUNT(*) FILTER (WHERE status = 'running')  AS running,
+               COUNT(*) FILTER (WHERE status = 'failed')   AS failed,
+               SUM(total_cost)                              AS total_cost
+        FROM videos
+        WHERE {' AND '.join(where)}
+        GROUP BY channel_id
+        """,
+        *args[:-1],  # exclude period arg
+    )
+    return {
+        "data": {
+            "buckets": [dict(r) for r in rows],
+            "by_channel": [dict(r) for r in chan_rows],
+        }
+    }
+
+
+@router.get("/{content_id}")
+async def get_content_detail(
+    content_id: str,
+    _: Principal = Depends(principal_dep),
+):
+    """Full metadata for a single content item including events timeline."""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """
+        SELECT content_id, channel_id, status, content_mode, title, topic,
+               selected_hook, review_state, authenticity_score, uniqueness_score,
+               thumbnail_variants_urls, rendered_video_url, youtube_video_id,
+               total_cost, final_composite_score, error_message, checkpoint,
+               created_at, scheduled_at, published_at, updated_at,
+               environment
+          FROM videos WHERE content_id = $1
+        """,
+        content_id,
+    )
+    if not row:
+        raise HTTPException(404, "Content not found")
+
+    # Phase timeline
+    events = await pool.fetch(
+        """
+        SELECT phase, status, started_at, completed_at, duration_ms, error_message
+          FROM job_events
+         WHERE content_id = $1
+         ORDER BY started_at ASC
+        """,
+        content_id,
+    )
+
+    # Review session (latest)
+    review = await pool.fetchrow(
+        """
+        SELECT rs.id, rs.state, rs.created_at, rs.due_at,
+               COUNT(fc.id) AS comment_count,
+               COUNT(ra.id) AS approval_count
+          FROM review_sessions rs
+          LEFT JOIN frame_comments fc ON fc.session_id = rs.id
+          LEFT JOIN review_approvals ra ON ra.session_id = rs.id
+         WHERE rs.content_id = $1
+         GROUP BY rs.id
+         ORDER BY rs.created_at DESC
+         LIMIT 1
+        """,
+        content_id,
+    ) if await _table_exists(pool, "review_sessions") else None
+
+    result = dict(row)
+    result["events"] = [dict(e) for e in events]
+    result["review_session"] = dict(review) if review else None
+    return {"data": result}
+
+
+class TriggerIn(BaseModel):
+    channel_id: str
+    content_mode: str = Field("long_form", pattern="^(short|long_form)$")
+    topic_hint: str | None = None
+    scheduled_for: str | None = None  # ISO datetime, None = immediate
+
+
+@router.post("/trigger")
+async def trigger_content(
+    body: TriggerIn,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+):
+    """Queue a content generation job for a channel."""
+    pool = await get_pool()
+
+    # Record trigger in DB (best-effort — table may not exist yet)
+    trigger_id: int | None = None
+    if await _table_exists(pool, "content_triggers"):
+        trigger_id = await pool.fetchval(
+            """
+            INSERT INTO content_triggers
+                (channel_id, content_mode, topic_hint, scheduled_for, triggered_by, status)
+            VALUES ($1, $2, $3, $4::timestamptz, $5, 'queued')
+            RETURNING id
+            """,
+            body.channel_id,
+            body.content_mode,
+            body.topic_hint,
+            body.scheduled_for,
+            actor.user_id,
+        )
+
+    # Attempt to kick off via legacy trigger endpoint internally
+    import httpx
+    bff_base = "http://localhost:8020"
+    try:
+        token = request.headers.get("Authorization", "")
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                f"{bff_base}/api/channels/{body.channel_id}/trigger",
+                headers={"Authorization": token},
+                json={"content_mode": body.content_mode, "topic_hint": body.topic_hint},
+            )
+        triggered = resp.status_code < 400
+        content_id = resp.json().get("content_id") if triggered else None
+    except Exception:
+        triggered = False
+        content_id = None
+
+    # Update trigger row
+    if trigger_id and await _table_exists(pool, "content_triggers"):
+        await pool.execute(
+            """
+            UPDATE content_triggers
+               SET status = $2, content_id = $3
+             WHERE id = $1
+            """,
+            trigger_id,
+            "running" if triggered else "failed",
+            content_id,
+        )
+
+    await audit(actor=actor, action="content.trigger",
+                target_type="channel", target_id=body.channel_id,
+                after={"trigger_id": trigger_id, "triggered": triggered, "content_id": content_id},
+                request=request)
+
+    return {
+        "status": "ok" if triggered else "queued",
+        "trigger_id": trigger_id,
+        "content_id": content_id,
+    }
+
+
+# ── helpers ───────────────────────────────────────────────────────────────
+
+async def _table_exists(pool: Any, table: str) -> bool:
+    return bool(await pool.fetchval(
+        "SELECT 1 FROM information_schema.tables WHERE table_name=$1", table
+    ))

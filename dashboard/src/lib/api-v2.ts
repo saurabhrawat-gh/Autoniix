@@ -207,6 +207,23 @@ export const contentApi = {
       `/api/v2/content/calendar?${q}`
     );
   },
+  // Wave 4
+  detail: (contentId: string) =>
+    request<{ data: any }>(`/api/v2/content/${encodeURIComponent(contentId)}`),
+  stats: (channel_id?: string, period: 'day' | 'week' | 'month' = 'week') => {
+    const q = new URLSearchParams({ period });
+    if (channel_id) q.set('channel_id', channel_id);
+    return request<{ data: { buckets: any[]; by_channel: any[] } }>(`/api/v2/content/stats?${q}`);
+  },
+  trigger: (body: { channel_id: string; content_mode?: string; topic_hint?: string; scheduled_for?: string }) =>
+    request<{ status: string; trigger_id: number | null; content_id: string | null }>(
+      '/api/v2/content/trigger', { method: 'POST', body: JSON.stringify(body) }
+    ),
+  triggerHistory: (channel_id?: string, limit = 20) => {
+    const q = new URLSearchParams({ limit: String(limit) });
+    if (channel_id) q.set('channel_id', channel_id);
+    return request<{ data: any[] }>(`/api/v2/content/triggers/history?${q}`);
+  },
 };
 
 // ── Experiments (A/B testing) ─────────────────────────────
