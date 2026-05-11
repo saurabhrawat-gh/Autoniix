@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { isLoggedIn, wsEvents } from '@/lib/api';
+import { isLoggedIn, wsEvents } from '@/lib/api-v2';
 import { dashboardApi, contentApi } from '@/lib/api-v2';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/toast';

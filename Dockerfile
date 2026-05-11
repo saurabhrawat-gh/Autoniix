@@ -14,6 +14,11 @@ RUN python -m spacy download en_core_web_sm \
 
 COPY src/ ./src/
 
+# Build-time injection of the git SHA for /health introspection. Pass via:
+#   docker compose build --build-arg GIT_SHA=$(git rev-parse --short HEAD)
+ARG GIT_SHA=unknown
+ENV GIT_SHA=${GIT_SHA}
+
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 

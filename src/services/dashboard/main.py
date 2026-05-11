@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import os
 import secrets
 import time
 from datetime import datetime, timedelta
@@ -22,6 +23,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from temporalio.client import Client as TemporalClient
 
 from src.config import settings
@@ -30,6 +33,7 @@ from src.environment import get_mode, set_db_mode_override, is_test
 from src.schemas.common import VideoParams
 from src.observability.metrics import instrument_app
 from src.observability.sentry import init_sentry
+from src.services.dashboard._limiter import limiter
 
 # Initialize Sentry as early as possible. No-op when SENTRY_DSN is unset.
 init_sentry("dashboard-bff")
@@ -119,22 +123,91 @@ _generate_download_url = _public_url
 app = FastAPI(title="Dashboard BFF", version="1.0.0")
 instrument_app(app, service_name="dashboard")
 
+# Rate limiter — uses client IP extracted by get_remote_address.
+# In production behind Traefik, set X-Forwarded-For so the real
+# client IP is used instead of the proxy IP.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # Mount v2 router (Phase 0+ revamp). Strictly additive: every existing
 # /api/... endpoint below keeps its contract.
+#
+# In non-prod we re-raise so import failures (missing deps, syntax errors,
+# wrong port maps) fail the boot loudly — the previous silent ``warning``
+# trap hid two real bugs in May 2026 and cost ~30 min of debugging each.
+_v2_router_loaded = False
 try:
     from src.services.dashboard.v2 import router as _v2_router
     app.include_router(_v2_router, prefix="/api/v2")
-except Exception as _exc:  # pragma: no cover — never fail boot on v2
+    _v2_router_loaded = True
+except Exception as _exc:
     logger.warning("dashboard.v2_router_disabled", error=str(_exc))
+    if os.getenv("ENVIRONMENT_MODE", "test").lower() != "production":
+        raise
+
+# CORS allowlist — never use wildcard with allow_credentials=True
+# (browsers reject it and it's a real CSRF surface). Configure per-deploy
+# via ALLOWED_ORIGINS="https://app.example.com,https://staging.example.com".
+_allowed_origins = [
+    o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+    if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 security = HTTPBearer(auto_error=False)
+
+# ── Production secret guard ─────────────────────────────────
+_INSECURE_SECRET_DEFAULTS: frozenset[str] = frozenset({
+    "change_me_to_64_char_random_string_here_now",
+    "dev-insecure-change-me",
+    "admin",
+    "minioadmin",
+    "change_me_strong_random_64",
+    "change_me_temporal_64",
+    "",
+})
+
+_SECRET_ENV_KEYS: list[tuple[str, str]] = [
+    ("ADMIN_JWT_SECRET",      "openssl rand -base64 48"),
+    ("AUTH_JWT_SECRET",       "openssl rand -base64 48"),
+    ("DB_PASSWORD",           "openssl rand -base64 32"),
+    ("S3_ACCESS_KEY",         "openssl rand -hex 16"),
+    ("S3_SECRET_KEY",         "openssl rand -base64 32"),
+    ("GRAFANA_ADMIN_PASSWORD","openssl rand -base64 16"),
+]
+
+
+@app.on_event("startup")
+async def _start_budget_gauge_refresh() -> None:
+    from src.observability.budget_metrics import start_budget_gauge_refresh
+    asyncio.create_task(start_budget_gauge_refresh(get_pool))
+
+
+@app.on_event("startup")
+async def _check_production_secrets() -> None:
+    if os.getenv("ENVIRONMENT_MODE", "test").lower() != "production":
+        return
+    failures: list[str] = []
+    for key, hint in _SECRET_ENV_KEYS:
+        val = os.getenv(key, "")
+        if val in _INSECURE_SECRET_DEFAULTS:
+            failures.append(f"  {key}  (hint: {hint})")
+    if failures:
+        msg = (
+            "FATAL: the following secrets are still set to insecure defaults "
+            "while ENVIRONMENT_MODE=production. "
+            "Rotate them before starting:\n" + "\n".join(failures)
+        )
+        logger.error("startup.insecure_secrets", keys=[k for k, _ in zip(_SECRET_ENV_KEYS, failures)])
+        raise RuntimeError(msg)
+    logger.info("startup.secrets_ok")
+
 
 # ── Session store (in-memory, single user) ─────────────────
 _sessions: dict[str, float] = {}  # token -> expiry_timestamp
@@ -284,15 +357,94 @@ class R(BaseModel):
 
 # ── Health ─────────────────────────────────────────────────
 
+async def _probe_db(timeout_s: float = 1.0) -> bool:
+    try:
+        pool = await asyncio.wait_for(get_pool(), timeout=timeout_s)
+        async with pool.acquire() as conn:
+            await asyncio.wait_for(conn.fetchval("SELECT 1"), timeout=timeout_s)
+        return True
+    except Exception:
+        return False
+
+
+async def _probe_redis(timeout_s: float = 1.0) -> bool:
+    try:
+        import redis.asyncio as _redis  # type: ignore
+        client = _redis.from_url(settings.redis_url, socket_timeout=timeout_s)
+        try:
+            return bool(await asyncio.wait_for(client.ping(), timeout=timeout_s))
+        finally:
+            await client.aclose()
+    except Exception:
+        return False
+
+
+async def _probe_temporal(timeout_s: float = 1.0) -> bool:
+    try:
+        client = await asyncio.wait_for(_get_temporal_client(), timeout=timeout_s)
+        return client is not None
+    except Exception:
+        return False
+
+
+async def _probe_minio(timeout_s: float = 1.0) -> bool:
+    """Probe the in-cluster MinIO host (settings.s3_endpoint), not the
+    browser-facing public host used for presigning. From inside the BFF
+    container, the public host (e.g. localhost:9000) is unreachable."""
+    try:
+        from minio import Minio  # type: ignore
+        from urllib.parse import urlparse
+        parsed = urlparse(
+            settings.s3_endpoint if "://" in settings.s3_endpoint
+            else f"http://{settings.s3_endpoint}"
+        )
+        client = Minio(
+            parsed.netloc or parsed.path,
+            access_key=settings.s3_access_key,
+            secret_key=settings.s3_secret_key,
+            secure=parsed.scheme == "https",
+        )
+        return await asyncio.wait_for(
+            asyncio.to_thread(client.bucket_exists, settings.s3_bucket),
+            timeout=timeout_s,
+        )
+    except Exception:
+        return False
+
+
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "service": "dashboard-bff"}
+    """Rich health probe: components individually checked, never raises.
+
+    Used by load balancer + Alertmanager + the dashboard fleet panel.
+    """
+    db, redis_ok, temporal, minio = await asyncio.gather(
+        _probe_db(), _probe_redis(), _probe_temporal(), _probe_minio(),
+        return_exceptions=False,
+    )
+    components = {
+        "db": bool(db),
+        "redis": bool(redis_ok),
+        "temporal": bool(temporal),
+        "minio": bool(minio),
+        "v2_router_loaded": _v2_router_loaded,
+    }
+    ok = all(components.values())
+    return {
+        "status": "healthy" if ok else "degraded",
+        "service": "dashboard-bff",
+        "version": app.version,
+        "git_sha": os.getenv("GIT_SHA", "unknown"),
+        "environment": os.getenv("ENVIRONMENT_MODE", "test"),
+        "components": components,
+    }
 
 
 # ── Auth ───────────────────────────────────────────────────
 
 @app.post("/api/auth/login", response_model=LoginResponse)
-async def login(req: LoginRequest):
+@limiter.limit("10/minute")
+async def login(request: Request, req: LoginRequest):
     correct = await _get_admin_password()
     if req.password != correct:
         raise HTTPException(status_code=401, detail="Invalid password")
@@ -315,7 +467,7 @@ async def me(token: str = Depends(verify_token)):
 
 # ── Channels ───────────────────────────────────────────────
 
-@app.get("/api/channels")
+@app.get("/api/channels", deprecated=True)
 async def list_channels(
     include_archived: bool = Query(default=False),
     _: str = Depends(verify_token),
@@ -418,7 +570,7 @@ async def list_channels(
     return R(status="ok", data=channels)
 
 
-@app.post("/api/channels")
+@app.post("/api/channels", deprecated=True)
 async def create_channel(req: ChannelCreateRequest, _: str = Depends(verify_token)):
     pool = await get_pool()
     # Comma-join starter topics into the legacy topics_queue TEXT column.
@@ -454,7 +606,7 @@ async def create_channel(req: ChannelCreateRequest, _: str = Depends(verify_toke
     return R(status="ok", data={"channel_id": req.channel_id})
 
 
-@app.post("/api/channels/generate-brand-dna")
+@app.post("/api/channels/generate-brand-dna", deprecated=True)
 async def generate_brand_dna(req: BrandDnaRequest, _: str = Depends(verify_token)):
     """Use the configured LLM provider to draft Brand DNA fields from niche + name.
 
@@ -541,7 +693,7 @@ async def generate_brand_dna(req: BrandDnaRequest, _: str = Depends(verify_token
 # ── Phase 5 — Niche templates & self-learning insights ───────
 
 
-@app.get("/api/niche-templates")
+@app.get("/api/niche-templates", deprecated=True)
 async def list_niche_templates(_: str = Depends(verify_token)):
     """Starter presets for the channel-creation wizard.
 
@@ -553,7 +705,7 @@ async def list_niche_templates(_: str = Depends(verify_token)):
     return R(status="ok", data={"templates": list_templates()})
 
 
-@app.get("/api/channels/{channel_id}/learning-insights")
+@app.get("/api/channels/{channel_id}/learning-insights", deprecated=True)
 async def channel_learning_insights(channel_id: str, _: str = Depends(verify_token)):
     """Surface what the self-learning system has actually learned for one channel.
 
@@ -640,7 +792,7 @@ async def channel_learning_insights(channel_id: str, _: str = Depends(verify_tok
     })
 
 
-@app.put("/api/channels/{channel_id}")
+@app.put("/api/channels/{channel_id}", deprecated=True)
 async def update_channel(channel_id: str, req: ChannelUpdateRequest, _: str = Depends(verify_token)):
     pool = await get_pool()
     sets, vals, idx = [], [], 1
@@ -692,7 +844,7 @@ async def update_channel(channel_id: str, req: ChannelUpdateRequest, _: str = De
     return R(status="ok", data={"channel_id": channel_id})
 
 
-@app.put("/api/channels/{channel_id}/enable")
+@app.put("/api/channels/{channel_id}/enable", deprecated=True)
 async def enable_channel(channel_id: str, _: str = Depends(verify_token)):
     pool = await get_pool()
     result = await pool.execute(
@@ -706,7 +858,7 @@ async def enable_channel(channel_id: str, _: str = Depends(verify_token)):
     return R(status="ok", data={"channel_id": channel_id, "status": "active", "resumed_workflows": resumed})
 
 
-@app.put("/api/channels/{channel_id}/disable")
+@app.put("/api/channels/{channel_id}/disable", deprecated=True)
 async def disable_channel(channel_id: str, _: str = Depends(verify_token)):
     pool = await get_pool()
     result = await pool.execute(
@@ -720,7 +872,7 @@ async def disable_channel(channel_id: str, _: str = Depends(verify_token)):
     return R(status="ok", data={"channel_id": channel_id, "status": "disabled", "paused_workflows": paused})
 
 
-@app.put("/api/channels/{channel_id}/archive")
+@app.put("/api/channels/{channel_id}/archive", deprecated=True)
 async def archive_channel(channel_id: str, _: str = Depends(verify_token)):
     """Archive a channel — removes from active list but keeps all data."""
     pool = await get_pool()
@@ -739,7 +891,7 @@ async def archive_channel(channel_id: str, _: str = Depends(verify_token)):
     return R(status="ok", data={"channel_id": channel_id, "status": "archived", "paused_workflows": paused})
 
 
-@app.put("/api/channels/{channel_id}/restore")
+@app.put("/api/channels/{channel_id}/restore", deprecated=True)
 async def restore_channel(channel_id: str, _: str = Depends(verify_token)):
     """Restore an archived channel — sets status to 'disabled' (user must explicitly enable)."""
     pool = await get_pool()
@@ -756,7 +908,7 @@ async def restore_channel(channel_id: str, _: str = Depends(verify_token)):
     return R(status="ok", data={"channel_id": channel_id, "status": "disabled"})
 
 
-@app.post("/api/channels/{channel_id}/clone")
+@app.post("/api/channels/{channel_id}/clone", deprecated=True)
 async def clone_channel(channel_id: str, _: str = Depends(verify_token)):
     """Clone a channel's config into a new channel with '_copy' suffix."""
     pool = await get_pool()
@@ -803,7 +955,7 @@ async def clone_channel(channel_id: str, _: str = Depends(verify_token)):
     return R(status="ok", data={"source_channel_id": channel_id, "new_channel_id": new_id})
 
 
-@app.get("/api/channels/{channel_id}/export")
+@app.get("/api/channels/{channel_id}/export", deprecated=True)
 async def export_channel(channel_id: str, _: str = Depends(verify_token)):
     """Export full channel configuration as JSON."""
     pool = await get_pool()
@@ -828,7 +980,7 @@ async def export_channel(channel_id: str, _: str = Depends(verify_token)):
 
 # ── Workflow Control ───────────────────────────────────────
 
-@app.post("/api/channels/{channel_id}/trigger")
+@app.post("/api/channels/{channel_id}/trigger", deprecated=True)
 async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depends(verify_token)):
     """Manually trigger a VideoProductionWorkflow for a channel."""
     pool = await get_pool()
@@ -923,21 +1075,21 @@ async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depe
     return R(status="ok", data={"workflow_id": workflow_id, "channel_id": channel_id, "content_id": content_id})
 
 
-@app.post("/api/channels/{channel_id}/pause")
+@app.post("/api/channels/{channel_id}/pause", deprecated=True)
 async def pause_production(channel_id: str, _: str = Depends(verify_token)):
     """Send pause signal to all running workflows for a channel."""
     paused = await _signal_running_workflows(channel_id, "pause_workflow", None)
     return R(status="ok", data={"channel_id": channel_id, "paused_workflows": paused})
 
 
-@app.post("/api/channels/{channel_id}/resume")
+@app.post("/api/channels/{channel_id}/resume", deprecated=True)
 async def resume_production(channel_id: str, _: str = Depends(verify_token)):
     """Send resume signal to all running workflows for a channel."""
     resumed = await _signal_running_workflows(channel_id, "resume_workflow", None)
     return R(status="ok", data={"channel_id": channel_id, "resumed_workflows": resumed})
 
 
-@app.post("/api/channels/{channel_id}/stop")
+@app.post("/api/channels/{channel_id}/stop", deprecated=True)
 async def stop_production(channel_id: str, _: str = Depends(verify_token)):
     """Terminate all running workflows for a channel immediately."""
     stopped = await _terminate_channel_workflows(channel_id)
@@ -1000,7 +1152,7 @@ async def _terminate_channel_workflows(channel_id: str) -> list[str]:
 
 # ── Jobs (Videos) ──────────────────────────────────────────
 
-@app.get("/api/channels/{channel_id}/jobs")
+@app.get("/api/channels/{channel_id}/jobs", deprecated=True)
 async def list_jobs(
     channel_id: str,
     content_mode: str | None = None,
@@ -1044,7 +1196,7 @@ async def list_jobs(
     return R(status="ok", data=jobs)
 
 
-@app.get("/api/jobs/{content_id}/progress")
+@app.get("/api/jobs/{content_id}/progress", deprecated=True)
 async def job_progress(content_id: str, _: str = Depends(verify_token)):
     """Get step-by-step progress timeline for a specific video job."""
     pool = await get_pool()
@@ -1097,7 +1249,7 @@ async def job_progress(content_id: str, _: str = Depends(verify_token)):
     })
 
 
-@app.get("/api/jobs/{content_id}/metadata")
+@app.get("/api/jobs/{content_id}/metadata", deprecated=True)
 async def job_metadata(content_id: str, _: str = Depends(verify_token)):
     """Get YouTube metadata (title, description, tags, SEO) for copy-paste."""
     pool = await get_pool()
@@ -1138,7 +1290,7 @@ async def job_metadata(content_id: str, _: str = Depends(verify_token)):
     })
 
 
-@app.get("/api/jobs/{content_id}/output")
+@app.get("/api/jobs/{content_id}/output", deprecated=True)
 async def job_output(content_id: str, _: str = Depends(verify_token)):
     """Get final video output: video URL, thumbnail, download link.
 
@@ -1180,7 +1332,7 @@ async def job_output(content_id: str, _: str = Depends(verify_token)):
     })
 
 
-@app.get("/api/jobs/{content_id}/video")
+@app.get("/api/jobs/{content_id}/video", deprecated=True)
 async def stream_video(content_id: str, request: Request):
     """Stream the rendered video for a job, proxying MinIO with Range support.
 
@@ -1270,7 +1422,7 @@ async def stream_video(content_id: str, request: Request):
     return StreamingResponse(_iter(), status_code=status_code, headers=out_headers)
 
 
-@app.get("/api/jobs/{content_id}/presigned")
+@app.get("/api/jobs/{content_id}/presigned", deprecated=True)
 async def job_presigned(content_id: str, _: str = Depends(verify_token)):
     """Return a short-lived (10-minute) presigned MinIO URL for power-users
     who explicitly need a direct link (e.g. external download tools that
@@ -1292,7 +1444,7 @@ async def job_presigned(content_id: str, _: str = Depends(verify_token)):
 
 # ── Job Approval / Rejection ──────────────────────────────
 
-@app.post("/api/jobs/{content_id}/approve")
+@app.post("/api/jobs/{content_id}/approve", deprecated=True)
 async def approve_job(content_id: str, _: str = Depends(verify_token)):
     """Mark a delivered video as approved/completed."""
     pool = await get_pool()
@@ -1309,7 +1461,7 @@ async def approve_job(content_id: str, _: str = Depends(verify_token)):
     return R(status="ok", data={"content_id": content_id, "approved": True})
 
 
-@app.post("/api/jobs/{content_id}/reject")
+@app.post("/api/jobs/{content_id}/reject", deprecated=True)
 async def reject_job(content_id: str, _: str = Depends(verify_token)):
     """Reject a delivered video — frees up weekly limit for regeneration."""
     pool = await get_pool()
@@ -1325,7 +1477,7 @@ async def reject_job(content_id: str, _: str = Depends(verify_token)):
     return R(status="ok", data={"content_id": content_id, "rejected": True})
 
 
-@app.post("/api/jobs/{content_id}/retry")
+@app.post("/api/jobs/{content_id}/retry", deprecated=True)
 async def retry_job(content_id: str, _: str = Depends(verify_token)):
     """Retry a failed job — creates a brand new video from scratch."""
     pool = await get_pool()
@@ -1402,7 +1554,7 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
     })
 
 
-@app.post("/api/jobs/{content_id}/restart")
+@app.post("/api/jobs/{content_id}/restart", deprecated=True)
 async def restart_job(content_id: str, _: str = Depends(verify_token)):
     """Restart a stopped/failed job from its last checkpoint (same video, same content_id)."""
     pool = await get_pool()
@@ -1503,7 +1655,7 @@ async def _mark_job_failed(content_id: str, reason: str) -> bool:
     return "UPDATE 0" not in result
 
 
-@app.post("/api/jobs/{content_id}/pause")
+@app.post("/api/jobs/{content_id}/pause", deprecated=True)
 async def pause_job(content_id: str, _: str = Depends(verify_token)):
     """Pause a specific running job."""
     wf_id = await _find_workflow_for_job(content_id)
@@ -1525,7 +1677,7 @@ async def pause_job(content_id: str, _: str = Depends(verify_token)):
     return R(status="ok", data={"content_id": content_id, "workflow_id": wf_id, "paused": True})
 
 
-@app.post("/api/jobs/{content_id}/resume")
+@app.post("/api/jobs/{content_id}/resume", deprecated=True)
 async def resume_job(content_id: str, _: str = Depends(verify_token)):
     """Resume a specific paused job."""
     wf_id = await _find_workflow_for_job(content_id)
@@ -1544,7 +1696,7 @@ async def resume_job(content_id: str, _: str = Depends(verify_token)):
     return R(status="ok", data={"content_id": content_id, "workflow_id": wf_id, "resumed": True})
 
 
-@app.post("/api/jobs/{content_id}/stop")
+@app.post("/api/jobs/{content_id}/stop", deprecated=True)
 async def stop_job(content_id: str, _: str = Depends(verify_token)):
     """Terminate a specific running job immediately.
 
@@ -1582,7 +1734,7 @@ async def stop_job(content_id: str, _: str = Depends(verify_token)):
 
 # ── Active Jobs (all in-progress across channels) ────────
 
-@app.get("/api/jobs/active")
+@app.get("/api/jobs/active", deprecated=True)
 async def active_jobs(_: str = Depends(verify_token)):
     """Get all currently in-progress + recently stopped/failed (24h) video jobs."""
     pool = await get_pool()
@@ -1640,7 +1792,7 @@ async def active_jobs(_: str = Depends(verify_token)):
 
 # ── Workflow Status (per channel) ─────────────────────────
 
-@app.get("/api/channels/{channel_id}/workflow-status")
+@app.get("/api/channels/{channel_id}/workflow-status", deprecated=True)
 async def workflow_status(channel_id: str, _: str = Depends(verify_token)):
     """Get current workflow state for a channel."""
     pool = await get_pool()
@@ -1675,7 +1827,7 @@ async def workflow_status(channel_id: str, _: str = Depends(verify_token)):
 
 # ── System Config ──────────────────────────────────────────
 
-@app.get("/api/config")
+@app.get("/api/config", deprecated=True)
 async def get_config(_: str = Depends(verify_token)):
     pool = await get_pool()
     rows = await pool.fetch(
@@ -1689,7 +1841,7 @@ async def get_config(_: str = Depends(verify_token)):
     return R(status="ok", data=configs)
 
 
-@app.put("/api/config")
+@app.put("/api/config", deprecated=True)
 async def update_config(req: ConfigUpdateRequest, _: str = Depends(verify_token)):
     pool = await get_pool()
     result = await pool.execute(
@@ -1702,7 +1854,7 @@ async def update_config(req: ConfigUpdateRequest, _: str = Depends(verify_token)
     return R(status="ok", data={"key": req.config_key, "value": req.config_value})
 
 
-@app.post("/api/emergency-stop")
+@app.post("/api/emergency-stop", deprecated=True)
 async def emergency_stop(_: str = Depends(verify_token)):
     """Freeze the entire system: set flag + PAUSE all running workflows (not kill)."""
     pool = await get_pool()
@@ -1727,7 +1879,7 @@ async def emergency_stop(_: str = Depends(verify_token)):
     return R(status="ok", data={"emergency_stop": True, "workflows_paused": paused_count})
 
 
-@app.post("/api/emergency-resume")
+@app.post("/api/emergency-resume", deprecated=True)
 async def emergency_resume(_: str = Depends(verify_token)):
     """Un-freeze the system: clear flag + RESUME all paused workflows."""
     pool = await get_pool()
@@ -1759,7 +1911,7 @@ class EnvironmentSwitchRequest(BaseModel):
     confirm: bool = False
 
 
-@app.get("/api/environment")
+@app.get("/api/environment", deprecated=True)
 async def get_environment(_: str = Depends(verify_token)):
     """Get current environment mode."""
     pool = await get_pool()
@@ -1791,7 +1943,7 @@ async def get_environment(_: str = Depends(verify_token)):
     })
 
 
-@app.put("/api/environment")
+@app.put("/api/environment", deprecated=True)
 async def switch_environment(req: EnvironmentSwitchRequest, _: str = Depends(verify_token)):
     """Switch environment mode. Requires confirm=true for production."""
     if req.mode not in ("test", "production"):
@@ -1833,7 +1985,7 @@ async def switch_environment(req: EnvironmentSwitchRequest, _: str = Depends(ver
     return R(status="ok", data={"mode": req.mode, "switched_at": now})
 
 
-@app.get("/api/test-data/stats")
+@app.get("/api/test-data/stats", deprecated=True)
 async def test_data_stats(_: str = Depends(verify_token)):
     """Get stats about test data (videos, storage, cost)."""
     pool = await get_pool()
@@ -1851,7 +2003,7 @@ async def test_data_stats(_: str = Depends(verify_token)):
     })
 
 
-@app.delete("/api/test-data")
+@app.delete("/api/test-data", deprecated=True)
 async def cleanup_test_data(_: str = Depends(verify_token)):
     """Delete all test data from DB and storage."""
     pool = await get_pool()
@@ -1892,7 +2044,7 @@ class CleanSlateRequest(BaseModel):
     confirm: str = Field(..., description="Must be the literal string 'RESET' to proceed")
 
 
-@app.post("/api/admin/clean-slate")
+@app.post("/api/admin/clean-slate", deprecated=True)
 async def clean_slate(req: CleanSlateRequest, _: str = Depends(verify_token)):
     """Full reset: cancel running workflows, truncate job tables, wipe MinIO blobs, clear Redis locks.
     Preserves: channels, brand_profiles, system_config, prompt_registry, ML models, bandit state.
@@ -1987,20 +2139,22 @@ async def clean_slate(req: CleanSlateRequest, _: str = Depends(verify_token)):
 # Service hosts — kept here (not in config) because the dashboard BFF is
 # already the only place that needs the full topology. Each entry maps a
 # friendly name to its in-cluster /health URL.
+# Ports must match docker-compose.yml. Prometheus has the same map in
+# observability/prometheus.yml — keep the two in sync. ``music`` is NOT a
+# real service (functionality lives inside ``assets``), so it is omitted.
 _FLEET_SERVICES: dict[str, str] = {
-    "research":   "http://research:8011/health",
-    "script":     "http://script:8012/health",
-    "voice":      "http://voice:8013/health",
-    "assets":     "http://assets:8014/health",
-    "thumbnail":  "http://thumbnail:8015/health",
-    "direction":  "http://direction:8016/health",
-    "music":      "http://music:8017/health",
-    "assembly":   "http://assembly:8018/health",
-    "delivery":   "http://delivery:8019/health",
-    "analytics":  "http://analytics:8020/health",
-    "brand":      "http://brand:8021/health",
-    "editor":     "http://editor:8022/health",
+    "research":   "http://research:8001/health",
+    "script":     "http://script:8002/health",
+    "voice":      "http://voice:8003/health",
+    "assets":     "http://assets:8004/health",
+    "thumbnail":  "http://thumbnail:8005/health",
+    "assembly":   "http://assembly:8006/health",
+    "delivery":   "http://delivery:8007/health",
+    "analytics":  "http://analytics:8008/health",
     "admin":      "http://admin:8009/health",
+    "direction":  "http://direction:8010/health",
+    "brand":      "http://brand:8012/health",
+    "editor":     "http://editor:8013/health",
 }
 
 
@@ -2029,7 +2183,7 @@ async def _probe_service(name: str, url: str, timeout_s: float) -> dict:
         }
 
 
-@app.get("/api/fleet-health")
+@app.get("/api/fleet-health", deprecated=True)
 async def fleet_health(_: str = Depends(verify_token)):
     """Aggregate live health across the fleet.
 
@@ -2286,7 +2440,7 @@ async def fleet_health(_: str = Depends(verify_token)):
 
 # ── Dashboard Stats ────────────────────────────────────────
 
-@app.get("/api/stats")
+@app.get("/api/stats", deprecated=True)
 async def dashboard_stats(_: str = Depends(verify_token)):
     pool = await get_pool()
     channels = await pool.fetchrow(

@@ -1,0 +1,19 @@
+apiVersion: 1
+
+# Provision Alertmanager as Grafana's default contact point.
+# Grafana Unified Alerting will forward to this Alertmanager instance,
+# so alert rules created in the Grafana UI also flow through Slack.
+
+contactPoints:
+  - orgId: 1
+    name: Alertmanager
+    receivers:
+      - uid: alertmanager-default
+        type: alertmanager
+        settings:
+          url: http://alertmanager:9093
+        disableResolveMessage: false
+
+policies:
+  - orgId: 1
+    receiver: Alertmanager

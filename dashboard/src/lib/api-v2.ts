@@ -52,6 +52,8 @@ export const flagsApi = {
 
 // ── Auth ──────────────────────────────────────────────────
 export const authApi = {
+  mode: () =>
+    fetch(`${BASE}/api/v2/auth/mode`).then(r => r.json()) as Promise<{ v2_enabled: boolean; legacy_enabled: boolean }>,
   register: (email: string, password: string, display_name?: string) =>
     request('/api/v2/auth/register', { method: 'POST', body: JSON.stringify({ email, password, display_name }) }),
   login: (email: string, password: string, mfa_code?: string) =>
@@ -459,6 +461,64 @@ export const jobsApi = {
   resume: (id: string) => request(`/api/v2/jobs/${encodeURIComponent(id)}/resume`, { method: 'POST' }),
   stop: (id: string) => request(`/api/v2/jobs/${encodeURIComponent(id)}/stop`, { method: 'POST' }),
 };
+
+// ── Session utilities (replaces api.ts) ───────────────────
+// Checks v2 JWT first, then falls back to the legacy session token.
+export function isLoggedIn(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (localStorage.getItem('v2_access_token')) return true;
+  const token = localStorage.getItem('dashboard_token');
+  if (!token) return false;
+  const expires = localStorage.getItem('dashboard_token_expires');
+  if (expires && Date.now() > parseInt(expires, 10)) {
+    localStorage.removeItem('dashboard_token');
+    localStorage.removeItem('dashboard_token_expires');
+    return false;
+  }
+  return true;
+}
+
+export function setToken(token: string, expiresIn?: number) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem('dashboard_token', token);
+  if (expiresIn) {
+    localStorage.setItem('dashboard_token_expires', String(Date.now() + expiresIn * 1000));
+  }
+}
+
+export function clearToken() {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem('dashboard_token');
+  localStorage.removeItem('dashboard_token_expires');
+}
+
+// Legacy password-only login (used when auth.v2.enabled = FALSE).
+export async function legacyLogin(password: string): Promise<void> {
+  const res = await fetch(`${BASE}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || body.error || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  setToken(data.token, data.expires_in);
+}
+
+// ── WebSocket helpers ─────────────────────────────────────
+export function wsProgress(contentId: string): WebSocket {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = process.env.NEXT_PUBLIC_WS_URL || `${proto}//${window.location.host}`;
+  return new WebSocket(`${host}/api/ws/progress/${contentId}`);
+}
+
+export function wsEvents(): WebSocket {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = process.env.NEXT_PUBLIC_WS_URL || `${proto}//${window.location.host}`;
+  return new WebSocket(`${host}/api/ws/events`);
+}
 
 // ── System (Wave 6) ───────────────────────────────────────
 export const systemApi = {

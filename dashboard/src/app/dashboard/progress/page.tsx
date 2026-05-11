@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { jobsApi, dashboardApi } from '@/lib/api-v2';
-import { isLoggedIn, wsEvents } from '@/lib/api';
+import { isLoggedIn, wsEvents } from '@/lib/api-v2';
 import { cn, PHASE_ORDER, PHASE_LABELS } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import { PageHeader } from '@/lib/components/PageHeader';

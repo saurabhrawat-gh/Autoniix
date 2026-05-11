@@ -1,0 +1,53 @@
+# Traefik v3 static configuration
+# Activated via: docker compose --profile tls up -d
+#
+# Prerequisites:
+#   1. Port 80 and 443 must be open (UFW: ufw allow 80,443/tcp)
+#   2. DOMAIN must resolve publicly to this host's IP
+#   3. Set ACME_EMAIL in .env  (e.g. admin@yourdomain.com)
+#
+# Local dev (no TLS): just use http://localhost:8020 + http://localhost:3000
+# This profile is intentionally NOT activated in local dev.
+
+api:
+  dashboard: false    # Traefik dashboard disabled — expose only if you need it
+  insecure: false
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+
+  websecure:
+    address: ":443"
+    http:
+      tls:
+        certResolver: letsencrypt
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      # Email set via ACME_EMAIL env; Traefik expands env vars in this file.
+      email: "${ACME_EMAIL}"
+      storage: /letsencrypt/acme.json
+      # HTTP-01 challenge (port 80 must be reachable from the internet)
+      httpChallenge:
+        entryPoint: web
+
+providers:
+  docker:
+    exposedByDefault: false    # Only route containers with traefik.enable=true
+    network: yt-net
+  file:
+    filename: /traefik/dynamic.yml
+    watch: true
+
+log:
+  level: WARN
+
+accessLog: {}

@@ -11,7 +11,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { systemApi } from '@/lib/api-v2';
-import { isLoggedIn } from '@/lib/api';
+import { isLoggedIn } from '@/lib/api-v2';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/lib/components/PageHeader';
 import { SkeletonCard } from '@/lib/components/Skeleton';

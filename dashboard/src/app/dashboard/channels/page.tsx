@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { channelsApi, dashboardApi } from '@/lib/api-v2';
-import { isLoggedIn, wsEvents } from '@/lib/api';
+import { isLoggedIn, wsEvents } from '@/lib/api-v2';
 import { cn, statusDot } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import { Skeleton, SkeletonCard } from '@/lib/components/Skeleton';

@@ -93,15 +93,21 @@ def estimate_render_duration(complexity: dict) -> float:
     per_segment = 10  # ~10s per segment
     per_minute_video = 20  # 20s per minute of video
 
+    # Use per-field detail when available; fall back to top-level complexity score.
+    complexity_score = complexity.get("complexity", 0)
     estimate = (
         base +
         complexity.get("segment_count", 0) * per_segment +
         complexity.get("total_duration_min", 0) * per_minute_video +
         complexity.get("motion_elements", 0) * 3 +
-        complexity.get("vfx_count", 0) * 5
+        complexity.get("vfx_count", 0) * 5 +
+        complexity_score * 2  # raw score contribution when detail keys are absent
     )
 
-    return round(estimate, 0)
+    risk_factor = {"high": 1.5, "medium": 1.2, "low": 1.0}.get(
+        complexity.get("risk", "low"), 1.0
+    )
+    return round(estimate * risk_factor, 0)
 
 
 def simplify_direction_for_retry(direction_v3: dict) -> dict:

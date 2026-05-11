@@ -27,14 +27,33 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 
 from src.db import get_pool
+from src.services.dashboard._limiter import limiter
 
 from ._deps import Principal, audit, principal_dep
 
 router = APIRouter()
 
 
+_INSECURE_JWT_DEFAULTS = frozenset({
+    "dev-insecure-change-me",
+    "change_me_to_64_char_random_string_here_now",
+    "",
+})
+
+
 def _jwt_secret() -> str:
-    return os.getenv("AUTH_JWT_SECRET") or os.getenv("DASHBOARD_JWT_SECRET") or "dev-insecure-change-me"
+    secret = (
+        os.getenv("AUTH_JWT_SECRET")
+        or os.getenv("DASHBOARD_JWT_SECRET")
+        or "dev-insecure-change-me"
+    )
+    if secret in _INSECURE_JWT_DEFAULTS and os.getenv("ENVIRONMENT_MODE", "test").lower() == "production":
+        raise RuntimeError(
+            "AUTH_JWT_SECRET is the insecure default. "
+            "Generate a real secret: openssl rand -base64 48 "
+            "and set it as AUTH_JWT_SECRET in your .env before running in production."
+        )
+    return secret
 
 
 def _hash_pw(pw: str) -> str:
@@ -118,6 +137,27 @@ class MfaVerifyIn(BaseModel):
 
 
 # ── Endpoints ───────────────────────────────────────────────
+@router.get("/mode")
+async def auth_mode():
+    """Public — no auth required. Returns which auth backends are active.
+
+    The login UI calls this on mount to decide which form to render.
+    Returns both flags so the UI can handle a partial migration window.
+    """
+    try:
+        pool = await get_pool()
+        rows = await pool.fetch(
+            "SELECT key, enabled FROM feature_flags WHERE key IN ('auth.v2.enabled','auth.legacy.enabled')"
+        )
+        flags = {r["key"]: r["enabled"] for r in rows}
+    except Exception:
+        flags = {}
+    return {
+        "v2_enabled": flags.get("auth.v2.enabled", False),
+        "legacy_enabled": flags.get("auth.legacy.enabled", True),
+    }
+
+
 @router.post("/register")
 async def register(body: RegisterIn, request: Request):
     pool = await get_pool()
@@ -142,7 +182,8 @@ async def register(body: RegisterIn, request: Request):
 
 
 @router.post("/login")
-async def login(body: LoginIn, request: Request):
+@limiter.limit("10/minute")
+async def login(request: Request, body: LoginIn):
     pool = await get_pool()
     user = await pool.fetchrow(
         "SELECT id, email, password_hash, role, mfa_secret, mfa_enabled, disabled "

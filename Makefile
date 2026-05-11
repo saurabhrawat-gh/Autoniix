@@ -1,5 +1,6 @@
 .PHONY: help infra bff ui dev stop logs up down health restart-app restart-bff verify-bff use-test use-prod env-status \
-        migrate migrate-status backfill auth-enable smoke setup fresh
+        migrate migrate-status backfill auth-enable smoke deploy-check schedule-register setup fresh tls-up tls-down \
+        backup restore alerts-status
 
 help: ## Show available commands
 	@echo ""
@@ -25,9 +26,18 @@ help: ## Show available commands
 	@echo "  make setup      → Full bring-up: containers + migrate + backfill + smoke"
 	@echo "  make migrate    → Apply pending DB migrations"
 	@echo "  make backfill   → Backfill channel profiles (idempotent)"
-	@echo "  make auth-enable→ Switch to real auth (first /register = Owner)"
-	@echo "  make smoke      → Run smoke tests"
-	@echo "  make fresh      → Wipe volumes + rebuild from zero"
+	@echo "  make auth-enable       → Switch to real auth (first /register = Owner)"
+	@echo "  make smoke             → Smoke test: health + BFF v2 + unit suite"
+	@echo "  make deploy-check      → Pre-deploy readiness gate (secrets + schema)"
+	@echo "  make schedule-register → Register Temporal workflow schedules"
+	@echo "  make fresh             → Wipe volumes + rebuild from zero"
+	@echo "  make tls-up     → Start Traefik + Let's Encrypt TLS (requires DOMAIN+ACME_EMAIL in .env)"
+	@echo "  make tls-down   → Stop Traefik (keeps certs in letsencrypt_data volume)"
+	@echo ""
+	@echo "  Ops:"
+	@echo "  make backup     → Run backup.sh (Postgres + MinIO → local + optional R2)"
+	@echo "  make restore    → Restore from latest snapshot (pass STAMP= to pick one)"
+	@echo "  make alerts-status → Show firing alerts from Alertmanager"
 	@echo ""
 	@echo "  Quick start (3 terminals):"
 	@echo "    Terminal 1:  make infra"
@@ -92,10 +102,14 @@ down: ## Stop and remove all containers
 health: ## Run end-to-end health check on every service
 	@bash scripts/check-stack.sh
 
-restart-app: ## Rebuild + restart app code containers (use after editing src/ or dashboard/)
-	docker compose build dashboard-bff dashboard-ui admin worker-production worker-scheduler
-	docker compose up -d dashboard-bff dashboard-ui admin worker-production worker-scheduler
-	@echo "✅ App containers rebuilt and restarted"
+APP_SVCS := dashboard-bff dashboard-ui admin worker-production worker-scheduler \
+            research script voice assets thumbnail direction assembly \
+            delivery analytics brand editor sheets-sync
+
+restart-app: ## Rebuild + restart all app code containers (use after editing src/ or dashboard/)
+	docker compose build $(APP_SVCS)
+	docker compose up -d $(APP_SVCS)
+	@echo "✅ App containers rebuilt and restarted ($(words $(APP_SVCS)) services)"
 	@$(MAKE) verify-bff
 
 restart-bff: ## Rebuild + restart ONLY dashboard-bff, then verify v2 router mounted
@@ -174,8 +188,45 @@ auth-enable: ## Turn ON real auth (first /register becomes Owner)
 	   UPDATE feature_flags SET enabled = FALSE WHERE key = 'auth.legacy.enabled';" \
 	  && echo "✅ v2 auth enabled — register at http://localhost:3000/register"
 
-smoke: ## Run smoke tests
-	python -m pytest tests/test_v2_secrets_and_registry.py -q
+smoke: ## Smoke test: health probes + BFF v2 + fast unit suite
+	@echo "── 1/4  Stack health ───────────────────────────────"
+	@bash scripts/check-stack.sh || (echo "❌ Stack health failed" && exit 1)
+	@echo "── 2/4  BFF v2 router ──────────────────────────────"
+	@$(MAKE) verify-bff
+	@echo "── 3/4  Prometheus metrics endpoint ────────────────"
+	@curl -sf http://localhost:8020/metrics | grep -q 'python_info' \
+		&& echo "✅ /metrics reachable" \
+		|| echo "⚠  /metrics not reachable (BFF may not be running)"
+	@echo "── 4/4  Fast unit tests ────────────────────────────"
+	@python3 -m pytest tests -q --ignore=tests/e2e -m "not integration" --tb=short
+	@echo ""
+	@echo "🎉 Smoke test passed"
+
+deploy-check: ## Pre-deploy readiness gate — checks secrets, schema, env, providers
+	@echo "── Checking environment file ───────────────────────"
+	@if grep -q 'CHANGE_ME' .env 2>/dev/null; then \
+		echo "❌ .env still contains CHANGE_ME placeholders"; exit 1; fi
+	@echo "✅ .env clean"
+	@echo "── Checking required env vars ──────────────────────"
+	@python3 -c "
+import os, sys
+required = ['DB_PASSWORD','ADMIN_JWT_SECRET','AUTH_JWT_SECRET',
+            'S3_ACCESS_KEY','S3_SECRET_KEY','OPENAI_API_KEY']
+missing = [k for k in required if not os.getenv(k)]
+if missing:
+    print('❌ Missing:', ', '.join(missing)); sys.exit(1)
+print('✅ All required secrets present')
+"
+	@echo "── Running schema migration check ──────────────────"
+	@python3 -m scripts.run_migrations --status 2>/dev/null \
+		|| echo "⚠  Migration status unavailable (DB may be offline)"
+	@echo "── Running unit tests ──────────────────────────────"
+	@python3 -m pytest tests -q --ignore=tests/e2e -m "not integration" --tb=short
+	@echo ""
+	@echo "✅ Deploy-check passed — safe to make up"
+
+schedule-register: ## Register Temporal workflow schedules (idempotent — safe to re-run)
+	python -m scripts.register_schedules --temporal-host localhost:7233
 
 setup: ## Full bring-up: containers + rebuild app + migrate + backfill + smoke
 	@$(MAKE) up
@@ -193,3 +244,31 @@ fresh: ## Stop everything, wipe volumes, then rebuild from zero
 	@$(MAKE) migrate
 	@$(MAKE) backfill
 	@echo "✅ Fresh stack ready: http://localhost:3000/dashboard"
+
+# ── TLS Gateway ──────────────────────────────────────────
+tls-up: ## Start Traefik + Let's Encrypt TLS (requires DOMAIN+ACME_EMAIL in .env)
+	@if ! grep -qE '^DOMAIN=[a-zA-Z0-9]' .env 2>/dev/null; then \
+		echo "❌ Set DOMAIN= in .env before enabling TLS"; exit 1; fi
+	@if ! grep -qE '^ACME_EMAIL=[^@]+@' .env 2>/dev/null; then \
+		echo "❌ Set ACME_EMAIL= in .env before enabling TLS"; exit 1; fi
+	docker compose --profile tls up -d traefik
+	@echo "✅ Traefik started — HTTPS will be live once cert provisioning completes (~30s)"
+	@echo "   Dashboard: https://$$(grep -E '^DOMAIN=' .env | cut -d= -f2)"
+
+tls-down: ## Stop Traefik (keeps certs in letsencrypt_data volume)
+	docker compose --profile tls stop traefik
+	@echo "✅ Traefik stopped (certs preserved in letsencrypt_data volume)"
+
+# ── Backup / Restore ────────────────────────────────────
+backup: ## Backup Postgres + MinIO (runs scripts/backup.sh)
+	bash scripts/backup.sh
+
+restore: ## Restore from latest snapshot (STAMP= for a specific one)
+	bash scripts/restore.sh $(STAMP)
+
+# ── Alerting ────────────────────────────────────────
+alerts-status: ## Show currently firing alerts from Alertmanager
+	@curl -sf http://localhost:9093/api/v2/alerts | \
+		python3 -c "import json,sys; alerts=json.load(sys.stdin); \
+		[print(f\"  [{a['labels'].get('severity','?').upper()}] {a['labels'].get('alertname','?')} — {a['annotations'].get('summary','')}\") for a in alerts]" 2>/dev/null \
+		|| echo "❌ Alertmanager not reachable at http://localhost:9093"

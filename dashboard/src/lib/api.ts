@@ -1,3 +1,9 @@
+/**
+ * @deprecated All utilities and data calls have been migrated to api-v2.ts.
+ * This file is retained only for backward compatibility during the transition.
+ * Do not add new imports from this file — use api-v2.ts instead.
+ * Removal target: after auth.v2.enabled=TRUE for 2+ weeks in production.
+ */
 const BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 function getToken(): string | null {

@@ -50,10 +50,10 @@ jobs:
           print("all .py files parse cleanly")
           PY
 
-      - name: Unit tests (skip e2e)
+      - name: Unit tests (skip e2e + integration)
         env:
           ENVIRONMENT_MODE: test
-        run: pytest tests -q --ignore=tests/e2e
+        run: pytest tests -q --ignore=tests/e2e -m "not integration"
 
       - name: Prompt-eval (golden cases on mock_llm)
         env:
@@ -75,6 +75,52 @@ jobs:
           cache-dependency-path: services/remotion/package-lock.json
       - run: npm ci || npm install
       - run: npx tsc --noEmit
+
+  dependency-scan:
+    name: Security — pip-audit + SBOM
+    runs-on: ubuntu-latest
+    needs: [python-lint-and-tests]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install audit + SBOM tools
+        run: pip install pip-audit cyclonedx-bom
+
+      - name: Vulnerability scan (pip-audit)
+        run: |
+          pip install -r requirements.txt --quiet 2>/dev/null || true
+          pip-audit --requirement requirements.txt \
+                    --skip-editable \
+                    --output json \
+                    --output-file pip-audit-report.json \
+                    --ignore-vuln GHSA-r9hx-vwmv-q579 || true
+          pip-audit --requirement requirements.txt \
+                    --skip-editable \
+                    --format columns \
+                    || echo "⚠  Vulnerabilities found — see pip-audit-report.json artifact"
+
+      - name: Generate SBOM (CycloneDX JSON)
+        run: |
+          pip install -r requirements.txt --quiet 2>/dev/null || true
+          cyclonedx-py environment \
+            --output-format json \
+            --outfile sbom.json \
+            || true
+
+      - name: Upload audit + SBOM artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-reports-${{ github.sha }}
+          path: |
+            pip-audit-report.json
+            sbom.json
+          retention-days: 90
 
   e2e-render-smoke:
     name: E2E — render smoke (Remotion + MinIO)

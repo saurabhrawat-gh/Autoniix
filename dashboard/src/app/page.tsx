@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { isLoggedIn } from '@/lib/api';
+import { isLoggedIn } from '@/lib/api-v2';
 
 export default function Home() {
   const router = useRouter();

@@ -50,6 +50,7 @@ class TestDeterministicVariant:
 
 
 class TestCreateExperiment:
+    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_creates_experiment(self, mock_pool):
         result = await create_experiment(
@@ -60,6 +61,7 @@ class TestCreateExperiment:
 
 
 class TestAssignVariant:
+    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_inactive_experiment(self, mock_pool, fake_record):
         mock_pool.fetchrow.return_value = fake_record(
@@ -68,6 +70,7 @@ class TestAssignVariant:
         result = await assign_variant("exp", "content_001")
         assert result["in_experiment"] is False
 
+    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_active_experiment(self, mock_pool, fake_record):
         mock_pool.fetchrow.return_value = fake_record(
@@ -78,6 +81,7 @@ class TestAssignVariant:
         assert result["in_experiment"] is True
         assert result["variant"] in ("control", "treatment")
 
+    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_no_experiment(self, mock_pool):
         mock_pool.fetchrow.return_value = None

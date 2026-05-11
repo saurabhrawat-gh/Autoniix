@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Bell, AlertTriangle, AlertCircle, Info, Settings as Cog } from 'lucide-react';
 import { notifyApi } from '@/lib/api-v2';
-import { wsEvents } from '@/lib/api';
+import { wsEvents } from '@/lib/api-v2';
 
 export default function Notifications() {
   const [tab, setTab] = useState<'inbox'|'routes'|'deliveries'>('inbox');

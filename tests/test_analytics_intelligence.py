@@ -16,6 +16,7 @@ from src.services.analytics.pattern_miner import mine_performance_patterns
 
 
 class TestMinePerformancePatterns:
+    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_insufficient_data(self, mock_pool):
         mock_pool.fetch.return_value = [

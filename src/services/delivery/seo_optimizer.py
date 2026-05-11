@@ -155,7 +155,7 @@ def optimize_description(description: str, title: str, tags: list[str],
 def suggest_tags(title: str, niche: str, existing_tags: list[str],
                   max_tags: int = 30) -> list[str]:
     """Suggest optimized tags based on title and niche."""
-    tags = list(existing_tags)
+    tags = [str(t) for t in existing_tags]  # normalize to strings
 
     # Extract key phrases from title
     title_words = [w.strip(".,!?:;") for w in title.split() if len(w) > 2]

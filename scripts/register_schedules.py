@@ -1,0 +1,137 @@
+"""Register Temporal workflow schedules for production.
+
+Run this ONCE after first deploy (or re-run idempotently — existing schedules
+are left unchanged; only missing ones are created).
+
+Usage:
+    python -m scripts.register_schedules [--temporal-host localhost:7233]
+
+Schedules created:
+    gate-calibration-weekly  — GateCalibrationWorkflow  — Sun 04:00 UTC
+    niche-pulse-weekly       — NichePulseRefreshWorkflow — Sun 05:00 UTC
+    retention-fetch-daily    — RetentionFetchWorkflow    — daily 03:00 UTC
+    model-maintenance-weekly — ModelMaintenanceWorkflow  — Sun 06:00 UTC
+    daily-scheduler          — DailySchedulerWorkflow    — daily 07:00 UTC
+"""
+from __future__ import annotations
+
+import argparse
+import asyncio
+import sys
+
+from temporalio.client import Client, Schedule, ScheduleActionStartWorkflow
+from temporalio.client import ScheduleCalendarSpec, ScheduleRange
+from temporalio.client import ScheduleSpec, ScheduleState
+from temporalio.service import RPCError
+
+
+_SCHEDULES: list[dict] = [
+    {
+        "id": "gate-calibration-weekly",
+        "workflow": "GateCalibrationWorkflow",
+        "task_queue": "scheduler",
+        "cron": "0 4 * * 0",  # Sun 04:00 UTC
+        "note": "Weekly quality-gate threshold tuning across all niches",
+    },
+    {
+        "id": "niche-pulse-weekly",
+        "workflow": "NichePulseRefreshWorkflow",
+        "task_queue": "scheduler",
+        "cron": "0 5 * * 0",  # Sun 05:00 UTC (1h after gate-calibration)
+        "note": "Weekly niche trend-signal refresh",
+    },
+    {
+        "id": "retention-fetch-daily",
+        "workflow": "RetentionFetchWorkflow",
+        "task_queue": "scheduler",
+        "cron": "0 3 * * *",  # Daily 03:00 UTC
+        "note": "Daily YouTube Analytics retention-curve ingestion",
+    },
+    {
+        "id": "model-maintenance-weekly",
+        "workflow": "ModelMaintenanceWorkflow",
+        "task_queue": "scheduler",
+        "cron": "0 6 * * 0",  # Sun 06:00 UTC (after gate-calibration + niche-pulse)
+        "note": "Weekly ML model freshness check and retraining",
+    },
+    {
+        "id": "daily-scheduler",
+        "workflow": "DailySchedulerWorkflow",
+        "task_queue": "scheduler",
+        "cron": "0 7 * * *",  # Daily 07:00 UTC — trigger video production
+        "note": "Daily video production trigger for all active channels",
+    },
+]
+
+
+def _cron_to_spec(cron: str) -> ScheduleSpec:
+    """Convert a simple 5-field cron string to a ScheduleSpec."""
+    parts = cron.split()
+    if len(parts) != 5:
+        raise ValueError(f"Expected 5-field cron, got: {cron!r}")
+    minute, hour, dom, month, dow = parts
+
+    def _range(val: str, offset: int = 0) -> list[ScheduleRange]:
+        if val == "*":
+            return []  # match all
+        return [ScheduleRange(start=int(val) + offset, end=int(val) + offset)]
+
+    return ScheduleSpec(
+        calendars=[
+            ScheduleCalendarSpec(
+                minute=_range(minute),
+                hour=_range(hour),
+                day_of_month=_range(dom),
+                month=_range(month),
+                day_of_week=_range(dow),
+            )
+        ]
+    )
+
+
+async def register_all(temporal_host: str) -> None:
+    client = await Client.connect(temporal_host)
+    created = 0
+    skipped = 0
+
+    for s in _SCHEDULES:
+        schedule_id = s["id"]
+        try:
+            await client.create_schedule(
+                schedule_id,
+                Schedule(
+                    action=ScheduleActionStartWorkflow(
+                        s["workflow"],
+                        task_queue=s["task_queue"],
+                    ),
+                    spec=_cron_to_spec(s["cron"]),
+                    state=ScheduleState(note=s["note"]),
+                ),
+            )
+            print(f"  ✅ Created  {schedule_id}  ({s['cron']})")
+            created += 1
+        except RPCError as exc:
+            if "already exists" in str(exc).lower():
+                print(f"  ⏭  Skipped  {schedule_id}  (already exists)")
+                skipped += 1
+            else:
+                print(f"  ❌ Failed   {schedule_id}: {exc}", file=sys.stderr)
+                raise
+
+    print(f"\nDone — {created} created, {skipped} already existed.")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Register Temporal workflow schedules")
+    parser.add_argument(
+        "--temporal-host",
+        default="localhost:7233",
+        help="Temporal frontend address (default: localhost:7233)",
+    )
+    args = parser.parse_args()
+    print(f"Connecting to Temporal at {args.temporal_host} …\n")
+    asyncio.run(register_all(args.temporal_host))
+
+
+if __name__ == "__main__":
+    main()

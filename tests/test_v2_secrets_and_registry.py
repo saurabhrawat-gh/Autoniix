@@ -51,8 +51,9 @@ def test_registry_falls_back_to_env_when_no_db(monkeypatch):
 
     ProviderRegistry._registries["llm"] = {"stub": _StubProvider}
     monkeypatch.setenv("LLM_PROVIDER", "stub")
-    # Simulate test mode off so it doesn't short-circuit.
-    monkeypatch.setenv("ENVIRONMENT_MODE", "production")
+    # Patch is_test at its use site so the test-mode short-circuit is bypassed;
+    # monkeypatch.setenv alone cannot affect the cached pydantic Settings object.
+    monkeypatch.setattr("src.environment.is_test", lambda: False)
     ProviderRegistry.reset()
 
     # _try_db_chain catches every error → returns None → env-based path runs.

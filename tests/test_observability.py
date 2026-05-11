@@ -17,6 +17,7 @@ from tests.conftest import FakeRecord
 
 
 class TestLogDecision:
+    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_logs_to_db(self, mock_pool):
         await log_decision(
@@ -31,6 +32,7 @@ class TestLogDecision:
         )
         mock_pool.execute.assert_called_once()
 
+    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_handles_db_error(self, mock_pool):
         mock_pool.execute.side_effect = Exception("DB down")
@@ -39,6 +41,7 @@ class TestLogDecision:
 
 
 class TestGetCostSavings:
+    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_returns_savings_summary(self, mock_pool):
         mock_pool.fetchrow.return_value = FakeRecord(
@@ -53,6 +56,7 @@ class TestGetCostSavings:
         assert result["local_rate_pct"] == 80.0
         assert result["net_savings_usd"] == 3.0
 
+    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_handles_empty(self, mock_pool):
         mock_pool.fetchrow.return_value = FakeRecord(
@@ -68,6 +72,7 @@ class TestGetCostSavings:
 
 
 class TestUpsertModelHealth:
+    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_upserts(self, mock_pool):
         await upsert_model_health(
@@ -82,6 +87,7 @@ class TestUpsertModelHealth:
 
 
 class TestGetModelHealthSummary:
+    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_returns_list(self, mock_pool):
         mock_pool.fetch.return_value = [

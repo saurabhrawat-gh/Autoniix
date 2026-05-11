@@ -1,0 +1,26 @@
+# Traefik v3 dynamic configuration
+# Loaded at runtime; changes take effect without restart.
+#
+# Security headers applied to all routes via the secureHeaders middleware.
+
+http:
+  middlewares:
+    secureHeaders:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        permissionsPolicy: "camera=(), microphone=(), geolocation=()"
+        customFrameOptionsValue: "SAMEORIGIN"
+
+    # Strip /api prefix before forwarding to BFF (optional — only if you
+    # prefer a clean domain without /api in the URL. Currently disabled;
+    # the BFF mounts its own /api prefix so we pass it through unchanged.)
+    # stripApiPrefix:
+    #   stripPrefix:
+    #     prefixes:
+    #       - "/api"

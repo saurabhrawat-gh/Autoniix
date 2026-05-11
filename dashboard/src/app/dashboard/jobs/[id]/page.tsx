@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { jobsApi, dashboardApi } from '@/lib/api-v2';
-import { isLoggedIn, wsProgress } from '@/lib/api';
+import { isLoggedIn, wsProgress } from '@/lib/api-v2';
 import { cn, statusColor, PHASE_LABELS, PHASE_ORDER } from '@/lib/utils';
 import { StatusIcon } from '@/lib/components/StatusIcon';
 import { motion, AnimatePresence } from 'framer-motion';
