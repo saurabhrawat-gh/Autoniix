@@ -1,4 +1,4 @@
-# YouTube Automation — n8n Workflows
+# Autonix
 
 > Strategy: C-Optimized | 10 diversified channels | $328/mo
 > Target: $2K profit by Month 7-8
@@ -6,7 +6,7 @@
 ## Structure
 
 ```
-yt-automation-n8n/
+autonix/
 ├── docs/                    # Architecture & planning (9 docs)
 ├── scripts/
 │   └── setup-sheets.gs      # Google Apps Script — auto-setup all Sheet tabs

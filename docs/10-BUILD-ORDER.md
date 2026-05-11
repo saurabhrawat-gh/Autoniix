@@ -32,7 +32,7 @@
 docker compose up -d
 # Temporal UI at localhost:8080
 # MinIO console at localhost:9001
-# psql -h localhost -U app -d yt_automation  (schema exists)
+# psql -h localhost -U app -d autonix  (schema exists)
 ```
 
 ---
@@ -73,7 +73,7 @@ curl http://localhost:5001/health  # → 200
 ```bash
 # Trigger workflow
 # Research → Script → Voice runs end-to-end
-# Audio files appear in MinIO: s3://yt-automation/audio/...
+# Audio files appear in MinIO: s3://autonix/audio/...
 # script_base.json + script_voice.json in MinIO
 ```
 

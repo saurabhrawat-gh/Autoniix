@@ -4,7 +4,7 @@
 # CDN-backed origin instead of hitting the in-cluster MinIO box.
 #
 # Cron example (every 30 minutes):
-#   */30 * * * * /opt/youtube-automation/scripts/r2_mirror_finals.sh >> /var/log/yt-r2.log 2>&1
+#   */30 * * * * /opt/autonix/scripts/r2_mirror_finals.sh >> /var/log/autonix-r2.log 2>&1
 #
 # Required env:
 #   S3_ACCESS_KEY, S3_SECRET_KEY, S3_BUCKET
@@ -21,11 +21,11 @@ if [ -z "${R2_ENDPOINT:-}" ] || [ -z "${R2_ACCESS_KEY:-}" ] \
     exit 0
 fi
 
-docker run --rm --network yt-automation_yt-net \
+docker run --rm --network autonix_autonix-net \
     -e MC_HOST_local="http://${S3_ACCESS_KEY:-minioadmin}:${S3_SECRET_KEY:-minioadmin}@minio:9000" \
     -e MC_HOST_r2="https://${R2_ACCESS_KEY}:${R2_SECRET_KEY}@${R2_ENDPOINT#https://}" \
     minio/mc:latest -- mirror --quiet --overwrite \
-        "local/${S3_BUCKET:-yt-automation}/prod/renders" \
+        "local/${S3_BUCKET:-autonix}/prod/renders" \
         "r2/${R2_BUCKET}/renders"
 
 echo "[r2-mirror] done at $(date -u +%FT%TZ)"

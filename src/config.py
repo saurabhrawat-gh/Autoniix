@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     # ── App Database ─────────────────────────────────────
     db_host: str = "postgres-app"
     db_port: int = 5432
-    db_name: str = "yt_automation"
+    db_name: str = "autonix"
     db_user: str = "app"
     db_password: str = "change_me"
 
@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     s3_endpoint: str = "http://minio:9000"
     s3_access_key: str = "minioadmin"
     s3_secret_key: str = "minioadmin"
-    s3_bucket: str = "yt-automation"
+    s3_bucket: str = "autonix"
     s3_public_base_url: str = ""
     s3_force_path_style: bool = True
 
@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     storage_provider: str = "minio"
 
     # ── LLM Routing ─────────────────────────────────────
+    llm_openai_model: str = "gpt-4o-mini"
+    llm_claude_model: str = "claude-sonnet-4-20250514"
+    llm_gemini_model: str = "gemini-2.5-flash"
     llm_provider: str = "openai"
     llm_research_provider: str = "gemini"
     llm_script_provider: str = "claude"

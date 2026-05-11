@@ -112,7 +112,7 @@ class GeminiLLM(LLMProvider):
         return "gemini"
 
     def default_model(self) -> str:
-        return "gemini-2.5-flash"
+        return settings.llm_gemini_model
 
     def supported_models(self) -> list[str]:
         return list(PRICING.keys())

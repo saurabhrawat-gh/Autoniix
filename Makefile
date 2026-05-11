@@ -4,7 +4,7 @@
 
 help: ## Show available commands
 	@echo ""
-	@echo "  YouTube Automation — Dev Commands"
+	@echo "  Autonix — Dev Commands"
 	@echo "  ─────────────────────────────────"
 	@echo "  make up         → Start FULL stack (all 25 services) and wait for healthy"
 	@echo "  make health     → Verify every service is up and reachable"
@@ -52,7 +52,7 @@ infra: ## Start Postgres + Redis + Temporal via Docker
 	docker compose up -d postgres-app postgres-temporal redis temporal temporal-ui
 	@echo ""
 	@echo "⏳ Waiting for Postgres to be ready..."
-	@until docker compose exec -T postgres-app pg_isready -U app -d yt_automation > /dev/null 2>&1; do sleep 1; done
+	@until docker compose exec -T postgres-app pg_isready -U app -d autonix > /dev/null 2>&1; do sleep 1; done
 	@echo "✅ Postgres ready"
 	@echo "⏳ Waiting for Redis..."
 	@until docker compose exec -T redis redis-cli ping > /dev/null 2>&1; do sleep 1; done
@@ -183,7 +183,7 @@ backfill: ## Backfill channel_profiles for existing channels (idempotent)
 	python -m scripts.backfill_channel_profiles
 
 auth-enable: ## Turn ON real auth (first /register becomes Owner)
-	@docker compose exec -T postgres-app psql -U app -d yt_automation -c \
+	@docker compose exec -T postgres-app psql -U app -d autonix -c \
 	  "UPDATE feature_flags SET enabled = TRUE  WHERE key = 'auth.v2.enabled'; \
 	   UPDATE feature_flags SET enabled = FALSE WHERE key = 'auth.legacy.enabled';" \
 	  && echo "✅ v2 auth enabled — register at http://localhost:3000/register"

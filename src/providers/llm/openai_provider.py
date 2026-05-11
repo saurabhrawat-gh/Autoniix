@@ -97,7 +97,7 @@ class OpenAILLM(LLMProvider):
         return "openai"
 
     def default_model(self) -> str:
-        return "gpt-4o-mini"
+        return settings.llm_openai_model
 
     def supported_models(self) -> list[str]:
         return list(PRICING.keys())

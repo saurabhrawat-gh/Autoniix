@@ -1,6 +1,6 @@
 # Docker Compose Commands Reference
 
-> Quick reference for managing the yt-automation stack.
+> Quick reference for managing the Autonix stack.
 
 ---
 
@@ -101,13 +101,13 @@ docker compose up -d --force-recreate <service>
 
 ```bash
 # Connect to app database
-docker compose exec postgres-app psql -U app -d yt_automation
+docker compose exec postgres-app psql -U app -d autonix
 
 # Run seed data
-docker compose exec postgres-app psql -U app -d yt_automation -f /dev/stdin < scripts/seed-data.sql
+docker compose exec postgres-app psql -U app -d autonix -f /dev/stdin < scripts/seed-data.sql
 
 # Backup database
-docker compose exec postgres-app pg_dump -U app yt_automation > backup.sql
+docker compose exec postgres-app pg_dump -U app autonix > backup.sql
 ```
 
 ---
@@ -154,7 +154,7 @@ docker compose up -d --build remotion-api remotion-worker
 
 ### After updating seed-data.sql
 ```bash
-docker compose exec postgres-app psql -U app -d yt_automation -f /dev/stdin < scripts/seed-data.sql
+docker compose exec postgres-app psql -U app -d autonix -f /dev/stdin < scripts/seed-data.sql
 ```
 
 ### After updating Temporal workflow code

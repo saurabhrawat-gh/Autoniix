@@ -35,9 +35,9 @@ Items are grouped:
 # Run in order — all commands are idempotent
 git pull origin main
 docker compose build
-docker compose exec postgres-app psql -U app -d yt_automation \
+docker compose exec postgres-app psql -U app -d autonix \
   -f /docker-entrypoint-initdb.d/init-db.sql    # apply schema
-docker compose exec postgres-app psql -U app -d yt_automation \
+docker compose exec postgres-app psql -U app -d autonix \
   -f /docker-entrypoint-initdb.d/seed-data.sql  # seed config
 make up
 make health

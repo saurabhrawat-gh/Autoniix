@@ -120,7 +120,7 @@ class ClaudeLLM(LLMProvider):
         return "claude"
 
     def default_model(self) -> str:
-        return "claude-sonnet-4-20250514"
+        return settings.llm_claude_model
 
     def supported_models(self) -> list[str]:
         return list(PRICING.keys())

@@ -229,7 +229,7 @@ ADMIN_JWT_SECRET=
 
 | Repo | Path | Purpose |
 |------|------|---------|
-| yt-automation-n8n | This repo | Temporal orchestrator + Python services |
+| autonix | This repo | Temporal orchestrator + Python services |
 | yt-automation-remotion | `../yt-automation-remotion` | Remotion render engine (TypeScript) |
 
 ### Archived Documentation

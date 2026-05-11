@@ -14,7 +14,7 @@ alerting:
 rule_files:
   - /etc/prometheus/alert-rules.yml
 
-# Targets are reachable on the docker `yt-net` network by service name.
+# Targets are reachable on the docker `autonix-net` network by service name.
 scrape_configs:
   - job_name: research
     metrics_path: /metrics
