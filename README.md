@@ -1,4 +1,4 @@
-# Autonix
+# Autoniix
 
 > Strategy: C-Optimized | 10 diversified channels | $328/mo
 > Target: $2K profit by Month 7-8
@@ -6,7 +6,7 @@
 ## Structure
 
 ```
-autonix/
+autoniix/
 ├── docs/                    # Architecture & planning (9 docs)
 ├── scripts/
 │   └── setup-sheets.gs      # Google Apps Script — auto-setup all Sheet tabs

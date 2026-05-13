@@ -1,7 +1,7 @@
-name: autonix
+name: autoniix
 
 networks:
-  autonix-net:
+  autoniix-net:
     driver: bridge
 
 volumes:
@@ -22,7 +22,7 @@ services:
   postgres-app:
     image: pgvector/pgvector:pg15
     environment:
-      POSTGRES_DB: ${DB_NAME:-autonix}
+      POSTGRES_DB: ${DB_NAME:-autoniix}
       POSTGRES_USER: ${DB_USER:-app}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-change_me_strong_random_64}
     volumes:
@@ -31,9 +31,9 @@ services:
       - ./scripts/seed-data.sql:/docker-entrypoint-initdb.d/02-seed.sql
     ports:
       - "5433:5432"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-app} -d ${DB_NAME:-autonix}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-app} -d ${DB_NAME:-autoniix}"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -49,7 +49,7 @@ services:
       - pg_temporal_data:/var/lib/postgresql/data
     ports:
       - "5434:5432"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U temporal -d temporal"]
       interval: 5s
@@ -64,7 +64,7 @@ services:
       - redis_data:/data
     ports:
       - "6380:6379"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -83,7 +83,7 @@ services:
     ports:
       - "9000:9000"
       - "9001:9001"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || exit 1"]
       interval: 10s
@@ -97,14 +97,14 @@ services:
   # YouTube / browsers without presigning, e.g. thumbnails). Idempotent.
   minio-bootstrap:
     image: minio/mc:latest
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       minio:
         condition: service_healthy
     environment:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
       S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin}
-      S3_BUCKET: ${S3_BUCKET:-autonix}
+      S3_BUCKET: ${S3_BUCKET:-autoniix}
     entrypoint:
       - /bin/sh
       - -c
@@ -137,7 +137,7 @@ services:
       TELEMETRY_ENABLED: "false"
     ports:
       - "8222:8080"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       postgres-app:
         condition: service_healthy
@@ -163,7 +163,7 @@ services:
       - ./config/dynamicconfig:/etc/temporal/config/dynamicconfig
     ports:
       - "7233:7233"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       postgres-temporal:
         condition: service_healthy
@@ -176,7 +176,7 @@ services:
       - TEMPORAL_CORS_ORIGINS=http://localhost:8080
     ports:
       - "8080:8080"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       - temporal
     restart: unless-stopped
@@ -191,7 +191,7 @@ services:
       - SENTENCE_TRANSFORMERS_HOME=/app/.cache/sentence_transformers
     ports:
       - "8001:8001"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       postgres-app:
         condition: service_healthy
@@ -211,7 +211,7 @@ services:
       - PORT=8002
     ports:
       - "8002:8002"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       postgres-app:
         condition: service_healthy
@@ -231,7 +231,7 @@ services:
       - PORT=8003
     ports:
       - "8003:8003"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       postgres-app:
         condition: service_healthy
@@ -251,7 +251,7 @@ services:
       - PORT=8004
     ports:
       - "8004:8004"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       postgres-app:
         condition: service_healthy
@@ -271,7 +271,7 @@ services:
       - PORT=8005
     ports:
       - "8005:8005"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       postgres-app:
         condition: service_healthy
@@ -291,7 +291,7 @@ services:
       - PORT=8006
     ports:
       - "8006:8006"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       postgres-app:
         condition: service_healthy
@@ -309,7 +309,7 @@ services:
       - PORT=8007
     ports:
       - "8007:8007"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       postgres-app:
         condition: service_healthy
@@ -327,7 +327,7 @@ services:
       - PORT=8008
     ports:
       - "8008:8008"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       postgres-app:
         condition: service_healthy
@@ -345,7 +345,7 @@ services:
       - PORT=8009
     ports:
       - "8009:8009"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       postgres-app:
         condition: service_healthy
@@ -363,7 +363,7 @@ services:
       - PORT=8010
     ports:
       - "8010:8010"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       postgres-app:
         condition: service_healthy
@@ -381,7 +381,7 @@ services:
       - PORT=8012
     ports:
       - "8012:8012"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       postgres-app:
         condition: service_healthy
@@ -399,7 +399,7 @@ services:
       - PORT=8013
     ports:
       - "8013:8013"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       postgres-app:
         condition: service_healthy
@@ -417,7 +417,7 @@ services:
       - PORT=8011
     ports:
       - "8011:8011"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       postgres-app:
         condition: service_healthy
@@ -444,15 +444,15 @@ services:
       - RENDER_TMP_DIR=/app/tmp
       - S3_ENDPOINT=http://minio:9000
       - S3_REGION=auto
-      - S3_BUCKET=${S3_BUCKET:-autonix}
+      - S3_BUCKET=${S3_BUCKET:-autoniix}
       - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY:-minioadmin}
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_KEY:-minioadmin}
-      - S3_PUBLIC_BASE_URL=http://minio:9000/${S3_BUCKET:-autonix}
+      - S3_PUBLIC_BASE_URL=http://minio:9000/${S3_BUCKET:-autoniix}
       - S3_FORCE_PATH_STYLE=true
       - S3_KEY_PREFIX=${ENVIRONMENT_MODE:-test}
     ports:
       - "4000:4000"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       redis:
         condition: service_healthy
@@ -487,15 +487,15 @@ services:
       - RENDER_TMP_DIR=/app/tmp
       - S3_ENDPOINT=http://minio:9000
       - S3_REGION=auto
-      - S3_BUCKET=${S3_BUCKET:-autonix}
+      - S3_BUCKET=${S3_BUCKET:-autoniix}
       - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY:-minioadmin}
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_KEY:-minioadmin}
-      - S3_PUBLIC_BASE_URL=http://minio:9000/${S3_BUCKET:-autonix}
+      - S3_PUBLIC_BASE_URL=http://minio:9000/${S3_BUCKET:-autoniix}
       - S3_FORCE_PATH_STYLE=true
       - S3_KEY_PREFIX=${ENVIRONMENT_MODE:-test}
     volumes:
       - remotion_tmp:/app/tmp
-    networks: [autonix-net]
+    networks: [autoniix-net]
     healthcheck:
       disable: true
     depends_on:
@@ -530,7 +530,7 @@ services:
       - DIFF_CACHE_ENABLED=true
       - BUNDLE_CACHE_DIR=/bundle-cache
       - S3_ENDPOINT=http://minio:9000
-      - S3_BUCKET=${S3_BUCKET:-autonix}
+      - S3_BUCKET=${S3_BUCKET:-autoniix}
       - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY:-minioadmin}
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_KEY:-minioadmin}
       - S3_FORCE_PATH_STYLE=true
@@ -538,7 +538,7 @@ services:
     volumes:
       - remotion_tmp:/app/tmp
       - remotion_bundle_cache:/bundle-cache
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       redis: { condition: service_healthy }
       minio: { condition: service_healthy }
@@ -561,14 +561,14 @@ services:
       - RENDER_TMP_DIR=/app/tmp
       - DIFF_CACHE_ENABLED=true
       - S3_ENDPOINT=http://minio:9000
-      - S3_BUCKET=${S3_BUCKET:-autonix}
+      - S3_BUCKET=${S3_BUCKET:-autoniix}
       - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY:-minioadmin}
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_KEY:-minioadmin}
       - S3_FORCE_PATH_STYLE=true
       - S3_KEY_PREFIX=${ENVIRONMENT_MODE:-test}
     volumes:
       - remotion_tmp:/app/tmp
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       redis: { condition: service_healthy }
       minio: { condition: service_healthy }
@@ -590,14 +590,14 @@ services:
       - RENDER_CONCURRENCY=2
       - RENDER_TMP_DIR=/app/tmp
       - S3_ENDPOINT=http://minio:9000
-      - S3_BUCKET=${S3_BUCKET:-autonix}
+      - S3_BUCKET=${S3_BUCKET:-autoniix}
       - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY:-minioadmin}
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_KEY:-minioadmin}
       - S3_FORCE_PATH_STYLE=true
       - S3_KEY_PREFIX=${ENVIRONMENT_MODE:-test}
     volumes:
       - remotion_tmp:/app/tmp
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       redis: { condition: service_healthy }
       minio: { condition: service_healthy }
@@ -618,7 +618,7 @@ services:
       - REDIS_PORT=6379
     ports:
       - "4100:4100"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       redis: { condition: service_healthy }
     restart: unless-stopped
@@ -629,7 +629,7 @@ services:
     build: .
     command: python -m src.workers.run_production
     env_file: .env
-    networks: [autonix-net]
+    networks: [autoniix-net]
     healthcheck:
       disable: true
     depends_on:
@@ -651,7 +651,7 @@ services:
     build: .
     command: python -m src.workers.run_scheduler
     env_file: .env
-    networks: [autonix-net]
+    networks: [autoniix-net]
     healthcheck:
       disable: true
     depends_on:
@@ -682,7 +682,7 @@ services:
       - "traefik.http.routers.bff.tls.certresolver=letsencrypt"
       - "traefik.http.routers.bff.middlewares=secureHeaders@file"
       - "traefik.http.services.bff.loadbalancer.server.port=8020"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8020/health"]
       interval: 30s
@@ -719,7 +719,7 @@ services:
       # Next.js standalone uses HOSTNAME as bind address — force 0.0.0.0 so
       # the in-container healthcheck (and any sidecar) can reach it.
       - HOSTNAME=0.0.0.0
-    networks: [autonix-net]
+    networks: [autoniix-net]
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000"]
       interval: 30s
@@ -752,7 +752,7 @@ services:
       - --web.enable-lifecycle
     ports:
       - "9090:9090"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       - alertmanager
     restart: unless-stopped
@@ -773,7 +773,7 @@ services:
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
     ports:
       - "9093:9093"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     restart: unless-stopped
     deploy:
       resources:
@@ -788,7 +788,7 @@ services:
     pid: host
     volumes:
       - /:/host:ro,rslave
-    networks: [autonix-net]
+    networks: [autoniix-net]
     restart: unless-stopped
     deploy:
       resources:
@@ -801,7 +801,7 @@ services:
     volumes:
       - ./observability/loki-config.yml:/etc/loki/local-config.yaml:ro
       - loki_data:/loki
-    networks: [autonix-net]
+    networks: [autoniix-net]
     restart: unless-stopped
     deploy:
       resources:
@@ -814,7 +814,7 @@ services:
     volumes:
       - ./observability/promtail-config.yml:/etc/promtail/config.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       - loki
     restart: unless-stopped
@@ -842,7 +842,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik:/traefik:ro
       - letsencrypt_data:/letsencrypt
-    networks: [autonix-net]
+    networks: [autoniix-net]
     restart: unless-stopped
     deploy:
       resources:
@@ -865,7 +865,7 @@ services:
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards-json:ro
     ports:
       - "3001:3000"
-    networks: [autonix-net]
+    networks: [autoniix-net]
     depends_on:
       - prometheus
       - loki

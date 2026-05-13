@@ -94,11 +94,11 @@ if [ -d "${MINIO_DIR}/prod" ] || [ -d "${MINIO_DIR}/public" ]; then
     echo "[restore] mirroring minio data..."
     for prefix in prod public; do
         if [ -d "${MINIO_DIR}/${prefix}" ]; then
-            docker run --rm --network autonix_autonix-net \
+            docker run --rm --network autoniix_autoniix-net \
                 -v "$(pwd)/${MINIO_DIR}:/in" \
                 -e MC_HOST_local="http://${S3_ACCESS_KEY:-minioadmin}:${S3_SECRET_KEY:-minioadmin}@minio:9000" \
                 minio/mc:latest -- mirror --quiet --overwrite \
-                    "/in/${prefix}" "local/${S3_BUCKET:-autonix}/${prefix}"
+                    "/in/${prefix}" "local/${S3_BUCKET:-autoniix}/${prefix}"
             echo "[restore] minio/${prefix}: done"
         fi
     done

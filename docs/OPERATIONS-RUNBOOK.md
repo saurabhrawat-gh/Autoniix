@@ -52,7 +52,7 @@ make auth-enable
 
 ### Disable v2 auth (fall back to legacy single-password)
 ```bash
-docker compose exec -T postgres-app psql -U app -d autonix -c \
+docker compose exec -T postgres-app psql -U app -d autoniix -c \
   "UPDATE feature_flags SET enabled = FALSE WHERE key = 'auth.v2.enabled'; \
    UPDATE feature_flags SET enabled = TRUE  WHERE key = 'auth.legacy.enabled';"
 ```
@@ -98,7 +98,7 @@ make restore
 make restore STAMP=20260510T033000Z
 ```
 
-> **What is backed up:** Postgres `autonix` DB (compressed custom format) +
+> **What is backed up:** Postgres `autoniix` DB (compressed custom format) +
 > MinIO `prod/` and `public/` prefixes. Test data (`test/` prefix) is excluded.
 
 ### Restore drill (recommended monthly)
@@ -163,7 +163,7 @@ Alerts route to `#yt-alerts` (warnings/info) and `#yt-alerts-critical` (critical
 
 ### Connect to Postgres
 ```bash
-docker compose exec postgres-app psql -U app -d autonix
+docker compose exec postgres-app psql -U app -d autoniix
 ```
 
 ### Apply pending migrations
@@ -179,7 +179,7 @@ make backfill   # idempotent — safe to re-run
 ### Check DB pool / connection count
 ```sql
 SELECT count(*), state FROM pg_stat_activity
-WHERE datname = 'autonix' GROUP BY state;
+WHERE datname = 'autoniix' GROUP BY state;
 ```
 
 ---
@@ -302,11 +302,11 @@ git pull origin main
 docker compose build
 
 # 3. Run DB schema migrations (idempotent — safe to re-run)
-docker compose exec postgres-app psql -U app -d autonix \
+docker compose exec postgres-app psql -U app -d autoniix \
   -f /docker-entrypoint-initdb.d/init-db.sql
 
 # 4. Seed config + prompts (ON CONFLICT DO UPDATE — safe to re-run)
-docker compose exec postgres-app psql -U app -d autonix \
+docker compose exec postgres-app psql -U app -d autoniix \
   -f /docker-entrypoint-initdb.d/seed-data.sql
 
 # 5. Start all services

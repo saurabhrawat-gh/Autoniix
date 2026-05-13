@@ -183,8 +183,8 @@ def _license_score(clip: dict) -> float:
     lic = (clip.get("license") or "").lower()
     if any(t in lic for t in ("cc0", "public_domain", "free", "pixabay_free", "pexels_free")):
         return 1.0
-    if "elements" in lic or "envato" in lic or "storyblocks" in lic:
-        return 0.8
+    if "motionarray" in lic or "library" in lic:
+        return 0.9
     if "editorial" in lic:
         return 0.4
     return 0.6

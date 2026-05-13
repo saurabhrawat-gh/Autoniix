@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     # ── App Database ─────────────────────────────────────
     db_host: str = "postgres-app"
     db_port: int = 5432
-    db_name: str = "autonix"
+    db_name: str = "autoniix"
     db_user: str = "app"
     db_password: str = "change_me"
 
@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     s3_endpoint: str = "http://minio:9000"
     s3_access_key: str = "minioadmin"
     s3_secret_key: str = "minioadmin"
-    s3_bucket: str = "autonix"
+    s3_bucket: str = "autoniix"
     s3_public_base_url: str = ""
     s3_force_path_style: bool = True
 
@@ -44,19 +44,9 @@ class Settings(BaseSettings):
     # ── Image / Stock Footage ─────────────────────────────
     pixabay_api_key: str = ""
     pexels_api_key: str = ""
-    envato_api_key: str = ""
     freesound_api_key: str = ""
-    # Storyblocks (paid; HMAC-signed). Both keys required when enabling.
-    # Get them from https://www.storyblocks.com/business/pricing/api-licensing
-    storyblocks_public_key: str = ""
-    storyblocks_private_key: str = ""
-    # Optional Storyblocks project_id / user_id (some endpoints require these).
-    storyblocks_project_id: str = ""
-    storyblocks_user_id: str = ""
-    # MotionArray (folded into Envato Group post-2021). Reserved here for
-    # config completeness; the actual provider routes through Envato. See
-    # `_motionarray` in provider_chain.py for the rationale.
-    motionarray_api_key: str = ""
+    # Motion Array assets are managed via the local library (no API).
+    # Use scripts/import_local_assets.py to ingest manually downloaded assets.
     image_provider: str = "dalle"
 
     # ── Storage ─────────────────────────────────────────

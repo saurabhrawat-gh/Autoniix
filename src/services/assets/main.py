@@ -227,55 +227,6 @@ async def _search_pexels_videos(query: str, min_duration: int = 5) -> list[dict]
         return []
 
 
-async def _search_envato_videos(query: str, min_duration: int = 5) -> list[dict]:
-    """Search Envato Elements for stock video clips."""
-    api_key = settings.envato_api_key
-    if not api_key:
-        return []
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                "https://api.elements.envato.com/v1/items",
-                params={
-                    "q": query,
-                    "item_type": "video-templates,stock-video",
-                    "page_size": 5,
-                    "sort_by": "relevance",
-                },
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
-            resp.raise_for_status()
-            items = resp.json().get("items", resp.json().get("data", []))
-            results = []
-            for item in items:
-                preview = item.get("previews", {})
-                video_url = (
-                    preview.get("video_preview", {}).get("url", "")
-                    or preview.get("landscape_preview", {}).get("url", "")
-                    or item.get("preview_url", "")
-                )
-                duration = item.get("duration", item.get("video_length", 0))
-                if not video_url:
-                    continue
-                if isinstance(duration, (int, float)) and duration < min_duration:
-                    continue
-                results.append({
-                    "source": "envato",
-                    "id": str(item.get("id", "")),
-                    "url": video_url,
-                    "thumbnail": preview.get("icon_url", item.get("cover_image", {}).get("url", "")),
-                    "duration": duration if isinstance(duration, (int, float)) else 0,
-                    "width": 1920,
-                    "height": 1080,
-                    "tags": item.get("tags", ""),
-                    "license": "envato_elements",
-                    "title": item.get("title", ""),
-                })
-            return results
-    except Exception as e:
-        logger.warning("assets.envato_failed", error=str(e))
-        return []
-
 
 async def _search_freesound(query: str, duration_max: float = 30.0) -> list[dict]:
     """Search Freesound for SFX clips."""

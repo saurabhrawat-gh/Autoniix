@@ -41,7 +41,7 @@ def _collect_legacy_routes():
     sys.path.insert(0, str(repo_root))
 
     # Mock out env so import doesn't require a real DB at module-load time.
-    os.environ.setdefault("DATABASE_URL", "postgresql://app:app@localhost:5433/autonix")
+    os.environ.setdefault("DATABASE_URL", "postgresql://app:app@localhost:5433/autoniix")
     os.environ.setdefault("REDIS_URL", "redis://localhost:6380")
 
     from src.services.dashboard.main import app  # noqa: PLC0415

@@ -28,7 +28,7 @@
 Temporal requires its **own PostgreSQL database** (separate from the application database). Both can run on the same PostgreSQL instance as different logical databases:
 - `temporal` — Temporal persistence
 - `temporal_visibility` — Temporal search/visibility
-- `autonix` — Application data
+- `autoniix` — Application data
 
 ---
 
@@ -69,7 +69,7 @@ Workers call services via HTTP (localhost or Docker network). This separation me
 
 ## Data Layer
 
-### PostgreSQL Schema (Application Database: `autonix`)
+### PostgreSQL Schema (Application Database: `autoniix`)
 
 ```sql
 -- Channels: all channel configuration and DNA
@@ -294,7 +294,7 @@ yt-automation/
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                  Docker Network: autonix-net                   │
+│                  Docker Network: autoniix-net                   │
 │                                                          │
 │  PUBLIC (via Traefik):                                   │
 │    - Traefik         :443 / :80                          │
