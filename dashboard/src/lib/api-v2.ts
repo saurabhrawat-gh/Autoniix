@@ -168,6 +168,72 @@ export const providersApi = {
       method: 'PUT',
       body: JSON.stringify({ credential_ids }),
     }),
+  // Scope + content-mode aware chains (provider_chains_v2)
+  chainsV2: (params: { scope?: string; scope_id?: string; content_mode?: string | null; category?: string }) => {
+    const q = new URLSearchParams();
+    if (params.scope) q.set('scope', params.scope);
+    if (params.scope_id) q.set('scope_id', params.scope_id);
+    if (params.content_mode) q.set('content_mode', params.content_mode);
+    if (params.category) q.set('category', params.category);
+    return request<{ data: any[] }>(`/api/v2/providers/chains?${q}`);
+  },
+  upsertChainV2: (body: { scope: string; scope_id?: string | null; content_mode?: string | null; category: string; credential_ids: number[] }) =>
+    request(`/api/v2/providers/chains`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteChainV2: (params: { scope: string; category: string; scope_id?: string; content_mode?: string }) => {
+    const q = new URLSearchParams({ scope: params.scope, category: params.category });
+    if (params.scope_id) q.set('scope_id', params.scope_id);
+    if (params.content_mode) q.set('content_mode', params.content_mode);
+    return request(`/api/v2/providers/chains?${q}`, { method: 'DELETE' });
+  },
+  resolved: (params: { category: string; channel_id?: string; content_mode?: string }) => {
+    const q = new URLSearchParams({ category: params.category });
+    if (params.channel_id) q.set('channel_id', params.channel_id);
+    if (params.content_mode) q.set('content_mode', params.content_mode);
+    return request<{ data: any[]; category: string; channel_id: string | null; content_mode: string | null }>(
+      `/api/v2/providers/resolved?${q}`
+    );
+  },
+  contentModes: () =>
+    request<{ data: { name: string; label: string; description: string | null; sort_order: number; is_system: boolean }[] }>(
+      '/api/v2/providers/content-modes'
+    ),
+  registeredProviders: (category: string) =>
+    request<{ data: {
+      provider_name: string;
+      display_name: string;
+      logo_url: string | null;
+      website_url: string | null;
+      has_free_tier: boolean | null;
+      default_model: string | null;
+      supported_models: string[];
+    }[] }>(
+      `/api/v2/providers/registered?category=${encodeURIComponent(category)}`
+    ),
+  supportedModels: (category: string, provider_name: string) => {
+    const q = new URLSearchParams({ category, provider_name });
+    return request<{ data: string[]; default?: string | null; registered: boolean; error?: string }>(
+      `/api/v2/providers/models?${q}`
+    );
+  },
+  setDefaultFallback: (id: number) =>
+    request(`/api/v2/providers/credentials/${id}/default-fallback`, { method: 'PUT' }),
+  clearDefaultFallback: (id: number) =>
+    request(`/api/v2/providers/credentials/${id}/default-fallback`, { method: 'DELETE' }),
+  setCredentialEnabled: (id: number, enabled: boolean) =>
+    request<{ status: string; enabled: boolean }>(
+      `/api/v2/providers/credentials/${id}/enabled`,
+      { method: 'PUT', body: JSON.stringify({ enabled }) }
+    ),
+  setChainEntryEnabled: (chainEntryId: number, enabled: boolean) =>
+    request<{ status: string; enabled: boolean }>(
+      `/api/v2/providers/chains/entry/${chainEntryId}/enabled`,
+      { method: 'PUT', body: JSON.stringify({ enabled }) }
+    ),
+  cleanSlate: () =>
+    request<{ status: string; data: { tables: string[]; secrets_deleted: number } }>(
+      '/api/v2/providers/_admin/clean-slate',
+      { method: 'POST' }
+    ),
   health: (id: number, limit = 50) =>
     request<{ data: any[] }>(`/api/v2/providers/health/${id}?limit=${limit}`),
   // Wave 2

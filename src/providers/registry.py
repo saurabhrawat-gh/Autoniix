@@ -59,7 +59,14 @@ class ProviderRegistry:
         logger.debug("provider.registered", category=category, name=name)
 
     @classmethod
-    def get(cls, category: str, *, override: str | None = None) -> Any:
+    def get(
+        cls,
+        category: str,
+        *,
+        override: str | None = None,
+        channel_id: str | None = None,
+        content_mode: str | None = None,
+    ) -> Any:
         from src.environment import is_test
 
         # 1) Explicit override always wins
@@ -69,18 +76,35 @@ class ProviderRegistry:
         elif is_test() and category in _TEST_PROVIDER_MAP:
             name = _TEST_PROVIDER_MAP[category]
         else:
-            # 3) Try the DB-driven priority chain (Phase 2). Synchronous
-            #    callers get a thread-isolated event loop; if no chain
-            #    is configured we fall through to env vars.
-            chain = cls._try_db_chain(category)
+            # 3) Try the DB-driven priority chain. Three outcomes:
+            #      • FallbackProvider — DB chain resolved, use it.
+            #      • EMPTY_CHAIN     — DB reachable, no enabled creds.
+            #                          Raise NoProviderConfigured so the
+            #                          UI surfaces a clear error instead
+            #                          of a silent env-var "ghost" provider.
+            #      • None            — DB unreachable / flag off, fall
+            #                          back to env-var resolution.
+            from src.providers.chain import EMPTY_CHAIN, NoProviderConfigured
+            chain = cls._try_db_chain(
+                category, channel_id=channel_id, content_mode=content_mode,
+            )
+            if chain is EMPTY_CHAIN:
+                raise NoProviderConfigured(
+                    category, channel_id=channel_id, content_mode=content_mode,
+                )
             if chain is not None:
                 return chain
             name = os.getenv(_ENV_MAP.get(category, ""), "")
 
         if not name:
-            raise ValueError(f"No provider configured for category '{category}'")
+            from src.providers.chain import NoProviderConfigured
+            raise NoProviderConfigured(
+                category, channel_id=channel_id, content_mode=content_mode,
+            )
 
-        cache_key = f"{category}:{name}"
+        # Cache key includes the resolution axes so that two channels
+        # with different overrides can't poison each other's instance.
+        cache_key = f"{category}:{name}:{channel_id or ''}:{content_mode or ''}"
         if cache_key in cls._instances:
             return cls._instances[cache_key]
 
@@ -89,16 +113,24 @@ class ProviderRegistry:
         if provider_class is None:
             available = list(registry.keys())
             raise ValueError(
-                f"Unknown {category} provider '{name}'. Available: {available}"
+                f"Unknown {category} provider '{name}'. Available: {available}. "
+                f"Add a credential in /dashboard/providers/{category}."
             )
 
         instance = provider_class()
         cls._instances[cache_key] = instance
-        logger.info("provider.instantiated", category=category, name=name)
+        logger.info("provider.instantiated", category=category, name=name,
+                    channel_id=channel_id, content_mode=content_mode)
         return instance
 
     @classmethod
-    def _try_db_chain(cls, category: str) -> Any | None:
+    def _try_db_chain(
+        cls,
+        category: str,
+        *,
+        channel_id: str | None = None,
+        content_mode: str | None = None,
+    ) -> Any | None:
         """Best-effort DB chain resolution. Returns None on any failure
         so callers fall back to env-based lookup unchanged.
         """
@@ -110,12 +142,18 @@ class ProviderRegistry:
                 loop = _asyncio.get_running_loop()
             except RuntimeError:
                 # No running loop — safe to run synchronously
-                return _asyncio.run(resolve_chain(category, registry))
+                return _asyncio.run(resolve_chain(
+                    category, registry,
+                    channel_id=channel_id, content_mode=content_mode,
+                ))
             # We're inside an event loop; schedule and wait on a
             # background thread to keep the call signature sync.
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-                fut = ex.submit(_asyncio.run, resolve_chain(category, registry))
+                fut = ex.submit(_asyncio.run, resolve_chain(
+                    category, registry,
+                    channel_id=channel_id, content_mode=content_mode,
+                ))
                 return fut.result(timeout=5)
         except Exception as exc:
             logger.debug("provider.db_chain_unavailable",

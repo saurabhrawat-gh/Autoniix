@@ -48,8 +48,8 @@ import asyncio
 import os
 import time
 from collections import deque
-from dataclasses import dataclass, field
-from typing import Iterable
+from dataclasses import dataclass, field, replace
+from typing import Any, Iterable
 
 import httpx
 import structlog
@@ -201,6 +201,62 @@ async def _cap_for(channel_id: str) -> float:
         return 0.0
 
 
+async def _content_mode_for(content_id: str) -> str | None:
+    """Look up `videos.content_mode` so the router can resolve mode-aware chains."""
+    if not content_id:
+        return None
+    try:
+        from src.db import get_pool
+        pool = await get_pool()
+        val = await pool.fetchval(
+            "SELECT content_mode FROM videos WHERE content_id = $1",
+            content_id,
+        )
+        return val or None
+    except Exception as exc:
+        logger.debug("router.content_mode_lookup_failed",
+                     content_id=content_id, error=str(exc))
+        return None
+
+
+async def _db_chain_pairs(
+    category: str,
+    *,
+    channel_id: str | None,
+    content_mode: str | None,
+) -> list[tuple[str, Any, str | None]]:
+    """Return ``[(provider_name, member, pinned_model)]`` from the DB chain.
+
+    Empty list when the chain isn't configured; the router then falls
+    back to the env-driven ladder. Wrapping mistakes in DB resolution
+    must never block a call.
+    """
+    try:
+        from src.providers import chain as chain_mod
+        registry = ProviderRegistry._registries.get(category, {})
+        if not registry:
+            return []
+        wrapped = await chain_mod.resolve_chain(
+            category, registry,
+            channel_id=channel_id, content_mode=content_mode,
+        )
+    except Exception as exc:
+        logger.debug("router.db_chain_failed",
+                     category=category, error=str(exc))
+        return []
+    if wrapped is None:
+        return []
+    members = list(getattr(wrapped, "members", []))
+    names: list[str] = list(getattr(wrapped, "provider_names", []))
+    models: list[str | None] = list(getattr(wrapped, "models", []))
+    pairs: list[tuple[str, Any, str | None]] = []
+    for i, m in enumerate(members):
+        name = names[i] if i < len(names) else getattr(m, "provider_name", lambda: "")()
+        model = models[i] if i < len(models) else None
+        pairs.append((str(name), m, model))
+    return pairs
+
+
 async def _record_usage(*, content_id: str, channel_id: str,
                         category: str, result: LLMResult) -> None:
     try:
@@ -253,6 +309,7 @@ class Router:
         request: LLMRequest,
         channel_id: str = "",
         content_id: str = "",
+        content_mode: str | None = None,
         ladder: Iterable[str] | None = None,
         record_usage: bool = True,
     ) -> LLMResult:
@@ -268,10 +325,27 @@ class Router:
                                channel_id=channel_id, spent=spent, cap=cap)
                 raise BudgetExceeded(channel_id, spent, cap)
 
-        # 2. Ladder.
-        candidates = list(ladder) if ladder else _ladder_for(category)
+        # 2. Resolve content_mode if the caller didn't pass it (cheap
+        #    lookup; DB chain key includes mode so this matters).
+        if content_mode is None and content_id:
+            content_mode = await _content_mode_for(content_id)
+
+        # 3. Ladder. The DB chain (scope+mode aware) wins when configured;
+        #    fall back to the env-driven ladder for back-compat.
+        db_pairs = await _db_chain_pairs(
+            category, channel_id=channel_id or None, content_mode=content_mode,
+        )
+        if ladder:
+            candidates: list[tuple[str, Any | None, str | None]] = [
+                (p, None, None) for p in ladder
+            ]
+        elif db_pairs:
+            candidates = db_pairs
+        else:
+            candidates = [(p, None, None) for p in _ladder_for(category)]
+
         attempts: list[tuple[str, str]] = []
-        for prov_name in candidates:
+        for prov_name, db_member, pinned_model in candidates:
             br = self._breaker(prov_name)
             if br.open():
                 attempts.append((prov_name, "circuit_open"))
@@ -279,16 +353,30 @@ class Router:
                     category=category, provider=prov_name, outcome="breaker"
                 ).inc()
                 continue
-            try:
-                provider = ProviderRegistry.get(category, override=prov_name)
-            except Exception as exc:
-                # Provider not registered for this category — silently skip.
-                attempts.append((prov_name, f"unregistered: {exc}"))
-                continue
+            if db_member is not None:
+                provider = db_member
+            else:
+                try:
+                    provider = ProviderRegistry.get(
+                        category, override=prov_name,
+                        channel_id=channel_id or None,
+                        content_mode=content_mode,
+                    )
+                except Exception as exc:
+                    # Provider not registered for this category — silently skip.
+                    attempts.append((prov_name, f"unregistered: {exc}"))
+                    continue
+
+            # Honor the credential's pinned model when the caller didn't
+            # explicitly set one. Per-call request.model still wins.
+            call_request = request
+            effective_model = pinned_model or getattr(provider, "_pinned_model", None)
+            if effective_model and not request.model:
+                call_request = replace(request, model=effective_model)
 
             t0 = time.monotonic()
             try:
-                result = await provider.complete(request)
+                result = await provider.complete(call_request)
             except Exception as exc:
                 br.record(False)
                 LLM_DURATION_SECONDS.labels(
@@ -345,6 +433,7 @@ async def route(
     request: LLMRequest,
     channel_id: str = "",
     content_id: str = "",
+    content_mode: str | None = None,
     ladder: Iterable[str] | None = None,
     record_usage: bool = True,
 ) -> LLMResult:
@@ -352,5 +441,6 @@ async def route(
     return await get_router().route(
         category=category, request=request,
         channel_id=channel_id, content_id=content_id,
+        content_mode=content_mode,
         ladder=ladder, record_usage=record_usage,
     )

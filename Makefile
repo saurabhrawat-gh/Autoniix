@@ -1,6 +1,6 @@
 .PHONY: help infra bff ui dev stop logs up down health restart-app restart-bff verify-bff use-test use-prod env-status \
         migrate migrate-status backfill auth-enable smoke deploy-check schedule-register setup fresh tls-up tls-down \
-        backup restore alerts-status
+        backup restore alerts-status providers-wipe
 
 help: ## Show available commands
 	@echo ""
@@ -174,10 +174,12 @@ env-status: ## Show which environment is currently active
 
 # ── v2 Revamp shortcuts ───────────────────────────────────
 migrate: ## Apply all pending DB migrations
-	python -m scripts.run_migrations
+	DB_HOST=$${DB_HOST_HOST:-localhost} DB_PORT=$${DB_PORT_HOST:-5433} \
+		python -m scripts.run_migrations
 
 migrate-status: ## Show pending migrations
-	python -m scripts.run_migrations --status
+	DB_HOST=$${DB_HOST_HOST:-localhost} DB_PORT=$${DB_PORT_HOST:-5433} \
+		python -m scripts.run_migrations --status
 
 backfill: ## Backfill channel_profiles for existing channels (idempotent)
 	python -m scripts.backfill_channel_profiles
@@ -257,6 +259,14 @@ backup: ## Backup Postgres + MinIO (runs scripts/backup.sh)
 
 restore: ## Restore from latest snapshot (STAMP= for a specific one)
 	bash scripts/restore.sh $(STAMP)
+
+# ── Providers ───────────────────────────────────────
+providers-wipe: ## Wipe ALL provider credentials, chains, routes (clean slate)
+	@echo "⚠  This will delete every provider credential and chain in the DB."
+	@read -p "  Type 'WIPE' to confirm: " confirm; \
+	if [ "$$confirm" != "WIPE" ]; then echo "❌ Aborted"; exit 1; fi
+	python -m scripts.clean_slate_providers --yes
+	@echo "✅ Providers wiped — reload /dashboard/providers to verify empty state"
 
 # ── Alerting ────────────────────────────────────────
 alerts-status: ## Show currently firing alerts from Alertmanager

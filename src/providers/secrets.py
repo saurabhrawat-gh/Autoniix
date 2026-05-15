@@ -108,6 +108,144 @@ class VaultBackend:
             return False
 
 
+# ── DB backend (Fernet-encrypted, in-postgres) ─────────────
+class DBBackend:
+    """Self-hosted secret store: AES-GCM/Fernet ciphertext in postgres.
+
+    Designed for the zero-external-dep dev/prod path: no Vault, no
+    Infisical, just a master key in ``SECRETS_ENCRYPTION_KEY`` and a
+    ``provider_secrets`` table created by migration 202605140003.
+
+    If the env var is missing, we generate an ephemeral key and log a
+    loud warning — secrets written this way survive only until the
+    process restarts. Set the env var in ``.env`` for persistence.
+    """
+    name = "db"
+
+    # Cache the Fernet cipher per-process. The migration is idempotent.
+    _cipher = None  # type: ignore[var-annotated]
+    _bootstrapped = False
+
+    def __init__(self) -> None:
+        from cryptography.fernet import Fernet  # type: ignore[import-not-found]
+
+        key = os.getenv("SECRETS_ENCRYPTION_KEY", "").strip()
+        if not key:
+            key = Fernet.generate_key().decode()
+            logger.warning(
+                "secrets.db.ephemeral_key",
+                msg=("SECRETS_ENCRYPTION_KEY not set — generated an "
+                     "ephemeral key. Secrets written now will be "
+                     "unreadable after a restart. Add to .env:"),
+                example_key=key,
+            )
+        try:
+            self._cipher = Fernet(key.encode() if isinstance(key, str) else key)
+        except Exception as exc:
+            raise RuntimeError(
+                f"SECRETS_ENCRYPTION_KEY is not a valid Fernet key: {exc}. "
+                f"Generate one with: python -c "
+                f"'from cryptography.fernet import Fernet; "
+                f"print(Fernet.generate_key().decode())'"
+            ) from exc
+
+    def _run(self, coro):
+        """Bridge async DB calls to the sync Protocol surface.
+
+        We can't reuse the shared asyncpg pool (which is bound to the
+        main event loop) from another thread/loop — asyncpg pools are
+        not thread-safe and raise "another operation is in progress".
+        So we always open a fresh short-lived connection in a private
+        thread's event loop and close it at the end of the call.
+        """
+        import asyncio
+        import concurrent.futures
+
+        def _runner():
+            return asyncio.run(coro)
+
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return _runner()
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+            return ex.submit(_runner).result()
+
+    @staticmethod
+    async def _connect():
+        import asyncpg
+        from src.config import settings
+        return await asyncpg.connect(
+            host=settings.db_host,
+            port=settings.db_port,
+            database=settings.db_name,
+            user=settings.db_user,
+            password=settings.db_password,
+        )
+
+    async def _fetch(self, path: str, key: str) -> str | None:
+        conn = await self._connect()
+        try:
+            return await conn.fetchval(
+                "SELECT ciphertext FROM provider_secrets WHERE path=$1 AND key=$2",
+                path, key,
+            )
+        finally:
+            await conn.close()
+
+    async def _store(self, path: str, key: str, ciphertext: str) -> None:
+        conn = await self._connect()
+        try:
+            await conn.execute(
+                """INSERT INTO provider_secrets (path, key, ciphertext)
+                     VALUES ($1, $2, $3)
+                   ON CONFLICT (path, key) DO UPDATE
+                     SET ciphertext = EXCLUDED.ciphertext,
+                         updated_at = NOW()""",
+                path, key, ciphertext,
+            )
+        finally:
+            await conn.close()
+
+    async def _delete_prefix(self, prefix: str) -> int:
+        conn = await self._connect()
+        try:
+            row = await conn.fetchval(
+                "WITH deleted AS ("
+                "  DELETE FROM provider_secrets WHERE path LIKE $1 RETURNING 1"
+                ") SELECT COUNT(*) FROM deleted",
+                prefix.rstrip("%") + "%",
+            )
+            return int(row or 0)
+        finally:
+            await conn.close()
+
+    def get(self, path: str, key: str) -> str | None:
+        try:
+            ct = self._run(self._fetch(path, key))
+            if not ct:
+                return None
+            return self._cipher.decrypt(ct.encode()).decode()  # type: ignore[union-attr]
+        except Exception as exc:
+            logger.warning("secrets.db.get_failed", path=path, error=str(exc))
+            return None
+
+    def put(self, path: str, key: str, value: str) -> None:
+        ciphertext = self._cipher.encrypt(value.encode()).decode()  # type: ignore[union-attr]
+        self._run(self._store(path, key, ciphertext))
+
+    def delete_prefix(self, prefix: str) -> int:
+        return self._run(self._delete_prefix(prefix))
+
+    def health(self) -> bool:
+        try:
+            self._run(self._fetch("__healthcheck__", "ping"))
+            return True
+        except Exception:
+            return False
+
+
 # ── Infisical backend ───────────────────────────────────────
 class InfisicalBackend:
     name = "infisical"
@@ -184,6 +322,8 @@ def _backends() -> list[SecretBackend]:
                 out.append(InfisicalBackend())
             elif name == "vault":
                 out.append(VaultBackend())
+            elif name == "db":
+                out.append(DBBackend())
             elif name == "env":
                 out.append(EnvBackend())
             else:
@@ -219,6 +359,27 @@ def put_secret_at(path: str, key: str, value: str) -> str:
     backend = _backends()[0]
     backend.put(path, key, value)
     return backend.name
+
+
+def delete_prefix(prefix: str) -> int:
+    """Delete every secret whose path starts with ``prefix`` on every
+    backend that supports it. Returns the total count deleted.
+
+    Used by the provider clean-slate flow to wipe vault entries when
+    the user resets the dashboard. Backends without a ``delete_prefix``
+    method (env, vault, infisical) are skipped.
+    """
+    total = 0
+    for backend in _backends():
+        fn = getattr(backend, "delete_prefix", None)
+        if not callable(fn):
+            continue
+        try:
+            total += int(fn(prefix) or 0)
+        except Exception as exc:
+            logger.warning("secrets.delete_prefix_failed",
+                           backend=backend.name, prefix=prefix, error=str(exc))
+    return total
 
 
 def reset_cache() -> None:

@@ -8,7 +8,9 @@ import { channelsApi } from '@/lib/api-v2';
 import { Skeleton } from '@/lib/components/Skeleton';
 import { AlertTriangle, ChevronLeft, RefreshCw } from '@/lib/components/Icon';
 
-const TABS = ['Basics', 'Strategy', 'Voice', 'Visual', 'Pillars', 'References', 'Automation', 'Memory'] as const;
+import ProvidersTab from './ProvidersTab';
+
+const TABS = ['Basics', 'Strategy', 'Voice', 'Visual', 'Pillars', 'References', 'Providers', 'Automation', 'Memory'] as const;
 
 export default function ChannelDetail() {
   const { id } = useParams<{ id: string }>();
@@ -161,6 +163,9 @@ export default function ChannelDetail() {
         )}
         {tab === 'References' && (
           <ReferencesTab data={data} channel_id={id} onChange={refresh} />
+        )}
+        {tab === 'Providers' && (
+          <ProvidersTab channelId={id} />
         )}
         {tab === 'Automation' && (
           <Grid>

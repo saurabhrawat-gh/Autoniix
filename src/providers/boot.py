@@ -9,6 +9,8 @@ import src.providers.llm.openai_provider       # noqa: F401
 import src.providers.llm.openai_vision_provider # noqa: F401
 import src.providers.llm.claude_provider        # noqa: F401
 import src.providers.llm.gemini_provider        # noqa: F401
+import src.providers.llm.glm_provider           # noqa: F401  (Zhipu GLM, OpenAI-compatible)
+import src.providers.llm.kimi_provider          # noqa: F401  (Moonshot Kimi, OpenAI-compatible)
 import src.providers.llm.mock_provider          # noqa: F401  (test mode)
 
 # ── TTS Providers ────────────────────────────────────────

@@ -8,7 +8,7 @@ import { useToast } from '@/lib/toast';
 import {
   Plug, ChevronRight, AlertTriangle, HelpCircle, Cpu,
   Activity, RotateCw, Plus, Loader2, ShieldCheck,
-  Gauge, Network, Store, CheckCircle2, ExternalLink, Zap,
+  Gauge, Network, Store, CheckCircle2, ExternalLink, Zap, Trash2,
 } from '@/lib/components/Icon';
 
 const KIND_META: Record<string, { icon: string; desc: string }> = {
@@ -55,6 +55,28 @@ export default function ProvidersIndex() {
   const [loading, setLoading] = useState(true);
   const [probingAll, setProbingAll] = useState(false);
   const [marketFilter, setMarketFilter] = useState<string>('all');
+  const [resetting, setResetting] = useState(false);
+
+  const cleanSlate = async () => {
+    const phrase = prompt(
+      'This will DELETE every provider credential and chain in the database. ' +
+      'Type WIPE to confirm.'
+    );
+    if (phrase !== 'WIPE') {
+      if (phrase !== null) showToast('Reset cancelled', 'error');
+      return;
+    }
+    setResetting(true);
+    try {
+      const r = await providersApi.cleanSlate();
+      showToast(`Wiped ${r.data.tables.length} table(s)`, 'success');
+      await refresh();
+    } catch (e: any) {
+      showToast(e?.message || 'Reset failed', 'error');
+    } finally {
+      setResetting(false);
+    }
+  };
 
   const refresh = useCallback(() => {
     setLoading(true);
@@ -126,6 +148,12 @@ export default function ProvidersIndex() {
             className="flex items-center gap-1.5 h-8 px-3 rounded-md border border-border text-xs text-content-secondary hover:bg-surface-2 transition-colors disabled:opacity-40">
             {probingAll ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
             Probe all
+          </button>
+          <button onClick={cleanSlate} disabled={resetting}
+            title="Wipe ALL credentials, chains, routes (cannot be undone)"
+            className="flex items-center gap-1.5 h-8 px-3 rounded-md border border-red-500/40 text-xs text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-40">
+            {resetting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+            Reset all
           </button>
         </div>
       </div>

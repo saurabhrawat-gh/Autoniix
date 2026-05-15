@@ -123,6 +123,14 @@ _generate_download_url = _public_url
 app = FastAPI(title="Dashboard BFF", version="1.0.0")
 instrument_app(app, service_name="dashboard")
 
+# Register all provider classes (openai, claude, gemini, fish-audio, …)
+# at boot so the /providers/models endpoint and credential creation
+# flow see the live registry instead of an empty one. Without this,
+# the UI shows "PROVIDER NOT REGISTERED" badges and validation falls
+# open. Lazy-imported in some endpoints, but doing it here removes
+# the surprise.
+import src.providers.boot  # noqa: E402, F401
+
 # Rate limiter — uses client IP extracted by get_remote_address.
 # In production behind Traefik, set X-Forwarded-For so the real
 # client IP is used instead of the proxy IP.

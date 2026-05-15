@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import {
   Plus, Activity, Trash2, ArrowUp, ArrowDown, X, Check, ChevronLeft,
   ShieldCheck, AlertTriangle, HelpCircle, Loader2, Eye, EyeOff, RotateCw,
-  Terminal, SlidersHorizontal, Play,
+  Terminal, SlidersHorizontal, Play, Star,
 } from '@/lib/components/Icon';
 
 type HealthStatus = 'healthy' | 'failing' | 'untested';
@@ -28,6 +28,33 @@ const HEALTH_ICON: Record<HealthStatus, React.ReactNode> = {
   failing:  <AlertTriangle size={11} className="text-red-500" />,
   untested: <HelpCircle size={11} className="text-content-tertiary" />,
 };
+
+function Switch({ checked, onChange, title, disabled }: {
+  checked: boolean; onChange: () => void; title?: string; disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      title={title}
+      disabled={disabled}
+      onClick={onChange}
+      className={cn(
+        'relative inline-flex h-4 w-7 shrink-0 items-center rounded-full border transition-colors',
+        checked
+          ? 'bg-emerald-500/80 border-emerald-500/80'
+          : 'bg-surface-2 border-border',
+        disabled && 'opacity-40 cursor-not-allowed'
+      )}
+    >
+      <span className={cn(
+        'inline-block h-3 w-3 rounded-full bg-white shadow transition-transform',
+        checked ? 'translate-x-3.5' : 'translate-x-0.5'
+      )} />
+    </button>
+  );
+}
 
 const POLICY_OPTIONS = [
   { value: 'balanced',        label: 'Balanced',        desc: 'Cost + quality + speed tradeoff' },
@@ -60,11 +87,22 @@ export default function ProviderCategoryPage() {
   // Wave 2 — health sparklines (last 20 per cred)
   const [healthHistory, setHealthHistory] = useState<Record<number, any[]>>({});
 
+  // Wave 4 — content-mode aware chain editing
+  // selectedMode === null means "All modes" (NULL row in DB)
+  const [contentModes, setContentModes] = useState<{ name: string; label: string }[]>([]);
+  const [selectedMode, setSelectedMode] = useState<string | null>(null);
+  const [resolvedChain, setResolvedChain] = useState<any[]>([]);
+
   const refresh = useCallback(() => {
     setLoading(true);
     Promise.all([
       providersApi.credentials(decoded).then(r => setCreds(r.data || [])),
-      providersApi.chain(decoded).then(r => setChain(r.data || [])).catch(() => setChain([])),
+      providersApi.chainsV2({ scope: 'workspace', content_mode: selectedMode || undefined, category: decoded })
+        .then(r => setChain(r.data || []))
+        .catch(() => setChain([])),
+      providersApi.resolved({ category: decoded, content_mode: selectedMode || undefined })
+        .then(r => setResolvedChain(r.data || []))
+        .catch(() => setResolvedChain([])),
       providersApi.routes('workspace').then(r => {
         const found = (r.data || []).find((rt: any) => rt.category === decoded);
         if (found) {
@@ -74,7 +112,14 @@ export default function ProviderCategoryPage() {
         }
       }).catch(() => {}),
     ]).finally(() => setLoading(false));
-  }, [decoded]);
+  }, [decoded, selectedMode]);
+
+  // Load the content-mode catalog once.
+  useEffect(() => {
+    providersApi.contentModes()
+      .then(r => setContentModes(r.data || []))
+      .catch(() => setContentModes([]));
+  }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -85,23 +130,72 @@ export default function ProviderCategoryPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [creds.length]);
 
+  const saveChain = (ids: number[]) =>
+    providersApi.upsertChainV2({
+      scope: 'workspace',
+      scope_id: null,
+      content_mode: selectedMode,
+      category: decoded,
+      credential_ids: ids,
+    }).then(refresh);
+
   const moveChain = (idx: number, dir: -1 | 1) => {
     const ids = chain.map(c => c.credential_id);
     const j = idx + dir;
     if (j < 0 || j >= ids.length) return;
     [ids[idx], ids[j]] = [ids[j], ids[idx]];
-    providersApi.setChain(decoded, ids).then(refresh);
+    saveChain(ids);
   };
 
   const addToChain = (credId: number) => {
     const ids = chain.map(c => c.credential_id);
     if (ids.includes(credId)) return;
-    providersApi.setChain(decoded, [...ids, credId]).then(refresh);
+    saveChain([...ids, credId]);
   };
 
   const removeFromChain = (credId: number) => {
     const ids = chain.map(c => c.credential_id).filter(x => x !== credId);
-    providersApi.setChain(decoded, ids).then(refresh);
+    saveChain(ids);
+  };
+
+  const toggleCredentialEnabled = async (cred: any) => {
+    const next = !cred.enabled;
+    try {
+      await providersApi.setCredentialEnabled(cred.id, next);
+      showToast(next ? `${cred.label} enabled` : `${cred.label} disabled`, 'success');
+      refresh();
+    } catch (e: any) {
+      showToast(e?.message || 'Failed to toggle credential', 'error');
+    }
+  };
+
+  const toggleChainEntryEnabled = async (entry: any) => {
+    if (!entry?.id) {
+      showToast('Chain entry id missing — reload the page', 'error');
+      return;
+    }
+    const next = !(entry.is_enabled ?? true);
+    try {
+      await providersApi.setChainEntryEnabled(entry.id, next);
+      refresh();
+    } catch (e: any) {
+      showToast(e?.message || 'Failed to toggle chain entry', 'error');
+    }
+  };
+
+  const toggleDefaultFallback = async (cred: any) => {
+    try {
+      if (cred.is_default_fallback) {
+        await providersApi.clearDefaultFallback(cred.id);
+        showToast('Default fallback cleared', 'success');
+      } else {
+        await providersApi.setDefaultFallback(cred.id);
+        showToast(`${cred.label} is now the default fallback`, 'success');
+      }
+      refresh();
+    } catch (e: any) {
+      showToast(e?.message || 'Failed to update default fallback', 'error');
+    }
   };
 
   const testCredential = async (id: number) => {
@@ -201,13 +295,54 @@ export default function ProviderCategoryPage() {
         <div className="space-y-5">
           {/* ── Priority chain ──────────────────────────── */}
           <section>
-            <div className="mb-2">
-              <h2 className="text-sm font-semibold text-content-primary">Priority chain</h2>
-              <p className="text-xs text-content-tertiary mt-0.5">
-                Resolution order — the first healthy provider handles the call. On error it falls through to the next.
-                {chain.length === 0 && ' Add credentials below, then drag them into the chain.'}
-              </p>
+            <div className="mb-2 flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <h2 className="text-sm font-semibold text-content-primary">Priority chain</h2>
+                <p className="text-xs text-content-tertiary mt-0.5">
+                  Resolution order — the first healthy provider handles the call. On error it falls through to the next.
+                  {chain.length === 0 && ' Add credentials below, then drag them into the chain.'}
+                </p>
+              </div>
+              {/* Content-mode segmented control */}
+              <div className="flex items-center gap-0.5 bg-surface-1 rounded-md p-0.5">
+                {[{ name: null as string | null, label: 'All modes' }, ...contentModes].map((m: any) => (
+                  <button key={m.name ?? '__all__'} onClick={() => setSelectedMode(m.name)}
+                    className={cn('px-2.5 py-1 text-[11px] font-medium rounded transition-all',
+                      selectedMode === m.name
+                        ? 'bg-surface-0 text-content-primary shadow-sm'
+                        : 'text-content-tertiary hover:text-content-secondary')}>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* Effective chain banner (mirrors what the runtime will pick) */}
+            {resolvedChain.length > 0 && (
+              <div className="mb-2 rounded-md border border-border bg-surface-1/40 px-3 py-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] uppercase tracking-wide text-content-tertiary">Effective chain</span>
+                  <span className="text-[10px] text-content-tertiary">
+                    {selectedMode ? `for mode ${selectedMode}` : '(any content mode)'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {resolvedChain.map((r: any, i: number) => (
+                    <span key={`${r.credential_id}-${r.origin}`}
+                      className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-surface-0 border border-border">
+                      <span className="text-content-tertiary">{i + 1}.</span>
+                      <span className="text-content-primary font-medium">{r.label}</span>
+                      {r.model && <span className="text-content-tertiary font-mono">· {r.model}</span>}
+                      <span className={cn('text-[9px] px-1 rounded',
+                        r.origin === 'default' ? 'bg-amber-500/10 text-amber-500' :
+                        r.origin.startsWith('channel') ? 'bg-violet-500/10 text-violet-500' :
+                        r.origin.startsWith('workspace') ? 'bg-emerald-500/10 text-emerald-500' :
+                        'bg-blue-500/10 text-blue-500')}>{r.origin}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="rounded-md border border-border bg-surface-0 overflow-hidden">
               {chain.length === 0 ? (
                 <div className="p-5 text-sm text-content-tertiary text-center">
@@ -217,17 +352,34 @@ export default function ProviderCategoryPage() {
                 <div className="divide-y divide-border">
                   {chain.map((c: any, i: number) => {
                     const health = getHealth(c);
+                    const entryEnabled = c.is_enabled ?? true;
                     return (
-                      <div key={c.credential_id} className="flex items-center gap-3 px-4 py-3">
+                      <div key={c.id ?? c.credential_id} className={cn(
+                        'flex items-center gap-3 px-4 py-3',
+                        !entryEnabled && 'opacity-60'
+                      )}>
                         <span className="text-xs font-mono text-content-tertiary w-5 shrink-0">{i + 1}.</span>
                         <div className="flex items-center gap-1.5">
                           {HEALTH_ICON[health]}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-content-primary">{c.label}</div>
+                          <div className={cn(
+                            'text-sm font-medium text-content-primary',
+                            !entryEnabled && 'line-through'
+                          )}>{c.label}</div>
                           <div className="text-[11px] text-content-tertiary">{c.provider_name}</div>
                         </div>
-                        <div className="flex items-center gap-1 shrink-0">
+                        {!entryEnabled && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">
+                            disabled
+                          </span>
+                        )}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Switch
+                            checked={entryEnabled}
+                            onChange={() => toggleChainEntryEnabled(c)}
+                            title={entryEnabled ? 'Disable in this chain' : 'Enable in this chain'}
+                          />
                           <button onClick={() => moveChain(i, -1)} disabled={i === 0}
                             className="w-7 h-7 flex items-center justify-center rounded hover:bg-surface-2 text-content-tertiary disabled:opacity-30 transition-colors">
                             <ArrowUp size={13} />
@@ -272,17 +424,31 @@ export default function ProviderCategoryPage() {
                     const testResult = testResults[c.id];
                     const isTesting = testingId === c.id;
                     return (
-                      <div key={c.id} className="px-4 py-3">
+                      <div key={c.id} className={cn('px-4 py-3', !c.enabled && 'opacity-60')}>
                         <div className="flex items-center gap-3">
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-content-primary">{c.label}</span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={cn(
+                                'text-sm font-medium text-content-primary',
+                                !c.enabled && 'line-through'
+                              )}>{c.label}</span>
+                              {!c.enabled && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary font-medium">disabled</span>
+                              )}
                               <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium flex items-center gap-1', HEALTH_CHIP[health])}>
                                 {HEALTH_ICON[health]}
                                 {health}
                               </span>
                               {inChain && (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/15 text-accent font-medium">in chain</span>
+                              )}
+                              {c.is_default_fallback && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 font-medium flex items-center gap-1">
+                                  <Star size={9} /> Default fallback
+                                </span>
+                              )}
+                              {c.model && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-secondary font-mono">{c.model}</span>
                               )}
                             </div>
                             <div className="text-[11px] text-content-tertiary font-mono mt-0.5">
@@ -298,6 +464,19 @@ export default function ProviderCategoryPage() {
 
                           {/* Actions */}
                           <div className="flex items-center gap-1.5 shrink-0">
+                            <Switch
+                              checked={!!c.enabled}
+                              onChange={() => toggleCredentialEnabled(c)}
+                              title={c.enabled ? 'Disable this credential everywhere' : 'Enable this credential'}
+                            />
+                            <button onClick={() => toggleDefaultFallback(c)}
+                              title={c.is_default_fallback ? 'Clear default fallback' : 'Set as default fallback (always tried last)'}
+                              className={cn('w-7 h-7 flex items-center justify-center rounded transition-colors',
+                                c.is_default_fallback
+                                  ? 'bg-amber-500/15 text-amber-500 hover:bg-amber-500/25'
+                                  : 'border border-border text-content-tertiary hover:bg-surface-2')}>
+                              <Star size={12} />
+                            </button>
                             <button onClick={() => testCredential(c.id)} disabled={isTesting}
                               className="flex items-center gap-1 px-2.5 py-1 rounded border border-border text-xs text-content-secondary hover:bg-surface-2 transition-colors disabled:opacity-50">
                               {isTesting ? <Loader2 size={11} className="animate-spin" /> : <Activity size={11} />}
@@ -503,16 +682,79 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
   const [label, setLabel] = useState('');
   const [secret, setSecret] = useState('');
   const [showSecret, setShowSecret] = useState(false);
+  const [model, setModel] = useState('');
+  const [supportedModels, setSupportedModels] = useState<string[]>([]);
+  const [defaultModel, setDefaultModel] = useState<string | null>(null);
+  const [providerRegistered, setProviderRegistered] = useState<boolean | null>(null);
   const [extra, setExtra] = useState('{}');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Registered providers for this category — populated once on open.
+  const [registered, setRegistered] = useState<{
+    provider_name: string;
+    display_name: string;
+    logo_url: string | null;
+    website_url: string | null;
+    has_free_tier: boolean | null;
+    default_model: string | null;
+    supported_models: string[];
+  }[]>([]);
+  const [registeredLoading, setRegisteredLoading] = useState(true);
+
+  // Load registered provider classes for this category on mount.
+  // If the list is empty, the worker fleet isn't running providers for
+  // this category (e.g. fresh image build) — surface that, don't let
+  // the user type garbage.
+  useEffect(() => {
+    setRegisteredLoading(true);
+    providersApi.registeredProviders(category)
+      .then(r => {
+        setRegistered(r.data || []);
+        // Auto-select the first registered provider so the model
+        // dropdown can populate immediately.
+        if ((r.data || []).length > 0 && !providerName) {
+          const first = r.data[0];
+          setProviderName(first.provider_name);
+          setSupportedModels(first.supported_models);
+          setDefaultModel(first.default_model);
+          setProviderRegistered(true);
+          if (first.default_model) setModel(first.default_model);
+        }
+      })
+      .catch(() => setRegistered([]))
+      .finally(() => setRegisteredLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category]);
+
+  // When the user changes the selected provider, hydrate model dropdown.
+  useEffect(() => {
+    if (!providerName) {
+      setSupportedModels([]); setDefaultModel(null); setProviderRegistered(null);
+      return;
+    }
+    const match = registered.find(r => r.provider_name === providerName);
+    if (match) {
+      setSupportedModels(match.supported_models);
+      setDefaultModel(match.default_model);
+      setProviderRegistered(true);
+      if (!model && match.default_model) setModel(match.default_model);
+    } else {
+      setProviderRegistered(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providerName, registered]);
 
   const submit = async () => {
     setBusy(true); setErr(null);
     try {
       let extra_config = {};
       try { extra_config = JSON.parse(extra || '{}'); } catch { setErr('Extra config must be valid JSON'); setBusy(false); return; }
-      await providersApi.createCredential({ category, provider_name: providerName, label, secret_value: secret, secret_key: 'api_key', extra_config });
+      await providersApi.createCredential({
+        category, provider_name: providerName, label,
+        secret_value: secret, secret_key: 'api_key',
+        model: model || null,
+        extra_config,
+      });
       onAdded();
     } catch (e: any) { setErr(e?.message || 'Failed'); }
     finally { setBusy(false); }
@@ -526,10 +768,78 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded hover:bg-surface-2 text-content-tertiary"><X size={14} /></button>
         </div>
 
-        <Inp label="Provider name" hint="Internal provider key: openai, elevenlabs, pexels, fishaudio, etc."
-          value={providerName} onChange={setProviderName} placeholder="e.g. openai" />
-        <Inp label="Label" hint="Friendly display name shown in chains and logs."
-          value={label} onChange={setLabel} placeholder="e.g. OpenAI Primary" />
+        {/* Provider — dropdown of classes registered in-process. We
+            deliberately don't allow free-text: any name the resolver
+            can't instantiate is dead weight. */}
+        <div>
+          <div className="text-[10px] uppercase text-content-tertiary mb-1">Provider</div>
+          {registeredLoading ? (
+            <div className="px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-xs text-content-tertiary">
+              Loading registered providers…
+            </div>
+          ) : registered.length === 0 ? (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-2.5 py-2 text-xs text-amber-500">
+              No providers registered for <span className="font-mono">{category}</span>.
+              The BFF didn't import any provider classes for this category.
+              Check <span className="font-mono">src/providers/boot.py</span>.
+            </div>
+          ) : (
+            <select value={providerName} onChange={e => setProviderName(e.target.value)}
+              className="w-full px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-sm focus:outline-none focus:border-accent/50">
+              {registered.map(r => (
+                <option key={r.provider_name} value={r.provider_name}>
+                  {r.display_name}
+                  {r.has_free_tier ? '  ·  free tier' : ''}
+                  {' '}({r.provider_name})
+                </option>
+              ))}
+            </select>
+          )}
+          <div className="text-[10px] text-content-tertiary mt-1 flex items-center gap-2">
+            <span>Pick the upstream API. Only providers registered in this build are shown.</span>
+            {(() => {
+              const sel = registered.find(r => r.provider_name === providerName);
+              return sel?.website_url ? (
+                <a href={sel.website_url} target="_blank" rel="noreferrer"
+                  className="text-accent hover:underline">docs ↗</a>
+              ) : null;
+            })()}
+          </div>
+        </div>
+        {/* Label — free text but with suggested presets via datalist. */}
+        <div>
+          <div className="text-[10px] uppercase text-content-tertiary mb-1">Label</div>
+          <input
+            list="cred-label-suggestions"
+            value={label}
+            onChange={e => setLabel(e.target.value)}
+            placeholder="e.g. Primary, Backup, Personal account"
+            className="w-full px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-sm focus:outline-none focus:border-accent/50"
+          />
+          <datalist id="cred-label-suggestions">
+            <option value="Primary" />
+            <option value="Backup" />
+            <option value="Personal account" />
+            <option value="Team account" />
+            <option value="Production" />
+            <option value="Staging" />
+            <option value="Development" />
+            <option value="High-volume" />
+            <option value="Low-cost" />
+            {(() => {
+              const sel = registered.find(r => r.provider_name === providerName);
+              return sel ? (
+                <>
+                  <option value={`${sel.display_name} — Primary`} />
+                  <option value={`${sel.display_name} — Backup`} />
+                </>
+              ) : null;
+            })()}
+          </datalist>
+          <div className="text-[10px] text-content-tertiary mt-1">
+            Friendly display name shown in chains and logs. Free-text — pick from suggestions or type your own.
+          </div>
+        </div>
 
         {/* Secret field with show/hide */}
         <div>
@@ -548,6 +858,35 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
             </button>
           </div>
           <div className="text-[10px] text-content-tertiary mt-1">Stored securely in Vault. Never logged.</div>
+        </div>
+
+        {/* Model — populated from supported_models() once provider is known */}
+        <div>
+          <div className="text-[10px] uppercase text-content-tertiary mb-1 flex items-center gap-2">
+            <span>Model</span>
+            {providerRegistered === false && providerName.trim() && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500">
+                Provider not registered — type model name manually
+              </span>
+            )}
+            {defaultModel && (
+              <span className="text-[9px] text-content-tertiary">default: {defaultModel}</span>
+            )}
+          </div>
+          {supportedModels.length > 0 ? (
+            <select value={model} onChange={e => setModel(e.target.value)}
+              className="w-full px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-sm focus:outline-none focus:border-accent/50">
+              <option value="">Use provider default ({defaultModel || 'auto'})</option>
+              {supportedModels.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          ) : (
+            <input value={model} onChange={e => setModel(e.target.value)}
+              placeholder={defaultModel || 'e.g. claude-sonnet-4-20250514'}
+              className="w-full px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-sm font-mono focus:outline-none focus:border-accent/50" />
+          )}
+          <div className="text-[10px] text-content-tertiary mt-1">
+            Each credential pins one model. Add a second credential to use the same vendor key with a different model.
+          </div>
         </div>
 
         <div>

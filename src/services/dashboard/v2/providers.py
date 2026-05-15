@@ -32,6 +32,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from src.db import get_pool
+from src.providers.invalidation import publish_invalidate
 from src.providers.secrets import get_secret_at, put_secret_at
 
 from ._deps import Principal, audit, principal_dep, require_role
@@ -45,12 +46,14 @@ class CredentialIn(BaseModel):
     label: str
     secret_value: str          # API key or token; write-only
     secret_key: str = "api_key"
+    model: str | None = None   # pinned model (validated against supported_models())
     extra_config: dict = Field(default_factory=dict)
 
 
 class CredentialPatch(BaseModel):
     label: str | None = None
     enabled: bool | None = None
+    model: str | None = None
     extra_config: dict | None = None
 
 
@@ -88,6 +91,7 @@ async def list_credentials(
     if category:
         rows = await pool.fetch(
             """SELECT id, category, provider_name, label, vault_path, extra_config,
+                      model, is_default_fallback,
                       enabled, last_health_ok, last_health_at, last_latency_ms,
                       rotated_at, created_at
                  FROM provider_credentials WHERE category=$1 ORDER BY id""",
@@ -96,6 +100,7 @@ async def list_credentials(
     else:
         rows = await pool.fetch(
             """SELECT id, category, provider_name, label, vault_path, extra_config,
+                      model, is_default_fallback,
                       enabled, last_health_ok, last_health_at, last_latency_ms,
                       rotated_at, created_at
                  FROM provider_credentials ORDER BY category, id"""
@@ -115,6 +120,35 @@ async def create_credential(
     )
     if not cat:
         raise HTTPException(400, f"Unknown category {body.category!r}")
+
+    # Reject unknown provider_name hard: there's no future in which a
+    # credential pointing at an unregistered class can actually be
+    # used (test/health/runtime all fail with "Unknown provider").
+    # The UI ships a dropdown of registered names, so a 400 here means
+    # someone bypassed it via curl / typo.
+    try:
+        from src.providers.registry import ProviderRegistry
+        registered = ProviderRegistry._registries.get(body.category, {})
+        if body.provider_name not in registered:
+            available = sorted(registered.keys())
+            raise HTTPException(
+                400,
+                f"Provider {body.provider_name!r} is not registered for "
+                f"category {body.category!r}. Available: {available or '(none)'}. "
+                f"Pick one from the dropdown.",
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        # Registry import failed (very rare) — fall open rather than
+        # block all writes.
+        pass
+
+    # If a model was specified, validate it against the live provider's
+    # supported_models() so a typo can't silently route to the wrong model.
+    if body.model:
+        _validate_model(body.category, body.provider_name, body.model)
+
     path = _vault_path(body.category, body.provider_name, body.label)
 
     backend_used = "env"
@@ -125,16 +159,18 @@ async def create_credential(
 
     cid = await pool.fetchval(
         """INSERT INTO provider_credentials
-            (category, provider_name, label, vault_path, extra_config, enabled, created_by)
-           VALUES ($1,$2,$3,$4,$5::jsonb,TRUE,$6) RETURNING id""",
+            (category, provider_name, label, vault_path, extra_config, model, enabled, created_by)
+           VALUES ($1,$2,$3,$4,$5::jsonb,$6,TRUE,$7) RETURNING id""",
         body.category, body.provider_name, body.label, path,
-        json.dumps(body.extra_config), actor.user_id,
+        json.dumps(body.extra_config), body.model, actor.user_id,
     )
     await audit(actor=actor, action="provider.credential.create",
                 target_type="provider_credential", target_id=str(cid),
                 after={"category": body.category, "provider": body.provider_name,
-                       "label": body.label, "backend": backend_used},
+                       "label": body.label, "model": body.model,
+                       "backend": backend_used},
                 request=request)
+    await publish_invalidate(category=body.category)
     return {"status": "ok", "id": cid, "vault_path": path, "backend": backend_used}
 
 
@@ -149,6 +185,16 @@ async def update_credential(
     updates = body.model_dump(exclude_unset=True)
     if not updates:
         return {"status": "noop"}
+
+    if "model" in updates and updates["model"]:
+        cred = await pool.fetchrow(
+            "SELECT category, provider_name FROM provider_credentials WHERE id=$1",
+            credential_id,
+        )
+        if not cred:
+            raise HTTPException(404, "Credential not found")
+        _validate_model(cred["category"], cred["provider_name"], updates["model"])
+
     sets = []
     values: list[Any] = []
     for k, v in updates.items():
@@ -162,9 +208,14 @@ async def update_credential(
     )
     if res.endswith("0"):
         raise HTTPException(404, "Credential not found")
+    cat_row = await pool.fetchrow(
+        "SELECT category FROM provider_credentials WHERE id=$1", credential_id,
+    )
     await audit(actor=actor, action="provider.credential.update",
                 target_type="provider_credential", target_id=str(credential_id),
                 after=updates, request=request)
+    if cat_row:
+        await publish_invalidate(category=cat_row["category"])
     return {"status": "ok"}
 
 
@@ -175,6 +226,9 @@ async def delete_credential(
     actor: Principal = Depends(require_role("owner", "admin")),
 ):
     pool = await get_pool()
+    cat_row = await pool.fetchrow(
+        "SELECT category FROM provider_credentials WHERE id=$1", credential_id,
+    )
     res = await pool.execute(
         "DELETE FROM provider_credentials WHERE id=$1", credential_id
     )
@@ -183,6 +237,8 @@ async def delete_credential(
     await audit(actor=actor, action="provider.credential.delete",
                 target_type="provider_credential", target_id=str(credential_id),
                 request=request)
+    if cat_row:
+        await publish_invalidate(category=cat_row["category"])
     return {"status": "ok"}
 
 
@@ -277,21 +333,29 @@ async def rotate_credential(
     await audit(actor=actor, action="provider.credential.rotate",
                 target_type="provider_credential", target_id=str(credential_id),
                 after={"backend": backend}, request=request)
+    cat_row = await pool.fetchrow(
+        "SELECT category FROM provider_credentials WHERE id=$1", credential_id,
+    )
+    if cat_row:
+        await publish_invalidate(category=cat_row["category"])
     return {"status": "ok"}
 
 
-# ── Chains ──────────────────────────────────────────────────
+# ── Chains (legacy URL — proxies to v2 workspace+mode-agnostic) ─────
 @router.get("/chains/{category}")
 async def get_chain(category: str, _: Principal = Depends(principal_dep)):
+    """Legacy endpoint. Returns the workspace + mode-agnostic chain for the category."""
     pool = await get_pool()
     rows = await pool.fetch(
-        """SELECT ppc.position, ppc.fallback_strategy,
-                  pc.id AS credential_id, pc.label, pc.provider_name,
+        """SELECT c.id, c.position, c.fallback_strategy,
+                  COALESCE(c.is_enabled, TRUE) AS is_enabled,
+                  pc.id AS credential_id, pc.label, pc.provider_name, pc.model,
                   pc.enabled, pc.last_health_ok, pc.last_health_at
-             FROM provider_priority_chains ppc
-             JOIN provider_credentials pc ON pc.id = ppc.credential_id
-            WHERE ppc.category=$1
-            ORDER BY ppc.position""",
+             FROM provider_chains_v2 c
+             JOIN provider_credentials pc ON pc.id = c.credential_id
+            WHERE c.scope = 'workspace' AND c.scope_id IS NULL
+              AND c.content_mode IS NULL AND c.category = $1
+            ORDER BY c.position""",
         category,
     )
     return {"data": [dict(r) for r in rows]}
@@ -304,30 +368,457 @@ async def set_chain(
     request: Request,
     actor: Principal = Depends(require_role("owner", "admin")),
 ):
+    """Legacy endpoint. Writes the workspace + mode-agnostic chain for the category."""
+    await _upsert_chain_v2(
+        scope="workspace", scope_id=None, content_mode=None,
+        category=category, credential_ids=body.credential_ids,
+        actor_user_id=actor.user_id,
+    )
+    await audit(actor=actor, action="provider.chain.set",
+                target_type="provider_chain", target_id=category,
+                after={"scope": "workspace", "credential_ids": body.credential_ids},
+                request=request)
+    await publish_invalidate(category=category)
+    return {"status": "ok"}
+
+
+# ── Chains v2 (scope + content-mode aware) ─────────────────────────────────
+class ChainV2In(BaseModel):
+    scope: str = "workspace"           # system|workspace|brand|channel|project
+    scope_id: str | None = None
+    content_mode: str | None = None    # NULL = applies to all modes
+    category: str
+    credential_ids: list[int] = Field(default_factory=list)
+
+
+@router.get("/chains")
+async def list_chain_v2(
+    scope: str = "workspace",
+    scope_id: str | None = None,
+    content_mode: str | None = None,
+    category: str | None = None,
+    _: Principal = Depends(principal_dep),
+):
+    """List chain rows for a given (scope, scope_id, content_mode, [category])."""
+    pool = await get_pool()
+    sql = """SELECT c.id, c.scope, c.scope_id, c.content_mode, c.category,
+                    c.position, c.fallback_strategy,
+                    COALESCE(c.is_enabled, TRUE) AS is_enabled,
+                    pc.id AS credential_id, pc.label, pc.provider_name, pc.model,
+                    pc.enabled, pc.last_health_ok, pc.last_health_at
+               FROM provider_chains_v2 c
+               JOIN provider_credentials pc ON pc.id = c.credential_id
+              WHERE c.scope = $1
+                AND ($2::text IS NULL AND c.scope_id IS NULL OR c.scope_id = $2)
+                AND ($3::text IS NULL AND c.content_mode IS NULL OR c.content_mode = $3)"""
+    args: list[Any] = [scope, scope_id, content_mode]
+    if category:
+        sql += " AND c.category = $4"
+        args.append(category)
+    sql += " ORDER BY c.category, c.position"
+    rows = await pool.fetch(sql, *args)
+    return {"data": [dict(r) for r in rows]}
+
+
+@router.put("/chains")
+async def upsert_chain_v2(
+    body: ChainV2In,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin")),
+):
+    """Replace the chain at (scope, scope_id, content_mode, category)."""
+    await _upsert_chain_v2(
+        scope=body.scope, scope_id=body.scope_id, content_mode=body.content_mode,
+        category=body.category, credential_ids=body.credential_ids,
+        actor_user_id=actor.user_id,
+    )
+    await audit(actor=actor, action="provider.chain_v2.set",
+                target_type="provider_chain_v2",
+                target_id=f"{body.scope}:{body.scope_id or ''}:{body.content_mode or ''}:{body.category}",
+                after=body.model_dump(), request=request)
+    await publish_invalidate(
+        category=body.category,
+        channel_id=body.scope_id if body.scope == "channel" else None,
+        content_mode=body.content_mode,
+    )
+    return {"status": "ok"}
+
+
+@router.delete("/chains")
+async def delete_chain_v2(
+    scope: str,
+    category: str,
+    scope_id: str | None = None,
+    content_mode: str | None = None,
+    request: Request = None,  # type: ignore[assignment]
+    actor: Principal = Depends(require_role("owner", "admin")),
+):
+    """Remove an override layer so resolution falls through to the next layer up."""
+    pool = await get_pool()
+    await pool.execute(
+        """DELETE FROM provider_chains_v2
+            WHERE scope = $1
+              AND ($2::text IS NULL AND scope_id IS NULL OR scope_id = $2)
+              AND ($3::text IS NULL AND content_mode IS NULL OR content_mode = $3)
+              AND category = $4""",
+        scope, scope_id, content_mode, category,
+    )
+    await audit(actor=actor, action="provider.chain_v2.delete",
+                target_type="provider_chain_v2",
+                target_id=f"{scope}:{scope_id or ''}:{content_mode or ''}:{category}",
+                request=request)
+    await publish_invalidate(
+        category=category,
+        channel_id=scope_id if scope == "channel" else None,
+        content_mode=content_mode,
+    )
+    return {"status": "ok"}
+
+
+async def _upsert_chain_v2(
+    *,
+    scope: str,
+    scope_id: str | None,
+    content_mode: str | None,
+    category: str,
+    credential_ids: list[int],
+    actor_user_id: int | None,
+) -> None:
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute(
-                "DELETE FROM provider_priority_chains WHERE category=$1", category
+                """DELETE FROM provider_chains_v2
+                    WHERE scope = $1
+                      AND ($2::text IS NULL AND scope_id IS NULL OR scope_id = $2)
+                      AND ($3::text IS NULL AND content_mode IS NULL OR content_mode = $3)
+                      AND category = $4""",
+                scope, scope_id, content_mode, category,
             )
-            for pos, cid in enumerate(body.credential_ids):
+            for pos, cid in enumerate(credential_ids):
                 await conn.execute(
-                    """INSERT INTO provider_priority_chains
-                            (category, position, credential_id)
-                       VALUES ($1,$2,$3)""",
-                    category, pos, cid,
+                    """INSERT INTO provider_chains_v2
+                            (scope, scope_id, content_mode, category, position,
+                             credential_id, created_by)
+                       VALUES ($1,$2,$3,$4,$5,$6,$7)""",
+                    scope, scope_id, content_mode, category, pos, cid, actor_user_id,
                 )
+
+
+def _validate_model(category: str, provider_name: str, model: str) -> None:
+    """Reject typos / unsupported models against the live provider class.
+
+    Falls open if the provider hasn't registered (e.g. still booting),
+    so workspaces can configure credentials before the worker fleet is
+    fully up. The chain resolver is the runtime authority either way.
+    """
     try:
-        from src.providers.chain import reset_chain_cache
         from src.providers.registry import ProviderRegistry
-        reset_chain_cache()
-        ProviderRegistry.reset()
+        cls = ProviderRegistry._registries.get(category, {}).get(provider_name)
+        if cls is None:
+            return
+        try:
+            inst = cls()
+        except Exception:
+            return
+        supported = []
+        try:
+            sm = getattr(inst, "supported_models", None)
+            if callable(sm):
+                supported = list(sm() or [])
+        except Exception:
+            return
+        if supported and model not in supported:
+            raise HTTPException(
+                400,
+                f"Model {model!r} not supported by {provider_name!r}. "
+                f"Supported: {supported}",
+            )
+    except HTTPException:
+        raise
     except Exception:
-        pass
-    await audit(actor=actor, action="provider.chain.set",
-                target_type="provider_chain", target_id=category,
-                after={"credential_ids": body.credential_ids}, request=request)
+        # Don't block writes on validation infra failures.
+        return
+
+
+# ── Default fallback ───────────────────────────────────────────────────────
+@router.put("/credentials/{credential_id}/default-fallback")
+async def set_default_fallback(
+    credential_id: int,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin")),
+):
+    """Mark this credential as the always-tried-last fallback for its category.
+
+    The unique partial index on `provider_credentials(category) WHERE
+    is_default_fallback` guarantees at most one per category, so we
+    explicitly clear any existing flag in the same transaction.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            cred = await conn.fetchrow(
+                "SELECT category FROM provider_credentials WHERE id=$1",
+                credential_id,
+            )
+            if not cred:
+                raise HTTPException(404, "Credential not found")
+            await conn.execute(
+                "UPDATE provider_credentials SET is_default_fallback=FALSE "
+                "WHERE category=$1 AND is_default_fallback=TRUE",
+                cred["category"],
+            )
+            await conn.execute(
+                "UPDATE provider_credentials SET is_default_fallback=TRUE "
+                "WHERE id=$1",
+                credential_id,
+            )
+    await audit(actor=actor, action="provider.credential.default_fallback",
+                target_type="provider_credential", target_id=str(credential_id),
+                after={"category": cred["category"]}, request=request)
+    await publish_invalidate(category=cred["category"])
     return {"status": "ok"}
+
+
+@router.delete("/credentials/{credential_id}/default-fallback")
+async def clear_default_fallback(
+    credential_id: int,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin")),
+):
+    """Unset the default-fallback flag on this credential."""
+    pool = await get_pool()
+    cred = await pool.fetchrow(
+        "SELECT category FROM provider_credentials WHERE id=$1", credential_id,
+    )
+    if not cred:
+        raise HTTPException(404, "Credential not found")
+    await pool.execute(
+        "UPDATE provider_credentials SET is_default_fallback=FALSE WHERE id=$1",
+        credential_id,
+    )
+    await audit(actor=actor, action="provider.credential.default_fallback_clear",
+                target_type="provider_credential", target_id=str(credential_id),
+                request=request)
+    await publish_invalidate(category=cred["category"])
+    return {"status": "ok"}
+
+
+# ── Content modes ──────────────────────────────────────────────────────────
+@router.get("/content-modes")
+async def list_content_modes(_: Principal = Depends(principal_dep)):
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT name, label, description, sort_order, is_system "
+        "FROM content_modes ORDER BY sort_order, name"
+    )
+    return {"data": [dict(r) for r in rows]}
+
+
+# ── Registered providers for a category ──────────────────────────────────
+# Hardcoded fallback display names for provider keys whose marketplace
+# catalog entry uses a different key (`claude` ↔ `anthropic`) or that
+# aren't catalogued yet. Source of truth: provider_marketplace_catalog.
+_PROVIDER_DISPLAY_FALLBACK: dict[str, str] = {
+    "openai":        "OpenAI",
+    "claude":        "Anthropic (Claude)",
+    "anthropic":     "Anthropic (Claude)",
+    "gemini":        "Google Gemini",
+    "groq":          "Groq",
+    "ollama":        "Ollama (local)",
+    "glm":           "Zhipu (GLM)",
+    "kimi":          "Moonshot (Kimi)",
+    "mistral":       "Mistral AI",
+    "deepseek":      "DeepSeek",
+    "qwen":          "Alibaba (Qwen)",
+    "mock_llm":      "Mock LLM (test only)",
+    "elevenlabs":    "ElevenLabs",
+    "fish_audio":    "Fish Audio",
+    "fishaudio":     "Fish Audio",
+    "edge_tts":      "Microsoft Edge TTS",
+    "dalle":         "OpenAI DALL·E",
+    "placeholder":   "Placeholder (test only)",
+    "serpapi":       "SerpAPI",
+    "mock_search":   "Mock search (test only)",
+    "minio":         "MinIO / S3-compatible",
+}
+
+
+@router.get("/registered")
+async def registered_providers_endpoint(
+    category: str,
+    _: Principal = Depends(principal_dep),
+):
+    """Return the list of provider classes registered in-process for
+    a given category, each with their default + supported models and
+    a human-readable display name.
+
+    The Add Credential modal uses this to populate the provider
+    dropdown so users can't type a garbage `provider_name` that the
+    runtime would never be able to instantiate.
+
+    Display name resolution order:
+      1. provider_marketplace_catalog.display_name (DB)
+      2. _PROVIDER_DISPLAY_FALLBACK (hardcoded for un-catalogued keys)
+      3. title-cased provider_key
+    """
+    try:
+        from src.providers.registry import ProviderRegistry
+        registry = ProviderRegistry._registries.get(category, {})
+    except Exception as exc:  # noqa: BLE001
+        return {"data": [], "error": str(exc)}
+
+    # Pre-fetch marketplace display names in one query.
+    pool = await get_pool()
+    catalog_rows = await pool.fetch(
+        "SELECT provider_key, display_name, logo_url, website_url, has_free_tier "
+        "FROM provider_marketplace_catalog"
+    )
+    catalog: dict[str, dict] = {r["provider_key"]: dict(r) for r in catalog_rows}
+
+    out: list[dict] = []
+    for name in sorted(registry.keys()):
+        cls = registry[name]
+        default: str | None = None
+        models: list[str] = []
+        try:
+            inst = cls()
+            sm = getattr(inst, "supported_models", None)
+            if callable(sm):
+                models = list(sm() or [])
+            dm = getattr(inst, "default_model", None)
+            if callable(dm):
+                try:
+                    default = dm()
+                except Exception:
+                    default = None
+        except Exception:
+            pass
+
+        cat_entry = catalog.get(name) or {}
+        display_name = (
+            cat_entry.get("display_name")
+            or _PROVIDER_DISPLAY_FALLBACK.get(name)
+            or name.replace("_", " ").title()
+        )
+        out.append({
+            "provider_name": name,
+            "display_name": display_name,
+            "logo_url": cat_entry.get("logo_url"),
+            "website_url": cat_entry.get("website_url"),
+            "has_free_tier": cat_entry.get("has_free_tier"),
+            "default_model": default,
+            "supported_models": models,
+        })
+    return {"data": out}
+
+
+# ── Supported models for a registered provider ────────────────────────────
+@router.get("/models")
+async def supported_models_endpoint(
+    category: str,
+    provider_name: str,
+    _: Principal = Depends(principal_dep),
+):
+    """Return the live `supported_models()` list for the registered class.
+
+    Empty list when the provider isn't registered (e.g. still booting),
+    so the UI can fall back to a free-text input.
+    """
+    try:
+        from src.providers.registry import ProviderRegistry
+        cls = ProviderRegistry._registries.get(category, {}).get(provider_name)
+        if cls is None:
+            return {"data": [], "registered": False}
+        inst = cls()
+        sm = getattr(inst, "supported_models", None)
+        models = list(sm() or []) if callable(sm) else []
+        default = None
+        dm = getattr(inst, "default_model", None)
+        if callable(dm):
+            try:
+                default = dm()
+            except Exception:
+                default = None
+        return {"data": models, "default": default, "registered": True}
+    except Exception as exc:  # noqa: BLE001
+        return {"data": [], "registered": False, "error": str(exc)}
+
+
+# ── Effective chain (debug + UI rendering) ────────────────────────────────
+@router.get("/resolved")
+async def resolved_chain(
+    category: str,
+    channel_id: str | None = None,
+    content_mode: str | None = None,
+    _: Principal = Depends(principal_dep),
+):
+    """Return the merged chain that the runtime would use for this lookup.
+
+    Resolution mirrors `src/providers/chain.py`:
+        channel+mode > channel > workspace+mode > workspace > system > default
+
+    Each entry includes an `origin` label so the UI can show why each
+    credential is in the chain.
+    """
+    pool = await get_pool()
+
+    layers: list[tuple[str, str | None, str | None, str]] = []
+    if channel_id:
+        if content_mode:
+            layers.append(("channel", channel_id, content_mode, "channel+mode"))
+        layers.append(("channel", channel_id, None, "channel"))
+    if content_mode:
+        layers.append(("workspace", None, content_mode, "workspace+mode"))
+    layers.append(("workspace", None, None, "workspace"))
+    layers.append(("system", None, None, "system"))
+
+    seen: set[int] = set()
+    out: list[dict] = []
+    async with pool.acquire() as conn:
+        for scope, sid, mode, origin in layers:
+            rows = await conn.fetch(
+                """SELECT c.id AS chain_entry_id, c.position, c.fallback_strategy,
+                          COALESCE(c.is_enabled, TRUE) AS is_enabled,
+                          pc.id AS credential_id, pc.label, pc.provider_name,
+                          pc.model, pc.enabled, pc.last_health_ok
+                     FROM provider_chains_v2 c
+                     JOIN provider_credentials pc ON pc.id = c.credential_id
+                    WHERE c.scope = $1
+                      AND ($2::text IS NULL AND c.scope_id IS NULL OR c.scope_id = $2)
+                      AND ($3::text IS NULL AND c.content_mode IS NULL OR c.content_mode = $3)
+                      AND c.category = $4
+                      AND pc.enabled = TRUE
+                      AND COALESCE(c.is_enabled, TRUE) = TRUE
+                    ORDER BY c.position""",
+                scope, sid, mode, category,
+            )
+            for r in rows:
+                if r["credential_id"] in seen:
+                    continue
+                seen.add(r["credential_id"])
+                out.append({**dict(r), "origin": origin})
+
+        # Default fallback always appended last.
+        fb = await conn.fetchrow(
+            """SELECT id AS credential_id, label, provider_name, model,
+                      enabled, last_health_ok
+                 FROM provider_credentials
+                WHERE category = $1 AND is_default_fallback = TRUE AND enabled = TRUE
+                LIMIT 1""",
+            category,
+        )
+        if fb and fb["credential_id"] not in seen:
+            seen.add(fb["credential_id"])
+            out.append({**dict(fb), "origin": "default", "position": None,
+                        "fallback_strategy": "always"})
+
+    return {
+        "data": out,
+        "category": category,
+        "channel_id": channel_id,
+        "content_mode": content_mode,
+    }
 
 
 @router.get("/health/{credential_id}")
@@ -711,3 +1202,89 @@ async def list_sandbox_runs(
             limit,
         )
     return {"data": [dict(r) for r in rows]}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Enable / disable switches + admin clean-slate
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class EnabledIn(BaseModel):
+    enabled: bool
+
+
+@router.put("/credentials/{credential_id}/enabled")
+async def set_credential_enabled(
+    credential_id: int,
+    body: EnabledIn,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin")),
+):
+    """Master switch for a credential. Disabled credentials are skipped
+    by the resolver across every scope/mode."""
+    pool = await get_pool()
+    cred = await pool.fetchrow(
+        "SELECT category FROM provider_credentials WHERE id=$1", credential_id,
+    )
+    if not cred:
+        raise HTTPException(404, "Credential not found")
+    await pool.execute(
+        "UPDATE provider_credentials SET enabled=$1, updated_at=NOW() WHERE id=$2",
+        body.enabled, credential_id,
+    )
+    await audit(actor=actor, action="provider.credential.enabled",
+                target_type="provider_credential", target_id=str(credential_id),
+                after={"enabled": body.enabled}, request=request)
+    await publish_invalidate(category=cred["category"])
+    return {"status": "ok", "enabled": body.enabled}
+
+
+@router.put("/chains/entry/{chain_entry_id}/enabled")
+async def set_chain_entry_enabled(
+    chain_entry_id: int,
+    body: EnabledIn,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin")),
+):
+    """Per-chain-entry switch. Keeps position + ordering, but the
+    resolver skips this entry while disabled."""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT category, scope, scope_id, content_mode "
+        "FROM provider_chains_v2 WHERE id=$1",
+        chain_entry_id,
+    )
+    if not row:
+        raise HTTPException(404, "Chain entry not found")
+    await pool.execute(
+        "UPDATE provider_chains_v2 SET is_enabled=$1 WHERE id=$2",
+        body.enabled, chain_entry_id,
+    )
+    await audit(actor=actor, action="provider.chain_entry.enabled",
+                target_type="provider_chain_v2_entry",
+                target_id=str(chain_entry_id),
+                after={"enabled": body.enabled}, request=request)
+    await publish_invalidate(
+        category=row["category"],
+        channel_id=row["scope_id"] if row["scope"] == "channel" else None,
+        content_mode=row["content_mode"],
+    )
+    return {"status": "ok", "enabled": body.enabled}
+
+
+@router.post("/_admin/clean-slate")
+async def admin_clean_slate(
+    request: Request,
+    actor: Principal = Depends(require_role("owner")),
+):
+    """Wipe ALL provider credentials, chains, routes, quotas, sandbox runs.
+
+    Categories, content_modes, and feature flags are preserved. Used by
+    the dashboard "Reset all providers" button and by the
+    ``make providers-wipe`` CLI. Owner-only.
+    """
+    from src.providers.clean_slate import run as _run_wipe
+    result = await _run_wipe(verbose=False)
+    await audit(actor=actor, action="provider.clean_slate",
+                target_type="providers", target_id="*",
+                after=result, request=request)
+    return {"status": "ok", "data": result}
