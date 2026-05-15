@@ -11,6 +11,17 @@ import {
   Activity, Gauge, SlidersHorizontal, Play,
   Users, Crosshair, Pause, CheckCircle2,
 } from '@/lib/components/Icon';
+import {
+  Button,
+  Input,
+  Textarea,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  Label as FieldLabel,
+} from '@/lib/ui';
 
 const EXP_TEMPLATES = [
   {
@@ -76,8 +87,8 @@ const EXP_TEMPLATES = [
 ];
 
 const STATUS_CHIP: Record<string, string> = {
-  active:    'bg-emerald-500/15 text-emerald-500',
-  paused:    'bg-amber-500/15 text-amber-500',
+  active:    'bg-status-success/15 text-status-success',
+  paused:    'bg-status-warning/15 text-status-warning',
   completed: 'bg-accent/15 text-accent',
   draft:     'bg-surface-3 text-content-tertiary',
 };
@@ -127,19 +138,20 @@ export default function ExperimentsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <button onClick={refresh} disabled={loading}
-            className="h-8 w-8 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary transition-colors">
+          <Button variant="outline" size="icon-sm" onClick={refresh} disabled={loading} aria-label="Refresh">
             <RotateCw size={13} className={cn(loading && 'animate-spin')} />
-          </button>
-          <button onClick={() => setShowTemplates(v => !v)}
-            className={cn('flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
-              showTemplates ? 'border-accent/40 bg-accent/5 text-accent' : 'border-border text-content-secondary hover:bg-surface-2')}>
-            <Sparkles size={12} /> Templates
-          </button>
-          <button onClick={() => { setTemplateSeed(null); setShowNew(true); }}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-md bg-accent text-white text-xs font-medium hover:opacity-90 transition-opacity">
-            <Plus size={13} /> New experiment
-          </button>
+          </Button>
+          <Button
+            variant={showTemplates ? 'tonal' : 'outline'}
+            size="sm"
+            onClick={() => setShowTemplates(v => !v)}
+            leftIcon={<Sparkles size={12} />}
+          >
+            Templates
+          </Button>
+          <Button size="sm" leftIcon={<Plus size={13} />} onClick={() => { setTemplateSeed(null); setShowNew(true); }}>
+            New experiment
+          </Button>
         </div>
       </div>
 
@@ -168,7 +180,7 @@ export default function ExperimentsPage() {
         <div className="grid grid-cols-4 gap-2 mb-4">
           {[
             { label: 'Total',     value: rows.length, color: 'text-content-primary' },
-            { label: 'Active',    value: rows.filter(r => r.status === 'active').length, color: 'text-emerald-500' },
+            { label: 'Active',    value: rows.filter(r => r.status === 'active').length, color: 'text-status-success' },
             { label: 'Drafts',    value: rows.filter(r => r.status === 'draft').length, color: 'text-content-tertiary' },
             { label: 'Completed', value: rows.filter(r => r.status === 'completed').length, color: 'text-accent' },
           ].map(s => (
@@ -240,7 +252,7 @@ export default function ExperimentsPage() {
                         </span>
                         <span className="text-sm font-medium text-content-primary truncate">{exp.experiment_name}</span>
                         {exp.winning_variant && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-500">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-success/15 text-status-success">
                             winner: {exp.winning_variant}
                           </span>
                         )}
@@ -261,25 +273,38 @@ export default function ExperimentsPage() {
                   {/* Action buttons */}
                   <div className="mt-3 flex gap-1.5" onClick={e => e.stopPropagation()}>
                     {exp.status === 'draft' && (
-                      <button onClick={() => runAction(() => experimentsApi.activate(exp.experiment_name), 'Activate')}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-500 text-white text-xs font-medium hover:opacity-90 transition-opacity">
-                        <Play size={10} /> Activate
-                      </button>
+                      <Button
+                        size="sm"
+                        className="bg-status-success hover:bg-status-success/90 text-content-inverse"
+                        leftIcon={<Play size={10} />}
+                        onClick={() => runAction(() => experimentsApi.activate(exp.experiment_name), 'Activate')}
+                      >
+                        Activate
+                      </Button>
                     )}
                     {exp.status === 'active' && (
-                      <button onClick={() => runAction(() => experimentsApi.pause(exp.experiment_name), 'Pause')}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 text-xs font-medium hover:bg-amber-500/30 transition-colors">
-                        <Pause size={10} /> Pause
-                      </button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-status-warning/30 bg-status-warning/10 text-status-warning hover:bg-status-warning/20"
+                        leftIcon={<Pause size={10} />}
+                        onClick={() => runAction(() => experimentsApi.pause(exp.experiment_name), 'Pause')}
+                      >
+                        Pause
+                      </Button>
                     )}
                     {exp.status !== 'completed' && (
-                      <button onClick={() => {
-                        const w = window.prompt('Winning variant name (leave blank if none)') ?? '';
-                        runAction(() => experimentsApi.complete(exp.experiment_name, w), 'Complete');
-                      }}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded border border-border text-xs text-content-secondary hover:bg-surface-2 transition-colors">
-                        <CheckCircle2 size={10} /> Complete
-                      </button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        leftIcon={<CheckCircle2 size={10} />}
+                        onClick={() => {
+                          const w = window.prompt('Winning variant name (leave blank if none)') ?? '';
+                          runAction(() => experimentsApi.complete(exp.experiment_name, w), 'Complete');
+                        }}
+                      >
+                        Complete
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -302,7 +327,7 @@ export default function ExperimentsPage() {
             </div>
           ) : results?.error ? (
             <div className="p-4">
-              <div className="text-sm text-red-500">{results.error}</div>
+              <div className="text-sm text-status-error">{results.error}</div>
             </div>
           ) : results ? (
             <div className="p-4 space-y-4">
@@ -352,7 +377,7 @@ export default function ExperimentsPage() {
               {results.significant != null && (
                 <div className={cn(
                   'rounded-md p-3 text-xs font-medium',
-                  results.significant ? 'bg-emerald-500/10 text-emerald-500' : 'bg-surface-2 text-content-tertiary'
+                  results.significant ? 'bg-status-success/10 text-status-success' : 'bg-surface-2 text-content-tertiary'
                 )}>
                   {results.significant
                     ? '✓ Statistically significant (p < 0.05)'
@@ -411,49 +436,51 @@ function NewExperimentDialog({ onClose, onCreated, template }: any) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="rounded-xl bg-surface-0 max-w-lg w-full p-5 border border-border shadow-elevated space-y-3" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-content-primary">New experiment</h2>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded hover:bg-surface-2 text-content-tertiary"><X size={14} /></button>
-        </div>
-        <Field label="Name"><input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. script-v2-vs-v1" className={INP} /></Field>
-        <Field label="Description" hint="What are you testing? Keep it brief.">
-          <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Comparing GPT-4o vs Claude for hooks" className={INP} />
-        </Field>
-        <Field label="Variants (JSON)" hint='Each variant must have a "name" field. Add any extra config keys your workflow uses.'>
-          <textarea value={variantsRaw} onChange={e => setVariantsRaw(e.target.value)} className={INP + ' h-28 font-mono text-xs'} />
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Traffic split %" hint="% of eligible jobs that enter this experiment">
-            <input type="number" min={1} max={100} value={traffic} onChange={e => setTraffic(Number(e.target.value))} className={INP} />
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>New experiment</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Field label="Name">
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. script-v2-vs-v1" />
           </Field>
-          <Field label="Target metric" hint="Metric to compare between variants">
-            <select value={metric} onChange={e => setMetric(e.target.value)} className={INP}>
-              {['views','ctr','retention','likes','comments','authenticity_score'].map(m => <option key={m}>{m}</option>)}
-            </select>
+          <Field label="Description" hint="What are you testing? Keep it brief.">
+            <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Comparing GPT-4o vs Claude for hooks" />
           </Field>
+          <Field label="Variants (JSON)" hint='Each variant must have a "name" field. Add any extra config keys your workflow uses.'>
+            <Textarea value={variantsRaw} onChange={e => setVariantsRaw(e.target.value)} className="h-28 font-mono text-xs" />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Traffic split %" hint="% of eligible jobs that enter this experiment">
+              <Input type="number" min={1} max={100} value={traffic} onChange={e => setTraffic(Number(e.target.value))} />
+            </Field>
+            <Field label="Target metric" hint="Metric to compare between variants">
+              <select value={metric} onChange={e => setMetric(e.target.value)} className={INP}>
+                {['views','ctr','retention','likes','comments','authenticity_score'].map(m => <option key={m}>{m}</option>)}
+              </select>
+            </Field>
+          </div>
+          {err && <div className="text-sm text-status-error">{err}</div>}
         </div>
-        {err && <div className="text-sm text-red-500">{err}</div>}
-        <div className="flex justify-end gap-2 pt-1">
-          <button onClick={onClose} className="px-3 py-1.5 rounded-md border border-border text-sm text-content-secondary hover:bg-surface-2 transition-colors">Cancel</button>
-          <button onClick={submit} disabled={busy || !name}
-            className="px-3 py-1.5 rounded-md bg-accent text-white text-sm font-medium disabled:opacity-40 hover:opacity-90 transition-opacity">
+        <DialogFooter>
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={submit} disabled={busy || !name} loading={busy}>
             {busy ? 'Creating…' : 'Create experiment'}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-const INP = 'w-full px-3 py-1.5 rounded-md bg-surface-1 border border-border text-sm focus:outline-none focus:border-accent/50';
+const INP = 'w-full px-3 py-1.5 rounded-md bg-surface-0 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent';
 function Field({ label, hint, children }: any) {
   return (
-    <label className="block">
-      <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1">{label}</div>
+    <div className="block">
+      <FieldLabel className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1 block">{label}</FieldLabel>
       {children}
       {hint && <div className="text-[10px] text-content-tertiary mt-1">{hint}</div>}
-    </label>
+    </div>
   );
 }

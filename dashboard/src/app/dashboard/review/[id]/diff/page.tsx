@@ -107,8 +107,8 @@ export default function ScriptDiffPage() {
         <pre className="rounded-xl border border-border bg-surface-0 p-3 text-xs font-mono leading-5 overflow-auto max-h-[70vh]">
           {diff.map((d, i) => (
             <div key={i} className={
-              d.kind === 'add' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' :
-              d.kind === 'del' ? 'bg-red-500/10 text-red-700 dark:text-red-300' : ''}>
+              d.kind === 'add' ? 'bg-status-success/10 text-status-success' :
+              d.kind === 'del' ? 'bg-status-error/10 text-status-error' : ''}>
               <span className="select-none w-4 inline-block opacity-50">
                 {d.kind === 'add' ? '+' : d.kind === 'del' ? '−' : ' '}
               </span>
@@ -149,8 +149,8 @@ function SplitColumn({ diff, side }: { diff: { kind: 'eq' | 'add' | 'del'; text:
         const show = side === 'A' ? d.kind !== 'add' : d.kind !== 'del';
         if (!show) return <div key={i}>&nbsp;</div>;
         const cls =
-          d.kind === 'add' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' :
-          d.kind === 'del' ? 'bg-red-500/10 text-red-700 dark:text-red-300' : '';
+          d.kind === 'add' ? 'bg-status-success/10 text-status-success' :
+          d.kind === 'del' ? 'bg-status-error/10 text-status-error' : '';
         return <div key={i} className={cls}>{d.text || '\u00A0'}</div>;
       })}
     </pre>

@@ -10,11 +10,28 @@ import { cn, statusDot } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import { Skeleton, SkeletonCard } from '@/lib/components/Skeleton';
 import { EmptyState } from '@/lib/components/EmptyState';
-import { Tip } from '@/lib/components/Tooltip';
 import {
   Plus, ChevronUp, ChevronDown, Tv, Search, X,
   Settings, Layers, Boxes, Play, RotateCw,
 } from '@/lib/components/Icon';
+import {
+  Button,
+  Input,
+  Switch,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  SimpleTooltip,
+  TooltipProvider,
+} from '@/lib/ui';
 import { useUrlState } from '@/lib/hooks/useUrlState';
 
 type Tab = 'all' | 'active' | 'disabled' | 'archived';
@@ -271,6 +288,7 @@ export default function ChannelsPage() {
   );
 
   return (
+    <TooltipProvider delayDuration={250}>
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* ── Header ── */}
       <div className="shrink-0 max-w-[1400px] w-full mx-auto px-6 pt-5 pb-3">
@@ -282,24 +300,22 @@ export default function ChannelsPage() {
             <p className="text-xs text-content-tertiary mt-0.5">Manage and trigger your YouTube automation channels.</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button onClick={() => loadData()}
-              className="h-8 w-8 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary transition-colors">
+            <Button variant="outline" size="icon-sm" onClick={() => loadData()} aria-label="Refresh">
               <RotateCw size={13} />
-            </button>
+            </Button>
             {/* View toggle */}
             <div className="flex items-center gap-0.5 bg-surface-1 border border-border rounded-md p-0.5">
               {(['table', 'grid'] as const).map(v => (
                 <button key={v} onClick={() => setViewMode(v)}
                   className={cn('w-7 h-7 flex items-center justify-center rounded text-xs transition-colors',
-                    viewMode === v ? 'bg-surface-0 text-content-primary shadow-sm' : 'text-content-tertiary hover:text-content-secondary')}>
+                    viewMode === v ? 'bg-surface-0 text-content-primary shadow-card' : 'text-content-tertiary hover:text-content-secondary')}>
                   {v === 'table' ? <Layers size={13} /> : <Boxes size={13} />}
                 </button>
               ))}
             </div>
-            <Link href="/dashboard/channels/new"
-              className="flex items-center gap-1.5 h-8 px-3 rounded-md bg-accent text-white text-xs font-medium hover:opacity-90 transition-opacity">
-              <Plus size={13} /> Add Channel
-            </Link>
+            <Button asChild size="sm" leftIcon={<Plus size={13} />}>
+              <Link href="/dashboard/channels/new">Add Channel</Link>
+            </Button>
           </div>
         </div>
 
@@ -307,7 +323,7 @@ export default function ChannelsPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
           {[
             { label: 'Total',    value: tabCounts.all,      color: 'text-content-primary' },
-            { label: 'Active',   value: tabCounts.active,   color: 'text-emerald-500' },
+            { label: 'Active',   value: tabCounts.active,   color: 'text-status-success' },
             { label: 'Running',  value: totalRunning,       color: 'text-accent' },
             { label: 'Disabled', value: tabCounts.disabled, color: 'text-content-tertiary' },
           ].map(s => (
@@ -324,7 +340,7 @@ export default function ChannelsPage() {
             {TABS.map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
                 className={cn('px-3 py-1.5 text-xs font-medium rounded transition-all',
-                  tab === t.key ? 'bg-surface-0 text-content-primary shadow-sm' : 'text-content-tertiary hover:text-content-secondary')}>
+                  tab === t.key ? 'bg-surface-0 text-content-primary shadow-card' : 'text-content-tertiary hover:text-content-secondary')}>
                 {t.label}
                 <span className={cn('ml-1', tab === t.key ? 'text-accent' : 'text-content-tertiary')}>
                   {tabCounts[t.key]}
@@ -333,10 +349,14 @@ export default function ChannelsPage() {
             ))}
           </div>
           <div className="relative flex-1 min-w-[180px] max-w-sm ml-auto">
-            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-content-tertiary pointer-events-none" />
-            <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+            <Input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
               placeholder="Search name, ID, niche…"
-              className="w-full h-8 pl-8 pr-7 rounded-md bg-surface-0 border border-border text-xs placeholder:text-content-tertiary outline-none focus:border-accent/50 transition-colors" />
+              leftIcon={<Search size={12} />}
+              className="h-8 text-xs pr-7"
+            />
             {search && (
               <button onClick={() => setSearch('')}
                 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded text-content-tertiary hover:text-content-primary">
@@ -344,33 +364,28 @@ export default function ChannelsPage() {
               </button>
             )}
           </div>
-          <div className="relative">
-            <button onClick={() => setShowSortMenu(!showSortMenu)}
-              className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium bg-surface-1 border border-border rounded-md text-content-secondary hover:text-content-primary transition-colors">
-              <span className="text-content-tertiary">Sort:</span>
-              <span>{SORT_OPTIONS.find(s => s.key === sortKey)?.label}</span>
-              {sortDir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-            </button>
-            {showSortMenu && (
-              <>
-                <div className="fixed inset-0 z-20" onClick={() => setShowSortMenu(false)} />
-                <div className="absolute right-0 top-9 z-30 w-40 bg-surface-0 border border-border rounded-md shadow-elevated py-1">
-                  {SORT_OPTIONS.map(s => (
-                    <button key={s.key} onClick={() => { cycleSort(s.key); setShowSortMenu(false); }}
-                      className={cn('w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between',
-                        sortKey === s.key ? 'text-accent bg-accent/5 font-medium' : 'text-content-secondary hover:bg-surface-1')}>
-                      {s.label}
-                      {sortKey === s.key && (
-                        <span className="flex items-center gap-0.5 text-accent">
-                          {sortDir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="secondary" size="sm" className="h-8"
+                rightIcon={sortDir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+              >
+                <span className="text-content-tertiary mr-1">Sort:</span>
+                {SORT_OPTIONS.find(s => s.key === sortKey)?.label}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              {SORT_OPTIONS.map(s => (
+                <DropdownMenuItem
+                  key={s.key}
+                  onClick={() => cycleSort(s.key)}
+                  className={cn('justify-between', sortKey === s.key && 'text-accent bg-accent/5 font-medium')}
+                >
+                  {s.label}
+                  {sortKey === s.key && (sortDir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -436,7 +451,7 @@ export default function ChannelsPage() {
                   {/* Stats row */}
                   <div className="grid grid-cols-3 gap-2 border-t border-border pt-3">
                     {[
-                      { label: 'Delivered', value: ch.stats?.delivered || 0, color: 'text-emerald-500' },
+                      { label: 'Delivered', value: ch.stats?.delivered || 0, color: 'text-status-success' },
                       { label: 'Running',   value: ch.stats?.in_progress || 0, color: 'text-accent' },
                       { label: 'Weekly',    value: getWeeklyLabel(ch) || '—', color: 'text-content-tertiary' },
                     ].map(s => (
@@ -478,7 +493,7 @@ export default function ChannelsPage() {
                           );
                           if (mState === 'pending_review' && mJob) return (
                             <Link key={m} href={`/dashboard/jobs/${mJob.content_id}`}
-                              className="flex-1 h-7 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[11px] font-medium flex items-center justify-center transition-all">
+                              className="flex-1 h-7 rounded-md border border-status-warning/30 bg-status-warning/5 text-status-warning text-[11px] font-medium flex items-center justify-center transition-all">
                               Review
                             </Link>
                           );
@@ -494,7 +509,7 @@ export default function ChannelsPage() {
                                     {isBusy ? '…' : mJob.is_paused ? '▶' : '⏸'}
                                   </button>
                                   <button onClick={() => stopJob(ch.channel_id, mJob.content_id)} disabled={!!isBusy}
-                                    className="h-5 px-1.5 rounded border text-[10px] border-red-500/30 bg-red-500/5 text-red-500 hover:bg-red-500/10 disabled:opacity-50">
+                                    className="h-5 px-1.5 rounded border text-[10px] border-status-error/30 bg-status-error/5 text-status-error hover:bg-status-error/10 disabled:opacity-50">
                                     {isBusy ? '…' : '■'}
                                   </button>
                                 </>
@@ -506,20 +521,19 @@ export default function ChannelsPage() {
                           className="w-7 h-7 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary hover:text-accent transition-colors">
                           <Settings size={12} />
                         </Link>
-                        <div className="relative">
-                          <button onClick={() => setActionMenu(actionMenu === ch.channel_id ? null : ch.channel_id)}
-                            className="w-7 h-7 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary transition-colors">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></svg>
-                          </button>
-                          {actionMenu === ch.channel_id && (
-                            <div className="absolute right-0 bottom-8 z-30 w-44 bg-surface-0 border border-border rounded-md shadow-elevated py-1">
-                              <button onClick={() => cloneChannel(ch.channel_id)} className="w-full text-left px-3 py-2 text-xs text-content-secondary hover:bg-surface-1">Duplicate</button>
-                              <button onClick={() => exportChannel(ch.channel_id)} className="w-full text-left px-3 py-2 text-xs text-content-secondary hover:bg-surface-1">Export JSON</button>
-                              <div className="border-t border-border my-1" />
-                              <button onClick={() => { setConfirmArchive(ch.channel_id); setActionMenu(null); }} className="w-full text-left px-3 py-2 text-xs text-amber-500 hover:bg-amber-500/5">Archive</button>
-                            </div>
-                          )}
-                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="icon-sm" aria-label="More actions">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></svg>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-44">
+                            <DropdownMenuItem onClick={() => cloneChannel(ch.channel_id)}>Duplicate</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => exportChannel(ch.channel_id)}>Export JSON</DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => setConfirmArchive(ch.channel_id)} className="text-status-warning focus:text-status-warning focus:bg-status-warning/5">Archive</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </>
                     )}
                   </div>
@@ -591,8 +605,8 @@ export default function ChannelsPage() {
                     {/* Status */}
                     <div className="text-center">
                       <span className={cn('text-xs font-medium',
-                        ch.status === 'active' ? 'text-emerald-500' :
-                        ch.status === 'archived' ? 'text-content-tertiary' : 'text-amber-500')}>
+                        ch.status === 'active' ? 'text-status-success' :
+                        ch.status === 'archived' ? 'text-content-tertiary' : 'text-status-warning')}>
                         {ch.status === 'active' ? '● Active' : ch.status === 'archived' ? '⊘ Archived' : '○ Disabled'}
                       </span>
                     </div>
@@ -617,12 +631,12 @@ export default function ChannelsPage() {
                     <div className="flex items-center justify-end gap-1.5">
                       {isArchived ? (
                         <>
-                          <Tip text="Restore to disabled">
+                          <SimpleTooltip content="Restore to disabled">
                             <button onClick={() => restoreChannel(ch.channel_id)}
                               className="h-7 px-2.5 border rounded-md text-[11px] font-medium text-accent bg-accent/5 border-accent/15 hover:bg-accent/10 transition-all">
                               Restore
                             </button>
-                          </Tip>
+                          </SimpleTooltip>
                           <Link href={`/dashboard/channels/${ch.channel_id}`}
                             className="h-7 px-2.5 border rounded-md text-[11px] font-medium text-content-tertiary bg-surface-1 border-border hover:bg-surface-2 transition-all flex items-center">
                             View
@@ -653,7 +667,7 @@ export default function ChannelsPage() {
                                   }
                                   if (mState === 'pending_review' && mJob) return (
                                     <Link key={m} href={`/dashboard/jobs/${mJob.content_id}`}
-                                      className="h-7 px-2.5 border rounded-md text-[11px] font-medium text-amber-500 bg-amber-500/5 border-amber-500/30 hover:bg-amber-500/10 transition-all flex items-center">
+                                      className="h-7 px-2.5 border rounded-md text-[11px] font-medium text-status-warning bg-status-warning/5 border-status-warning/30 hover:bg-status-warning/10 transition-all flex items-center">
                                       Review ({mLabel})
                                     </Link>
                                   );
@@ -666,11 +680,11 @@ export default function ChannelsPage() {
                                         <>
                                           <button onClick={() => togglePauseJob(ch.channel_id, mJob.content_id, mJob.is_paused)} disabled={!!isBusy}
                                             className={cn('h-5 px-1.5 border rounded text-[10px] font-medium transition-all disabled:opacity-50',
-                                              mJob.is_paused ? 'text-accent border-accent/20 bg-accent/5' : 'text-amber-500 border-amber-500/20 bg-amber-500/5')}>
+                                              mJob.is_paused ? 'text-accent border-accent/20 bg-accent/5' : 'text-status-warning border-status-warning/20 bg-status-warning/5')}>
                                             {isBusy ? '…' : mJob.is_paused ? '▶' : '⏸'}
                                           </button>
                                           <button onClick={() => stopJob(ch.channel_id, mJob.content_id)} disabled={!!isBusy}
-                                            className="h-5 px-1.5 border rounded text-[10px] font-medium text-red-500 border-red-500/20 bg-red-500/5 hover:bg-red-500/10 transition-all disabled:opacity-50">
+                                            className="h-5 px-1.5 border rounded text-[10px] font-medium text-status-error border-status-error/20 bg-status-error/5 hover:bg-status-error/10 transition-all disabled:opacity-50">
                                             {isBusy ? '…' : '■'}
                                           </button>
                                         </>
@@ -685,20 +699,19 @@ export default function ChannelsPage() {
                             className="w-7 h-7 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary hover:text-accent transition-all">
                             <Settings size={12} />
                           </Link>
-                          <div className="relative">
-                            <button onClick={() => setActionMenu(actionMenu === ch.channel_id ? null : ch.channel_id)}
-                              className="w-7 h-7 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary transition-all">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></svg>
-                            </button>
-                            {actionMenu === ch.channel_id && (
-                              <div className="absolute right-0 top-8 z-30 w-44 bg-surface-0 border border-border rounded-md shadow-elevated py-1">
-                                <button onClick={() => cloneChannel(ch.channel_id)} className="w-full text-left px-3 py-2 text-xs text-content-secondary hover:bg-surface-1">Duplicate Channel</button>
-                                <button onClick={() => exportChannel(ch.channel_id)} className="w-full text-left px-3 py-2 text-xs text-content-secondary hover:bg-surface-1">Export Config (JSON)</button>
-                                <div className="border-t border-border my-1" />
-                                <button onClick={() => { setConfirmArchive(ch.channel_id); setActionMenu(null); }} className="w-full text-left px-3 py-2 text-xs text-amber-500 hover:bg-amber-500/5">Archive Channel</button>
-                              </div>
-                            )}
-                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="icon-sm" aria-label="More actions">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></svg>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuItem onClick={() => cloneChannel(ch.channel_id)}>Duplicate Channel</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => exportChannel(ch.channel_id)}>Export Config (JSON)</DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => setConfirmArchive(ch.channel_id)} className="text-status-warning focus:text-status-warning focus:bg-status-warning/5">Archive Channel</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </>
                       )}
                     </div>
@@ -711,23 +724,29 @@ export default function ChannelsPage() {
       </div>
 
       {/* ── Archive confirm modal ── */}
-      {confirmArchive && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="rounded-xl bg-surface-0 border border-border shadow-elevated p-5 max-w-sm w-full space-y-3">
-            <h3 className="text-sm font-semibold text-content-primary">Archive channel?</h3>
-            <p className="text-xs text-content-tertiary">
+      <Dialog open={!!confirmArchive} onOpenChange={(o) => { if (!o) setConfirmArchive(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Archive channel?</DialogTitle>
+            <DialogDescription>
               <span className="font-medium text-content-secondary">{confirmArchive}</span> will be hidden from the active list.
               All configuration and history is preserved and can be restored.
-            </p>
-            <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setConfirmArchive(null)} className="h-8 px-3 rounded-md border border-border text-xs text-content-secondary hover:bg-surface-2">Cancel</button>
-              <button onClick={() => archiveChannel(confirmArchive)} className="h-8 px-3 rounded-md bg-amber-500 text-white text-xs font-semibold hover:opacity-90">Archive</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {actionMenu && <div className="fixed inset-0 z-20" onClick={() => setActionMenu(null)} />}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" size="sm" onClick={() => setConfirmArchive(null)}>Cancel</Button>
+            <Button
+              size="sm"
+              onClick={() => confirmArchive && archiveChannel(confirmArchive)}
+              className="bg-status-warning hover:bg-status-warning/90 text-content-inverse"
+            >
+              Archive
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+    </TooltipProvider>
   );
 }
 
@@ -746,10 +765,11 @@ function ProgressRing({ paused }: { paused?: boolean }) {
 
 function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: () => void; disabled?: boolean }) {
   return (
-    <button onClick={disabled ? undefined : onChange} disabled={disabled}
-      className={cn('relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none',
-        checked ? 'bg-accent' : 'bg-surface-3', disabled && 'opacity-50 cursor-not-allowed')}>
-      <span className={cn('inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform', checked ? 'translate-x-[18px]' : 'translate-x-[2px]')} />
-    </button>
+    <Switch
+      checked={checked}
+      onCheckedChange={disabled ? undefined : onChange}
+      disabled={disabled}
+      aria-label="Toggle channel"
+    />
   );
 }

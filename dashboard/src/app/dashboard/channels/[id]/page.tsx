@@ -7,6 +7,7 @@ import { Save } from 'lucide-react';
 import { channelsApi } from '@/lib/api-v2';
 import { Skeleton } from '@/lib/components/Skeleton';
 import { AlertTriangle, ChevronLeft, RefreshCw } from '@/lib/components/Icon';
+import { Button, Input, Textarea, Checkbox, Label as FieldLabel } from '@/lib/ui';
 
 import ProvidersTab from './ProvidersTab';
 
@@ -57,19 +58,15 @@ export default function ChannelDetail() {
       <Link href="/dashboard/channels" className="inline-flex items-center gap-1 text-xs text-content-tertiary hover:text-content-primary mb-4">
         <ChevronLeft size={13} /> Back to channels
       </Link>
-      <div className="max-w-md mx-auto mt-12 rounded-md border border-red-500/30 bg-red-500/5 p-6 text-center">
-        <AlertTriangle size={28} className="mx-auto text-red-500 mb-3" />
+      <div className="max-w-md mx-auto mt-12 rounded-md border border-status-error/30 bg-status-error/5 p-6 text-center">
+        <AlertTriangle size={28} className="mx-auto text-status-error mb-3" />
         <h2 className="text-base font-semibold text-content-primary mb-1">Failed to load channel</h2>
         <p className="text-sm text-content-tertiary mb-4">{error || `Channel "${id}" was not found or the backend returned an error.`}</p>
         <div className="flex gap-2 justify-center">
-          <button onClick={refresh}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-white text-xs font-medium hover:opacity-90">
-            <RefreshCw size={12} /> Retry
-          </button>
-          <Link href="/dashboard/channels"
-            className="inline-flex items-center px-3 py-1.5 rounded-md border border-border text-xs text-content-secondary hover:bg-surface-2">
-            Back to channels
-          </Link>
+          <Button size="sm" onClick={refresh} leftIcon={<RefreshCw size={12} />}>Retry</Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/dashboard/channels">Back to channels</Link>
+          </Button>
         </div>
       </div>
     </main>
@@ -198,11 +195,10 @@ export default function ChannelDetail() {
         {Object.keys(draft).length > 0 && (
           <div className="pt-4 border-t border-border flex items-center gap-3">
             <span className="text-xs opacity-70">{Object.keys(draft).length} unsaved change(s)</span>
-            <button onClick={() => setDraft({})} className="text-xs opacity-60 hover:opacity-100">Discard</button>
-            <button onClick={save} disabled={saving}
-              className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-white text-sm hover:bg-accent disabled:opacity-40">
-              <Save size={14} /> {saving ? 'Saving…' : 'Save changes'}
-            </button>
+            <Button variant="ghost" size="sm" onClick={() => setDraft({})}>Discard</Button>
+            <Button onClick={save} disabled={saving} loading={saving} leftIcon={<Save size={14} />} className="ml-auto">
+              {saving ? 'Saving…' : 'Save changes'}
+            </Button>
           </div>
         )}
       </div>
@@ -216,18 +212,17 @@ function Grid({ children }: { children: React.ReactNode }) {
 }
 
 function Inp({ label, value, onChange, type = 'text', wide, multiline }: any) {
-  const cls = 'w-full px-3 py-1.5 rounded-md bg-surface-1 border border-border text-sm';
   return (
-    <label className={'block ' + (wide ? 'md:col-span-2' : '')}>
-      <div className="text-xs uppercase tracking-wide opacity-70 mb-1">{label}</div>
+    <div className={'block ' + (wide ? 'md:col-span-2' : '')}>
+      <FieldLabel className="text-xs uppercase tracking-wide opacity-70 mb-1 block">{label}</FieldLabel>
       {type === 'checkbox' ? (
-        <input type="checkbox" checked={!!value} onChange={e => onChange(e.target.checked)} />
+        <Checkbox checked={!!value} onCheckedChange={(v) => onChange(!!v)} />
       ) : multiline ? (
-        <textarea className={cls + ' h-20'} value={value ?? ''} onChange={e => onChange(e.target.value)} />
+        <Textarea value={value ?? ''} onChange={e => onChange(e.target.value)} className="min-h-[80px]" />
       ) : (
-        <input className={cls} type={type} value={value ?? ''} onChange={e => onChange(e.target.value)} />
+        <Input type={type} value={value ?? ''} onChange={e => onChange(e.target.value)} />
       )}
-    </label>
+    </div>
   );
 }
 
@@ -244,19 +239,20 @@ function PillarsTab({ data, channel_id, onChange }: any) {
               <div className="font-medium">{p.name}</div>
               <div className="text-xs opacity-60">{p.description}</div>
             </div>
-            <button onClick={() => channelsApi.deletePillar(channel_id, p.id).then(onChange)}
-              className="text-xs text-red-500 opacity-60 hover:opacity-100">Remove</button>
+            <Button variant="ghost" size="sm" className="text-status-error hover:text-status-error"
+              onClick={() => channelsApi.deletePillar(channel_id, p.id).then(onChange)}
+            >Remove</Button>
           </li>
         ))}
       </ul>
       <div className="flex gap-2">
-        <input className="px-2 py-1.5 rounded-md bg-surface-1 border border-border text-sm" placeholder="Pillar name" value={draftName} onChange={e => setDraftName(e.target.value)} />
-        <input className="flex-1 px-2 py-1.5 rounded-md bg-surface-1 border border-border text-sm" placeholder="Description" value={draftDesc} onChange={e => setDraftDesc(e.target.value)} />
-        <button onClick={async () => {
+        <Input placeholder="Pillar name" value={draftName} onChange={e => setDraftName(e.target.value)} className="max-w-xs" />
+        <Input placeholder="Description" value={draftDesc} onChange={e => setDraftDesc(e.target.value)} className="flex-1" />
+        <Button onClick={async () => {
           if (!draftName) return;
           await channelsApi.addPillar(channel_id, { name: draftName, description: draftDesc, weight: 1, examples: [], position: 0 });
           setDraftName(''); setDraftDesc(''); onChange();
-        }} className="px-3 py-1.5 rounded-md bg-accent text-white text-sm">Add</button>
+        }}>Add</Button>
       </div>
     </div>
   );
@@ -277,22 +273,23 @@ function ReferencesTab({ data, channel_id, onChange }: any) {
               <div className="font-medium truncate">{r.label || r.uri}</div>
               <div className="text-xs opacity-60 truncate">{r.uri}</div>
             </div>
-            <button onClick={() => channelsApi.deleteReference(channel_id, r.id).then(onChange)}
-              className="text-xs text-red-500 opacity-60 hover:opacity-100">Remove</button>
+            <Button variant="ghost" size="sm" className="text-status-error hover:text-status-error"
+              onClick={() => channelsApi.deleteReference(channel_id, r.id).then(onChange)}
+            >Remove</Button>
           </li>
         ))}
       </ul>
       <div className="flex gap-2">
-        <select className="px-2 py-1.5 rounded-md bg-surface-1 border border-border text-sm" value={kind} onChange={e => setKind(e.target.value)}>
+        <select className="flex h-10 px-3 py-2 rounded-md bg-surface-0 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-accent/40" value={kind} onChange={e => setKind(e.target.value)}>
           {['url','pdf','video','gdrive','notion','asset_pack','logo','lut','sfx','music'].map(k => <option key={k}>{k}</option>)}
         </select>
-        <input className="px-2 py-1.5 rounded-md bg-surface-1 border border-border text-sm" placeholder="Label" value={label} onChange={e => setLabel(e.target.value)} />
-        <input className="flex-1 px-2 py-1.5 rounded-md bg-surface-1 border border-border text-sm" placeholder="URL or s3 key" value={uri} onChange={e => setUri(e.target.value)} />
-        <button onClick={async () => {
+        <Input placeholder="Label" value={label} onChange={e => setLabel(e.target.value)} className="max-w-[160px]" />
+        <Input placeholder="URL or s3 key" value={uri} onChange={e => setUri(e.target.value)} className="flex-1" />
+        <Button onClick={async () => {
           if (!uri) return;
           await channelsApi.addReference(channel_id, { kind, label, uri });
           setLabel(''); setUri(''); onChange();
-        }} className="px-3 py-1.5 rounded-md bg-accent text-white text-sm">Add</button>
+        }}>Add</Button>
       </div>
     </div>
   );

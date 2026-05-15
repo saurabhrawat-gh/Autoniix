@@ -10,6 +10,7 @@ import {
   Activity, RotateCw, Plus, Loader2, ShieldCheck,
   Gauge, Network, Store, CheckCircle2, ExternalLink, Zap, Trash2,
 } from '@/lib/components/Icon';
+import { Button } from '@/lib/ui';
 
 const KIND_META: Record<string, { icon: string; desc: string }> = {
   llm:           { icon: '🧠', desc: 'LLMs for script, research & critique' },
@@ -32,18 +33,18 @@ function getCategoryHealth(healthy: number, failing: number, total: number): Hea
   return 'untested';
 }
 const HEALTH_DOT: Record<HealthStatus, string> = {
-  healthy: 'bg-emerald-500', failing: 'bg-red-500 animate-pulse',
-  partial: 'bg-amber-500',   untested: 'bg-surface-3',
+  healthy: 'bg-status-success', failing: 'bg-status-error animate-pulse',
+  partial: 'bg-status-warning', untested: 'bg-surface-3',
 };
 const HEALTH_LABEL: Record<HealthStatus, string> = {
   healthy: 'All healthy', failing: 'Degraded', partial: 'Partial', untested: 'Unconfigured',
 };
 
 const MODE_CHIP: Record<string, string> = {
-  byok:      'bg-violet-500/10 text-violet-500',
-  system:    'bg-emerald-500/10 text-emerald-500',
-  marketplace: 'bg-blue-500/10 text-blue-500',
-  internal:  'bg-amber-500/10 text-amber-500',
+  byok:        'bg-accent/10 text-accent',
+  system:      'bg-status-success/10 text-status-success',
+  marketplace: 'bg-status-info/10 text-status-info',
+  internal:    'bg-status-warning/10 text-status-warning',
 };
 
 export default function ProvidersIndex() {
@@ -140,21 +141,31 @@ export default function ProvidersIndex() {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <button onClick={refresh} disabled={loading}
-            className="h-8 w-8 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary transition-colors">
+          <Button variant="outline" size="icon-sm" onClick={refresh} disabled={loading} aria-label="Refresh">
             <RotateCw size={13} className={cn(loading && 'animate-spin')} />
-          </button>
-          <button onClick={probeAll} disabled={probingAll || totalCreds === 0}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-md border border-border text-xs text-content-secondary hover:bg-surface-2 transition-colors disabled:opacity-40">
-            {probingAll ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={probeAll}
+            disabled={probingAll || totalCreds === 0}
+            loading={probingAll}
+            leftIcon={!probingAll ? <Zap size={12} /> : undefined}
+          >
             Probe all
-          </button>
-          <button onClick={cleanSlate} disabled={resetting}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={cleanSlate}
+            disabled={resetting}
+            loading={resetting}
+            leftIcon={!resetting ? <Trash2 size={12} /> : undefined}
             title="Wipe ALL credentials, chains, routes (cannot be undone)"
-            className="flex items-center gap-1.5 h-8 px-3 rounded-md border border-red-500/40 text-xs text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-40">
-            {resetting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+            className="border-status-error/40 text-status-error hover:bg-status-error/10 hover:text-status-error"
+          >
             Reset all
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -162,9 +173,9 @@ export default function ProvidersIndex() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {[
           { label: 'Connected',  value: totalCreds,    color: 'text-content-primary' },
-          { label: 'Healthy',    value: totalHealthy,  color: 'text-emerald-500' },
-          { label: 'Failing',    value: totalFailing,  color: 'text-red-500' },
-          { label: 'Available',  value: unconnectedCount, color: 'text-blue-500' },
+          { label: 'Healthy',    value: totalHealthy,  color: 'text-status-success' },
+          { label: 'Failing',    value: totalFailing,  color: 'text-status-error' },
+          { label: 'Available',  value: unconnectedCount, color: 'text-status-info' },
         ].map(s => (
           <div key={s.label} className="rounded-lg border border-border bg-surface-0 px-3 py-2">
             <div className={cn('text-xl font-bold tabular-nums leading-none', s.color)}>{s.value}</div>
@@ -242,16 +253,16 @@ export default function ProvidersIndex() {
                             <div className="ml-4 space-y-1">
                               <div className="h-1 rounded-full bg-surface-2 overflow-hidden">
                                 <div className={cn('h-full rounded-full transition-all',
-                                  health === 'healthy' ? 'bg-emerald-500' :
-                                  health === 'failing' ? 'bg-red-500' :
-                                  health === 'partial' ? 'bg-amber-500' : 'bg-surface-3')}
+                                  health === 'healthy' ? 'bg-status-success' :
+                                  health === 'failing' ? 'bg-status-error' :
+                                  health === 'partial' ? 'bg-status-warning' : 'bg-surface-3')}
                                   style={{ width: `${total > 0 ? (healthy / total) * 100 : 0}%` }} />
                               </div>
                               <div className="flex items-center justify-between text-[10px]">
                                 <span className={cn('font-medium',
-                                  health === 'healthy' ? 'text-emerald-500' :
-                                  health === 'failing' ? 'text-red-500' :
-                                  health === 'partial' ? 'text-amber-500' : 'text-content-tertiary')}>
+                                  health === 'healthy' ? 'text-status-success' :
+                                  health === 'failing' ? 'text-status-error' :
+                                  health === 'partial' ? 'text-status-warning' : 'text-content-tertiary')}>
                                   {HEALTH_LABEL[health]}
                                 </span>
                                 <span className="text-content-tertiary">{healthy}/{total} healthy</span>
@@ -309,7 +320,7 @@ export default function ProvidersIndex() {
                 <div key={p.provider_key}
                   className={cn(
                     'rounded-xl border bg-surface-0 p-4 flex flex-col gap-3 transition-all',
-                    p.connected ? 'border-emerald-500/30' : 'border-border',
+                    p.connected ? 'border-status-success/30' : 'border-border',
                     p.featured && !p.connected && 'border-accent/30'
                   )}>
                   <div className="flex items-start justify-between">
@@ -317,7 +328,7 @@ export default function ProvidersIndex() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-sm text-content-primary">{p.display_name}</span>
                         {p.connected && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-medium flex items-center gap-0.5">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-success/10 text-status-success font-medium flex items-center gap-0.5">
                             <CheckCircle2 size={9} /> Connected
                           </span>
                         )}
@@ -325,7 +336,7 @@ export default function ProvidersIndex() {
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">Featured</span>
                         )}
                         {p.has_free_tier && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500">Free tier</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-success/10 text-status-success">Free tier</span>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 mt-1">
@@ -376,8 +387,8 @@ export default function ProvidersIndex() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
             { icon: <Network size={14} className="text-accent" />, title: 'Priority Chains', desc: 'Multiple credentials per category form a fallback chain. First healthy provider wins.' },
-            { icon: <ShieldCheck size={14} className="text-emerald-500" />, title: 'Vault-Backed Secrets', desc: 'API keys written to env/Vault — never stored in DB or repo.' },
-            { icon: <Gauge size={14} className="text-amber-500" />, title: 'Live Health Probes', desc: 'Use "Probe all" for a fan-out health check across every enabled credential.' },
+            { icon: <ShieldCheck size={14} className="text-status-success" />, title: 'Vault-Backed Secrets', desc: 'API keys written to env/Vault — never stored in DB or repo.' },
+            { icon: <Gauge size={14} className="text-status-warning" />, title: 'Live Health Probes', desc: 'Use "Probe all" for a fan-out health check across every enabled credential.' },
           ].map(t => (
             <div key={t.title} className="rounded-xl border border-border bg-surface-0 px-4 py-3 flex items-start gap-3">
               <div className="mt-0.5 shrink-0">{t.icon}</div>

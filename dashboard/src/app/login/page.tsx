@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { authApi, setV2Tokens, legacyLogin } from '@/lib/api-v2';
 import { ThemeToggle } from '@/lib/theme';
+import { Button, Input, Label, Card } from '@/lib/ui';
 
 type AuthMode = 'loading' | 'legacy' | 'v2';
 type Step = 'credentials' | 'mfa';
@@ -83,13 +84,6 @@ export default function LoginPage() {
     </div>
   );
 
-  const Spinner = () => (
-    <span className="flex items-center justify-center gap-2">
-      <span className="w-4 h-4 border-2 border-content-inverse/30 border-t-content-inverse rounded-full animate-spin" />
-      Signing in…
-    </span>
-  );
-
   if (mode === 'loading') {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -104,124 +98,139 @@ export default function LoginPage() {
 
       <div className="w-full max-w-md px-6">
         {mode === 'legacy' ? (
-          <form onSubmit={handleLegacyLogin} className="card-elevated p-8 space-y-8">
-            <Logo />
+          <Card variant="elevated" padding="xl">
+            <form onSubmit={handleLegacyLogin} className="space-y-8">
+              <Logo />
 
-            {error && (
-              <div className="bg-status-error/10 text-status-error text-sm rounded-lg p-3 text-center">{error}</div>
-            )}
+              {error && (
+                <div className="bg-status-error/10 text-status-error text-sm rounded-lg p-3 text-center">{error}</div>
+              )}
 
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-content-primary">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="Enter admin password"
-                autoFocus
-                className="!py-3"
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="legacy-pw">Password</Label>
+                <Input
+                  id="legacy-pw"
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Enter admin password"
+                  autoFocus
+                />
+              </div>
 
-            <button type="submit" disabled={loading || !password} className="w-full btn-primary !py-3">
-              {loading ? <Spinner /> : 'Sign In'}
-            </button>
-          </form>
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full"
+                disabled={!password}
+                loading={loading}
+              >
+                {loading ? 'Signing in…' : 'Sign In'}
+              </Button>
+            </form>
+          </Card>
         ) : (
-          <form onSubmit={handleV2Login} className="card-elevated p-8 space-y-6">
-            <Logo />
+          <Card variant="elevated" padding="xl">
+            <form onSubmit={handleV2Login} className="space-y-6">
+              <Logo />
 
-            {error && (
-              <div className="bg-status-error/10 text-status-error text-sm rounded-lg p-3 text-center">{error}</div>
-            )}
+              {error && (
+                <div className="bg-status-error/10 text-status-error text-sm rounded-lg p-3 text-center">{error}</div>
+              )}
 
-            {step === 'credentials' ? (
-              <>
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-content-primary">Email</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    autoFocus
-                    required
-                    className="!py-3"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-sm font-medium text-content-primary">Password</label>
-                    <Link href="/forgot-password" className="text-xs text-accent hover:underline">
-                      Forgot password?
-                    </Link>
+              {step === 'credentials' ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="email" required>Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      autoFocus
+                      required
+                    />
                   </div>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    className="!py-3"
-                  />
-                </div>
 
-                <button
-                  type="submit"
-                  disabled={loading || !email || !password}
-                  className="w-full btn-primary !py-3"
-                >
-                  {loading ? <Spinner /> : 'Sign In'}
-                </button>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password" required>Password</Label>
+                      <Link href="/forgot-password" className="text-xs text-accent hover:underline">
+                        Forgot password?
+                      </Link>
+                    </div>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                    />
+                  </div>
 
-                <p className="text-center text-xs text-content-tertiary">
-                  No account?{' '}
-                  <Link href="/register" className="text-accent hover:underline">Create one</Link>
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="space-y-1">
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full"
+                    disabled={!email || !password}
+                    loading={loading}
+                  >
+                    {loading ? 'Signing in…' : 'Sign In'}
+                  </Button>
+
+                  <p className="text-center text-xs text-content-tertiary">
+                    No account?{' '}
+                    <Link href="/register" className="text-accent hover:underline">Create one</Link>
+                  </p>
+                </>
+              ) : (
+                <>
                   <p className="text-sm text-content-secondary text-center">
                     Enter the 6-digit code from your authenticator app.
                   </p>
-                </div>
 
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-content-primary">MFA Code</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]{6}"
-                    maxLength={6}
-                    value={mfaCode}
-                    onChange={e => setMfaCode(e.target.value.replace(/\D/g, ''))}
-                    placeholder="000000"
-                    autoFocus
-                    required
-                    className="!py-3 text-center tracking-widest text-lg font-mono"
-                  />
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="mfa" required>MFA Code</Label>
+                    <Input
+                      id="mfa"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]{6}"
+                      maxLength={6}
+                      value={mfaCode}
+                      onChange={e => setMfaCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="000000"
+                      autoFocus
+                      required
+                      className="text-center tracking-widest text-lg font-mono"
+                    />
+                  </div>
 
-                <button
-                  type="submit"
-                  disabled={loading || mfaCode.length !== 6}
-                  className="w-full btn-primary !py-3"
-                >
-                  {loading ? <Spinner /> : 'Verify'}
-                </button>
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full"
+                    disabled={mfaCode.length !== 6}
+                    loading={loading}
+                  >
+                    {loading ? 'Verifying…' : 'Verify'}
+                  </Button>
 
-                <button
-                  type="button"
-                  onClick={() => { setStep('credentials'); setMfaCode(''); setError(''); }}
-                  className="w-full text-xs text-content-tertiary hover:text-content-secondary mt-1"
-                >
-                  ← Back
-                </button>
-              </>
-            )}
-          </form>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => { setStep('credentials'); setMfaCode(''); setError(''); }}
+                  >
+                    ← Back
+                  </Button>
+                </>
+              )}
+            </form>
+          </Card>
         )}
 
         <p className="text-center text-xs text-content-tertiary mt-6">

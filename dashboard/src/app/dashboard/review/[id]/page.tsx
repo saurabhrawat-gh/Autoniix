@@ -10,6 +10,18 @@ import {
   Check, X, RotateCw, Send, Wand2, FileText, ImageIcon, Type,
   Save, ArrowLeft, Mic, Layers, Film,
 } from '@/lib/components/Icon';
+import {
+  Button,
+  Input,
+  Textarea,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  Label as FieldLabel,
+} from '@/lib/ui';
 
 const ARTIFACTS = [
   { key: 'script',    label: 'Script',    icon: FileText },
@@ -96,7 +108,7 @@ export default function ReviewDetail() {
         </Link>
       </div>
       <div className="rounded-xl border border-border bg-surface-0 p-8 text-center">
-        <div className="w-12 h-12 mx-auto mb-3 rounded-md bg-red-500/10 text-red-500 flex items-center justify-center">
+        <div className="w-12 h-12 mx-auto mb-3 rounded-md bg-status-error/10 text-status-error flex items-center justify-center">
           <X size={20} />
         </div>
         <h2 className="text-base font-semibold text-content-primary mb-1">Review not available</h2>
@@ -106,8 +118,10 @@ export default function ReviewDetail() {
             : errorMsg}
         </p>
         <div className="flex items-center justify-center gap-2">
-          <button onClick={refresh} className="btn-secondary">Retry</button>
-          <Link href="/dashboard/content" className="btn-primary">Back to content</Link>
+          <Button variant="secondary" size="sm" onClick={refresh}>Retry</Button>
+          <Button asChild size="sm">
+            <Link href="/dashboard/content">Back to content</Link>
+          </Button>
         </div>
       </div>
     </main>
@@ -166,9 +180,9 @@ export default function ReviewDetail() {
             </div>
             {session?.state && (
               <span className={cn('text-[10px] uppercase px-2.5 py-1 rounded-md font-medium shrink-0',
-                session.state === 'approved' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' :
-                session.state === 'rejected' ? 'bg-red-500/15 text-red-600 dark:text-red-400' :
-                session.state === 'needs_edits' ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' :
+                session.state === 'approved' ? 'bg-status-success/15 text-status-success' :
+                session.state === 'rejected' ? 'bg-status-error/15 text-status-error' :
+                session.state === 'needs_edits' ? 'bg-status-warning/15 text-status-warning' :
                 'bg-accent/15 text-accent'
               )}>
                 {session.state}
@@ -214,8 +228,8 @@ export default function ReviewDetail() {
             ))}
           </div>
           <div className="shrink-0 flex gap-1.5 pt-3 border-t border-border">
-            <input value={comment} onChange={e => setComment(e.target.value)} placeholder={`Comment on ${tab}…`}
-              className="flex-1 px-3 py-2 rounded-md bg-surface-1 border border-border text-xs text-content-primary placeholder:text-content-tertiary focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent/50"
+            <Input value={comment} onChange={e => setComment(e.target.value)} placeholder={`Comment on ${tab}…`}
+              className="flex-1 text-xs"
               onKeyDown={e => e.key === 'Enter' && sendComment()} />
             <button onClick={sendComment} disabled={!comment.trim()}
               className="w-9 h-9 shrink-0 inline-flex items-center justify-center rounded-md bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -227,47 +241,52 @@ export default function ReviewDetail() {
       </div>
 
       {/* Decision Modal */}
-      {decisionModal.open && (
-        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={() => setDecisionModal({open: false, decision: ''})}>
-          <div className="w-full max-w-md bg-surface-0 border border-border rounded-xl shadow-elevated p-6" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-3 mb-2">
+      <Dialog open={decisionModal.open} onOpenChange={(o) => { if (!o) setDecisionModal({open: false, decision: ''}); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
               <div className={cn('w-9 h-9 rounded-md flex items-center justify-center shrink-0',
-                decisionModal.decision === 'approved' ? 'bg-emerald-500/10 text-emerald-500' :
-                decisionModal.decision === 'rejected' ? 'bg-red-500/10 text-red-500' :
-                'bg-amber-500/10 text-amber-500'
+                decisionModal.decision === 'approved' ? 'bg-status-success/10 text-status-success' :
+                decisionModal.decision === 'rejected' ? 'bg-status-error/10 text-status-error' :
+                'bg-status-warning/10 text-status-warning'
               )}>
                 {decisionModal.decision === 'approved' ? <Check size={16} /> :
                  decisionModal.decision === 'rejected' ? <X size={16} /> : <RotateCw size={16} />}
               </div>
-              <h3 className="text-base font-semibold text-content-primary">
-                {decisionModal.decision === 'approved' ? 'Approve content' :
+              <DialogTitle>
+                {decisionModal.decision === 'approved' ? 'Approve content?' :
                  decisionModal.decision === 'needs_edits' ? 'Request edits' : 'Reject content'}
-              </h3>
+              </DialogTitle>
+              <DialogDescription>
+                {decisionModal.decision === 'approved' ? 'This content will be marked as approved and queued for delivery.' :
+                 decisionModal.decision === 'needs_edits' ? 'Add a note describing what needs to be changed.' : 'This content will be marked as rejected and archived.'}
+              </DialogDescription>
             </div>
-            <p className="text-xs text-content-tertiary mb-4 ml-12">
-              {decisionModal.decision === 'approved' ? 'This content will be marked as approved and queued for delivery.' :
-               decisionModal.decision === 'needs_edits' ? 'Add a note describing what needs to be changed.' : 'This content will be marked as rejected and archived.'}
-            </p>
-            <textarea
-              value={decisionNote}
-              onChange={e => setDecisionNote(e.target.value)}
-              placeholder={decisionModal.decision === 'needs_edits' ? 'What needs to change?' : 'Optional note…'}
-              className="w-full h-24 px-3 py-2 rounded-md bg-surface-1 border border-border text-sm text-content-primary placeholder:text-content-tertiary focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent/50 resize-none mb-4"
-            />
-            <div className="flex items-center justify-end gap-2">
-              <button onClick={() => setDecisionModal({open: false, decision: ''})} className="btn-ghost">Cancel</button>
-              <button onClick={confirmDecision} disabled={savingDecision}
-                className={cn('inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium text-white transition-colors disabled:opacity-50',
-                  decisionModal.decision === 'approved' ? 'bg-emerald-500 hover:bg-emerald-600' :
-                  decisionModal.decision === 'rejected' ? 'bg-red-500 hover:bg-red-600' :
-                  'bg-amber-500 hover:bg-amber-600'
-                )}>
-                {savingDecision ? 'Saving…' : 'Confirm'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </DialogHeader>
+          <Textarea
+            value={decisionNote}
+            onChange={e => setDecisionNote(e.target.value)}
+            placeholder={decisionModal.decision === 'needs_edits' ? 'What needs to change?' : 'Optional note…'}
+            className="min-h-[96px]"
+          />
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setDecisionModal({open: false, decision: ''})}>Cancel</Button>
+            <Button
+              size="sm"
+              onClick={confirmDecision}
+              disabled={savingDecision}
+              loading={savingDecision}
+              className={cn('text-content-inverse',
+                decisionModal.decision === 'approved' ? 'bg-status-success hover:bg-status-success/90' :
+                decisionModal.decision === 'rejected' ? 'bg-status-error hover:bg-status-error/90' :
+                'bg-status-warning hover:bg-status-warning/90'
+              )}
+            >
+              {savingDecision ? 'Saving…' : 'Confirm'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
@@ -277,8 +296,8 @@ function DecisionButton({ onClick, icon: Icon, label, tone, primary }: { onClick
     accent: primary
       ? 'bg-accent text-white hover:bg-accent-hover'
       : 'bg-accent/10 text-accent hover:bg-accent/15',
-    amber:  'bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20',
-    red:    'bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20',
+    amber:  'bg-status-warning/10 text-status-warning hover:bg-status-warning/20',
+    red:    'bg-status-error/10 text-status-error hover:bg-status-error/20',
   };
   return (
     <button onClick={onClick}
@@ -322,16 +341,16 @@ function ScriptPane({ data, videoId, variant, onVariantChange, onChange }: any) 
       <div className="flex items-center gap-2">
         <span className="text-xs text-content-tertiary">Edit kind</span>
         <select value={kind} onChange={e => setKind(e.target.value as any)}
-          className="px-2 py-1 text-xs rounded border border-border bg-surface-1 text-content-primary focus:outline-none focus:border-accent/50">
+          className="px-2 py-1 text-xs rounded border border-border bg-surface-0 text-content-primary focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent">
           {['full','section','hook','shorten','expand','tone','emotion','repetition'].map(k => <option key={k}>{k}</option>)}
         </select>
       </div>
-      <textarea value={body} onChange={e => setBody(e.target.value)}
-        className="flex-1 min-h-0 w-full px-3 py-2 rounded bg-surface-1 border border-border font-mono text-xs resize-none focus:outline-none focus:ring-1 focus:ring-accent/30 focus:border-accent/30" />
+      <Textarea value={body} onChange={e => setBody(e.target.value)}
+        className="flex-1 min-h-0 font-mono text-xs resize-none" />
       <div className="flex gap-2 pt-2">
-        <button onClick={submit} disabled={busy} className="btn-primary">
-          <Wand2 size={13}/> {busy ? 'Saving…' : 'Save as new version'}
-        </button>
+        <Button onClick={submit} disabled={busy} loading={busy} leftIcon={<Wand2 size={13}/>}>
+          {busy ? 'Saving…' : 'Save as new version'}
+        </Button>
       </div>
       {versions.length > 1 && (
         <div className="mt-2 pt-2 border-t border-border">
@@ -374,12 +393,10 @@ function ThumbPane({ data, videoId, onChange }: any) {
         {data.thumbnail_versions?.length === 0 && <div className="text-xs text-content-tertiary col-span-full">No thumbnail variants yet.</div>}
       </div>
       <div className="flex gap-2 pt-2 border-t border-border">
-        <input value={nudge} onChange={e => setNudge(e.target.value)} placeholder="Optional prompt nudge…"
-          className="flex-1 px-3 py-1.5 rounded bg-surface-1 border border-border text-sm text-content-primary placeholder:text-content-tertiary focus:outline-none focus:ring-1 focus:ring-accent/30 focus:border-accent/30" />
-        <button onClick={regen}
-          className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-accent text-white text-sm font-medium hover:opacity-90 transition-opacity">
-          <Wand2 size={12}/> Regenerate
-        </button>
+        <Input value={nudge} onChange={e => setNudge(e.target.value)} placeholder="Optional prompt nudge…" className="flex-1" />
+        <Button onClick={regen} size="sm" leftIcon={<Wand2 size={12}/>}>
+          Regenerate
+        </Button>
       </div>
     </div>
   );
@@ -412,34 +429,36 @@ function TitlePane({ data, videoId, onChange }: any) {
   return (
     <div className="space-y-5">
       <div>
-        <label className="text-[11px] font-semibold uppercase tracking-wider text-content-tertiary mb-2 block">Title</label>
-        <input
+        <FieldLabel className="text-[11px] font-semibold uppercase tracking-wider text-content-tertiary mb-2 block">Title</FieldLabel>
+        <Input
           value={title}
           onChange={e => setTitle(e.target.value)}
-          className="w-full px-3 py-2.5 rounded bg-surface-1 border border-border text-sm text-content-primary placeholder:text-content-tertiary focus:outline-none focus:ring-1 focus:ring-accent/30 focus:border-accent/30"
         />
       </div>
       <div>
-        <label className="text-[11px] font-semibold uppercase tracking-wider text-content-tertiary mb-2 block">Hook</label>
-        <input
+        <FieldLabel className="text-[11px] font-semibold uppercase tracking-wider text-content-tertiary mb-2 block">Hook</FieldLabel>
+        <Input
           value={hook}
           onChange={e => setHook(e.target.value)}
-          className="w-full px-3 py-2.5 rounded bg-surface-1 border border-border text-sm text-content-primary placeholder:text-content-tertiary focus:outline-none focus:ring-1 focus:ring-accent/30 focus:border-accent/30"
         />
       </div>
       <div>
-        <label className="text-[11px] font-semibold uppercase tracking-wider text-content-tertiary mb-2 block">Topic</label>
-        <input
+        <FieldLabel className="text-[11px] font-semibold uppercase tracking-wider text-content-tertiary mb-2 block">Topic</FieldLabel>
+        <Input
           value={topic}
           onChange={e => setTopic(e.target.value)}
-          className="w-full px-3 py-2.5 rounded bg-surface-1 border border-border text-sm text-content-primary placeholder:text-content-tertiary focus:outline-none focus:ring-1 focus:ring-accent/30 focus:border-accent/30"
         />
       </div>
       <div className="pt-2">
-        <button onClick={save} disabled={!hasChanges || saving}
-          className={cn(hasChanges && !saving ? 'btn-primary' : 'btn-secondary cursor-not-allowed opacity-60')}>
-          <Save size={14} /> {saving ? 'Saving…' : 'Save changes'}
-        </button>
+        <Button
+          onClick={save}
+          disabled={!hasChanges || saving}
+          loading={saving}
+          leftIcon={<Save size={14} />}
+          variant={hasChanges ? 'primary' : 'secondary'}
+        >
+          {saving ? 'Saving…' : 'Save changes'}
+        </Button>
       </div>
     </div>
   );

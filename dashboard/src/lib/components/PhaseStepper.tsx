@@ -52,7 +52,7 @@ export function PhaseStepper({
       <motion.div
         className={cn(
           'absolute top-2 h-0.5 rounded-full',
-          isFailed ? 'bg-status-error' : isStopped ? 'bg-orange-400' : 'bg-status-success',
+          isFailed ? 'bg-status-error' : isStopped ? 'bg-status-warning' : 'bg-status-success',
         )}
         style={{ left: `${insetPct}%` }}
         initial={false}

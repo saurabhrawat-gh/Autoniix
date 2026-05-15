@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import { Skeleton } from '@/lib/components/Skeleton';
 import { AnimatedNumber } from '@/lib/components/AnimatedNumber';
+import { Button, SimpleTooltip, TooltipProvider } from '@/lib/ui';
 import {
   Tv, Film, Activity, Settings, RefreshCw,
   AlertTriangle, CheckCircle2, Clock, ClipboardCheck, ShieldCheck, ShieldAlert,
@@ -16,11 +17,11 @@ import {
 } from '@/lib/components/Icon';
 
 const JOB_STATUS_ICON: Record<string, React.ReactNode> = {
-  delivered:      <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />,
-  test_delivered: <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />,
-  failed:         <AlertTriangle size={13} className="text-red-500 shrink-0" />,
-  stopped:        <AlertTriangle size={13} className="text-orange-400 shrink-0" />,
-  pending_review: <Clock size={13} className="text-amber-400 shrink-0" />,
+  delivered:      <CheckCircle2 size={13} className="text-status-success shrink-0" />,
+  test_delivered: <CheckCircle2 size={13} className="text-status-success/80 shrink-0" />,
+  failed:         <AlertTriangle size={13} className="text-status-error shrink-0" />,
+  stopped:        <AlertTriangle size={13} className="text-status-warning shrink-0" />,
+  pending_review: <Clock size={13} className="text-status-warning shrink-0" />,
 };
 
 function jobStatusIcon(status: string) {
@@ -124,10 +125,13 @@ export default function DashboardPage() {
           </h1>
           <p className="text-xs text-content-tertiary mt-0.5">Live pipeline overview — real-time stats and activity feed.</p>
         </div>
-        <button onClick={refresh} disabled={refreshing}
-          className="h-8 w-8 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary transition-colors">
-          <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
-        </button>
+        <TooltipProvider delayDuration={300}>
+          <SimpleTooltip content="Refresh" side="left">
+            <Button variant="outline" size="icon-sm" onClick={refresh} disabled={refreshing} aria-label="Refresh">
+              <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+            </Button>
+          </SimpleTooltip>
+        </TooltipProvider>
       </div>
 
       {/* ── Quick actions ── */}
@@ -148,10 +152,10 @@ export default function DashboardPage() {
 
       {/* ── Env / system banners ── */}
       {systemStopped && (
-        <div className="p-3 rounded-md bg-red-500/10 border border-red-500/20 flex items-center gap-3">
-          <AlertTriangle size={16} className="text-red-500 shrink-0" />
+        <div className="p-3 rounded-md bg-status-error/10 border border-status-error/20 flex items-center gap-3">
+          <AlertTriangle size={16} className="text-status-error shrink-0" />
           <div className="text-sm">
-            <span className="font-semibold text-red-500">System stopped</span>
+            <span className="font-semibold text-status-error">System stopped</span>
             <span className="text-content-tertiary ml-2">All operations frozen.</span>
             <Link href="/dashboard/settings" className="ml-2 text-accent hover:underline text-xs font-medium">
               Go to Settings →
@@ -160,15 +164,15 @@ export default function DashboardPage() {
         </div>
       )}
       {!systemStopped && envMode === 'test' && (
-        <div className="p-2.5 rounded-md bg-amber-500/5 border border-amber-500/15 flex items-center gap-2 text-xs text-amber-400">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+        <div className="p-2.5 rounded-md bg-status-warning/5 border border-status-warning/15 flex items-center gap-2 text-xs text-status-warning">
+          <span className="w-1.5 h-1.5 rounded-full bg-status-warning shrink-0" />
           <span className="font-medium">Test Mode</span>
           <span className="text-content-tertiary">— Mock providers. No real YouTube uploads.</span>
         </div>
       )}
       {!systemStopped && envMode === 'production' && (
-        <div className="p-2.5 rounded-md bg-emerald-500/5 border border-emerald-500/15 flex items-center gap-2 text-xs text-emerald-400">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+        <div className="p-2.5 rounded-md bg-status-success/5 border border-status-success/15 flex items-center gap-2 text-xs text-status-success">
+          <span className="w-1.5 h-1.5 rounded-full bg-status-success shrink-0" />
           <span className="font-medium">Production Mode</span>
           <span className="text-content-tertiary">— Paid APIs active. Videos publish to YouTube.</span>
         </div>
@@ -241,16 +245,15 @@ export default function DashboardPage() {
 
       {/* ── Pending review banner (compact) ── */}
       {pendingReview.length > 0 && (
-        <div className="flex items-center gap-3 p-3 rounded-md border border-amber-500/20 bg-amber-500/5">
-          <ClipboardCheck size={16} className="text-amber-400 shrink-0" />
+        <div className="flex items-center gap-3 p-3 rounded-md border border-status-warning/20 bg-status-warning/5">
+          <ClipboardCheck size={16} className="text-status-warning shrink-0" />
           <div className="flex-1 text-sm">
-            <span className="font-semibold text-amber-400">{pendingReview.length} video{pendingReview.length > 1 ? 's' : ''} pending review</span>
+            <span className="font-semibold text-status-warning">{pendingReview.length} video{pendingReview.length > 1 ? 's' : ''} pending review</span>
             <span className="text-content-tertiary ml-2">Approve or reject before upload.</span>
           </div>
-          <Link href="/dashboard/review"
-            className="inline-flex items-center gap-1.5 h-7 px-3 rounded-md bg-amber-500 text-white text-xs font-medium hover:opacity-90 transition-opacity shrink-0">
-            Review now →
-          </Link>
+          <Button asChild size="sm" className="bg-status-warning hover:bg-status-warning/90 text-content-inverse">
+            <Link href="/dashboard/review">Review now →</Link>
+          </Button>
         </div>
       )}
 
@@ -258,10 +261,9 @@ export default function DashboardPage() {
       <div className="rounded-xl border border-border bg-surface-0">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h2 className="text-sm font-semibold text-content-primary">Live activity</h2>
-          <button onClick={refresh} disabled={refreshing}
-            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-surface-2 text-content-tertiary">
+          <Button variant="ghost" size="icon-sm" onClick={refresh} disabled={refreshing} aria-label="Refresh activity">
             <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
-          </button>
+          </Button>
         </div>
         {loading ? (
           <div className="divide-y divide-border">
@@ -296,9 +298,9 @@ export default function DashboardPage() {
                 )}
                 <span className={cn(
                   'text-[10px] uppercase px-1.5 py-0.5 rounded shrink-0',
-                  j.status === 'failed' || j.status === 'stopped' ? 'bg-red-500/15 text-red-500'
-                    : j.status === 'pending_review' ? 'bg-amber-500/15 text-amber-500'
-                    : j.status === 'delivered' || j.status === 'test_delivered' ? 'bg-emerald-500/15 text-emerald-500'
+                  j.status === 'failed' || j.status === 'stopped' ? 'bg-status-error/15 text-status-error'
+                    : j.status === 'pending_review' ? 'bg-status-warning/15 text-status-warning'
+                    : j.status === 'delivered' || j.status === 'test_delivered' ? 'bg-status-success/15 text-status-success'
                     : 'bg-accent/10 text-accent'
                 )}>
                   {j.status}
@@ -326,18 +328,18 @@ function StatCard({
 }) {
   const iconWrapColor: Record<string, string> = {
     accent: 'bg-accent/10 text-accent',
-    emerald: 'bg-emerald-500/10 text-emerald-500',
-    blue: 'bg-blue-500/10 text-blue-400',
-    amber: 'bg-amber-500/10 text-amber-400',
-    red: 'bg-red-500/10 text-red-500',
+    emerald: 'bg-status-success/10 text-status-success',
+    blue: 'bg-status-info/10 text-status-info',
+    amber: 'bg-status-warning/10 text-status-warning',
+    red: 'bg-status-error/10 text-status-error',
     muted: 'bg-surface-2 text-content-tertiary',
   };
   const progressBarColor: Record<string, string> = {
     accent: 'bg-accent',
-    emerald: 'bg-emerald-500',
-    blue: 'bg-blue-500',
-    amber: 'bg-amber-500',
-    red: 'bg-red-500',
+    emerald: 'bg-status-success',
+    blue: 'bg-status-info',
+    amber: 'bg-status-warning',
+    red: 'bg-status-error',
   };
 
   const inner = (

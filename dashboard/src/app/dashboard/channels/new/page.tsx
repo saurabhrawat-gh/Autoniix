@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sparkles, ChevronLeft, ChevronRight, Check, Save, Wand2, X } from 'lucide-react';
 import { channelsApi } from '@/lib/api-v2';
+import { Button, Switch } from '@/lib/ui';
 
 type Pillar = { name: string; description?: string; weight?: number; examples?: string[] };
 type Rule = { kind: string; value: string };
@@ -181,7 +182,7 @@ export default function ChannelWizard() {
                 (i === step
                   ? 'border-accent bg-accent/10'
                   : i < step
-                    ? 'border-emerald-500/50 bg-emerald-500/5'
+                    ? 'border-status-success/50 bg-status-success/5'
                     : 'border-border hover:bg-surface-2/60')
               }>
               <div className="font-medium">{i + 1}. {s.title}</div>
@@ -216,25 +217,27 @@ export default function ChannelWizard() {
         {STEPS[step].key === 'review' && (
           <ReviewStep state={state} />
         )}
-        {error && <div className="mt-4 text-sm text-red-500">{error}</div>}
+        {error && <div className="mt-4 text-sm text-status-error">{error}</div>}
       </div>
 
       <div className="mt-6 flex items-center justify-between">
-        <button
-          onClick={prev} disabled={step === 0}
-          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md border border-border disabled:opacity-40">
-          <ChevronLeft size={14} /> Back
-        </button>
+        <Button variant="outline" onClick={prev} disabled={step === 0} leftIcon={<ChevronLeft size={14} />}>
+          Back
+        </Button>
         {step < STEPS.length - 1 ? (
-          <button onClick={next}
-            className="inline-flex items-center gap-1 px-4 py-1.5 rounded-md bg-accent text-white text-sm hover:bg-accent">
-            Next <ChevronRight size={14} />
-          </button>
+          <Button onClick={next} rightIcon={<ChevronRight size={14} />}>
+            Next
+          </Button>
         ) : (
-          <button onClick={submit} disabled={submitting || !state.channel_name || !state.niche}
-            className="inline-flex items-center gap-1 px-4 py-1.5 rounded-md bg-emerald-500 text-white text-sm hover:bg-emerald-600 disabled:opacity-40">
-            <Check size={14} /> {submitting ? 'Creating…' : 'Create channel'}
-          </button>
+          <Button
+            onClick={submit}
+            disabled={submitting || !state.channel_name || !state.niche}
+            loading={submitting}
+            leftIcon={<Check size={14} />}
+            className="bg-status-success hover:bg-status-success/90 text-content-inverse"
+          >
+            {submitting ? 'Creating…' : 'Create channel'}
+          </Button>
         )}
       </div>
     </div>
@@ -263,7 +266,7 @@ function Field({
 }
 
 const inputClass =
-  'w-full px-3 py-1.5 rounded-md bg-surface-1 border border-border text-sm focus:border-accent outline-none';
+  'w-full px-3 py-1.5 rounded-md bg-surface-0 border border-border text-sm text-content-primary placeholder:text-content-tertiary focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent transition-colors';
 
 async function aiSuggest(field: string, context: any, set: (v: string) => void) {
   try {
@@ -333,7 +336,7 @@ function StrategyStep({ state, update, presets }: any) {
             <button key={m} onClick={() => update('content_mode', m)}
               className={'px-3 py-1.5 rounded-md text-sm border ' +
                 (state.content_mode === m
-                  ? 'bg-accent text-white border-accent'
+                  ? 'bg-accent text-content-inverse border-accent'
                   : 'border-border hover:bg-surface-2')}>{m}</button>
           ))}
         </div>
@@ -347,7 +350,7 @@ function StrategyStep({ state, update, presets }: any) {
                 onClick={() => update('content_type_tags',
                   active ? state.content_type_tags.filter((x: string) => x !== t) : [...state.content_type_tags, t])}
                 className={'px-2.5 py-1 rounded-full text-xs border ' +
-                  (active ? 'bg-accent text-white border-accent'
+                  (active ? 'bg-accent text-content-inverse border-accent'
                           : 'border-border hover:bg-surface-2')}>
                 {t}
               </button>
@@ -412,7 +415,7 @@ function PillarsStep({ state, update }: any) {
                 onChange={e => setPillar(i, 'name', e.target.value)} />
               <input className={inputClass + ' flex-1'} placeholder="One-line description"
                 value={p.description || ''} onChange={e => setPillar(i, 'description', e.target.value)} />
-              <button onClick={() => removePillar(i)} className="px-2 py-1.5 rounded-md hover:bg-red-500/10 text-red-500"><X size={14} /></button>
+              <button onClick={() => removePillar(i)} className="px-2 py-1.5 rounded-md hover:bg-status-error/10 text-status-error"><X size={14} /></button>
             </div>
           ))}
         </div>
@@ -445,7 +448,7 @@ function RuleList({ kind, label, hint, rules, onAdd, onRemove, onSet }: any) {
         {filtered.map(({ r, i }: any) => (
           <div key={i} className="flex gap-1">
             <input className={inputClass} value={r.value} onChange={e => onSet(i, e.target.value)} />
-            <button onClick={() => onRemove(i)} className="px-2 hover:bg-red-500/10 rounded text-red-500"><X size={12} /></button>
+            <button onClick={() => onRemove(i)} className="px-2 hover:bg-status-error/10 rounded text-status-error"><X size={12} /></button>
           </div>
         ))}
       </div>
@@ -551,7 +554,7 @@ function ReferencesStep({ state, update }: any) {
           <input className={inputClass + ' col-span-3'} placeholder="Label" value={r.label || ''} onChange={e => set(i, 'label', e.target.value)} />
           <input className={inputClass + ' col-span-6'} placeholder="URL or s3 key"
             value={r.uri || ''} onChange={e => set(i, 'uri', e.target.value)} />
-          <button onClick={() => remove(i)} className="col-span-1 px-2 py-1 hover:bg-red-500/10 rounded text-red-500"><X size={14} /></button>
+          <button onClick={() => remove(i)} className="col-span-1 px-2 py-1 hover:bg-status-error/10 rounded text-status-error"><X size={14} /></button>
         </div>
       ))}
     </div>
@@ -603,12 +606,7 @@ function AutomationStep({ state, update }: any) {
 }
 
 function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button onClick={() => onChange(!value)}
-      className={'h-6 w-10 rounded-full transition relative ' + (value ? 'bg-accent' : 'bg-surface-3')}>
-      <span className={'absolute top-0.5 size-5 rounded-full bg-white transition ' + (value ? 'left-[1.125rem]' : 'left-0.5')} />
-    </button>
-  );
+  return <Switch checked={value} onCheckedChange={onChange} />;
 }
 
 function ReviewStep({ state }: { state: FormState }) {

@@ -19,13 +19,13 @@ function getHealth(c: any): HealthStatus {
   return 'untested';
 }
 const HEALTH_CHIP: Record<HealthStatus, string> = {
-  healthy:  'bg-emerald-500/15 text-emerald-500',
-  failing:  'bg-red-500/15 text-red-500',
+  healthy:  'bg-status-success/15 text-status-success',
+  failing:  'bg-status-error/15 text-status-error',
   untested: 'bg-surface-2 text-content-tertiary',
 };
 const HEALTH_ICON: Record<HealthStatus, React.ReactNode> = {
-  healthy:  <ShieldCheck size={11} className="text-emerald-500" />,
-  failing:  <AlertTriangle size={11} className="text-red-500" />,
+  healthy:  <ShieldCheck size={11} className="text-status-success" />,
+  failing:  <AlertTriangle size={11} className="text-status-error" />,
   untested: <HelpCircle size={11} className="text-content-tertiary" />,
 };
 
@@ -43,7 +43,7 @@ function Switch({ checked, onChange, title, disabled }: {
       className={cn(
         'relative inline-flex h-4 w-7 shrink-0 items-center rounded-full border transition-colors',
         checked
-          ? 'bg-emerald-500/80 border-emerald-500/80'
+          ? 'bg-status-success/80 border-status-success/80'
           : 'bg-surface-2 border-border',
         disabled && 'opacity-40 cursor-not-allowed'
       )}
@@ -334,10 +334,10 @@ export default function ProviderCategoryPage() {
                       <span className="text-content-primary font-medium">{r.label}</span>
                       {r.model && <span className="text-content-tertiary font-mono">· {r.model}</span>}
                       <span className={cn('text-[9px] px-1 rounded',
-                        r.origin === 'default' ? 'bg-amber-500/10 text-amber-500' :
-                        r.origin.startsWith('channel') ? 'bg-violet-500/10 text-violet-500' :
-                        r.origin.startsWith('workspace') ? 'bg-emerald-500/10 text-emerald-500' :
-                        'bg-blue-500/10 text-blue-500')}>{r.origin}</span>
+                        r.origin === 'default' ? 'bg-status-warning/10 text-status-warning' :
+                        r.origin.startsWith('channel') ? 'bg-accent/10 text-accent' :
+                        r.origin.startsWith('workspace') ? 'bg-status-success/10 text-status-success' :
+                        'bg-status-info/10 text-status-info')}>{r.origin}</span>
                     </span>
                   ))}
                 </div>
@@ -389,7 +389,7 @@ export default function ProviderCategoryPage() {
                             <ArrowDown size={13} />
                           </button>
                           <button onClick={() => removeFromChain(c.credential_id)}
-                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-red-500/10 text-content-tertiary hover:text-red-500 transition-colors">
+                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-status-error/10 text-content-tertiary hover:text-status-error transition-colors">
                             <X size={13} />
                           </button>
                         </div>
@@ -443,7 +443,7 @@ export default function ProviderCategoryPage() {
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/15 text-accent font-medium">in chain</span>
                               )}
                               {c.is_default_fallback && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 font-medium flex items-center gap-1">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-warning/15 text-status-warning font-medium flex items-center gap-1">
                                   <Star size={9} /> Default fallback
                                 </span>
                               )}
@@ -473,7 +473,7 @@ export default function ProviderCategoryPage() {
                               title={c.is_default_fallback ? 'Clear default fallback' : 'Set as default fallback (always tried last)'}
                               className={cn('w-7 h-7 flex items-center justify-center rounded transition-colors',
                                 c.is_default_fallback
-                                  ? 'bg-amber-500/15 text-amber-500 hover:bg-amber-500/25'
+                                  ? 'bg-status-warning/15 text-status-warning hover:bg-status-warning/25'
                                   : 'border border-border text-content-tertiary hover:bg-surface-2')}>
                               <Star size={12} />
                             </button>
@@ -494,7 +494,7 @@ export default function ProviderCategoryPage() {
                               </button>
                             )}
                             <button onClick={() => deleteCredential(c.id)}
-                              className="w-7 h-7 flex items-center justify-center rounded hover:bg-red-500/10 text-content-tertiary hover:text-red-500 transition-colors">
+                              className="w-7 h-7 flex items-center justify-center rounded hover:bg-status-error/10 text-content-tertiary hover:text-status-error transition-colors">
                               <Trash2 size={13} />
                             </button>
                           </div>
@@ -504,7 +504,7 @@ export default function ProviderCategoryPage() {
                         {testResult && (
                           <div className={cn(
                             'mt-2 text-xs rounded px-2.5 py-1.5 flex items-center gap-2',
-                            testResult.ok ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'
+                            testResult.ok ? 'bg-status-success/10 text-status-success' : 'bg-status-error/10 text-status-error'
                           )}>
                             {testResult.ok ? <Check size={11} /> : <X size={11} />}
                             {testResult.ok
@@ -630,18 +630,18 @@ export default function ProviderCategoryPage() {
                 {/* Result */}
                 {sandboxResult && (
                   <div className={cn('rounded-md border px-3 py-2.5 text-xs space-y-1',
-                    sandboxResult.ok ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/5')}>
+                    sandboxResult.ok ? 'border-status-success/30 bg-status-success/5' : 'border-status-error/30 bg-status-error/5')}>
                     <div className="flex items-center gap-2 font-semibold">
                       {sandboxResult.ok
-                        ? <><Check size={11} className="text-emerald-500" /><span className="text-emerald-500">Success</span></>
-                        : <><X size={11} className="text-red-500" /><span className="text-red-500">Error</span></>}
+                        ? <><Check size={11} className="text-status-success" /><span className="text-status-success">Success</span></>
+                        : <><X size={11} className="text-status-error" /><span className="text-status-error">Error</span></>}
                       <span className="text-content-tertiary font-normal ml-auto">{sandboxResult.latency_ms}ms</span>
                       {sandboxResult.cost_usd != null && (
                         <span className="text-content-tertiary font-normal font-mono">${sandboxResult.cost_usd.toFixed(6)}</span>
                       )}
                     </div>
                     {sandboxResult.error && (
-                      <div className="text-red-400 font-mono text-[11px]">{sandboxResult.error}</div>
+                      <div className="text-status-error font-mono text-[11px]">{sandboxResult.error}</div>
                     )}
                     {sandboxResult.output?.text && (
                       <div className="text-content-secondary bg-surface-1 rounded p-2 font-mono text-[11px] whitespace-pre-wrap">
@@ -778,7 +778,7 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
               Loading registered providers…
             </div>
           ) : registered.length === 0 ? (
-            <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-2.5 py-2 text-xs text-amber-500">
+            <div className="rounded-md border border-status-warning/40 bg-status-warning/5 px-2.5 py-2 text-xs text-status-warning">
               No providers registered for <span className="font-mono">{category}</span>.
               The BFF didn't import any provider classes for this category.
               Check <span className="font-mono">src/providers/boot.py</span>.
@@ -865,7 +865,7 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
           <div className="text-[10px] uppercase text-content-tertiary mb-1 flex items-center gap-2">
             <span>Model</span>
             {providerRegistered === false && providerName.trim() && (
-              <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500">
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-status-warning/10 text-status-warning">
                 Provider not registered — type model name manually
               </span>
             )}
@@ -896,7 +896,7 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
           <div className="text-[10px] text-content-tertiary mt-1">Provider-specific config (model, base_url, etc.)</div>
         </div>
 
-        {err && <div className="text-sm text-red-500">{err}</div>}
+        {err && <div className="text-sm text-status-error">{err}</div>}
 
         <div className="flex justify-end gap-2 pt-1">
           <button onClick={onClose} className="px-3 py-1.5 rounded-md border border-border text-sm text-content-secondary hover:bg-surface-2 transition-colors">
@@ -947,7 +947,7 @@ function HealthSparkline({ data }: { data: Array<{ ok: boolean; latency_ms: numb
           className="text-surface-3" strokeWidth="1" />
         {points.map((p, i) => (
           <circle key={i} cx={p.x.toFixed(1)} cy={p.y.toFixed(1)} r="1.5"
-            className={p.ok ? 'text-emerald-500' : 'text-red-500'}
+            className={p.ok ? 'text-status-success' : 'text-status-error'}
             fill="currentColor" />
         ))}
       </svg>

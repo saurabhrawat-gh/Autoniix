@@ -143,10 +143,10 @@ export default function ProvidersTab({ channelId }: ProvidersTabProps) {
                 <span className="text-content-primary font-medium">{r.label}</span>
                 {r.model && <span className="text-content-tertiary font-mono">· {r.model}</span>}
                 <span className={cn('text-[9px] px-1 rounded',
-                  r.origin === 'default' ? 'bg-amber-500/10 text-amber-500' :
-                  r.origin.startsWith('channel') ? 'bg-violet-500/10 text-violet-500' :
-                  r.origin.startsWith('workspace') ? 'bg-emerald-500/10 text-emerald-500' :
-                  'bg-blue-500/10 text-blue-500')}>{r.origin}</span>
+                  r.origin === 'default' ? 'bg-status-warning/10 text-status-warning' :
+                  r.origin.startsWith('channel') ? 'bg-accent/10 text-accent' :
+                  r.origin.startsWith('workspace') ? 'bg-status-success/10 text-status-success' :
+                  'bg-status-info/10 text-status-info')}>{r.origin}</span>
               </span>
             ))}
           </div>
@@ -161,7 +161,7 @@ export default function ProvidersTab({ channelId }: ProvidersTabProps) {
           </div>
           {override.length > 0 && (
             <button onClick={clearOverride}
-              className="text-[11px] text-content-tertiary hover:text-red-500 flex items-center gap-1">
+              className="text-[11px] text-content-tertiary hover:text-status-error flex items-center gap-1">
               <RotateCw size={11} /> Clear override (inherit from workspace)
             </button>
           )}
@@ -207,7 +207,7 @@ export default function ProvidersTab({ channelId }: ProvidersTabProps) {
                     title={entryEnabled ? 'Disable in this override' : 'Enable in this override'}
                     className={cn(
                       'relative inline-flex h-4 w-7 shrink-0 items-center rounded-full border transition-colors',
-                      entryEnabled ? 'bg-emerald-500/80 border-emerald-500/80' : 'bg-surface-2 border-border'
+                      entryEnabled ? 'bg-status-success/80 border-status-success/80' : 'bg-surface-2 border-border'
                     )}>
                     <span className={cn(
                       'inline-block h-3 w-3 rounded-full bg-white shadow transition-transform',
@@ -223,7 +223,7 @@ export default function ProvidersTab({ channelId }: ProvidersTabProps) {
                     <ArrowDown size={11} />
                   </button>
                   <button onClick={() => save(override.map((x: any) => x.credential_id).filter((id: number) => id !== c.credential_id))}
-                    className="w-6 h-6 flex items-center justify-center rounded border border-border text-red-500 hover:bg-red-500/10">
+                    className="w-6 h-6 flex items-center justify-center rounded border border-border text-status-error hover:bg-status-error/10">
                     <X size={11} />
                   </button>
                 </div>

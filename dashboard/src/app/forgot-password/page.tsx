@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { authApi } from '@/lib/api-v2';
+import { Button, Input, Label, Card } from '@/lib/ui';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -46,7 +47,7 @@ export default function ForgotPasswordPage() {
   return (
     <div className="flex items-center justify-center min-h-screen">
       <div className="w-full max-w-md px-6">
-        <div className="card-elevated p-8 space-y-6">
+        <Card variant="elevated" padding="xl" className="space-y-6">
           <div className="text-center space-y-1">
             <h1 className="text-xl font-semibold text-content-primary">Reset password</h1>
             <p className="text-content-tertiary text-sm">
@@ -63,64 +64,77 @@ export default function ForgotPasswordPage() {
           {stage === 'request' && (
             <form onSubmit={handleRequest} className="space-y-4">
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-content-primary">Email</label>
-                <input
+                <Label htmlFor="email" required>Email</Label>
+                <Input
+                  id="email"
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   placeholder="you@example.com"
                   required
                   autoFocus
-                  className="!py-3"
                 />
               </div>
-              <button type="submit" disabled={loading || !email} className="w-full btn-primary !py-3">
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full"
+                disabled={!email}
+                loading={loading}
+              >
                 {loading ? 'Sending…' : 'Send reset link'}
-              </button>
+              </Button>
             </form>
           )}
 
           {stage === 'reset' && (
             <form onSubmit={handleReset} className="space-y-4">
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-content-primary">Reset token</label>
-                <input
+                <Label htmlFor="token" required>Reset token</Label>
+                <Input
+                  id="token"
                   type="text"
                   value={resetToken}
                   onChange={e => setResetToken(e.target.value)}
                   placeholder="Paste token from email"
                   required
-                  className="!py-3 font-mono text-sm"
+                  className="font-mono"
                 />
               </div>
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-content-primary">New password</label>
-                <input
+                <Label htmlFor="new-pw" required>New password</Label>
+                <Input
+                  id="new-pw"
                   type="password"
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
                   placeholder="At least 8 characters"
                   minLength={8}
                   required
-                  className="!py-3"
                 />
               </div>
-              <button type="submit" disabled={loading || !resetToken || newPassword.length < 8} className="w-full btn-primary !py-3">
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full"
+                disabled={!resetToken || newPassword.length < 8}
+                loading={loading}
+              >
                 {loading ? 'Updating…' : 'Set new password'}
-              </button>
+              </Button>
             </form>
           )}
 
           {stage === 'done' && (
-            <Link href="/login" className="block w-full btn-primary !py-3 text-center">
-              Back to login
-            </Link>
+            <Button asChild size="lg" className="w-full">
+              <Link href="/login">Back to login</Link>
+            </Button>
           )}
 
           <p className="text-center text-xs text-content-tertiary">
             <Link href="/login" className="text-accent hover:underline">← Back to login</Link>
           </p>
-        </div>
+        </Card>
       </div>
     </div>
   );

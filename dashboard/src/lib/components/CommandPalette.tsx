@@ -12,6 +12,7 @@ import {
   Beaker, Rocket, Power, PowerOff, Sparkles,
   Archive, Zap, Film, ClipboardCheck, Tv, Plug,
 } from './Icon';
+import { Kbd } from '@/lib/ui';
 
 interface ChannelLite { channel_id: string; channel_name: string; status: string }
 interface JobLite { content_id: string; title?: string; channel_name?: string; status?: string }
@@ -124,9 +125,7 @@ export function CommandPalette() {
                   placeholder="Search channels, jobs, actions…"
                   className="flex-1 bg-transparent text-[15px] text-content-primary placeholder:text-content-tertiary outline-none font-normal"
                 />
-                <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-content-tertiary border border-border bg-surface-1">
-                  ESC
-                </kbd>
+                <Kbd className="hidden sm:inline-flex h-6 px-2 text-[11px]">ESC</Kbd>
               </div>
 
               <Command.List className="max-h-[60vh] overflow-y-auto p-2 scrollbar-hide">
@@ -207,8 +206,8 @@ export function CommandPalette() {
                   <span>Command Palette</span>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span><kbd className="px-1.5 py-0.5 rounded border border-border bg-surface-0 text-[11px] font-semibold">↑↓</kbd> navigate</span>
-                  <span><kbd className="px-1.5 py-0.5 rounded border border-border bg-surface-0 text-[11px] font-semibold">↵</kbd> select</span>
+                  <span><Kbd>↑↓</Kbd> navigate</span>
+                  <span><Kbd>↵</Kbd> select</span>
                 </div>
               </div>
             </Command>

@@ -5,6 +5,7 @@ import { type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../utils';
+import { Button } from '@/lib/ui';
 
 interface EmptyStateProps {
   icon?: LucideIcon;
@@ -36,13 +37,11 @@ export function EmptyState({ icon: Icon, title, body, cta, className }: EmptySta
       {cta && (
         <div className="mt-5">
           {cta.href ? (
-            <Link href={cta.href} className="btn-primary !py-2 !text-xs">
-              {cta.label}
-            </Link>
+            <Button asChild size="sm">
+              <Link href={cta.href}>{cta.label}</Link>
+            </Button>
           ) : (
-            <button onClick={cta.onClick} className="btn-primary !py-2 !text-xs">
-              {cta.label}
-            </button>
+            <Button size="sm" onClick={cta.onClick}>{cta.label}</Button>
           )}
         </div>
       )}

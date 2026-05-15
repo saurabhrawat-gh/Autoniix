@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/lib/toast';
 import { PageHeader } from '@/lib/components/PageHeader';
 import { SkeletonCard } from '@/lib/components/Skeleton';
+import { Button } from '@/lib/ui';
 
 export default function JobDetailPage() {
   const router = useRouter();
@@ -245,10 +246,10 @@ export default function JobDetailPage() {
 
           {/* Stopped Panel — shown when job has been stopped by user */}
           {isStopped && (
-            <div className="card p-5 mb-6 border-2 border-orange-400/30 bg-orange-400/5">
+            <div className="card p-5 mb-6 border-2 border-status-warning/30 bg-status-warning/5">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <h3 className="text-sm font-semibold text-orange-400">Job Stopped</h3>
+                  <h3 className="text-sm font-semibold text-status-warning">Job Stopped</h3>
                   <p className="text-xs text-content-tertiary mt-1">
                     This job was stopped by user. You can resume from the last checkpoint or start fresh.
                   </p>
@@ -273,7 +274,7 @@ export default function JobDetailPage() {
                 </div>
               </div>
               {progress.error_message && (
-                <div className="px-3 py-2 rounded bg-orange-400/10 text-xs text-orange-400 font-mono">
+                <div className="px-3 py-2 rounded bg-status-warning/10 text-xs text-status-warning font-mono">
                   {progress.error_message}
                 </div>
               )}
@@ -339,13 +340,14 @@ export default function JobDetailPage() {
                   >
                     {reviewAction === 'rejecting' ? 'Rejecting…' : 'Reject & Regenerate'}
                   </button>
-                  <button
+                  <Button
+                    size="sm"
                     onClick={handleApprove}
                     disabled={reviewAction === 'approving'}
-                    className="btn-primary !text-xs disabled:opacity-50"
+                    loading={reviewAction === 'approving'}
                   >
                     {reviewAction === 'approving' ? 'Approving…' : '✓ Mark as Complete'}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -454,15 +456,17 @@ export default function JobDetailPage() {
                     <div>
                       <video src={output.video_url} controls className="w-full rounded-lg max-h-[400px] bg-black" />
                       <div className="mt-4 flex flex-wrap gap-2">
-                        <a href={output.download_url} download className="btn-primary !text-xs">
-                          ⬇ Download Video
-                        </a>
+                        <Button asChild size="sm">
+                          <a href={output.download_url} download>⬇ Download Video</a>
+                        </Button>
                         {output.youtube_url && (
-                          <a href={output.youtube_url} target="_blank" rel="noreferrer" className="btn-secondary !text-xs">
-                            View on YouTube ↗
-                          </a>
+                          <Button asChild variant="secondary" size="sm">
+                            <a href={output.youtube_url} target="_blank" rel="noreferrer">View on YouTube ↗</a>
+                          </Button>
                         )}
-                        <button
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           onClick={async () => {
                             try {
                               await jobsApi.restart(contentId);
@@ -470,10 +474,9 @@ export default function JobDetailPage() {
                               loadAll();
                             } catch { showToast('Recreate failed', 'error'); }
                           }}
-                          className="btn-secondary !text-xs"
                         >
                           ↻ Recreate Video
-                        </button>
+                        </Button>
                       </div>
                       {output.total_cost > 0 && (
                         <div className="mt-2 text-xs text-content-tertiary">Total cost: ${output.total_cost.toFixed(4)}</div>

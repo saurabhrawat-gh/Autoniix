@@ -14,6 +14,7 @@ import { EmptyState } from '@/lib/components/EmptyState';
 import { PhaseStepper } from '@/lib/components/PhaseStepper';
 import { AnimatedNumber } from '@/lib/components/AnimatedNumber';
 import { ChevronDown, Inbox, RotateCcw } from '@/lib/components/Icon';
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/lib/ui';
 
 /* ── Phase descriptions for the expanded timeline ─────── */
 const PHASE_DESC: Record<string, string> = {
@@ -308,7 +309,7 @@ export default function ProgressPage() {
                         <div key={job.content_id} className={cn(
                           'card overflow-hidden',
                           isFailed && 'border-status-error/30 bg-status-error/5',
-                          isStopped && 'border-orange-400/30 bg-orange-400/5',
+                          isStopped && 'border-status-warning/30 bg-status-warning/5',
                           isPaused && !isFailed && !isStopped && 'border-status-warning/30',
                           !isFailed && !isStopped && !isPaused && !systemStopped && 'card-in-progress',
                           systemStopped && !isFailed && !isStopped && 'lockdown-frost'
@@ -321,7 +322,7 @@ export default function ProgressPage() {
                                 <span className={cn(
                                   'w-2.5 h-2.5 rounded-full shrink-0',
                                   isFailed ? 'bg-status-error' :
-                                  isStopped ? 'bg-orange-400' :
+                                  isStopped ? 'bg-status-warning' :
                                   isPaused ? 'bg-status-warning' :
                                   'bg-accent animate-pulse'
                                 )} />
@@ -334,13 +335,13 @@ export default function ProgressPage() {
                                     <span className={cn(
                                       'badge text-[10px] shrink-0',
                                       job.content_mode === 'short'
-                                        ? 'bg-blue-500/10 text-blue-400'
-                                        : 'bg-purple-500/10 text-purple-400'
+                                        ? 'bg-accent/10 text-accent'
+                                        : 'bg-status-info/10 text-status-info'
                                     )}>
                                       {job.content_mode === 'short' ? 'Short' : 'Long'}
                                     </span>
                                     {isFailed && <span className="badge bg-status-error/10 text-status-error text-[10px] shrink-0">Failed</span>}
-                                    {isStopped && <span className="badge bg-orange-400/10 text-orange-400 text-[10px] shrink-0">Stopped</span>}
+                                    {isStopped && <span className="badge bg-status-warning/10 text-status-warning text-[10px] shrink-0">Stopped</span>}
                                     {isPaused && !isFailed && !isStopped && <span className="badge bg-status-warning/10 text-status-warning text-[10px] shrink-0">Paused</span>}
                                   </div>
                                   <div className="text-xs text-content-tertiary mt-0.5">
@@ -614,64 +615,51 @@ export default function ProgressPage() {
         </div>
       </main>
 
-      <AnimatePresence>
-      {retryConfirm && (() => {
-        const job = jobs.find(j => j.content_id === retryConfirm);
-        const checkpointPhase = job?.checkpoint;
-        const checkpointLabel = checkpointPhase ? (PHASE_LABELS[checkpointPhase] || checkpointPhase) : null;
-        const running = retryingJobs.has(retryConfirm);
-        return (
-          <motion.div
-            key="retry-confirm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-            onClick={() => !running && setRetryConfirm(null)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 8 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="bg-surface-0 border border-border rounded-xl shadow-elevated max-w-md w-full p-6"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="flex items-start gap-3 mb-4">
-                <div className="shrink-0 w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent">
-                  <RotateCcw size={18} />
+      <Dialog open={!!retryConfirm} onOpenChange={(o) => { if (!o) setRetryConfirm(null); }}>
+        <DialogContent className="max-w-md">
+          {(() => {
+            if (!retryConfirm) return null;
+            const job = jobs.find(j => j.content_id === retryConfirm);
+            const checkpointPhase = job?.checkpoint;
+            const checkpointLabel = checkpointPhase ? (PHASE_LABELS[checkpointPhase] || checkpointPhase) : null;
+            const running = retryingJobs.has(retryConfirm);
+            return (
+              <>
+                <DialogHeader>
+                  <div className="flex items-start gap-3">
+                    <div className="shrink-0 w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent">
+                      <RotateCcw size={18} />
+                    </div>
+                    <div>
+                      <DialogTitle>Start Fresh?</DialogTitle>
+                      <DialogDescription>A brand new job will begin from the very first step.</DialogDescription>
+                    </div>
+                  </div>
+                </DialogHeader>
+                <div className="text-sm text-content-secondary leading-relaxed">
+                  All the steps will start again from scratch.
+                  {checkpointLabel ? (
+                    <> If you only want to redo the later phases, open the timeline and hit <span className="text-status-success font-medium">Restart from {checkpointLabel}</span> instead.</>
+                  ) : (
+                    <> If you only want to redo the later phases, open the timeline and hit <span className="text-status-success font-medium">Restart from checkpoint</span> instead.</>
+                  )}
                 </div>
-                <div>
-                  <h3 className="text-base font-semibold text-content-primary">Start Fresh?</h3>
-                  <p className="text-xs text-content-tertiary mt-1">A brand new job will begin from the very first step.</p>
-                </div>
-              </div>
-              <div className="text-sm text-content-secondary leading-relaxed mb-5">
-                All the steps will start again from scratch.
-                {checkpointLabel ? (
-                  <> If you only want to redo the later phases, open the timeline and hit <span className="text-status-success font-medium">Restart from {checkpointLabel}</span> instead.</>
-                ) : (
-                  <> If you only want to redo the later phases, open the timeline and hit <span className="text-status-success font-medium">Restart from checkpoint</span> instead.</>
-                )}
-              </div>
-              <div className="flex items-center justify-end gap-2">
-                <button onClick={() => setRetryConfirm(null)} disabled={running}
-                  className="px-3 py-1.5 rounded-md text-xs font-medium text-content-secondary bg-surface-1 border border-border hover:bg-surface-2 transition-all disabled:opacity-50">
-                  Cancel
-                </button>
-                <button
-                  onClick={async () => { await handleRetry(retryConfirm); setRetryConfirm(null); }}
-                  disabled={running}
-                  className="px-3 py-1.5 rounded-md text-xs font-medium text-white bg-accent hover:opacity-90 transition-all disabled:opacity-50">
-                  {running ? 'Starting…' : 'Yes, Retry Fresh'}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        );
-      })()}
-      </AnimatePresence>
+                <DialogFooter>
+                  <Button variant="secondary" size="sm" onClick={() => setRetryConfirm(null)} disabled={running}>Cancel</Button>
+                  <Button
+                    size="sm"
+                    onClick={async () => { await handleRetry(retryConfirm); setRetryConfirm(null); }}
+                    disabled={running}
+                    loading={running}
+                  >
+                    {running ? 'Starting…' : 'Yes, Retry Fresh'}
+                  </Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

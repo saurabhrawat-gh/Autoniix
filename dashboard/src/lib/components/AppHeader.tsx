@@ -108,8 +108,8 @@ export function AppHeader() {
             className={cn(
               'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-semibold tracking-wider transition-colors border',
               envMode === 'test'
-                ? 'border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/15'
-                : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/15',
+                ? 'border-status-warning/30 bg-status-warning/10 text-status-warning hover:bg-status-warning/15'
+                : 'border-status-success/30 bg-status-success/10 text-status-success hover:bg-status-success/15',
               envSwitching && 'opacity-50 cursor-wait'
             )}
           >

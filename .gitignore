@@ -23,3 +23,7 @@ venv/
 tmp/
 dist/
 lib/
+!dashboard/src/lib/
+!dashboard/src/lib/**
+!sdk/python/yt_engine/
+!sdk/python/yt_engine/**

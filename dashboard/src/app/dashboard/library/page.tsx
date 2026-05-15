@@ -10,6 +10,7 @@ import {
   RotateCw, Tag, Layers, Hash, Boxes, FolderOpen, Plus, ChevronRight,
   ChevronDown, Loader2, Star, ImageIcon, Video, FileAudio,
 } from '@/lib/components/Icon';
+import { Button, Input } from '@/lib/ui';
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
@@ -221,10 +222,9 @@ export default function LibraryPage() {
               </button>
             ))}
           </div>
-          <button onClick={loadItems} disabled={loading}
-            className="h-8 w-8 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary transition-colors">
+          <Button variant="outline" size="icon-sm" onClick={loadItems} disabled={loading} aria-label="Refresh">
             <RotateCw size={13} className={cn(loading && 'animate-spin')} />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -244,10 +244,13 @@ export default function LibraryPage() {
           ))}
         </div>
         <div className="relative flex-1 min-w-[180px]">
-          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-content-tertiary pointer-events-none" />
-          <input value={q} onChange={e => setQ(e.target.value)}
+          <Input
+            value={q}
+            onChange={e => setQ(e.target.value)}
             placeholder="Search assets…"
-            className="w-full h-8 pl-8 pr-8 rounded-md bg-surface-0 border border-border text-xs placeholder:text-content-tertiary outline-none focus:border-accent/50 transition-colors" />
+            leftIcon={<Search size={12} />}
+            className="h-8 text-xs pr-8"
+          />
           {q && (
             <button onClick={() => setQ('')}
               className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded text-content-tertiary hover:text-content-primary">
@@ -278,7 +281,7 @@ export default function LibraryPage() {
                     className="w-full px-3 py-1.5 flex items-center gap-1.5 hover:bg-surface-1 transition-colors text-left">
                     <FolderOpen size={11} className="text-content-tertiary shrink-0" />
                     <span className="text-[11px] text-content-secondary truncate">{col.name}</span>
-                    {col.kind === 'smart' && <Star size={9} className="text-amber-500 shrink-0 ml-auto" />}
+                    {col.kind === 'smart' && <Star size={9} className="text-status-warning shrink-0 ml-auto" />}
                   </button>
                 ))}
                 {collections.length === 0 && (
@@ -426,7 +429,7 @@ export default function LibraryPage() {
                     <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-full bg-surface-2 text-content-tertiary shrink-0">{t}</span>
                   ))}
                   <button onClick={e => { e.stopPropagation(); deleteAsset(item.id); }}
-                    className="w-7 h-7 flex items-center justify-center rounded hover:bg-red-500/10 text-content-tertiary hover:text-red-500 transition-colors shrink-0">
+                    className="w-7 h-7 flex items-center justify-center rounded hover:bg-status-error/10 text-content-tertiary hover:text-status-error transition-colors shrink-0">
                     <Trash2 size={12} />
                   </button>
                 </button>
@@ -539,9 +542,9 @@ export default function LibraryPage() {
                       {detailAsset.media_jobs.slice(0, 5).map((j: any, i: number) => (
                         <div key={i} className="flex items-center gap-1.5">
                           <span className={cn('w-1.5 h-1.5 rounded-full shrink-0',
-                            j.status === 'done' ? 'bg-emerald-500' :
-                            j.status === 'failed' ? 'bg-red-500' :
-                            j.status === 'running' ? 'bg-amber-500 animate-pulse' : 'bg-surface-3')} />
+                            j.status === 'done' ? 'bg-status-success' :
+                            j.status === 'failed' ? 'bg-status-error' :
+                            j.status === 'running' ? 'bg-status-warning animate-pulse' : 'bg-surface-3')} />
                           <span className="text-[9px] text-content-tertiary">{j.kind}</span>
                           <span className="text-[9px] text-content-tertiary ml-auto">{j.status}</span>
                         </div>
@@ -550,10 +553,15 @@ export default function LibraryPage() {
                   </div>
                 )}
                 {/* Delete */}
-                <button onClick={() => deleteAsset(selectedItem.id)}
-                  className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md border border-red-500/30 text-red-500 text-xs hover:bg-red-500/10 transition-colors">
-                  <Trash2 size={11} /> Delete asset
-                </button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => deleteAsset(selectedItem.id)}
+                  leftIcon={<Trash2 size={11} />}
+                  className="w-full border-status-error/30 text-status-error hover:bg-status-error/10 hover:text-status-error"
+                >
+                  Delete asset
+                </Button>
               </div>
             </div>
           ) : (

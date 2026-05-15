@@ -13,13 +13,28 @@ import {
   Loader2, CheckSquare, Zap, RotateCw,
   Film, ExternalLink, TrendingUp,
 } from '@/lib/components/Icon';
+import {
+  Button,
+  Input,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  Label as FieldLabel,
+} from '@/lib/ui';
 
 const STATUS_CHIP: Record<string, string> = {
-  completed:  'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
-  published:  'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
-  delivered:  'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
-  failed:     'bg-red-500/15 text-red-600 dark:text-red-400',
-  stopped:    'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+  completed:  'bg-status-success/15 text-status-success',
+  published:  'bg-status-success/15 text-status-success',
+  delivered:  'bg-status-success/15 text-status-success',
+  failed:     'bg-status-error/15 text-status-error',
+  stopped:    'bg-status-warning/15 text-status-warning',
   pending:    'bg-surface-3 text-content-tertiary',
   running:    'bg-accent/15 text-accent',
   archived:   'bg-surface-3 text-content-tertiary',
@@ -27,10 +42,10 @@ const STATUS_CHIP: Record<string, string> = {
 };
 
 const REVIEW_CHIP: Record<string, string> = {
-  approved:       'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
-  rejected:       'bg-red-500/15 text-red-600 dark:text-red-400',
-  needs_edits:    'bg-amber-500/15 text-amber-600 dark:text-amber-400',
-  pending:        'bg-amber-500/15 text-amber-500',
+  approved:       'bg-status-success/15 text-status-success',
+  rejected:       'bg-status-error/15 text-status-error',
+  needs_edits:    'bg-status-warning/15 text-status-warning',
+  pending:        'bg-status-warning/15 text-status-warning',
   regenerating:   'bg-accent/15 text-accent',
 };
 
@@ -415,9 +430,9 @@ export default function ContentPage() {
               { label: 'Total',   value: pipelineStats.total,     color: 'text-content-primary' },
               { label: 'Running', value: pipelineStats.running,   color: 'text-accent' },
               { label: 'Pending', value: pipelineStats.pending,   color: 'text-content-tertiary' },
-              { label: 'Review',  value: pipelineStats.review,    color: 'text-amber-500' },
-              { label: 'Done',    value: pipelineStats.completed, color: 'text-emerald-500' },
-              { label: 'Failed',  value: pipelineStats.failed,    color: 'text-red-500' },
+              { label: 'Review',  value: pipelineStats.review,    color: 'text-status-warning' },
+              { label: 'Done',    value: pipelineStats.completed, color: 'text-status-success' },
+              { label: 'Failed',  value: pipelineStats.failed,    color: 'text-status-error' },
             ].map(s => (
               <div key={s.label} className="rounded-lg border border-border bg-surface-0 px-3 py-2">
                 <div className={cn('text-lg font-bold tabular-nums leading-none', s.color)}>{s.value}</div>
@@ -448,33 +463,29 @@ export default function ContentPage() {
               )}
             </div>
             {/* Sort */}
-            <div className="relative">
-              <button onClick={() => setShowSort(!showSort)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-md text-xs font-medium text-content-secondary hover:bg-surface-2 transition-colors">
-                <span>{SORT_OPTIONS.find(s => s.key === sortKey)?.label}</span>
-                <span className="text-accent font-bold">{sortDir === 'asc' ? '↑' : '↓'}</span>
-              </button>
-              {showSort && (
-                <>
-                  <div className="fixed inset-0 z-20" onClick={() => setShowSort(false)} />
-                  <div className="absolute right-0 top-10 z-30 w-44 bg-surface-0 border border-border rounded-md shadow-elevated py-1">
-                    {SORT_OPTIONS.map(s => (
-                      <button key={s.key} onClick={() => { setSortKey(s.key); setShowSort(false); }}
-                        className={cn('w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between',
-                          sortKey === s.key ? 'text-accent bg-accent/10 font-medium' : 'text-content-secondary hover:bg-surface-2')}>
-                        {s.label}
-                        {sortKey === s.key && <span className="text-accent font-bold">{sortDir === 'asc' ? '↑' : '↓'}</span>}
-                      </button>
-                    ))}
-                    <div className="border-t border-border my-1" />
-                    <button onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
-                      className="w-full text-left px-3 py-2 text-xs text-content-secondary hover:bg-surface-2">
-                      Toggle direction
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-9"
+                  rightIcon={<span className="text-accent font-bold">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                >
+                  {SORT_OPTIONS.find(s => s.key === sortKey)?.label}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                {SORT_OPTIONS.map(s => (
+                  <DropdownMenuItem key={s.key} onClick={() => setSortKey(s.key)}
+                    className={cn('justify-between', sortKey === s.key && 'text-accent bg-accent/10 font-medium')}
+                  >
+                    {s.label}
+                    {sortKey === s.key && <span className="text-accent font-bold">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}>
+                  Toggle direction
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <button onClick={() => setDrawerOpen(true)}
               className={cn('inline-flex items-center gap-1.5 px-2.5 py-2 rounded-md text-xs font-medium transition-colors',
                 activeFilterCount > 0 ? 'bg-accent/10 text-accent' : 'text-content-secondary hover:bg-surface-2')}>
@@ -512,18 +523,16 @@ export default function ContentPage() {
                   {activeFilterCount > 0 || q ? (
                     <div className="text-sm text-content-tertiary">
                       <p className="font-medium text-content-secondary mb-1">No matches</p>
-                      <button onClick={() => { clearFilters(); setQ(''); }}
-                        className="mt-2 px-3 py-1.5 text-xs font-medium bg-accent text-white rounded hover:opacity-90">
+                      <Button size="sm" onClick={() => { clearFilters(); setQ(''); }} className="mt-2">
                         Clear all filters
-                      </button>
+                      </Button>
                     </div>
                   ) : (
                     <div className="text-sm text-content-tertiary">
                       <p>No videos generated yet.</p>
-                      <button onClick={() => setTriggerOpen(true)}
-                        className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-accent text-white rounded hover:opacity-90">
-                        <Zap size={11} /> Generate your first video
-                      </button>
+                      <Button size="sm" onClick={() => setTriggerOpen(true)} leftIcon={<Zap size={11} />} className="mt-2">
+                        Generate your first video
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -652,13 +661,13 @@ export default function ContentPage() {
                             {channel?.channel_name || ch.channel_id}
                           </div>
                           <div className="mt-1 h-1.5 bg-surface-2 rounded-full overflow-hidden">
-                            <div className="h-full bg-emerald-500 transition-all" style={{ width: `${doneRatio * 100}%` }} />
+                            <div className="h-full bg-status-success transition-all" style={{ width: `${doneRatio * 100}%` }} />
                           </div>
                         </div>
                         <div className="flex items-center gap-3 shrink-0 text-[11px]">
-                          <span className="text-emerald-500">{ch.done} done</span>
+                          <span className="text-status-success">{ch.done} done</span>
                           {ch.running > 0 && <span className="text-accent">{ch.running} running</span>}
-                          {ch.failed > 0 && <span className="text-red-500">{ch.failed} failed</span>}
+                          {ch.failed > 0 && <span className="text-status-error">{ch.failed} failed</span>}
                           {ch.total_cost != null && <span className="text-content-tertiary">${Number(ch.total_cost).toFixed(2)}</span>}
                         </div>
                       </div>
@@ -713,8 +722,8 @@ export default function ContentPage() {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2.5 bg-surface-0 border border-border rounded-xl shadow-elevated">
           <span className="text-xs font-medium text-content-primary mr-1">{selectedIds.size} selected</span>
           {[
-            { action: 'approve',  label: 'Approve',  cls: 'text-emerald-600 hover:bg-emerald-500/10' },
-            { action: 'reject',   label: 'Reject',   cls: 'text-red-500    hover:bg-red-500/10' },
+            { action: 'approve',  label: 'Approve',  cls: 'text-status-success hover:bg-status-success/10' },
+            { action: 'reject',   label: 'Reject',   cls: 'text-status-error   hover:bg-status-error/10' },
             { action: 'retry',    label: 'Retry',    cls: 'text-accent     hover:bg-accent/10' },
             { action: 'archive',  label: 'Archive',  cls: 'text-content-tertiary hover:bg-surface-2' },
           ].map(b => (
@@ -798,8 +807,8 @@ export default function ContentPage() {
                         {detailData.events.map((ev: any, i: number) => (
                           <div key={i} className="flex items-center gap-2 text-[11px]">
                             <span className={cn('w-2 h-2 rounded-full shrink-0',
-                              ev.status === 'completed' ? 'bg-emerald-500' :
-                              ev.status === 'failed'    ? 'bg-red-500' :
+                              ev.status === 'completed' ? 'bg-status-success' :
+                              ev.status === 'failed'    ? 'bg-status-error' :
                               ev.status === 'running'   ? 'bg-accent animate-pulse' : 'bg-surface-3')} />
                             <span className="text-content-secondary capitalize">{ev.phase?.replace('_', ' ')}</span>
                             {ev.duration_ms && <span className="text-content-tertiary ml-auto">{(ev.duration_ms / 1000).toFixed(1)}s</span>}
@@ -906,59 +915,60 @@ export default function ContentPage() {
               </section>
             </div>
             <div className="shrink-0 px-5 pt-3 pb-8 border-t border-border flex items-center justify-end gap-2">
-              <button onClick={() => setDrawerOpen(false)} className="btn-ghost">Cancel</button>
-              <button onClick={() => setDrawerOpen(false)} className="btn-primary">Apply · {filtered.length}</button>
+              <Button variant="ghost" size="sm" onClick={() => setDrawerOpen(false)}>Cancel</Button>
+              <Button size="sm" onClick={() => setDrawerOpen(false)}>Apply · {filtered.length}</Button>
             </div>
           </div>
         </div>
       )}
 
       {/* ── Trigger Modal ── */}
-      {triggerOpen && (
-        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={() => setTriggerOpen(false)}>
-          <div className="w-full max-w-sm bg-surface-0 border border-border rounded-xl shadow-elevated" onClick={e => e.stopPropagation()}>
-            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <div className="flex items-center gap-2"><Zap size={15} className="text-accent" /><h2 className="text-sm font-semibold text-content-primary">Generate Video</h2></div>
-              <button onClick={() => setTriggerOpen(false)} className="w-7 h-7 flex items-center justify-center rounded hover:bg-surface-2 text-content-tertiary"><X size={14} /></button>
+      <Dialog open={triggerOpen} onOpenChange={setTriggerOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Zap size={15} className="text-accent" /> Generate Video</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <FieldLabel className="text-xs font-medium text-content-secondary mb-1.5 block">Channel</FieldLabel>
+              <select value={trigChannel} onChange={e => setTrigChannel(e.target.value)}
+                className="w-full h-9 px-3 rounded-md bg-surface-0 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent">
+                {channels.map(c => <option key={c.channel_id} value={c.channel_id}>{c.channel_name}</option>)}
+              </select>
             </div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-content-secondary mb-1.5">Channel</label>
-                <select value={trigChannel} onChange={e => setTrigChannel(e.target.value)}
-                  className="w-full h-9 px-3 rounded-md bg-surface-1 border border-border text-sm focus:outline-none focus:border-accent/50">
-                  {channels.map(c => <option key={c.channel_id} value={c.channel_id}>{c.channel_name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-content-secondary mb-1.5">Content Mode</label>
-                <div className="flex gap-2">
-                  {[['long_form','Long form'],['short','Short']].map(([k, l]) => (
-                    <button key={k} onClick={() => setTrigMode(k)}
-                      className={cn('flex-1 h-9 rounded-md border text-xs font-medium transition-all',
-                        trigMode === k ? 'border-accent/40 bg-accent/5 text-accent' : 'border-border text-content-tertiary hover:bg-surface-1')}>
-                      {l}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-content-secondary mb-1.5">Topic hint <span className="text-content-tertiary font-normal">(optional)</span></label>
-                <input value={trigTopic} onChange={e => setTrigTopic(e.target.value)}
-                  placeholder="e.g. Top 5 Python tricks for beginners"
-                  className="w-full h-9 px-3 rounded-md bg-surface-1 border border-border text-sm placeholder:text-content-tertiary focus:outline-none focus:border-accent/50" />
+            <div>
+              <FieldLabel className="text-xs font-medium text-content-secondary mb-1.5 block">Content Mode</FieldLabel>
+              <div className="flex gap-2">
+                {[['long_form','Long form'],['short','Short']].map(([k, l]) => (
+                  <button key={k} onClick={() => setTrigMode(k)}
+                    className={cn('flex-1 h-9 rounded-md border text-xs font-medium transition-all',
+                      trigMode === k ? 'border-accent/40 bg-accent/5 text-accent' : 'border-border text-content-tertiary hover:bg-surface-1')}>
+                    {l}
+                  </button>
+                ))}
               </div>
             </div>
-            <div className="px-5 pb-5 flex gap-2 justify-end">
-              <button onClick={() => setTriggerOpen(false)} className="btn-ghost">Cancel</button>
-              <button onClick={handleTrigger} disabled={triggering || !trigChannel}
-                className="inline-flex items-center gap-1.5 h-8 px-4 rounded-md bg-accent text-white text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">
-                {triggering ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
-                {triggering ? 'Starting…' : 'Generate'}
-              </button>
+            <div>
+              <FieldLabel className="text-xs font-medium text-content-secondary mb-1.5 block">Topic hint <span className="text-content-tertiary font-normal">(optional)</span></FieldLabel>
+              <Input value={trigTopic} onChange={e => setTrigTopic(e.target.value)}
+                placeholder="e.g. Top 5 Python tricks for beginners"
+                className="h-9" />
             </div>
           </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setTriggerOpen(false)}>Cancel</Button>
+            <Button
+              size="sm"
+              onClick={handleTrigger}
+              disabled={triggering || !trigChannel}
+              loading={triggering}
+              leftIcon={!triggering ? <Zap size={12} /> : undefined}
+            >
+              {triggering ? 'Starting…' : 'Generate'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Preview Modal ── */}
       {previewId && (

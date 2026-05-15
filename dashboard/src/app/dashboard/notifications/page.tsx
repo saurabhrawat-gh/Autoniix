@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { Bell, AlertTriangle, AlertCircle, Info, Settings as Cog } from 'lucide-react';
 import { notifyApi } from '@/lib/api-v2';
 import { wsEvents } from '@/lib/api-v2';
+import { Button } from '@/lib/ui';
+import { cn } from '@/lib/utils';
 
 export default function Notifications() {
   const [tab, setTab] = useState<'inbox'|'routes'|'deliveries'>('inbox');
@@ -59,10 +61,14 @@ function Inbox() {
     <div>
       <div className="flex gap-2 mb-3">
         {['','info','warn','error','critical'].map(s => (
-          <button key={s} onClick={() => setSev(s)}
-            className={'px-2 py-1 text-xs rounded ' + (sev === s ? 'bg-accent text-white' : 'border border-border')}>
+          <Button
+            key={s}
+            size="sm"
+            variant={sev === s ? 'primary' : 'outline'}
+            onClick={() => setSev(s)}
+          >
             {s || 'all'}
-          </button>
+          </Button>
         ))}
       </div>
       <div className="rounded-xl border border-border bg-surface-0 divide-y divide-border">
@@ -70,8 +76,8 @@ function Inbox() {
         {rows.map(n => {
           const Icon = n.severity === 'critical' || n.severity === 'error' ? AlertCircle :
                        n.severity === 'warn' ? AlertTriangle : Info;
-          const color = n.severity === 'critical' ? 'text-red-500' : n.severity === 'error' ? 'text-red-400' :
-                        n.severity === 'warn' ? 'text-amber-500' : 'text-blue-500';
+          const color = n.severity === 'critical' || n.severity === 'error' ? 'text-status-error' :
+                        n.severity === 'warn' ? 'text-status-warning' : 'text-status-info';
           return (
             <div key={n.id} className="p-3 flex gap-3">
               <Icon size={16} className={color + ' shrink-0 mt-0.5'} />
@@ -108,12 +114,17 @@ function Routes() {
                 {r.event_pattern} · ≥{r.severity_min} → {r.channels.join(', ')}
               </div>
             </div>
-            <button onClick={async () => {
-              await notifyApi.updateRoute(r.id, { ...r, enabled: !r.enabled });
-              refresh();
-            }} className={'px-2 py-1 text-xs rounded ' + (r.enabled ? 'bg-emerald-500 text-white' : 'border border-border')}>
+            <Button
+              size="sm"
+              variant={r.enabled ? 'primary' : 'outline'}
+              className={r.enabled ? 'bg-status-success hover:bg-status-success/90 text-content-inverse' : ''}
+              onClick={async () => {
+                await notifyApi.updateRoute(r.id, { ...r, enabled: !r.enabled });
+                refresh();
+              }}
+            >
               {r.enabled ? 'enabled' : 'disabled'}
-            </button>
+            </Button>
           </div>
         ))}
       </div>
@@ -129,12 +140,12 @@ function Deliveries() {
       {rows.length === 0 && <div className="p-6 text-sm opacity-60 text-center">No delivery records.</div>}
       {rows.map(d => (
         <div key={d.id} className="p-3 text-sm flex items-center gap-3">
-          <span className={'text-[10px] uppercase px-1.5 py-0.5 rounded ' +
-            (d.status === 'sent' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-             : d.status === 'failed' ? 'bg-red-500/15 text-red-700 dark:text-red-300'
+          <span className={cn('text-[10px] uppercase px-1.5 py-0.5 rounded',
+            d.status === 'sent' ? 'bg-status-success/15 text-status-success'
+             : d.status === 'failed' ? 'bg-status-error/15 text-status-error'
              : 'bg-surface-3/15 text-content-tertiary')}>{d.status}</span>
           <span className="opacity-80">{d.channel}</span>
-          {d.error && <span className="text-xs text-red-400 truncate">{d.error}</span>}
+          {d.error && <span className="text-xs text-status-error truncate">{d.error}</span>}
           <span className="ml-auto text-xs opacity-50">{new Date(d.created_at).toLocaleString()}</span>
         </div>
       ))}

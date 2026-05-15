@@ -19,8 +19,8 @@ const TIP: Record<string, string> = {
 export function WsStatusPill() {
   const { wsStatus } = useAppState();
   const color =
-    wsStatus === 'live' ? 'bg-emerald-500'
-      : wsStatus === 'connecting' ? 'bg-amber-400'
+    wsStatus === 'live' ? 'bg-status-success'
+      : wsStatus === 'connecting' ? 'bg-status-warning'
       : 'bg-status-error';
   return (
     <Tip text={TIP[wsStatus]} pos="bottom">

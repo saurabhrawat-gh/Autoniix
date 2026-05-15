@@ -44,9 +44,9 @@ export default function Debug() {
         <div className="rounded-xl border border-border bg-surface-0 divide-y divide-border">
           {recentDeliveries.map(d => (
             <div key={d.id} className="p-2.5 text-xs flex items-center gap-2">
-              <span className={'px-1.5 py-0.5 rounded uppercase ' + (d.status === 'sent' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : d.status === 'failed' ? 'bg-red-500/15 text-red-700 dark:text-red-300' : '')}>{d.status}</span>
+              <span className={'px-1.5 py-0.5 rounded uppercase ' + (d.status === 'sent' ? 'bg-status-success/15 text-status-success' : d.status === 'failed' ? 'bg-status-error/15 text-status-error' : '')}>{d.status}</span>
               <span>{d.channel}</span>
-              {d.error && <span className="text-red-400 truncate">{d.error}</span>}
+              {d.error && <span className="text-status-error truncate">{d.error}</span>}
               <span className="ml-auto opacity-50">{new Date(d.created_at).toLocaleTimeString()}</span>
             </div>
           ))}

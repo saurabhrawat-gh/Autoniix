@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { systemApi } from '@/lib/api-v2';
 import { isLoggedIn } from '@/lib/api-v2';
 import { cn } from '@/lib/utils';
@@ -12,6 +11,19 @@ import { Skeleton } from '@/lib/components/Skeleton';
 import { Power, PowerOff } from '@/lib/components/Icon';
 import { useAppState } from '@/lib/components/AppStateProvider';
 import { useTheme } from '@/lib/theme';
+import {
+  Button,
+  Input,
+  Textarea,
+  Label,
+  Switch,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/lib/ui';
 
 const FRIENDLY_LABELS: Record<string, string> = {
   dashboard_admin_password: 'Admin Password',
@@ -247,32 +259,26 @@ export default function SettingsPage() {
                 title={systemStopped ? 'Resume the system to edit settings' : 'Toggle to enable editing'}>
                 Edit Mode{systemStopped ? ' (locked)' : ''}
               </span>
-              <button
-                onClick={systemStopped ? undefined : () => setEditMode(!editMode)}
+              <Switch
+                checked={editMode && !systemStopped}
+                onCheckedChange={(v) => !systemStopped && setEditMode(v)}
                 disabled={systemStopped}
                 aria-label="Toggle edit mode"
-                className={cn(
-                  'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
-                  editMode && !systemStopped ? 'bg-accent' : 'bg-surface-3',
-                  systemStopped && 'opacity-50 cursor-not-allowed'
-                )}>
-                <span className={cn(
-                  'inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform',
-                  editMode && !systemStopped ? 'translate-x-[18px]' : 'translate-x-[2px]'
-                )} />
-              </button>
+              />
             </label>
-            <button onClick={toggleEmergency}
+            <Button
+              onClick={toggleEmergency}
+              size="sm"
+              leftIcon={emergency ? <Power size={14} /> : <PowerOff size={14} />}
               title={emergency ? 'Resume all paused workflows and re-enable the system' : 'Freeze the entire system and pause all running workflows'}
               className={cn(
-                'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all',
                 emergency
-                  ? 'bg-status-success text-white hover:opacity-90'
-                  : 'bg-status-error text-white hover:opacity-90 hover:shadow-lg'
-              )}>
-              {emergency ? <Power size={14} /> : <PowerOff size={14} />}
+                  ? 'bg-status-success hover:bg-status-success/90 text-content-inverse'
+                  : 'bg-status-error hover:bg-status-error/90 text-content-inverse hover:shadow-lg'
+              )}
+            >
               {emergency ? 'Resume System' : 'Emergency Stop'}
-            </button>
+            </Button>
           </div>
         )}
       />
@@ -284,7 +290,7 @@ export default function SettingsPage() {
             <div className="mb-6 p-4 rounded-lg bg-status-error/10 border border-status-error/20 text-sm">
               <span className="font-semibold text-status-error">Config load failed: </span>
               <span className="text-content-secondary">{configError}</span>
-              <button onClick={loadConfigs} className="ml-3 underline text-xs text-accent">Retry</button>
+              <Button variant="link" size="sm" onClick={loadConfigs} className="ml-3 h-auto p-0 text-xs">Retry</Button>
             </div>
           )}
           {Object.entries(groups).map(([group, items]) => (
@@ -334,16 +340,15 @@ export default function SettingsPage() {
                     Dashboard returns to <span className="font-mono">0 delivered · 0 in-progress · 0 total</span>.
                   </div>
                 </div>
-                <button
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setCleanSlateOpen(true)}
                   disabled={systemStopped}
-                  className={cn(
-                    'shrink-0 px-3 py-1.5 rounded-md text-xs font-medium transition-all border',
-                    'bg-status-error/10 text-status-error border-status-error/30 hover:bg-status-error/20',
-                    systemStopped && 'opacity-50 cursor-not-allowed'
-                  )}>
+                  className="shrink-0 bg-status-error/10 text-status-error border-status-error/30 hover:bg-status-error/20 hover:text-status-error"
+                >
                   Clean Slate
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -351,73 +356,75 @@ export default function SettingsPage() {
       </main>
 
       {/* Clean Slate Confirmation Modal */}
-      {cleanSlateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-             onClick={() => !cleanSlateRunning && setCleanSlateOpen(false)}>
-          <div className="bg-surface-0 border border-status-error/30 rounded-xl shadow-elevated max-w-md w-full p-6"
-               onClick={e => e.stopPropagation()}>
-            <div className="flex items-start gap-3 mb-4">
-              <div className="shrink-0 w-10 h-10 rounded-full bg-status-error/10 flex items-center justify-center text-status-error text-lg">!</div>
+      <Dialog
+        open={cleanSlateOpen}
+        onOpenChange={(o) => { if (!o && !cleanSlateRunning) { setCleanSlateOpen(false); setCleanSlateInput(''); } }}
+      >
+        <DialogContent className="max-w-md border-status-error/30">
+          <DialogHeader>
+            <div className="flex items-start gap-3">
+              <div className="shrink-0 w-10 h-10 rounded-full bg-status-error/10 flex items-center justify-center text-status-error text-lg font-bold">!</div>
               <div>
-                <h3 className="text-base font-semibold text-content-primary">This will delete ALL job history</h3>
-                <p className="text-xs text-content-tertiary mt-1">This action cannot be undone.</p>
+                <DialogTitle>This will delete ALL job history</DialogTitle>
+                <DialogDescription>This action cannot be undone.</DialogDescription>
               </div>
             </div>
-            <div className="space-y-3 text-xs">
-              <div>
-                <div className="font-medium text-status-error mb-1">Will be wiped:</div>
-                <ul className="list-disc pl-5 text-content-secondary space-y-0.5">
-                  <li>All videos, job events, and analytics records</li>
-                  <li>All feedback and experiment data</li>
-                  <li>All MinIO blobs (renders, checkpoints, assets)</li>
-                  <li>All running Temporal workflows (terminated)</li>
-                  <li>All Redis channel locks</li>
-                </ul>
-              </div>
-              <div>
-                <div className="font-medium text-status-success mb-1">Will be preserved:</div>
-                <ul className="list-disc pl-5 text-content-secondary space-y-0.5">
-                  <li>Channel configurations and brand profiles</li>
-                  <li>System config, prompt registry, ML models</li>
-                </ul>
-              </div>
+          </DialogHeader>
+          <div className="space-y-3 text-xs">
+            <div>
+              <div className="font-medium text-status-error mb-1">Will be wiped:</div>
+              <ul className="list-disc pl-5 text-content-secondary space-y-0.5">
+                <li>All videos, job events, and analytics records</li>
+                <li>All feedback and experiment data</li>
+                <li>All MinIO blobs (renders, checkpoints, assets)</li>
+                <li>All running Temporal workflows (terminated)</li>
+                <li>All Redis channel locks</li>
+              </ul>
             </div>
-            <div className="mt-5">
-              <label className="text-xs text-content-secondary block mb-1.5">
-                Type <span className="font-mono font-semibold text-status-error">RESET</span> to confirm:
-              </label>
-              <input
-                type="text"
-                value={cleanSlateInput}
-                onChange={e => setCleanSlateInput(e.target.value)}
-                disabled={cleanSlateRunning}
-                placeholder="RESET"
-                className="w-full px-3 py-2 bg-surface-1 border border-border rounded-md text-sm font-mono text-content-primary focus:outline-none focus:border-status-error"
-                autoFocus
-              />
-            </div>
-            <div className="flex items-center justify-end gap-2 mt-5">
-              <button
-                onClick={() => { setCleanSlateOpen(false); setCleanSlateInput(''); }}
-                disabled={cleanSlateRunning}
-                className="px-3 py-1.5 rounded-md text-xs font-medium text-content-secondary bg-surface-1 border border-border hover:bg-surface-2 transition-all disabled:opacity-50">
-                Cancel
-              </button>
-              <button
-                onClick={handleCleanSlate}
-                disabled={cleanSlateInput !== 'RESET' || cleanSlateRunning}
-                className={cn(
-                  'px-3 py-1.5 rounded-md text-xs font-medium text-white transition-all',
-                  cleanSlateInput === 'RESET' && !cleanSlateRunning
-                    ? 'bg-status-error hover:opacity-90'
-                    : 'bg-status-error/40 cursor-not-allowed'
-                )}>
-                {cleanSlateRunning ? 'Wiping…' : 'Clean Slate'}
-              </button>
+            <div>
+              <div className="font-medium text-status-success mb-1">Will be preserved:</div>
+              <ul className="list-disc pl-5 text-content-secondary space-y-0.5">
+                <li>Channel configurations and brand profiles</li>
+                <li>System config, prompt registry, ML models</li>
+              </ul>
             </div>
           </div>
-        </div>
-      )}
+          <div>
+            <Label htmlFor="reset-confirm" className="text-xs text-content-secondary mb-1.5 block">
+              Type <span className="font-mono font-semibold text-status-error">RESET</span> to confirm:
+            </Label>
+            <Input
+              id="reset-confirm"
+              type="text"
+              value={cleanSlateInput}
+              onChange={e => setCleanSlateInput(e.target.value)}
+              disabled={cleanSlateRunning}
+              placeholder="RESET"
+              className="font-mono"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => { setCleanSlateOpen(false); setCleanSlateInput(''); }}
+              disabled={cleanSlateRunning}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleCleanSlate}
+              disabled={cleanSlateInput !== 'RESET' || cleanSlateRunning}
+              loading={cleanSlateRunning}
+            >
+              {cleanSlateRunning ? 'Wiping…' : 'Clean Slate'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -457,19 +464,12 @@ function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
         {/* Boolean: always show toggle if editMode is on */}
         {isBool && !isEditing ? (
           <div className="flex items-center gap-3">
-            <button
-              onClick={editMode ? onToggleBool : undefined}
+            <Switch
+              checked={cfg.value === 'true'}
+              onCheckedChange={editMode ? onToggleBool : undefined}
               disabled={!editMode}
-              className={cn(
-                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-                cfg.value === 'true' ? 'bg-accent' : 'bg-surface-3',
-                !editMode && 'opacity-60 cursor-not-allowed'
-              )}>
-              <span className={cn(
-                'inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform',
-                cfg.value === 'true' ? 'translate-x-[22px]' : 'translate-x-[3px]'
-              )} />
-            </button>
+              aria-label={`Toggle ${cfg.key}`}
+            />
           </div>
         ) : isEditing ? null : (
           <div className="flex items-center gap-3">
@@ -494,10 +494,9 @@ function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
               </code>
             )}
             {editMode && (
-              <button onClick={onStartEdit}
-                className="text-xs text-accent hover:text-accent-hover font-medium transition-colors shrink-0">
+              <Button variant="link" size="sm" onClick={onStartEdit} className="h-auto p-0 text-xs shrink-0">
                 Edit
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -523,30 +522,27 @@ function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
                 })()}
               </div>
               <div className="flex gap-2">
-                <input
+                <Input
                   value={chipInput}
                   onChange={(e) => onChipInputChange(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onAddChip(); } }}
                   placeholder="Type and press Enter to add"
-                  className="!flex-1 !py-1.5 !px-3 !text-xs"
+                  className="flex-1 h-8 text-xs"
                 />
-                <button onClick={onAddChip} className="btn-secondary !py-1.5 !px-3 !text-xs">Add</button>
+                <Button variant="secondary" size="sm" onClick={onAddChip}>Add</Button>
               </div>
             </div>
           ) : isJson ? (
             /* JSON editor: textarea with live validation */
             <div>
               <div className="relative">
-                <textarea
+                <Textarea
                   value={editValue}
                   onChange={(e) => onEditValueChange(e.target.value)}
                   spellCheck={false}
-                  aria-invalid={!!jsonError}
+                  error={!!jsonError}
                   aria-describedby={jsonError ? 'json-error' : undefined}
-                  className={cn(
-                    '!w-full !py-2 !px-3 !text-xs font-mono !min-h-[120px] !resize-y',
-                    jsonError && '!border-status-error/50 focus:!ring-status-error/30',
-                  )}
+                  className="text-xs font-mono min-h-[120px] resize-y"
                 />
                 <div className="absolute top-2 right-2 text-[10px] font-medium pointer-events-none">
                   {jsonError ? (
@@ -562,35 +558,33 @@ function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
                 ) : (
                   <p className="text-[10px] text-content-tertiary">JSON is valid.</p>
                 )}
-                <button
+                <Button
                   type="button"
+                  variant="link"
+                  size="sm"
                   disabled={!!jsonError}
                   onClick={() => {
                     try { onEditValueChange(JSON.stringify(JSON.parse(editValue), null, 2)); } catch {}
                   }}
-                  className="text-[10px] text-content-tertiary hover:text-accent disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="h-auto p-0 text-[10px] text-content-tertiary hover:text-accent"
                 >
                   Pretty-print
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
             /* Regular text input */
-            <input
+            <Input
               value={editValue}
               onChange={(e) => onEditValueChange(e.target.value)}
-              type={sensitive ? 'text' : 'text'}
-              className="!w-full !py-1.5 !px-3 !text-xs"
+              type="text"
+              className="h-8 text-xs"
               autoFocus
             />
           )}
           <div className="flex justify-end gap-2 mt-3">
-            <button onClick={onCancel} className="btn-secondary !py-1.5 !px-3 !text-xs">Cancel</button>
-            <button
-              onClick={onSave}
-              disabled={!!jsonError}
-              className="btn-primary !py-1.5 !px-3 !text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-            >Save</button>
+            <Button variant="secondary" size="sm" onClick={onCancel}>Cancel</Button>
+            <Button size="sm" onClick={onSave} disabled={!!jsonError}>Save</Button>
           </div>
         </div>
       )}
@@ -638,7 +632,7 @@ function DisplayPreferences() {
                 className={cn(
                   'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
                   theme === opt.value
-                    ? 'bg-surface text-content-primary shadow-sm'
+                    ? 'bg-surface-0 text-content-primary shadow-card'
                     : 'text-content-tertiary hover:text-content-primary',
                 )}
               >
@@ -665,7 +659,7 @@ function DisplayPreferences() {
                 className={cn(
                   'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
                   density === opt.value
-                    ? 'bg-surface text-content-primary shadow-sm'
+                    ? 'bg-surface-0 text-content-primary shadow-card'
                     : 'text-content-tertiary hover:text-content-primary',
                 )}
               >

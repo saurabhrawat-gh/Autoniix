@@ -9,20 +9,21 @@ import {
   Search, X, ClipboardCheck, ChevronRight, RotateCw,
   Inbox, ThumbsUp, ThumbsDown,
 } from '@/lib/components/Icon';
+import { Button, Input } from '@/lib/ui';
 
 const STATE_TABS = [
-  { key: 'pending',     label: 'Pending',     color: 'text-amber-500',   bg: 'bg-amber-500/10 text-amber-500' },
-  { key: 'needs_edits', label: 'Needs edits', color: 'text-orange-500',  bg: 'bg-orange-500/10 text-orange-500' },
-  { key: 'approved',    label: 'Approved',    color: 'text-emerald-500', bg: 'bg-emerald-500/10 text-emerald-500' },
-  { key: 'rejected',    label: 'Rejected',    color: 'text-red-500',     bg: 'bg-red-500/10 text-red-500' },
-  { key: 'regenerating',label: 'Regenerating',color: 'text-accent',      bg: 'bg-accent/10 text-accent' },
+  { key: 'pending',     label: 'Pending',     color: 'text-status-warning', bg: 'bg-status-warning/10 text-status-warning' },
+  { key: 'needs_edits', label: 'Needs edits', color: 'text-status-warning', bg: 'bg-status-warning/10 text-status-warning' },
+  { key: 'approved',    label: 'Approved',    color: 'text-status-success', bg: 'bg-status-success/10 text-status-success' },
+  { key: 'rejected',    label: 'Rejected',    color: 'text-status-error',   bg: 'bg-status-error/10 text-status-error' },
+  { key: 'regenerating',label: 'Regenerating',color: 'text-accent',         bg: 'bg-accent/10 text-accent' },
 ];
 
 const PRIORITY_MAP: Record<string, { label: string; color: string }> = {
-  approved:     { label: 'Done',       color: 'text-emerald-500' },
-  rejected:     { label: 'Rejected',   color: 'text-red-500' },
-  needs_edits:  { label: 'Edits',      color: 'text-orange-500' },
-  pending:      { label: 'Pending',    color: 'text-amber-500' },
+  approved:     { label: 'Done',       color: 'text-status-success' },
+  rejected:     { label: 'Rejected',   color: 'text-status-error' },
+  needs_edits:  { label: 'Edits',      color: 'text-status-warning' },
+  pending:      { label: 'Pending',    color: 'text-status-warning' },
   regenerating: { label: 'Regen…',     color: 'text-accent' },
 };
 
@@ -94,10 +95,9 @@ export default function ReviewQueuePage() {
             Human review gate — approve, reject, or request edits before videos are delivered.
           </p>
         </div>
-        <button onClick={() => load(tab)} disabled={loading}
-          className="h-8 w-8 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary transition-colors shrink-0">
+        <Button variant="outline" size="icon-sm" onClick={() => load(tab)} disabled={loading} aria-label="Refresh">
           <RotateCw size={13} className={cn(loading && 'animate-spin')} />
-        </button>
+        </Button>
       </div>
 
       {/* Stats strip */}
@@ -140,17 +140,20 @@ export default function ReviewQueuePage() {
 
         {/* Channel filter */}
         <select value={selChannel} onChange={e => setSelChannel(e.target.value)}
-          className="h-8 px-2.5 rounded-md bg-surface-0 border border-border text-xs focus:outline-none focus:border-accent/50">
+          className="h-8 px-2.5 rounded-md bg-surface-0 border border-border text-xs focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent">
           <option value="">All channels</option>
           {channels.map(c => <option key={c.channel_id} value={c.channel_id}>{c.channel_name}</option>)}
         </select>
 
         {/* Search */}
         <div className="relative flex-1 min-w-[180px] max-w-xs">
-          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-content-tertiary pointer-events-none" />
-          <input value={q} onChange={e => setQ(e.target.value)}
+          <Input
+            value={q}
+            onChange={e => setQ(e.target.value)}
             placeholder="Search title or channel…"
-            className="w-full h-8 pl-8 pr-7 rounded-md bg-surface-0 border border-border text-xs placeholder:text-content-tertiary outline-none focus:border-accent/50 transition-colors" />
+            leftIcon={<Search size={12} />}
+            className="h-8 text-xs pr-7"
+          />
           {q && (
             <button onClick={() => setQ('')}
               className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded text-content-tertiary hover:text-content-primary">
@@ -220,7 +223,7 @@ export default function ReviewQueuePage() {
         <div className="shrink-0 px-4 py-2 border-t border-border bg-surface-1/30 text-[10px] text-content-tertiary">
           {filtered.length} of {items.length} items shown
           {tab === 'pending' && items.length > 0 && (
-            <span className="ml-2 text-amber-500 font-medium">● {items.length} awaiting decision</span>
+            <span className="ml-2 text-status-warning font-medium">● {items.length} awaiting decision</span>
           )}
         </div>
       </div>
@@ -278,8 +281,8 @@ function ReviewRow({
         <span className={cn(
           'text-[10px] font-medium px-2 py-0.5 rounded',
           v.content_mode === 'short'
-            ? 'bg-violet-500/10 text-violet-500'
-            : 'bg-blue-500/10 text-blue-500'
+            ? 'bg-accent/10 text-accent'
+            : 'bg-status-info/10 text-status-info'
         )}>
           {v.content_mode === 'short' ? 'Short' : 'Long'}
         </span>
@@ -290,8 +293,8 @@ function ReviewRow({
         {score ? (
           <span className={cn(
             'text-xs font-mono',
-            Number(score) >= 8 ? 'text-emerald-500' :
-            Number(score) >= 6 ? 'text-amber-500' : 'text-red-500'
+            Number(score) >= 8 ? 'text-status-success' :
+            Number(score) >= 6 ? 'text-status-warning' : 'text-status-error'
           )}>
             {score}
           </span>
@@ -305,11 +308,11 @@ function ReviewRow({
         {isPending && (
           <>
             <button onClick={onApprove} title="Quick approve"
-              className="w-7 h-7 flex items-center justify-center rounded hover:bg-emerald-500/10 text-content-tertiary hover:text-emerald-500 transition-colors">
+              className="w-7 h-7 flex items-center justify-center rounded hover:bg-status-success/10 text-content-tertiary hover:text-status-success transition-colors">
               <ThumbsUp size={13} />
             </button>
             <button onClick={onReject} title="Quick reject"
-              className="w-7 h-7 flex items-center justify-center rounded hover:bg-red-500/10 text-content-tertiary hover:text-red-500 transition-colors">
+              className="w-7 h-7 flex items-center justify-center rounded hover:bg-status-error/10 text-content-tertiary hover:text-status-error transition-colors">
               <ThumbsDown size={13} />
             </button>
           </>

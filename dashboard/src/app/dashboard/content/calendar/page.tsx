@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles } from 'lucide-react';
 import { contentApi, channelsApi } from '@/lib/api-v2';
+import { Button } from '@/lib/ui';
 
 function startOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth(), 1); }
 function endOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth() + 1, 1); }
@@ -60,18 +61,13 @@ export default function ContentCalendarPage() {
             <option value="">All channels</option>
             {channels.map(c => <option key={c.channel_id} value={c.channel_id}>{c.channel_name}</option>)}
           </select>
-          <button onClick={() => setCursor(startOfMonth(new Date()))}
-            className="px-2 py-1.5 text-xs rounded-lg border border-border hover:bg-surface-2">
-            Today
-          </button>
-          <button onClick={() => setCursor(c => new Date(c.getFullYear(), c.getMonth() - 1, 1))}
-            className="size-7 inline-flex items-center justify-center rounded-lg border border-border hover:bg-surface-2">
+          <Button variant="outline" size="sm" onClick={() => setCursor(startOfMonth(new Date()))}>Today</Button>
+          <Button variant="outline" size="icon-sm" onClick={() => setCursor(c => new Date(c.getFullYear(), c.getMonth() - 1, 1))} aria-label="Previous month">
             <ChevronLeft size={14} />
-          </button>
-          <button onClick={() => setCursor(c => new Date(c.getFullYear(), c.getMonth() + 1, 1))}
-            className="size-7 inline-flex items-center justify-center rounded-lg border border-border hover:bg-surface-2">
+          </Button>
+          <Button variant="outline" size="icon-sm" onClick={() => setCursor(c => new Date(c.getFullYear(), c.getMonth() + 1, 1))} aria-label="Next month">
             <ChevronRight size={14} />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -96,9 +92,9 @@ export default function ContentCalendarPage() {
                 {items.slice(0, 3).map(v => (
                   <Link key={v.content_id} href={`/dashboard/review/${v.content_id}`}
                     className={'block px-1 py-0.5 rounded text-[10px] truncate ' +
-                      (v.status === 'published' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                       : v.status === 'failed' ? 'bg-red-500/15 text-red-700 dark:text-red-300'
-                       : v.status === 'scheduled' ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                      (v.status === 'published' ? 'bg-status-success/15 text-status-success'
+                       : v.status === 'failed' ? 'bg-status-error/15 text-status-error'
+                       : v.status === 'scheduled' ? 'bg-status-warning/15 text-status-warning'
                        : 'bg-surface-2 text-content-secondary')}>
                     {v.title || v.content_id}
                   </Link>
