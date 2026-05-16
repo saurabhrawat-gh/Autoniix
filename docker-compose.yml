@@ -1,5 +1,7 @@
+name: autoniix
+
 networks:
-  yt-net:
+  autoniix-net:
     driver: bridge
 
 volumes:
@@ -8,6 +10,11 @@ volumes:
   redis_data:
   minio_data:
   remotion_tmp:
+  remotion_bundle_cache:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  letsencrypt_data:
 
 services:
 
@@ -15,7 +22,7 @@ services:
   postgres-app:
     image: pgvector/pgvector:pg15
     environment:
-      POSTGRES_DB: ${DB_NAME:-yt_automation}
+      POSTGRES_DB: ${DB_NAME:-autoniix}
       POSTGRES_USER: ${DB_USER:-app}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-change_me_strong_random_64}
     volumes:
@@ -24,9 +31,9 @@ services:
       - ./scripts/seed-data.sql:/docker-entrypoint-initdb.d/02-seed.sql
     ports:
       - "5433:5432"
-    networks: [yt-net]
+    networks: [autoniix-net]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-app} -d ${DB_NAME:-yt_automation}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-app} -d ${DB_NAME:-autoniix}"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -42,7 +49,7 @@ services:
       - pg_temporal_data:/var/lib/postgresql/data
     ports:
       - "5434:5432"
-    networks: [yt-net]
+    networks: [autoniix-net]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U temporal -d temporal"]
       interval: 5s
@@ -57,7 +64,7 @@ services:
       - redis_data:/data
     ports:
       - "6380:6379"
-    networks: [yt-net]
+    networks: [autoniix-net]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -76,13 +83,38 @@ services:
     ports:
       - "9000:9000"
       - "9001:9001"
-    networks: [yt-net]
+    networks: [autoniix-net]
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
+
+  # ── MinIO bootstrap (one-shot) ───────────────────────────
+  minio-bootstrap:
+    image: minio/mc:latest
+    networks: [autoniix-net]
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin}
+      S3_BUCKET: ${S3_BUCKET:-autoniix}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        until mc alias set local http://minio:9000 "$$S3_ACCESS_KEY" "$$S3_SECRET_KEY" >/dev/null 2>&1; do
+          echo 'waiting for minio...'; sleep 2
+        done
+        mc mb -p local/"$$S3_BUCKET" 2>/dev/null || true
+        printf '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetObject"],"Resource":["arn:aws:s3:::%s/public/*"]}]}' "$$S3_BUCKET" > /tmp/public-policy.json
+        mc anonymous set-json /tmp/public-policy.json local/"$$S3_BUCKET" 2>/dev/null || true
+        echo 'minio bootstrap complete'
+    restart: "no"
 
   # ── Temporal ─────────────────────────────────────────────
   temporal:
@@ -98,7 +130,7 @@ services:
       - ./config/dynamicconfig:/etc/temporal/config/dynamicconfig
     ports:
       - "7233:7233"
-    networks: [yt-net]
+    networks: [autoniix-net]
     depends_on:
       postgres-temporal:
         condition: service_healthy
@@ -108,10 +140,17 @@ services:
     image: temporalio/ui:latest
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_CORS_ORIGINS=http://localhost:8080
+      - TEMPORAL_CORS_ORIGINS=http://localhost:8080,https://${TEMPORAL_DOMAIN:-temporal.localhost}
     ports:
       - "8080:8080"
-    networks: [yt-net]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.temporal.rule=Host(`${TEMPORAL_DOMAIN:-temporal.localhost}`)"
+      - "traefik.http.routers.temporal.entrypoints=websecure"
+      - "traefik.http.routers.temporal.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.temporal.middlewares=admin-auth@docker,secureHeaders@file"
+      - "traefik.http.services.temporal.loadbalancer.server.port=8080"
+    networks: [autoniix-net]
     depends_on:
       - temporal
     restart: unless-stopped
@@ -126,247 +165,164 @@ services:
       - SENTENCE_TRANSFORMERS_HOME=/app/.cache/sentence_transformers
     ports:
       - "8001:8001"
-    networks: [yt-net]
+    networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
+      redis: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 1536M
+    deploy: { resources: { limits: { memory: 1536M } } }
 
   script:
     build: .
     command: uvicorn src.services.script.main:app --host 0.0.0.0 --port 8002
     env_file: .env
-    environment:
-      - PORT=8002
-    ports:
-      - "8002:8002"
-    networks: [yt-net]
+    environment: [PORT=8002]
+    ports: ["8002:8002"]
+    networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
+      redis: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 1536M
+    deploy: { resources: { limits: { memory: 1536M } } }
 
   voice:
     build: .
     command: uvicorn src.services.voice.main:app --host 0.0.0.0 --port 8003
     env_file: .env
-    environment:
-      - PORT=8003
-    ports:
-      - "8003:8003"
-    networks: [yt-net]
+    environment: [PORT=8003]
+    ports: ["8003:8003"]
+    networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
+      minio: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 768M
+    deploy: { resources: { limits: { memory: 768M } } }
 
   assets:
     build: .
     command: uvicorn src.services.assets.main:app --host 0.0.0.0 --port 8004
     env_file: .env
-    environment:
-      - PORT=8004
-    ports:
-      - "8004:8004"
-    networks: [yt-net]
+    environment: [PORT=8004]
+    ports: ["8004:8004"]
+    networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
+      minio: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+    deploy: { resources: { limits: { memory: 512M } } }
 
   thumbnail:
     build: .
     command: uvicorn src.services.thumbnail.main:app --host 0.0.0.0 --port 8005
     env_file: .env
-    environment:
-      - PORT=8005
-    ports:
-      - "8005:8005"
-    networks: [yt-net]
+    environment: [PORT=8005]
+    ports: ["8005:8005"]
+    networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
+      minio: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 768M
+    deploy: { resources: { limits: { memory: 768M } } }
 
   assembly:
     build: .
     command: uvicorn src.services.assembly.main:app --host 0.0.0.0 --port 8006
     env_file: .env
-    environment:
-      - PORT=8006
-    ports:
-      - "8006:8006"
-    networks: [yt-net]
+    environment: [PORT=8006]
+    ports: ["8006:8006"]
+    networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+    deploy: { resources: { limits: { memory: 512M } } }
 
   delivery:
     build: .
     command: uvicorn src.services.delivery.main:app --host 0.0.0.0 --port 8007
     env_file: .env
-    environment:
-      - PORT=8007
-    ports:
-      - "8007:8007"
-    networks: [yt-net]
+    environment: [PORT=8007]
+    ports: ["8007:8007"]
+    networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 256M
+    deploy: { resources: { limits: { memory: 256M } } }
 
   analytics:
     build: .
     command: uvicorn src.services.analytics.main:app --host 0.0.0.0 --port 8008
     env_file: .env
-    environment:
-      - PORT=8008
-    ports:
-      - "8008:8008"
-    networks: [yt-net]
+    environment: [PORT=8008]
+    ports: ["8008:8008"]
+    networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+    deploy: { resources: { limits: { memory: 512M } } }
 
   admin:
     build: .
     command: uvicorn src.services.admin.main:app --host 0.0.0.0 --port 8009
     env_file: .env
-    environment:
-      - PORT=8009
-    ports:
-      - "8009:8009"
-    networks: [yt-net]
+    environment: [PORT=8009]
+    ports: ["8009:8009"]
+    networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 256M
+    deploy: { resources: { limits: { memory: 256M } } }
 
   direction:
     build: .
     command: uvicorn src.services.direction.main:app --host 0.0.0.0 --port 8010
     env_file: .env
-    environment:
-      - PORT=8010
-    ports:
-      - "8010:8010"
-    networks: [yt-net]
+    environment: [PORT=8010]
+    ports: ["8010:8010"]
+    networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+    deploy: { resources: { limits: { memory: 512M } } }
 
   brand:
     build: .
     command: uvicorn src.services.brand.main:app --host 0.0.0.0 --port 8012
     env_file: .env
-    environment:
-      - PORT=8012
-    ports:
-      - "8012:8012"
-    networks: [yt-net]
+    environment: [PORT=8012]
+    ports: ["8012:8012"]
+    networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+    deploy: { resources: { limits: { memory: 512M } } }
 
   editor:
     build: .
     command: uvicorn src.services.editor.main:app --host 0.0.0.0 --port 8013
     env_file: .env
-    environment:
-      - PORT=8013
-    ports:
-      - "8013:8013"
-    networks: [yt-net]
+    environment: [PORT=8013]
+    ports: ["8013:8013"]
+    networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+    deploy: { resources: { limits: { memory: 512M } } }
 
   sheets-sync:
     build: .
     command: uvicorn src.services.sheets_sync.main:app --host 0.0.0.0 --port 8011
     env_file: .env
-    environment:
-      - PORT=8011
-    ports:
-      - "8011:8011"
-    networks: [yt-net]
+    environment: [PORT=8011]
+    ports: ["8011:8011"]
+    networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 256M
+    deploy: { resources: { limits: { memory: 256M } } }
 
   # ── Remotion Renderer ───────────────────────────────────
   remotion-api:
-    build:
-      context: ./services/remotion
-      dockerfile: Dockerfile
+    build: { context: ./services/remotion, dockerfile: Dockerfile }
     command: ["npm", "run", "start:api"]
     environment:
       - NODE_ENV=production
@@ -374,25 +330,22 @@ services:
       - LOG_LEVEL=info
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=
       - RENDER_CONCURRENCY=1
       - RENDER_TMP_DIR=/app/tmp
       - S3_ENDPOINT=http://minio:9000
       - S3_REGION=auto
-      - S3_BUCKET=${S3_BUCKET:-yt-automation}
+      - S3_BUCKET=${S3_BUCKET:-autoniix}
       - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY:-minioadmin}
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_KEY:-minioadmin}
-      - S3_PUBLIC_BASE_URL=http://minio:9000/${S3_BUCKET:-yt-automation}
+      - S3_PUBLIC_BASE_URL=http://minio:9000/${S3_BUCKET:-autoniix}
       - S3_FORCE_PATH_STYLE=true
       - S3_KEY_PREFIX=${ENVIRONMENT_MODE:-test}
-    ports:
-      - "4000:4000"
-    networks: [yt-net]
+    ports: ["4000:4000"]
+    networks: [autoniix-net]
     depends_on:
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
+      minio-bootstrap: { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/api/health || exit 1"]
       interval: 10s
@@ -400,140 +353,251 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 2G
+    deploy: { resources: { limits: { memory: 2G } } }
 
   remotion-worker:
-    build:
-      context: ./services/remotion
-      dockerfile: Dockerfile
+    build: { context: ./services/remotion, dockerfile: Dockerfile }
     command: ["npm", "run", "start:worker"]
     environment:
       - NODE_ENV=production
       - LOG_LEVEL=info
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=
       - RENDER_CONCURRENCY=1
       - RENDER_TMP_DIR=/app/tmp
       - S3_ENDPOINT=http://minio:9000
       - S3_REGION=auto
-      - S3_BUCKET=${S3_BUCKET:-yt-automation}
+      - S3_BUCKET=${S3_BUCKET:-autoniix}
       - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY:-minioadmin}
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_KEY:-minioadmin}
-      - S3_PUBLIC_BASE_URL=http://minio:9000/${S3_BUCKET:-yt-automation}
+      - S3_PUBLIC_BASE_URL=http://minio:9000/${S3_BUCKET:-autoniix}
       - S3_FORCE_PATH_STYLE=true
       - S3_KEY_PREFIX=${ENVIRONMENT_MODE:-test}
     volumes:
       - remotion_tmp:/app/tmp
-    networks: [yt-net]
-    healthcheck:
-      disable: true
+    networks: [autoniix-net]
+    healthcheck: { disable: true }
     depends_on:
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
+      minio-bootstrap: { condition: service_completed_successfully }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 4G
+    deploy: { resources: { limits: { memory: 4G } } }
 
   # ── Temporal Workers ─────────────────────────────────────
   worker-production:
     build: .
     command: python -m src.workers.run_production
     env_file: .env
-    networks: [yt-net]
-    healthcheck:
-      disable: true
+    networks: [autoniix-net]
+    healthcheck: { disable: true }
     depends_on:
-      temporal:
-        condition: service_started
-      postgres-app:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      research:
-        condition: service_started
+      temporal: { condition: service_started }
+      postgres-app: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      research: { condition: service_started }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+    deploy: { resources: { limits: { memory: 512M } } }
 
   worker-scheduler:
     build: .
     command: python -m src.workers.run_scheduler
     env_file: .env
-    networks: [yt-net]
-    healthcheck:
-      disable: true
+    networks: [autoniix-net]
+    healthcheck: { disable: true }
     depends_on:
-      temporal:
-        condition: service_started
-      postgres-app:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      temporal: { condition: service_started }
+      postgres-app: { condition: service_healthy }
+      redis: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 256M
+    deploy: { resources: { limits: { memory: 256M } } }
 
   # ── Dashboard ──────────────────────────────────────────
-
   dashboard-bff:
     build: .
     command: uvicorn src.services.dashboard.main:app --host 0.0.0.0 --port 8020
     env_file: .env
     ports:
       - "8020:8020"
-    networks: [yt-net]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bff.rule=Host(`${API_DOMAIN:-api.localhost}`)"
+      - "traefik.http.routers.bff.entrypoints=websecure"
+      - "traefik.http.routers.bff.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.bff.middlewares=secureHeaders@file"
+      - "traefik.http.services.bff.loadbalancer.server.port=8020"
+    networks: [autoniix-net]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8020/health"]
       interval: 30s
       timeout: 5s
       retries: 3
     depends_on:
-      postgres-app:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      temporal:
-        condition: service_started
+      postgres-app: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      temporal: { condition: service_started }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 256M
+    deploy: { resources: { limits: { memory: 256M } } }
 
   dashboard-ui:
     build: ./dashboard
     ports:
       - "3000:3000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ui.rule=Host(`${DASH_DOMAIN:-${DOMAIN:-localhost}}`)"
+      - "traefik.http.routers.ui.entrypoints=websecure"
+      - "traefik.http.routers.ui.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.ui.middlewares=secureHeaders@file"
+      - "traefik.http.services.ui.loadbalancer.server.port=3000"
     environment:
       - NEXT_PUBLIC_API_URL=
       - NEXT_PUBLIC_WS_URL=
       - API_INTERNAL_URL=http://dashboard-bff:8020
-      # Next.js standalone uses HOSTNAME as bind address — force 0.0.0.0 so
-      # the in-container healthcheck (and any sidecar) can reach it.
       - HOSTNAME=0.0.0.0
-    networks: [yt-net]
+    networks: [autoniix-net]
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000"]
       interval: 30s
       timeout: 5s
       retries: 3
     depends_on:
-      dashboard-bff:
-        condition: service_healthy
+      dashboard-bff: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 256M
+    deploy: { resources: { limits: { memory: 256M } } }
+
+  # ── Observability stack ──────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    ports: ["9090:9090"]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`${PROMETHEUS_DOMAIN:-prometheus.localhost}`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.prometheus.middlewares=admin-auth@docker,secureHeaders@file"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+    networks: [autoniix-net]
+    depends_on: [alertmanager]
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 512M } } }
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    volumes:
+      - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --web.listen-address=:9093
+    environment:
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+    ports: ["9093:9093"]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.alertmanager.rule=Host(`${ALERTS_DOMAIN:-alerts.localhost}`)"
+      - "traefik.http.routers.alertmanager.entrypoints=websecure"
+      - "traefik.http.routers.alertmanager.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.alertmanager.middlewares=admin-auth@docker,secureHeaders@file"
+      - "traefik.http.services.alertmanager.loadbalancer.server.port=9093"
+    networks: [autoniix-net]
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 128M } } }
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    command:
+      - --path.rootfs=/host
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    networks: [autoniix-net]
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 64M } } }
+
+  loki:
+    image: grafana/loki:2.9.10
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./observability/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    networks: [autoniix-net]
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 384M } } }
+
+  promtail:
+    image: grafana/promtail:2.9.10
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./observability/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [autoniix-net]
+    depends_on: [loki]
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 128M } } }
+
+  # ── TLS Gateway (Traefik) ─────────────────────────────────
+  # Activated with: docker compose --profile tls up -d
+  traefik:
+    image: traefik:v3.1
+    profiles: ["tls"]
+    command:
+      - "--configFile=/traefik/traefik.yml"
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - ACME_EMAIL=${ACME_EMAIL:-admin@yourdomain.com}
+      - DOMAIN=${DOMAIN:-localhost}
+    labels:
+      # Defines admin-auth middleware referenced by grafana/prometheus/alertmanager/temporal-ui
+      - "traefik.enable=true"
+      - "traefik.http.middlewares.admin-auth.basicauth.users=${TRAEFIK_BASIC_AUTH:-admin:$$apr1$$change$$me}"
+      - "traefik.http.middlewares.admin-auth.basicauth.realm=Autoniix Admin"
+      - "traefik.http.middlewares.admin-auth.basicauth.removeheader=true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik:/traefik:ro
+      - letsencrypt_data:/letsencrypt
+    networks: [autoniix-net]
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 128M } } }
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_USERS_DEFAULT_THEME=dark
+      - GF_LOG_LEVEL=warn
+      - GF_UNIFIED_ALERTING_ENABLED=true
+      - GF_ALERTING_ENABLED=false
+      - GF_SERVER_ROOT_URL=https://${GRAFANA_DOMAIN:-grafana.localhost}
+      - GF_SERVER_DOMAIN=${GRAFANA_DOMAIN:-grafana.localhost}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards-json:ro
+    ports: ["3001:3000"]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`${GRAFANA_DOMAIN:-grafana.localhost}`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.grafana.middlewares=secureHeaders@file"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+    networks: [autoniix-net]
+    depends_on: [prometheus, loki, alertmanager]
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 256M } } }
