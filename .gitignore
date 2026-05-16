@@ -2,6 +2,7 @@ node_modules/
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # Python
 __pycache__/
@@ -22,3 +23,8 @@ venv/
 .DS_Store
 tmp/
 dist/
+lib/
+!dashboard/src/lib/
+!dashboard/src/lib/**
+!sdk/python/yt_engine/
+!sdk/python/yt_engine/**
