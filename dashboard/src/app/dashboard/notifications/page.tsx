@@ -14,11 +14,18 @@ export default function Notifications() {
       <h1 className="text-2xl font-semibold">Notifications</h1>
       <div className="flex gap-1 border-b border-border">
         {(['inbox','routes','deliveries'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className={'px-3 py-2 text-sm border-b-2 -mb-px ' +
-              (tab === t ? 'border-accent text-accent' : 'border-transparent opacity-70 hover:opacity-100')}>
+          <Button
+            key={t}
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setTab(t)}
+            className={cn(
+              'h-auto px-3 py-2 text-sm rounded-none border-b-2 -mb-px',
+              tab === t ? 'border-accent text-accent hover:text-accent' : 'border-transparent opacity-70 hover:opacity-100',
+            )}>
             {t}
-          </button>
+          </Button>
         ))}
       </div>
       {tab === 'inbox' && <Inbox />}
@@ -88,7 +95,15 @@ function Inbox() {
                   {n.event_type} · {new Date(n.created_at).toLocaleString()}
                 </div>
               </div>
-              <button onClick={() => notifyApi.read(n.id)} className="text-xs opacity-60 hover:opacity-100">mark read</button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => notifyApi.read(n.id)}
+                className="h-auto px-2 py-1 text-xs opacity-60 hover:opacity-100"
+              >
+                mark read
+              </Button>
             </div>
           );
         })}

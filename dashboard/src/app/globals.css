@@ -5,30 +5,32 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 /* ── Light theme (default) ─────────────────────── */
+/* Warm off-white palette — eye-soothing, Apple/Notion/Linear inspired.
+   Key principle: no pure white (#fff), warm grays, soft shadows. */
 :root {
-  --surface-0: 255 255 255;
-  --surface-1: 247 248 249;
-  --surface-2: 240 241 242;
-  --surface-3: 224 225 227;
-  --accent: 0 151 111;
-  --accent-hover: 0 65 48;
-  --accent-light: 230 249 244;
-  --accent-muted: 77 228 188;
-  --secondary: 71 48 135;
-  --secondary-light: 240 236 249;
-  --content-primary: 30 32 38;
-  --content-secondary: 67 68 73;
-  --content-tertiary: 120 121 125;
-  --content-inverse: 255 255 255;
-  --border: 224 225 227;
-  --border-hover: 210 210 212;
-  --status-success: 0 120 47;
-  --status-warning: 161 83 5;
-  --status-error: 162 22 22;
-  --status-info: 11 104 179;
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-elevated: 0 10px 25px -5px rgba(0,0,0,0.08), 0 8px 10px -6px rgba(0,0,0,0.04);
-  --shadow-glow: 0 0 20px rgba(0,151,111,0.15);
+  --surface-0: 252 252 250;       /* warm off-white (main cards, dialogs) */
+  --surface-1: 246 246 243;       /* page background */
+  --surface-2: 238 238 234;       /* hover states, input backgrounds */
+  --surface-3: 226 226 222;       /* dividers, subtle separators */
+  --accent: 0 142 104;            /* slightly desaturated green — easier on eyes */
+  --accent-hover: 0 110 80;
+  --accent-light: 224 246 238;    /* very soft tint for accent backgrounds */
+  --accent-muted: 72 210 168;
+  --secondary: 68 46 132;
+  --secondary-light: 237 234 249;
+  --content-primary: 24 25 30;    /* near-black, slightly warm */
+  --content-secondary: 62 63 68;
+  --content-tertiary: 112 113 118;
+  --content-inverse: 252 252 250;
+  --border: 224 224 220;          /* warm light gray */
+  --border-hover: 204 204 200;
+  --status-success: 0 112 44;
+  --status-warning: 152 76 3;
+  --status-error: 154 20 20;
+  --status-info: 10 96 168;
+  --shadow-card: 0 1px 4px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
+  --shadow-elevated: 0 8px 24px -4px rgba(0,0,0,0.08), 0 4px 8px -3px rgba(0,0,0,0.04);
+  --shadow-glow: 0 0 20px rgba(0,142,104,0.12);
 }
 
 /* ── Dark theme ────────────────────────────────── */

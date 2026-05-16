@@ -9,7 +9,7 @@ import {
   Search, X, ClipboardCheck, ChevronRight, RotateCw,
   Inbox, ThumbsUp, ThumbsDown,
 } from '@/lib/components/Icon';
-import { Button, Input } from '@/lib/ui';
+import { Button, Input, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/lib/ui';
 
 const STATE_TABS = [
   { key: 'pending',     label: 'Pending',     color: 'text-status-warning', bg: 'bg-status-warning/10 text-status-warning' },
@@ -103,16 +103,22 @@ export default function ReviewQueuePage() {
       {/* Stats strip */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
         {STATE_TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
+          <Button
+            key={t.key}
+            type="button"
+            variant="ghost"
+            onClick={() => setTab(t.key)}
             className={cn(
-              'rounded-lg border px-3 py-2 text-left transition-all',
-              tab === t.key ? 'border-accent/40 bg-accent/5 shadow-sm' : 'border-border bg-surface-0 hover:bg-surface-1'
+              'rounded-lg border px-3 py-2 h-auto justify-start text-left transition-all',
+              tab === t.key ? 'border-accent/40 bg-accent/5 shadow-sm hover:bg-accent/5' : 'border-border bg-surface-0 hover:bg-surface-1'
             )}>
-            <div className={cn('text-xl font-bold tabular-nums leading-none', t.color)}>
-              {counts[t.key] ?? '—'}
+            <div>
+              <div className={cn('text-xl font-bold tabular-nums leading-none', t.color)}>
+                {counts[t.key] ?? '—'}
+              </div>
+              <div className="text-[10px] text-content-tertiary mt-0.5">{t.label}</div>
             </div>
-            <div className="text-[10px] text-content-tertiary mt-0.5">{t.label}</div>
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -121,9 +127,14 @@ export default function ReviewQueuePage() {
         {/* State tabs */}
         <div className="flex items-center gap-0.5 bg-surface-1 rounded-md p-0.5">
           {STATE_TABS.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
+            <Button
+              key={t.key}
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setTab(t.key)}
               className={cn(
-                'px-3 py-1.5 rounded text-xs font-medium transition-all',
+                'h-7 px-3 text-xs',
                 tab === t.key
                   ? 'bg-surface-0 text-content-primary shadow-sm'
                   : 'text-content-tertiary hover:text-content-secondary'
@@ -134,16 +145,20 @@ export default function ReviewQueuePage() {
                   {counts[t.key]}
                 </span>
               )}
-            </button>
+            </Button>
           ))}
         </div>
 
         {/* Channel filter */}
-        <select value={selChannel} onChange={e => setSelChannel(e.target.value)}
-          className="h-8 px-2.5 rounded-md bg-surface-0 border border-border text-xs focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent">
-          <option value="">All channels</option>
-          {channels.map(c => <option key={c.channel_id} value={c.channel_id}>{c.channel_name}</option>)}
-        </select>
+        <div className="min-w-[160px]">
+          <Select value={selChannel || '__all__'} onValueChange={(v: string) => setSelChannel(v === '__all__' ? '' : v)}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="All channels" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All channels</SelectItem>
+              {channels.map(c => <SelectItem key={c.channel_id} value={c.channel_id}>{c.channel_name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
 
         {/* Search */}
         <div className="relative flex-1 min-w-[180px] max-w-xs">
@@ -155,10 +170,16 @@ export default function ReviewQueuePage() {
             className="h-8 text-xs pr-7"
           />
           {q && (
-            <button onClick={() => setQ('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded text-content-tertiary hover:text-content-primary">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setQ('')}
+              aria-label="Clear search"
+              className="absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 text-content-tertiary hover:text-content-primary"
+            >
               <X size={10} />
-            </button>
+            </Button>
           )}
         </div>
 
@@ -307,14 +328,28 @@ function ReviewRow({
       <div className="flex items-center justify-end gap-1 pr-1">
         {isPending && (
           <>
-            <button onClick={onApprove} title="Quick approve"
-              className="w-7 h-7 flex items-center justify-center rounded hover:bg-status-success/10 text-content-tertiary hover:text-status-success transition-colors">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={onApprove}
+              title="Quick approve"
+              aria-label="Quick approve"
+              className="w-7 h-7 text-content-tertiary hover:text-status-success hover:bg-status-success/10"
+            >
               <ThumbsUp size={13} />
-            </button>
-            <button onClick={onReject} title="Quick reject"
-              className="w-7 h-7 flex items-center justify-center rounded hover:bg-status-error/10 text-content-tertiary hover:text-status-error transition-colors">
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={onReject}
+              title="Quick reject"
+              aria-label="Quick reject"
+              className="w-7 h-7 text-content-tertiary hover:text-status-error hover:bg-status-error/10"
+            >
               <ThumbsDown size={13} />
-            </button>
+            </Button>
           </>
         )}
         <Link href={`/dashboard/review/${v.content_id}`} title="Open review"

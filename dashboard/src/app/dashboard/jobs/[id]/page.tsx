@@ -256,21 +256,27 @@ export default function JobDetailPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {progress.checkpoint && (
-                    <button
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={handleRestart}
                       disabled={restartBusy}
-                      className="px-4 py-2 border rounded-lg text-xs font-medium text-status-success bg-status-success/5 border-status-success/15 hover:bg-status-success/10 transition-all disabled:opacity-50"
+                      className="text-status-success bg-status-success/5 border-status-success/15 hover:bg-status-success/10"
                     >
                       {restartBusy ? 'Restarting...' : `Restart from ${PHASE_LABELS[progress.checkpoint] || progress.checkpoint}`}
-                    </button>
+                    </Button>
                   )}
-                  <button
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={handleRetry}
                     disabled={retryBusy}
-                    className="px-4 py-2 border rounded-lg text-xs font-medium text-accent bg-accent/5 border-accent/15 hover:bg-accent/10 transition-all disabled:opacity-50"
+                    className="text-accent bg-accent/5 border-accent/15 hover:bg-accent/10"
                   >
                     {retryBusy ? 'Retrying...' : 'Retry (Fresh)'}
-                  </button>
+                  </Button>
                 </div>
               </div>
               {progress.error_message && (
@@ -297,21 +303,27 @@ export default function JobDetailPage() {
                     Channel Settings
                   </Link>
                   {progress.checkpoint && (
-                    <button
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={handleRestart}
                       disabled={restartBusy}
-                      className="px-4 py-2 border rounded-lg text-xs font-medium text-status-success bg-status-success/5 border-status-success/15 hover:bg-status-success/10 transition-all disabled:opacity-50"
+                      className="text-status-success bg-status-success/5 border-status-success/15 hover:bg-status-success/10"
                     >
                       {restartBusy ? 'Restarting...' : `Restart from ${PHASE_LABELS[progress.checkpoint] || progress.checkpoint}`}
-                    </button>
+                    </Button>
                   )}
-                  <button
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={handleRetry}
                     disabled={retryBusy}
-                    className="px-4 py-2 border rounded-lg text-xs font-medium text-accent bg-accent/5 border-accent/15 hover:bg-accent/10 transition-all disabled:opacity-50"
+                    className="text-accent bg-accent/5 border-accent/15 hover:bg-accent/10"
                   >
                     {retryBusy ? 'Retrying...' : 'Retry (Fresh)'}
-                  </button>
+                  </Button>
                 </div>
               </div>
               {progress.error_message && (
@@ -333,13 +345,16 @@ export default function JobDetailPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <button
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={handleReject}
                     disabled={reviewAction === 'rejecting'}
-                    className="px-4 py-2 border rounded-lg text-xs font-medium text-status-error bg-status-error/5 border-status-error/15 hover:bg-status-error/10 transition-all disabled:opacity-50"
+                    className="text-status-error bg-status-error/5 border-status-error/15 hover:bg-status-error/10"
                   >
                     {reviewAction === 'rejecting' ? 'Rejecting…' : 'Reject & Regenerate'}
-                  </button>
+                  </Button>
                   <Button
                     size="sm"
                     onClick={handleApprove}
@@ -373,14 +388,16 @@ export default function JobDetailPage() {
           <div className="card overflow-hidden">
             <div className="flex border-b border-border px-5" role="tablist" aria-label="Job sections">
               {(['progress', 'output', 'metadata'] as const).map((t) => (
-                <button
+                <Button
                   key={t}
+                  type="button"
                   role="tab"
                   aria-selected={activeTab === t}
+                  variant="ghost"
                   onClick={() => setActiveTab(t)}
                   className={cn(
-                    'px-4 py-3 text-sm font-medium capitalize transition-colors relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded-t',
-                    activeTab === t ? 'text-accent' : 'text-content-tertiary hover:text-content-primary'
+                    'h-auto px-4 py-3 text-sm font-medium capitalize relative rounded-t',
+                    activeTab === t ? 'text-accent hover:text-accent' : 'text-content-tertiary hover:text-content-primary'
                   )}
                 >
                   {t === 'progress' ? 'Event Log' : t}
@@ -391,7 +408,7 @@ export default function JobDetailPage() {
                       transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                     />
                   )}
-                </button>
+                </Button>
               ))}
             </div>
 
@@ -525,7 +542,10 @@ export default function JobDetailPage() {
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="text-xs font-semibold text-content-secondary">YouTube Metadata</h3>
                         <div className="flex items-center gap-3">
-                          <button
+                          <Button
+                            type="button"
+                            variant="link"
+                            size="sm"
                             onClick={() => {
                               const all = [
                                 metadata.title,
@@ -538,10 +558,10 @@ export default function JobDetailPage() {
                               ].join('\n');
                               copyToClipboard(all, 'All');
                             }}
-                            className="text-[11px] font-medium text-accent hover:text-accent/80 transition-colors"
+                            className="h-auto p-0 text-[11px] text-accent hover:text-accent/80"
                           >
                             {copied === 'All' ? '✓ Copied All' : 'Copy All'}
-                          </button>
+                          </Button>
                           <span className="text-[11px] text-content-tertiary">Click any field to copy</span>
                         </div>
                       </div>

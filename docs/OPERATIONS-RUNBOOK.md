@@ -342,4 +342,113 @@ make smoke
 
 ---
 
-_Last updated: May 10, 2026 (Phase F — Production Deploy)_
+---
+
+## VPS Provisioning (Phase G — first-time production)
+
+One-shot script that hardens a fresh Ubuntu 22.04 / 24.04 VPS and installs
+Docker + UFW + fail2ban + 4 GB swap + `/mnt/backups`:
+
+```bash
+# As root on the fresh VPS
+export DEPLOY_SSH_PUBKEY='ssh-ed25519 AAAA... you@laptop'
+export SSH_PORT=2222          # override if 2222 is firewalled
+curl -fsSL https://raw.githubusercontent.com/<you>/yt-automation-n8n/main/scripts/vps_bootstrap.sh | bash
+```
+
+After it finishes:
+- `ssh -p 2222 autoniix@<vps-ip>` (root login + password auth are off)
+- `/mnt/backups` is owned by `autoniix` (backup target)
+- Docker is installed and `autoniix` is in the `docker` group
+
+### DNS records (add at registrar / Hostinger DNS)
+
+All A-records → VPS IPv4:
+
+| Record | Purpose |
+|---|---|
+| `dash.autoniix.com` | Dashboard UI (public) |
+| `api.autoniix.com` | BFF API + WebSocket (public) |
+| `grafana.autoniix.com` | Grafana (basic-auth + Grafana login) |
+| `prometheus.autoniix.com` | Prometheus (basic-auth) |
+| `alerts.autoniix.com` | Alertmanager (basic-auth) |
+| `temporal.autoniix.com` | Temporal UI (basic-auth) |
+
+### Required GitHub secrets (Settings → Secrets → Actions)
+
+| Secret | Value |
+|---|---|
+| `VPS_HOST` | VPS public IPv4 |
+| `VPS_USER` | `autoniix` |
+| `VPS_SSH_PORT` | `2222` (or whatever you set) |
+| `VPS_SSH_KEY` | Private ed25519 key matching the pubkey above |
+| `SLACK_WEBHOOK_URL` | Slack incoming webhook for deploy notifications |
+
+### Production .env preparation
+
+```bash
+ssh -p 2222 autoniix@<vps-ip>
+git clone git@github.com:<you>/yt-automation-n8n.git ~/autoniix
+cd ~/autoniix
+cp .env.production.example .env
+# Generate every CHANGE_ME value:
+openssl rand -base64 48                                 # JWT / DB passwords
+htpasswd -nbB admin 'StrongPassword!'                   # TRAEFIK_BASIC_AUTH
+python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'  # SECRETS_ENCRYPTION_KEY
+$EDITOR .env                                            # paste them in
+```
+
+### First deploy
+
+```bash
+make deploy-check                          # validates env + migrations + tests
+docker compose --profile tls up -d --build # boots Traefik + full stack
+make health
+make schedule-register
+make auth-enable
+make smoke
+```
+
+Verify in order:
+
+1. `https://dash.autoniix.com` → login page renders with a valid LE cert
+2. `https://api.autoniix.com/health` → `{"status":"ok","v2_router_loaded":true,...}`
+3. `https://grafana.autoniix.com` → Grafana login (admin / `GRAFANA_ADMIN_PASSWORD`)
+4. `https://prometheus.autoniix.com/targets` → basic-auth then all targets UP
+5. `https://alerts.autoniix.com` → basic-auth then Alertmanager UI
+6. `https://temporal.autoniix.com` → basic-auth then 5 schedules listed
+
+### Daily backups
+
+`scripts/backup.sh` writes to `${BACKUP_LOCAL_DIR:-/mnt/backups}` with
+`BACKUP_RETENTION_DAYS` retention (default 14). Wire as a cron entry under
+the `autoniix` user:
+
+```bash
+crontab -e
+# Add:
+30 3 * * * /home/autoniix/autoniix/scripts/backup.sh >> /var/log/autoniix-backup.log 2>&1
+```
+
+To enable offsite mirror (any S3-compatible — Hostinger object storage,
+Backblaze B2, R2, AWS S3), populate `BACKUP_S3_*` in `.env`.
+
+### CI/CD
+
+`.github/workflows/ci.yml` `deploy` job runs on every push to `main`
+(excluding commits with `[skip deploy]` in the message). The job:
+1. SSHes to the VPS, `git reset --hard origin/main`, `docker compose --profile tls up -d --build --remove-orphans`
+2. Polls `/health`, then runs `make smoke`
+3. Posts deploy success / failure to Slack via `SLACK_WEBHOOK_URL`
+
+### Troubleshooting TLS
+
+If certificates fail to issue, check:
+- Ports 80 + 443 open on UFW (already done by bootstrap)
+- DNS A-records actually resolve to the VPS public IP
+- `docker compose logs traefik` for ACME errors (rate-limited at 5 failures/hour)
+- `letsencrypt_data` volume not corrupted (delete + re-up to retry)
+
+---
+
+_Last updated: May 16, 2026 (Phase G — VPS Provisioning + Split-host Traefik)_

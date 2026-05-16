@@ -2,9 +2,11 @@ import { type ReactNode } from 'react';
 import { AppHeader } from '@/lib/components/AppHeader';
 import { Sidebar } from '@/lib/components/Sidebar';
 import { PageTransition } from '@/lib/components/PageTransition';
+import { ConfirmDialogProvider } from '@/lib/components/ConfirmDialog';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
+    <ConfirmDialogProvider>
     <div className="h-screen flex overflow-hidden">
       {/* Skip to main content (keyboard a11y) */}
       <a
@@ -27,5 +29,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </div>
       </div>
     </div>
+    </ConfirmDialogProvider>
   );
 }

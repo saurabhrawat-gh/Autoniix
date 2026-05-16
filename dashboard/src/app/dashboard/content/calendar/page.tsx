@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles } from 'lucide-react';
 import { contentApi, channelsApi } from '@/lib/api-v2';
-import { Button } from '@/lib/ui';
+import { Button, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/lib/ui';
 
 function startOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth(), 1); }
 function endOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth() + 1, 1); }
@@ -56,11 +56,15 @@ export default function ContentCalendarPage() {
         </h1>
         <span className="text-xs text-content-tertiary">{monthLabel(cursor)}</span>
         <div className="ml-auto flex items-center gap-2">
-          <select value={channelId} onChange={e => setChannelId(e.target.value)}
-            className="px-2 py-1.5 rounded-lg bg-surface-1 border border-border text-xs">
-            <option value="">All channels</option>
-            {channels.map(c => <option key={c.channel_id} value={c.channel_id}>{c.channel_name}</option>)}
-          </select>
+          <div className="min-w-[180px]">
+            <Select value={channelId || '__all__'} onValueChange={(v: string) => setChannelId(v === '__all__' ? '' : v)}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="All channels" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All channels</SelectItem>
+                {channels.map(c => <SelectItem key={c.channel_id} value={c.channel_id}>{c.channel_name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
           <Button variant="outline" size="sm" onClick={() => setCursor(startOfMonth(new Date()))}>Today</Button>
           <Button variant="outline" size="icon-sm" onClick={() => setCursor(c => new Date(c.getFullYear(), c.getMonth() - 1, 1))} aria-label="Previous month">
             <ChevronLeft size={14} />

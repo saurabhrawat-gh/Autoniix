@@ -1,6 +1,6 @@
 .PHONY: help infra bff ui dev stop logs up down health restart-app restart-bff verify-bff use-test use-prod env-status \
         migrate migrate-status backfill auth-enable smoke deploy-check schedule-register setup fresh tls-up tls-down \
-        backup restore alerts-status providers-wipe
+        backup restore alerts-status providers-wipe rebuild-ui rebuild-bff rebuild-svc logs-svc
 
 help: ## Show available commands
 	@echo ""
@@ -15,6 +15,12 @@ help: ## Show available commands
 	@echo "  make use-test   → Activate .env.test (mock providers, ~\$$0/video)"
 	@echo "  make use-prod   → Activate .env.prod (real APIs, requires confirmation)"
 	@echo "  make env-status → Show which env is currently active"
+	@echo ""
+	@echo "  Dev iteration (rebuild + tail logs):"
+	@echo "  make rebuild-ui            → After dashboard/ changes"
+	@echo "  make rebuild-bff           → After src/services/dashboard/ changes"
+	@echo "  make rebuild-svc SVC=name  → After src/services/<name>/ changes"
+	@echo "  make logs-svc SVC=name     → Tail without rebuild"
 	@echo ""
 	@echo "  Local-dev mode (3 terminals, app code on host):"
 	@echo "  make infra      → Start only DB, Redis, Temporal (Docker)"
@@ -130,6 +136,49 @@ verify-bff: ## Verify v2 router is mounted (fails loud if it silently disabled)
 		exit 1; \
 	fi; \
 	echo "✅ BFF healthy — $$v2count v2 routes mounted"
+
+# ── Granular rebuild + tail (dev iteration loop) ──────────
+# Usage:
+#   make rebuild-ui                       # after dashboard/ changes
+#   make rebuild-bff                      # after src/services/dashboard/ changes
+#   make rebuild-svc SVC=script           # after src/services/<name>/ changes
+#   make rebuild-svc SVC="script voice"   # multiple at once
+#   make logs-svc SVC=script              # just tail without rebuild
+
+rebuild-ui: ## Rebuild + restart dashboard-ui, then tail logs (Ctrl+C to exit)
+	@docker compose build dashboard-ui
+	@docker compose up -d dashboard-ui
+	@echo "✅ dashboard-ui rebuilt — tailing logs (Ctrl+C to exit)"
+	@docker compose logs -f --tail=50 dashboard-ui
+
+rebuild-bff: ## Rebuild + restart dashboard-bff, verify v2, then tail logs
+	@docker compose build dashboard-bff
+	@docker compose up -d dashboard-bff
+	@echo "⏳ Waiting for BFF to become healthy..."
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+		if curl -sf http://localhost:8020/health > /dev/null 2>&1; then break; fi; \
+		sleep 1; \
+	done
+	@$(MAKE) verify-bff
+	@echo "✅ dashboard-bff rebuilt — tailing logs (Ctrl+C to exit)"
+	@docker compose logs -f --tail=50 dashboard-bff
+
+rebuild-svc: ## Rebuild + restart one or more services. Usage: make rebuild-svc SVC=script
+	@if [ -z "$(SVC)" ]; then \
+		echo "❌ Usage: make rebuild-svc SVC=<service>"; \
+		echo "   Available: admin worker-production worker-scheduler research script voice"; \
+		echo "              assets thumbnail direction assembly delivery analytics brand"; \
+		echo "              editor sheets-sync"; \
+		exit 1; \
+	fi
+	@docker compose build $(SVC)
+	@docker compose up -d $(SVC)
+	@echo "✅ $(SVC) rebuilt — tailing logs (Ctrl+C to exit)"
+	@docker compose logs -f --tail=50 $(SVC)
+
+logs-svc: ## Tail logs for a service without rebuilding. Usage: make logs-svc SVC=script
+	@if [ -z "$(SVC)" ]; then echo "❌ Usage: make logs-svc SVC=<service>"; exit 1; fi
+	@docker compose logs -f --tail=100 $(SVC)
 
 # ── Environment switching ─────────────────────────────────
 use-test: ## Activate .env.test (mock providers, ~$0/video)

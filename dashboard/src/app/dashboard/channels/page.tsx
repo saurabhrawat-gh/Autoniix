@@ -306,11 +306,18 @@ export default function ChannelsPage() {
             {/* View toggle */}
             <div className="flex items-center gap-0.5 bg-surface-1 border border-border rounded-md p-0.5">
               {(['table', 'grid'] as const).map(v => (
-                <button key={v} onClick={() => setViewMode(v)}
-                  className={cn('w-7 h-7 flex items-center justify-center rounded text-xs transition-colors',
-                    viewMode === v ? 'bg-surface-0 text-content-primary shadow-card' : 'text-content-tertiary hover:text-content-secondary')}>
+                <Button
+                  key={v}
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setViewMode(v)}
+                  aria-label={v === 'table' ? 'Table view' : 'Grid view'}
+                  className={cn('w-7 h-7',
+                    viewMode === v ? 'bg-surface-0 text-content-primary shadow-card hover:bg-surface-0' : 'text-content-tertiary hover:text-content-secondary')}
+                >
                   {v === 'table' ? <Layers size={13} /> : <Boxes size={13} />}
-                </button>
+                </Button>
               ))}
             </div>
             <Button asChild size="sm" leftIcon={<Plus size={13} />}>
@@ -338,14 +345,20 @@ export default function ChannelsPage() {
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-0.5 bg-surface-1 rounded-md p-0.5">
             {TABS.map(t => (
-              <button key={t.key} onClick={() => setTab(t.key)}
-                className={cn('px-3 py-1.5 text-xs font-medium rounded transition-all',
-                  tab === t.key ? 'bg-surface-0 text-content-primary shadow-card' : 'text-content-tertiary hover:text-content-secondary')}>
+              <Button
+                key={t.key}
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setTab(t.key)}
+                className={cn('h-7 px-3 text-xs',
+                  tab === t.key ? 'bg-surface-0 text-content-primary shadow-card hover:bg-surface-0' : 'text-content-tertiary hover:text-content-secondary')}
+              >
                 {t.label}
                 <span className={cn('ml-1', tab === t.key ? 'text-accent' : 'text-content-tertiary')}>
                   {tabCounts[t.key]}
                 </span>
-              </button>
+              </Button>
             ))}
           </div>
           <div className="relative flex-1 min-w-[180px] max-w-sm ml-auto">
@@ -358,10 +371,16 @@ export default function ChannelsPage() {
               className="h-8 text-xs pr-7"
             />
             {search && (
-              <button onClick={() => setSearch('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded text-content-tertiary hover:text-content-primary">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setSearch('')}
+                aria-label="Clear search"
+                className="absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 text-content-tertiary hover:text-content-primary"
+              >
                 <X size={10} />
-              </button>
+              </Button>
             )}
           </div>
           <DropdownMenu>
@@ -431,6 +450,10 @@ export default function ChannelsPage() {
                       </Link>
                       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                         {ch.niche && <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">{ch.niche}</span>}
+                        {ch.environment === 'production'
+                          ? <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-red-500/10 text-red-400">PROD</span>
+                          : <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-emerald-500/10 text-emerald-500">TEST</span>
+                        }
                         {modes.map((m: string) => (
                           <span key={m} className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium',
                             m === 'short' ? 'bg-violet-500/10 text-violet-500' : 'bg-blue-500/10 text-blue-500')}>
@@ -466,10 +489,15 @@ export default function ChannelsPage() {
                   <div className="flex items-center gap-1.5 flex-wrap border-t border-border pt-3">
                     {isArchived ? (
                       <>
-                        <button onClick={() => restoreChannel(ch.channel_id)}
-                          className="flex-1 h-7 rounded-md border border-accent/30 bg-accent/5 text-accent text-[11px] font-medium hover:bg-accent/10 transition-colors">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => restoreChannel(ch.channel_id)}
+                          className="flex-1 h-7 text-[11px] text-accent border-accent/30 bg-accent/5 hover:bg-accent/10"
+                        >
                           Restore
-                        </button>
+                        </Button>
                         <Link href={`/dashboard/channels/${ch.channel_id}`}
                           className="flex-1 h-7 rounded-md border border-border bg-surface-1 text-content-tertiary text-[11px] font-medium hover:bg-surface-2 transition-colors flex items-center justify-center">
                           View
@@ -483,13 +511,21 @@ export default function ChannelsPage() {
                           const atLimit = isModeAtLimit(ch, m);
                           const canTrigger = !isDisabled && !systemStopped && !atLimit && mState === 'idle';
                           if (mState === 'idle') return (
-                            <button key={m} onClick={() => canTrigger && triggerChannel(ch.channel_id, m)} disabled={!canTrigger}
-                              className={cn('flex-1 h-7 rounded-md border text-[11px] font-medium flex items-center justify-center gap-1 transition-all',
+                            <Button
+                              key={m}
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => canTrigger && triggerChannel(ch.channel_id, m)}
+                              disabled={!canTrigger}
+                              leftIcon={<Play size={9} />}
+                              className={cn('flex-1 h-7 text-[11px]',
                                 canTrigger
-                                  ? 'border-accent/30 bg-accent/5 text-accent hover:bg-accent/10'
-                                  : 'border-border bg-surface-2 text-content-tertiary opacity-50 cursor-not-allowed')}>
-                              <Play size={9} /> {atLimit ? 'Limit' : m === 'short' ? 'Short' : 'Long'}
-                            </button>
+                                  ? 'text-accent border-accent/30 bg-accent/5 hover:bg-accent/10'
+                                  : 'text-content-tertiary border-border bg-surface-2')}
+                            >
+                              {atLimit ? 'Limit' : m === 'short' ? 'Short' : 'Long'}
+                            </Button>
                           );
                           if (mState === 'pending_review' && mJob) return (
                             <Link key={m} href={`/dashboard/jobs/${mJob.content_id}`}
@@ -504,14 +540,28 @@ export default function ChannelsPage() {
                               <span className="text-[10px] text-content-tertiary">{mState === 'paused' ? 'Paused' : 'Running'}</span>
                               {mJob && (
                                 <>
-                                  <button onClick={() => togglePauseJob(ch.channel_id, mJob.content_id, mJob.is_paused)} disabled={!!isBusy}
-                                    className="h-5 px-1.5 rounded border text-[10px] border-border hover:bg-surface-2 text-content-tertiary disabled:opacity-50">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => togglePauseJob(ch.channel_id, mJob.content_id, mJob.is_paused)}
+                                    disabled={!!isBusy}
+                                    aria-label={mJob.is_paused ? 'Resume' : 'Pause'}
+                                    className="h-5 px-1.5 text-[10px] text-content-tertiary"
+                                  >
                                     {isBusy ? '…' : mJob.is_paused ? '▶' : '⏸'}
-                                  </button>
-                                  <button onClick={() => stopJob(ch.channel_id, mJob.content_id)} disabled={!!isBusy}
-                                    className="h-5 px-1.5 rounded border text-[10px] border-status-error/30 bg-status-error/5 text-status-error hover:bg-status-error/10 disabled:opacity-50">
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => stopJob(ch.channel_id, mJob.content_id)}
+                                    disabled={!!isBusy}
+                                    aria-label="Stop"
+                                    className="h-5 px-1.5 text-[10px] text-status-error border-status-error/30 bg-status-error/5 hover:bg-status-error/10"
+                                  >
                                     {isBusy ? '…' : '■'}
-                                  </button>
+                                  </Button>
                                 </>
                               )}
                             </div>
@@ -572,12 +622,19 @@ export default function ChannelsPage() {
                     )}>
                     {/* Pin + avatar */}
                     <div className="flex items-center justify-start gap-1.5">
-                      <button onClick={() => togglePin(ch.channel_id)} title={isPinned ? 'Unpin' : 'Pin'}
-                        className={cn('w-5 h-5 flex items-center justify-center rounded text-content-tertiary hover:text-accent transition-colors', isPinned && 'text-accent')}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => togglePin(ch.channel_id)}
+                        title={isPinned ? 'Unpin' : 'Pin'}
+                        aria-label={isPinned ? 'Unpin channel' : 'Pin channel'}
+                        className={cn('w-5 h-5 text-content-tertiary hover:text-accent', isPinned && 'text-accent')}
+                      >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M12 17v5" /><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1z" />
                         </svg>
-                      </button>
+                      </Button>
                     </div>
 
                     {/* Channel identity */}
@@ -589,6 +646,10 @@ export default function ChannelsPage() {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-medium text-sm text-content-primary hover:text-accent truncate">{ch.channel_name}</span>
                           {ch.niche && <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">{ch.niche}</span>}
+                          {ch.environment === 'production'
+                            ? <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-red-500/10 text-red-400">PROD</span>
+                            : <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-emerald-500/10 text-emerald-500">TEST</span>
+                          }
                           {modes.map((m: string) => (
                             <span key={m} className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium',
                               m === 'short' ? 'bg-violet-500/10 text-violet-500' : 'bg-blue-500/10 text-blue-500')}>
@@ -632,10 +693,15 @@ export default function ChannelsPage() {
                       {isArchived ? (
                         <>
                           <SimpleTooltip content="Restore to disabled">
-                            <button onClick={() => restoreChannel(ch.channel_id)}
-                              className="h-7 px-2.5 border rounded-md text-[11px] font-medium text-accent bg-accent/5 border-accent/15 hover:bg-accent/10 transition-all">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => restoreChannel(ch.channel_id)}
+                              className="h-7 px-2.5 text-[11px] text-accent bg-accent/5 border-accent/15 hover:bg-accent/10"
+                            >
                               Restore
-                            </button>
+                            </Button>
                           </SimpleTooltip>
                           <Link href={`/dashboard/channels/${ch.channel_id}`}
                             className="h-7 px-2.5 border rounded-md text-[11px] font-medium text-content-tertiary bg-surface-1 border-border hover:bg-surface-2 transition-all flex items-center">
@@ -656,13 +722,21 @@ export default function ChannelsPage() {
                                   if (mState === 'idle') {
                                     const canTrigger = !isDisabled && !systemStopped && !atLimit;
                                     return (
-                                      <button key={m} onClick={() => triggerChannel(ch.channel_id, m)} disabled={!canTrigger}
-                                        className={cn('h-7 px-2.5 border rounded-md text-[11px] font-medium flex items-center gap-1 transition-all',
+                                      <Button
+                                        key={m}
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => triggerChannel(ch.channel_id, m)}
+                                        disabled={!canTrigger}
+                                        leftIcon={<Play size={9} />}
+                                        className={cn('h-7 px-2.5 text-[11px]',
                                           canTrigger
                                             ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
-                                            : 'text-content-tertiary bg-surface-2 border-border opacity-50 cursor-not-allowed')}>
-                                        <Play size={9} /> {atLimit ? `${mLabel} Limit` : m === 'short' ? 'Short' : 'Long'}
-                                      </button>
+                                            : 'text-content-tertiary bg-surface-2 border-border')}
+                                      >
+                                        {atLimit ? `${mLabel} Limit` : m === 'short' ? 'Short' : 'Long'}
+                                      </Button>
                                     );
                                   }
                                   if (mState === 'pending_review' && mJob) return (
@@ -678,15 +752,29 @@ export default function ChannelsPage() {
                                       <span className="text-[10px] text-content-tertiary whitespace-nowrap">{mState === 'paused' ? 'Paused' : 'Running'} ({mLabel})</span>
                                       {mJob && (
                                         <>
-                                          <button onClick={() => togglePauseJob(ch.channel_id, mJob.content_id, mJob.is_paused)} disabled={!!isBusy}
-                                            className={cn('h-5 px-1.5 border rounded text-[10px] font-medium transition-all disabled:opacity-50',
-                                              mJob.is_paused ? 'text-accent border-accent/20 bg-accent/5' : 'text-status-warning border-status-warning/20 bg-status-warning/5')}>
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => togglePauseJob(ch.channel_id, mJob.content_id, mJob.is_paused)}
+                                            disabled={!!isBusy}
+                                            aria-label={mJob.is_paused ? 'Resume' : 'Pause'}
+                                            className={cn('h-5 px-1.5 text-[10px]',
+                                              mJob.is_paused ? 'text-accent border-accent/20 bg-accent/5' : 'text-status-warning border-status-warning/20 bg-status-warning/5')}
+                                          >
                                             {isBusy ? '…' : mJob.is_paused ? '▶' : '⏸'}
-                                          </button>
-                                          <button onClick={() => stopJob(ch.channel_id, mJob.content_id)} disabled={!!isBusy}
-                                            className="h-5 px-1.5 border rounded text-[10px] font-medium text-status-error border-status-error/20 bg-status-error/5 hover:bg-status-error/10 transition-all disabled:opacity-50">
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => stopJob(ch.channel_id, mJob.content_id)}
+                                            disabled={!!isBusy}
+                                            aria-label="Stop"
+                                            className="h-5 px-1.5 text-[10px] text-status-error border-status-error/20 bg-status-error/5 hover:bg-status-error/10"
+                                          >
                                             {isBusy ? '…' : '■'}
-                                          </button>
+                                          </Button>
                                         </>
                                       )}
                                     </div>

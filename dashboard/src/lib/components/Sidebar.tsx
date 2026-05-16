@@ -7,6 +7,7 @@ import { useHotkeys } from 'react-hotkeys-hook';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../utils';
 import { Tip } from './Tooltip';
+import { Button } from '../ui';
 import {
   Home,
   Tv,
@@ -25,6 +26,7 @@ import {
   Bell,
   Cpu,
   Terminal,
+  Boxes,
 } from './Icon';
 
 const COLLAPSED_KEY = 'sidebar_collapsed_v1';
@@ -72,6 +74,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/dashboard/notifications', label: 'Notifications', icon: Bell, shortcut: 'g n' },
       { href: '/dashboard/fleet', label: 'Fleet Health', icon: Cpu, shortcut: 'g f' },
       { href: '/dashboard/debug', label: 'Debug', icon: Terminal, shortcut: 'g b' },
+      { href: '/dashboard/workspace', label: 'Workspace', icon: Boxes, shortcut: 'g w' },
       { href: '/dashboard/users', label: 'Team', icon: Users, shortcut: 'g u' },
       { href: '/dashboard/settings', label: 'Settings', icon: Settings, shortcut: 'g s' },
     ],
@@ -161,6 +164,7 @@ export function Sidebar() {
   useHotkeys('f', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/fleet'); } }, [gPressed]);
   useHotkeys('b', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/debug'); } }, [gPressed]);
   useHotkeys('u', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/users'); } }, [gPressed]);
+  useHotkeys('w', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/workspace'); } }, [gPressed]);
   useHotkeys('s', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/settings'); } }, [gPressed]);
 
   return (
@@ -223,13 +227,15 @@ export function Sidebar() {
           'border-t border-border shrink-0',
           collapsed ? 'py-2 px-1.5' : 'py-3 px-2'
         )}>
-          <button
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
             onClick={toggleCollapsed}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className={cn(
-              'flex items-center rounded-md text-xs text-content-tertiary',
-              'hover:text-content-primary hover:bg-surface-2 transition-colors',
-              collapsed ? 'w-10 h-8 justify-center mx-auto' : 'w-full px-2.5 py-1.5 gap-2'
+              'text-xs text-content-tertiary hover:text-content-primary hover:bg-surface-2',
+              collapsed ? 'w-10 h-8 justify-center mx-auto' : 'w-full justify-start gap-2 px-2.5 py-1.5 h-auto'
             )}
           >
             {collapsed ? <ChevronRight size={14} /> : (
@@ -238,7 +244,7 @@ export function Sidebar() {
                 <span>Collapse</span>
               </>
             )}
-          </button>
+          </Button>
         </div>
       </aside>
     </>

@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, XCircle, Info, X } from './components/Icon';
 import { cn } from './utils';
+import { Button } from './ui';
 
 type ToastVariant = 'error' | 'success' | 'info' | 'warning';
 
@@ -94,22 +95,28 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               </span>
               <span className="flex-1" onClick={() => !t.action && dismiss(t.id)}>{t.message}</span>
               {t.action && (
-                <button
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={async () => {
                     try { await t.action!.onAct(); } finally { dismiss(t.id); }
                   }}
-                  className="shrink-0 px-2 py-1 rounded-md text-xs font-semibold bg-current/10 hover:bg-current/20 transition-colors uppercase tracking-wide"
+                  className="shrink-0 h-auto px-2 py-1 text-xs font-semibold bg-current/10 hover:bg-current/20 uppercase tracking-wide"
                 >
                   {t.action.label}
-                </button>
+                </Button>
               )}
-              <button
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
                 onClick={() => dismiss(t.id)}
                 aria-label="Dismiss"
-                className="shrink-0 text-content-tertiary hover:text-content-primary"
+                className="shrink-0 w-6 h-6 text-content-tertiary hover:text-content-primary"
               >
                 <X size={14} />
-              </button>
+              </Button>
             </motion.div>
           ))}
         </AnimatePresence>

@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
+import { Button } from '@/lib/ui';
 
 export default function GlobalError({
   error,
@@ -23,12 +24,7 @@ export default function GlobalError({
           {error?.message || 'An unexpected error occurred.'}
         </p>
         <div className="flex items-center justify-center gap-2 pt-2">
-          <button
-            onClick={() => reset()}
-            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-medium bg-accent text-white hover:opacity-90 transition-opacity"
-          >
-            Try again
-          </button>
+          <Button onClick={() => reset()} size="sm">Try again</Button>
           <Link
             href="/"
             className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-medium border border-border bg-surface-1 hover:bg-surface-2"

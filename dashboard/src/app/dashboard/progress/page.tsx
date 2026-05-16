@@ -359,7 +359,11 @@ export default function ProgressPage() {
                                 {isFailed ? (
                                   <div className="flex items-center gap-1.5">
                                     {job.checkpoint && (
-                                      <button onClick={() => handleRestart(job.content_id, job.checkpoint)}
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleRestart(job.content_id, job.checkpoint)}
                                         disabled={isRestarting}
                                         title={`Restart from ${PHASE_LABELS[job.checkpoint] || job.checkpoint}`}
                                         className={cn(
@@ -369,9 +373,13 @@ export default function ProgressPage() {
                                             : 'text-status-success bg-status-success/5 border-status-success/15 hover:bg-status-success/10'
                                         )}>
                                         {isRestarting ? 'Restarting...' : `Restart from ${PHASE_LABELS[job.checkpoint] || job.checkpoint}`}
-                                      </button>
+                                      </Button>
                                     )}
-                                    <button onClick={() => setRetryConfirm(job.content_id)}
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setRetryConfirm(job.content_id)}
                                       disabled={isRetrying}
                                       title="Start a fresh new video"
                                       className={cn(
@@ -381,12 +389,16 @@ export default function ProgressPage() {
                                           : 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
                                       )}>
                                       {isRetrying ? 'Retrying...' : 'Retry Fresh'}
-                                    </button>
+                                    </Button>
                                   </div>
                                 ) : isStopped ? (
                                   <div className="flex items-center gap-1.5">
                                     {job.checkpoint && (
-                                      <button onClick={() => handleRestart(job.content_id, job.checkpoint)}
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleRestart(job.content_id, job.checkpoint)}
                                         disabled={isRestarting}
                                         title={`Restart from ${PHASE_LABELS[job.checkpoint] || job.checkpoint}`}
                                         className={cn(
@@ -396,9 +408,13 @@ export default function ProgressPage() {
                                             : 'text-status-success bg-status-success/5 border-status-success/15 hover:bg-status-success/10'
                                         )}>
                                         {isRestarting ? 'Restarting...' : `Restart from ${PHASE_LABELS[job.checkpoint] || job.checkpoint}`}
-                                      </button>
+                                      </Button>
                                     )}
-                                    <button onClick={() => setRetryConfirm(job.content_id)}
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setRetryConfirm(job.content_id)}
                                       disabled={isRetrying}
                                       title="Start a fresh new video"
                                       className={cn(
@@ -408,33 +424,56 @@ export default function ProgressPage() {
                                           : 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
                                       )}>
                                       {isRetrying ? 'Retrying...' : 'Retry Fresh'}
-                                    </button>
+                                    </Button>
                                   </div>
                                 ) : (
                                   <>
                                     {isPaused ? (
-                                      <button onClick={() => handleResume(job.content_id)} disabled={isBusy}
-                                        className="px-2.5 py-1 border rounded-md text-[11px] font-medium text-status-success bg-status-success/5 border-status-success/15 hover:bg-status-success/10 transition-all disabled:opacity-50">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleResume(job.content_id)}
+                                        disabled={isBusy}
+                                        className="h-7 px-2.5 text-[11px] text-status-success bg-status-success/5 border-status-success/15 hover:bg-status-success/10"
+                                      >
                                         {isBusy ? '...' : 'Resume'}
-                                      </button>
+                                      </Button>
                                     ) : (
-                                      <button onClick={() => handlePause(job.content_id)} disabled={isBusy}
-                                        className="px-2.5 py-1 border rounded-md text-[11px] font-medium text-status-warning bg-status-warning/5 border-status-warning/15 hover:bg-status-warning/10 transition-all disabled:opacity-50">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handlePause(job.content_id)}
+                                        disabled={isBusy}
+                                        className="h-7 px-2.5 text-[11px] text-status-warning bg-status-warning/5 border-status-warning/15 hover:bg-status-warning/10"
+                                      >
                                         {isBusy ? '...' : 'Pause'}
-                                      </button>
+                                      </Button>
                                     )}
-                                    <button onClick={() => handleStop(job.content_id)} disabled={isBusy}
-                                      className="px-2.5 py-1 border rounded-md text-[11px] font-medium text-status-error bg-status-error/5 border-status-error/15 hover:bg-status-error/10 transition-all disabled:opacity-50">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleStop(job.content_id)}
+                                      disabled={isBusy}
+                                      className="h-7 px-2.5 text-[11px] text-status-error bg-status-error/5 border-status-error/15 hover:bg-status-error/10"
+                                    >
                                       {isBusy ? '...' : 'Stop'}
-                                    </button>
+                                    </Button>
                                   </>
                                 )}
                                 {/* Expand/collapse chevron */}
-                                <button onClick={() => toggleExpand(job.content_id)}
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  onClick={() => toggleExpand(job.content_id)}
                                   aria-label={isExpanded ? 'Collapse timeline' : 'Expand timeline'}
-                                  className="ml-1 p-1 rounded hover:bg-surface-2 transition-colors text-content-tertiary">
+                                  className="ml-1 w-7 h-7 text-content-tertiary"
+                                >
                                   <ChevronDown size={16} className={cn('transition-transform', isExpanded && 'rotate-180')} />
-                                </button>
+                                </Button>
                               </div>
                             </div>
 
@@ -582,7 +621,10 @@ export default function ProgressPage() {
                                           )}
                                           {/* Restart from Phase action — only in failed timeline step with checkpoint */}
                                           {hasFailed && job.checkpoint && (job.status === 'failed' || job.status === 'stopped') && (
-                                            <button
+                                            <Button
+                                              type="button"
+                                              variant="outline"
+                                              size="sm"
                                               onClick={() => handleRestart(job.content_id, job.checkpoint)}
                                               disabled={isRestarting}
                                               className={cn(
@@ -592,7 +634,7 @@ export default function ProgressPage() {
                                                   : 'text-status-success bg-status-success/5 border-status-success/15 hover:bg-status-success/10'
                                               )}>
                                               {isRestarting ? 'Restarting...' : `Restart from ${PHASE_LABELS[job.checkpoint] || job.checkpoint}`}
-                                            </button>
+                                            </Button>
                                           )}
                                         </div>
                                       </div>

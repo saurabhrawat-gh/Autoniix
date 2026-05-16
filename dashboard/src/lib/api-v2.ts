@@ -73,6 +73,20 @@ export const authApi = {
   mfaSetup: () => request<{ data: { otpauth_url: string; secret: string } }>('/api/v2/auth/mfa/setup', { method: 'POST' }),
   mfaVerify: (code: string) =>
     request('/api/v2/auth/mfa/verify', { method: 'POST', body: JSON.stringify({ code }) }),
+  updateProfile: (data: { display_name?: string; current_password?: string; new_password?: string }) =>
+    request<{ status: string; message: string }>('/api/v2/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
+  listWorkspaces: () =>
+    request<{ data: Array<{ id: number; name: string; slug: string; plan: string; role: string; active: boolean }> }>('/api/v2/auth/workspaces'),
+  switchWorkspace: (workspace_id: number) =>
+    request<{ status: string; access_token: string; refresh_token: string; workspace_id: number; role: string }>(
+      '/api/v2/auth/switch-workspace',
+      { method: 'POST', body: JSON.stringify({ workspace_id }) }
+    ),
+  acceptInvite: (token: string, password?: string, display_name?: string) =>
+    request<{ status: string; access_token: string; refresh_token: string; workspace_id: number; role: string }>(
+      '/api/v2/auth/accept-invite',
+      { method: 'POST', body: JSON.stringify({ token, password, display_name }) }
+    ),
 };
 
 // ── Channels ──────────────────────────────────────────────
@@ -511,6 +525,17 @@ export const membersApi = {
   setRole: (user_id: number, role: string) =>
     request(`/api/v2/workspace/members/${user_id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
   remove: (user_id: number) => request(`/api/v2/workspace/members/${user_id}`, { method: 'DELETE' }),
+};
+
+// ── Invites ───────────────────────────────────────────────
+export const invitesApi = {
+  list: () => request<{ data: any[] }>('/api/v2/workspace/invites'),
+  create: (email: string, role: string, expires_days = 7) =>
+    request<{ status: string; id: number; token: string; invite_url: string }>(
+      '/api/v2/workspace/invites',
+      { method: 'POST', body: JSON.stringify({ email, role, expires_days }) }
+    ),
+  revoke: (id: number) => request(`/api/v2/workspace/invites/${id}`, { method: 'DELETE' }),
 };
 
 // ── Jobs (Wave 6) ─────────────────────────────────────────

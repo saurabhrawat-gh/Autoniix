@@ -27,6 +27,12 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   Label as FieldLabel,
+  Checkbox,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
 } from '@/lib/ui';
 
 const STATUS_CHIP: Record<string, string> = {
@@ -390,14 +396,26 @@ export default function ContentPage() {
             <p className="text-xs text-content-tertiary mt-0.5">Manage, review, and trigger video generation.</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setTriggerOpen(true)}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-accent text-white text-xs font-medium hover:opacity-90 transition-opacity">
-              <Zap size={12} /> Generate
-            </button>
-            <button onClick={() => fetchPage(true)} disabled={loading}
-              className="h-8 w-8 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary transition-colors">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setTriggerOpen(true)}
+              leftIcon={<Zap size={12} />}
+              className="h-8"
+            >
+              Generate
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              onClick={() => fetchPage(true)}
+              disabled={loading}
+              aria-label="Refresh"
+              className="h-8 w-8"
+            >
               <RotateCw size={13} className={cn(loading && 'animate-spin')} />
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -408,15 +426,20 @@ export default function ContentPage() {
             { key: 'calendar', label: 'Calendar', icon: <CalendarDays size={13} /> },
             { key: 'stats',    label: 'Stats',    icon: <BarChart2 size={13} /> },
           ] as { key: Tab; label: string; icon: React.ReactNode }[]).map(t => (
-            <button key={t.key} onClick={() => setActiveTab(t.key)}
+            <Button
+              key={t.key}
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setActiveTab(t.key)}
               className={cn(
-                'flex items-center gap-1.5 px-4 py-2 text-xs font-medium border-b-2 transition-colors -mb-px',
+                'h-auto px-4 py-2 text-xs rounded-none border-b-2 -mb-px',
                 activeTab === t.key
                   ? 'border-accent text-accent'
                   : 'border-transparent text-content-tertiary hover:text-content-secondary hover:border-border'
               )}>
               {t.icon} {t.label}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -444,30 +467,52 @@ export default function ContentPage() {
           {/* Search + filter bar */}
           <div className="flex items-center gap-2 shrink-0">
             {/* Select all */}
-            <button onClick={toggleSelectAll}
-              className="w-8 h-8 flex items-center justify-center rounded border border-border text-content-tertiary hover:text-content-primary hover:bg-surface-2 transition-colors">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              onClick={toggleSelectAll}
+              aria-label="Select all"
+              className="w-8 h-8 text-content-tertiary hover:text-content-primary"
+            >
               {selectedIds.size > 0 && selectedIds.size === filtered.length
                 ? <CheckSquare size={14} className="text-accent" />
-                : <CheckSquare size={14} />}
-            </button>
+                : <CheckSquare size={14} />
+              }
+            </Button>
             <div className="relative flex-1">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-content-tertiary" />
-              <input type="text" value={q} onChange={e => setQ(e.target.value)}
+              <Input
+                type="text"
+                value={q}
+                onChange={e => setQ(e.target.value)}
                 placeholder="Search title, hook, topic…"
-                className="w-full pl-9 pr-8 py-2 text-xs bg-surface-0 border border-border rounded text-content-primary placeholder:text-content-tertiary focus:outline-none focus:ring-1 focus:ring-accent/30 transition-shadow" />
+                leftIcon={<Search size={13} />}
+                className="h-8 text-xs pr-8"
+              />
               {q && (
-                <button onClick={() => setQ('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-content-tertiary hover:text-content-primary w-5 h-5 flex items-center justify-center rounded hover:bg-surface-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setQ('')}
+                  aria-label="Clear search"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 text-content-tertiary hover:text-content-primary"
+                >
                   <X size={12} />
-                </button>
+                </Button>
               )}
             </div>
             {/* Sort */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-9"
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="h-8"
                   rightIcon={<span className="text-accent font-bold">{sortDir === 'asc' ? '↑' : '↓'}</span>}
                 >
+                  <span className="text-content-tertiary mr-1">Sort:</span>
                   {SORT_OPTIONS.find(s => s.key === sortKey)?.label}
                 </Button>
               </DropdownMenuTrigger>
@@ -486,15 +531,20 @@ export default function ContentPage() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <button onClick={() => setDrawerOpen(true)}
-              className={cn('inline-flex items-center gap-1.5 px-2.5 py-2 rounded-md text-xs font-medium transition-colors',
-                activeFilterCount > 0 ? 'bg-accent/10 text-accent' : 'text-content-secondary hover:bg-surface-2')}>
-              <Wrench size={13} />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setDrawerOpen(true)}
+              leftIcon={<Wrench size={13} />}
+              className={cn('h-8 px-2.5 text-xs',
+                activeFilterCount > 0 ? 'bg-accent/10 text-accent hover:bg-accent/15' : 'text-content-secondary hover:bg-surface-2')}
+            >
               Filters
               {activeFilterCount > 0 && (
                 <span className="min-w-[16px] h-4 px-1 rounded-full bg-accent text-white text-[9px] flex items-center justify-center font-bold">{activeFilterCount}</span>
               )}
-            </button>
+            </Button>
           </div>
 
           {/* Table */}
@@ -538,10 +588,16 @@ export default function ContentPage() {
                 </div>
               )}
               {cursor && !q && !searchHits && (
-                <button onClick={() => fetchPage(false)} disabled={loading}
-                  className="w-full py-2.5 border-t border-dashed border-border text-xs text-content-tertiary hover:bg-surface-1 transition-colors">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => fetchPage(false)}
+                  disabled={loading}
+                  className="w-full py-2.5 h-auto rounded-none border-t border-dashed border-border text-xs text-content-tertiary hover:bg-surface-1"
+                >
                   {loading ? 'Loading…' : 'Load more'}
-                </button>
+                </Button>
               )}
             </div>
             <div className="shrink-0 px-4 py-1.5 border-t border-border text-[10px] text-content-tertiary bg-surface-1/30">
@@ -557,19 +613,16 @@ export default function ContentPage() {
         <div className="flex-1 min-h-0 max-w-[1400px] w-full mx-auto px-6 py-4 flex flex-col gap-3">
           {/* Month nav */}
           <div className="flex items-center gap-3 shrink-0">
-            <button onClick={() => setCalDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
-              className="w-8 h-8 flex items-center justify-center rounded border border-border hover:bg-surface-2 text-content-tertiary transition-colors">
+            <Button type="button" variant="outline" size="icon-sm" onClick={() => setCalDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} aria-label="Previous month" className="w-8 h-8">
               <ChevronLeft size={14} />
-            </button>
+            </Button>
             <h2 className="text-sm font-semibold text-content-primary flex-1 text-center">{calMonthLabel}</h2>
-            <button onClick={() => setCalDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
-              className="w-8 h-8 flex items-center justify-center rounded border border-border hover:bg-surface-2 text-content-tertiary transition-colors">
+            <Button type="button" variant="outline" size="icon-sm" onClick={() => setCalDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} aria-label="Next month" className="w-8 h-8">
               <ChevronRight size={14} />
-            </button>
-            <button onClick={loadCalendar} disabled={calLoading}
-              className="w-8 h-8 flex items-center justify-center rounded border border-border hover:bg-surface-2 text-content-tertiary transition-colors">
+            </Button>
+            <Button type="button" variant="outline" size="icon-sm" onClick={loadCalendar} disabled={calLoading} aria-label="Refresh calendar" className="w-8 h-8">
               <RotateCw size={13} className={cn(calLoading && 'animate-spin')} />
-            </button>
+            </Button>
           </div>
           {/* Day-of-week headers */}
           <div className="grid grid-cols-7 gap-1 shrink-0">
@@ -596,13 +649,17 @@ export default function ContentPage() {
                         {day.date.getDate()}
                       </span>
                       {events.slice(0, 3).map((ev: any) => (
-                        <button key={ev.content_id}
+                        <Button
+                          key={ev.content_id}
+                          type="button"
+                          variant="ghost"
+                          size="sm"
                           onClick={() => openDetail(ev.content_id)}
                           title={ev.title || ev.content_id}
-                          className={cn('w-full text-left text-[9px] truncate rounded px-1 py-0.5 font-medium',
+                          className={cn('w-full justify-start text-left text-[9px] truncate rounded px-1 py-0.5 h-auto font-medium',
                             STATUS_CHIP[ev.status] || 'bg-surface-2 text-content-tertiary')}>
                           {ev.title || ev.content_id}
-                        </button>
+                        </Button>
                       ))}
                       {events.length > 3 && (
                         <span className="text-[9px] text-content-tertiary">+{events.length - 3} more</span>
@@ -621,16 +678,21 @@ export default function ContentPage() {
           {/* Period selector */}
           <div className="flex items-center gap-2 mb-4 shrink-0">
             {(['day','week','month'] as const).map(p => (
-              <button key={p} onClick={() => setStatsPeriod(p)}
-                className={cn('h-7 px-3 rounded-md border text-xs font-medium transition-all',
-                  statsPeriod === p ? 'border-accent/40 bg-accent/5 text-accent' : 'border-border text-content-tertiary hover:bg-surface-1')}>
+              <Button
+                key={p}
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setStatsPeriod(p)}
+                className={cn('h-7 px-3 text-xs',
+                  statsPeriod === p ? 'border-accent/40 bg-accent/5 text-accent' : 'border-border text-content-tertiary hover:bg-surface-1')}
+              >
                 {p === 'day' ? 'Daily' : p === 'week' ? 'Weekly' : 'Monthly'}
-              </button>
+              </Button>
             ))}
-            <button onClick={loadStats} disabled={statsLoading}
-              className="w-7 h-7 flex items-center justify-center rounded border border-border hover:bg-surface-2 text-content-tertiary transition-colors ml-auto">
+            <Button type="button" variant="outline" size="icon-sm" onClick={loadStats} disabled={statsLoading} aria-label="Refresh stats" className="w-7 h-7 ml-auto">
               <RotateCw size={12} className={cn(statsLoading && 'animate-spin')} />
-            </button>
+            </Button>
           </div>
 
           {statsLoading && (
@@ -727,15 +789,27 @@ export default function ContentPage() {
             { action: 'retry',    label: 'Retry',    cls: 'text-accent     hover:bg-accent/10' },
             { action: 'archive',  label: 'Archive',  cls: 'text-content-tertiary hover:bg-surface-2' },
           ].map(b => (
-            <button key={b.action} onClick={() => handleBulk(b.action)}
-              className={cn('h-7 px-3 rounded-md text-xs font-medium transition-colors', b.cls)}>
+            <Button
+              key={b.action}
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handleBulk(b.action)}
+              className={cn('h-7 px-3 text-xs', b.cls)}
+            >
               {b.label}
-            </button>
+            </Button>
           ))}
-          <button onClick={() => setSelectedIds(new Set())}
-            className="w-6 h-6 flex items-center justify-center rounded hover:bg-surface-2 text-content-tertiary transition-colors ml-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setSelectedIds(new Set())}
+            aria-label="Clear selection"
+            className="w-6 h-6 ml-1 text-content-tertiary"
+          >
             <X size={12} />
-          </button>
+          </Button>
         </div>
       )}
 
@@ -749,10 +823,16 @@ export default function ContentPage() {
                 <Film size={14} className="text-accent" />
                 <span className="text-sm font-semibold text-content-primary">Content Detail</span>
               </div>
-              <button onClick={() => { setDetailId(null); setDetailData(null); }}
-                className="w-7 h-7 flex items-center justify-center rounded hover:bg-surface-2 text-content-tertiary transition-colors">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => { setDetailId(null); setDetailData(null); }}
+                aria-label="Close"
+                className="w-7 h-7 text-content-tertiary"
+              >
                 <X size={14} />
-              </button>
+              </Button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {detailLoading && <div className="flex items-center justify-center py-12"><Loader2 size={18} className="animate-spin text-content-tertiary" /></div>}
@@ -840,10 +920,15 @@ export default function ContentPage() {
                   {/* Actions */}
                   <div className="flex flex-col gap-2 pt-1">
                     {['completed','published','delivered'].includes(detailData.status) && (
-                      <button onClick={() => { setDetailId(null); openPreview(detailData.content_id); }}
-                        className="flex items-center justify-center gap-1.5 h-8 rounded-md bg-accent text-white text-xs font-medium hover:opacity-90 transition-opacity">
-                        <Play size={12} /> Preview video
-                      </button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => { setDetailId(null); openPreview(detailData.content_id); }}
+                        leftIcon={<Play size={12} />}
+                        className="h-8"
+                      >
+                        Preview video
+                      </Button>
                     )}
                     <Link href={`/dashboard/review/${detailData.content_id}`}
                       className="flex items-center justify-center gap-1.5 h-8 rounded-md border border-border text-xs text-content-secondary hover:bg-surface-2 transition-colors">
@@ -870,9 +955,11 @@ export default function ContentPage() {
               <div className="flex items-center gap-2"><Wrench size={15} className="text-accent" /><h2 className="text-sm font-semibold text-content-primary">Filters</h2></div>
               <div className="flex items-center gap-2">
                 {activeFilterCount > 0 && (
-                  <button onClick={clearFilters} className="text-[11px] text-content-tertiary hover:text-content-primary px-2 py-1 rounded hover:bg-surface-1">Clear all</button>
+                  <Button type="button" variant="ghost" size="sm" onClick={clearFilters} className="h-auto px-2 py-1 text-[11px] text-content-tertiary hover:text-content-primary">Clear all</Button>
                 )}
-                <button onClick={() => setDrawerOpen(false)} className="w-7 h-7 flex items-center justify-center rounded hover:bg-surface-2 text-content-tertiary"><X size={14} /></button>
+                <Button type="button" variant="ghost" size="icon-sm" onClick={() => setDrawerOpen(false)} aria-label="Close" className="w-7 h-7 text-content-tertiary">
+                  <X size={14} />
+                </Button>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto scrollbar-hide p-5 space-y-6">
@@ -884,17 +971,22 @@ export default function ContentPage() {
               </section>
               <section>
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-content-tertiary mb-3">Channels</div>
-                <div className="relative mb-2">
-                  <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-content-tertiary" />
-                  <input type="text" value={channelSearch} onChange={e => setChannelSearch(e.target.value)} placeholder="Search channels…"
-                    className="w-full pl-8 pr-7 py-1.5 text-xs bg-surface-1 border border-border rounded focus:outline-none focus:ring-1 focus:ring-accent/30" />
+                <div className="mb-2">
+                  <Input
+                    type="text"
+                    value={channelSearch}
+                    onChange={e => setChannelSearch(e.target.value)}
+                    placeholder="Search channels…"
+                    leftIcon={<Search size={12} />}
+                    className="h-8 text-xs"
+                  />
                 </div>
                 <div className="max-h-48 overflow-y-auto space-y-0.5">
                   {channels.filter(c => c.channel_name.toLowerCase().includes(channelSearch.toLowerCase())).map(c => {
                     const checked = selChannels.includes(c.channel_id);
                     return (
                       <label key={c.channel_id} className={cn('flex items-center gap-3 px-3 py-2 rounded-md text-xs cursor-pointer transition-colors', checked ? 'bg-accent/10 text-accent' : 'text-content-secondary hover:bg-surface-2')}>
-                        <input type="checkbox" checked={checked} onChange={() => toggleMulti(selChannels, setSelChannels, c.channel_id)} />
+                        <Checkbox checked={checked} onCheckedChange={() => toggleMulti(selChannels, setSelChannels, c.channel_id)} />
                         <span className="truncate">{c.channel_name}</span>
                       </label>
                     );
@@ -931,20 +1023,30 @@ export default function ContentPage() {
           <div className="space-y-4">
             <div>
               <FieldLabel className="text-xs font-medium text-content-secondary mb-1.5 block">Channel</FieldLabel>
-              <select value={trigChannel} onChange={e => setTrigChannel(e.target.value)}
-                className="w-full h-9 px-3 rounded-md bg-surface-0 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent">
-                {channels.map(c => <option key={c.channel_id} value={c.channel_id}>{c.channel_name}</option>)}
-              </select>
+              <Select value={trigChannel} onValueChange={setTrigChannel}>
+                <SelectTrigger><SelectValue placeholder="Select a channel" /></SelectTrigger>
+                <SelectContent>
+                  {channels.map(c => (
+                    <SelectItem key={c.channel_id} value={c.channel_id}>{c.channel_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <FieldLabel className="text-xs font-medium text-content-secondary mb-1.5 block">Content Mode</FieldLabel>
               <div className="flex gap-2">
                 {[['long_form','Long form'],['short','Short']].map(([k, l]) => (
-                  <button key={k} onClick={() => setTrigMode(k)}
-                    className={cn('flex-1 h-9 rounded-md border text-xs font-medium transition-all',
-                      trigMode === k ? 'border-accent/40 bg-accent/5 text-accent' : 'border-border text-content-tertiary hover:bg-surface-1')}>
+                  <Button
+                    key={k}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setTrigMode(k)}
+                    className={cn('flex-1 h-9 text-xs',
+                      trigMode === k ? 'border-accent/40 bg-accent/5 text-accent' : 'border-border text-content-tertiary hover:bg-surface-1')}
+                  >
                     {l}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -983,15 +1085,20 @@ export default function ContentPage() {
 
 function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick}
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={onClick}
       className={cn(
-        'w-full px-3 py-2 rounded-md text-xs font-medium transition-colors text-left',
+        'w-full px-3 py-2 h-auto justify-start text-xs',
         active
-          ? 'bg-accent/10 text-accent ring-1 ring-accent/20'
+          ? 'bg-accent/10 text-accent ring-1 ring-accent/20 hover:bg-accent/15'
           : 'text-content-secondary hover:text-content-primary hover:bg-surface-2'
-      )}>
+      )}
+    >
       {label}
-    </button>
+    </Button>
   );
 }
 
@@ -1021,14 +1128,20 @@ function ContentRow({
     <div className={cn('flex items-center px-4 py-3 transition-colors hover:bg-surface-1/40', selected && 'bg-accent/5')}>
       {/* Checkbox */}
       <div className="w-7 shrink-0 flex items-center">
-        <button onClick={e => { e.stopPropagation(); onToggleSelect(); }}
-          className="w-5 h-5 flex items-center justify-center text-content-tertiary hover:text-accent transition-colors">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={e => { e.stopPropagation(); onToggleSelect(); }}
+          aria-label={selected ? 'Deselect row' : 'Select row'}
+          className="w-5 h-5 text-content-tertiary hover:text-accent"
+        >
           {selected ? <CheckSquare size={13} className="text-accent" /> : <CheckSquare size={13} />}
-        </button>
+        </Button>
       </div>
 
       {/* Title + channel — click opens detail */}
-      <button onClick={onDetail} className="min-w-0 flex-1 pl-2 pr-3 text-left">
+      <Button type="button" variant="ghost" size="sm" onClick={onDetail} className="min-w-0 flex-1 pl-2 pr-3 h-auto py-0 justify-start text-left flex flex-col items-start gap-0">
         <span className="text-xs font-medium truncate block text-content-primary hover:text-accent transition-colors">
           {v.title || v.topic || v.content_id}
         </span>
@@ -1036,7 +1149,7 @@ function ContentRow({
           <span className="text-content-secondary">{channelName}</span>
           {v.topic && <><span>·</span><span className="truncate">{v.topic}</span></>}
         </div>
-      </button>
+      </Button>
 
       {/* Type chip */}
       <div className="w-20 shrink-0 flex justify-center">
@@ -1103,13 +1216,17 @@ function ContentRow({
 
 function ActionButton({ onClick, title, icon: Icon }: { onClick: () => void; title: string; icon: any }) {
   return (
-    <button
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
       onClick={onClick}
       title={title}
-      className="w-7 h-7 flex items-center justify-center rounded text-content-tertiary hover:text-accent hover:bg-accent/10 transition-colors"
+      aria-label={title}
+      className="w-7 h-7 text-content-tertiary hover:text-accent hover:bg-accent/10"
     >
       <Icon size={13} />
-    </button>
+    </Button>
   );
 }
 
@@ -1137,9 +1254,9 @@ function VideoPreviewModal({
             <h3 className="text-sm font-semibold text-content-primary truncate">{meta?.title || contentId}</h3>
             {meta?.channel_id && <p className="text-[11px] text-content-tertiary truncate">{meta.channel_id}</p>}
           </div>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded hover:bg-surface-2 text-content-tertiary hover:text-content-primary transition-colors shrink-0 ml-2">
+          <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close" className="w-7 h-7 shrink-0 ml-2 text-content-tertiary hover:text-content-primary">
             <X size={14} />
-          </button>
+          </Button>
         </div>
 
         <div className="flex-1 min-h-0 bg-black flex items-center justify-center">

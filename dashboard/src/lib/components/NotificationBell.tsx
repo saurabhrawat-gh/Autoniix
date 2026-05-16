@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { useAppState } from './AppStateProvider';
 import { Bell, CheckCircle2, XCircle, Info, AlertTriangle, Trash2 } from './Icon';
 import { cn } from '../utils';
-import { Popover, PopoverTrigger, PopoverContent, SimpleTooltip, TooltipProvider } from '@/lib/ui';
+import { Popover, PopoverTrigger, PopoverContent, SimpleTooltip, TooltipProvider, Button } from '@/lib/ui';
 
 const VARIANT_ICON = {
   success: CheckCircle2,
@@ -73,13 +73,17 @@ export function NotificationBell() {
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
             <span className="text-xs font-semibold text-content-primary">Notifications</span>
             {notifications.length > 0 && (
-              <button
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
                 onClick={clearNotifications}
-                className="inline-flex items-center gap-1 text-[10px] text-content-tertiary hover:text-status-error transition-colors"
                 aria-label="Clear all notifications"
+                leftIcon={<Trash2 size={11} />}
+                className="h-auto px-1.5 py-1 text-[10px] text-content-tertiary hover:text-status-error"
               >
-                <Trash2 size={11} /> Clear
-              </button>
+                Clear
+              </Button>
             )}
           </div>
           <div className="max-h-[60vh] overflow-y-auto">

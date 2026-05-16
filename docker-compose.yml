@@ -173,9 +173,16 @@ services:
     image: temporalio/ui:latest
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_CORS_ORIGINS=http://localhost:8080
+      - TEMPORAL_CORS_ORIGINS=http://localhost:8080,https://${TEMPORAL_DOMAIN:-temporal.localhost}
     ports:
       - "8080:8080"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.temporal.rule=Host(`${TEMPORAL_DOMAIN:-temporal.localhost}`)"
+      - "traefik.http.routers.temporal.entrypoints=websecure"
+      - "traefik.http.routers.temporal.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.temporal.middlewares=admin-auth@docker,secureHeaders@file"
+      - "traefik.http.services.temporal.loadbalancer.server.port=8080"
     networks: [autoniix-net]
     depends_on:
       - temporal
@@ -677,7 +684,9 @@ services:
       - "8020:8020"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.bff.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/api`)"
+      # API router — api.<domain>. Split-host layout: dash + api on
+      # distinct subdomains, both terminating TLS at this Traefik.
+      - "traefik.http.routers.bff.rule=Host(`${API_DOMAIN:-api.localhost}`)"
       - "traefik.http.routers.bff.entrypoints=websecure"
       - "traefik.http.routers.bff.tls.certresolver=letsencrypt"
       - "traefik.http.routers.bff.middlewares=secureHeaders@file"
@@ -707,7 +716,8 @@ services:
       - "3000:3000"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.ui.rule=Host(`${DOMAIN:-localhost}`)"
+      # Dashboard UI — dash.<domain>  (or root <domain> when DASH_DOMAIN unset)
+      - "traefik.http.routers.ui.rule=Host(`${DASH_DOMAIN:-${DOMAIN:-localhost}}`)"
       - "traefik.http.routers.ui.entrypoints=websecure"
       - "traefik.http.routers.ui.tls.certresolver=letsencrypt"
       - "traefik.http.routers.ui.middlewares=secureHeaders@file"
@@ -752,6 +762,13 @@ services:
       - --web.enable-lifecycle
     ports:
       - "9090:9090"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`${PROMETHEUS_DOMAIN:-prometheus.localhost}`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.prometheus.middlewares=admin-auth@docker,secureHeaders@file"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
     networks: [autoniix-net]
     depends_on:
       - alertmanager
@@ -773,6 +790,13 @@ services:
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
     ports:
       - "9093:9093"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.alertmanager.rule=Host(`${ALERTS_DOMAIN:-alerts.localhost}`)"
+      - "traefik.http.routers.alertmanager.entrypoints=websecure"
+      - "traefik.http.routers.alertmanager.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.alertmanager.middlewares=admin-auth@docker,secureHeaders@file"
+      - "traefik.http.services.alertmanager.loadbalancer.server.port=9093"
     networks: [autoniix-net]
     restart: unless-stopped
     deploy:
@@ -838,6 +862,14 @@ services:
     environment:
       - ACME_EMAIL=${ACME_EMAIL:-admin@yourdomain.com}
       - DOMAIN=${DOMAIN:-localhost}
+    labels:
+      # Defines the admin-auth middleware referenced by grafana/prometheus/
+      # alertmanager/temporal-ui routers. TRAEFIK_BASIC_AUTH must be set in
+      # .env to an htpasswd-encoded `user:hash` string (dollar signs doubled).
+      - "traefik.enable=true"
+      - "traefik.http.middlewares.admin-auth.basicauth.users=${TRAEFIK_BASIC_AUTH:-admin:$$apr1$$change$$me}"
+      - "traefik.http.middlewares.admin-auth.basicauth.realm=Autoniix Admin"
+      - "traefik.http.middlewares.admin-auth.basicauth.removeheader=true"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik:/traefik:ro
@@ -859,12 +891,22 @@ services:
       - GF_LOG_LEVEL=warn
       - GF_UNIFIED_ALERTING_ENABLED=true
       - GF_ALERTING_ENABLED=false
+      - GF_SERVER_ROOT_URL=https://${GRAFANA_DOMAIN:-grafana.localhost}
+      - GF_SERVER_DOMAIN=${GRAFANA_DOMAIN:-grafana.localhost}
     volumes:
       - grafana_data:/var/lib/grafana
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards-json:ro
     ports:
       - "3001:3000"
+    labels:
+      - "traefik.enable=true"
+      # Grafana has its own auth — we skip basic-auth here to avoid double prompts.
+      - "traefik.http.routers.grafana.rule=Host(`${GRAFANA_DOMAIN:-grafana.localhost}`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.grafana.middlewares=secureHeaders@file"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
     networks: [autoniix-net]
     depends_on:
       - prometheus

@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, GitCompare } from 'lucide-react';
 import { reviewApi } from '@/lib/api-v2';
+import { Button, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, Label } from '@/lib/ui';
+import { cn } from '@/lib/utils';
 
 /** Line-based LCS diff producing {kind: 'eq'|'add'|'del', text: string}[]. */
 function diffLines(aText: string, bText: string) {
@@ -84,10 +86,16 @@ export default function ScriptDiffPage() {
         </h1>
         <div className="ml-auto inline-flex items-center gap-1 rounded-lg border border-border p-0.5 bg-surface-1">
           {(['inline', 'split'] as const).map(v => (
-            <button key={v} onClick={() => setView(v)}
-              className={'px-2 py-1 text-xs rounded ' + (view === v ? 'bg-accent text-white' : 'text-content-secondary hover:text-content-primary')}>
+            <Button
+              key={v}
+              type="button"
+              variant={view === v ? 'primary' : 'ghost'}
+              size="sm"
+              onClick={() => setView(v)}
+              className={cn('h-6 px-2 text-xs', view === v ? '' : 'text-content-secondary hover:text-content-primary')}
+            >
               {v}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -128,17 +136,19 @@ export default function ScriptDiffPage() {
 
 function VersionPicker({ label, value, versions, onChange }: any) {
   return (
-    <label className="block">
-      <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1">{label}</div>
-      <select value={value} onChange={e => onChange(Number(e.target.value))}
-        className="w-full px-2 py-1.5 rounded-lg bg-surface-1 border border-border text-sm">
-        {versions.map((v: any, i: number) => (
-          <option key={v.id} value={i}>
-            v{v.version} · {v.source} · {new Date(v.created_at).toLocaleString()}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div className="block">
+      <Label className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1 block">{label}</Label>
+      <Select value={String(value)} onValueChange={(v: string) => onChange(Number(v))}>
+        <SelectTrigger><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {versions.map((v: any, i: number) => (
+            <SelectItem key={v.id} value={String(i)}>
+              v{v.version} · {v.source} · {new Date(v.created_at).toLocaleString()}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
 

@@ -7,7 +7,19 @@ import { Save } from 'lucide-react';
 import { channelsApi } from '@/lib/api-v2';
 import { Skeleton } from '@/lib/components/Skeleton';
 import { AlertTriangle, ChevronLeft, RefreshCw } from '@/lib/components/Icon';
-import { Button, Input, Textarea, Checkbox, Label as FieldLabel } from '@/lib/ui';
+import {
+  Button,
+  Input,
+  Textarea,
+  Checkbox,
+  Label as FieldLabel,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/lib/ui';
+import { cn } from '@/lib/utils';
 
 import ProvidersTab from './ProvidersTab';
 
@@ -99,11 +111,21 @@ export default function ChannelDetail() {
 
       <div className="flex gap-1 border-b border-border mb-5 overflow-x-auto">
         {TABS.map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className={'px-3 py-2 text-sm border-b-2 -mb-px ' +
-              (tab === t ? 'border-accent text-accent' : 'border-transparent opacity-70 hover:opacity-100')}>
+          <Button
+            key={t}
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setTab(t)}
+            className={cn(
+              'px-3 py-2 text-sm border-b-2 -mb-px rounded-none h-auto',
+              tab === t
+                ? 'border-accent text-accent hover:text-accent'
+                : 'border-transparent opacity-70 hover:opacity-100',
+            )}
+          >
             {t}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -280,9 +302,16 @@ function ReferencesTab({ data, channel_id, onChange }: any) {
         ))}
       </ul>
       <div className="flex gap-2">
-        <select className="flex h-10 px-3 py-2 rounded-md bg-surface-0 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-accent/40" value={kind} onChange={e => setKind(e.target.value)}>
-          {['url','pdf','video','gdrive','notion','asset_pack','logo','lut','sfx','music'].map(k => <option key={k}>{k}</option>)}
-        </select>
+        <div className="min-w-[140px]">
+          <Select value={kind} onValueChange={setKind}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {['url','pdf','video','gdrive','notion','asset_pack','logo','lut','sfx','music'].map(k => (
+                <SelectItem key={k} value={k}>{k}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <Input placeholder="Label" value={label} onChange={e => setLabel(e.target.value)} className="max-w-[160px]" />
         <Input placeholder="URL or s3 key" value={uri} onChange={e => setUri(e.target.value)} className="flex-1" />
         <Button onClick={async () => {

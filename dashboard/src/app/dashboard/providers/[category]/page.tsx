@@ -2,15 +2,28 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { providersApi } from '@/lib/api-v2';
 import { useToast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
+import { confirmDialog } from '@/lib/components/ConfirmDialog';
 import {
   Plus, Activity, Trash2, ArrowUp, ArrowDown, X, Check, ChevronLeft,
   ShieldCheck, AlertTriangle, HelpCircle, Loader2, Eye, EyeOff, RotateCw,
   Terminal, SlidersHorizontal, Play, Star,
 } from '@/lib/components/Icon';
+import {
+  Button,
+  Input,
+  Textarea,
+  Switch as UISwitch,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  Label,
+} from '@/lib/ui';
 
 type HealthStatus = 'healthy' | 'failing' | 'untested';
 function getHealth(c: any): HealthStatus {
@@ -33,26 +46,12 @@ function Switch({ checked, onChange, title, disabled }: {
   checked: boolean; onChange: () => void; title?: string; disabled?: boolean;
 }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      title={title}
+    <UISwitch
+      checked={checked}
+      onCheckedChange={() => !disabled && onChange()}
       disabled={disabled}
-      onClick={onChange}
-      className={cn(
-        'relative inline-flex h-4 w-7 shrink-0 items-center rounded-full border transition-colors',
-        checked
-          ? 'bg-status-success/80 border-status-success/80'
-          : 'bg-surface-2 border-border',
-        disabled && 'opacity-40 cursor-not-allowed'
-      )}
-    >
-      <span className={cn(
-        'inline-block h-3 w-3 rounded-full bg-white shadow transition-transform',
-        checked ? 'translate-x-3.5' : 'translate-x-0.5'
-      )} />
-    </button>
+      aria-label={title}
+    />
   );
 }
 
@@ -66,6 +65,7 @@ const POLICY_OPTIONS = [
 export default function ProviderCategoryPage() {
   const { category } = useParams<{ category: string }>();
   const decoded = decodeURIComponent(category);
+  const searchParams = useSearchParams();
   const { showToast } = useToast();
   const [creds, setCreds] = useState<any[]>([]);
   const [chain, setChain] = useState<any[]>([]);
@@ -120,6 +120,11 @@ export default function ProviderCategoryPage() {
       .then(r => setContentModes(r.data || []))
       .catch(() => setContentModes([]));
   }, []);
+
+  // Auto-open add dialog when arriving via ?add=1 (from Marketplace / onboarding)
+  useEffect(() => {
+    if (searchParams.get('add') === '1') setShowAdd(true);
+  }, [searchParams]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -217,7 +222,13 @@ export default function ProviderCategoryPage() {
   };
 
   const deleteCredential = async (id: number) => {
-    if (!confirm('Delete this credential? This cannot be undone.')) return;
+    const ok = await confirmDialog({
+      title: 'Delete credential?',
+      description: 'This cannot be undone. Any chains using this credential will need to be re-routed.',
+      destructive: true,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     try {
       await providersApi.deleteCredential(id);
       showToast('Credential deleted', 'success');
@@ -276,14 +287,12 @@ export default function ProviderCategoryPage() {
       <div className="flex items-center gap-3 mb-5">
         <h1 className="text-xl font-semibold text-content-primary">{decoded}</h1>
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={refresh} disabled={loading}
-            className="w-8 h-8 flex items-center justify-center rounded-md border border-border hover:bg-surface-2 text-content-tertiary transition-colors">
+          <Button type="button" variant="outline" size="icon-sm" onClick={refresh} disabled={loading} aria-label="Refresh" className="w-8 h-8">
             <RotateCw size={13} className={cn(loading && 'animate-spin')} />
-          </button>
-          <button onClick={() => setShowAdd(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-white text-xs font-medium hover:opacity-90 transition-opacity">
-            <Plus size={13} /> Add credential
-          </button>
+          </Button>
+          <Button type="button" size="sm" onClick={() => setShowAdd(true)} leftIcon={<Plus size={13} />}>
+            Add credential
+          </Button>
         </div>
       </div>
 
@@ -306,13 +315,18 @@ export default function ProviderCategoryPage() {
               {/* Content-mode segmented control */}
               <div className="flex items-center gap-0.5 bg-surface-1 rounded-md p-0.5">
                 {[{ name: null as string | null, label: 'All modes' }, ...contentModes].map((m: any) => (
-                  <button key={m.name ?? '__all__'} onClick={() => setSelectedMode(m.name)}
-                    className={cn('px-2.5 py-1 text-[11px] font-medium rounded transition-all',
+                  <Button
+                    key={m.name ?? '__all__'}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedMode(m.name)}
+                    className={cn('h-7 px-2.5 text-[11px]',
                       selectedMode === m.name
-                        ? 'bg-surface-0 text-content-primary shadow-sm'
+                        ? 'bg-surface-0 text-content-primary shadow-sm hover:bg-surface-0'
                         : 'text-content-tertiary hover:text-content-secondary')}>
                     {m.label}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -380,18 +394,15 @@ export default function ProviderCategoryPage() {
                             onChange={() => toggleChainEntryEnabled(c)}
                             title={entryEnabled ? 'Disable in this chain' : 'Enable in this chain'}
                           />
-                          <button onClick={() => moveChain(i, -1)} disabled={i === 0}
-                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-surface-2 text-content-tertiary disabled:opacity-30 transition-colors">
+                          <Button type="button" variant="ghost" size="icon-sm" onClick={() => moveChain(i, -1)} disabled={i === 0} aria-label="Move up" className="w-7 h-7 text-content-tertiary">
                             <ArrowUp size={13} />
-                          </button>
-                          <button onClick={() => moveChain(i, 1)} disabled={i === chain.length - 1}
-                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-surface-2 text-content-tertiary disabled:opacity-30 transition-colors">
+                          </Button>
+                          <Button type="button" variant="ghost" size="icon-sm" onClick={() => moveChain(i, 1)} disabled={i === chain.length - 1} aria-label="Move down" className="w-7 h-7 text-content-tertiary">
                             <ArrowDown size={13} />
-                          </button>
-                          <button onClick={() => removeFromChain(c.credential_id)}
-                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-status-error/10 text-content-tertiary hover:text-status-error transition-colors">
+                          </Button>
+                          <Button type="button" variant="ghost" size="icon-sm" onClick={() => removeFromChain(c.credential_id)} aria-label="Remove from chain" className="w-7 h-7 text-content-tertiary hover:text-status-error hover:bg-status-error/10">
                             <X size={13} />
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     );
@@ -414,7 +425,7 @@ export default function ProviderCategoryPage() {
               {creds.length === 0 ? (
                 <div className="p-8 text-sm text-content-tertiary text-center">
                   No credentials yet.{' '}
-                  <button onClick={() => setShowAdd(true)} className="text-accent hover:underline">Add one →</button>
+                  <Button type="button" variant="link" size="sm" onClick={() => setShowAdd(true)} className="h-auto p-0 text-accent">Add one →</Button>
                 </div>
               ) : (
                 <div className="divide-y divide-border">
@@ -469,34 +480,63 @@ export default function ProviderCategoryPage() {
                               onChange={() => toggleCredentialEnabled(c)}
                               title={c.enabled ? 'Disable this credential everywhere' : 'Enable this credential'}
                             />
-                            <button onClick={() => toggleDefaultFallback(c)}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon-sm"
+                              onClick={() => toggleDefaultFallback(c)}
                               title={c.is_default_fallback ? 'Clear default fallback' : 'Set as default fallback (always tried last)'}
-                              className={cn('w-7 h-7 flex items-center justify-center rounded transition-colors',
+                              aria-label="Toggle default fallback"
+                              className={cn('w-7 h-7',
                                 c.is_default_fallback
                                   ? 'bg-status-warning/15 text-status-warning hover:bg-status-warning/25'
-                                  : 'border border-border text-content-tertiary hover:bg-surface-2')}>
+                                  : 'border-border text-content-tertiary')}>
                               <Star size={12} />
-                            </button>
-                            <button onClick={() => testCredential(c.id)} disabled={isTesting}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded border border-border text-xs text-content-secondary hover:bg-surface-2 transition-colors disabled:opacity-50">
-                              {isTesting ? <Loader2 size={11} className="animate-spin" /> : <Activity size={11} />}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => testCredential(c.id)}
+                              disabled={isTesting}
+                              leftIcon={isTesting ? <Loader2 size={11} className="animate-spin" /> : <Activity size={11} />}
+                              className="h-7 px-2.5 text-xs"
+                            >
                               {isTesting ? 'Testing…' : 'Test'}
-                            </button>
+                            </Button>
                             {!inChain ? (
-                              <button onClick={() => addToChain(c.id)}
-                                className="flex items-center gap-1 px-2.5 py-1 rounded border border-accent/40 text-xs text-accent hover:bg-accent/10 transition-colors">
-                                <Plus size={11} /> Add to chain
-                              </button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => addToChain(c.id)}
+                                leftIcon={<Plus size={11} />}
+                                className="h-7 px-2.5 text-xs text-accent border-accent/40 hover:bg-accent/10"
+                              >
+                                Add to chain
+                              </Button>
                             ) : (
-                              <button onClick={() => removeFromChain(c.id)}
-                                className="flex items-center gap-1 px-2.5 py-1 rounded border border-border text-xs text-content-tertiary hover:text-content-secondary hover:bg-surface-2 transition-colors">
-                                <X size={11} /> Remove
-                              </button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => removeFromChain(c.id)}
+                                leftIcon={<X size={11} />}
+                                className="h-7 px-2.5 text-xs"
+                              >
+                                Remove
+                              </Button>
                             )}
-                            <button onClick={() => deleteCredential(c.id)}
-                              className="w-7 h-7 flex items-center justify-center rounded hover:bg-status-error/10 text-content-tertiary hover:text-status-error transition-colors">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => deleteCredential(c.id)}
+                              aria-label="Delete credential"
+                              className="w-7 h-7 text-content-tertiary hover:text-status-error hover:bg-status-error/10"
+                            >
                               <Trash2 size={13} />
-                            </button>
+                            </Button>
                           </div>
                         </div>
 
@@ -534,34 +574,47 @@ export default function ProviderCategoryPage() {
             <div className="rounded-md border border-border bg-surface-0 p-4 space-y-3">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {POLICY_OPTIONS.map(opt => (
-                  <button key={opt.value} onClick={() => setSelectedPolicy(opt.value)}
-                    className={cn('text-left rounded-md border px-3 py-2.5 transition-all',
+                  <Button
+                    key={opt.value}
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setSelectedPolicy(opt.value)}
+                    className={cn('h-auto justify-start text-left rounded-md border px-3 py-2.5 flex-col items-start',
                       selectedPolicy === opt.value
-                        ? 'border-accent/50 bg-accent/5 text-content-primary'
+                        ? 'border-accent/50 bg-accent/5 text-content-primary hover:bg-accent/10'
                         : 'border-border text-content-tertiary hover:border-border hover:bg-surface-1')}>
                     <div className="text-xs font-semibold">{opt.label}</div>
                     <div className="text-[10px] text-content-tertiary mt-0.5">{opt.desc}</div>
-                  </button>
+                  </Button>
                 ))}
               </div>
               {creds.length > 0 && (
                 <div>
                   <div className="text-[10px] uppercase text-content-tertiary mb-1">Primary credential (optional)</div>
-                  <select value={primaryCredId ?? ''} onChange={e => setPrimaryCredId(e.target.value ? Number(e.target.value) : null)}
-                    className="w-full sm:w-72 px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-sm focus:outline-none focus:border-accent/50">
-                    <option value="">Auto (from chain)</option>
-                    {creds.filter(c => c.enabled).map((c: any) => (
-                      <option key={c.id} value={c.id}>{c.label} ({c.provider_name})</option>
-                    ))}
-                  </select>
+                  <div className="w-full sm:w-72">
+                  <Select value={primaryCredId == null ? '__auto__' : String(primaryCredId)} onValueChange={(v: string) => setPrimaryCredId(v === '__auto__' ? null : Number(v))}>
+                    <SelectTrigger><SelectValue placeholder="Auto (from chain)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__auto__">Auto (from chain)</SelectItem>
+                      {creds.filter(c => c.enabled).map((c: any) => (
+                        <SelectItem key={c.id} value={String(c.id)}>{c.label} ({c.provider_name})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  </div>
                 </div>
               )}
               <div className="flex items-center gap-2 pt-1">
-                <button onClick={saveRoute} disabled={savingRoute}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-white text-xs font-medium disabled:opacity-40 hover:opacity-90 transition-opacity">
-                  {savingRoute ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={saveRoute}
+                  disabled={savingRoute}
+                  loading={savingRoute}
+                  leftIcon={!savingRoute ? <Check size={11} /> : undefined}
+                >
                   Save policy
-                </button>
+                </Button>
                 {route && (
                   <span className="text-[11px] text-content-tertiary">
                     Current: <span className="text-content-secondary font-medium">{route.policy}</span>
@@ -586,37 +639,45 @@ export default function ProviderCategoryPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <div className="text-[10px] uppercase text-content-tertiary mb-1">Credential</div>
-                    <select value={sandboxCredId ?? ''} onChange={e => setSandboxCredId(e.target.value ? Number(e.target.value) : null)}
-                      className="w-full px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-sm focus:outline-none focus:border-accent/50">
-                      <option value="">Select…</option>
-                      {creds.map((c: any) => (
-                        <option key={c.id} value={c.id}>{c.label}</option>
-                      ))}
-                    </select>
+                    <Select value={sandboxCredId == null ? '' : String(sandboxCredId)} onValueChange={(v: string) => setSandboxCredId(v ? Number(v) : null)}>
+                      <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                      <SelectContent>
+                        {creds.map((c: any) => (
+                          <SelectItem key={c.id} value={String(c.id)}>{c.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <div className="text-[10px] uppercase text-content-tertiary mb-1">Capability</div>
-                    <select value={sandboxCapability} onChange={e => setSandboxCapability(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-sm focus:outline-none focus:border-accent/50">
-                      <option value="text-gen">text-gen</option>
-                      <option value="tts-standard">tts-standard</option>
-                      <option value="image-gen">image-gen</option>
-                      <option value="health">health-check</option>
-                    </select>
+                    <Select value={sandboxCapability} onValueChange={setSandboxCapability}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="text-gen">text-gen</SelectItem>
+                        <SelectItem value="tts-standard">tts-standard</SelectItem>
+                        <SelectItem value="image-gen">image-gen</SelectItem>
+                        <SelectItem value="health">health-check</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="flex items-end">
-                    <button onClick={runSandbox} disabled={!sandboxCredId || sandboxRunning}
-                      className="flex items-center gap-1.5 w-full h-[34px] px-3 rounded-md bg-accent text-white text-xs font-medium disabled:opacity-40 hover:opacity-90 transition-opacity justify-center">
-                      {sandboxRunning ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+                    <Button
+                      type="button"
+                      onClick={runSandbox}
+                      disabled={!sandboxCredId || sandboxRunning}
+                      loading={sandboxRunning}
+                      leftIcon={!sandboxRunning ? <Play size={12} /> : undefined}
+                      className="w-full h-[34px]"
+                    >
                       Run
-                    </button>
+                    </Button>
                   </div>
                 </div>
                 <div>
                   <div className="text-[10px] uppercase text-content-tertiary mb-1">
                     {sandboxCapability === 'tts-standard' ? 'Text to speak' : 'Prompt'}
                   </div>
-                  <textarea
+                  <Textarea
                     value={sandboxPrompt}
                     onChange={e => setSandboxPrompt(e.target.value)}
                     placeholder={sandboxCapability === 'tts-standard'
@@ -624,7 +685,7 @@ export default function ProviderCategoryPage() {
                       : sandboxCapability === 'image-gen'
                       ? 'A colorful sunset over mountains'
                       : 'Say hello in one sentence.'}
-                    className="w-full px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-sm h-16 font-mono resize-none focus:outline-none focus:border-accent/50"
+                    className="h-16 font-mono resize-none"
                   />
                 </div>
                 {/* Result */}
@@ -669,15 +730,86 @@ export default function ProviderCategoryPage() {
         <AddCredentialDialog
           category={decoded}
           onClose={() => setShowAdd(false)}
-          onAdded={() => { setShowAdd(false); refresh(); showToast('Credential added', 'success'); }}
+          onAdded={(newCredId?: number) => {
+            setShowAdd(false);
+            if (newCredId) addToChain(newCredId); // auto-activate immediately
+            else refresh();
+            showToast('Credential saved and added to chain ✓', 'success');
+          }}
         />
       )}
     </main>
   );
 }
 
+// Provider display aliases to hide (duplicate backend registrations).
+// fish_audio and fishaudio are the SAME class registered twice — show only fish_audio.
+const PROVIDER_ALIASES_TO_HIDE = new Set(['fishaudio']);
+
+// Providers that need NO API key (free, bundled services).
+const NO_KEY_PROVIDERS = new Set(['edge_tts', 'mock_llm', 'placeholder', 'mock_search']);
+
+// Hints shown in Step 2 below the API key field.
+const KEY_HINTS: Record<string, { prefix: string; helpUrl: string; hint: string }> = {
+  openai:       { prefix: 'sk-',       helpUrl: 'https://platform.openai.com/api-keys',          hint: 'Starts with sk- · Get it from platform.openai.com/api-keys' },
+  anthropic:    { prefix: 'sk-ant-',   helpUrl: 'https://console.anthropic.com/settings/keys',   hint: 'Starts with sk-ant- · Get it from console.anthropic.com' },
+  gemini:       { prefix: 'AIza',      helpUrl: 'https://aistudio.google.com/app/apikey',         hint: 'Starts with AIza · Get it from Google AI Studio' },
+  groq:         { prefix: 'gsk_',      helpUrl: 'https://console.groq.com/keys',                  hint: 'Starts with gsk_ · Get it from console.groq.com' },
+  fish_audio:   { prefix: '',          helpUrl: 'https://fish.audio/go-api/',                     hint: 'Get your API key at fish.audio → account → API Credentials' },
+  elevenlabs:   { prefix: '',          helpUrl: 'https://elevenlabs.io/app/settings/api-keys',    hint: 'Get it from elevenlabs.io → Profile → API Keys' },
+  openai_dalle: { prefix: 'sk-',       helpUrl: 'https://platform.openai.com/api-keys',          hint: 'Same key as your OpenAI account — DALL·E is included' },
+  stability:    { prefix: 'sk-',       helpUrl: 'https://platform.stability.ai/account/keys',    hint: 'Get it from platform.stability.ai → API Keys' },
+  fal_ai:       { prefix: '',          helpUrl: 'https://fal.ai/dashboard/keys',                  hint: 'Get it from fal.ai → Dashboard → Keys' },
+  perplexity:   { prefix: 'pplx-',     helpUrl: 'https://www.perplexity.ai/settings/api',        hint: 'Starts with pplx- · Get it from perplexity.ai → Settings → API' },
+  serper:       { prefix: '',          helpUrl: 'https://serper.dev/api-key',                     hint: 'Get it from serper.dev → API Key (2,500 free searches/month)' },
+  serpapi:      { prefix: '',          helpUrl: 'https://serpapi.com/manage-api-key',              hint: 'Get it from serpapi.com → Dashboard → API Key' },
+  tavily:       { prefix: 'tvly-',     helpUrl: 'https://app.tavily.com/home',                    hint: 'Starts with tvly- · Get it from app.tavily.com' },
+  pexels:       { prefix: '',          helpUrl: 'https://www.pexels.com/api/',                    hint: 'Get it at pexels.com/api — completely free to sign up' },
+  pixabay:      { prefix: '',          helpUrl: 'https://pixabay.com/api/docs/',                  hint: 'Get it at pixabay.com/api — completely free to sign up' },
+};
+
+// Per-provider voice/model hints shown in Step 3.
+// For TTS the "model" is really a voice — explain that clearly.
+const VOICE_HINTS: Record<string, {
+  fieldLabel: string;
+  placeholder: string;
+  hint: string;
+  suggestions?: string[];
+}> = {
+  edge_tts: {
+    fieldLabel: 'Voice',
+    placeholder: 'en-US-AriaNeural',
+    hint: 'Which Microsoft voice should speak the narration? Leave blank for the default (Aria — American female). Pick from the list or type a voice name.',
+    suggestions: [
+      'en-US-AriaNeural — Female, American (default)',
+      'en-US-GuyNeural — Male, American',
+      'en-US-JennyNeural — Female, American (friendly)',
+      'en-GB-SoniaNeural — Female, British',
+      'en-GB-RyanNeural — Male, British',
+      'en-AU-NatashaNeural — Female, Australian',
+      'en-IN-NeerjaNeural — Female, Indian English',
+    ],
+  },
+  elevenlabs: {
+    fieldLabel: 'Voice ID',
+    placeholder: '21m00Tcm4TlvDq8ikWAM',
+    hint: 'The ID of the voice you want to use. Find it in ElevenLabs → Voices → click any voice → copy the Voice ID string shown below the name.',
+  },
+  fish_audio: {
+    fieldLabel: 'Voice Reference ID',
+    placeholder: 'Leave blank to use Fish Audio default voice',
+    hint: 'Optional. Your Fish Audio voice reference ID. Find it in your Fish Audio dashboard under My Voices.',
+  },
+};
+
+// Category-level field label override for Step 3
+const CATEGORY_MODEL_LABEL: Record<string, string> = {
+  tts: 'Voice',
+};
+
 function AddCredentialDialog({ category, onClose, onAdded }: any) {
   const { showToast } = useToast();
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [providerName, setProviderName] = useState('');
   const [label, setLabel] = useState('');
   const [secret, setSecret] = useState('');
@@ -686,10 +818,8 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
   const [supportedModels, setSupportedModels] = useState<string[]>([]);
   const [defaultModel, setDefaultModel] = useState<string | null>(null);
   const [providerRegistered, setProviderRegistered] = useState<boolean | null>(null);
-  const [extra, setExtra] = useState('{}');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  // Registered providers for this category — populated once on open.
   const [registered, setRegistered] = useState<{
     provider_name: string;
     display_name: string;
@@ -701,24 +831,19 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
   }[]>([]);
   const [registeredLoading, setRegisteredLoading] = useState(true);
 
-  // Load registered provider classes for this category on mount.
-  // If the list is empty, the worker fleet isn't running providers for
-  // this category (e.g. fresh image build) — surface that, don't let
-  // the user type garbage.
   useEffect(() => {
     setRegisteredLoading(true);
     providersApi.registeredProviders(category)
       .then(r => {
-        setRegistered(r.data || []);
-        // Auto-select the first registered provider so the model
-        // dropdown can populate immediately.
-        if ((r.data || []).length > 0 && !providerName) {
-          const first = r.data[0];
+        // Filter out alias duplicates (fishaudio = same class as fish_audio)
+        const deduped = (r.data || []).filter((p: any) => !PROVIDER_ALIASES_TO_HIDE.has(p.provider_name));
+        setRegistered(deduped);
+        if (deduped.length > 0 && !providerName) {
+          const first = deduped[0];
           setProviderName(first.provider_name);
           setSupportedModels(first.supported_models);
           setDefaultModel(first.default_model);
           setProviderRegistered(true);
-          if (first.default_model) setModel(first.default_model);
         }
       })
       .catch(() => setRegistered([]))
@@ -726,7 +851,6 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category]);
 
-  // When the user changes the selected provider, hydrate model dropdown.
   useEffect(() => {
     if (!providerName) {
       setSupportedModels([]); setDefaultModel(null); setProviderRegistered(null);
@@ -737,7 +861,7 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
       setSupportedModels(match.supported_models);
       setDefaultModel(match.default_model);
       setProviderRegistered(true);
-      if (!model && match.default_model) setModel(match.default_model);
+      if (!label) setLabel(match.display_name + ' — Primary');
     } else {
       setProviderRegistered(false);
     }
@@ -747,165 +871,277 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
   const submit = async () => {
     setBusy(true); setErr(null);
     try {
-      let extra_config = {};
-      try { extra_config = JSON.parse(extra || '{}'); } catch { setErr('Extra config must be valid JSON'); setBusy(false); return; }
-      await providersApi.createCredential({
+      const effectiveSecret = NO_KEY_PROVIDERS.has(providerName) ? 'NO_KEY_REQUIRED' : secret;
+      const result = await providersApi.createCredential({
         category, provider_name: providerName, label,
-        secret_value: secret, secret_key: 'api_key',
+        secret_value: effectiveSecret, secret_key: 'api_key',
         model: model || null,
-        extra_config,
+        extra_config: {},
       });
-      onAdded();
-    } catch (e: any) { setErr(e?.message || 'Failed'); }
+      onAdded(result?.id);
+    } catch (e: any) { setErr(e?.message || 'Failed to save. Check your API key and try again.'); }
     finally { setBusy(false); }
   };
 
+  const keyHint      = KEY_HINTS[providerName] || null;
+  const voiceHint     = VOICE_HINTS[providerName] || null;
+  const selProvider   = registered.find(r => r.provider_name === providerName);
+  const noKeyNeeded   = NO_KEY_PROVIDERS.has(providerName);
+  const modelLabel    = voiceHint?.fieldLabel || CATEGORY_MODEL_LABEL[category] || 'Model';
+  const stepLabels    = ['Choose provider', noKeyNeeded ? 'No key needed ✔' : 'Enter API key', `${modelLabel} & save`] as const;
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="rounded-xl bg-surface-0 max-w-md w-full p-5 border border-border shadow-elevated space-y-3" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-content-primary">Add credential — {category}</h3>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded hover:bg-surface-2 text-content-tertiary"><X size={14} /></button>
+      <div className="rounded-xl bg-surface-0 max-w-lg w-full border border-border shadow-elevated" onClick={e => e.stopPropagation()}>
+
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border">
+          <div>
+            <h3 className="font-semibold text-content-primary">Add credential</h3>
+            <p className="text-[11px] text-content-tertiary mt-0.5">
+              Category: <span className="font-mono text-content-secondary">{category}</span>
+            </p>
+          </div>
+          <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close" className="w-7 h-7 text-content-tertiary">
+            <X size={14} />
+          </Button>
         </div>
 
-        {/* Provider — dropdown of classes registered in-process. We
-            deliberately don't allow free-text: any name the resolver
-            can't instantiate is dead weight. */}
-        <div>
-          <div className="text-[10px] uppercase text-content-tertiary mb-1">Provider</div>
-          {registeredLoading ? (
-            <div className="px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-xs text-content-tertiary">
-              Loading registered providers…
+        {/* ── Step indicator ── */}
+        <div className="flex items-center px-5 py-3 border-b border-border">
+          {stepLabels.map((s, i) => {
+            const n = (i + 1) as 1 | 2 | 3;
+            const active = step === n;
+            const done = step > n;
+            return (
+              <div key={i} className="flex items-center flex-1">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <div className={cn(
+                    'w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold',
+                    done ? 'bg-status-success text-white' :
+                    active ? 'bg-accent text-white' : 'bg-surface-2 text-content-tertiary',
+                  )}>
+                    {done ? '✓' : n}
+                  </div>
+                  <span className={cn('text-[11px] font-medium hidden sm:block',
+                    active ? 'text-content-primary' : 'text-content-tertiary')}>{s}</span>
+                </div>
+                {i < 2 && <div className={cn('h-px flex-1 mx-2', step > n ? 'bg-status-success' : 'bg-surface-2')} />}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── Step body ── */}
+        <div className="p-5 space-y-4">
+
+          {/* Step 1 — Choose provider + nickname */}
+          {step === 1 && (
+            <div className="space-y-4">
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1.5">Which service do you want to connect?</div>
+                {registeredLoading ? (
+                  <div className="px-3 py-2 rounded-lg bg-surface-1 border border-border text-xs text-content-tertiary flex items-center gap-2">
+                    <Loader2 size={12} className="animate-spin" /> Loading available providers…
+                  </div>
+                ) : registered.length === 0 ? (
+                  <div className="rounded-lg border border-status-warning/40 bg-status-warning/5 px-3 py-2.5 text-xs text-status-warning">
+                    No providers are installed for the <strong>{category}</strong> category.
+                    The backend didn't load any provider classes. Check <span className="font-mono">src/providers/boot.py</span>.
+                  </div>
+                ) : (
+                  <Select value={providerName} onValueChange={setProviderName}>
+                    <SelectTrigger><SelectValue placeholder="Select a provider…" /></SelectTrigger>
+                    <SelectContent>
+                      {registered.map(r => (
+                        <SelectItem key={r.provider_name} value={r.provider_name}>
+                          {r.display_name}
+                          {r.has_free_tier ? ' — Free tier available' : ''}
+                          {NO_KEY_PROVIDERS.has(r.provider_name) ? ' — No API key needed' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {selProvider?.website_url && (
+                  <div className="mt-1.5">
+                    <a href={selProvider.website_url} target="_blank" rel="noreferrer"
+                      className="text-[11px] text-accent hover:underline inline-flex items-center gap-1">
+                      Visit {selProvider.display_name} to get your API key ↗
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* Nickname — plain text, no datalist */}
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1.5">Give it a nickname</div>
+                <Input
+                  type="text"
+                  value={label}
+                  onChange={e => setLabel(e.target.value)}
+                  placeholder={selProvider ? `${selProvider.display_name} — Primary` : 'e.g. My OpenAI Key'}
+                />
+                <p className="text-[11px] text-content-tertiary mt-1.5">
+                  Just a friendly name so <em>you</em> can tell your keys apart. Examples: “Main Account”, “Backup”, “High-volume”. Only you see this.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+                <Button type="button" size="sm" onClick={() => noKeyNeeded ? setStep(3) : setStep(2)} disabled={!providerName || !label.trim()}>
+                  {noKeyNeeded ? 'Skip to Voice →' : 'Next: Enter API key →'}
+                </Button>
+              </div>
             </div>
-          ) : registered.length === 0 ? (
-            <div className="rounded-md border border-status-warning/40 bg-status-warning/5 px-2.5 py-2 text-xs text-status-warning">
-              No providers registered for <span className="font-mono">{category}</span>.
-              The BFF didn't import any provider classes for this category.
-              Check <span className="font-mono">src/providers/boot.py</span>.
+          )}
+
+          {/* Step 2 — Enter API key (skipped for no-key providers) */}
+          {step === 2 && (
+            <div className="space-y-4">
+              {keyHint && (
+                <div className="rounded-lg border border-accent/20 bg-accent/5 px-3 py-2.5">
+                  <p className="text-[12px] text-content-secondary">{keyHint.hint}</p>
+                  <a href={keyHint.helpUrl} target="_blank" rel="noreferrer"
+                    className="text-[11px] text-accent hover:underline mt-1 inline-block">
+                    → Open {selProvider?.display_name || providerName} dashboard to copy your key
+                  </a>
+                </div>
+              )}
+
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1.5">Paste your API key</div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type={showSecret ? 'text' : 'password'}
+                    value={secret}
+                    onChange={e => setSecret(e.target.value)}
+                    placeholder={keyHint?.prefix ? `Starts with ${keyHint.prefix}` : 'Paste here…'}
+                    className="flex-1 font-mono"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setShowSecret(v => !v)}
+                    aria-label={showSecret ? 'Hide secret' : 'Show secret'}
+                    className="shrink-0 w-9 h-9"
+                  >
+                    {showSecret ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-content-tertiary mt-1.5">
+                  Your key is saved securely in Vault — it is <strong>never</strong> written to the database, logs, or source code.
+                </p>
+              </div>
+
+              <div className="flex justify-between gap-2 pt-1">
+                <Button type="button" variant="outline" size="sm" onClick={() => setStep(1)}>← Back</Button>
+                <Button type="button" size="sm" onClick={() => setStep(3)} disabled={!secret.trim()}>
+                  Next: Pick voice →
+                </Button>
+              </div>
             </div>
-          ) : (
-            <select value={providerName} onChange={e => setProviderName(e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-sm focus:outline-none focus:border-accent/50">
-              {registered.map(r => (
-                <option key={r.provider_name} value={r.provider_name}>
-                  {r.display_name}
-                  {r.has_free_tier ? '  ·  free tier' : ''}
-                  {' '}({r.provider_name})
-                </option>
-              ))}
-            </select>
           )}
-          <div className="text-[10px] text-content-tertiary mt-1 flex items-center gap-2">
-            <span>Pick the upstream API. Only providers registered in this build are shown.</span>
-            {(() => {
-              const sel = registered.find(r => r.provider_name === providerName);
-              return sel?.website_url ? (
-                <a href={sel.website_url} target="_blank" rel="noreferrer"
-                  className="text-accent hover:underline">docs ↗</a>
-              ) : null;
-            })()}
-          </div>
-        </div>
-        {/* Label — free text but with suggested presets via datalist. */}
-        <div>
-          <div className="text-[10px] uppercase text-content-tertiary mb-1">Label</div>
-          <input
-            list="cred-label-suggestions"
-            value={label}
-            onChange={e => setLabel(e.target.value)}
-            placeholder="e.g. Primary, Backup, Personal account"
-            className="w-full px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-sm focus:outline-none focus:border-accent/50"
-          />
-          <datalist id="cred-label-suggestions">
-            <option value="Primary" />
-            <option value="Backup" />
-            <option value="Personal account" />
-            <option value="Team account" />
-            <option value="Production" />
-            <option value="Staging" />
-            <option value="Development" />
-            <option value="High-volume" />
-            <option value="Low-cost" />
-            {(() => {
-              const sel = registered.find(r => r.provider_name === providerName);
-              return sel ? (
-                <>
-                  <option value={`${sel.display_name} — Primary`} />
-                  <option value={`${sel.display_name} — Backup`} />
-                </>
-              ) : null;
-            })()}
-          </datalist>
-          <div className="text-[10px] text-content-tertiary mt-1">
-            Friendly display name shown in chains and logs. Free-text — pick from suggestions or type your own.
-          </div>
-        </div>
 
-        {/* Secret field with show/hide */}
-        <div>
-          <div className="text-[10px] uppercase text-content-tertiary mb-1">API key</div>
-          <div className="flex items-center gap-1.5">
-            <input
-              type={showSecret ? 'text' : 'password'}
-              value={secret}
-              onChange={e => setSecret(e.target.value)}
-              placeholder="sk-…"
-              className="flex-1 px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-sm font-mono focus:outline-none focus:border-accent/50"
-            />
-            <button onClick={() => setShowSecret(v => !v)}
-              className="w-8 h-8 flex items-center justify-center rounded border border-border text-content-tertiary hover:bg-surface-2 transition-colors">
-              {showSecret ? <EyeOff size={13} /> : <Eye size={13} />}
-            </button>
-          </div>
-          <div className="text-[10px] text-content-tertiary mt-1">Stored securely in Vault. Never logged.</div>
-        </div>
+          {/* Step 3 — Voice/Model & save */}
+          {step === 3 && (
+            <div className="space-y-4">
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1.5">{modelLabel} (optional)</div>
 
-        {/* Model — populated from supported_models() once provider is known */}
-        <div>
-          <div className="text-[10px] uppercase text-content-tertiary mb-1 flex items-center gap-2">
-            <span>Model</span>
-            {providerRegistered === false && providerName.trim() && (
-              <span className="text-[9px] px-1.5 py-0.5 rounded bg-status-warning/10 text-status-warning">
-                Provider not registered — type model name manually
-              </span>
-            )}
-            {defaultModel && (
-              <span className="text-[9px] text-content-tertiary">default: {defaultModel}</span>
-            )}
-          </div>
-          {supportedModels.length > 0 ? (
-            <select value={model} onChange={e => setModel(e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-sm focus:outline-none focus:border-accent/50">
-              <option value="">Use provider default ({defaultModel || 'auto'})</option>
-              {supportedModels.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-          ) : (
-            <input value={model} onChange={e => setModel(e.target.value)}
-              placeholder={defaultModel || 'e.g. claude-sonnet-4-20250514'}
-              className="w-full px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-sm font-mono focus:outline-none focus:border-accent/50" />
+                {/* Voice suggestions for TTS providers */}
+                {voiceHint?.suggestions ? (
+                  <div className="space-y-2">
+                    <p className="text-[12px] text-content-secondary">{voiceHint.hint}</p>
+                    <div className="grid gap-1.5">
+                      {voiceHint.suggestions.map(s => {
+                        const val = s.split(' — ')[0];
+                        return (
+                          <Button
+                            key={val}
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setModel(val)}
+                            className={cn(
+                              'text-left justify-start px-3 py-2 rounded-lg border text-sm h-auto',
+                              model === val
+                                ? 'border-accent bg-accent/8 text-content-primary hover:bg-accent/15'
+                                : 'border-border hover:border-accent/40 hover:bg-surface-1 text-content-secondary',
+                            )}>
+                            <span className="font-mono text-xs text-content-tertiary mr-2">{val}</span>
+                            <span className="text-[11px]">{s.split(' — ')[1] || ''}</span>
+                          </Button>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setModel('')}
+                      className="h-auto px-0 py-0 text-[11px] text-content-tertiary hover:text-accent mt-0.5 self-start"
+                    >
+                      {model ? 'Clear selection (use default)' : '✔ Using default voice (Aria)'}
+                    </Button>
+                  </div>
+                ) : voiceHint ? (
+                  <div className="space-y-2">
+                    <div className="rounded-lg border border-border bg-surface-1/60 px-3 py-2.5">
+                      <p className="text-[12px] text-content-secondary">{voiceHint.hint}</p>
+                    </div>
+                    <Input
+                      type="text"
+                      value={model}
+                      onChange={e => setModel(e.target.value)}
+                      placeholder={voiceHint.placeholder}
+                    />
+                  </div>
+                ) : supportedModels.length > 0 ? (
+                  <Select value={model || '__default__'} onValueChange={(v: string) => setModel(v === '__default__' ? '' : v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__default__">Use provider default ({defaultModel || 'auto'})</SelectItem>
+                      {supportedModels.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="space-y-2">
+                    <Input
+                      type="text"
+                      value={model}
+                      onChange={e => setModel(e.target.value)}
+                      placeholder={defaultModel || 'Leave blank to use the provider’s default model'}
+                    />
+                    <p className="text-[11px] text-content-tertiary">
+                      Optional. One credential = one model. Add a second credential later if you want the same API key with a different model.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {err && (
+                <div className="rounded-lg border border-status-error/40 bg-status-error/5 px-3 py-2.5 text-sm text-status-error">
+                  {err}
+                </div>
+              )}
+
+              <div className="flex justify-between gap-2 pt-1">
+                <Button type="button" variant="outline" size="sm" onClick={() => noKeyNeeded ? setStep(1) : setStep(2)}>← Back</Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={submit}
+                  disabled={busy}
+                  loading={busy}
+                  leftIcon={!busy ? <Check size={13} /> : undefined}
+                >
+                  {busy ? 'Saving…' : 'Save & activate'}
+                </Button>
+              </div>
+            </div>
           )}
-          <div className="text-[10px] text-content-tertiary mt-1">
-            Each credential pins one model. Add a second credential to use the same vendor key with a different model.
-          </div>
-        </div>
 
-        <div>
-          <div className="text-[10px] uppercase text-content-tertiary mb-1">Extra config (JSON, optional)</div>
-          <textarea className="w-full px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-xs h-20 font-mono focus:outline-none focus:border-accent/50"
-            value={extra} onChange={e => setExtra(e.target.value)} />
-          <div className="text-[10px] text-content-tertiary mt-1">Provider-specific config (model, base_url, etc.)</div>
-        </div>
-
-        {err && <div className="text-sm text-status-error">{err}</div>}
-
-        <div className="flex justify-end gap-2 pt-1">
-          <button onClick={onClose} className="px-3 py-1.5 rounded-md border border-border text-sm text-content-secondary hover:bg-surface-2 transition-colors">
-            Cancel
-          </button>
-          <button onClick={submit} disabled={busy || !providerName || !label || !secret}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-white text-sm font-medium disabled:opacity-40 hover:opacity-90 transition-opacity">
-            <Check size={13} /> {busy ? 'Saving…' : 'Save to Vault'}
-          </button>
         </div>
       </div>
     </div>
@@ -914,12 +1150,13 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
 
 function Inp({ label, hint, value, onChange, placeholder, type = 'text' }: any) {
   return (
-    <label className="block">
-      <div className="text-[10px] uppercase text-content-tertiary mb-1">{label}</div>
-      <input className="w-full px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-sm focus:outline-none focus:border-accent/50"
-        type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} />
+    <div className="block">
+      <Label className="text-[10px] uppercase text-content-tertiary mb-1 block">{label}</Label>
+      <Input
+        type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+      />
       {hint && <div className="text-[10px] text-content-tertiary mt-1">{hint}</div>}
-    </label>
+    </div>
   );
 }
 

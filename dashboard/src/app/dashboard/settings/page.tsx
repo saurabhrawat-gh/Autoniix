@@ -515,7 +515,15 @@ function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
                     return arr.map((item: string, i: number) => (
                       <span key={i} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-surface-2 text-content-primary">
                         {String(item)}
-                        <button onClick={() => onRemoveChip(i)} className="text-content-tertiary hover:text-status-error ml-0.5">×</button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => onRemoveChip(i)}
+                          aria-label={`Remove ${String(item)}`}
+                          className="h-4 w-4 ml-0.5 text-content-tertiary hover:text-status-error"
+                        >
+                          ×
+                        </Button>
                       </span>
                     ));
                   } catch { return null; }
@@ -624,20 +632,22 @@ function DisplayPreferences() {
           </div>
           <div role="radiogroup" aria-label="Theme" className="inline-flex rounded-lg bg-surface-2 p-1">
             {themeOpts.map((opt) => (
-              <button
+              <Button
                 key={opt.value}
                 role="radio"
                 aria-checked={theme === opt.value}
+                variant="ghost"
+                size="sm"
                 onClick={() => setTheme(opt.value)}
                 className={cn(
-                  'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                  'h-7 px-3 text-xs',
                   theme === opt.value
-                    ? 'bg-surface-0 text-content-primary shadow-card'
+                    ? 'bg-surface-0 text-content-primary shadow-card hover:bg-surface-0'
                     : 'text-content-tertiary hover:text-content-primary',
                 )}
               >
                 {opt.label}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -651,20 +661,22 @@ function DisplayPreferences() {
           </div>
           <div role="radiogroup" aria-label="Density" className="inline-flex rounded-lg bg-surface-2 p-1">
             {densityOpts.map((opt) => (
-              <button
+              <Button
                 key={opt.value}
                 role="radio"
                 aria-checked={density === opt.value}
+                variant="ghost"
+                size="sm"
                 onClick={() => setDensity(opt.value)}
                 className={cn(
-                  'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                  'h-7 px-3 text-xs',
                   density === opt.value
-                    ? 'bg-surface-0 text-content-primary shadow-card'
+                    ? 'bg-surface-0 text-content-primary shadow-card hover:bg-surface-0'
                     : 'text-content-tertiary hover:text-content-primary',
                 )}
               >
                 {opt.label}
-              </button>
+              </Button>
             ))}
           </div>
         </div>

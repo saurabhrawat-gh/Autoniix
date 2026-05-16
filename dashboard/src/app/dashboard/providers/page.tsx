@@ -11,6 +11,21 @@ import {
   Gauge, Network, Store, CheckCircle2, ExternalLink, Zap, Trash2,
 } from '@/lib/components/Icon';
 import { Button } from '@/lib/ui';
+import { promptDialog } from '@/lib/components/ConfirmDialog';
+
+// Categories that are seeded in the DB but have no active provider
+// implementation yet. Hidden from the UI until they ship.
+const STUB_KINDS = new Set(['lut', 'sfx', 'music']);
+
+// Recommended setup order shown in the onboarding panel.
+const ONBOARDING_STEPS = [
+  { kind: 'llm',           label: 'AI Writing (LLM)',     why: 'Required for scripting, research, hooks, and quality scoring.', urgent: true },
+  { kind: 'tts',           label: 'Voice (TTS)',          why: 'Required to generate spoken narration for every video.', urgent: true },
+  { kind: 'image',         label: 'Thumbnail Image',     why: 'Required to generate video thumbnail art.', urgent: true },
+  { kind: 'search',        label: 'Web Search',          why: 'Used during research to find trends and facts.', urgent: false },
+  { kind: 'stock_footage', label: 'Stock Footage',       why: 'Fetches free b-roll clips from Pexels / Pixabay.', urgent: false },
+  { kind: 'storage',       label: 'Object Storage',      why: 'MinIO is self-hosted and configured automatically.', urgent: false },
+];
 
 const KIND_META: Record<string, { icon: string; desc: string }> = {
   llm:           { icon: '🧠', desc: 'LLMs for script, research & critique' },
@@ -59,14 +74,18 @@ export default function ProvidersIndex() {
   const [resetting, setResetting] = useState(false);
 
   const cleanSlate = async () => {
-    const phrase = prompt(
-      'This will DELETE every provider credential and chain in the database. ' +
-      'Type WIPE to confirm.'
-    );
-    if (phrase !== 'WIPE') {
-      if (phrase !== null) showToast('Reset cancelled', 'error');
-      return;
-    }
+    const phrase = await promptDialog({
+      title: 'Wipe all provider data?',
+      description:
+        'This will DELETE every provider credential and chain in the database. ' +
+        'This cannot be undone.',
+      label: 'Type WIPE to confirm',
+      placeholder: 'WIPE',
+      match: 'WIPE',
+      confirmLabel: 'Wipe everything',
+      destructive: true,
+    });
+    if (phrase === null) return; // cancelled
     setResetting(true);
     try {
       const r = await providersApi.cleanSlate();
@@ -91,6 +110,7 @@ export default function ProvidersIndex() {
   useEffect(() => { refresh(); }, [refresh]);
 
   const grouped: Record<string, any[]> = cats.reduce((acc: any, c: any) => {
+    if (STUB_KINDS.has(c.kind)) return acc; // hide unimplemented categories
     (acc[c.kind] ||= []).push(c);
     return acc;
   }, {});
@@ -125,8 +145,9 @@ export default function ProvidersIndex() {
     setProbingAll(false);
   };
 
-  const marketCategories = Array.from(new Set(market.map((m: any) => m.category as string))).sort();
-  const filteredMarket = marketFilter === 'all' ? market : market.filter(m => m.category === marketFilter);
+  const visibleMarket = market.filter((m: any) => !STUB_KINDS.has(m.category));
+  const marketCategories = Array.from(new Set(visibleMarket.map((m: any) => m.category as string))).sort();
+  const filteredMarket = marketFilter === 'all' ? visibleMarket : visibleMarket.filter(m => m.category === marketFilter);
 
   return (
     <main className="flex-1 px-4 sm:px-6 py-6 max-w-[1400px] mx-auto w-full space-y-5">
@@ -187,13 +208,19 @@ export default function ProvidersIndex() {
       {/* Tabs */}
       <div className="flex items-center gap-0.5 bg-surface-1 rounded-md p-0.5 w-fit">
         {([['connected', 'Connected', totalCreds], ['marketplace', 'Marketplace', unconnectedCount]] as const).map(([key, label, count]) => (
-          <button key={key} onClick={() => setTab(key)}
-            className={cn('px-3 py-1.5 text-xs font-medium rounded transition-all flex items-center gap-1.5',
-              tab === key ? 'bg-surface-0 text-content-primary shadow-sm' : 'text-content-tertiary hover:text-content-secondary')}>
-            {key === 'connected' ? <Activity size={11} /> : <Store size={11} />}
+          <Button
+            key={key}
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setTab(key)}
+            leftIcon={key === 'connected' ? <Activity size={11} /> : <Store size={11} />}
+            className={cn('h-7 px-3 text-xs',
+              tab === key ? 'bg-surface-0 text-content-primary shadow-sm hover:bg-surface-0' : 'text-content-tertiary hover:text-content-secondary')}
+          >
             {label}
             {count > 0 && <span className={cn('text-[10px]', tab === key ? 'text-accent' : 'text-content-tertiary')}>{count}</span>}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -212,6 +239,43 @@ export default function ProvidersIndex() {
           </div>
         ) : (
           <div className="space-y-6">
+            {/* ── Zero-credential onboarding guide ── */}
+            {totalCreds === 0 && (
+              <div className="rounded-xl border border-accent/30 bg-accent/5 p-5">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center shrink-0 mt-0.5">
+                    <Plug size={14} className="text-accent" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-content-primary">Welcome — let's connect your first providers</h3>
+                    <p className="text-xs text-content-tertiary mt-1">
+                      No API keys are configured yet. Videos cannot be generated until you add credentials for the three required categories below.
+                      Click any row to open the setup page.
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {ONBOARDING_STEPS.map((step, i) => {
+                    const catName = Object.entries(grouped).find(([k]) => k === step.kind)?.[1]?.[0]?.name;
+                    const target = catName ? `/dashboard/providers/${encodeURIComponent(catName)}?add=1` : `/dashboard/providers`;
+                    return (
+                      <a key={step.kind} href={target}
+                        className="flex items-start gap-3 rounded-lg border border-border bg-surface-0 px-4 py-3 hover:border-accent/40 hover:bg-surface-1 transition-all group">
+                        <span className="w-5 h-5 rounded-full bg-surface-2 group-hover:bg-accent/15 flex items-center justify-center text-[10px] font-bold text-content-tertiary group-hover:text-accent shrink-0 mt-0.5">{i + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-content-primary group-hover:text-accent transition-colors">{step.label}</span>
+                            {step.urgent && <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-error/10 text-status-error font-medium">Required</span>}
+                          </div>
+                          <p className="text-[11px] text-content-tertiary mt-0.5">{step.why}</p>
+                        </div>
+                        <ChevronRight size={13} className="text-content-tertiary group-hover:text-accent shrink-0 mt-1" />
+                      </a>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {Object.entries(grouped).map(([kind, list]: any) => {
               const meta = KIND_META[kind] || { icon: '🔌', desc: 'Provider category' };
               return (
@@ -272,12 +336,12 @@ export default function ProvidersIndex() {
                         </Link>
                       );
                     })}
-                    <Link href={`/dashboard/providers/${encodeURIComponent(list[0]?.name || kind)}`}
+                    <Link href={`/dashboard/providers/${encodeURIComponent(list[0]?.name || kind)}?add=1`}
                       className="group rounded-xl border border-dashed border-border bg-transparent p-4 hover:border-accent/50 hover:bg-surface-0 transition-all flex flex-col items-center justify-center gap-2 min-h-[100px]">
                       <div className="w-7 h-7 rounded-full bg-surface-2 group-hover:bg-accent/10 flex items-center justify-center transition-colors">
                         <Plus size={13} className="text-content-tertiary group-hover:text-accent" />
                       </div>
-                      <span className="text-xs text-content-tertiary group-hover:text-content-secondary">Configure {kind}</span>
+                      <span className="text-xs text-content-tertiary group-hover:text-content-secondary">Add credential</span>
                     </Link>
                   </div>
                 </section>
@@ -293,13 +357,18 @@ export default function ProvidersIndex() {
           {/* Category filter */}
           <div className="flex items-center gap-1.5 flex-wrap">
             {(['all', ...marketCategories]).map(c => (
-              <button key={c} onClick={() => setMarketFilter(c)}
-                className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
+              <Button
+                key={c}
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setMarketFilter(c)}
+                className={cn('h-7 px-2.5 text-xs',
                   marketFilter === c
-                    ? 'bg-accent/10 text-accent border border-accent/30'
+                    ? 'bg-accent/10 text-accent border border-accent/30 hover:bg-accent/15'
                     : 'border border-border text-content-tertiary hover:bg-surface-2')}>
                 {c === 'all' ? 'All' : c.replace(/_/g, ' ')}
-              </button>
+              </Button>
             ))}
           </div>
 
@@ -369,7 +438,7 @@ export default function ProvidersIndex() {
                         <ChevronRight size={11} /> Manage
                       </Link>
                     ) : (
-                      <Link href={`/dashboard/providers/${encodeURIComponent(p.category)}`}
+                      <Link href={`/dashboard/providers/${encodeURIComponent(p.category)}?add=1`}
                         className="flex items-center gap-1 h-7 px-2.5 rounded-md bg-accent text-white text-xs font-medium hover:opacity-90 transition-opacity">
                         <Plus size={11} /> Connect
                       </Link>

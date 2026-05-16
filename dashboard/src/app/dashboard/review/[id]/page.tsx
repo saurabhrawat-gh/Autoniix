@@ -21,6 +21,11 @@ import {
   DialogDescription,
   DialogFooter,
   Label as FieldLabel,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
 } from '@/lib/ui';
 
 const ARTIFACTS = [
@@ -146,13 +151,17 @@ export default function ReviewDetail() {
           <ul className="space-y-0.5">
             {ARTIFACTS.map(a => (
               <li key={a.key}>
-                <button onClick={() => setTab(a.key)}
-                  className={cn('w-full text-left flex items-center gap-3 px-2.5 py-2 rounded-md text-sm font-medium transition-colors',
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setTab(a.key)}
+                  className={cn('w-full justify-start gap-3 px-2.5 py-2 h-auto text-sm font-medium',
                     tab === a.key
-                      ? 'bg-accent/10 text-accent'
+                      ? 'bg-accent/10 text-accent hover:bg-accent/15'
                       : 'text-content-secondary hover:bg-surface-2 hover:text-content-primary')}>
                   <a.icon size={16} className="shrink-0" />{a.label}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -231,11 +240,16 @@ export default function ReviewDetail() {
             <Input value={comment} onChange={e => setComment(e.target.value)} placeholder={`Comment on ${tab}…`}
               className="flex-1 text-xs"
               onKeyDown={e => e.key === 'Enter' && sendComment()} />
-            <button onClick={sendComment} disabled={!comment.trim()}
-              className="w-9 h-9 shrink-0 inline-flex items-center justify-center rounded-md bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              aria-label="Send comment">
+            <Button
+              type="button"
+              size="icon"
+              onClick={sendComment}
+              disabled={!comment.trim()}
+              aria-label="Send comment"
+              className="shrink-0"
+            >
               <Send size={13}/>
-            </button>
+            </Button>
           </div>
         </aside>
       </div>
@@ -300,10 +314,15 @@ function DecisionButton({ onClick, icon: Icon, label, tone, primary }: { onClick
     red:    'bg-status-error/10 text-status-error hover:bg-status-error/20',
   };
   return (
-    <button onClick={onClick}
-      className={cn('inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40', toneMap[tone])}>
-      <Icon size={14}/>{label}
-    </button>
+    <Button
+      type="button"
+      variant="ghost"
+      onClick={onClick}
+      leftIcon={<Icon size={14}/>}
+      className={cn(toneMap[tone])}
+    >
+      {label}
+    </Button>
   );
 }
 
@@ -327,23 +346,36 @@ function ScriptPane({ data, videoId, variant, onVariantChange, onChange }: any) 
       <div className="flex items-center gap-2 flex-wrap">
         <div className="inline-flex items-center bg-surface-1 rounded-md p-1">
           {SCRIPT_VARIANTS.map(sv => (
-            <button key={sv.key} onClick={() => onVariantChange(sv.key)}
-              className={cn('inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors',
+            <Button
+              key={sv.key}
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onVariantChange(sv.key)}
+              leftIcon={<sv.icon size={12} />}
+              className={cn('h-7 px-3 text-xs',
                 variant === sv.key
-                  ? 'bg-accent/10 text-accent'
-                  : 'text-content-tertiary hover:text-content-primary')}>
-              <sv.icon size={12} />{sv.label}
-            </button>
+                  ? 'bg-accent/10 text-accent hover:bg-accent/15'
+                  : 'text-content-tertiary hover:text-content-primary')}
+            >
+              {sv.label}
+            </Button>
           ))}
         </div>
         <span className="ml-auto text-xs font-mono text-content-tertiary">v{latest?.version || 1}</span>
       </div>
       <div className="flex items-center gap-2">
         <span className="text-xs text-content-tertiary">Edit kind</span>
-        <select value={kind} onChange={e => setKind(e.target.value as any)}
-          className="px-2 py-1 text-xs rounded border border-border bg-surface-0 text-content-primary focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent">
-          {['full','section','hook','shorten','expand','tone','emotion','repetition'].map(k => <option key={k}>{k}</option>)}
-        </select>
+        <div className="min-w-[140px]">
+          <Select value={kind} onValueChange={(v: string) => setKind(v as any)}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {['full','section','hook','shorten','expand','tone','emotion','repetition'].map(k => (
+                <SelectItem key={k} value={k}>{k}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       <Textarea value={body} onChange={e => setBody(e.target.value)}
         className="flex-1 min-h-0 font-mono text-xs resize-none" />

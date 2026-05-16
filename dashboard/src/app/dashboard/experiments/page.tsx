@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { experimentsApi } from '@/lib/api-v2';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
+import { promptDialog } from '@/lib/components/ConfirmDialog';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/lib/ui';
 import {
   Zap, Plus, Trash2, RotateCw, X, Check, Loader2,
   TrendingUp, TrendingDown, ChevronDown, ChevronRight,
@@ -163,13 +165,17 @@ export default function ExperimentsPage() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
             {EXP_TEMPLATES.map(t => (
-              <button key={t.id} onClick={() => { setTemplateSeed(t); setShowNew(true); }}
-                className={cn('rounded-xl border p-3 text-left hover:shadow-card transition-all group', t.color)}>
+              <Button
+                key={t.id}
+                type="button"
+                variant="ghost"
+                onClick={() => { setTemplateSeed(t); setShowNew(true); }}
+                className={cn('rounded-xl border p-3 h-auto justify-start text-left flex-col items-start hover:shadow-card group', t.color)}>
                 <div className="text-xl mb-2">{t.icon}</div>
                 <div className={cn('text-xs font-semibold mb-1', t.accentColor)}>{t.title}</div>
                 <div className="text-[10px] text-content-tertiary leading-relaxed line-clamp-2">{t.desc}</div>
                 <div className="mt-2 text-[9px] text-content-tertiary font-mono">{t.metric} metric · {t.arms.length} arms</div>
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -202,13 +208,18 @@ export default function ExperimentsPage() {
             { value: 'paused',    label: 'Paused' },
             { value: 'completed', label: 'Completed' },
           ].map(o => (
-            <button key={o.value} onClick={() => setFilter(o.value)}
+            <Button
+              key={o.value}
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setFilter(o.value)}
               className={cn(
-                'px-3 py-1.5 rounded text-xs font-medium transition-all',
-                filter === o.value ? 'bg-surface-0 text-content-primary shadow-sm' : 'text-content-tertiary hover:text-content-secondary'
+                'h-7 px-3 text-xs',
+                filter === o.value ? 'bg-surface-0 text-content-primary shadow-sm hover:bg-surface-0' : 'text-content-tertiary hover:text-content-secondary'
               )}>
               {o.label}
-            </button>
+            </Button>
           ))}
         </div>
         <span className="text-xs text-content-tertiary ml-1">{rows.length} experiment{rows.length !== 1 ? 's' : ''}</span>
@@ -298,8 +309,16 @@ export default function ExperimentsPage() {
                         size="sm"
                         variant="outline"
                         leftIcon={<CheckCircle2 size={10} />}
-                        onClick={() => {
-                          const w = window.prompt('Winning variant name (leave blank if none)') ?? '';
+                        onClick={async () => {
+                          const w = await promptDialog({
+                            title: 'Complete experiment',
+                            description: 'Optionally name the winning variant. Leave blank if none.',
+                            label: 'Winning variant',
+                            placeholder: 'e.g. variant_b',
+                            confirmLabel: 'Complete',
+                            allowEmpty: true,
+                          });
+                          if (w === null) return;
                           runAction(() => experimentsApi.complete(exp.experiment_name, w), 'Complete');
                         }}
                       >
@@ -456,9 +475,14 @@ function NewExperimentDialog({ onClose, onCreated, template }: any) {
               <Input type="number" min={1} max={100} value={traffic} onChange={e => setTraffic(Number(e.target.value))} />
             </Field>
             <Field label="Target metric" hint="Metric to compare between variants">
-              <select value={metric} onChange={e => setMetric(e.target.value)} className={INP}>
-                {['views','ctr','retention','likes','comments','authenticity_score'].map(m => <option key={m}>{m}</option>)}
-              </select>
+              <Select value={metric} onValueChange={setMetric}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {['views','ctr','retention','likes','comments','authenticity_score'].map(m => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
           </div>
           {err && <div className="text-sm text-status-error">{err}</div>}
@@ -474,7 +498,6 @@ function NewExperimentDialog({ onClose, onCreated, template }: any) {
   );
 }
 
-const INP = 'w-full px-3 py-1.5 rounded-md bg-surface-0 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent';
 function Field({ label, hint, children }: any) {
   return (
     <div className="block">

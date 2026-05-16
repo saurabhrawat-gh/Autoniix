@@ -17,6 +17,19 @@ http:
         permissionsPolicy: "camera=(), microphone=(), geolocation=()"
         customFrameOptionsValue: "SAMEORIGIN"
 
+    # NOTE: basic-auth middleware for admin surfaces (Grafana / Prometheus /
+    # Alertmanager / Temporal UI) is defined as a docker label on the traefik
+    # service in docker-compose.yml so that ${TRAEFIK_BASIC_AUTH} expands via
+    # compose's env interpolation (Traefik's file provider does not expand
+    # env vars in dynamic config).
+    #
+    # Generate the value for TRAEFIK_BASIC_AUTH with:
+    #   htpasswd -nbB <user> '<strong-password>'
+    # Then in .env (single line, dollar signs doubled):
+    #   TRAEFIK_BASIC_AUTH=user:$$2y$$05$$abcd......
+    #
+    # Routers attach via:  traefik.http.routers.<name>.middlewares=admin-auth@docker,secureHeaders@file
+
     # Strip /api prefix before forwarding to BFF (optional — only if you
     # prefer a clean domain without /api in the URL. Currently disabled;
     # the BFF mounts its own /api prefix so we pass it through unchanged.)

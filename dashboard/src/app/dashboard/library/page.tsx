@@ -11,6 +11,7 @@ import {
   ChevronDown, Loader2, Star, ImageIcon, Video, FileAudio,
 } from '@/lib/components/Icon';
 import { Button, Input } from '@/lib/ui';
+import { confirmDialog } from '@/lib/components/ConfirmDialog';
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
@@ -163,7 +164,13 @@ export default function LibraryPage() {
   }
 
   const deleteAsset = async (id: number) => {
-    if (!confirm('Delete this asset?')) return;
+    const ok = await confirmDialog({
+      title: 'Delete this asset?',
+      description: 'This permanently removes the asset from your library.',
+      destructive: true,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     await damApi.delete(id);
     showToast('Asset deleted', 'success');
     if (selectedItem?.id === id) { setSelectedItem(null); setDetailAsset(null); }
@@ -201,25 +208,36 @@ export default function LibraryPage() {
         <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
           {/* Scope switcher */}
           {SCOPES.map(s => (
-            <button key={s.key} onClick={() => { setScope(s.key); setSelectedItem(null); setDetailAsset(null); }}
+            <Button
+              key={s.key}
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => { setScope(s.key); setSelectedItem(null); setDetailAsset(null); }}
               className={cn(
-                'flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-xs font-medium transition-all',
+                'h-7 px-2.5 text-xs',
                 scope === s.key
                   ? 'border-accent/40 bg-accent/5 text-accent'
                   : 'border-border bg-surface-0 hover:bg-surface-1 text-content-tertiary'
               )}>
               <span className={scope === s.key ? s.color : ''}>{s.icon}</span>
               {s.label}
-            </button>
+            </Button>
           ))}
           {/* View toggle + refresh */}
           <div className="flex items-center gap-0.5 bg-surface-1 border border-border rounded-md p-0.5">
             {(['grid', 'list'] as const).map(v => (
-              <button key={v} onClick={() => setViewMode(v)}
-                className={cn('w-7 h-7 flex items-center justify-center rounded transition-colors',
-                  viewMode === v ? 'bg-surface-0 text-content-primary shadow-sm' : 'text-content-tertiary hover:text-content-secondary')}>
+              <Button
+                key={v}
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setViewMode(v)}
+                aria-label={v === 'grid' ? 'Grid view' : 'List view'}
+                className={cn('w-7 h-7',
+                  viewMode === v ? 'bg-surface-0 text-content-primary shadow-sm hover:bg-surface-0' : 'text-content-tertiary hover:text-content-secondary')}>
                 {v === 'grid' ? <Boxes size={13} /> : <Layers size={13} />}
-              </button>
+              </Button>
             ))}
           </div>
           <Button variant="outline" size="icon-sm" onClick={loadItems} disabled={loading} aria-label="Refresh">
@@ -232,15 +250,20 @@ export default function LibraryPage() {
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="flex items-center gap-1 flex-wrap">
           {KINDS.map(k => (
-            <button key={k.key} onClick={() => setKind(k.key)}
+            <Button
+              key={k.key}
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setKind(k.key)}
               className={cn(
-                'flex items-center gap-1 h-7 px-2.5 rounded-md border text-[11px] font-medium transition-all',
+                'h-7 px-2.5 text-[11px]',
                 kind === k.key
                   ? 'border-accent/40 bg-accent/5 text-accent'
                   : 'border-border bg-surface-0 hover:bg-surface-1 text-content-tertiary'
               )}>
               {k.icon} {k.label}
-            </button>
+            </Button>
           ))}
         </div>
         <div className="relative flex-1 min-w-[180px]">
@@ -252,10 +275,16 @@ export default function LibraryPage() {
             className="h-8 text-xs pr-8"
           />
           {q && (
-            <button onClick={() => setQ('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded text-content-tertiary hover:text-content-primary">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setQ('')}
+              aria-label="Clear search"
+              className="absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 text-content-tertiary hover:text-content-primary"
+            >
               <X size={11} />
-            </button>
+            </Button>
           )}
         </div>
         <span className="text-[11px] text-content-tertiary shrink-0">{items.length} asset{items.length !== 1 ? 's' : ''}</span>
@@ -269,33 +298,48 @@ export default function LibraryPage() {
 
           {/* Collections */}
           <div className="rounded-xl border border-border bg-surface-0 overflow-hidden">
-            <button onClick={() => setCollectionsOpen(o => !o)}
-              className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-semibold text-content-secondary hover:bg-surface-1 transition-colors">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setCollectionsOpen(o => !o)}
+              className="w-full justify-between px-3 py-2 h-auto rounded-none text-[11px] font-semibold text-content-secondary"
+            >
               <span className="flex items-center gap-1.5"><FolderOpen size={12} /> Collections</span>
               {collectionsOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-            </button>
+            </Button>
             {collectionsOpen && (
               <div className="border-t border-border divide-y divide-border">
                 {collections.map(col => (
-                  <button key={col.id}
-                    className="w-full px-3 py-1.5 flex items-center gap-1.5 hover:bg-surface-1 transition-colors text-left">
+                  <Button
+                    key={col.id}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start gap-1.5 px-3 py-1.5 h-auto rounded-none text-left">
                     <FolderOpen size={11} className="text-content-tertiary shrink-0" />
                     <span className="text-[11px] text-content-secondary truncate">{col.name}</span>
                     {col.kind === 'smart' && <Star size={9} className="text-status-warning shrink-0 ml-auto" />}
-                  </button>
+                  </Button>
                 ))}
                 {collections.length === 0 && (
                   <div className="px-3 py-2 text-[10px] text-content-tertiary italic">No collections yet</div>
                 )}
                 <div className="p-2 flex gap-1">
-                  <input value={newColName} onChange={e => setNewColName(e.target.value)}
+                  <Input value={newColName} onChange={e => setNewColName(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && createCollection()}
                     placeholder="New collection…"
-                    className="flex-1 h-6 px-2 rounded bg-surface-2 border border-border text-[10px] placeholder:text-content-tertiary outline-none focus:border-accent/50" />
-                  <button onClick={createCollection}
-                    className="w-6 h-6 flex items-center justify-center rounded bg-surface-2 border border-border hover:bg-surface-3 text-content-tertiary transition-colors">
+                    className="flex-1 h-6 text-[10px]" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    onClick={createCollection}
+                    aria-label="Create collection"
+                    className="w-6 h-6"
+                  >
                     <Plus size={10} />
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -303,33 +347,48 @@ export default function LibraryPage() {
 
           {/* Brand Kits */}
           <div className="rounded-xl border border-border bg-surface-0 overflow-hidden">
-            <button onClick={() => setBrandKitsOpen(o => !o)}
-              className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-semibold text-content-secondary hover:bg-surface-1 transition-colors">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setBrandKitsOpen(o => !o)}
+              className="w-full justify-between px-3 py-2 h-auto rounded-none text-[11px] font-semibold text-content-secondary"
+            >
               <span className="flex items-center gap-1.5"><ShieldCheck size={12} /> Brand Kits</span>
               {brandKitsOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-            </button>
+            </Button>
             {brandKitsOpen && (
               <div className="border-t border-border divide-y divide-border">
                 {brandKits.map(kit => (
-                  <button key={kit.id}
-                    className="w-full px-3 py-1.5 flex items-center gap-1.5 hover:bg-surface-1 transition-colors text-left">
+                  <Button
+                    key={kit.id}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start gap-1.5 px-3 py-1.5 h-auto rounded-none text-left">
                     <ShieldCheck size={11} className="text-violet-400 shrink-0" />
                     <span className="text-[11px] text-content-secondary truncate">{kit.name}</span>
                     <span className="ml-auto text-[9px] text-content-tertiary">v{kit.version_no}</span>
-                  </button>
+                  </Button>
                 ))}
                 {brandKits.length === 0 && (
                   <div className="px-3 py-2 text-[10px] text-content-tertiary italic">No brand kits yet</div>
                 )}
                 <div className="p-2 flex gap-1">
-                  <input value={newKitName} onChange={e => setNewKitName(e.target.value)}
+                  <Input value={newKitName} onChange={e => setNewKitName(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && createBrandKit()}
                     placeholder="New kit…"
-                    className="flex-1 h-6 px-2 rounded bg-surface-2 border border-border text-[10px] placeholder:text-content-tertiary outline-none focus:border-accent/50" />
-                  <button onClick={createBrandKit}
-                    className="w-6 h-6 flex items-center justify-center rounded bg-surface-2 border border-border hover:bg-surface-3 text-content-tertiary transition-colors">
+                    className="flex-1 h-6 text-[10px]" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    onClick={createBrandKit}
+                    aria-label="Create brand kit"
+                    className="w-6 h-6"
+                  >
                     <Plus size={10} />
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -343,15 +402,20 @@ export default function LibraryPage() {
               </div>
               <div className="p-2 flex flex-wrap gap-1">
                 {availableTags.slice(0, 20).map(t => (
-                  <button key={t} onClick={() => setActiveTag(activeTag === t ? null : t)}
+                  <Button
+                    key={t}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setActiveTag(activeTag === t ? null : t)}
                     className={cn(
-                      'text-[10px] px-1.5 py-0.5 rounded border transition-colors',
+                      'h-auto text-[10px] px-1.5 py-0.5',
                       activeTag === t
                         ? 'border-accent/40 bg-accent/5 text-accent'
                         : 'border-border text-content-tertiary hover:border-border-hover hover:text-content-secondary'
                     )}>
                     {t}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -383,10 +447,13 @@ export default function LibraryPage() {
           ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2">
               {items.map((item: any, i: number) => (
-                <button key={item.id || i}
+                <Button
+                  key={item.id || i}
+                  type="button"
+                  variant="ghost"
                   onClick={() => openDetail(item)}
                   className={cn(
-                    'rounded-lg border overflow-hidden text-left transition-all hover:shadow-card group',
+                    'rounded-lg border h-auto p-0 overflow-hidden text-left transition-all hover:shadow-card group flex-col items-stretch justify-start',
                     selectedItem?.id === item.id ? 'border-accent ring-1 ring-accent/20' : 'border-border hover:border-border-hover'
                   )}>
                   <div className="aspect-video bg-surface-2 flex items-center justify-center relative">
@@ -402,16 +469,19 @@ export default function LibraryPage() {
                     <div className="text-[10px] font-medium text-content-primary truncate">{item.display_name}</div>
                     <div className="text-[9px] text-content-tertiary">{fmtBytes(item.bytes)}</div>
                   </div>
-                </button>
+                </Button>
               ))}
             </div>
           ) : (
             <div className="rounded-xl border border-border bg-surface-0 divide-y divide-border overflow-hidden">
               {items.map((item: any, i: number) => (
-                <button key={item.id || i}
+                <Button
+                  key={item.id || i}
+                  type="button"
+                  variant="ghost"
                   onClick={() => openDetail(item)}
                   className={cn(
-                    'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors',
+                    'w-full justify-start gap-3 px-3 py-2.5 h-auto rounded-none text-left',
                     selectedItem?.id === item.id
                       ? 'bg-accent/5 border-l-2 border-accent'
                       : 'hover:bg-surface-1 border-l-2 border-transparent'
@@ -428,11 +498,17 @@ export default function LibraryPage() {
                   {(item.tags || []).slice(0, 2).map((t: string) => (
                     <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-full bg-surface-2 text-content-tertiary shrink-0">{t}</span>
                   ))}
-                  <button onClick={e => { e.stopPropagation(); deleteAsset(item.id); }}
-                    className="w-7 h-7 flex items-center justify-center rounded hover:bg-status-error/10 text-content-tertiary hover:text-status-error transition-colors shrink-0">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={e => { e.stopPropagation(); deleteAsset(item.id); }}
+                    aria-label="Delete asset"
+                    className="w-7 h-7 shrink-0 text-content-tertiary hover:text-status-error hover:bg-status-error/10"
+                  >
                     <Trash2 size={12} />
-                  </button>
-                </button>
+                  </Button>
+                </Button>
               ))}
             </div>
           )}
@@ -471,10 +547,16 @@ export default function LibraryPage() {
             <div className="rounded-xl border border-border bg-surface-0 overflow-hidden flex-1">
               <div className="px-3 py-2 border-b border-border flex items-center justify-between">
                 <span className="text-xs font-semibold text-content-primary">Detail</span>
-                <button onClick={() => { setSelectedItem(null); setDetailAsset(null); }}
-                  className="w-6 h-6 flex items-center justify-center rounded hover:bg-surface-2 text-content-tertiary">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => { setSelectedItem(null); setDetailAsset(null); }}
+                  aria-label="Close detail"
+                  className="w-6 h-6 text-content-tertiary"
+                >
                   <X size={12} />
-                </button>
+                </Button>
               </div>
               <div className="p-3 space-y-3">
                 {/* Preview placeholder */}

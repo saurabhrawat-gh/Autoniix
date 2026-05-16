@@ -480,13 +480,18 @@ async def list_channels(
     include_archived: bool = Query(default=False),
     _: str = Depends(verify_token),
 ):
+    from src.environment import get_mode_from_db as _get_env
     pool = await get_pool()
-    status_filter = "" if include_archived else "WHERE status != 'archived'"
+    env_mode = await _get_env()
+    conditions = [f"environment = '{env_mode}'"]
+    if not include_archived:
+        conditions.append("status != 'archived'")
+    status_filter = "WHERE " + " AND ".join(conditions)
     rows = await pool.fetch(
         f"SELECT channel_id, channel_name, niche, sub_niche, content_mode, "
         f"auto_upload, status, videos_per_week_long, videos_per_week_short, "
         f"short_form_duration, long_form_duration, schedule_config, "
-        f"human_review_required, max_daily_api_spend, "
+        f"human_review_required, max_daily_api_spend, environment, "
         f"created_at FROM channels {status_filter} ORDER BY channel_id"
     )
     # Batch-query Temporal for paused state — bounded so a slow Temporal
@@ -939,10 +944,10 @@ async def clone_channel(channel_id: str, _: str = Depends(verify_token)):
             "target_audience, thumbnail_style, primary_color, secondary_color, "
             "font_family, caption_style, pacing_style, elevenlabs_voice_id, "
             "voice_stability, voice_similarity, voice_style, "
-            "competitor_channels, forbidden_words, status) "
+            "competitor_channels, forbidden_words, status, environment) "
             "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, "
             "$14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, "
-            "$28, $29, $30, $31, $32, $33, 'disabled')",
+            "$28, $29, $30, $31, $32, $33, 'disabled', $34)",
             new_id, f"{ch['channel_name']} (Copy)", ch["niche"], ch["sub_niche"],
             ch["content_mode"], ch["auto_upload"],
             ch["videos_per_week_short"], ch["videos_per_week_long"],
@@ -956,6 +961,7 @@ async def clone_channel(channel_id: str, _: str = Depends(verify_token)):
             ch["caption_style"], ch["pacing_style"], ch["elevenlabs_voice_id"],
             ch["voice_stability"], ch["voice_similarity"], ch["voice_style"],
             ch["competitor_channels"], ch["forbidden_words"],
+            ch.get("environment", "test"),  # $34 — inherit source channel's environment
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Clone failed: {exc}")
@@ -2450,13 +2456,15 @@ async def fleet_health(_: str = Depends(verify_token)):
 
 @app.get("/api/stats", deprecated=True)
 async def dashboard_stats(_: str = Depends(verify_token)):
+    from src.environment import get_mode_from_db as _get_env
     pool = await get_pool()
+    _env = await _get_env()
     channels = await pool.fetchrow(
         "SELECT COUNT(*) as total, "
         "COUNT(*) FILTER (WHERE status = 'active') as active, "
         "COUNT(*) FILTER (WHERE status = 'disabled') as disabled, "
         "COUNT(*) FILTER (WHERE status = 'archived') as archived "
-        "FROM channels"
+        f"FROM channels WHERE environment = '{_env}'"
     )
     videos_today = await pool.fetchrow(
         "SELECT COUNT(*) as total, "

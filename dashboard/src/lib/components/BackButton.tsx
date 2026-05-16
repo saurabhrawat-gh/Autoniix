@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from './Icon';
 import { cn } from '../utils';
+import { Button } from '../ui';
 
 interface BackButtonProps {
   fallbackHref?: string;
@@ -22,20 +23,17 @@ export function BackButton({ fallbackHref = '/dashboard', className, label = 'Ba
   }
 
   return (
-    <button
+    <Button
+      type="button"
+      variant="secondary"
+      size="sm"
       onClick={go}
       aria-label={label}
       title={label}
-      className={cn(
-        'inline-flex items-center justify-center gap-1.5 h-8 px-2.5 rounded-lg',
-        'bg-surface-2 hover:bg-surface-3 text-content-secondary hover:text-content-primary',
-        'transition-colors text-xs font-medium',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40',
-        className,
-      )}
+      leftIcon={<ArrowLeft size={14} />}
+      className={cn('h-8 px-2.5 text-xs font-medium text-content-secondary hover:text-content-primary', className)}
     >
-      <ArrowLeft size={14} />
       <span className="hidden sm:inline">{label}</span>
-    </button>
+    </Button>
   );
 }

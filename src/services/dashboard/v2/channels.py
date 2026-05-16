@@ -30,6 +30,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from src.db import get_pool
+from src.environment import get_mode_from_db
 
 from ._deps import Principal, audit, principal_dep, require_role
 
@@ -220,11 +221,11 @@ async def create_channel(
                     videos_per_week_short, videos_per_week_long,
                     short_form_duration, long_form_duration,
                     elevenlabs_voice_id, voice_stability, voice_similarity, voice_style,
-                    source, status
+                    source, status, environment
                 ) VALUES (
                     $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
                     $16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,
-                    $31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42
+                    $31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43
                 )
                 """,
                 channel_id, body.channel_name, body.niche, body.sub_niche,
@@ -244,7 +245,7 @@ async def create_channel(
                 body.videos_per_week_long, body.short_form_duration,
                 body.long_form_duration, body.elevenlabs_voice_id,
                 body.voice_stability, body.voice_similarity, body.voice_style,
-                "wizard", "active",
+                "wizard", "active", await get_mode_from_db(),
             )
 
             # Profile (extended payload)
@@ -312,7 +313,11 @@ async def list_channels(
     _: Principal = Depends(principal_dep),
 ):
     pool = await get_pool()
-    where = "" if include_archived else "WHERE c.status != 'archived'"
+    env_mode = await get_mode_from_db()
+    conditions = [f"c.environment = '{env_mode}'"]
+    if not include_archived:
+        conditions.append("c.status != 'archived'")
+    where = "WHERE " + " AND ".join(conditions)
     rows = await pool.fetch(
         f"""
         SELECT c.channel_id, c.channel_name, c.niche, c.sub_niche, c.content_mode,
@@ -323,6 +328,7 @@ async def list_channels(
                c.publish_cadence,
                c.videos_per_week_short,
                c.videos_per_week_long,
+               c.environment,
                cp.completeness_score, cp.tone, cp.brand_personality,
                (SELECT COUNT(*) FROM channel_pillars p WHERE p.channel_id = c.channel_id) AS pillar_count,
                (SELECT COUNT(*) FROM channel_references r WHERE r.channel_id = c.channel_id) AS reference_count
@@ -777,12 +783,14 @@ async def _enrich_channel_list(pool: Any, channels: list[dict]) -> list[dict]:
 async def _dashboard_stats_impl(_: Principal):
     """Shared implementation for GET /stats (registered early to beat /{channel_id})."""  # noqa
     pool = await get_pool()
+    env_mode = await get_mode_from_db()
     ch = await pool.fetchrow(
         """SELECT COUNT(*) AS total,
                   COUNT(*) FILTER (WHERE status = 'active')   AS active,
                   COUNT(*) FILTER (WHERE status = 'disabled') AS disabled,
                   COUNT(*) FILTER (WHERE status = 'archived') AS archived
-             FROM channels"""
+             FROM channels WHERE environment = $1""",
+        env_mode,
     )
     vid = await pool.fetchrow(
         """SELECT COUNT(*) AS total,

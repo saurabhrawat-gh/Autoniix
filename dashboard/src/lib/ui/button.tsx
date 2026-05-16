@@ -58,22 +58,46 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     { className, variant, size, asChild = false, loading, leftIcon, rightIcon, children, disabled, ...props },
     ref
   ) => {
-    const Comp = asChild ? Slot : 'button';
+    const leading = loading ? (
+      <Loader2 className="animate-spin" size={size === 'sm' ? 13 : 15} />
+    ) : (
+      leftIcon ?? null
+    );
+    const trailing = !loading ? (rightIcon ?? null) : null;
+
+    if (asChild) {
+      // Radix Slot requires exactly one React element child. Clone the
+      // consumer-provided child and inject icons inside it so the rendered
+      // element (e.g. <Link>) still styles as a button with icons.
+      const child = React.Children.only(children) as React.ReactElement;
+      return (
+        <Slot
+          ref={ref}
+          className={cn(buttonVariants({ variant, size }), className)}
+          {...props}
+        >
+          {React.cloneElement(
+            child,
+            undefined,
+            leading,
+            child.props.children,
+            trailing,
+          )}
+        </Slot>
+      );
+    }
+
     return (
-      <Comp
+      <button
         ref={ref}
         className={cn(buttonVariants({ variant, size }), className)}
         disabled={disabled || loading}
         {...props}
       >
-        {loading ? (
-          <Loader2 className="animate-spin" size={size === 'sm' ? 13 : 15} />
-        ) : (
-          leftIcon
-        )}
+        {leading}
         {children}
-        {!loading && rightIcon}
-      </Comp>
+        {trailing}
+      </button>
     );
   }
 );

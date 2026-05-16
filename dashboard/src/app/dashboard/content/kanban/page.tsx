@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { LayoutGrid, RotateCw } from 'lucide-react';
 import { contentApi, channelsApi } from '@/lib/api-v2';
+import { Button, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/lib/ui';
 
 const COLUMNS: { key: string; label: string; matches: (s: string) => boolean }[] = [
   { key: 'pending',         label: 'Pending',          matches: s => s === 'pending' },
@@ -38,16 +39,25 @@ export default function KanbanPage() {
           <LayoutGrid size={18} /> Pipeline board
         </h1>
         <span className="text-xs text-content-tertiary">{items.length} videos</span>
-        <select value={channelId} onChange={e => setChannelId(e.target.value)}
-          className="ml-auto px-2 py-1.5 rounded-lg bg-surface-1 border border-border text-xs">
-          <option value="">All channels</option>
-          {channels.map(c => <option key={c.channel_id} value={c.channel_id}>{c.channel_name}</option>)}
-        </select>
-        <button onClick={refresh}
-          className="size-7 inline-flex items-center justify-center rounded-lg border border-border hover:bg-surface-2"
-          title="Refresh">
+        <div className="ml-auto min-w-[180px]">
+          <Select value={channelId || '__all__'} onValueChange={(v: string) => setChannelId(v === '__all__' ? '' : v)}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="All channels" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All channels</SelectItem>
+              {channels.map(c => <SelectItem key={c.channel_id} value={c.channel_id}>{c.channel_name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          onClick={refresh}
+          title="Refresh"
+          aria-label="Refresh"
+        >
           <RotateCw size={14} className={loading ? 'animate-spin' : ''} />
-        </button>
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">

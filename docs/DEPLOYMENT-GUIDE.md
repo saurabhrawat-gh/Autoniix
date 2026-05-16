@@ -1,408 +1,399 @@
-# Autoniix — Deployment Guide
+# Autoniix — Step-by-Step Deployment Guide
 
-Everything you need to go from zero to a live deployment on Hostinger KVM 8.
+End-to-end runbook with your specific values pre-filled. Follow top to bottom.
 
----
-
-## Table of Contents
-
-1. [Buy in This Order](#1-buy-in-this-order)
-2. [Point DNS to VPS](#2-point-dns-to-vps)
-3. [First-Time VPS Setup](#3-first-time-vps-setup)
-4. [Clone & Configure the App](#4-clone--configure-the-app)
-5. [Start the Stack](#5-start-the-stack)
-6. [Enable TLS (HTTPS)](#6-enable-tls-https)
-7. [Set Up CI/CD (Auto-Deploy on Git Push)](#7-set-up-cicd-auto-deploy-on-git-push)
-8. [Daily Development Workflow](#8-daily-development-workflow)
-9. [Useful Commands](#9-useful-commands)
-10. [Troubleshooting](#10-troubleshooting)
+| Resource | Value |
+|---|---|
+| VPS | Hostinger KVM 8 — `srv1666017.hstgr.cloud` |
+| VPS IP | `187.127.155.126` |
+| OS | Ubuntu 22.04 LTS |
+| Domain | `autoniix.com` |
+| Repo | `github.com/saurabhrawat-gh/yt-automation-n8n` |
 
 ---
 
-## 1. Buy in This Order
+## Status overview
 
-> Do this in sequence — domain first so DNS is propagating while you set up the VPS.
-
-| Step | What | Where | Est. Cost |
-|------|------|--------|-----------|
-| 1 | Buy `autoniix.com` domain | Hostinger → Domains | ~$10–12/yr |
-| 2 | Buy KVM 8 VPS | Hostinger → VPS | $25.99/mo |
-| 3 | Business email (optional) | Hostinger → Email | ~$1–2/mo |
-
-**VPS purchase options:**
-- **Term:** Monthly to start (upgrade to 12/24 months once stable)
-- **Location:** India — Mumbai 2 (best latency for you)
-- **OS:** Ubuntu 22.04 LTS
-- **Daily auto-backup:** Skip — the repo has `scripts/backup.sh` and weekly snapshots are included free
+| Step | Status | Action |
+|---|---|---|
+| 0  | ✅ DONE | DNS configured (apex + 6 subdomains via Hostinger MCP) |
+| 1  | ⬜ YOU  | Generate SSH keypair on your laptop |
+| 2  | ⬜ YOU  | Run VPS bootstrap (root SSH, one shot) |
+| 3  | ⬜ YOU  | Create Slack webhook |
+| 4  | ⬜ YOU  | Create Sentry project (optional, free) |
+| 5  | ⬜ YOU  | Add 5 GitHub repository secrets |
+| 6  | ⬜ YOU  | Clone repo on VPS, fill `.env`, first deploy |
+| 7  | ⬜ YOU  | Verify all 6 URLs and Slack alerts |
 
 ---
 
-## 2. Point DNS to VPS
+## Step 0 — DNS (already done)
 
-Once the VPS is provisioned, copy its IP from hPanel → VPS → Overview.
+Configured automatically. All A-records point to `187.127.155.126`:
 
-Go to **Hostinger → Domains → autoniix.com → DNS Zone** and add:
+| Subdomain | Verified? |
+|---|---|
+| `autoniix.com` (apex) | ✅ |
+| `dash.autoniix.com` | ✅ |
+| `api.autoniix.com` | ✅ |
+| `grafana.autoniix.com` | ✅ |
+| `prometheus.autoniix.com` | ✅ |
+| `alerts.autoniix.com` | ✅ |
+| `temporal.autoniix.com` | ✅ |
 
-| Type | Name | Value | TTL |
-|------|------|-------|-----|
-| A | `@` | `<VPS_IP>` | 300 |
-| A | `dashboard` | `<VPS_IP>` | 300 |
-| A | `api` | `<VPS_IP>` | 300 |
-| A | `grafana` | `<VPS_IP>` | 300 |
-
-DNS usually propagates within 5–30 minutes on Hostinger. Verify with:
-
+Verify propagation from your laptop (5–30 min):
 ```bash
-ping dashboard.autoniix.com   # should return your VPS IP
+dig +short dash.autoniix.com
+# expected: 187.127.155.126
 ```
 
 ---
 
-## 3. First-Time VPS Setup
+## Step 1 — Generate SSH keypair (on your laptop)
 
-SSH in as root initially:
+Skip if you already have `~/.ssh/id_ed25519`.
 
 ```bash
-ssh root@<VPS_IP>
+ssh-keygen -t ed25519 -C "saurabh-autoniix" -f ~/.ssh/id_ed25519_autoniix
+# Press Enter for empty passphrase or set one (recommended)
+
+# Print the PUBLIC key — you'll paste this into the bootstrap command
+cat ~/.ssh/id_ed25519_autoniix.pub
 ```
 
-### 3a. System update
+**Copy the entire `ssh-ed25519 AAAA...` line** — you need it in Step 2 and Step 5.
+
+---
+
+## Step 2 — Bootstrap the VPS (one shot, ~3 min)
+
+SSH in **as root** for this single step (after this, root login is disabled):
 
 ```bash
-apt update && apt upgrade -y
+ssh root@187.127.155.126
+# Use the root password from Hostinger hPanel → VPS → Settings
 ```
 
-### 3b. Create non-root user
+Once on the VPS, run:
 
 ```bash
-adduser saurabh
-usermod -aG sudo saurabh
+export DEPLOY_SSH_PUBKEY='ssh-ed25519 AAAA... saurabh-autoniix'   # paste from Step 1
+export SSH_PORT=2222
+curl -fsSL https://raw.githubusercontent.com/saurabhrawat-gh/yt-automation-n8n/main/scripts/vps_bootstrap.sh -o /tmp/bootstrap.sh
+bash /tmp/bootstrap.sh
 ```
 
-### 3c. Copy your SSH key (run from YOUR local machine)
+What it does (idempotent):
+- Creates `autoniix` user with sudo + your SSH key
+- Disables root login + password auth, moves SSH to port **2222**
+- UFW firewall: only `2222`, `80`, `443` open
+- fail2ban (sshd jail)
+- Docker Engine + Compose plugin
+- 4 GB swap file
+- Docker JSON log rotation (20 MB × 5 files per container)
+- Creates `/mnt/backups` owned by `autoniix`
 
+Exit and reconnect as the deploy user:
 ```bash
-ssh-copy-id saurabh@<VPS_IP>
-```
-
-Then verify you can SSH without a password:
-```bash
-ssh saurabh@<VPS_IP>
-```
-
-From now on, **never SSH as root**.
-
-### 3d. Harden SSH (on VPS)
-
-```bash
-sudo nano /etc/ssh/sshd_config
-# Set: PermitRootLogin no
-# Set: PasswordAuthentication no
-sudo systemctl restart sshd
-```
-
-### 3e. Firewall
-
-```bash
-sudo ufw allow OpenSSH
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw enable
-sudo ufw status
-```
-
-### 3f. Install Docker + tools
-
-```bash
-# Docker
-curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker saurabh
-
-# Docker Compose plugin (v2)
-sudo apt install docker-compose-plugin -y
-
-# Git + Make
-sudo apt install git make -y
-
-# Log out and back in for docker group to take effect
 exit
-ssh saurabh@<VPS_IP>
-
-# Verify
-docker compose version
+ssh -p 2222 -i ~/.ssh/id_ed25519_autoniix autoniix@187.127.155.126
+# You should land in /home/autoniix
+docker --version   # verify
 ```
+
+> If port 2222 is blocked by your local firewall, set `SSH_PORT=22` before running bootstrap.
 
 ---
 
-## 4. Clone & Configure the App
+## Step 3 — Slack webhook
+
+1. Open <https://api.slack.com/apps> → **Create New App** → **From scratch**
+2. Name: `Autoniix Alerts`, pick your workspace
+3. **Incoming Webhooks** → toggle **On** → **Add New Webhook to Workspace**
+4. Pick a default channel (e.g. `#yt-alerts`); also create `#yt-alerts-critical`
+5. Copy the webhook URL: `https://hooks.slack.com/services/T.../B.../...`
+
+You'll need this in Step 5 and Step 6.
+
+---
+
+## Step 4 — Sentry project (optional, recommended)
+
+1. <https://sentry.io/signup/> → free account
+2. **Create Project** → Platform: **Python** → Project name: `autoniix-backend`
+3. Copy the DSN: `https://abc123@o12345.ingest.sentry.io/789`
+
+You'll paste it into `.env` in Step 6.
+
+> Skip this step if you don't want error tracking — `SENTRY_DSN=` (empty) makes the SDK a no-op.
+
+---
+
+## Step 5 — GitHub repository secrets
+
+Go to <https://github.com/saurabhrawat-gh/yt-automation-n8n/settings/secrets/actions>
+
+Click **New repository secret** for each:
+
+| Name | Value |
+|---|---|
+| `VPS_HOST` | `187.127.155.126` |
+| `VPS_USER` | `autoniix` |
+| `VPS_SSH_PORT` | `2222` |
+| `VPS_SSH_KEY` | Contents of `~/.ssh/id_ed25519_autoniix` (the **private** key — `cat ~/.ssh/id_ed25519_autoniix`, copy the whole `-----BEGIN ... -----END-----` block) |
+| `SLACK_WEBHOOK_URL` | Webhook URL from Step 3 |
+
+After saving, every push to `main` will auto-deploy + smoke-test + Slack-notify.
+
+---
+
+## Step 6 — Clone repo on VPS and first deploy
+
+SSH in as `autoniix` (Step 2 confirmed it works):
 
 ```bash
-# Clone the repo
-git clone https://github.com/<your-username>/autoniix.git
-cd autoniix
+ssh -p 2222 -i ~/.ssh/id_ed25519_autoniix autoniix@187.127.155.126
+```
 
-# Create .env from example
-cp .env.example .env
+### 6a. Clone repo
+
+```bash
+git clone https://github.com/saurabhrawat-gh/yt-automation-n8n.git ~/autoniix
+cd ~/autoniix
+```
+
+### 6b. Generate secrets
+
+```bash
+echo "AUTH_JWT_SECRET=$(openssl rand -base64 48)"
+echo "ADMIN_JWT_SECRET=$(openssl rand -base64 48)"
+echo "DB_PASSWORD=$(openssl rand -base64 32)"
+echo "TEMPORAL_DB_PASSWORD=$(openssl rand -base64 32)"
+echo "S3_ACCESS_KEY=$(openssl rand -hex 12)"
+echo "S3_SECRET_KEY=$(openssl rand -base64 32)"
+echo "GRAFANA_ADMIN_PASSWORD=$(openssl rand -base64 24)"
+echo "SECRETS_ENCRYPTION_KEY=$(python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())' 2>/dev/null || pip install --quiet cryptography && python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
+
+# Basic-auth hash for grafana/prometheus/alerts/temporal admin pages
+sudo apt install -y apache2-utils
+htpasswd -nbB admin 'PickAStrongPassword!'
+# → e.g. admin:$2y$05$abc...   ← copy this whole line as TRAEFIK_BASIC_AUTH
+```
+
+Save all the printed values somewhere temporarily (a password manager).
+
+### 6c. Create `.env`
+
+```bash
+cp .env.production.example .env
 nano .env
 ```
 
-### Minimum required `.env` values
+Replace every `CHANGE_ME` value. Mandatory:
 
-```bash
-ENVIRONMENT_MODE=test          # Keep as 'test' while developing
+```ini
+# Domain (already correct in template)
+DOMAIN=autoniix.com
+DASH_DOMAIN=dash.autoniix.com
+API_DOMAIN=api.autoniix.com
+GRAFANA_DOMAIN=grafana.autoniix.com
+PROMETHEUS_DOMAIN=prometheus.autoniix.com
+ALERTS_DOMAIN=alerts.autoniix.com
+TEMPORAL_DOMAIN=temporal.autoniix.com
+ACME_EMAIL=admin@autoniix.com
+ALLOWED_ORIGINS=https://dash.autoniix.com
 
-# Database
-DB_PASSWORD=<strong-password>
+# Paste from Step 6b
+TRAEFIK_BASIC_AUTH=admin:$2y$05$...
+DB_PASSWORD=...
+TEMPORAL_DB_PASSWORD=...
+S3_ACCESS_KEY=...
+S3_SECRET_KEY=...
+ADMIN_JWT_SECRET=...
+AUTH_JWT_SECRET=...
+GRAFANA_ADMIN_PASSWORD=...
+SECRETS_ENCRYPTION_KEY=...
 
-# MinIO (object storage)
-S3_ACCESS_KEY=<choose-any>
-S3_SECRET_KEY=<choose-strong>
+# Slack (from Step 3)
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
 
-# LLM (at least one)
-OPENAI_API_KEY=<your-key>
+# Sentry (from Step 4 — leave empty to disable)
+SENTRY_DSN=
 
-# Stock footage (free)
-PEXELS_API_KEY=<your-key>      # https://www.pexels.com/api/
-PIXABAY_API_KEY=<your-key>     # https://pixabay.com/api/docs/
-
-# TTS
-FISH_API_KEY=<your-key>        # https://fish.audio
-
-# Auth (generate with: openssl rand -hex 32)
-ADMIN_JWT_SECRET=<generate>
-AUTH_JWT_SECRET=<generate>
-ADMIN_PASSWORD=<choose>
+# Your real LLM / TTS / YouTube keys
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GOOGLE_AI_API_KEY=...
+FISH_AUDIO_API_KEY=...
+PIXABAY_API_KEY=...
+PEXELS_API_KEY=...
+YOUTUBE_API_KEY=...
+GOOGLE_OAUTH_CLIENT_ID=...
+GOOGLE_OAUTH_CLIENT_SECRET=...
+GOOGLE_OAUTH_REFRESH_TOKEN=...
 ```
 
-> **Tip:** Generate secrets with `openssl rand -hex 32`
+> **Important:** `TRAEFIK_BASIC_AUTH` — paste the **raw** htpasswd output. Do NOT double the `$` signs; docker compose handles escaping.
 
----
+Save (`Ctrl+O`, `Enter`, `Ctrl+X`).
 
-## 5. Start the Stack
+### 6d. Pre-flight check
 
 ```bash
-# Start all containers
-docker compose up -d
+make deploy-check
+```
 
-# Wait ~60 seconds for everything to initialize
-sleep 60
+This validates:
+- All `CHANGE_ME` placeholders are gone
+- DB passwords are not defaults
+- Required env vars are set
+- Migrations are clean
+- Unit tests pass
 
-# Check all containers are healthy
+Fix anything red before continuing.
+
+### 6e. First deploy
+
+```bash
+docker compose --profile tls up -d --build
+# ~5-10 min on first build (Docker layer cache makes subsequent deploys 1-2 min)
+
+# Watch progress
 docker compose ps
 
-# Run database migrations
-make migrate
-
-# Seed database (prompts, system config, niche templates)
-make seed
-
-# Verify the stack is responding
+# Wait for all services to be healthy:
 make health
 ```
 
-The dashboard is now accessible at `http://<VPS_IP>:3000` (HTTP, before TLS).
-
----
-
-## 6. Enable TLS (HTTPS)
-
-> Do this only after DNS has propagated (`ping dashboard.autoniix.com` returns your VPS IP).
+### 6f. One-time post-deploy steps
 
 ```bash
-# Set your email for Let's Encrypt in traefik config
-nano traefik/traefik.yml
-# → update: certificatesResolvers.letsencrypt.acme.email = "you@example.com"
+# Register the 5 Temporal schedules (gate-cal, niche-pulse, retention,
+# model-maint, daily-scheduler)
+make schedule-register
 
-nano traefik/dynamic.yml
-# → verify domain names match: dashboard.autoniix.com, api.autoniix.com
+# Flip auth from legacy to v2 (JWT)
+make auth-enable
 
-# Start with TLS profile
-make tls-up
+# End-to-end smoke test
+make smoke
 ```
 
-After ~30 seconds, Let's Encrypt issues the cert automatically. Visit:
-- `https://dashboard.autoniix.com` — Admin dashboard
-- `https://grafana.autoniix.com` — Observability
-
----
-
-## 7. Set Up CI/CD (Auto-Deploy on Git Push)
-
-Every push to `main` automatically deploys to the VPS via GitHub Actions. This means you never manually SSH to deploy — just `git push` and the VPS updates itself.
-
-### 7a. Add GitHub Secrets
-
-Go to **GitHub → Your Repo → Settings → Secrets and variables → Actions → New repository secret**:
-
-| Secret Name | Value |
-|-------------|-------|
-| `VPS_HOST` | `autoniix.com` or your VPS IP |
-| `VPS_USER` | `saurabh` (your non-root username) |
-| `VPS_SSH_KEY` | Contents of `~/.ssh/id_rsa` (your **private** key) |
-
-To get your private key:
-```bash
-cat ~/.ssh/id_rsa   # copy the entire output including -----BEGIN/END lines
-```
-
-### 7b. The Deploy Pipeline
-
-The CI/CD pipeline in `.github/workflows/ci.yml` runs automatically:
-
-```
-push to main
-    ↓
-Python lint + unit tests
-    ↓
-Remotion typecheck
-    ↓
-Security scan (pip-audit)
-    ↓
-[all pass] → SSH into VPS → git pull → docker compose up --build
-```
-
-**The deploy only fires if all tests pass.** A broken push will not reach the VPS.
-
-### 7c. Monitor Deploys
-
-Go to **GitHub → Actions** to see live deploy logs. Each deploy takes ~2–4 minutes (Docker layer cache makes rebuilds fast after the first one).
-
----
-
-## 8. Daily Development Workflow
-
-### Option A — Remote SSH in Cursor (Recommended)
-
-Edit code directly on the VPS from your IDE. Nothing runs locally.
-
-1. Open Cursor → `Ctrl+Shift+P` → **Remote-SSH: Connect to Host**
-2. Enter: `saurabh@autoniix.com`
-3. Open `/home/saurabh/autoniix` as your workspace
-4. Edit code, then restart the affected service:
+### 6g. Daily backups via cron
 
 ```bash
-docker compose restart assets    # restart single service
-docker compose up -d --build assets  # rebuild + restart
-```
-
-### Option B — Git Push Deploy
-
-Edit locally, push, CI deploys automatically:
-
-```bash
-# Local
-git add .
-git commit -m "fix: resolve asset query bug"
-git push origin main
-# → GitHub Actions runs tests → deploys to VPS on pass
-# → Takes ~2-4 minutes
-```
-
-### Checking Logs
-
-```bash
-# Live logs for a specific service
-docker compose logs -f assets
-
-# All services
-docker compose logs -f
-
-# Last 100 lines
-docker compose logs --tail=100 research
+crontab -e
+# Add this line (daily 03:30 UTC):
+30 3 * * * /home/autoniix/autoniix/scripts/backup.sh >> /var/log/autoniix-backup.log 2>&1
+sudo touch /var/log/autoniix-backup.log
+sudo chown autoniix:autoniix /var/log/autoniix-backup.log
 ```
 
 ---
 
-## 9. Useful Commands
+## Step 7 — Verify everything
+
+From your laptop browser (in this order):
+
+| URL | Expected | Login |
+|---|---|---|
+| <https://dash.autoniix.com> | Dashboard login page, valid LE cert | Set up via dashboard or `make auth-enable` |
+| <https://api.autoniix.com/health> | `{"status":"ok","v2_router_loaded":true,...}` | none |
+| <https://grafana.autoniix.com> | Grafana login | `admin` / `GRAFANA_ADMIN_PASSWORD` |
+| <https://prometheus.autoniix.com/targets> | Basic-auth → 14 targets all UP | TRAEFIK_BASIC_AUTH credentials |
+| <https://alerts.autoniix.com> | Basic-auth → Alertmanager UI | same |
+| <https://temporal.autoniix.com> | Basic-auth → 5 schedules listed | same |
+
+### Test Slack alerting
+
+Trigger a critical alert by stopping postgres briefly:
 
 ```bash
-# Stack management
-make up              # start all containers
-make down            # stop all containers
-make restart         # restart all containers
-make health          # check all service health endpoints
+docker compose stop postgres-app
+# Wait ~2 min — Slack #yt-alerts-critical should fire `PostgresDown`
+docker compose start postgres-app
+# A "RESOLVED" message follows in 1-2 min
+```
 
-# Database
-make migrate         # run pending migrations
-make seed            # seed prompts + system config
+### Test CI/CD
 
-# Logs
-make logs            # tail all logs
-docker compose logs -f <service-name>
+From your laptop:
 
-# Deploy (manual, if not using CI/CD)
-git pull origin main && docker compose up -d --build
-
-# Backup (DB + MinIO)
-bash scripts/backup.sh
-
-# Check resource usage
-docker stats --no-stream
-
-# Free up disk space (remove old images)
-docker image prune -f
-docker volume prune -f   # WARNING: removes unused volumes
+```bash
+git checkout -b ci-test
+echo "# CI test $(date)" >> README.md
+git add README.md && git commit -m "test: verify CI/CD pipeline"
+git push origin ci-test
+# Create a PR, see GitHub Actions run lint+tests
+# Merge → main → watch GitHub Actions deploy → Slack notify "Deploy OK"
 ```
 
 ---
 
-## 10. Troubleshooting
+## Step 8 — Day 2 operations
 
-### Container keeps restarting
+### Manual deploy (if CI is down)
+
 ```bash
-docker compose logs <service-name> --tail=50
-# Look for the error, fix .env or code, then:
-docker compose up -d --build <service-name>
+ssh -p 2222 -i ~/.ssh/id_ed25519_autoniix autoniix@187.127.155.126
+cd ~/autoniix
+git pull origin main
+docker compose --profile tls up -d --build --remove-orphans
+make smoke
 ```
 
-### Out of disk space
+### View logs
+
 ```bash
-df -h                        # check disk usage
-docker system df             # Docker-specific usage
-docker image prune -f        # remove dangling images
-docker builder prune -f      # clear build cache
+docker compose logs -f --tail=100 dashboard-bff
+docker compose logs -f --tail=100 worker-production
 ```
 
-### Out of memory / OOM kill
+Or via Grafana → Explore → pick `Loki` datasource → query by service.
+
+### Restart one service after code change (without full deploy)
+
 ```bash
-free -h                      # check available RAM
-docker stats --no-stream     # per-container memory
-# If RAM is maxed, restart the heaviest service:
-docker compose restart research
+docker compose up -d --build research
 ```
 
-### TLS cert not issuing
-```bash
-docker compose logs traefik | grep -i "acme\|cert\|error"
-# Common causes:
-# - DNS hasn't propagated yet (wait longer)
-# - Port 80 blocked by UFW (check: sudo ufw status)
-# - Wrong email in traefik.yml
-```
+### Restore from backup
 
-### Database connection refused
 ```bash
-docker compose ps postgres-app   # is it running?
-docker compose logs postgres-app --tail=30
-# If corrupted:
-docker compose down
-docker volume rm autoniix_postgres-data   # WARNING: data loss
-docker compose up -d
-make migrate && make seed
+ls /mnt/backups/                      # find timestamp
+bash scripts/restore.sh /mnt/backups/<TIMESTAMP>
 ```
 
 ---
 
-## Appendix: Monthly Cost at a Glance
+## Troubleshooting cheatsheet
 
-| Item | Cost |
-|------|------|
-| Hostinger KVM 8 VPS | $25.99/mo |
-| autoniix.com domain | ~$1/mo (amortized) |
-| Hostinger Business Email | ~$1–2/mo |
-| OpenAI API (dev usage) | ~$5–15/mo |
-| Fish Audio TTS (dev) | ~$2–5/mo |
-| **Total** | **~$35–50/mo** |
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `make deploy-check` complains about CHANGE_ME | placeholder still in `.env` | grep `CHANGE_ME .env` and replace |
+| TLS cert not issuing | DNS not propagated / port 80 blocked | `dig dash.autoniix.com`; `sudo ufw status`; `docker compose logs traefik` |
+| `502 Bad Gateway` on dashboard | dashboard-bff unhealthy | `docker compose ps`, `docker compose logs dashboard-bff` |
+| Grafana asks for login twice | Both basic-auth AND Grafana auth | We disabled basic-auth on Grafana — re-pull latest if it persists |
+| Out of disk on `/` | Docker images / logs | `docker system prune -af`; check `/var/lib/docker/containers/*/json.log` |
+| Backups not running | crontab missing or path wrong | `crontab -l`; verify path matches |
+| Slack alert never fires | webhook wrong / Alertmanager not reloaded | `docker compose restart alertmanager`; check `/alerts.autoniix.com` UI |
 
-> In `ENVIRONMENT_MODE=test`, LLM and TTS costs are near $0 (mock providers used).
-> Switch to `production` only when testing the real pipeline.
+---
+
+## Cost summary
+
+| Item | Monthly |
+|---|---|
+| Hostinger KVM 8 | ~$25 (already paid) |
+| Domain `autoniix.com` | ~$1 amortized |
+| Slack | $0 (free tier) |
+| Sentry | $0 (free 5k errors/mo) |
+| Grafana / Prom / Loki / Traefik / Alertmanager / fail2ban / UFW | $0 (self-hosted) |
+| Let's Encrypt TLS | $0 |
+| GitHub Actions | $0 (private repo gets 2k min free) |
+| **Infra recurring** | **~$26/mo** |
+| OpenAI / Claude / Gemini / Fish Audio | depends on volume |
+
+---
+
+_Last updated: May 16, 2026 — VPS IP `187.127.155.126`, DNS automated via Hostinger MCP._

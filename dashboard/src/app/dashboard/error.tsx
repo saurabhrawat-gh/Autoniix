@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { AlertTriangle, RotateCw, Home } from '@/lib/components/Icon';
+import { Button } from '@/lib/ui';
 
 export default function DashboardError({
   error,
@@ -39,12 +40,9 @@ export default function DashboardError({
           )}
         </div>
         <div className="flex items-center justify-center gap-2 pt-2">
-          <button
-            onClick={() => reset()}
-            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-medium bg-accent text-white hover:opacity-90 transition-opacity"
-          >
-            <RotateCw size={14} /> Try again
-          </button>
+          <Button onClick={() => reset()} size="sm" leftIcon={<RotateCw size={14} />}>
+            Try again
+          </Button>
           <Link
             href="/dashboard"
             className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-medium border border-border bg-surface-1 hover:bg-surface-2 transition-colors"

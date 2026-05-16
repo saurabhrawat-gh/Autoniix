@@ -129,4 +129,8 @@ export {
   CalendarDays,
   BarChart2,
   CheckSquare,
+  UserCircle,
+  Lock,
+  KeyRound,
+  Mail,
 } from 'lucide-react';

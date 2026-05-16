@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { usersApi } from '@/lib/api-v2';
-import { Button } from '@/lib/ui';
+import { Button, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/lib/ui';
 
 const ROLES = ['owner', 'admin', 'editor', 'reviewer', 'viewer'] as const;
 
@@ -26,10 +26,14 @@ export default function Users() {
               <div className="text-sm font-medium truncate">{u.email}</div>
               <div className="text-xs opacity-60">{u.display_name || '—'} · MFA: {u.mfa_enabled ? 'on' : 'off'} · last login {u.last_login_at ? new Date(u.last_login_at).toLocaleString() : 'never'}</div>
             </div>
-            <select value={u.role} onChange={async e => { await usersApi.setRole(u.id, e.target.value); refresh(); }}
-              className="px-2 py-1 text-xs rounded border border-border bg-surface-0 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent">
-              {ROLES.map(r => <option key={r}>{r}</option>)}
-            </select>
+            <div className="min-w-[120px]">
+              <Select value={u.role} onValueChange={async (v: string) => { await usersApi.setRole(u.id, v); refresh(); }}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ROLES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <Button
               size="sm"
               variant={u.disabled ? 'primary' : 'outline'}

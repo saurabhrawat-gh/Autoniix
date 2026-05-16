@@ -27,6 +27,7 @@ class Principal:
     email: str | None
     role: str
     source: str  # 'legacy' | 'v2_jwt'
+    workspace_id: int = 1  # active workspace; 1 = default / legacy fallback
 
 
 def _jwt_secret() -> str:
@@ -62,6 +63,7 @@ async def principal_dep(
                 user_id=int(claims["sub"]) if "sub" in claims else None,
                 email=claims.get("email"),
                 role=claims.get("role", "viewer"),
+                workspace_id=int(claims.get("wid", 1)),
                 source="v2_jwt",
             )
 
@@ -71,7 +73,7 @@ async def principal_dep(
         import time as _time
         expiry = _legacy._sessions.get(token)
         if expiry is not None and expiry >= _time.time():
-            return Principal(user_id=None, email=None, role="owner", source="legacy")
+            return Principal(user_id=None, email=None, role="owner", workspace_id=1, source="legacy")
     except Exception:
         pass
 

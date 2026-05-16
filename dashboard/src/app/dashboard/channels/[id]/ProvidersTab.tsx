@@ -5,6 +5,16 @@ import { providersApi } from '@/lib/api-v2';
 import { useToast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { ArrowUp, ArrowDown, X, Plus, RotateCw } from '@/lib/components/Icon';
+import { confirmDialog } from '@/lib/components/ConfirmDialog';
+import {
+  Button,
+  Switch,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/lib/ui';
 
 interface ProvidersTabProps {
   channelId: string;
@@ -67,7 +77,13 @@ export default function ProvidersTab({ channelId }: ProvidersTabProps) {
       .catch((e: any) => showToast(e?.message || 'Failed', 'error'));
 
   const clearOverride = async () => {
-    if (!confirm(`Clear ${mode ? mode + ' ' : ''}override for ${category}? Channel will inherit from workspace.`)) return;
+    const ok = await confirmDialog({
+      title: `Clear ${mode ? mode + ' ' : ''}override for ${category}?`,
+      description: 'This channel will inherit from the workspace-level configuration.',
+      destructive: true,
+      confirmLabel: 'Clear override',
+    });
+    if (!ok) return;
     try {
       await providersApi.deleteChainV2({
         scope: 'channel', scope_id: channelId,
@@ -104,22 +120,32 @@ export default function ProvidersTab({ channelId }: ProvidersTabProps) {
       <div className="flex items-end gap-3 flex-wrap">
         <div className="flex-1 min-w-[200px]">
           <div className="text-[10px] uppercase text-content-tertiary mb-1">Category</div>
-          <select value={category} onChange={e => setCategory(e.target.value)}
-            className="w-full px-2.5 py-1.5 rounded-md bg-surface-1 border border-border text-sm focus:outline-none focus:border-accent/50">
-            {categories.map((c: any) => <option key={c.name} value={c.name}>{c.name}</option>)}
-          </select>
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {categories.map((c: any) => (
+                <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div>
           <div className="text-[10px] uppercase text-content-tertiary mb-1">Content mode</div>
           <div className="flex items-center gap-0.5 bg-surface-1 rounded-md p-0.5">
             {[{ name: null as string | null, label: 'All' }, ...modes].map((m: any) => (
-              <button key={m.name ?? '__all__'} onClick={() => setMode(m.name)}
-                className={cn('px-2.5 py-1 text-[11px] font-medium rounded transition-all',
+              <Button
+                key={m.name ?? '__all__'}
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setMode(m.name)}
+                className={cn('h-7 px-2.5 text-[11px] font-medium',
                   mode === m.name
-                    ? 'bg-surface-0 text-content-primary shadow-sm'
-                    : 'text-content-tertiary hover:text-content-secondary')}>
+                    ? 'bg-surface-0 text-content-primary shadow-sm hover:bg-surface-0'
+                    : 'text-content-tertiary hover:text-content-secondary')}
+              >
                 {m.label}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -160,10 +186,16 @@ export default function ProvidersTab({ channelId }: ProvidersTabProps) {
             Channel override · {mode ? `mode: ${mode}` : 'all modes'}
           </div>
           {override.length > 0 && (
-            <button onClick={clearOverride}
-              className="text-[11px] text-content-tertiary hover:text-status-error flex items-center gap-1">
-              <RotateCw size={11} /> Clear override (inherit from workspace)
-            </button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={clearOverride}
+              leftIcon={<RotateCw size={11} />}
+              className="h-auto px-1 py-0 text-[11px] text-content-tertiary hover:text-status-error"
+            >
+              Clear override (inherit from workspace)
+            </Button>
           )}
         </div>
         <div className="rounded-md border border-border bg-surface-0 overflow-hidden">
@@ -203,29 +235,43 @@ export default function ProvidersTab({ channelId }: ProvidersTabProps) {
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-secondary font-mono">{c.model}</span>
                   )}
                   <span className="text-[10px] text-content-tertiary font-mono">{c.provider_name}</span>
-                  <button onClick={toggleEntry}
-                    title={entryEnabled ? 'Disable in this override' : 'Enable in this override'}
-                    className={cn(
-                      'relative inline-flex h-4 w-7 shrink-0 items-center rounded-full border transition-colors',
-                      entryEnabled ? 'bg-status-success/80 border-status-success/80' : 'bg-surface-2 border-border'
-                    )}>
-                    <span className={cn(
-                      'inline-block h-3 w-3 rounded-full bg-white shadow transition-transform',
-                      entryEnabled ? 'translate-x-3.5' : 'translate-x-0.5'
-                    )} />
-                  </button>
-                  <button onClick={() => move(i, -1)} disabled={i === 0}
-                    className="w-6 h-6 flex items-center justify-center rounded border border-border text-content-tertiary hover:bg-surface-2 disabled:opacity-30">
+                  <Switch
+                    checked={entryEnabled}
+                    onCheckedChange={toggleEntry}
+                    aria-label={entryEnabled ? 'Disable in this override' : 'Enable in this override'}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    onClick={() => move(i, -1)}
+                    disabled={i === 0}
+                    aria-label="Move up"
+                    className="w-6 h-6"
+                  >
                     <ArrowUp size={11} />
-                  </button>
-                  <button onClick={() => move(i, 1)} disabled={i === override.length - 1}
-                    className="w-6 h-6 flex items-center justify-center rounded border border-border text-content-tertiary hover:bg-surface-2 disabled:opacity-30">
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    onClick={() => move(i, 1)}
+                    disabled={i === override.length - 1}
+                    aria-label="Move down"
+                    className="w-6 h-6"
+                  >
                     <ArrowDown size={11} />
-                  </button>
-                  <button onClick={() => save(override.map((x: any) => x.credential_id).filter((id: number) => id !== c.credential_id))}
-                    className="w-6 h-6 flex items-center justify-center rounded border border-border text-status-error hover:bg-status-error/10">
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    onClick={() => save(override.map((x: any) => x.credential_id).filter((id: number) => id !== c.credential_id))}
+                    aria-label="Remove from override"
+                    className="w-6 h-6 text-status-error border-status-error/30 hover:bg-status-error/10"
+                  >
                     <X size={11} />
-                  </button>
+                  </Button>
                 </div>
                 );
               })}
@@ -239,12 +285,18 @@ export default function ProvidersTab({ channelId }: ProvidersTabProps) {
             <div className="text-[10px] uppercase text-content-tertiary mb-1.5">Add to override</div>
             <div className="flex flex-wrap gap-1.5">
               {eligibleToAdd.map((c: any) => (
-                <button key={c.id}
+                <Button
+                  key={c.id}
+                  type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => save([...override.map((x: any) => x.credential_id), c.id])}
-                  className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-accent/40 text-accent hover:bg-accent/10">
-                  <Plus size={11} /> {c.label}
-                  {c.model && <span className="text-content-tertiary font-mono">· {c.model}</span>}
-                </button>
+                  leftIcon={<Plus size={11} />}
+                  className="h-7 text-[11px] text-accent border-accent/40 hover:bg-accent/10"
+                >
+                  {c.label}
+                  {c.model && <span className="text-content-tertiary font-mono ml-1">· {c.model}</span>}
+                </Button>
               ))}
             </div>
           </div>

@@ -165,6 +165,7 @@ expressive enough (ramp-up curves, multi-region, sustained-rate needed).
 
 | Phase | Date | Summary |
 |-------|------|---------|
+| **G** VPS Provisioning + Split-host Traefik | May 16, 2026 | `scripts/vps_bootstrap.sh` (UFW + fail2ban + Docker + swap + `/mnt/backups`), multi-host Traefik labels for `dash`/`api`/`grafana`/`prometheus`/`alerts`/`temporal` subdomains, `admin-auth` middleware via traefik service labels, `.env.production.example`, `scripts/backup.sh` rewritten for `/mnt/backups` + S3-agnostic offsite, CI deploy job extended with post-deploy `make smoke` + Slack success/failure notification |
 | **F** Production Deploy | May 11, 2026 | `scripts/register_schedules.py` (5 Temporal schedules), SSH/UFW runbook, `make smoke` / `make deploy-check` / `make schedule-register` |
 | **E** Single Source of Truth | May 11, 2026 | `api-v2.ts` + session utilities, 9 UI pages migrated off `api.ts`, `api.ts` `@deprecated`, 42 legacy endpoints `deprecated=True` |
 | **D** Cost & Quality Hardening | May 10, 2026 | 6 new Prometheus metrics, budget gauge refresh background task, node-exporter, 348 tests passing |

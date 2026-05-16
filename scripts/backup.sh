@@ -1,28 +1,42 @@
 #!/usr/bin/env bash
-# Daily backup of Postgres (app DB) + MinIO `prod/` prefix to a chosen
-# remote (Cloudflare R2 by default). Idempotent and safe to cron.
+# Daily backup of Postgres (app DB) + MinIO `prod/` + `public/` prefixes.
 #
-# Cron example (daily 03:30 UTC):
-#   30 3 * * * /opt/autoniix/scripts/backup.sh >> /var/log/autoniix-backup.log 2>&1
+# Default target: ${BACKUP_LOCAL_DIR:-/mnt/backups}  (created by vps_bootstrap.sh)
+# Optional offsite: any S3-compatible target via BACKUP_S3_* env vars.
+# Backwards-compat: legacy BACKUP_R2_* are also honored.
+#
+# Cron example (daily 03:30 UTC) on the VPS:
+#   30 3 * * * /home/autoniix/autoniix/scripts/backup.sh >> /var/log/autoniix-backup.log 2>&1
 #
 # Required env (sourced from .env if present):
 #   DB_NAME, DB_USER, DB_PASSWORD     — Postgres
 #   S3_ACCESS_KEY, S3_SECRET_KEY,     — local MinIO source
 #   S3_BUCKET
-#   BACKUP_R2_ENDPOINT                — e.g. https://<accid>.r2.cloudflarestorage.com
-#   BACKUP_R2_ACCESS_KEY,
-#   BACKUP_R2_SECRET_KEY,
-#   BACKUP_R2_BUCKET                  — destination R2 bucket (must exist)
+#   BACKUP_LOCAL_DIR                  — where daily snapshots land (default /mnt/backups)
+#   BACKUP_RETENTION_DAYS             — local retention (default 14)
 #
-# Skips the R2 step gracefully if BACKUP_R2_* are not set — local snapshots
-# still land under ./backups/ for manual offsite copy.
+# Optional offsite (any S3-compatible — Hostinger / B2 / R2 / S3):
+#   BACKUP_S3_ENDPOINT
+#   BACKUP_S3_ACCESS_KEY
+#   BACKUP_S3_SECRET_KEY
+#   BACKUP_S3_BUCKET
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 [ -f .env ] && set -a && . ./.env && set +a
 
+LOCAL_DIR="${BACKUP_LOCAL_DIR:-/mnt/backups}"
+RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-OUT_DIR="backups/${STAMP}"
+OUT_DIR="${LOCAL_DIR}/${STAMP}"
+
+# Fallback to repo-local ./backups if /mnt/backups is missing (dev runs).
+if [ ! -d "${LOCAL_DIR}" ]; then
+    echo "[backup] ${LOCAL_DIR} missing — falling back to ./backups"
+    LOCAL_DIR="$(pwd)/backups"
+    OUT_DIR="${LOCAL_DIR}/${STAMP}"
+fi
+
 mkdir -p "${OUT_DIR}"
 echo "[backup] writing to ${OUT_DIR}"
 
@@ -37,30 +51,36 @@ echo "[backup] postgres dump size: $(du -h "${OUT_DIR}/postgres-app.dump" | cut 
 
 # ── MinIO sync (prod/ + public/ prefixes only — test/ is throwaway) ──
 echo "[backup] minio mirror..."
-docker run --rm --network autoniix_autoniix-net \
-    -v "$(pwd)/${OUT_DIR}/minio:/out" \
-    -e MC_HOST_local="http://${S3_ACCESS_KEY:-minioadmin}:${S3_SECRET_KEY:-minioadmin}@minio:9000" \
-    minio/mc:latest -- mirror --quiet --overwrite \
-        "local/${S3_BUCKET:-autoniix}/prod" /out/prod || true
-docker run --rm --network autoniix_autoniix-net \
-    -v "$(pwd)/${OUT_DIR}/minio:/out" \
-    -e MC_HOST_local="http://${S3_ACCESS_KEY:-minioadmin}:${S3_SECRET_KEY:-minioadmin}@minio:9000" \
-    minio/mc:latest -- mirror --quiet --overwrite \
-        "local/${S3_BUCKET:-autoniix}/public" /out/public || true
+NET="${COMPOSE_NETWORK:-autoniix_autoniix-net}"
+for PREFIX in prod public; do
+    docker run --rm --network "${NET}" \
+        -v "${OUT_DIR}/minio:/out" \
+        -e MC_HOST_local="http://${S3_ACCESS_KEY:-minioadmin}:${S3_SECRET_KEY:-minioadmin}@minio:9000" \
+        minio/mc:latest -- mirror --quiet --overwrite \
+            "local/${S3_BUCKET:-autoniix}/${PREFIX}" "/out/${PREFIX}" || true
+done
 
-# ── Optional: push to R2 ────────────────────────────────────
-if [ -n "${BACKUP_R2_ENDPOINT:-}" ] && [ -n "${BACKUP_R2_ACCESS_KEY:-}" ] \
-   && [ -n "${BACKUP_R2_SECRET_KEY:-}" ] && [ -n "${BACKUP_R2_BUCKET:-}" ]; then
-    echo "[backup] mirroring to R2..."
+# ── Optional: push to offsite S3-compatible target ──────────
+push_to_s3() {
+    local endpoint="$1" access="$2" secret="$3" bucket="$4"
+    [ -n "${endpoint}" ] && [ -n "${access}" ] && [ -n "${secret}" ] && [ -n "${bucket}" ] || return 1
+    echo "[backup] mirroring to ${endpoint}/${bucket}/${STAMP}..."
     docker run --rm \
-        -v "$(pwd)/${OUT_DIR}:/in" \
-        -e MC_HOST_r2="https://${BACKUP_R2_ACCESS_KEY}:${BACKUP_R2_SECRET_KEY}@${BACKUP_R2_ENDPOINT#https://}" \
-        minio/mc:latest -- cp -r /in "r2/${BACKUP_R2_BUCKET}/${STAMP}"
-    echo "[backup] R2 push complete: ${BACKUP_R2_BUCKET}/${STAMP}"
+        -v "${OUT_DIR}:/in" \
+        -e MC_HOST_offsite="https://${access}:${secret}@${endpoint#https://}" \
+        minio/mc:latest -- cp -r /in "offsite/${bucket}/${STAMP}"
+    echo "[backup] offsite push complete: ${bucket}/${STAMP}"
+}
+
+if push_to_s3 "${BACKUP_S3_ENDPOINT:-}" "${BACKUP_S3_ACCESS_KEY:-}" "${BACKUP_S3_SECRET_KEY:-}" "${BACKUP_S3_BUCKET:-}"; then
+    :
+elif push_to_s3 "${BACKUP_R2_ENDPOINT:-}" "${BACKUP_R2_ACCESS_KEY:-}" "${BACKUP_R2_SECRET_KEY:-}" "${BACKUP_R2_BUCKET:-}"; then
+    :
 else
-    echo "[backup] BACKUP_R2_* not set — skipping offsite push (local copy retained)"
+    echo "[backup] no offsite target configured — local copy retained at ${OUT_DIR}"
 fi
 
-# ── Local retention: keep last 7 daily snapshots ────────────
-ls -1dt backups/*/ 2>/dev/null | tail -n +8 | xargs -r rm -rf
+# ── Local retention ─────────────────────────────────────────
+echo "[backup] pruning local snapshots older than ${RETENTION_DAYS} days"
+find "${LOCAL_DIR}" -maxdepth 1 -mindepth 1 -type d -mtime "+${RETENTION_DAYS}" -exec rm -rf {} +
 echo "[backup] done"

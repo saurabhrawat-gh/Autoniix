@@ -55,8 +55,11 @@ A pre-commit script (`scripts/check-ui-tokens.mjs`) enforces rule 1.
 
 ## Migration status
 
-- Phase 0 (this PR): primitives shipped + preview route + token lint.
-- Phase 1+: pages migrated off raw `<button>` / `<input>` / `<select>` /
-  inline modals. See plan: `~/.windsurf/plans/dashboard-ui-kit-c2d6de.md`.
+- Phase 0: primitives shipped + preview route + token lint.
+- Phases 1–7 (complete): all dashboard pages and shared components migrated off
+  raw `<button>` / `<input>` / `<select>` / `<textarea>` to UI-kit primitives,
+  plus inline modals replaced with `Dialog`/`ConfirmDialog`. Remaining native
+  form elements are limited to `<input type="range">`, `<input type="color">`,
+  and hidden `<input type="file">` (no UI-kit equivalents yet).
 - Old utility classes (`.btn-*`, `.card`, `.chip-*`, `.has-tooltip`) remain in
-  `globals.css` until migration is 100 % complete.
+  `globals.css` for backward-compat; safe to delete in a follow-up cleanup.

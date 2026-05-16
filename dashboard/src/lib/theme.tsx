@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
+import { Button } from './ui';
 
 export type Theme = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
@@ -118,14 +119,16 @@ export function ThemeToggle() {
   );
 
   return (
-    <button
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
       onClick={toggle}
-      className="relative w-8 h-8 flex items-center justify-center rounded-lg
-                 bg-surface-2 hover:bg-surface-3 transition-all text-content-secondary hover:text-content-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+      className="w-8 h-8 bg-surface-2 hover:bg-surface-3 text-content-secondary hover:text-content-primary"
       aria-label={`Theme: ${theme}. Click to switch to ${next}.`}
       title={`Theme: ${theme} — click for ${next}`}
     >
       {icon}
-    </button>
+    </Button>
   );
 }

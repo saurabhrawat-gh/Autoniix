@@ -24,8 +24,8 @@ export default function LoginPage() {
 
   useEffect(() => {
     authApi.mode()
-      .then(m => setMode(m.v2_enabled ? 'v2' : 'legacy'))
-      .catch(() => setMode('legacy'));
+      .then(m => setMode(!m.v2_enabled && m.legacy_enabled ? 'legacy' : 'v2'))
+      .catch(() => setMode('v2'));
   }, []);
 
   async function handleLegacyLogin(e: React.FormEvent) {
