@@ -200,15 +200,10 @@ services:
       - "8001:8001"
     networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
+      redis: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 1536M
+    deploy: { resources: { limits: { memory: 1536M } } }
 
   script:
     build: .
@@ -220,15 +215,10 @@ services:
       - "8002:8002"
     networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
+      redis: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 1536M
+    deploy: { resources: { limits: { memory: 1536M } } }
 
   voice:
     build: .
@@ -240,15 +230,10 @@ services:
       - "8003:8003"
     networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
+      minio: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 768M
+    deploy: { resources: { limits: { memory: 768M } } }
 
   assets:
     build: .
@@ -260,15 +245,10 @@ services:
       - "8004:8004"
     networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
+      minio: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+    deploy: { resources: { limits: { memory: 512M } } }
 
   thumbnail:
     build: .
@@ -280,15 +260,10 @@ services:
       - "8005:8005"
     networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
+      minio: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 768M
+    deploy: { resources: { limits: { memory: 768M } } }
 
   assembly:
     build: .
@@ -300,13 +275,9 @@ services:
       - "8006:8006"
     networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+    deploy: { resources: { limits: { memory: 512M } } }
 
   delivery:
     build: .
@@ -318,13 +289,9 @@ services:
       - "8007:8007"
     networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 256M
+    deploy: { resources: { limits: { memory: 256M } } }
 
   analytics:
     build: .
@@ -336,13 +303,9 @@ services:
       - "8008:8008"
     networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+    deploy: { resources: { limits: { memory: 512M } } }
 
   admin:
     build: .
@@ -354,13 +317,9 @@ services:
       - "8009:8009"
     networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 256M
+    deploy: { resources: { limits: { memory: 256M } } }
 
   direction:
     build: .
@@ -372,13 +331,9 @@ services:
       - "8010:8010"
     networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+    deploy: { resources: { limits: { memory: 512M } } }
 
   brand:
     build: .
@@ -390,13 +345,9 @@ services:
       - "8012:8012"
     networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+    deploy: { resources: { limits: { memory: 512M } } }
 
   editor:
     build: .
@@ -408,13 +359,9 @@ services:
       - "8013:8013"
     networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+    deploy: { resources: { limits: { memory: 512M } } }
 
   sheets-sync:
     build: .
@@ -426,19 +373,13 @@ services:
       - "8011:8011"
     networks: [autoniix-net]
     depends_on:
-      postgres-app:
-        condition: service_healthy
+      postgres-app: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 256M
+    deploy: { resources: { limits: { memory: 256M } } }
 
   # ── Remotion Renderer ───────────────────────────────────
   remotion-api:
-    build:
-      context: ./services/remotion
-      dockerfile: Dockerfile
+    build: { context: ./services/remotion, dockerfile: Dockerfile }
     command: ["npm", "run", "start:api"]
     environment:
       - NODE_ENV=production
@@ -446,7 +387,6 @@ services:
       - LOG_LEVEL=info
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=
       - RENDER_CONCURRENCY=1
       - RENDER_TMP_DIR=/app/tmp
       - S3_ENDPOINT=http://minio:9000
@@ -474,22 +414,16 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 2G
+    deploy: { resources: { limits: { memory: 2G } } }
 
   remotion-worker:
-    build:
-      context: ./services/remotion
-      dockerfile: Dockerfile
+    build: { context: ./services/remotion, dockerfile: Dockerfile }
     command: ["npm", "run", "start:worker"]
     environment:
       - NODE_ENV=production
       - LOG_LEVEL=info
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=
       - RENDER_CONCURRENCY=1
       - RENDER_TMP_DIR=/app/tmp
       - S3_ENDPOINT=http://minio:9000
@@ -513,10 +447,7 @@ services:
       minio-bootstrap:
         condition: service_completed_successfully
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 4G
+    deploy: { resources: { limits: { memory: 4G } } }
 
   # ── Remotion Vision: tier-aware workers (P0.11) ──────────
   # Off by default. Enable with `docker compose --profile vision up`.
@@ -640,19 +571,12 @@ services:
     healthcheck:
       disable: true
     depends_on:
-      temporal:
-        condition: service_started
-      postgres-app:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      research:
-        condition: service_started
+      temporal: { condition: service_started }
+      postgres-app: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      research: { condition: service_started }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+    deploy: { resources: { limits: { memory: 512M } } }
 
   worker-scheduler:
     build: .
@@ -662,20 +586,13 @@ services:
     healthcheck:
       disable: true
     depends_on:
-      temporal:
-        condition: service_started
-      postgres-app:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      temporal: { condition: service_started }
+      postgres-app: { condition: service_healthy }
+      redis: { condition: service_healthy }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 256M
+    deploy: { resources: { limits: { memory: 256M } } }
 
   # ── Dashboard ──────────────────────────────────────────
-
   dashboard-bff:
     build: .
     command: uvicorn src.services.dashboard.main:app --host 0.0.0.0 --port 8020
@@ -698,17 +615,11 @@ services:
       timeout: 5s
       retries: 3
     depends_on:
-      postgres-app:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      temporal:
-        condition: service_started
+      postgres-app: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      temporal: { condition: service_started }
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 256M
+    deploy: { resources: { limits: { memory: 256M } } }
 
   dashboard-ui:
     build: ./dashboard
@@ -726,8 +637,6 @@ services:
       - NEXT_PUBLIC_API_URL=
       - NEXT_PUBLIC_WS_URL=
       - API_INTERNAL_URL=http://dashboard-bff:8020
-      # Next.js standalone uses HOSTNAME as bind address — force 0.0.0.0 so
-      # the in-container healthcheck (and any sidecar) can reach it.
       - HOSTNAME=0.0.0.0
     networks: [autoniix-net]
     healthcheck:
@@ -736,8 +645,7 @@ services:
       timeout: 5s
       retries: 3
     depends_on:
-      dashboard-bff:
-        condition: service_healthy
+      dashboard-bff: { condition: service_healthy }
     restart: unless-stopped
     deploy:
       resources:
