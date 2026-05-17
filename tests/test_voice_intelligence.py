@@ -19,7 +19,7 @@ from src.services.voice.emotion_predictor import (
 from src.services.voice.audio_quality_scorer import _quick_audio_stats
 
 
-# ── Emotion Predictor ────────────────────────────────────────
+# Emotion Predictor
 
 class TestDetectSentenceEmotion:
     def test_curiosity_keyword(self):
@@ -169,7 +169,7 @@ class TestSectionPacing:
         assert set(SECTION_PACING.keys()) == expected
 
 
-# ── Audio Quality Scorer ─────────────────────────────────────
+# Audio Quality Scorer
 
 class TestQuickAudioStats:
     def test_too_short(self):

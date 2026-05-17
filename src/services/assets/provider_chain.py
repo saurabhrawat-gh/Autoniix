@@ -37,7 +37,7 @@ from src.services.assets.semantic_ranker import ScoredCandidate
 
 logger = structlog.get_logger()
 
-# ── Provider-health (in-process, rolling 5-min) ─────────────────────
+# Provider-health (in-process, rolling 5-min)
 
 
 @dataclass
@@ -88,7 +88,7 @@ def provider_health_snapshot() -> dict[str, dict]:
     }
 
 
-# ── Candidate schema ────────────────────────────────────────────────
+# Candidate schema
 
 
 def _normalise_candidate(*, source: str, **kw) -> dict:
@@ -108,7 +108,7 @@ def _normalise_candidate(*, source: str, **kw) -> dict:
     }
 
 
-# ── Providers ───────────────────────────────────────────────────────
+# Providers
 
 
 async def _pexels(query: str, k: int = 10) -> list[dict]:
@@ -238,7 +238,7 @@ async def _local_library(query: str, k: int = 10) -> list[dict]:
         return []
 
 
-# ── Chain orchestration ─────────────────────────────────────────────
+# Chain orchestration
 
 
 @dataclass

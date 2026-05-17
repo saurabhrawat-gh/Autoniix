@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 
-# ── Event loop ────────────────────────────────────────────────
+# Event loop
 @pytest.fixture(scope="session")
 def event_loop():
     loop = asyncio.new_event_loop()
@@ -18,7 +18,7 @@ def event_loop():
     loop.close()
 
 
-# ── Mock DB pool ──────────────────────────────────────────────
+# Mock DB pool
 class FakeRecord(dict):
     """Dict subclass that supports attribute access like asyncpg.Record."""
     def __getattr__(self, key):
@@ -54,7 +54,7 @@ def fake_record():
     return _make
 
 
-# ── Sample data factories ─────────────────────────────────────
+# Sample data factories
 @pytest.fixture
 def sample_channel():
     return {

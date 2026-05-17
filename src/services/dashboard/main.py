@@ -170,7 +170,7 @@ app.add_middleware(
 
 security = HTTPBearer(auto_error=False)
 
-# ── Production secret guard ─────────────────────────────────
+# Production secret guard
 _INSECURE_SECRET_DEFAULTS: frozenset[str] = frozenset({
     "change_me_to_64_char_random_string_here_now",
     "dev-insecure-change-me",
@@ -217,12 +217,12 @@ async def _check_production_secrets() -> None:
     logger.info("startup.secrets_ok")
 
 
-# ── Session store (in-memory, single user) ─────────────────
+# Session store (in-memory, single user)
 _sessions: dict[str, float] = {}  # token -> expiry_timestamp
 SESSION_TTL_HOURS = 24
 
 
-# ── Helpers ────────────────────────────────────────────────
+# Helpers
 
 _temporal_client_cache: TemporalClient | None = None
 _temporal_client_lock = asyncio.Lock()
@@ -286,7 +286,7 @@ async def verify_token(creds: HTTPAuthorizationCredentials | None = Depends(secu
     return token
 
 
-# ── Pydantic Models ────────────────────────────────────────
+# Pydantic Models
 
 class LoginRequest(BaseModel):
     password: str
@@ -363,7 +363,7 @@ class R(BaseModel):
     error: str | None = None
 
 
-# ── Health ─────────────────────────────────────────────────
+# Health
 
 async def _probe_db(timeout_s: float = 1.0) -> bool:
     try:
@@ -448,7 +448,7 @@ async def health():
     }
 
 
-# ── Auth ───────────────────────────────────────────────────
+# Auth
 
 @app.post("/api/auth/login", response_model=LoginResponse)
 @limiter.limit("10/minute")
@@ -473,7 +473,7 @@ async def me(token: str = Depends(verify_token)):
     return R(status="ok", data={"user": "admin"})
 
 
-# ── Channels ───────────────────────────────────────────────
+# Channels
 
 @app.get("/api/channels", deprecated=True)
 async def list_channels(
@@ -703,7 +703,7 @@ async def generate_brand_dna(req: BrandDnaRequest, _: str = Depends(verify_token
         })
 
 
-# ── Phase 5 — Niche templates & self-learning insights ───────
+# Phase 5 — Niche templates & self-learning insights
 
 
 @app.get("/api/niche-templates", deprecated=True)
@@ -992,7 +992,7 @@ async def export_channel(channel_id: str, _: str = Depends(verify_token)):
     return R(status="ok", data=export_data)
 
 
-# ── Workflow Control ───────────────────────────────────────
+# Workflow Control
 
 @app.post("/api/channels/{channel_id}/trigger", deprecated=True)
 async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depends(verify_token)):
@@ -1164,7 +1164,7 @@ async def _terminate_channel_workflows(channel_id: str) -> list[str]:
     return terminated
 
 
-# ── Jobs (Videos) ──────────────────────────────────────────
+# Jobs (Videos)
 
 @app.get("/api/channels/{channel_id}/jobs", deprecated=True)
 async def list_jobs(
@@ -1456,7 +1456,7 @@ async def job_presigned(content_id: str, _: str = Depends(verify_token)):
     return R(status="ok", data={"presigned_url": url, "expires_in_seconds": 600})
 
 
-# ── Job Approval / Rejection ──────────────────────────────
+# Job Approval / Rejection
 
 @app.post("/api/jobs/{content_id}/approve", deprecated=True)
 async def approve_job(content_id: str, _: str = Depends(verify_token)):
@@ -1643,7 +1643,7 @@ async def restart_job(content_id: str, _: str = Depends(verify_token)):
     })
 
 
-# ── Per-Job Control (pause / resume / stop by content_id) ─
+# Per-Job Control (pause / resume / stop by content_id) ─
 
 async def _find_workflow_for_job(content_id: str) -> str | None:
     """Find the Temporal workflow ID for a given content_id."""
@@ -1746,7 +1746,7 @@ async def stop_job(content_id: str, _: str = Depends(verify_token)):
     })
 
 
-# ── Active Jobs (all in-progress across channels) ────────
+# Active Jobs (all in-progress across channels)
 
 @app.get("/api/jobs/active", deprecated=True)
 async def active_jobs(_: str = Depends(verify_token)):
@@ -1804,7 +1804,7 @@ async def active_jobs(_: str = Depends(verify_token)):
     return R(status="ok", data=jobs)
 
 
-# ── Workflow Status (per channel) ─────────────────────────
+# Workflow Status (per channel)
 
 @app.get("/api/channels/{channel_id}/workflow-status", deprecated=True)
 async def workflow_status(channel_id: str, _: str = Depends(verify_token)):
@@ -1839,7 +1839,7 @@ async def workflow_status(channel_id: str, _: str = Depends(verify_token)):
     })
 
 
-# ── System Config ──────────────────────────────────────────
+# System Config
 
 @app.get("/api/config", deprecated=True)
 async def get_config(_: str = Depends(verify_token)):
@@ -1918,7 +1918,7 @@ async def emergency_resume(_: str = Depends(verify_token)):
     return R(status="ok", data={"emergency_stop": False, "workflows_resumed": resumed_count})
 
 
-# ── Environment Mode ──────────────────────────────────────
+# Environment Mode
 
 class EnvironmentSwitchRequest(BaseModel):
     mode: str  # "test" or "production"
@@ -2147,7 +2147,7 @@ async def clean_slate(req: CleanSlateRequest, _: str = Depends(verify_token)):
     return R(status="ok", data=results)
 
 
-# ── Phase 6 — Fleet health ─────────────────────────────────
+# Phase 6 — Fleet health
 
 
 # Service hosts — kept here (not in config) because the dashboard BFF is
@@ -2452,7 +2452,7 @@ async def fleet_health(_: str = Depends(verify_token)):
     return R(status="ok", data=payload)
 
 
-# ── Dashboard Stats ────────────────────────────────────────
+# Dashboard Stats
 
 @app.get("/api/stats", deprecated=True)
 async def dashboard_stats(_: str = Depends(verify_token)):
@@ -2509,7 +2509,7 @@ async def dashboard_stats(_: str = Depends(verify_token)):
     })
 
 
-# ── WebSocket: Global Event Broadcast (cross-tab sync) ────
+# WebSocket: Global Event Broadcast (cross-tab sync)
 
 class EventBroadcaster:
     """Manages global WebSocket connections for cross-tab sync."""
@@ -2567,7 +2567,7 @@ async def ws_events(websocket: WebSocket):
         _event_broadcaster.disconnect(websocket)
 
 
-# ── WebSocket: Real-time Progress ─────────────────────────
+# WebSocket: Real-time Progress
 
 @app.websocket("/api/ws/progress/{content_id}")
 async def ws_progress(websocket: WebSocket, content_id: str):
@@ -2618,7 +2618,7 @@ async def ws_progress(websocket: WebSocket, content_id: str):
             pass
 
 
-# ── Startup ────────────────────────────────────────────────
+# Startup
 
 if __name__ == "__main__":
     import uvicorn

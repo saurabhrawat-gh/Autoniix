@@ -28,7 +28,7 @@ except Exception:  # pragma: no cover - optional dep, must not crash app
     Counter = Histogram = None  # type: ignore
 
 
-# ── Pipeline-wide custom metrics ────────────────────────────────────
+# Pipeline-wide custom metrics
 # These live in a single registry so every service can ``inc()`` them.
 # The label set is intentionally small (service, channel, phase, status)
 # to keep cardinality bounded.
@@ -58,7 +58,7 @@ if _HAS_INSTRUMENTATOR:
         labelnames=("composition", "outcome"),
     )
 
-    # ── Budget gauges (updated every 60 s by BFF background task) ───────
+    # Budget gauges (updated every 60 s by BFF background task)
     YT_DAILY_API_SPEND = Gauge(
         "yt_daily_api_spend_usd",
         "Today's total API spend in USD for a channel.",
@@ -70,7 +70,7 @@ if _HAS_INSTRUMENTATOR:
         labelnames=("channel_id",),
     )
 
-    # ── Video pipeline counters (incremented by the Temporal worker) ────
+    # Video pipeline counters (incremented by the Temporal worker)
     YT_VIDEOS_STARTED = Counter(
         "yt_videos_started_total",
         "Video production jobs started.",
@@ -82,7 +82,7 @@ if _HAS_INSTRUMENTATOR:
         labelnames=("channel_id", "content_mode"),
     )
 
-    # ── QC counters (incremented at each quality gate) ───────────────────
+    # QC counters (incremented at each quality gate)
     YT_QC_CHECKED = Counter(
         "yt_qc_checked_total",
         "Quality gate evaluations run.",

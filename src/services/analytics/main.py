@@ -23,7 +23,7 @@ from src.observability.metrics import instrument_app
 logger = structlog.get_logger()
 
 
-# ── Request Models ───────────────────────────────────────────
+# Request Models
 
 class AnalyticsCollectRequest(BaseModel):
     channel_id: str
@@ -44,7 +44,7 @@ class TrendRefreshRequest(BaseModel):
     niche: str = ""
 
 
-# ── Helpers ──────────────────────────────────────────────────
+# Helpers
 
 def _classify_tier(views: int, likes: int, comments: int) -> str:
     """Classify video performance tier: S/A/B/C/D."""
@@ -60,7 +60,7 @@ def _classify_tier(views: int, likes: int, comments: int) -> str:
     return "D"
 
 
-# ── App ──────────────────────────────────────────────────────
+# App
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -364,7 +364,7 @@ async def refresh_trends(req: TrendRefreshRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-# ── Intelligence Endpoints ────────────────────────────────
+# Intelligence Endpoints
 
 @app.post("/mine-patterns", response_model=ServiceResponse)
 async def mine_patterns(req: PerformanceRequest):

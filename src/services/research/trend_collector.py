@@ -23,7 +23,7 @@ logger = structlog.get_logger()
 CACHE_TTL = 3600 * 6  # 6 hours
 
 
-# ── Google Trends via pytrends ──────────────────────────────
+# Google Trends via pytrends
 
 async def _fetch_google_trends(keywords: list[str], timeframe: str = "now 7-d") -> dict:
     """Fetch Google Trends interest-over-time and related queries.
@@ -87,7 +87,7 @@ async def _fetch_google_trends(keywords: list[str], timeframe: str = "now 7-d") 
     return await asyncio.to_thread(_sync_fetch)
 
 
-# ── YouTube Search Trends (autocomplete + trending) ─────────
+# YouTube Search Trends (autocomplete + trending)
 
 async def _fetch_youtube_suggestions(keyword: str) -> list[str]:
     """Fetch YouTube search autocomplete suggestions (free, no API key)."""
@@ -186,7 +186,7 @@ async def _fetch_youtube_trending_videos(niche: str, max_results: int = 15) -> l
         return []
 
 
-# ── Store Trend Signals ─────────────────────────────────────
+# Store Trend Signals
 
 async def _store_trend_signals(niche: str, trends_data: dict) -> int:
     """Persist trend signals to DB for downstream scoring."""
@@ -228,7 +228,7 @@ async def _store_trend_signals(niche: str, trends_data: dict) -> int:
     return stored
 
 
-# ── Public API ──────────────────────────────────────────────
+# Public API
 
 async def collect_trends(niche: str, keywords: list[str]) -> dict:
     """Main entry: collect all trend signals for a niche + keywords.

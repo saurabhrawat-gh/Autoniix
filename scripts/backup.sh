@@ -40,7 +40,7 @@ fi
 mkdir -p "${OUT_DIR}"
 echo "[backup] writing to ${OUT_DIR}"
 
-# ── Postgres dump (compressed custom format) ────────────────
+# Postgres dump (compressed custom format)
 echo "[backup] postgres dump..."
 docker compose exec -T postgres-app pg_dump \
     -U "${DB_USER:-app}" \
@@ -49,7 +49,7 @@ docker compose exec -T postgres-app pg_dump \
     > "${OUT_DIR}/postgres-app.dump"
 echo "[backup] postgres dump size: $(du -h "${OUT_DIR}/postgres-app.dump" | cut -f1)"
 
-# ── MinIO sync (prod/ + public/ prefixes only — test/ is throwaway) ──
+# MinIO sync (prod/ + public/ prefixes only — test/ is throwaway)
 echo "[backup] minio mirror..."
 NET="${COMPOSE_NETWORK:-autoniix_autoniix-net}"
 for PREFIX in prod public; do
@@ -60,7 +60,7 @@ for PREFIX in prod public; do
             "local/${S3_BUCKET:-autoniix}/${PREFIX}" "/out/${PREFIX}" || true
 done
 
-# ── Optional: push to offsite S3-compatible target ──────────
+# Optional: push to offsite S3-compatible target
 push_to_s3() {
     local endpoint="$1" access="$2" secret="$3" bucket="$4"
     [ -n "${endpoint}" ] && [ -n "${access}" ] && [ -n "${secret}" ] && [ -n "${bucket}" ] || return 1
@@ -80,7 +80,7 @@ else
     echo "[backup] no offsite target configured — local copy retained at ${OUT_DIR}"
 fi
 
-# ── Local retention ─────────────────────────────────────────
+# Local retention
 echo "[backup] pruning local snapshots older than ${RETENTION_DAYS} days"
 find "${LOCAL_DIR}" -maxdepth 1 -mindepth 1 -type d -mtime "+${RETENTION_DAYS}" -exec rm -rf {} +
 echo "[backup] done"

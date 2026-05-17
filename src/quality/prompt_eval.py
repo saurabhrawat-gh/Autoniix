@@ -54,7 +54,7 @@ from src.providers.llm.base import LLMRequest
 logger = structlog.get_logger()
 
 
-# ── Spec ────────────────────────────────────────────────────────────
+# Spec
 
 
 @dataclass
@@ -104,7 +104,7 @@ class Spec:
         return (not failures), failures
 
 
-# ── Cases & results ─────────────────────────────────────────────────
+# Cases & results
 
 
 @dataclass
@@ -142,7 +142,7 @@ class EvalResult:
         }
 
 
-# ── Runner ──────────────────────────────────────────────────────────
+# Runner
 
 
 async def run_case(case: EvalCase, *, channel_id: str = "EVAL") -> EvalResult:

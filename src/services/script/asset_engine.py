@@ -30,7 +30,7 @@ from src.services.script.script_analyzer import (
 
 logger = structlog.get_logger()
 
-# ── NLTK WordNet lazy loader ──────────────────────────────────
+# NLTK WordNet lazy loader
 _wordnet_ready = False
 _wn_lock = asyncio.Lock()
 
@@ -75,7 +75,7 @@ def _get_synonyms(word: str, max_syns: int = 3) -> list[str]:
         return []
 
 
-# ── Negative Keywords (overused stock footage clichés) ────────
+# Negative Keywords (overused stock footage clichés)
 NEGATIVE_KEYWORDS = {
     "handshake", "business meeting", "happy family", "light bulb",
     "puzzle pieces", "road fork", "thumbs up", "high five",
@@ -85,7 +85,7 @@ NEGATIVE_KEYWORDS = {
     "woman typing laptop", "man thinking", "sunrise motivation",
 }
 
-# ── Shot Type Rules ───────────────────────────────────────────
+# Shot Type Rules
 SHOT_TYPE_MAP = {
     "hook": "close_up",
     "intro": "medium_shot",
@@ -94,7 +94,7 @@ SHOT_TYPE_MAP = {
     "outro": "wide_shot",
 }
 
-# ── Emotion-to-Visual Mood ────────────────────────────────────
+# Emotion-to-Visual Mood
 EMOTION_MOOD_MAP = {
     "curiosity": {"mood": "mysterious", "lighting": "dim warm", "color_tone": "amber"},
     "surprise": {"mood": "dramatic", "lighting": "high contrast", "color_tone": "vivid"},
@@ -107,7 +107,7 @@ EMOTION_MOOD_MAP = {
     "neutral": {"mood": "neutral", "lighting": "natural", "color_tone": "balanced"},
 }
 
-# ── Video Style Recipes ───────────────────────────────────────
+# Video Style Recipes
 STYLE_RECIPES = {
     "stock_footage": {
         "primary_source": "stock_video",
@@ -136,9 +136,7 @@ STYLE_RECIPES = {
 }
 
 
-# ═══════════════════════════════════════════════════════════════
 # QUERY GENERATION
-# ═══════════════════════════════════════════════════════════════
 
 async def extract_asset_queries(
     segment: dict,
@@ -156,7 +154,7 @@ async def extract_asset_queries(
     scene_direction = segment.get("scene_direction", "")
     text_overlay = segment.get("text_overlay", "")
 
-    # ── Entity-based queries ─────────────────────────────────
+    # Entity-based queries
     entities = analysis["entities"]
     noun_phrases = analysis["noun_phrases"]
     key_verbs = analysis["key_verbs"]
@@ -187,7 +185,7 @@ async def extract_asset_queries(
 
     primary_query = " ".join(primary_parts[:4]) if primary_parts else narration[:50]
 
-    # ── Alternate queries (synonym expansion) ────────────────
+    # Alternate queries (synonym expansion)
     await _ensure_wordnet()
     alternate_queries = []
 
@@ -219,18 +217,18 @@ async def extract_asset_queries(
             unique_alts.append(q_clean)
     alternate_queries = unique_alts[:5]
 
-    # ── Shot type ────────────────────────────────────────────
+    # Shot type
     shot_type = SHOT_TYPE_MAP.get(section, "medium_shot")
     if any(e["label"] in ("PERSON",) for e in entities):
         shot_type = "close_up"
     elif any(e["label"] in ("GPE", "LOC") for e in entities):
         shot_type = "wide_shot"
 
-    # ── Negative keywords (avoid clichés) ────────────────────
+    # Negative keywords (avoid clichés)
     neg_keywords = list(NEGATIVE_KEYWORDS & set(w.lower() for w in narration.split()))
     neg_keywords.extend(["generic", "clip art", "cartoon"])
 
-    # ── Style recipe ─────────────────────────────────────────
+    # Style recipe
     recipe = STYLE_RECIPES.get(video_style, STYLE_RECIPES["stock_footage"])
     animation_recipe = None
 
@@ -257,7 +255,7 @@ async def extract_asset_queries(
             "material_style": "realistic",
         }
 
-    # ── Query scoring ────────────────────────────────────────
+    # Query scoring
     query_score = _score_query(primary_query, entities, noun_phrases, key_verbs)
 
     return {
@@ -311,9 +309,7 @@ def _score_query(query: str, entities: list, noun_phrases: list, verbs: list) ->
     return round(min(1.0, score), 3)
 
 
-# ═══════════════════════════════════════════════════════════════
 # FULL SCRIPT ASSET VERSION (v2)
-# ═══════════════════════════════════════════════════════════════
 
 async def generate_script_assets(
     segments: list[dict],

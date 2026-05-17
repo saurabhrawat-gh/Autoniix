@@ -19,7 +19,7 @@ import structlog
 
 logger = structlog.get_logger()
 
-# ── Optimal pacing rules ──────────────────────────────────
+# Optimal pacing rules
 PACING_RULES: dict[str, dict] = {
     "hook": {"min_ms": 1500, "max_ms": 5000, "ideal_ms": 3000, "tolerance_pct": 0.30},
     "intro": {"min_ms": 2000, "max_ms": 8000, "ideal_ms": 5000, "tolerance_pct": 0.25},
@@ -29,7 +29,7 @@ PACING_RULES: dict[str, dict] = {
     "cta": {"min_ms": 1500, "max_ms": 6000, "ideal_ms": 3000, "tolerance_pct": 0.30},
 }
 
-# ── Transition rules ──────────────────────────────────────
+# Transition rules
 TRANSITION_AFFINITY: dict[str, list[str]] = {
     "hook": ["cut", "impact_zoom", "flash"],
     "body": ["dissolve", "slide", "push", "wipe"],

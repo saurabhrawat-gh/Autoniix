@@ -44,7 +44,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 
-# ── Weights & thresholds (tunable; documented in module docstring) ───
+# Weights & thresholds (tunable; documented in module docstring)
 
 
 SUBSYSTEM_WEIGHTS: dict[str, int] = {
@@ -68,7 +68,7 @@ YELLOW_THRESHOLD = 50   # 50-79 : investigate when convenient
                         # <  50 : investigate now (red)
 
 
-# ── Helpers ─────────────────────────────────────────────────────────
+# Helpers
 
 
 def _hours_since(iso_ts: str | None) -> float | None:
@@ -116,7 +116,7 @@ def _linear_band(x: float, *, ok_at: float, fail_at: float) -> float:
     return (fail_at - x) / (fail_at - ok_at)
 
 
-# ── Per-subsystem scorers ───────────────────────────────────────────
+# Per-subsystem scorers
 #
 # Each scorer takes the relevant slice of the fleet payload and
 # returns either a float in [0, 100], or None when there's no data
@@ -299,7 +299,7 @@ def score_calibration(c: dict | None) -> tuple[float | None, str]:
     return pct, ", ".join(bits) + f" over {n} preds"
 
 
-# ── Aggregation ─────────────────────────────────────────────────────
+# Aggregation
 
 
 SUBSYSTEM_SCORERS = {

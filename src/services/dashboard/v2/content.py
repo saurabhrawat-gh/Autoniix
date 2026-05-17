@@ -233,7 +233,7 @@ async def bulk_action(
     return {"status": "ok", "affected": affected}
 
 
-# ── Wave 4: detail, stats, trigger, series listing ────────────────────────
+# Wave 4: detail, stats, trigger, series listing
 
 
 @router.get("/triggers/history")
@@ -446,7 +446,7 @@ async def trigger_content(
     }
 
 
-# ── helpers ───────────────────────────────────────────────────────────────
+# helpers
 
 async def _table_exists(pool: Any, table: str) -> bool:
     return bool(await pool.fetchval(

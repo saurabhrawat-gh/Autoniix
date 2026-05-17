@@ -133,7 +133,7 @@ def test_render_smoke_produces_visible_mp4(tmp_path):
     """Submit minimal direction, poll, download, verify non-black playable MP4."""
     direction = _build_minimal_direction()
 
-    # ── Submit ────────────────────────────────────────────────
+    # Submit
     with httpx.Client(base_url=REMOTION_URL, timeout=30) as client:
         resp = client.post("/api/render", json={
             "composition": "MainVideo",
@@ -147,7 +147,7 @@ def test_render_smoke_produces_visible_mp4(tmp_path):
         resp.raise_for_status()
         render_id = resp.json()["renderId"]
 
-        # ── Poll ──────────────────────────────────────────────
+        # Poll
         deadline = time.monotonic() + 300  # 5 minutes
         last_status: dict[str, Any] = {}
         while time.monotonic() < deadline:
@@ -163,7 +163,7 @@ def test_render_smoke_produces_visible_mp4(tmp_path):
         else:
             pytest.fail(f"render did not complete in 300s; last status={last_status}")
 
-        # ── QC metadata returned by the worker ────────────────
+        # QC metadata returned by the worker
         qc = last_status.get("qc")
         assert qc is not None, "render result missing post-render QC block"
         assert qc.get("pass") is True, f"worker QC rejected: {qc}"
@@ -177,7 +177,7 @@ def test_render_smoke_produces_visible_mp4(tmp_path):
         output_url = last_status["outputUrl"]
         assert output_url, "no outputUrl on done render"
 
-    # ── Download via dashboard proxy if available, else direct MinIO ──
+    # Download via dashboard proxy if available, else direct MinIO
     download_url = output_url
     if DASHBOARD_URL:
         # Confirm the proxy works with a HEAD request (no auth required for
@@ -196,7 +196,7 @@ def test_render_smoke_produces_visible_mp4(tmp_path):
     size = out.stat().st_size
     assert size >= 50_000, f"downloaded MP4 suspiciously small: {size}B"
 
-    # ── Independent ffprobe / luminance check on the downloaded file ──
+    # Independent ffprobe / luminance check on the downloaded file
     probe = _ffprobe_video(str(out))
     streams = probe.get("streams", [])
     assert any(s.get("codec_type") == "video" for s in streams), "no video stream"

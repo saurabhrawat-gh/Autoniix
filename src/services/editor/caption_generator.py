@@ -17,7 +17,7 @@ import structlog
 
 logger = structlog.get_logger()
 
-# ── Caption style templates ──────────────────────────────
+# Caption style templates
 CAPTION_STYLES: dict[str, dict] = {
     "word_highlight": {
         "animation": "highlight",

@@ -30,7 +30,7 @@ from src.observability.metrics import instrument_app
 logger = structlog.get_logger()
 
 
-# ── Request Models ───────────────────────────────────────────
+# Request Models
 
 class BrandProfileRequest(BaseModel):
     channel_id: str
@@ -46,7 +46,7 @@ class BrandEvolutionRequest(BaseModel):
     days_lookback: int = 30
 
 
-# ── Helpers ──────────────────────────────────────────────────
+# Helpers
 
 async def _load_channel(channel_id: str) -> dict:
     pool = await get_pool()
@@ -54,7 +54,7 @@ async def _load_channel(channel_id: str) -> dict:
     return dict(row) if row else {}
 
 
-# ── App ──────────────────────────────────────────────────────
+# App
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

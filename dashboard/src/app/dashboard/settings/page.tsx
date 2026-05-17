@@ -600,9 +600,7 @@ function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
   );
 }
 
-// ──────────────────────────────────────────────────────────────
 // Display Preferences card — theme + density
-// ──────────────────────────────────────────────────────────────
 function DisplayPreferences() {
   const { theme, setTheme } = useTheme();
   const { density, setDensity } = useAppState();

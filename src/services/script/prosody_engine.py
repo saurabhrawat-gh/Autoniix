@@ -30,7 +30,7 @@ from src.services.script.script_analyzer import (
 
 logger = structlog.get_logger()
 
-# ── Section-to-Prosody Defaults ───────────────────────────────
+# Section-to-Prosody Defaults
 SECTION_PROSODY = {
     "hook": {
         "base_speed": 1.15, "stability": 0.40, "style": 0.70,
@@ -59,7 +59,7 @@ SECTION_PROSODY = {
     },
 }
 
-# ── Emotion-to-TTS Parameter Mapping ─────────────────────────
+# Emotion-to-TTS Parameter Mapping
 EMOTION_TTS_MAP = {
     "curiosity": {"stability": 0.45, "style": 0.55, "speed_mod": 1.05, "pitch": "medium"},
     "surprise": {"stability": 0.35, "style": 0.70, "speed_mod": 1.10, "pitch": "high"},
@@ -72,7 +72,7 @@ EMOTION_TTS_MAP = {
     "neutral": {"stability": 0.55, "style": 0.40, "speed_mod": 1.00, "pitch": "medium"},
 }
 
-# ── Pause Rules ───────────────────────────────────────────────
+# Pause Rules
 PAUSE_RULES = {
     "period": 400,
     "exclamation": 300,
@@ -86,9 +86,7 @@ PAUSE_RULES = {
 }
 
 
-# ═══════════════════════════════════════════════════════════════
 # SENTENCE-LEVEL PROSODY
-# ═══════════════════════════════════════════════════════════════
 
 async def analyze_sentence_prosody(
     sentence: str,
@@ -198,9 +196,7 @@ def generate_ssml_sentence(prosody_data: dict) -> str:
     return ssml
 
 
-# ═══════════════════════════════════════════════════════════════
 # SEGMENT-LEVEL PROSODY
-# ═══════════════════════════════════════════════════════════════
 
 async def generate_segment_voice(segment: dict, segment_index: int = 0) -> dict[str, Any]:
     """Generate full voice markup for a script segment.
@@ -273,9 +269,7 @@ async def generate_segment_voice(segment: dict, segment_index: int = 0) -> dict[
     }
 
 
-# ═══════════════════════════════════════════════════════════════
 # FULL SCRIPT VOICE VERSION (v1)
-# ═══════════════════════════════════════════════════════════════
 
 async def generate_script_voice(segments: list[dict], channel: dict | None = None) -> dict[str, Any]:
     """Generate complete Script v1 (Voice Over version).

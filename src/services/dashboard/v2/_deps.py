@@ -92,7 +92,7 @@ def require_role(*roles: str):
     return _checker
 
 
-# ── Feature flags ───────────────────────────────────────────
+# Feature flags
 async def flag_enabled(key: str) -> bool:
     try:
         pool = await get_pool()
@@ -104,7 +104,7 @@ async def flag_enabled(key: str) -> bool:
         return False
 
 
-# ── Audit logging ──────────────────────────────────────────
+# Audit logging
 async def audit(
     *,
     actor: Principal,

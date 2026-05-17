@@ -16,7 +16,7 @@ from src.services.assets.query_optimizer import (
 )
 
 
-# ── Query Hash ───────────────────────────────────────────────
+# Query Hash
 
 class TestQueryHash:
     def test_deterministic(self):
@@ -32,7 +32,7 @@ class TestQueryHash:
         assert _query_hash("query one") != _query_hash("query two")
 
 
-# ── Optimize Query ───────────────────────────────────────────
+# Optimize Query
 
 class TestOptimizeQuery:
     def test_uses_primary_query_from_script_intel(self):
@@ -106,7 +106,7 @@ class TestOptimizeQuery:
         assert len(result["primary_hash"]) == 16
 
 
-# ── Score Asset Relevance ────────────────────────────────────
+# Score Asset Relevance
 
 class TestScoreAssetRelevance:
     def test_high_relevance_clip(self):
@@ -139,7 +139,7 @@ class TestScoreAssetRelevance:
         assert 1.0 <= score <= 10.0
 
 
-# ── Mood Synonyms ────────────────────────────────────────────
+# Mood Synonyms
 
 class TestMoodSynonyms:
     def test_known_moods_have_synonyms(self):

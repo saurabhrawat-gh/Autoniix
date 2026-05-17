@@ -25,7 +25,7 @@ import { applyPatch, lower, type SceneGraph } from "../scene-graph";
 import { DirectorAgent, EditorAgent } from "../agents";
 import type { Patch } from "../scene-graph";
 
-// ── propose_scene ─────────────────────────────────────────────────────────
+// propose_scene
 
 export interface ProposeSceneInput {
   /** A direction-v3 JSON OR an existing scene graph. */
@@ -85,7 +85,7 @@ export async function proposeScene(input: ProposeSceneInput): Promise<ProposeSce
   return { graph, patches, appliedAgents };
 }
 
-// ── render_preview ────────────────────────────────────────────────────────
+// render_preview
 
 export interface RenderPreviewInput {
   graph: SceneGraph;
@@ -110,7 +110,7 @@ export async function renderPreview(input: RenderPreviewInput): Promise<RenderPr
   };
 }
 
-// ── query_registry ────────────────────────────────────────────────────────
+// query_registry
 
 export interface QueryRegistryInput {
   /** Filter by kind. Default returns all. */
@@ -176,7 +176,7 @@ export async function queryRegistry(input: QueryRegistryInput): Promise<QueryReg
   return { entries };
 }
 
-// ── get_qc_report ─────────────────────────────────────────────────────────
+// get_qc_report
 
 export interface GetQcReportInput {
   jobId: string;
@@ -200,7 +200,7 @@ export async function getQcReport(input: GetQcReportInput): Promise<GetQcReportO
   };
 }
 
-// ── list_channels ─────────────────────────────────────────────────────────
+// list_channels
 
 export interface ListChannelsOutput {
   status: "found" | "unimplemented";
@@ -216,7 +216,7 @@ export async function listChannels(): Promise<ListChannelsOutput> {
   };
 }
 
-// ── get_retention_curve ───────────────────────────────────────────────────
+// get_retention_curve
 
 export interface GetRetentionCurveInput {
   channelId: string;
@@ -239,7 +239,7 @@ export async function getRetentionCurve(input: GetRetentionCurveInput): Promise<
   };
 }
 
-// ── run_bandit_sample ─────────────────────────────────────────────────────
+// run_bandit_sample
 
 export interface RunBanditSampleInput {
   /** Cluster name, e.g. "hook_style", "pacing", "transition_family". */
@@ -282,7 +282,7 @@ export async function runBanditSample(input: RunBanditSampleInput): Promise<RunB
   };
 }
 
-// ── tool index ────────────────────────────────────────────────────────────
+// tool index
 
 export const TOOLS = {
   propose_scene: proposeScene,

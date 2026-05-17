@@ -35,7 +35,7 @@ from dataclasses import dataclass
 from typing import Iterable
 
 
-# ── Public types ───────────────────────────────────────────────────
+# Public types
 
 
 @dataclass
@@ -54,7 +54,7 @@ class RetentionFeatures:
     valid:            bool             # False if curve too sparse / malformed
 
 
-# ── Curve sampling helpers ─────────────────────────────────────────
+# Curve sampling helpers
 
 
 def _interpolate_at(curve: list[CurvePoint], at: float) -> float | None:
@@ -126,7 +126,7 @@ def _avg_over_range(curve: list[CurvePoint], lo: float, hi: float) -> float | No
     return area / width
 
 
-# ── Public API ─────────────────────────────────────────────────────
+# Public API
 
 
 def parse_curve(raw: Iterable) -> list[CurvePoint]:

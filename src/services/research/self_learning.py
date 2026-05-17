@@ -30,9 +30,7 @@ FEATURE_NAMES = [
 ]
 
 
-# ═══════════════════════════════════════════════════════════
 # GBM PREDICTOR
-# ═══════════════════════════════════════════════════════════
 
 async def _load_model(niche: str | None = None):
     """Load the latest trained model from DB."""
@@ -130,9 +128,7 @@ async def predict_success(
     }
 
 
-# ═══════════════════════════════════════════════════════════
 # THOMPSON SAMPLING BANDIT
-# ═══════════════════════════════════════════════════════════
 
 async def thompson_sample(
     niche: str,
@@ -268,9 +264,7 @@ async def bandit_update(niche: str, arm: str, reward: float) -> None:
     logger.info("bandit.updated", niche=niche, arm=arm, reward=round(reward, 3))
 
 
-# ═══════════════════════════════════════════════════════════
 # FEEDBACK INGESTOR
-# ═══════════════════════════════════════════════════════════
 
 async def ingest_performance(content_id: str, analytics: dict) -> dict:
     """Ingest post-publish YouTube analytics and compute success label.
@@ -401,9 +395,7 @@ async def ingest_performance(content_id: str, analytics: dict) -> dict:
     return result
 
 
-# ═══════════════════════════════════════════════════════════
 # MODEL TRAINER
-# ═══════════════════════════════════════════════════════════
 
 async def train_model(niche: str | None = None, min_samples: int = 20) -> dict:
     """Train/retrain the GBM topic success predictor.
@@ -571,9 +563,7 @@ async def train_model(niche: str | None = None, min_samples: int = 20) -> dict:
     }
 
 
-# ═══════════════════════════════════════════════════════════
 # DRIFT DETECTION
-# ═══════════════════════════════════════════════════════════
 
 async def check_model_drift(niche: str | None = None) -> dict:
     """Check if model performance is drifting by comparing recent predictions

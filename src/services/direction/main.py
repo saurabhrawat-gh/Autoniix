@@ -27,7 +27,7 @@ from src.observability.metrics import instrument_app
 logger = structlog.get_logger()
 
 
-# ── Request Models ───────────────────────────────────────────
+# Request Models
 
 class DirectionRequest(BaseModel):
     content_id: str
@@ -41,7 +41,7 @@ class DirectionRequest(BaseModel):
     music_data: dict = Field(default_factory=dict)
 
 
-# ── Helpers ──────────────────────────────────────────────────
+# Helpers
 
 def _safe_format(template: str, **kwargs) -> str:
     """Replace {key} placeholders without failing on unknown/literal braces."""
@@ -83,7 +83,7 @@ async def _log_usage(content_id: str, service: str, provider: str, model: str,
         logger.warning("direction.db_log_failed", error=str(e))
 
 
-# ── App ──────────────────────────────────────────────────────
+# App
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -123,7 +123,7 @@ async def generate_direction(req: DirectionRequest):
         brand_primary = channel.get("primary_color", "#1A237E")
         brand_accent = channel.get("accent_color", "#FF6F00")
 
-        # ── Intelligence: Try script v3 direction hint first ──
+        # Intelligence: Try script v3 direction hint first
         use_hint_cfg = await _load_config("direction_use_script_v3_hint")
         use_hint = use_hint_cfg != "false"
         llm_enhance_cfg = await _load_config("direction_llm_enhance_enabled")
@@ -194,7 +194,7 @@ async def generate_direction(req: DirectionRequest):
         # Build voice segment lookup
         segment_urls = req.voice_manifest.get("segment_urls", {})
 
-        # ── Step 1: GPT Direction for each segment ───────
+        # Step 1: GPT Direction for each segment
         prompt = await _load_prompt("PRM_B4_DIRECTION")
         direction_llm = ProviderRegistry.get("llm.direction")
 
@@ -249,7 +249,7 @@ async def generate_direction(req: DirectionRequest):
         except json.JSONDecodeError:
             gpt_segments = []
 
-        # ── Step 2: Build Remotion Direction v3 ──────────
+        # Step 2: Build Remotion Direction v3
         gpt_lookup = {s.get("id"): s for s in gpt_segments}
         remotion_segments = []
         cumulative_ms = 0
@@ -393,7 +393,7 @@ async def generate_direction(req: DirectionRequest):
             "segments": remotion_segments,
         }
 
-        # ── Step 3: Direction QC (enhanced) ───────────────
+        # Step 3: Direction QC (enhanced)
         direction_score = 10.0
         issues = []
 
@@ -452,7 +452,7 @@ async def generate_direction(req: DirectionRequest):
             req.content_id, req.channel_id, direction_v3,
             used_hint=False, llm_tokens=result.tokens_in + result.tokens_out)
 
-        # ── Step 4: Store in DB ──────────────────────────
+        # Step 4: Store in DB
         try:
             pool = await get_pool()
             await pool.execute(

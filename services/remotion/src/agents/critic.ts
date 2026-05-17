@@ -205,7 +205,7 @@ export function makeDefaultCritic(): { agent: CriticAgent; defaultCtx: AgentCtx 
   };
 }
 
-// ── helpers ───────────────────────────────────────────────────────────────
+// helpers
 
 function avg(xs: number[]): number {
   if (xs.length === 0) return 0;

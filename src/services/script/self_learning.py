@@ -34,9 +34,7 @@ SCRIPT_FEATURE_NAMES = [
 ]
 
 
-# ═══════════════════════════════════════════════════════════════
 # FEATURE EXTRACTION
-# ═══════════════════════════════════════════════════════════════
 
 async def extract_script_features(
     script_analysis: dict,
@@ -133,9 +131,7 @@ async def store_script_features(
         logger.warning("script_features.store_failed", content_id=content_id, error=str(e))
 
 
-# ═══════════════════════════════════════════════════════════════
 # GBM PREDICTOR
-# ═══════════════════════════════════════════════════════════════
 
 async def _load_model(model_name: str, niche: str | None = None):
     """Load the latest trained model from DB."""
@@ -227,9 +223,7 @@ async def predict_script_success(features: dict, niche: str | None = None) -> di
     }
 
 
-# ═══════════════════════════════════════════════════════════════
 # THOMPSON SAMPLING BANDITS
-# ═══════════════════════════════════════════════════════════════
 
 async def thompson_sample(
     niche: str,
@@ -352,9 +346,7 @@ async def bandit_update(niche: str, bandit_type: str, arm: str, reward: float) -
     logger.info("script_bandit.updated", niche=niche, type=bandit_type, arm=arm, reward=round(reward, 3))
 
 
-# ═══════════════════════════════════════════════════════════════
 # FEEDBACK INGESTOR
-# ═══════════════════════════════════════════════════════════════
 
 async def ingest_script_performance(content_id: str, analytics: dict) -> dict:
     """Ingest post-publish YouTube analytics and compute success label.
@@ -470,9 +462,7 @@ async def ingest_script_performance(content_id: str, analytics: dict) -> dict:
     return result
 
 
-# ═══════════════════════════════════════════════════════════════
 # MODEL TRAINER
-# ═══════════════════════════════════════════════════════════════
 
 async def train_model(niche: str | None = None, min_samples: int = 15) -> dict:
     """Train/retrain the GBM script success predictor.
@@ -577,9 +567,7 @@ async def train_model(niche: str | None = None, min_samples: int = 15) -> dict:
     return result
 
 
-# ═══════════════════════════════════════════════════════════════
 # DRIFT DETECTION
-# ═══════════════════════════════════════════════════════════════
 
 async def detect_drift(niche: str | None = None) -> dict:
     """Check if the current model is still performing well.

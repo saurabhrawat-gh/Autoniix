@@ -18,10 +18,10 @@ from src.config import settings
 
 logger = structlog.get_logger()
 
-# ── In-memory override (set by dashboard BFF toggle) ─────────
+# In-memory override (set by dashboard BFF toggle)
 _db_mode_override: str | None = None
 
-# ── DB read cache (avoids querying on every call) ────────────
+# DB read cache (avoids querying on every call)
 _cached_db_mode: str | None = None
 _cache_ts: float = 0.0
 _CACHE_TTL_S: float = 5.0  # re-read DB at most every 5 seconds

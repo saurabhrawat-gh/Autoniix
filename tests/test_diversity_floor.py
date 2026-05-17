@@ -21,7 +21,7 @@ from src.intelligence.diversity_floor import (
 )
 
 
-# ── shannon_entropy ─────────────────────────────────────────────────
+# shannon_entropy
 
 
 def test_entropy_is_one_for_uniform_distribution():
@@ -69,7 +69,7 @@ def test_entropy_ignores_zero_arms():
     assert e_with_zeros == pytest.approx(e_without)
 
 
-# ── should_force_exploration ───────────────────────────────────────
+# should_force_exploration
 
 
 def test_force_exploration_off_when_below_min_picks():
@@ -133,7 +133,7 @@ def test_force_exploration_respects_custom_threshold():
     assert should_force_exploration(counts, threshold=0.4) is False
 
 
-# ── pick_least_pulled ──────────────────────────────────────────────
+# pick_least_pulled
 
 
 def test_pick_least_pulled_returns_minimum_count_arm():
@@ -171,7 +171,7 @@ def test_pick_least_pulled_constrains_to_available():
     assert pick_least_pulled(counts, available_arms=available) == "b"
 
 
-# ── Realistic scenarios ────────────────────────────────────────────
+# Realistic scenarios
 
 
 def test_realistic_collapse_scenario():
@@ -201,7 +201,7 @@ def test_realistic_early_channel_scenario():
     assert should_force_exploration(counts) is False
 
 
-# ── Constants sanity ───────────────────────────────────────────────
+# Constants sanity
 
 
 def test_constants_have_sensible_values():

@@ -142,7 +142,7 @@ export default function WorkspacePage() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  // ── Workspace save ─────────────────────────────────────────────
+  // Workspace save
   const saveWorkspace = async () => {
     setSavingWs(true);
     try {
@@ -166,7 +166,7 @@ export default function WorkspacePage() {
     }
   };
 
-  // ── Member actions ─────────────────────────────────────────────
+  // Member actions
   const updateRole = async (userId: number, role: string) => {
     try {
       await membersApi.setRole(userId, role);
@@ -194,7 +194,7 @@ export default function WorkspacePage() {
     }
   };
 
-  // ── Invite actions ──────────────────────────────────────────────
+  // Invite actions
   const sendInvite = async () => {
     if (!inviteEmail.trim()) return;
     setInviting(true);
@@ -234,7 +234,7 @@ export default function WorkspacePage() {
     navigator.clipboard.writeText(full).then(() => showToast('Invite link copied', 'success'));
   };
 
-  // ── Brand actions ───────────────────────────────────────────────
+  // Brand actions
   const createBrand = async () => {
     const name = await promptDialog({
       title: 'Create new brand',
@@ -253,7 +253,7 @@ export default function WorkspacePage() {
     }
   };
 
-  // ── Render ─────────────────────────────────────────────────────
+  // Render
   if (loading) {
     return (
       <div className="p-6 max-w-5xl mx-auto space-y-6">

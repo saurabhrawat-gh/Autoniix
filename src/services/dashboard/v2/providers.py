@@ -71,7 +71,7 @@ def _vault_path(category: str, provider_name: str, label: str) -> str:
     return f"providers/{category}/{provider_name}/{safe_label}"
 
 
-# ── Categories ──────────────────────────────────────────────
+# Categories
 @router.get("/categories")
 async def list_categories(_: Principal = Depends(principal_dep)):
     pool = await get_pool()
@@ -81,7 +81,7 @@ async def list_categories(_: Principal = Depends(principal_dep)):
     return {"data": [dict(r) for r in rows]}
 
 
-# ── Credentials ─────────────────────────────────────────────
+# Credentials
 @router.get("/credentials")
 async def list_credentials(
     category: str | None = None,
@@ -341,7 +341,7 @@ async def rotate_credential(
     return {"status": "ok"}
 
 
-# ── Chains (legacy URL — proxies to v2 workspace+mode-agnostic) ─────
+# Chains (legacy URL — proxies to v2 workspace+mode-agnostic)
 @router.get("/chains/{category}")
 async def get_chain(category: str, _: Principal = Depends(principal_dep)):
     """Legacy endpoint. Returns the workspace + mode-agnostic chain for the category."""
@@ -382,7 +382,7 @@ async def set_chain(
     return {"status": "ok"}
 
 
-# ── Chains v2 (scope + content-mode aware) ─────────────────────────────────
+# Chains v2 (scope + content-mode aware)
 class ChainV2In(BaseModel):
     scope: str = "workspace"           # system|workspace|brand|channel|project
     scope_id: str | None = None
@@ -541,7 +541,7 @@ def _validate_model(category: str, provider_name: str, model: str) -> None:
         return
 
 
-# ── Default fallback ───────────────────────────────────────────────────────
+# Default fallback
 @router.put("/credentials/{credential_id}/default-fallback")
 async def set_default_fallback(
     credential_id: int,
@@ -604,7 +604,7 @@ async def clear_default_fallback(
     return {"status": "ok"}
 
 
-# ── Content modes ──────────────────────────────────────────────────────────
+# Content modes
 @router.get("/content-modes")
 async def list_content_modes(_: Principal = Depends(principal_dep)):
     pool = await get_pool()
@@ -615,7 +615,7 @@ async def list_content_modes(_: Principal = Depends(principal_dep)):
     return {"data": [dict(r) for r in rows]}
 
 
-# ── Registered providers for a category ──────────────────────────────────
+# Registered providers for a category
 # Hardcoded fallback display names for provider keys whose marketplace
 # catalog entry uses a different key (`claude` ↔ `anthropic`) or that
 # aren't catalogued yet. Source of truth: provider_marketplace_catalog.
@@ -713,7 +713,7 @@ async def registered_providers_endpoint(
     return {"data": out}
 
 
-# ── Supported models for a registered provider ────────────────────────────
+# Supported models for a registered provider
 @router.get("/models")
 async def supported_models_endpoint(
     category: str,
@@ -745,7 +745,7 @@ async def supported_models_endpoint(
         return {"data": [], "registered": False, "error": str(exc)}
 
 
-# ── Effective chain (debug + UI rendering) ────────────────────────────────
+# Effective chain (debug + UI rendering)
 @router.get("/resolved")
 async def resolved_chain(
     category: str,
@@ -837,11 +837,9 @@ async def credential_health(
     return {"data": [dict(r) for r in rows]}
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Wave 2 — Marketplace, Routing, Quotas, Sandbox, Probe-all
-# ═══════════════════════════════════════════════════════════════════════════════
 
-# ── Marketplace ──────────────────────────────────────────────────────────────
+# Marketplace
 
 @router.get("/marketplace")
 async def list_marketplace(_: Principal = Depends(principal_dep)):
@@ -867,7 +865,7 @@ async def list_marketplace(_: Principal = Depends(principal_dep)):
     return {"data": result}
 
 
-# ── Probe-all ────────────────────────────────────────────────────────────────
+# Probe-all
 
 @router.post("/health/probe-all")
 async def probe_all_credentials(
@@ -923,7 +921,7 @@ async def probe_all_credentials(
     return {"data": results, "summary": {"total": len(results), "ok": sum(1 for r in results if r["ok"])}}
 
 
-# ── Routing policies ─────────────────────────────────────────────────────────
+# Routing policies
 
 class RouteIn(BaseModel):
     policy: str = "balanced"  # cheapest|fastest|highest_quality|balanced|custom
@@ -991,7 +989,7 @@ async def upsert_route(
     return {"status": "ok", "id": rid}
 
 
-# ── Quotas ───────────────────────────────────────────────────────────────────
+# Quotas
 
 class QuotaIn(BaseModel):
     monthly_cap_usd: float
@@ -1067,7 +1065,7 @@ async def update_quota(
     return {"status": "ok"}
 
 
-# ── Sandbox runner ───────────────────────────────────────────────────────────
+# Sandbox runner
 
 class SandboxRunIn(BaseModel):
     credential_id: int
@@ -1204,9 +1202,7 @@ async def list_sandbox_runs(
     return {"data": [dict(r) for r in rows]}
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Enable / disable switches + admin clean-slate
-# ═══════════════════════════════════════════════════════════════════════════════
 
 class EnabledIn(BaseModel):
     enabled: bool

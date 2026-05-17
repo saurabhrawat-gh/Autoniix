@@ -21,7 +21,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 [ -f .env ] && set -a && . ./.env && set +a
 
-# ── Select snapshot ─────────────────────────────────────────
+# Select snapshot
 if [ -n "${1:-}" ]; then
     STAMP="$1"
 else
@@ -56,7 +56,7 @@ fi
 echo ""
 echo "[restore] reading from ${IN_DIR}"
 
-# ── Postgres restore ────────────────────────────────────────
+# Postgres restore
 DUMP="${IN_DIR}/postgres-app.dump"
 if [ ! -f "${DUMP}" ]; then
     echo "❌ Postgres dump not found: ${DUMP}"
@@ -87,7 +87,7 @@ docker compose exec -T postgres-app pg_restore \
     < "${DUMP}"
 echo "[restore] postgres: done"
 
-# ── MinIO restore ───────────────────────────────────────────
+# MinIO restore
 MINIO_DIR="${IN_DIR}/minio"
 
 if [ -d "${MINIO_DIR}/prod" ] || [ -d "${MINIO_DIR}/public" ]; then

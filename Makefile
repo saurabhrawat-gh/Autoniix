@@ -53,7 +53,7 @@ help: ## Show available commands
 	@echo "    Login:       admin"
 	@echo ""
 
-# ── Infrastructure (Docker) ────────────────────────────────
+# Infrastructure (Docker)
 infra: ## Start Postgres + Redis + Temporal via Docker
 	docker compose up -d postgres-app postgres-temporal redis temporal temporal-ui
 	@echo ""
@@ -71,18 +71,18 @@ infra: ## Start Postgres + Redis + Temporal via Docker
 	@echo "  MinIO:        http://localhost:9001  (if needed: make minio)"
 	@echo ""
 
-# ── Dashboard Backend (BFF) ───────────────────────────────
+# Dashboard Backend (BFF)
 bff: ## Start Dashboard BFF locally (port 8020)
 	DB_HOST=localhost DB_PORT=5433 \
 	REDIS_URL=redis://localhost:6380 \
 	TEMPORAL_HOST=localhost:7233 \
 	uvicorn src.services.dashboard.main:app --host 0.0.0.0 --port 8020 --reload
 
-# ── Dashboard Frontend (Next.js) ──────────────────────────
+# Dashboard Frontend (Next.js)
 ui: ## Start Dashboard UI locally (port 3000)
 	cd dashboard && npm run dev
 
-# ── Cleanup ───────────────────────────────────────────────
+# Cleanup
 stop: ## Stop all Docker containers + local processes
 	docker compose down
 	@echo "✅ All stopped"
@@ -93,7 +93,7 @@ logs: ## Tail Docker infra logs
 minio: ## Also start MinIO (object storage)
 	docker compose up -d minio
 
-# ── FULL STACK (25 services in Docker) ────────────────────
+# FULL STACK (25 services in Docker)
 up: ## Start full stack and wait until healthy
 	@docker compose up -d
 	@echo ""
@@ -137,7 +137,7 @@ verify-bff: ## Verify v2 router is mounted (fails loud if it silently disabled)
 	fi; \
 	echo "✅ BFF healthy — $$v2count v2 routes mounted"
 
-# ── Granular rebuild + tail (dev iteration loop) ──────────
+# Granular rebuild + tail (dev iteration loop)
 # Usage:
 #   make rebuild-ui                       # after dashboard/ changes
 #   make rebuild-bff                      # after src/services/dashboard/ changes
@@ -180,7 +180,7 @@ logs-svc: ## Tail logs for a service without rebuilding. Usage: make logs-svc SV
 	@if [ -z "$(SVC)" ]; then echo "❌ Usage: make logs-svc SVC=<service>"; exit 1; fi
 	@docker compose logs -f --tail=100 $(SVC)
 
-# ── Environment switching ─────────────────────────────────
+# Environment switching
 use-test: ## Activate .env.test (mock providers, ~$0/video)
 	@if [ ! -f .env.test ]; then echo "❌ .env.test not found"; exit 1; fi
 	@if [ -f .env ]; then cp .env .env.backup.$$(date +%s); echo "📦 Backed up current .env"; fi
@@ -221,7 +221,7 @@ env-status: ## Show which environment is currently active
 	@echo "   .env size: $$(wc -l < .env) lines"
 	@echo "   To switch: make use-test  |  make use-prod"
 
-# ── v2 Revamp shortcuts ───────────────────────────────────
+# v2 Revamp shortcuts
 migrate: ## Apply all pending DB migrations
 	DB_HOST=$${DB_HOST_HOST:-localhost} DB_PORT=$${DB_PORT_HOST:-5433} \
 		python -m scripts.run_migrations
@@ -288,7 +288,7 @@ fresh: ## Stop everything, wipe volumes, then rebuild from zero
 	@$(MAKE) backfill
 	@echo "✅ Fresh stack ready: http://localhost:3000/dashboard"
 
-# ── TLS Gateway ──────────────────────────────────────────
+# TLS Gateway
 tls-up: ## Start Traefik + Let's Encrypt TLS (requires DOMAIN+ACME_EMAIL in .env)
 	@if ! grep -qE '^DOMAIN=[a-zA-Z0-9]' .env 2>/dev/null; then \
 		echo "❌ Set DOMAIN= in .env before enabling TLS"; exit 1; fi
@@ -302,14 +302,14 @@ tls-down: ## Stop Traefik (keeps certs in letsencrypt_data volume)
 	docker compose --profile tls stop traefik
 	@echo "✅ Traefik stopped (certs preserved in letsencrypt_data volume)"
 
-# ── Backup / Restore ────────────────────────────────────
+# Backup / Restore
 backup: ## Backup Postgres + MinIO (runs scripts/backup.sh)
 	bash scripts/backup.sh
 
 restore: ## Restore from latest snapshot (STAMP= for a specific one)
 	bash scripts/restore.sh $(STAMP)
 
-# ── Providers ───────────────────────────────────────
+# Providers
 providers-wipe: ## Wipe ALL provider credentials, chains, routes (clean slate)
 	@echo "⚠  This will delete every provider credential and chain in the DB."
 	@read -p "  Type 'WIPE' to confirm: " confirm; \
@@ -317,7 +317,7 @@ providers-wipe: ## Wipe ALL provider credentials, chains, routes (clean slate)
 	python -m scripts.clean_slate_providers --yes
 	@echo "✅ Providers wiped — reload /dashboard/providers to verify empty state"
 
-# ── Alerting ────────────────────────────────────────
+# Alerting
 alerts-status: ## Show currently firing alerts from Alertmanager
 	@curl -sf http://localhost:9093/api/v2/alerts | \
 		python3 -c "import json,sys; alerts=json.load(sys.stdin); \

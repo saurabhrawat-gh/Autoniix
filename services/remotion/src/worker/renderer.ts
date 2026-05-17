@@ -165,7 +165,7 @@ export async function runRender(
     }
   }
 
-  // ── Post-render QC ────────────────────────────────────────────
+  // Post-render QC
   // Reject black-frame, zero-byte, missing-audio, or duration-off renders
   // BEFORE uploading. Prevents broken outputs from polluting MinIO and the
   // videos table. The caller (BullMQ) will retry once on RenderQcError.

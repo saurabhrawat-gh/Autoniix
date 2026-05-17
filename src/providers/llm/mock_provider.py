@@ -26,7 +26,7 @@ from src.providers.registry import ProviderRegistry
 logger = structlog.get_logger()
 
 
-# ── Topic variety pool for test mode ──────────────────────────
+# Topic variety pool for test mode
 # Each topic has: selected_topic, title_candidates, hook, key_facts
 TOPIC_POOL = [
     {

@@ -25,7 +25,7 @@ from src.observability.metrics import instrument_app
 logger = structlog.get_logger()
 
 
-# ── Request Models ───────────────────────────────────────────
+# Request Models
 
 class AssemblyRequest(BaseModel):
     content_id: str
@@ -41,7 +41,7 @@ class RenderStatusRequest(BaseModel):
     render_id: str
 
 
-# ── Helpers ──────────────────────────────────────────────────
+# Helpers
 
 async def _load_channel(channel_id: str) -> dict:
     pool = await get_pool()
@@ -168,7 +168,7 @@ async def _render_diagnostic_via_remotion(
         return None
 
 
-# ── App ──────────────────────────────────────────────────────
+# App
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -204,7 +204,7 @@ async def assemble(req: AssemblyRequest):
         is_test_mode = req.environment != "production"
         segments = direction_v3.get("segments", [])
 
-        # ── Pre-Render Sync Validation ────────────────────
+        # Pre-Render Sync Validation
         sync_issues = []
 
         # 1. Timeline continuity: no gaps or overlaps
@@ -269,7 +269,7 @@ async def assemble(req: AssemblyRequest):
         else:
             direction_v3["sync_validation"] = {"passed": True, "issues": [], "issue_count": 0}
 
-        # ── Intelligence: Complexity Analysis ─────────────
+        # Intelligence: Complexity Analysis
         complexity = compute_direction_complexity(direction_v3)
         estimated_render_s = estimate_render_duration(complexity)
         logger.info("assembly.complexity",
@@ -281,7 +281,7 @@ async def assemble(req: AssemblyRequest):
             logger.warning("assembly.high_complexity",
                            risk_factors=complexity.get("risk_factors", []))
 
-        # ── Step 1: Submit render job to Remotion API ────
+        # Step 1: Submit render job to Remotion API
         remotion_url = settings.remotion_base_url
         render_quality = "preview" if is_test_mode else "high"
         composition = "ShortFormVideo" if req.content_mode == "short" else "MainVideo"
@@ -362,7 +362,7 @@ async def assemble(req: AssemblyRequest):
 
         logger.info("assembly.render_submitted", render_id=render_id)
 
-        # ── Step 2: Poll for render completion ───────────
+        # Step 2: Poll for render completion
         max_wait_s = 600  # 10 minutes max
         poll_interval_s = 5
         elapsed = 0
@@ -484,7 +484,7 @@ async def assemble(req: AssemblyRequest):
         video_url = render_result.get("outputUrl", render_result.get("url", ""))
         render_duration = render_result.get("renderDuration", 0)
 
-        # ── Step 3: Production QC ────────────────────────
+        # Step 3: Production QC
         production_score = 8.0
         production_issues = []
 
@@ -498,7 +498,7 @@ async def assemble(req: AssemblyRequest):
             production_score -= 2.0
             production_issues.append("No output URL from render")
 
-        # ── Step 4: Update DB ────────────────────────────
+        # Step 4: Update DB
         try:
             pool = await get_pool()
             await pool.execute(

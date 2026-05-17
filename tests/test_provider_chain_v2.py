@@ -176,7 +176,7 @@ async def test_mode_specific_only_queried_when_mode_given():
     assert scopes_queried == ["workspace", "system"]
 
 
-# ── Enabled / disabled filtering ───────────────────────────────────────────
+# Enabled / disabled filtering
 
 
 @pytest.mark.asyncio
@@ -222,7 +222,7 @@ def test_no_provider_configured_message_includes_hint():
     assert "/dashboard/providers" in msg
 
 
-# ── invalidate() ────────────────────────────────────────────────────────────
+# invalidate()
 
 def test_invalidate_wildcard_clears_everything():
     chain_mod._chain_cache[("CH1", "short", "llm.script")] = ("x", 9e9)

@@ -1,6 +1,6 @@
 groups:
 
-  # ── Service availability ─────────────────────────────────────
+  # Service availability
   - name: service_availability
     rules:
       - alert: ServiceDown
@@ -21,7 +21,7 @@ groups:
           summary: "Service {{ $labels.service }} is flapping"
           description: "{{ $labels.job }} has restarted more than 4 times in the last 10 minutes."
 
-  # ── HTTP error rates ─────────────────────────────────────────
+  # HTTP error rates
   - name: http_errors
     rules:
       - alert: HighErrorRate
@@ -52,7 +52,7 @@ groups:
           summary: "Critical HTTP 5xx rate on {{ $labels.service }}"
           description: "{{ $labels.service }} HTTP 5xx rate is {{ $value | humanizePercentage }} — above 20% for 2+ minutes."
 
-  # ── Request latency ──────────────────────────────────────────
+  # Request latency
   - name: latency
     rules:
       - alert: SlowRequests
@@ -67,7 +67,7 @@ groups:
           summary: "Slow p95 latency on {{ $labels.service }}"
           description: "p95 request latency on {{ $labels.service }} is {{ $value | humanizeDuration }} (threshold: 5s)."
 
-  # ── Budget / cost guards ─────────────────────────────────────
+  # Budget / cost guards
   - name: budget
     rules:
       - alert: DailyBudgetExceeded
@@ -88,7 +88,7 @@ groups:
           summary: "80% of daily budget used on channel {{ $labels.channel_id }}"
           description: "Channel {{ $labels.channel_id }} has used 80% of its daily API budget (${{ $value }} spent)."
 
-  # ── Disk / storage ───────────────────────────────────────────
+  # Disk / storage
   - name: storage
     rules:
       - alert: DiskSpaceLow
@@ -111,7 +111,7 @@ groups:
           summary: "CRITICAL: Disk space nearly full on {{ $labels.instance }}"
           description: "Less than 10% disk space on {{ $labels.instance }}. Immediate action required."
 
-  # ── Video pipeline ───────────────────────────────────────────
+  # Video pipeline
   - name: pipeline
     rules:
       - alert: VideoProductionStalled
@@ -140,7 +140,7 @@ groups:
           summary: "High QC failure rate (> 50% in last 30 min)"
           description: "More than half of QC checks are failing. Review prompt quality or LLM provider health."
 
-  # ── Temporal workers ─────────────────────────────────────────
+  # Temporal workers
   - name: temporal
     rules:
       - alert: TemporalWorkerMissing

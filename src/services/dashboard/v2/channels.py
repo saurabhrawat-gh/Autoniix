@@ -37,7 +37,7 @@ from ._deps import Principal, audit, principal_dep, require_role
 router = APIRouter()
 
 
-# ── Schemas ─────────────────────────────────────────────────
+# Schemas
 class ChannelCreate(BaseModel):
     channel_id: str | None = None
     channel_name: str
@@ -162,7 +162,7 @@ class FieldSuggestIn(BaseModel):
     context: dict = Field(default_factory=dict)
 
 
-# ── Helpers ─────────────────────────────────────────────────
+# Helpers
 def _new_channel_id(name: str) -> str:
     """Lowercase slug + 4-char suffix (matches existing 20-char limit)."""
     base = "".join(c for c in (name or "ch").lower() if c.isalnum())[:14] or "ch"
@@ -179,7 +179,7 @@ def _completeness(profile: dict) -> int:
     return int(round((filled / len(fields)) * 100))
 
 
-# ── Channel CRUD ────────────────────────────────────────────
+# Channel CRUD
 @router.post("")
 async def create_channel(
     body: ChannelCreate,
@@ -458,7 +458,7 @@ async def upsert_profile(
     return {"status": "ok", "completeness_score": score}
 
 
-# ── Pillars ─────────────────────────────────────────────────
+# Pillars
 @router.post("/{channel_id}/pillars")
 async def add_pillar(
     channel_id: str, body: PillarIn, request: Request,
@@ -513,7 +513,7 @@ async def delete_pillar(
     return {"status": "ok"}
 
 
-# ── Topic rules ─────────────────────────────────────────────
+# Topic rules
 @router.post("/{channel_id}/topic-rules")
 async def add_topic_rule(
     channel_id: str, body: TopicRuleIn, request: Request,
@@ -547,7 +547,7 @@ async def delete_topic_rule(
     return {"status": "ok"}
 
 
-# ── References ──────────────────────────────────────────────
+# References
 @router.post("/{channel_id}/references")
 async def add_reference(
     channel_id: str, body: ReferenceIn, request: Request,
@@ -581,7 +581,7 @@ async def delete_reference(
     return {"status": "ok"}
 
 
-# ── Memory ──────────────────────────────────────────────────
+# Memory
 @router.post("/{channel_id}/memory")
 async def add_memory(
     channel_id: str, body: MemoryIn, request: Request,
@@ -598,7 +598,7 @@ async def add_memory(
     return {"status": "ok", "id": mid}
 
 
-# ── Drafts ──────────────────────────────────────────────────
+# Drafts
 @router.post("/drafts")
 async def create_draft(
     body: DraftIn,
@@ -645,7 +645,7 @@ async def get_draft(
     return {"data": dict(row)}
 
 
-# ── AI field-suggest ────────────────────────────────────────
+# AI field-suggest
 @router.post("/ai/field-suggest")
 async def field_suggest(
     body: FieldSuggestIn,
@@ -707,7 +707,7 @@ async def field_suggest(
     return {"data": {"suggestion": fallback, "rationale": "heuristic"}}
 
 
-# ── Wave 5: enrichment helper + action endpoints ─────────────────────────────
+# Wave 5: enrichment helper + action endpoints
 
 async def _enrich_channel_list(pool: Any, channels: list[dict]) -> list[dict]:
     """Batch-attach stats, weekly_usage, and active_jobs to each channel dict."""
@@ -830,7 +830,7 @@ async def _dashboard_stats_impl(_: Principal):
     }
 
 
-# ── Channel status actions ───────────────────────────────────────────────────
+# Channel status actions
 
 @router.put("/{channel_id}/enable")
 async def enable_channel(
@@ -990,7 +990,7 @@ async def trigger_channel(
     return result
 
 
-# ── Job control (pause / resume / stop) ─────────────────────────────────────
+# Job control (pause / resume / stop)
 
 @router.post("/{channel_id}/jobs/{content_id}/pause")
 async def pause_job(

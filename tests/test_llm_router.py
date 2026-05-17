@@ -20,7 +20,7 @@ from src.llm import router as router_mod
 from src.llm import BudgetExceeded, LadderExhausted, Router
 
 
-# ── Fake providers ──────────────────────────────────────────────────
+# Fake providers
 
 
 class _FakeOK(LLMProvider):
@@ -78,7 +78,7 @@ class _FakePermanent(LLMProvider):
     def supported_models(self): return ["fake-p"]
 
 
-# ── Fixtures ────────────────────────────────────────────────────────
+# Fixtures
 
 
 CATEGORY = "llm.router_test"
@@ -120,7 +120,7 @@ def _req() -> LLMRequest:
     return LLMRequest(messages=[{"role": "user", "content": "hi"}])
 
 
-# ── Tests ───────────────────────────────────────────────────────────
+# Tests
 
 
 @pytest.mark.asyncio

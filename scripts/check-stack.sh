@@ -13,7 +13,7 @@ warn()  { echo -e "  ${YELLOW}!${NC} $1"; }
 FAILED=0
 MODE="${1:-check}"
 
-# ── Required containers (compose service names without project prefix) ───
+# Required containers (compose service names without project prefix)
 REQUIRED_SERVICES=(
   postgres-app postgres-temporal redis temporal temporal-ui minio
   research script voice assets thumbnail assembly delivery analytics
@@ -23,14 +23,14 @@ REQUIRED_SERVICES=(
   dashboard-bff dashboard-ui
 )
 
-# ── HTTP endpoints to verify (URL → friendly name) ───────────────────────
+# HTTP endpoints to verify (URL → friendly name)
 declare -A HTTP_ENDPOINTS=(
   ["http://localhost:8020/health"]="dashboard-bff"
   ["http://localhost:3000"]="dashboard-ui"
   ["http://localhost:8080"]="temporal-ui"
 )
 
-# ── 1. Wait mode: poll docker compose ps for healthy status ──────────────
+# 1. Wait mode: poll docker compose ps for healthy status
 if [[ "$MODE" == "wait" ]]; then
   for i in {1..45}; do
     NOT_READY=0
@@ -53,7 +53,7 @@ echo "  YouTube Automation — Stack Health Check"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-# ── 2. Container status ──────────────────────────────────────────────────
+# 2. Container status
 echo "📦  Containers (${#REQUIRED_SERVICES[@]} expected):"
 PS_OUTPUT=$(docker compose ps --format '{{.Service}}|{{.Status}}' 2>/dev/null)
 for svc in "${REQUIRED_SERVICES[@]}"; do
@@ -70,7 +70,7 @@ for svc in "${REQUIRED_SERVICES[@]}"; do
 done
 echo ""
 
-# ── 3. HTTP endpoints ────────────────────────────────────────────────────
+# 3. HTTP endpoints
 echo "🌐  HTTP endpoints:"
 for url in "${!HTTP_ENDPOINTS[@]}"; do
   name="${HTTP_ENDPOINTS[$url]}"
@@ -83,7 +83,7 @@ for url in "${!HTTP_ENDPOINTS[@]}"; do
 done
 echo ""
 
-# ── 4. Database sanity ───────────────────────────────────────────────────
+# 4. Database sanity
 echo "🗄️   Database:"
 CHANNEL_COUNT=$(docker compose exec -T postgres-app sh -c 'psql -U $POSTGRES_USER -d $POSTGRES_DB -tAc "SELECT COUNT(*) FROM channels"' 2>/dev/null | tr -d '[:space:]')
 if [[ "$CHANNEL_COUNT" =~ ^[0-9]+$ ]]; then
@@ -97,7 +97,7 @@ if [[ "$ACTIVE_VIDEOS" =~ ^[0-9]+$ ]]; then
 fi
 echo ""
 
-# ── 5. Temporal namespace ────────────────────────────────────────────────
+# 5. Temporal namespace
 echo "⚙️   Temporal:"
 NS=$(docker compose exec -T temporal tctl --address temporal:7233 namespace list 2>/dev/null | grep -c "^Name: default")
 if [[ "$NS" -ge 1 ]]; then
@@ -107,7 +107,7 @@ else
 fi
 echo ""
 
-# ── 6. Auth smoke test ───────────────────────────────────────────────────
+# 6. Auth smoke test
 echo "🔐  Auth smoke test:"
 TOKEN=$(curl -s -X POST http://localhost:8020/api/auth/login \
   -H 'Content-Type: application/json' -d '{"password":"admin"}' \
@@ -126,7 +126,7 @@ else
 fi
 echo ""
 
-# ── 7. Final summary ─────────────────────────────────────────────────────
+# 7. Final summary
 echo "═══════════════════════════════════════════════════"
 if [[ $FAILED -eq 0 ]]; then
   echo -e "  ${GREEN}✓ Stack is fully healthy${NC}"

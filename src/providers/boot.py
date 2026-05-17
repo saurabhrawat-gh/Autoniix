@@ -4,7 +4,7 @@ Every service that uses ProviderRegistry should import this module once:
     import src.providers.boot  # noqa: F401
 """
 
-# ── LLM Providers ────────────────────────────────────────
+# LLM Providers
 import src.providers.llm.openai_provider       # noqa: F401
 import src.providers.llm.openai_vision_provider # noqa: F401
 import src.providers.llm.claude_provider        # noqa: F401
@@ -13,18 +13,18 @@ import src.providers.llm.glm_provider           # noqa: F401  (Zhipu GLM, OpenAI
 import src.providers.llm.kimi_provider          # noqa: F401  (Moonshot Kimi, OpenAI-compatible)
 import src.providers.llm.mock_provider          # noqa: F401  (test mode)
 
-# ── TTS Providers ────────────────────────────────────────
+# TTS Providers
 import src.providers.tts.fish_audio             # noqa: F401
 import src.providers.tts.elevenlabs_provider    # noqa: F401
 import src.providers.tts.edge_tts_provider      # noqa: F401  (test mode)
 
-# ── Image Providers ──────────────────────────────────────
+# Image Providers
 import src.providers.image.dalle_provider       # noqa: F401
 import src.providers.image.placeholder_provider # noqa: F401  (test mode)
 
-# ── Search Providers ─────────────────────────────────────
+# Search Providers
 import src.providers.search.serpapi_provider    # noqa: F401
 import src.providers.search.mock_search_provider # noqa: F401  (test mode)
 
-# ── Storage Providers ────────────────────────────────────
+# Storage Providers
 import src.providers.storage.minio_provider     # noqa: F401

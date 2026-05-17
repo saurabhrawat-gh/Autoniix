@@ -69,7 +69,7 @@ async def _load_weights(niche: str | None = None) -> dict:
     return DEFAULT_WEIGHTS.copy()
 
 
-# ── Hookability Heuristics ──────────────────────────────────
+# Hookability Heuristics
 
 def compute_hookability(title: str, hook: str = "") -> float:
     """Score hookability of a title/hook based on heuristics.
@@ -128,7 +128,7 @@ def compute_hookability(title: str, hook: str = "") -> float:
     return round(min(1.0, score / max(checks * 0.5, 1)), 4)
 
 
-# ── Supply-Demand Gap ───────────────────────────────────────
+# Supply-Demand Gap
 
 async def compute_supply_demand_gap(
     topic: str,
@@ -159,7 +159,7 @@ async def compute_supply_demand_gap(
     return round(gap, 4)
 
 
-# ── Seasonality ─────────────────────────────────────────────
+# Seasonality
 
 def compute_seasonality(topic: str) -> float:
     """Basic seasonality scoring based on calendar signals.
@@ -200,7 +200,7 @@ def compute_seasonality(topic: str) -> float:
     return 0.3  # Evergreen default
 
 
-# ── Main Scorer ─────────────────────────────────────────────
+# Main Scorer
 
 async def score_opportunity(
     topic: str,

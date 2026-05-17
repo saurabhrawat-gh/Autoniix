@@ -43,14 +43,14 @@ async function request<T = any>(path: string, opts: RequestInit = {}): Promise<T
   return res.json();
 }
 
-// ── Flags ─────────────────────────────────────────────────
+// Flags
 export const flagsApi = {
   list: () => request<{ data: Array<{ key: string; enabled: boolean; description: string; payload: any }> }>('/api/v2/flags'),
   set: (key: string, enabled: boolean, payload: any = {}) =>
     request(`/api/v2/flags/${key}`, { method: 'PUT', body: JSON.stringify({ enabled, payload }) }),
 };
 
-// ── Auth ──────────────────────────────────────────────────
+// Auth
 export const authApi = {
   mode: () =>
     fetch(`${BASE}/api/v2/auth/mode`).then(r => r.json()) as Promise<{ v2_enabled: boolean; legacy_enabled: boolean }>,
@@ -89,7 +89,7 @@ export const authApi = {
     ),
 };
 
-// ── Channels ──────────────────────────────────────────────
+// Channels
 export const channelsApi = {
   list: (includeArchived = false) =>
     request<{ data: any[] }>(`/api/v2/channels?include_archived=${includeArchived}`),
@@ -132,7 +132,7 @@ export const channelsApi = {
     request(`/api/v2/channels/${channelId}/jobs/${contentId}/stop`,   { method: 'POST' }),
 };
 
-// ── Dashboard ─────────────────────────────────────────────
+// Dashboard
 export const dashboardApi = {
   stats: () =>
     request<{
@@ -152,7 +152,7 @@ export const dashboardApi = {
   },
 };
 
-// ── Providers ─────────────────────────────────────────────
+// Providers
 export const providersApi = {
   categories: () => request<{ data: any[] }>('/api/v2/providers/categories'),
   credentials: (category?: string) =>
@@ -294,7 +294,7 @@ export const providersApi = {
   },
 };
 
-// ── Content ───────────────────────────────────────────────
+// Content
 export const contentApi = {
   list: (params: {
     channel_id?: string; group?: 'day' | 'week' | 'month' | 'quarter' | 'year';
@@ -343,7 +343,7 @@ export const contentApi = {
   },
 };
 
-// ── Experiments (A/B testing) ─────────────────────────────
+// Experiments (A/B testing)
 export const experimentsApi = {
   list:     (status = '')         => request<{ data: any[] }>(`/api/v2/experiments?status=${status}`),
   create:   (body: any)           => request<{ data: any }>('/api/v2/experiments', { method: 'POST', body: JSON.stringify(body) }),
@@ -353,7 +353,7 @@ export const experimentsApi = {
   results:  (name: string)        => request<{ data: any }>(`/api/v2/experiments/${encodeURIComponent(name)}/results`),
 };
 
-// ── Library (assets / brand / music) ──────────────────────
+// Library (assets / brand / music)
 export const libraryApi = {
   assets: (params: { q?: string; provider?: string; limit?: number } = {}) => {
     const p = new URLSearchParams();
@@ -365,7 +365,7 @@ export const libraryApi = {
   music:  () => request<{ data: any[] }>(`/api/v2/library/music`),
 };
 
-// ── DAM (Wave 3 scoped asset store) ───────────────────────
+// DAM (Wave 3 scoped asset store)
 export const damApi = {
   list: (params: {
     scope?: string; scope_id?: string; kind?: string;
@@ -416,7 +416,7 @@ export const damApi = {
     request(`/api/v2/library/dam/brand-kits/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
 };
 
-// ── Review ────────────────────────────────────────────────
+// Review
 export const reviewApi = {
   queue: (state = 'pending', channel_id?: string, limit = 100) => {
     const q = new URLSearchParams({ state, limit: String(limit) });
@@ -443,7 +443,7 @@ export const reviewApi = {
     request(`/api/v2/review/${video_id}/title`, { method: 'PUT', body: JSON.stringify(body) }),
 };
 
-// ── Notifications ─────────────────────────────────────────
+// Notifications
 export const notifyApi = {
   list: (unread_only = false, severity?: string, limit = 100) => {
     const q = new URLSearchParams({ unread_only: String(unread_only), limit: String(limit) });
@@ -462,7 +462,7 @@ export const notifyApi = {
   },
 };
 
-// ── Users ─────────────────────────────────────────────────
+// Users
 export const usersApi = {
   list: () => request<{ data: any[] }>('/api/v2/users'),
   setRole: (id: number, role: string) =>
@@ -471,13 +471,13 @@ export const usersApi = {
   enable: (id: number) => request(`/api/v2/users/${id}/enable`, { method: 'PUT' }),
 };
 
-// ── Workspace ──────────────────────────────────────────────
+// Workspace
 export const workspaceApi = {
   get: () => request<{ data: any }>('/api/v2/workspace'),
   update: (body: any) => request('/api/v2/workspace', { method: 'PUT', body: JSON.stringify(body) }),
 };
 
-// ── Brands ────────────────────────────────────────────────
+// Brands
 export const brandsApi = {
   list: () => request<{ data: any[] }>('/api/v2/workspace/brands'),
   get: (id: number) => request<{ data: any }>(`/api/v2/workspace/brands/${id}`),
@@ -485,7 +485,7 @@ export const brandsApi = {
   update: (id: number, body: any) => request(`/api/v2/workspace/brands/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
 };
 
-// ── Series ────────────────────────────────────────────────
+// Series
 export const seriesApi = {
   list: (channel_id?: string) =>
     request<{ data: any[] }>(`/api/v2/workspace/series${channel_id ? `?channel_id=${channel_id}` : ''}`),
@@ -494,7 +494,7 @@ export const seriesApi = {
   delete: (id: number) => request(`/api/v2/workspace/series/${id}`, { method: 'DELETE' }),
 };
 
-// ── Campaigns ─────────────────────────────────────────────
+// Campaigns
 export const campaignsApi = {
   list: (brand_id?: number, status?: string) => {
     const p = new URLSearchParams();
@@ -506,7 +506,7 @@ export const campaignsApi = {
   update: (id: number, body: any) => request(`/api/v2/workspace/campaigns/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
 };
 
-// ── Projects ──────────────────────────────────────────────
+// Projects
 export const projectsApi = {
   list: (params: { channel_id?: string; status?: string; series_id?: number; campaign_id?: number; limit?: number } = {}) => {
     const p = new URLSearchParams();
@@ -519,7 +519,7 @@ export const projectsApi = {
   delete: (id: number) => request(`/api/v2/workspace/projects/${id}`, { method: 'DELETE' }),
 };
 
-// ── Members ───────────────────────────────────────────────
+// Members
 export const membersApi = {
   list: () => request<{ data: any[] }>('/api/v2/workspace/members'),
   setRole: (user_id: number, role: string) =>
@@ -527,7 +527,7 @@ export const membersApi = {
   remove: (user_id: number) => request(`/api/v2/workspace/members/${user_id}`, { method: 'DELETE' }),
 };
 
-// ── Invites ───────────────────────────────────────────────
+// Invites
 export const invitesApi = {
   list: () => request<{ data: any[] }>('/api/v2/workspace/invites'),
   create: (email: string, role: string, expires_days = 7) =>
@@ -538,7 +538,7 @@ export const invitesApi = {
   revoke: (id: number) => request(`/api/v2/workspace/invites/${id}`, { method: 'DELETE' }),
 };
 
-// ── Jobs (Wave 6) ─────────────────────────────────────────
+// Jobs (Wave 6)
 export const jobsApi = {
   active: () => request<{ status: string; data: any[] }>('/api/v2/jobs/active'),
   progress: (id: string) => request<{ status: string; data: any }>(`/api/v2/jobs/${encodeURIComponent(id)}/progress`),
@@ -553,7 +553,7 @@ export const jobsApi = {
   stop: (id: string) => request(`/api/v2/jobs/${encodeURIComponent(id)}/stop`, { method: 'POST' }),
 };
 
-// ── Session utilities (replaces api.ts) ───────────────────
+// Session utilities (replaces api.ts)
 // Checks v2 JWT first, then falls back to the legacy session token.
 export function isLoggedIn(): boolean {
   if (typeof window === 'undefined') return false;
@@ -598,7 +598,7 @@ export async function legacyLogin(password: string): Promise<void> {
   setToken(data.token, data.expires_in);
 }
 
-// ── WebSocket helpers ─────────────────────────────────────
+// WebSocket helpers
 export function wsProgress(contentId: string): WebSocket {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = process.env.NEXT_PUBLIC_WS_URL || `${proto}//${window.location.host}`;
@@ -611,7 +611,7 @@ export function wsEvents(): WebSocket {
   return new WebSocket(`${host}/api/ws/events`);
 }
 
-// ── System (Wave 6) ───────────────────────────────────────
+// System (Wave 6)
 export const systemApi = {
   config: () => request<{ status: string; data: { key: string; value: string; description: string }[] }>('/api/v2/system/config'),
   updateConfig: (config_key: string, config_value: string) =>

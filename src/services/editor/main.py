@@ -40,7 +40,7 @@ from src.observability.metrics import instrument_app
 logger = structlog.get_logger()
 
 
-# ── Request Models ───────────────────────────────────────────
+# Request Models
 
 class EditorRequest(BaseModel):
     content_id: str
@@ -52,7 +52,7 @@ class EditorRequest(BaseModel):
     generate_captions_flag: bool = True
 
 
-# ── Helpers ──────────────────────────────────────────────────
+# Helpers
 
 async def _load_channel(channel_id: str) -> dict:
     pool = await get_pool()
@@ -70,7 +70,7 @@ async def _load_config(key: str) -> str:
         return ""
 
 
-# ── App ──────────────────────────────────────────────────────
+# App
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -115,18 +115,18 @@ async def post_produce(req: EditorRequest):
         captions = {}
         audio_mix = {}
 
-        # ── Step 1: Analyze pacing ─────────────────────────
+        # Step 1: Analyze pacing
         pacing_analysis = analyze_pacing(direction_v3)
         pre_score = pacing_analysis.get("pacing_score", 7.0)
 
-        # ── Step 2: Apply pacing adjustments ───────────────
+        # Step 2: Apply pacing adjustments
         if req.apply_pacing and pacing_analysis.get("adjustments"):
             pacing_result = apply_pacing_adjustments(
                 direction_v3, pacing_analysis["adjustments"], apply_high_only=True)
             direction_v3 = pacing_result.get("direction_v3", direction_v3)
             total_adjustments += pacing_result.get("applied", 0)
 
-        # ── Step 3: Optimize transitions ───────────────────
+        # Step 3: Optimize transitions
         transition_analysis = optimize_transitions(direction_v3)
 
         if req.apply_transitions and transition_analysis.get("changes"):
@@ -134,24 +134,24 @@ async def post_produce(req: EditorRequest):
                 direction_v3, transition_analysis["changes"])
             total_adjustments += transition_result.get("applied", 0)
 
-        # ── Step 4: Generate captions ──────────────────────
+        # Step 4: Generate captions
         if req.generate_captions_flag:
             captions = generate_captions(direction_v3, caption_style)
             # Inject caption data into direction_v3
             direction_v3["captions"] = captions
 
-        # ── Step 5: Audio mix config ───────────────────────
+        # Step 5: Audio mix config
         audio_mix = generate_audio_mix_config(direction_v3, duck_db=duck_db)
         direction_v3["audio_mix_config"] = audio_mix
 
-        # ── Step 6: Final QC ──────────────────────────────
+        # Step 6: Final QC
         qc_result = run_final_qc(direction_v3, captions=captions, audio_mix=audio_mix)
         post_score = qc_result.get("score", 7.0)
 
         direction_v3["editor_qc"] = qc_result
         direction_v3["editor_applied"] = True
 
-        # ── Step 7: Store session ──────────────────────────
+        # Step 7: Store session
         edit_time_ms = int((time.time() - start_time) * 1000)
         try:
             pool = await get_pool()

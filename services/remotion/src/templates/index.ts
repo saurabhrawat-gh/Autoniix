@@ -56,7 +56,7 @@ const listicleTop10: Template = {
   default_music_style: "upbeat_corporate",
 };
 
-// --- Phase 2 templates ---
+// Phase 2 templates
 
 const twoDAnimated: Template = {
   id: "2d-animated",

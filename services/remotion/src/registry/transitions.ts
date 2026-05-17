@@ -15,7 +15,7 @@ import type { TransitionRegistry } from "./transitionTypes";
  * (Phase 3 will add custom presenters).
  */
 export const TRANSITION_PRESETS: TransitionRegistry = {
-  // --- Cut ---
+  // Cut
   "trans.cut": {
     id: "trans.cut",
     category: "transition",
@@ -26,7 +26,7 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
     }),
   },
 
-  // --- Dissolve (fade) ---
+  // Dissolve (fade)
   "trans.dissolve.fast": {
     id: "trans.dissolve.fast",
     category: "transition",
@@ -46,7 +46,7 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
     }),
   },
 
-  // --- Slide (4 dirs × fast) ---
+  // Slide (4 dirs × fast)
   "trans.slide.left.fast": {
     id: "trans.slide.left.fast",
     category: "transition",
@@ -102,7 +102,7 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
     }),
   },
 
-  // --- Wipe (approximates "zoom-in" feel when we need a directional cut-in) ---
+  // Wipe (approximates "zoom-in" feel when we need a directional cut-in)
   "trans.wipe.left": {
     id: "trans.wipe.left",
     category: "transition",
@@ -122,7 +122,7 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
     }),
   },
 
-  // --- Zoom-punch (fallback to fast fade for Phase 1; custom in Phase 3) ---
+  // Zoom-punch (fallback to fast fade for Phase 1; custom in Phase 3)
   "trans.zoom.punch_hard": {
     id: "trans.zoom.punch_hard",
     category: "transition",
@@ -142,7 +142,7 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
     }),
   },
 
-  // --- Flash (white quick fade — Phase 3 replaces with proper flash frame) ---
+  // Flash (white quick fade — Phase 3 replaces with proper flash frame)
   "trans.flash.white": {
     id: "trans.flash.white",
     category: "transition",
@@ -153,7 +153,7 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
     }),
   },
 
-  // --- Flip (bonus) ---
+  // Flip (bonus)
   "trans.flip.x": {
     id: "trans.flip.x",
     category: "transition",
@@ -164,7 +164,7 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
     }),
   },
 
-  // --- Phase 2: Push (both scenes slide together — @remotion slide does this) ---
+  // Phase 2: Push (both scenes slide together — @remotion slide does this)
   "trans.push.left": {
     id: "trans.push.left", category: "transition", tags: ["push"],
     build: () => ({
@@ -187,7 +187,7 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
     }),
   },
 
-  // --- Phase 2: Cover (incoming slides over stationary outgoing) ---
+  // Phase 2: Cover (incoming slides over stationary outgoing)
   "trans.cover.left": {
     id: "trans.cover.left", category: "transition", tags: ["cover"],
     build: () => ({
@@ -210,7 +210,7 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
     }),
   },
 
-  // --- Phase 2: Wipe (extra directions) ---
+  // Phase 2: Wipe (extra directions)
   "trans.wipe.up": {
     id: "trans.wipe.up", category: "transition", tags: ["wipe", "vertical"],
     build: () => ({
@@ -226,7 +226,7 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
     }),
   },
 
-  // --- Phase 2: Iris ---
+  // Phase 2: Iris
   "trans.iris.open": {
     id: "trans.iris.open", category: "transition", tags: ["iris", "reveal"],
     build: () => ({
@@ -242,7 +242,7 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
     }),
   },
 
-  // --- Phase 2: BlurSwap ---
+  // Phase 2: BlurSwap
   "trans.blurswap.soft": {
     id: "trans.blurswap.soft", category: "transition", tags: ["blur", "soft"],
     build: () => ({
@@ -258,7 +258,7 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
     }),
   },
 
-  // --- Phase 2: WhipPan ---
+  // Phase 2: WhipPan
   "trans.whippan.left": {
     id: "trans.whippan.left", category: "transition", tags: ["whippan", "snappy"],
     build: () => ({
@@ -274,7 +274,7 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
     }),
   },
 
-  // --- Phase 3: Premium transitions ---
+  // Phase 3: Premium transitions
   "trans.zoompunch.hard": {
     id: "trans.zoompunch.hard", category: "transition", tags: ["punch", "premium"],
     build: () => ({
@@ -332,7 +332,7 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
     }),
   },
 
-  // --- Premium Zoom Punch ---
+  // Premium Zoom Punch
   "trans.zoom.punch_in": {
     id: "trans.zoom.punch_in", category: "transition", tags: ["zoom", "premium", "impact"],
     build: (overrides) => ({
@@ -355,7 +355,7 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
     }),
   },
 
-  // --- Premium Flash ---
+  // Premium Flash
   "trans.flash.white_premium": {
     id: "trans.flash.white_premium", category: "transition", tags: ["flash", "premium", "impact"],
     build: (overrides) => ({

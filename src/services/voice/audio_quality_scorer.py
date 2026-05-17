@@ -139,7 +139,7 @@ async def analyze_audio_quality(audio_bytes: bytes, expected_duration_s: float =
             "used_fallback": True,
         }
 
-    # ── Compute composite quality score ──────────────────
+    # Compute composite quality score
     score = 10.0
     issues = []
 

@@ -20,14 +20,14 @@ from src.quality.calibrator import (
 from src.quality.gate import PRODUCTION_THRESHOLDS
 
 
-# ── Helper ──────────────────────────────────────────────────────────
+# Helper
 
 
 def _samples(spec: list[tuple[float, str]]) -> list[Sample]:
     return [Sample(score=s, tier=t) for s, t in spec]
 
 
-# ── Insufficient data → falls back to default ───────────────────────
+# Insufficient data → falls back to default
 
 
 def test_insufficient_samples_returns_default():
@@ -56,7 +56,7 @@ def test_zero_flops_returns_default():
     assert res.floor == 7.5
 
 
-# ── Happy path: clean separation ────────────────────────────────────
+# Happy path: clean separation
 
 
 def test_finds_lowest_threshold_meeting_precision():
@@ -112,7 +112,7 @@ def test_lowest_acceptable_not_highest_precision():
     assert res.floor <= 8.0
 
 
-# ── Monotonicity guard: the headline safety property ────────────────
+# Monotonicity guard: the headline safety property
 
 
 def test_monotonicity_guard_clamps_to_min_s_tier():
@@ -150,7 +150,7 @@ def test_monotonicity_guard_recomputes_metrics_at_clamped_value():
     assert res.s_tier_preserved == pytest.approx(1.0, abs=1e-6)
 
 
-# ── Sanity clamps ───────────────────────────────────────────────────
+# Sanity clamps
 
 
 def test_floor_is_clamped_to_absolute_bounds():
@@ -180,7 +180,7 @@ def test_no_threshold_meets_precision_returns_default():
     assert ABSOLUTE_FLOOR <= res.floor <= ABSOLUTE_CEILING
 
 
-# ── Convenience wrapper covers every dimension ──────────────────────
+# Convenience wrapper covers every dimension
 
 
 def test_calibrate_all_dimensions_covers_every_threshold_dim():
@@ -193,7 +193,7 @@ def test_calibrate_all_dimensions_covers_every_threshold_dim():
     assert all(r.status == "insufficient_samples" for r in out)
 
 
-# ── CalibrationResult serialisation contract ────────────────────────
+# CalibrationResult serialisation contract
 
 
 def test_result_as_dict_is_json_safe():

@@ -60,7 +60,7 @@ from src.providers.registry import ProviderRegistry
 logger = structlog.get_logger()
 
 
-# ── Public exceptions ───────────────────────────────────────────────
+# Public exceptions
 
 
 class BudgetExceeded(RuntimeError):
@@ -88,7 +88,7 @@ class LadderExhausted(RuntimeError):
         self.attempts = attempts
 
 
-# ── Prometheus metrics (no-op if prometheus_client missing) ─────────
+# Prometheus metrics (no-op if prometheus_client missing)
 
 try:  # pragma: no cover
     from prometheus_client import Counter, Histogram
@@ -116,7 +116,7 @@ except Exception:  # pragma: no cover
     LLM_REQUESTS_TOTAL = LLM_COST_USD_TOTAL = LLM_DURATION_SECONDS = _Noop()  # type: ignore
 
 
-# ── Circuit breaker (process-local) ─────────────────────────────────
+# Circuit breaker (process-local)
 
 
 @dataclass
@@ -139,7 +139,7 @@ class _Breaker:
         return False
 
 
-# ── Ladder configuration ────────────────────────────────────────────
+# Ladder configuration
 
 # Default ladder per category. Env overrides via ``LLM_<CATEGORY>_LADDER``
 # (uppercased, dots → underscores), e.g. ``LLM_SCRIPT_LADDER=claude,openai``.
@@ -165,7 +165,7 @@ def _ladder_for(category: str) -> list[str]:
     return list(_DEFAULT_LADDERS.get(category, _DEFAULT_LADDERS["llm"]))
 
 
-# ── Cost rollup (Postgres-backed) ───────────────────────────────────
+# Cost rollup (Postgres-backed)
 
 
 async def _spent_today(channel_id: str) -> float:
@@ -274,7 +274,7 @@ async def _record_usage(*, content_id: str, channel_id: str,
         logger.warning("router.usage_log_failed", error=str(exc))
 
 
-# ── Transient-vs-permanent error classifier ────────────────────────
+# Transient-vs-permanent error classifier
 
 
 def _is_transient(exc: BaseException) -> bool:
@@ -286,7 +286,7 @@ def _is_transient(exc: BaseException) -> bool:
     return False
 
 
-# ── Router ──────────────────────────────────────────────────────────
+# Router
 
 
 class Router:

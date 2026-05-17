@@ -1,4 +1,4 @@
-# -------- build stage --------
+# build stage
 FROM node:20-bookworm-slim AS build
 WORKDIR /app
 
@@ -49,7 +49,7 @@ RUN npm install --no-audit --no-fund
 COPY . .
 RUN npm run typecheck
 
-# -------- runtime stage --------
+# runtime stage
 FROM node:20-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production

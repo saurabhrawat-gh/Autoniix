@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# ─────────────────────────────────────────────────────────────────────
 # Autoniix — one-shot VPS bootstrap (Ubuntu 22.04 / 24.04)
-# ─────────────────────────────────────────────────────────────────────
 # Run ONCE as root on a fresh Hostinger / Hetzner / DO VPS:
 #
 #   curl -fsSL https://raw.githubusercontent.com/<you>/yt-automation-n8n/main/scripts/vps_bootstrap.sh | sudo bash
@@ -23,7 +21,6 @@
 # Required env vars (export before running, or set inline):
 #   DEPLOY_SSH_PUBKEY   — your laptop's public SSH key (mandatory)
 #   SSH_PORT            — default 2222 (override if your firewall blocks)
-# ─────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
 [[ $EUID -eq 0 ]] || { echo "Must run as root (use sudo)"; exit 1; }
