@@ -77,6 +77,10 @@ def _build_minimal_direction() -> dict[str, Any]:
             "text_color": "#FFFFFF",
             "fonts": {"heading": "Inter", "body": "Inter"},
         },
+        # grade_preset is a required top-level field on DirectionV3.
+        # Match the TypeScript smoke (services/remotion/scripts/smoke.ts)
+        # so we exercise the same code path that's known to render.
+        "grade_preset": "fx.grade.cinematic_teal_orange",
         "segments": [
             {
                 "id": f"s{i}",
