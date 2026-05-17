@@ -29,7 +29,7 @@ from src.services.research.similarity import (
     check_similarity, compute_embedding, compute_freshness, store_topic_embedding,
 )
 from src.services.research.opportunity_scorer import (
-    rank_candidates, score_opportunity, store_research_features,
+    score_opportunity, store_research_features,
 )
 from src.services.research.self_learning import (
     predict_success, thompson_sample, bandit_update, ingest_performance,

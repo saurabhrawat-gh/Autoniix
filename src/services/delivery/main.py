@@ -174,7 +174,7 @@ async def upload(req: DeliveryRequest):
         # calibrator hasn't covered yet, so cold-start channels behave
         # exactly as before.
         from src.environment import is_test
-        from src.quality import evaluate as qg_evaluate, record_decision as qg_record
+        from src.quality import record_decision as qg_record
         from src.quality.gate import evaluate_for_niche as qg_evaluate_niche
         gate_profile = "test" if is_test() else "production"
         # Look up the channel's niche for per-niche threshold tuning.

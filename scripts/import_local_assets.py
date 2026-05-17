@@ -48,7 +48,6 @@ import argparse
 import asyncio
 import hashlib
 import json
-import mimetypes
 import re
 import subprocess
 import sys
