@@ -19,7 +19,17 @@
  *   6. wave            (already shipped — see WaveText.tsx; expose pure compute)
  */
 
-import { sha256Hex } from "../scene-graph/hash";
+/** FNV-1a 32-bit hash — browser-safe, no crypto dep, deterministic seed generator. */
+function stableSeed(input: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  const lo = (h >>> 0).toString(16).padStart(8, "0");
+  const hi = ((input.length * 0x9e3779b9) >>> 0).toString(16).padStart(8, "0");
+  return (lo + hi).slice(0, 16);
+}
 
 /* ====================================================================== */
 /* Shared utilities                                                       */
@@ -169,7 +179,7 @@ export function computeScrambleDecode(
   const scrambleFps = params.scrambleFps ?? 24;
   const seedKey =
     params.seed ??
-    sha256Hex(`scramble:${params.text}:${params.durationMs}`).slice(0, 16);
+    stableSeed(`scramble:${params.text}:${params.durationMs}`);
 
   const text = params.text;
   const N = text.length;
