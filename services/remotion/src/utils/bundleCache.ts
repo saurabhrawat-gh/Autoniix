@@ -25,6 +25,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { bundle } from "@remotion/bundler";
 import { env } from "./env";
+import { nodePrefixWebpackOverride } from "./webpackOverride";
 import { logger } from "./logger";
 
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".css", ".json"]);
@@ -71,7 +72,7 @@ export async function getOrBuildBundle(opts?: { entryPoint?: string }): Promise<
 
   // Miss → bundle locally.
   logger.info({ hash, entryPoint }, "bundle cache MISS — bundling");
-  const localBundlePath = await bundle({ entryPoint });
+  const localBundlePath = await bundle({ entryPoint, webpackOverride: nodePrefixWebpackOverride });
 
   // Persist into shared cache atomically (best-effort; failure is non-fatal).
   if (env.BUNDLE_CACHE_DIR) {

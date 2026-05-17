@@ -114,9 +114,10 @@ services:
           echo 'waiting for minio...'; sleep 2
         done
         mc mb -p local/"$$S3_BUCKET" 2>/dev/null || true
-        # Public-read on the public/ prefix only (thumbnails for YouTube).
-        printf '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetObject"],"Resource":["arn:aws:s3:::%s/public/*"]}]}' "$$S3_BUCKET" > /tmp/public-policy.json
-        mc anonymous set-json /tmp/public-policy.json local/"$$S3_BUCKET" 2>/dev/null || true
+        # Public-read on the whole bucket (local dev / CI only — production uses S3/R2 with IAM).
+        # This covers thumbnails (public/*), renders (test/renders/* and prod/renders/*),
+        # and any other key prefix so the E2E test can download without credentials.
+        mc anonymous set download local/"$$S3_BUCKET" 2>/dev/null || true
         echo 'minio bootstrap complete'
     restart: "no"
 
@@ -394,7 +395,7 @@ services:
       - S3_BUCKET=${S3_BUCKET:-autoniix}
       - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY:-minioadmin}
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_KEY:-minioadmin}
-      - S3_PUBLIC_BASE_URL=http://minio:9000/${S3_BUCKET:-autoniix}
+      - S3_PUBLIC_BASE_URL=${S3_PUBLIC_BASE_URL:-http://minio:9000/autoniix}
       - S3_FORCE_PATH_STYLE=true
       - S3_KEY_PREFIX=${ENVIRONMENT_MODE:-test}
     ports:
@@ -431,7 +432,7 @@ services:
       - S3_BUCKET=${S3_BUCKET:-autoniix}
       - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY:-minioadmin}
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_KEY:-minioadmin}
-      - S3_PUBLIC_BASE_URL=http://minio:9000/${S3_BUCKET:-autoniix}
+      - S3_PUBLIC_BASE_URL=${S3_PUBLIC_BASE_URL:-http://minio:9000/autoniix}
       - S3_FORCE_PATH_STYLE=true
       - S3_KEY_PREFIX=${ENVIRONMENT_MODE:-test}
     volumes:
