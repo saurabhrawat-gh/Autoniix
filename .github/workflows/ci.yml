@@ -28,7 +28,7 @@ jobs:
           # CI install: keep the heaviest ML deps out of the lint/test matrix
           # (sentence-transformers, opencv, librosa) — they are exercised in
           # the docker smoke job below.
-          grep -vE '^(sentence-transformers|opencv-python-headless|librosa|spacy|nltk|textstat|soundfile|pydub|Pillow|google-generativeai|anthropic|elevenlabs|edge-tts|gspread|google-auth|google-api-python-client|wikipedia|pytrends)' requirements.txt > requirements-ci.txt
+          grep -vE '^(sentence-transformers|opencv-python-headless|librosa|spacy|nltk|textstat|soundfile|pydub|google-generativeai|anthropic|elevenlabs|edge-tts|gspread|google-auth|google-api-python-client|wikipedia|pytrends)' requirements.txt > requirements-ci.txt
           pip install -r requirements-ci.txt
           pip install ruff mypy
 
