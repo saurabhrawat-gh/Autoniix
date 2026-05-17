@@ -21,7 +21,7 @@ import type { PresetRegistry } from "./types";
  * `anim.out.*` / `anim.emph.*` / `anim.text.*` namespaces per doc A.
  */
 export const ANIMATION_PRESETS: PresetRegistry = {
-  // --- FadeIn ---
+  // FadeIn
   "anim.in.fade": {
     id: "anim.in.fade",
     component: FadeIn,
@@ -37,7 +37,7 @@ export const ANIMATION_PRESETS: PresetRegistry = {
     tags: ["entrance", "fade", "slow"],
   },
 
-  // --- SlideIn (4 dirs) ---
+  // SlideIn (4 dirs)
   "anim.in.slide.up": {
     id: "anim.in.slide.up",
     component: SlideIn,
@@ -67,7 +67,7 @@ export const ANIMATION_PRESETS: PresetRegistry = {
     tags: ["entrance", "slide"],
   },
 
-  // --- ScaleIn ---
+  // ScaleIn
   "anim.in.scale_soft": {
     id: "anim.in.scale_soft",
     component: ScaleIn,
@@ -83,7 +83,7 @@ export const ANIMATION_PRESETS: PresetRegistry = {
     tags: ["entrance", "scale", "punch"],
   },
 
-  // --- Typewriter ---
+  // Typewriter
   "anim.in.typewriter_fast": {
     id: "anim.in.typewriter_fast",
     component: Typewriter,
@@ -99,7 +99,7 @@ export const ANIMATION_PRESETS: PresetRegistry = {
     tags: ["text", "typewriter"],
   },
 
-  // --- BouncePop ---
+  // BouncePop
   "anim.in.bounce_pop": {
     id: "anim.in.bounce_pop",
     component: BouncePop,
@@ -115,7 +115,7 @@ export const ANIMATION_PRESETS: PresetRegistry = {
     tags: ["entrance", "bounce"],
   },
 
-  // --- CountUp ---
+  // CountUp
   "anim.text.count_up": {
     id: "anim.text.count_up",
     component: CountUp,
@@ -138,7 +138,7 @@ export const ANIMATION_PRESETS: PresetRegistry = {
     tags: ["text", "count"],
   },
 
-  // --- Phase 2: BlurIn ---
+  // Phase 2: BlurIn
   "anim.in.blur_soft": {
     id: "anim.in.blur_soft",
     component: BlurIn,
@@ -154,7 +154,7 @@ export const ANIMATION_PRESETS: PresetRegistry = {
     tags: ["entrance", "blur"],
   },
 
-  // --- Phase 2: FlipIn ---
+  // Phase 2: FlipIn
   "anim.in.flip_y": {
     id: "anim.in.flip_y",
     component: FlipIn,
@@ -170,7 +170,7 @@ export const ANIMATION_PRESETS: PresetRegistry = {
     tags: ["entrance", "flip"],
   },
 
-  // --- Phase 2: ElasticIn ---
+  // Phase 2: ElasticIn
   "anim.in.elastic": {
     id: "anim.in.elastic",
     component: ElasticIn,
@@ -186,7 +186,7 @@ export const ANIMATION_PRESETS: PresetRegistry = {
     tags: ["entrance", "elastic"],
   },
 
-  // --- Phase 2: Pulse (emphasis) ---
+  // Phase 2: Pulse (emphasis)
   "anim.emph.pulse_slow": {
     id: "anim.emph.pulse_slow",
     component: Pulse,
@@ -202,7 +202,7 @@ export const ANIMATION_PRESETS: PresetRegistry = {
     tags: ["emphasis", "pulse"],
   },
 
-  // --- Phase 2: WaveText ---
+  // Phase 2: WaveText
   "anim.text.wave_soft": {
     id: "anim.text.wave_soft",
     component: WaveText,
@@ -218,7 +218,7 @@ export const ANIMATION_PRESETS: PresetRegistry = {
     tags: ["text", "wave"],
   },
 
-  // --- Phase 2: Shake (emphasis / reaction) ---
+  // Phase 2: Shake (emphasis / reaction)
   "anim.emph.shake_subtle": {
     id: "anim.emph.shake_subtle",
     component: Shake,
@@ -234,7 +234,7 @@ export const ANIMATION_PRESETS: PresetRegistry = {
     tags: ["emphasis", "shake", "impact"],
   },
 
-  // --- Phase 1B: ScrambleDecode (Mr. Robot style glyph cycling) ---
+  // Phase 1B: ScrambleDecode (Mr. Robot style glyph cycling)
   "anim.text.scramble_decode": {
     id: "anim.text.scramble_decode",
     component: ScrambleDecode,
@@ -258,7 +258,7 @@ export const ANIMATION_PRESETS: PresetRegistry = {
     tags: ["text", "scramble", "decode", "random"],
   },
 
-  // --- Phase 1B: PathFollow (text along a Bezier curve) ---
+  // Phase 1B: PathFollow (text along a Bezier curve)
   "anim.text.path_follow": {
     id: "anim.text.path_follow",
     component: PathFollow,
@@ -274,7 +274,7 @@ export const ANIMATION_PRESETS: PresetRegistry = {
     tags: ["text", "path", "calligraphy"],
   },
 
-  // --- Phase 1B: StaggerWords (per-word staggered reveal) ---
+  // Phase 1B: StaggerWords (per-word staggered reveal)
   "anim.text.stagger_slide_up": {
     id: "anim.text.stagger_slide_up",
     component: StaggerWords,

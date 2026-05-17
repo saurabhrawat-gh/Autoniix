@@ -2,7 +2,7 @@
 -- media_jobs  — work queue entries for each pipeline step per asset
 -- media_renditions — output artifacts produced by jobs
 
--- ── media_jobs ────────────────────────────────────────────────────────────────
+-- media_jobs
 CREATE TABLE IF NOT EXISTS media_jobs (
     id           BIGSERIAL PRIMARY KEY,
     asset_id     BIGINT       NOT NULL REFERENCES dam_assets(id) ON DELETE CASCADE,
@@ -35,7 +35,7 @@ CREATE INDEX IF NOT EXISTS idx_media_jobs_asset
 CREATE INDEX IF NOT EXISTS idx_media_jobs_status
     ON media_jobs (status, created_at DESC);
 
--- ── media_renditions ──────────────────────────────────────────────────────────
+-- media_renditions
 CREATE TABLE IF NOT EXISTS media_renditions (
     id              BIGSERIAL PRIMARY KEY,
     asset_id        BIGINT      NOT NULL REFERENCES dam_assets(id) ON DELETE CASCADE,

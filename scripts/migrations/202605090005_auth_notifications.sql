@@ -1,7 +1,7 @@
 -- 202605090005_auth_notifications.sql
 -- Phase 4 (S7 + S4 + S8): Real auth + notification center.
 
--- ── Users ───────────────────────────────────────────────────
+-- Users
 CREATE TABLE IF NOT EXISTS users (
     id                BIGSERIAL    PRIMARY KEY,
     email             VARCHAR(255) UNIQUE NOT NULL,
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS password_resets (
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
--- ── Notifications ───────────────────────────────────────────
+-- Notifications
 CREATE TABLE IF NOT EXISTS notifications (
     id            BIGSERIAL    PRIMARY KEY,
     event_type    VARCHAR(80)  NOT NULL,

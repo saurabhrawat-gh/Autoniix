@@ -1,4 +1,3 @@
--- ════════════════════════════════════════════════════════════
 -- Migration 202605150001 — Channel environment isolation
 --
 -- Adds an `environment` column to the channels table so that
@@ -7,7 +6,6 @@
 --
 -- Test-mode  (green pill in header) → environment = 'test'
 -- Prod mode  (red pill in header)   → environment = 'production'
--- ════════════════════════════════════════════════════════════
 
 -- Add column (idempotent via IF NOT EXISTS)
 ALTER TABLE channels

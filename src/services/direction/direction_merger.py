@@ -18,7 +18,7 @@ from src.db import get_pool
 
 logger = structlog.get_logger()
 
-# ── Pacing profiles per section ──────────────────────────
+# Pacing profiles per section
 SECTION_PACING: dict[str, dict] = {
     "hook": {"min_duration_ms": 1500, "max_duration_ms": 5000, "preferred_camera": "zoom_in"},
     "intro": {"min_duration_ms": 3000, "max_duration_ms": 10000, "preferred_camera": "slow_pan"},

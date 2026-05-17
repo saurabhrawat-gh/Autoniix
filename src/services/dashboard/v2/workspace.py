@@ -60,9 +60,7 @@ from ._deps import Principal, audit, principal_dep, require_role
 
 router = APIRouter()
 
-# ────────────────────────────────────────────────────────────────
 # Pydantic models
-# ────────────────────────────────────────────────────────────────
 
 class WorkspacePatch(BaseModel):
     name: str | None = None
@@ -178,9 +176,7 @@ class EntitySettingUpsert(BaseModel):
     locked: bool = False
 
 
-# ────────────────────────────────────────────────────────────────
 # Workspace
-# ────────────────────────────────────────────────────────────────
 
 @router.get("")
 async def get_workspace(p: Principal = Depends(principal_dep)):
@@ -221,9 +217,7 @@ async def update_workspace(
     return {"status": "ok"}
 
 
-# ────────────────────────────────────────────────────────────────
 # Brands
-# ────────────────────────────────────────────────────────────────
 
 @router.get("/brands")
 async def list_brands(p: Principal = Depends(principal_dep)):
@@ -298,9 +292,7 @@ async def update_brand(
     return {"status": "ok"}
 
 
-# ────────────────────────────────────────────────────────────────
 # Series
-# ────────────────────────────────────────────────────────────────
 
 @router.get("/series")
 async def list_series(
@@ -387,9 +379,7 @@ async def delete_series(
     return {"status": "ok"}
 
 
-# ────────────────────────────────────────────────────────────────
 # Campaigns
-# ────────────────────────────────────────────────────────────────
 
 @router.get("/campaigns")
 async def list_campaigns(
@@ -464,9 +454,7 @@ async def update_campaign(
     return {"status": "ok"}
 
 
-# ────────────────────────────────────────────────────────────────
 # Projects
-# ────────────────────────────────────────────────────────────────
 
 @router.get("/projects")
 async def list_projects(
@@ -615,9 +603,7 @@ async def delete_project(
     return {"status": "ok"}
 
 
-# ────────────────────────────────────────────────────────────────
 # Members
-# ────────────────────────────────────────────────────────────────
 
 @router.get("/members")
 async def list_members(p: Principal = Depends(principal_dep)):
@@ -674,9 +660,7 @@ async def remove_member(
     return {"status": "ok"}
 
 
-# ────────────────────────────────────────────────────────────────
 # Invitations
-# ────────────────────────────────────────────────────────────────
 
 VALID_INVITE_ROLES = {"admin", "producer", "editor", "reviewer", "analyst", "viewer"}
 
@@ -751,9 +735,7 @@ async def revoke_invite(
     return {"status": "ok"}
 
 
-# ────────────────────────────────────────────────────────────────
 # Entity settings
-# ────────────────────────────────────────────────────────────────
 
 @router.get("/settings")
 async def get_settings(

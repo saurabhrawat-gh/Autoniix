@@ -6,7 +6,7 @@
 -- for one release; existing rows are mirrored into `provider_chains_v2` so the new
 -- runtime resolves them as workspace+mode-agnostic chains.
 
--- ── 1. content_modes ─────────────────────────────────────────────────────────
+-- 1. content_modes
 CREATE TABLE IF NOT EXISTS content_modes (
     name        VARCHAR(40)   PRIMARY KEY,
     label       VARCHAR(120)  NOT NULL,
@@ -25,7 +25,7 @@ ON CONFLICT (name) DO UPDATE
        sort_order  = EXCLUDED.sort_order,
        is_system   = EXCLUDED.is_system;
 
--- ── 2. provider_credentials extensions ───────────────────────────────────────
+-- 2. provider_credentials extensions
 -- Per-credential model pin (e.g. 'claude-sonnet-4-20250514', 'gpt-4o-mini',
 -- ElevenLabs voice id, dall-e-3). NULL = use provider's default_model().
 ALTER TABLE provider_credentials
@@ -39,7 +39,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS provider_credentials_one_default_per_cat
     ON provider_credentials(category)
     WHERE is_default_fallback = TRUE;
 
--- ── 3. provider_chains_v2 (scope + content_mode aware) ───────────────────────
+-- 3. provider_chains_v2 (scope + content_mode aware)
 CREATE TABLE IF NOT EXISTS provider_chains_v2 (
     id                BIGSERIAL    PRIMARY KEY,
     scope             VARCHAR(20)  NOT NULL DEFAULT 'workspace',
@@ -83,7 +83,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS chains_v2_unique_position
 CREATE INDEX IF NOT EXISTS chains_v2_resolve_idx
     ON provider_chains_v2 (scope, scope_id, content_mode, category, position);
 
--- ── 4. Promote DB-chain resolution to the default path ──────────────────────
+-- 4. Promote DB-chain resolution to the default path
 -- The legacy resolver falls back to env vars when this flag is off; with the
 -- v2 chain populated below, flipping it here makes the new path the primary
 -- one across the fleet. Idempotent — safe to re-run.
@@ -92,7 +92,7 @@ UPDATE feature_flags
        description = 'Read provider config from DB (workspace/channel + content-mode aware)'
  WHERE key = 'providers.db_chain.enabled';
 
--- ── 5. Backfill from the legacy provider_priority_chains table ───────────────
+-- 5. Backfill from the legacy provider_priority_chains table
 -- Treat any existing rows as workspace + mode-agnostic, so the new resolver
 -- preserves prior behaviour without manual ops intervention.
 INSERT INTO provider_chains_v2

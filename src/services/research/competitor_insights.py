@@ -22,7 +22,7 @@ logger = structlog.get_logger()
 CACHE_TTL = 3600 * 12  # 12 hours
 
 
-# ── YouTube Data API Helpers ────────────────────────────────
+# YouTube Data API Helpers
 
 async def _yt_get(endpoint: str, params: dict) -> dict:
     """Make a YouTube Data API GET request with caching."""
@@ -116,7 +116,7 @@ def _parse_iso_duration(dur: str) -> int:
     return h * 3600 + m * 60 + s
 
 
-# ── Outlier Detection ───────────────────────────────────────
+# Outlier Detection
 
 def detect_outliers(videos: list[dict], channel_avg_views: int) -> list[dict]:
     """Flag videos that significantly outperform the channel's average.
@@ -149,7 +149,7 @@ def compute_view_velocity(videos: list[dict]) -> list[dict]:
     return videos
 
 
-# ── Store Results ───────────────────────────────────────────
+# Store Results
 
 async def _store_competitor_channel(our_channel_id: str, comp: dict) -> None:
     pool = await get_pool()
@@ -261,7 +261,7 @@ async def _store_competitor_videos(niche: str, videos: list[dict], competitor_yt
     return stored
 
 
-# ── Niche-Wide Outlier Search ───────────────────────────────
+# Niche-Wide Outlier Search
 
 async def _search_niche_outliers(niche: str) -> list[dict]:
     """Find viral videos in the niche from any channel (including small ones)."""
@@ -316,7 +316,7 @@ async def _search_niche_outliers(niche: str) -> list[dict]:
     return outliers[:10]
 
 
-# ── Public API ──────────────────────────────────────────────
+# Public API
 
 async def collect_competitor_insights(
     our_channel_id: str,

@@ -37,7 +37,7 @@ from src.quality.gate import PRODUCTION_THRESHOLDS, WEIGHTS, _composite
 logger = structlog.get_logger()
 
 
-# ── Tunables ─────────────────────────────────────────────────────────
+# Tunables
 
 
 # Minimum joined samples per (niche, dimension) before we trust the fit.
@@ -60,7 +60,7 @@ WIN_TIERS = {"S", "A"}
 FLOP_TIERS = {"D"}
 
 
-# ── Phase 9: per-dim retention labels ───────────────────────────────
+# Phase 9: per-dim retention labels
 #
 # For dimensions that have a direct measured proxy in the audience-
 # retention curve, label samples by the *measured* behaviour instead of
@@ -81,7 +81,7 @@ DIM_TO_RETENTION_FEATURE: dict[str, str] = {
 RETENTION_LOWER_IS_BETTER = {"hook_dropoff_30s", "mid_video_decay"}
 
 
-# ── Public types ─────────────────────────────────────────────────────
+# Public types
 
 
 @dataclass
@@ -150,7 +150,7 @@ class CalibrationResult:
         }
 
 
-# ── Pure-function core (testable, no DB) ─────────────────────────────
+# Pure-function core (testable, no DB)
 
 
 def _candidate_thresholds(samples: list[Sample]) -> list[float]:
@@ -234,7 +234,7 @@ def calibrate_dimension(
 
     t, precision, s_preserved = best
 
-    # ── Monotonicity guard ─────────────────────────────────
+    # Monotonicity guard
     # Never set a threshold above any S-tier observation. A 9.0 floor
     # that would block a known S-tier video (score=8.7) is wrong by
     # construction.
@@ -250,7 +250,7 @@ def calibrate_dimension(
                 if s_tier else 1.0
             )
 
-    # ── Sanity clamp ───────────────────────────────────────
+    # Sanity clamp
     floor = max(ABSOLUTE_FLOOR, min(ABSOLUTE_CEILING, t))
 
     return CalibrationResult(
@@ -289,7 +289,7 @@ def calibrate_composite(samples: list[Sample]) -> CalibrationResult:
     )
 
 
-# ── DB layer ─────────────────────────────────────────────────────────
+# DB layer
 
 
 async def _fetch_samples_for_niche(niche: str, lookback_days: int = 90) -> list[dict]:

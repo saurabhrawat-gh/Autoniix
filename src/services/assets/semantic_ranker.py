@@ -28,7 +28,7 @@ import structlog
 
 logger = structlog.get_logger()
 
-# ── Weights (must sum to 1.0) ────────────────────────────────────────
+# Weights (must sum to 1.0)
 W_SEMANTIC = 0.40
 W_MOTION = 0.20
 W_COLOR = 0.15
@@ -37,7 +37,7 @@ W_DURATION = 0.10
 W_RESOLUTION = 0.05
 SCORE_REJECT_THRESHOLD = 0.55
 
-# ── SBERT model cache (one model per process) ────────────────────────
+# SBERT model cache (one model per process)
 _MODEL = None
 _MODEL_LOCK = threading.Lock()
 
@@ -62,7 +62,7 @@ def _get_model():
     return _MODEL or None
 
 
-# ── Public types ─────────────────────────────────────────────────────
+# Public types
 
 
 @dataclass
@@ -92,7 +92,7 @@ class ScoredCandidate:
         }
 
 
-# ── Sub-scores ───────────────────────────────────────────────────────
+# Sub-scores
 
 
 def _semantic_sim(query: str, candidate_text: str, model) -> float:
@@ -214,7 +214,7 @@ def _resolution_score(clip: dict, prefer_1080p: bool = True) -> float:
     return 0.2
 
 
-# ── Top-level scorer ─────────────────────────────────────────────────
+# Top-level scorer
 
 
 def _candidate_text(clip: dict) -> str:

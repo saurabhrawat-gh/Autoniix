@@ -32,7 +32,7 @@ import structlog
 logger = structlog.get_logger()
 
 
-# ── Composite weights (mirror delivery._compute_final_score) ────────
+# Composite weights (mirror delivery._compute_final_score)
 # These are intentionally identical to the legacy
 # delivery.main._compute_final_score weights so existing dashboards
 # (channel_performance.py, feedback_loop.final_score) keep their meaning
@@ -62,7 +62,7 @@ PRODUCTION_THRESHOLDS: dict[str, float] = {
 TEST_THRESHOLDS: dict[str, float] = {k: 0.0 for k in PRODUCTION_THRESHOLDS}
 
 
-# ── Public types ────────────────────────────────────────────────────
+# Public types
 
 
 @dataclass
@@ -95,7 +95,7 @@ class GateDecision:
         }
 
 
-# ── Evaluation ──────────────────────────────────────────────────────
+# Evaluation
 
 
 def _composite(sub_scores: dict[str, float]) -> float:
@@ -154,7 +154,7 @@ def evaluate(
     )
 
 
-# ── Phase 7: niche-aware evaluation with live thresholds ───────────
+# Phase 7: niche-aware evaluation with live thresholds
 
 
 async def evaluate_for_niche(
@@ -216,7 +216,7 @@ async def evaluate_for_niche(
     )
 
 
-# ── Audit-trail persistence ────────────────────────────────────────
+# Audit-trail persistence
 
 
 async def record_decision(

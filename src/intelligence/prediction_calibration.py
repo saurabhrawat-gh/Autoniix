@@ -49,7 +49,7 @@ import structlog
 logger = structlog.get_logger()
 
 
-# ── Tunables ────────────────────────────────────────────────────────
+# Tunables
 
 
 # Multiplier on the confidence×error term in the sample-weight formula.
@@ -73,7 +73,7 @@ WEIGHT_CAP = 6.0
 DEFAULT_METRICS_LOOKBACK_DAYS = 30
 
 
-# ── Pure-function core ──────────────────────────────────────────────
+# Pure-function core
 
 
 def compute_abs_error(predicted: float, actual: float) -> float:
@@ -174,7 +174,7 @@ def expected_calibration_error(
     return ece
 
 
-# ── DB layer ────────────────────────────────────────────────────────
+# DB layer
 
 
 async def log_prediction(

@@ -20,7 +20,7 @@ from src.quality.calibrator import (
 )
 
 
-# ── Sample.is_win / is_flop override ───────────────────────────────
+# Sample.is_win / is_flop override
 
 
 def test_sample_default_uses_tier_for_classification():
@@ -50,7 +50,7 @@ def test_sample_retention_label_none_falls_through_to_tier():
     assert s.is_flop is False
 
 
-# ── Median + classifier helpers ────────────────────────────────────
+# Median + classifier helpers
 
 
 def test_niche_median_returns_none_below_min_count():
@@ -89,7 +89,7 @@ def test_classify_by_retention_missing_data_returns_none():
     assert _classify_by_retention(0.10, None, lower_is_better=True) is None
 
 
-# ── Static config sanity ───────────────────────────────────────────
+# Static config sanity
 
 
 def test_dim_to_retention_feature_dims_are_real_threshold_dims():
@@ -112,7 +112,7 @@ def test_dim_to_retention_feature_features_are_lower_is_better():
         )
 
 
-# ── _samples_by_dimension: end-to-end with mock rows ───────────────
+# _samples_by_dimension: end-to-end with mock rows
 
 
 def _row(*, tier: str, scores: dict, hook_drop: float | None = None,
@@ -191,7 +191,7 @@ def test_samples_by_dimension_does_not_apply_retention_label_to_unmapped_dims():
         assert s.retention_label is None
 
 
-# ── Calibrator math under retention labels ─────────────────────────
+# Calibrator math under retention labels
 
 
 def _samples_with_retention(specs: list[tuple[float, bool | None]]) -> list[Sample]:

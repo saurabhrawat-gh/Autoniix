@@ -67,7 +67,7 @@ class VideoProductionWorkflow:
         self._title: str = ""
         self._content_mode: str = ""
 
-    # ── Signals ──────────────────────────────────────────
+    # Signals
 
     @workflow.signal
     async def approve_video(self, approved: bool) -> None:
@@ -86,7 +86,7 @@ class VideoProductionWorkflow:
     async def resume_workflow(self) -> None:
         self._paused = False
 
-    # ── Queries ──────────────────────────────────────────
+    # Queries
 
     @workflow.query
     def get_status(self) -> dict:
@@ -98,7 +98,7 @@ class VideoProductionWorkflow:
             "cancelled": self._cancelled,
         }
 
-    # ── Helpers ──────────────────────────────────────────
+    # Helpers
 
     async def _set_phase(self, content_id: str, phase: str, channel_id: str = "") -> None:
         self._current_phase = phase
@@ -177,7 +177,7 @@ class VideoProductionWorkflow:
             workflow.logger.warning(f"Failed to load checkpoint data for {phase}")
             return {}
 
-    # ── Main Pipeline ────────────────────────────────────
+    # Main Pipeline
 
     @workflow.run
     async def run(self, params: VideoParams) -> VideoResult:
@@ -243,7 +243,7 @@ class VideoProductionWorkflow:
             prod_score: float = 7.0
             composite_score: float = 0.0
 
-            # ── Resume: load checkpoint data for completed phases ──
+            # Resume: load checkpoint data for completed phases
             if resume_from:
                 workflow.logger.info(f"Resuming from phase: {resume_from}")
                 # Load all phases before resume_from
@@ -293,7 +293,7 @@ class VideoProductionWorkflow:
                         quality_scores["production_score"] = saved.get("prod_score", 7.0)
                     workflow.logger.info(f"Restored checkpoint: {prev_phase}")
 
-            # ── Phase 1: Research ────────────────────────
+            # Phase 1: Research
             if _should_skip("researching", resume_from):
                 workflow.logger.info("Skipping researching (already completed)")
             else:
@@ -346,7 +346,7 @@ class VideoProductionWorkflow:
 
             await self._check_pause()
 
-            # ── Phase 1B: Brand Identity ──────────────────
+            # Phase 1B: Brand Identity
             if _should_skip("brand_check", resume_from):
                 workflow.logger.info("Skipping brand_check (already completed)")
             else:
@@ -376,7 +376,7 @@ class VideoProductionWorkflow:
 
             await self._check_pause()
 
-            # ── Phase 2: Script ──────────────────────────
+            # Phase 2: Script
             if _should_skip("scripting", resume_from):
                 workflow.logger.info("Skipping scripting (already completed)")
             else:
@@ -440,7 +440,7 @@ class VideoProductionWorkflow:
 
             await self._check_pause()
 
-            # ── Phase 3: Voice ───────────────────────────
+            # Phase 3: Voice
             if _should_skip("generating_voice", resume_from):
                 workflow.logger.info("Skipping generating_voice (already completed)")
             else:
@@ -501,7 +501,7 @@ class VideoProductionWorkflow:
 
             await self._check_pause()
 
-            # ── Phase 4: Assets + Thumbnail + Music (parallel) ─
+            # Phase 4: Assets + Thumbnail + Music (parallel) ─
             if _should_skip("generating_assets", resume_from):
                 workflow.logger.info("Skipping generating_assets (already completed)")
             else:
@@ -624,7 +624,7 @@ class VideoProductionWorkflow:
 
             await self._check_pause()
 
-            # ── Phase 5: Direction ───────────────────────
+            # Phase 5: Direction
             if _should_skip("directing", resume_from):
                 workflow.logger.info("Skipping directing (already completed)")
             else:
@@ -672,7 +672,7 @@ class VideoProductionWorkflow:
 
             await self._check_pause()
 
-            # ── Phase 5B: Editor / Post-Production ────────
+            # Phase 5B: Editor / Post-Production
             if _should_skip("post_production", resume_from):
                 workflow.logger.info("Skipping post_production (already completed)")
             else:
@@ -713,7 +713,7 @@ class VideoProductionWorkflow:
 
             await self._check_pause()
 
-            # ── Phase 6: Assembly (Remotion render) ──────
+            # Phase 6: Assembly (Remotion render)
             if _should_skip("rendering", resume_from):
                 workflow.logger.info("Skipping rendering (already completed)")
             else:
@@ -750,7 +750,7 @@ class VideoProductionWorkflow:
                     "prod_score": prod_score,
                 })
 
-            # ── Phase 7: Compute Composite & Human Review Gate ─
+            # Phase 7: Compute Composite & Human Review Gate ─
             score_values = [v for v in quality_scores.values() if isinstance(v, (int, float))]
             composite_score = round(sum(score_values) / len(score_values), 1) if score_values else 0
 
@@ -807,7 +807,7 @@ class VideoProductionWorkflow:
 
             await self._check_pause()
 
-            # ── Phase 8: Delivery ────────────────────────
+            # Phase 8: Delivery
             packaging = script_data.get("packaging", {})
             description = packaging.get("description", script_data.get("description", ""))
             tags = packaging.get("tags", script_data.get("tags", []))
@@ -868,7 +868,7 @@ class VideoProductionWorkflow:
                                                detail={"youtube_id": youtube_id})
                     workflow.logger.info(f"Delivered: https://youtu.be/{youtube_id}")
 
-            # ── Phase 9: Analytics (skipped if nothing was actually published) ──
+            # Phase 9: Analytics (skipped if nothing was actually published)
             if _should_skip("analytics", resume_from):
                 workflow.logger.info("Skipping analytics (already completed)")
             else:
@@ -919,7 +919,7 @@ class VideoProductionWorkflow:
                 except Exception:
                     workflow.logger.warning("Brand consistency check failed — non-critical")
 
-            # ── Done ─────────────────────────────────────
+            # Done
             final_status = "test_delivered" if is_test_mode else "delivered"
             await self._set_phase(content_id, final_status, ch)
             await self._complete_phase(content_id, ch, final_status,

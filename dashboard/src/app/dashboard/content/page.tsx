@@ -114,13 +114,13 @@ type Tab = 'pipeline' | 'calendar' | 'stats';
 
 /* ─── main ─── */
 export default function ContentPage() {
-  // ── core ──────────────────────────────────────────────────────────────────
+  // core
   const [activeTab, setActiveTab] = useState<Tab>('pipeline');
   const [channels, setChannels] = useState<any[]>([]);
   const { showToast } = useToast();
   const searchParams = useSearchParams();
 
-  // ── pipeline ───────────────────────────────────────────────────────────────
+  // pipeline
   const [allItems, setAllItems] = useState<any[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -138,40 +138,40 @@ export default function ContentPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [showSort, setShowSort] = useState(false);
 
-  // ── bulk selection ─────────────────────────────────────────────────────────
+  // bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // ── detail drawer ──────────────────────────────────────────────────────────
+  // detail drawer
   const [detailId, setDetailId] = useState<string | null>(null);
   const [detailData, setDetailData] = useState<any>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  // ── preview modal ──────────────────────────────────────────────────────────
+  // preview modal
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewMeta, setPreviewMeta] = useState<any>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  // ── calendar ───────────────────────────────────────────────────────────────
+  // calendar
   const [calDate, setCalDate] = useState(() => {
     const d = new Date(); d.setDate(1); return d;
   });
   const [calData, setCalData] = useState<Record<string, any[]>>({});
   const [calLoading, setCalLoading] = useState(false);
 
-  // ── stats ──────────────────────────────────────────────────────────────────
+  // stats
   const [statsData, setStatsData] = useState<{ buckets: any[]; by_channel: any[] } | null>(null);
   const [statsPeriod, setStatsPeriod] = useState<'day' | 'week' | 'month'>('week');
   const [statsLoading, setStatsLoading] = useState(false);
 
-  // ── trigger modal ──────────────────────────────────────────────────────────
+  // trigger modal
   const [triggerOpen, setTriggerOpen] = useState(false);
   const [trigChannel, setTrigChannel] = useState('');
   const [trigMode, setTrigMode] = useState('long_form');
   const [trigTopic, setTrigTopic] = useState('');
   const [triggering, setTriggering] = useState(false);
 
-  // ── bootstrap ─────────────────────────────────────────────────────────────
+  // bootstrap
   useEffect(() => {
     channelsApi.list(false).then(r => {
       const chs = r.data || [];
@@ -193,7 +193,7 @@ export default function ContentPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── data loaders ───────────────────────────────────────────────────────────
+  // data loaders
   const fetchPage = useCallback(async (replace = true) => {
     setLoading(true);
     try {
@@ -247,7 +247,7 @@ export default function ContentPage() {
     setDetailLoading(false);
   };
 
-  // ── pipeline derived state ─────────────────────────────────────────────────
+  // pipeline derived state
   const filtered = useMemo(() => {
     const base = searchHits ?? allItems;
     return base
@@ -282,7 +282,7 @@ export default function ContentPage() {
     failed:    allItems.filter(v => v.status === 'failed').length,
   }), [allItems]);
 
-  // ── actions ────────────────────────────────────────────────────────────────
+  // actions
   const openPreview = async (contentId: string) => {
     setPreviewId(contentId);
     setPreviewLoading(true);
@@ -366,7 +366,7 @@ export default function ContentPage() {
     else setSelectedIds(new Set<string>(filtered.map((v: any) => v.content_id as string)));
   };
 
-  // ── calendar helpers ───────────────────────────────────────────────────────
+  // calendar helpers
   const calDays = useMemo(() => {
     const y = calDate.getFullYear(), m = calDate.getMonth();
     const first = new Date(y, m, 1).getDay();
@@ -382,7 +382,7 @@ export default function ContentPage() {
 
   const calMonthLabel = calDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
-  // ── render ─────────────────────────────────────────────────────────────────
+  // render
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
 

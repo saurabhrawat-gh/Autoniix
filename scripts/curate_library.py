@@ -40,7 +40,7 @@ from src.services.assets import semantic_ranker  # noqa: E402
 
 logger = structlog.get_logger()
 
-# ── Niche → seed-query catalogue ────────────────────────────────────
+# Niche → seed-query catalogue
 NICHE_SEEDS: dict[str, list[str]] = {
     "tech": [
         "code editor screen",

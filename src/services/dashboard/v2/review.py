@@ -48,7 +48,7 @@ class CommentIn(BaseModel):
     parent_id: int | None = None
 
 
-# ── Queue ───────────────────────────────────────────────────
+# Queue
 @router.get("/queue")
 async def review_queue(
     state: str = "pending",

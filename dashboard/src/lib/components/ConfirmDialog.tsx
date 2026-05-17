@@ -39,9 +39,7 @@ import {
   Label,
 } from '../ui';
 
-// ─────────────────────────────────────────────────────────────
 // Types
-// ─────────────────────────────────────────────────────────────
 export interface ConfirmOptions {
   title: string;
   description?: string;
@@ -63,9 +61,7 @@ export interface PromptOptions extends Omit<ConfirmOptions, 'alertOnly'> {
   inputType?: 'text' | 'password' | 'email' | 'number';
 }
 
-// ─────────────────────────────────────────────────────────────
 // Declarative ConfirmDialog
-// ─────────────────────────────────────────────────────────────
 export function ConfirmDialog(props: {
   open: boolean;
   onCancel: () => void;
@@ -122,9 +118,7 @@ export function ConfirmDialog(props: {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
 // Declarative PromptDialog
-// ─────────────────────────────────────────────────────────────
 export function PromptDialog(props: {
   open: boolean;
   onCancel: () => void;
@@ -209,9 +203,7 @@ export function PromptDialog(props: {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
 // Imperative API (confirmDialog / promptDialog)
-// ─────────────────────────────────────────────────────────────
 type Resolver<T> = (v: T) => void;
 
 interface ConfirmRequest {

@@ -18,7 +18,7 @@ from src.quality.retention_features import (
 )
 
 
-# ── Curve helpers ──────────────────────────────────────────────────
+# Curve helpers
 
 
 def _flat_curve(value: float, n: int = 20) -> list[CurvePoint]:
@@ -37,7 +37,7 @@ def _linear_decay(start: float, end: float, n: int = 20) -> list[CurvePoint]:
     ]
 
 
-# ── parse_curve ────────────────────────────────────────────────────
+# parse_curve
 
 
 def test_parse_curve_accepts_pairs():
@@ -76,7 +76,7 @@ def test_parse_curve_sorts_by_elapsed():
     assert [p.elapsed_ratio for p in out] == [0.0, 0.5, 1.0]
 
 
-# ── compute_features: cold paths ───────────────────────────────────
+# compute_features: cold paths
 
 
 def test_compute_features_too_sparse_returns_invalid():
@@ -98,7 +98,7 @@ def test_compute_features_no_duration_still_returns_end_retention():
     assert f.end_retention == pytest.approx(0.6, abs=0.01)
 
 
-# ── compute_features: hook_dropoff_30s ─────────────────────────────
+# compute_features: hook_dropoff_30s
 
 
 def test_hook_dropoff_zero_for_perfect_retention():
@@ -128,7 +128,7 @@ def test_hook_dropoff_clamped_to_zero_for_increasing_curves():
     assert f.hook_dropoff_30s == 0.0
 
 
-# ── compute_features: mid_video_decay ──────────────────────────────
+# compute_features: mid_video_decay
 
 
 def test_mid_decay_zero_for_flat_middle():
@@ -161,7 +161,7 @@ def test_mid_decay_none_for_short_video_where_30s_past_60pct():
     assert f.end_retention is not None
 
 
-# ── compute_features: end_retention ───────────────────────────────
+# compute_features: end_retention
 
 
 def test_end_retention_averages_last_20pct():
@@ -185,7 +185,7 @@ def test_end_retention_uses_last_segment_not_endpoint():
     assert 0.4 < f.end_retention < 0.5
 
 
-# ── Integration: feature shape ─────────────────────────────────────
+# Integration: feature shape
 
 
 def test_features_are_serializable_floats_or_none():

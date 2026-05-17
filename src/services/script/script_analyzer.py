@@ -23,7 +23,7 @@ import textstat
 
 logger = structlog.get_logger()
 
-# ── Lazy-loaded spaCy model ─────────────────────────────────
+# Lazy-loaded spaCy model
 _nlp = None
 _nlp_lock = asyncio.Lock()
 SPACY_MODEL = "en_core_web_sm"
@@ -52,7 +52,7 @@ async def _get_nlp():
         return _nlp
 
 
-# ── Emotion Lexicon (8 categories × ~70 words each) ────────
+# Emotion Lexicon (8 categories × ~70 words each)
 # Curated for YouTube content — covers persuasion, education, storytelling
 EMOTION_LEXICON: dict[str, set[str]] = {
     "curiosity": {
@@ -141,7 +141,7 @@ for _emotion, _words in EMOTION_LEXICON.items():
     for _w in _words:
         _ALL_EMOTION_WORDS[_w] = _emotion
 
-# ── Power Words (used for emphasis detection) ────────────────
+# Power Words (used for emphasis detection)
 POWER_WORDS = {
     "free", "new", "proven", "secret", "instant", "guaranteed",
     "discover", "amazing", "powerful", "ultimate", "exclusive",
@@ -151,7 +151,7 @@ POWER_WORDS = {
     "forbidden", "ancient", "forgotten", "remarkable", "stunning",
 }
 
-# ── AI Pattern Detection ─────────────────────────────────────
+# AI Pattern Detection
 AI_PATTERNS = [
     r"\blet'?s dive (?:right )?in\b",
     r"\bit(?:'s| is) important to (?:note|understand|remember)\b",
@@ -178,9 +178,7 @@ AI_PATTERNS = [
 _AI_PATTERNS_COMPILED = [re.compile(p, re.IGNORECASE) for p in AI_PATTERNS]
 
 
-# ═══════════════════════════════════════════════════════════════
 # CORE ANALYSIS FUNCTIONS
-# ═══════════════════════════════════════════════════════════════
 
 def count_syllables(word: str) -> int:
     """Estimate syllable count for a word (English heuristic)."""
@@ -430,7 +428,7 @@ def compute_contraction_rate(text: str) -> float:
     return len(contractions) / max(len(words), 1)
 
 
-# ── Segment-Level Analysis ────────────────────────────────────
+# Segment-Level Analysis
 
 async def analyze_segment(segment: dict) -> dict[str, Any]:
     """Full analysis of a single script segment.
@@ -513,7 +511,7 @@ async def analyze_full_script(segments: list[dict]) -> dict[str, Any]:
     }
 
 
-# ── Utility ───────────────────────────────────────────────────
+# Utility
 
 def _variance(values: list[float | int]) -> float:
     """Compute variance of a list of numbers."""

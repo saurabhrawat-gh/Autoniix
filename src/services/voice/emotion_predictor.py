@@ -15,7 +15,7 @@ import structlog
 
 logger = structlog.get_logger()
 
-# ── Emotion → TTS param mapping (mirrors prosody_engine.py in script service) ──
+# Emotion → TTS param mapping (mirrors prosody_engine.py in script service)
 EMOTION_TTS_MAP: dict[str, dict] = {
     "curiosity": {"stability": 0.45, "similarity_boost": 0.70, "style": 0.50, "speed": 1.05},
     "excitement": {"stability": 0.35, "similarity_boost": 0.65, "style": 0.70, "speed": 1.15},
@@ -31,7 +31,7 @@ EMOTION_TTS_MAP: dict[str, dict] = {
     "neutral": {"stability": 0.50, "similarity_boost": 0.75, "style": 0.40, "speed": 1.00},
 }
 
-# ── Section-based pacing defaults ─────────────────────────
+# Section-based pacing defaults
 SECTION_PACING: dict[str, dict] = {
     "hook": {"speed_modifier": 1.05, "pause_after_ms": 400, "emphasis_boost": True},
     "intro": {"speed_modifier": 1.00, "pause_after_ms": 350, "emphasis_boost": False},
@@ -41,7 +41,7 @@ SECTION_PACING: dict[str, dict] = {
     "cta": {"speed_modifier": 1.05, "pause_after_ms": 200, "emphasis_boost": True},
 }
 
-# ── Keyword-based emotion detection ──────────────────────
+# Keyword-based emotion detection
 EMOTION_KEYWORDS: dict[str, list[str]] = {
     "curiosity": ["why", "how", "what if", "wonder", "imagine", "secret", "hidden", "mystery", "question"],
     "excitement": ["amazing", "incredible", "breakthrough", "revolutionary", "game-changing", "exciting"],

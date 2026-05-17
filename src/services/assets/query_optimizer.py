@@ -23,7 +23,7 @@ from src.db import get_pool
 
 logger = structlog.get_logger()
 
-# ── Query expansion patterns ─────────────────────────────
+# Query expansion patterns
 MOOD_SYNONYMS: dict[str, list[str]] = {
     "calm": ["peaceful", "serene", "tranquil", "relaxing"],
     "energetic": ["dynamic", "vibrant", "lively", "active"],

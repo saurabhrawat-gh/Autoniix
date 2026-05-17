@@ -30,7 +30,7 @@ from src.services.script.script_analyzer import (
 
 logger = structlog.get_logger()
 
-# ── Curiosity Gap Markers ─────────────────────────────────────
+# Curiosity Gap Markers
 CURIOSITY_OPENERS = [
     r"\bwhy\b", r"\bhow\b", r"\bwhat if\b", r"\bwhat happens\b",
     r"\bever wonder\b", r"\bdid you know\b", r"\bhere'?s (?:the|a) (?:secret|thing|truth)\b",
@@ -51,7 +51,7 @@ CURIOSITY_CLOSERS = [
 ]
 _CLOSER_COMPILED = [re.compile(p, re.IGNORECASE) for p in CURIOSITY_CLOSERS]
 
-# ── Pattern Interrupt Markers ─────────────────────────────────
+# Pattern Interrupt Markers
 PATTERN_INTERRUPTS = [
     r"\bbut\b", r"\bhowever\b", r"\bwait\b", r"\bhold on\b",
     r"\bactually\b", r"\bhere'?s (?:the|a) (?:thing|twist|catch)\b",
@@ -64,7 +64,7 @@ PATTERN_INTERRUPTS = [
 ]
 _INTERRUPT_COMPILED = [re.compile(p, re.IGNORECASE) for p in PATTERN_INTERRUPTS]
 
-# ── But/Therefore vs And-Then ─────────────────────────────────
+# But/Therefore vs And-Then
 BUT_THEREFORE_PATTERNS = [
     r"\bbut\b", r"\btherefore\b", r"\bso\b", r"\bhowever\b",
     r"\bconsequently\b", r"\bas a result\b", r"\bbecause of this\b",
@@ -79,9 +79,7 @@ _BT_COMPILED = [re.compile(p, re.IGNORECASE) for p in BUT_THEREFORE_PATTERNS]
 _AT_COMPILED = [re.compile(p, re.IGNORECASE) for p in AND_THEN_PATTERNS]
 
 
-# ═══════════════════════════════════════════════════════════════
 # RETENTION ANALYSIS
-# ═══════════════════════════════════════════════════════════════
 
 def analyze_curiosity_loops(text: str) -> dict[str, Any]:
     """Count curiosity openers and closers, compute loop balance."""
@@ -393,9 +391,7 @@ def analyze_information_density(text: str) -> dict[str, Any]:
     }
 
 
-# ═══════════════════════════════════════════════════════════════
 # COMPOSITE RETENTION SCORE
-# ═══════════════════════════════════════════════════════════════
 
 async def compute_retention_score(segments: list[dict]) -> dict[str, Any]:
     """Compute comprehensive retention score for a full script.

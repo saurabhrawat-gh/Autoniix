@@ -150,7 +150,7 @@ async def upload(req: DeliveryRequest):
     logger.info("delivery.uploading", content_id=req.content_id, title=req.title[:50])
 
     try:
-        # ── Safety guard: block YouTube upload in test mode ────
+        # Safety guard: block YouTube upload in test mode
         from src.environment import get_mode_from_db
         env_mode = await get_mode_from_db()
         if env_mode != "production":
@@ -164,7 +164,7 @@ async def upload(req: DeliveryRequest):
                 },
             )
 
-        # ── Pre-flight: strict quality gate ────────────────
+        # Pre-flight: strict quality gate
         # Hard floors per dimension + composite threshold. Failing the gate
         # blocks the upload unless the caller explicitly sets
         # quality_gate_override=True (audited).
@@ -235,7 +235,7 @@ async def upload(req: DeliveryRequest):
                         override_reason=req.quality_gate_override_reason,
                         override_by=req.quality_gate_override_by)
 
-        # ── Intelligence: SEO Analysis ─────────────────
+        # Intelligence: SEO Analysis
         seo_result = score_title_seo(req.title)
         desc_result = optimize_description(req.description, req.title, req.tags)
         optimized_tags = suggest_tags(req.title, "", req.tags)
@@ -245,7 +245,7 @@ async def upload(req: DeliveryRequest):
                      title_seo=seo_result.get("seo_score"),
                      desc_score=desc_result.get("score"))
 
-        # ── Human review gate ────────────────────────────
+        # Human review gate
         if req.human_review_required:
             pool = await get_pool()
             row = await pool.fetchrow(
@@ -399,7 +399,7 @@ async def upload(req: DeliveryRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-# ── Intelligence Endpoints ────────────────────────────────
+# Intelligence Endpoints
 
 class SEORequest(BaseModel):
     title: str

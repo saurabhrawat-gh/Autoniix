@@ -41,7 +41,7 @@ async def _proxy(request: Request, method: str, path: str, **kwargs) -> dict:
         raise HTTPException(502, f"Legacy BFF unreachable: {exc}") from exc
 
 
-# ── Config ─────────────────────────────────────────────────
+# Config
 
 
 @router.get("/config")
@@ -88,7 +88,7 @@ async def update_config(
     return {"status": "ok", "data": {"key": body.config_key, "value": body.config_value}}
 
 
-# ── Emergency stop / resume ────────────────────────────────
+# Emergency stop / resume
 
 
 @router.post("/emergency-stop")
@@ -115,7 +115,7 @@ async def emergency_resume(
     return result
 
 
-# ── Fleet health ───────────────────────────────────────────
+# Fleet health
 
 
 @router.get("/fleet-health")
@@ -127,7 +127,7 @@ async def fleet_health(
     return await _proxy(request, "GET", "/api/fleet-health")
 
 
-# ── Environment ────────────────────────────────────────────
+# Environment
 
 
 @router.get("/environment")
@@ -139,7 +139,7 @@ async def get_environment(
     return await _proxy(request, "GET", "/api/environment")
 
 
-# ── Clean slate ────────────────────────────────────────────
+# Clean slate
 
 
 @router.post("/clean-slate")

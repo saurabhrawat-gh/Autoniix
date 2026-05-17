@@ -22,9 +22,7 @@ from src.db import get_pool
 logger = structlog.get_logger()
 
 
-# ═══════════════════════════════════════════════════════════
 # BURST DETECTION (Kleinberg-inspired rolling z-score)
-# ═══════════════════════════════════════════════════════════
 
 async def detect_bursts(niche: str, lookback_days: int = 14, z_threshold: float = 2.0) -> list[dict]:
     """Detect bursting keywords in a niche.
@@ -98,9 +96,7 @@ async def detect_bursts(niche: str, lookback_days: int = 14, z_threshold: float 
     return bursts
 
 
-# ═══════════════════════════════════════════════════════════
 # PHRASE MINER (rising terms from competitor content)
-# ═══════════════════════════════════════════════════════════
 
 def _extract_phrases(text: str, min_len: int = 2, max_len: int = 4) -> list[str]:
     """Extract n-gram phrases from text."""
@@ -221,9 +217,7 @@ async def get_rising_phrases(niche: str, limit: int = 15) -> list[str]:
     return [r["phrase"] for r in rows]
 
 
-# ═══════════════════════════════════════════════════════════
 # PHRASE NOVELTY
-# ═══════════════════════════════════════════════════════════
 
 async def compute_phrase_novelty(topic: str, niche: str) -> float:
     """How much does a topic use rising/novel phrases vs saturated ones?
@@ -257,9 +251,7 @@ async def compute_phrase_novelty(topic: str, niche: str) -> float:
     return round(novelty, 4)
 
 
-# ═══════════════════════════════════════════════════════════
 # SEASONALITY ENGINE
-# ═══════════════════════════════════════════════════════════
 
 # Extended seasonal events calendar
 SEASONAL_EVENTS = {

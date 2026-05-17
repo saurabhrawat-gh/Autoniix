@@ -187,7 +187,7 @@ class RemotionClient:
             raise RemotionError("render submission returned no renderId", body=submitted.raw)
         return await self.wait_for_render(submitted.render_id, **wait_kwargs)
 
-    # ── helpers ──────────────────────────────────────────────────────────
+    # helpers
 
     @staticmethod
     def _handle(resp: httpx.Response, *, expect: str) -> RenderStatus:

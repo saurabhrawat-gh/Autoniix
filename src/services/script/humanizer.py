@@ -27,7 +27,7 @@ from src.services.script.script_analyzer import (
 
 logger = structlog.get_logger()
 
-# ── Contraction Map ───────────────────────────────────────────
+# Contraction Map
 CONTRACTION_MAP = {
     r"\bdo not\b": "don't",
     r"\bdoes not\b": "doesn't",
@@ -71,7 +71,7 @@ CONTRACTION_MAP = {
 }
 _CONTRACTION_COMPILED = {re.compile(k, re.IGNORECASE): v for k, v in CONTRACTION_MAP.items()}
 
-# ── AI Pattern Replacements ───────────────────────────────────
+# AI Pattern Replacements
 AI_REPLACEMENTS = [
     (r"\blet'?s dive (?:right )?in\b", ["Here's what you need to know.", "So here's the deal.", "Let me break this down."]),
     (r"\bit(?:'s| is) important to (?:note|understand|remember) that\b", ["The key thing here:", "Here's what matters:", "Pay attention to this:"]),
@@ -93,7 +93,7 @@ AI_REPLACEMENTS = [
 ]
 _AI_REPLACE_COMPILED = [(re.compile(p, re.IGNORECASE), alts) for p, alts in AI_REPLACEMENTS]
 
-# ── Conversational Bridges ────────────────────────────────────
+# Conversational Bridges
 BRIDGES = {
     "transition": [
         "Now,", "So,", "Here's the thing.", "And this is where it gets interesting.",
@@ -110,9 +110,7 @@ BRIDGES = {
 }
 
 
-# ═══════════════════════════════════════════════════════════════
 # HUMANIZATION TRANSFORMS
-# ═══════════════════════════════════════════════════════════════
 
 def inject_contractions(text: str) -> str:
     """Convert formal phrases to contractions for natural speech."""
@@ -205,9 +203,7 @@ def adapt_to_channel_voice(text: str, pacing_style: str = "dynamic", brand_voice
     return text
 
 
-# ═══════════════════════════════════════════════════════════════
 # MAIN HUMANIZE FUNCTION
-# ═══════════════════════════════════════════════════════════════
 
 def humanize_segment(narration: str, pacing_style: str = "dynamic",
                      brand_voice: str = "", seed: int | None = None) -> dict[str, Any]:

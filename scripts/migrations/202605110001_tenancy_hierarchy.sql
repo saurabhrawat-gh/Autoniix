@@ -5,7 +5,7 @@
 -- pgvector extension (already added by research service migration; safe to re-run)
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- ── Workspaces (tenant root, billing boundary) ───────────────
+-- Workspaces (tenant root, billing boundary)
 CREATE TABLE IF NOT EXISTS workspaces (
     id                  BIGSERIAL       PRIMARY KEY,
     name                VARCHAR(120)    NOT NULL,
@@ -26,7 +26,7 @@ INSERT INTO workspaces (id, name, slug, plan)
 VALUES (1, 'Default Workspace', 'default', 'starter')
 ON CONFLICT (slug) DO NOTHING;
 
--- ── Brands (visual identity / legal entity under workspace) ───
+-- Brands (visual identity / legal entity under workspace)
 CREATE TABLE IF NOT EXISTS brands (
     id              BIGSERIAL       PRIMARY KEY,
     workspace_id    BIGINT          NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -51,7 +51,7 @@ INSERT INTO brands (id, workspace_id, name, slug)
 VALUES (1, 1, 'Default Brand', 'default')
 ON CONFLICT (workspace_id, slug) DO NOTHING;
 
--- ── Add brand_id + workspace_id to channels ───────────────────
+-- Add brand_id + workspace_id to channels
 ALTER TABLE channels
     ADD COLUMN IF NOT EXISTS brand_id     BIGINT REFERENCES brands(id) ON DELETE SET NULL,
     ADD COLUMN IF NOT EXISTS workspace_id BIGINT REFERENCES workspaces(id) ON DELETE SET NULL;
@@ -61,7 +61,7 @@ UPDATE channels SET brand_id = 1, workspace_id = 1 WHERE brand_id IS NULL;
 CREATE INDEX IF NOT EXISTS channels_brand_idx     ON channels(brand_id);
 CREATE INDEX IF NOT EXISTS channels_workspace_idx ON channels(workspace_id);
 
--- ── Series (recurring show/format under a channel) ────────────
+-- Series (recurring show/format under a channel)
 CREATE TABLE IF NOT EXISTS series (
     id                  BIGSERIAL       PRIMARY KEY,
     channel_id          VARCHAR(20)     NOT NULL REFERENCES channels(channel_id) ON DELETE CASCADE,
@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS series (
 );
 CREATE INDEX IF NOT EXISTS series_channel_idx ON series(channel_id, is_active);
 
--- ── Campaigns (time-bound theme under a brand) ────────────────
+-- Campaigns (time-bound theme under a brand)
 CREATE TABLE IF NOT EXISTS campaigns (
     id              BIGSERIAL       PRIMARY KEY,
     brand_id        BIGINT          NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
 );
 CREATE INDEX IF NOT EXISTS campaigns_brand_idx ON campaigns(brand_id, status);
 
--- ── Projects (one video idea / brief; supports branching) ─────
+-- Projects (one video idea / brief; supports branching)
 CREATE TABLE IF NOT EXISTS projects (
     id                  BIGSERIAL       PRIMARY KEY,
     channel_id          VARCHAR(20)     NOT NULL REFERENCES channels(channel_id) ON DELETE CASCADE,
@@ -128,7 +128,7 @@ CREATE INDEX IF NOT EXISTS projects_series_idx          ON projects(series_id)  
 CREATE INDEX IF NOT EXISTS projects_campaign_idx        ON projects(campaign_id)        WHERE campaign_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS projects_parent_idx          ON projects(parent_project_id)  WHERE parent_project_id IS NOT NULL;
 
--- ── Link videos → projects ───────────────────────────────────
+-- Link videos → projects
 ALTER TABLE videos
     ADD COLUMN IF NOT EXISTS project_id BIGINT REFERENCES projects(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS videos_project_idx ON videos(project_id) WHERE project_id IS NOT NULL;

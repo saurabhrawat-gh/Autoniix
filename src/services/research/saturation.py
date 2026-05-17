@@ -39,7 +39,7 @@ import structlog
 logger = structlog.get_logger()
 
 
-# ── Tunables ────────────────────────────────────────────────
+# Tunables
 
 
 # How far back to look for "currently saturated." 14 days roughly maps
@@ -62,7 +62,7 @@ TOP_K = 20
 VELOCITY_REFERENCE = 4_000.0
 
 
-# ── Pure-function core (testable, no DB) ────────────────────
+# Pure-function core (testable, no DB)
 
 
 @dataclass
@@ -158,7 +158,7 @@ def compute_saturation_from_pulse(rows: list[_PulseRow]) -> SaturationResult:
     )
 
 
-# ── DB layer ────────────────────────────────────────────────
+# DB layer
 
 
 def _format_vector(emb: list[float]) -> str:

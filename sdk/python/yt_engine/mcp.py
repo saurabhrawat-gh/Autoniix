@@ -63,7 +63,7 @@ class McpClient:
             resp = await client.post(f"{self._base_url}/tool/{tool}", json=payload or {})
         return self._unwrap(resp, expect=f"tool {tool}")
 
-    # ── typed wrappers (one per tool) ────────────────────────────────────
+    # typed wrappers (one per tool)
 
     async def propose_scene(
         self,
@@ -129,7 +129,7 @@ class McpClient:
             body["channelId"] = channel_id
         return await self.call("run_bandit_sample", body)
 
-    # ── helpers ──────────────────────────────────────────────────────────
+    # helpers
 
     @staticmethod
     def _unwrap(resp: httpx.Response, *, expect: str) -> dict[str, Any]:

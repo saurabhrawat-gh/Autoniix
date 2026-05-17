@@ -35,7 +35,7 @@ class SecretBackend(Protocol):
     def health(self) -> bool: ...
 
 
-# ── Env backend ─────────────────────────────────────────────
+# Env backend
 class EnvBackend:
     """Reads ``{PROVIDER}_{KEY}`` from process env (uppercased).
 
@@ -61,7 +61,7 @@ class EnvBackend:
         return True
 
 
-# ── Vault backend (KV v2) ───────────────────────────────────
+# Vault backend (KV v2)
 class VaultBackend:
     name = "vault"
 
@@ -108,7 +108,7 @@ class VaultBackend:
             return False
 
 
-# ── DB backend (Fernet-encrypted, in-postgres) ─────────────
+# DB backend (Fernet-encrypted, in-postgres)
 class DBBackend:
     """Self-hosted secret store: AES-GCM/Fernet ciphertext in postgres.
 
@@ -246,7 +246,7 @@ class DBBackend:
             return False
 
 
-# ── Infisical backend ───────────────────────────────────────
+# Infisical backend
 class InfisicalBackend:
     name = "infisical"
 
@@ -303,7 +303,7 @@ class InfisicalBackend:
         return True
 
 
-# ── Resolver ────────────────────────────────────────────────
+# Resolver
 @lru_cache(maxsize=1)
 def _backends() -> list[SecretBackend]:
     primary = os.getenv("SECRETS_BACKEND", "env").strip().lower()

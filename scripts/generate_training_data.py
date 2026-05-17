@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.db import get_pool, close_pool
 
-# ── Niche-specific distributions ─────────────────────────────
+# Niche-specific distributions
 # These model real YouTube performance distributions per niche.
 
 NICHE_PROFILES = {
@@ -252,7 +252,7 @@ def _gen_feedback_row(i: int, niche: str, profile: dict, channel_id: str) -> dic
     }
 
 
-# ── DB insertion ─────────────────────────────────────────────
+# DB insertion
 
 async def _insert_voice_data(pool, rows: list[dict]):
     for r in rows:
@@ -344,7 +344,7 @@ async def _insert_feedback_data(pool, rows: list[dict]):
             f"SYN_{r['content_id']}")
 
 
-# ── Main ─────────────────────────────────────────────────────
+# Main
 
 async def generate(niches: list[str], count: int):
     pool = await get_pool()

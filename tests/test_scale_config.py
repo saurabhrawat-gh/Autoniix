@@ -22,7 +22,7 @@ SCHED = ROOT / "src" / "workers" / "run_scheduler.py"
 DB = ROOT / "src" / "db.py"
 
 
-# ── Settings carry the new knobs ────────────────────────────────────
+# Settings carry the new knobs
 
 
 def test_settings_expose_temporal_sizing():
@@ -42,7 +42,7 @@ def test_settings_expose_db_sizing():
     assert 1_000 <= settings.db_statement_timeout_ms <= 3_600_000
 
 
-# ── Workers actually use the settings (not hardcoded) ───────────────
+# Workers actually use the settings (not hardcoded)
 
 
 def test_production_worker_uses_settings_for_concurrency():
@@ -61,7 +61,7 @@ def test_scheduler_worker_uses_settings_for_concurrency():
     assert "max_concurrent_activities=3" not in src
 
 
-# ── DB pool wires statement_timeout through ─────────────────────────
+# DB pool wires statement_timeout through
 
 
 def test_db_pool_applies_statement_timeout_per_connection():

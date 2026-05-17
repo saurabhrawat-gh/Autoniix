@@ -22,7 +22,7 @@ import structlog
 
 logger = structlog.get_logger()
 
-# ── Scene Presets ─────────────────────────────────────────────
+# Scene Presets
 SCENE_PRESETS = {
     "hook": ["scene.kinetic_typography", "scene.zoom_focus", "scene.text_reveal"],
     "intro": ["scene.ken_burns", "scene.stock_footage", "scene.text_reveal"],
@@ -32,7 +32,7 @@ SCENE_PRESETS = {
     "outro": ["scene.ken_burns", "scene.stock_footage", "scene.quote_card"],
 }
 
-# ── Camera Templates ──────────────────────────────────────────
+# Camera Templates
 CAMERA_TEMPLATES = {
     "hook": {
         "type": "push_in", "speed": "fast",
@@ -64,7 +64,7 @@ CAMERA_TEMPLATES = {
     },
 }
 
-# ── Text Animation Templates ─────────────────────────────────
+# Text Animation Templates
 TEXT_ANIMATIONS = {
     "hook": {"animation": "scale_pop", "font_size": "xlarge", "position": "center"},
     "intro": {"animation": "fade_in", "font_size": "large", "position": "lower_third"},
@@ -73,7 +73,7 @@ TEXT_ANIMATIONS = {
     "outro": {"animation": "fade_in", "font_size": "large", "position": "center"},
 }
 
-# ── Transition Library ────────────────────────────────────────
+# Transition Library
 TRANSITIONS = {
     "hook": ["cut", "glitch", "whip_pan"],
     "intro": ["dissolve", "slide_left", "zoom"],
@@ -86,7 +86,7 @@ TRANSITION_DURATIONS = {
     "zoom": 350, "whip_pan": 300, "glitch": 250, "fade": 600,
 }
 
-# ── Motion Design Templates ──────────────────────────────────
+# Motion Design Templates
 MOTION_TEMPLATES = {
     "curiosity": [
         {"type": "floating_shape", "animation": "drift", "count": 3, "opacity": 0.15},
@@ -123,7 +123,7 @@ MOTION_TEMPLATES = {
     ],
 }
 
-# ── SFX Library ───────────────────────────────────────────────
+# SFX Library
 SFX_MAP = {
     "hook": [{"name": "impact", "volume": 0.6}, {"name": "rise", "volume": 0.4}],
     "transition": [{"name": "whoosh", "volume": 0.3}],
@@ -133,13 +133,11 @@ SFX_MAP = {
     "question": [{"name": "rise", "volume": 0.2}],
 }
 
-# ── Emphasis Effects ──────────────────────────────────────────
+# Emphasis Effects
 EMPHASIS_EFFECTS = ["scale", "color_flash", "glow", "underline", "shake"]
 
 
-# ═══════════════════════════════════════════════════════════════
 # SEGMENT DIRECTION GENERATION
-# ═══════════════════════════════════════════════════════════════
 
 def _text_display_duration_ms(text: str) -> int:
     """Minimum display time for text overlay based on character count.
@@ -331,9 +329,7 @@ def _generate_audio_cues(
     }
 
 
-# ═══════════════════════════════════════════════════════════════
 # FULL SEGMENT DIRECTION
-# ═══════════════════════════════════════════════════════════════
 
 def generate_segment_direction(
     segment: dict,
@@ -408,9 +404,7 @@ def generate_segment_direction(
     }
 
 
-# ═══════════════════════════════════════════════════════════════
 # FULL SCRIPT DIRECTION VERSION (v3)
-# ═══════════════════════════════════════════════════════════════
 
 def generate_script_direction(
     segments: list[dict],

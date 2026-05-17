@@ -4,7 +4,7 @@
 
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- ── dam_asset_embeddings ──────────────────────────────────────────────────────
+-- dam_asset_embeddings
 -- Stores CLIP/SBERT/Whisper embeddings per asset per model+modality.
 -- Dimension 768 covers both CLIP-L/14 and all-MiniLM-L6-v2 (padded if smaller).
 CREATE TABLE IF NOT EXISTS dam_asset_embeddings (

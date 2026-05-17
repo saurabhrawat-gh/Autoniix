@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     description   TEXT
 );
 
--- ── Feature flags ───────────────────────────────────────────
+-- Feature flags
 CREATE TABLE IF NOT EXISTS feature_flags (
     id            BIGSERIAL     PRIMARY KEY,
     key           VARCHAR(100)  UNIQUE NOT NULL,
@@ -31,7 +31,7 @@ INSERT INTO feature_flags (key, enabled, description) VALUES
     ('safety.uniqueness_guard.enabled', FALSE, 'Reject videos > 0.92 cosine to last 30 outputs')
 ON CONFLICT (key) DO NOTHING;
 
--- ── Richer audit log (additive, does not touch existing audit_log) ──
+-- Richer audit log (additive, does not touch existing audit_log)
 CREATE TABLE IF NOT EXISTS audit_log_v2 (
     id            BIGSERIAL     PRIMARY KEY,
     actor_user_id INTEGER,

@@ -39,7 +39,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 SEED_FILE = ROOT / "scripts" / "seeds" / "public_domain_assets.json"
 
-# ── Pure functions (testable without DB) ────────────────────────────
+# Pure functions (testable without DB)
 
 
 def query_hash(q: str) -> str:
@@ -119,7 +119,7 @@ def list_niches(seed: dict[str, Any]) -> list[str]:
     return sorted({a["niche"] for a in seed["assets"]})
 
 
-# ── DB sink (lazy import so the pure logic stays testable) ──────────
+# DB sink (lazy import so the pure logic stays testable)
 
 
 async def insert_rows(rows: list[dict[str, Any]]) -> int:
@@ -189,7 +189,7 @@ async def validate_urls(rows: list[dict[str, Any]], timeout_s: float = 8.0) -> l
     return bad
 
 
-# ── CLI ─────────────────────────────────────────────────────────────
+# CLI
 
 
 def main() -> None:

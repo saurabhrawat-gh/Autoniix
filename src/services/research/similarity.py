@@ -45,7 +45,7 @@ async def _get_model():
         return _model
 
 
-# ── Embedding ───────────────────────────────────────────────
+# Embedding
 
 async def compute_embedding(text: str) -> list[float]:
     """Compute a 384-dim embedding for a text string."""
@@ -61,7 +61,7 @@ async def compute_embeddings_batch(texts: list[str]) -> list[list[float]]:
     return [e.tolist() for e in embs]
 
 
-# ── SimHash ─────────────────────────────────────────────────
+# SimHash
 
 def _simhash(text: str, hashbits: int = 64) -> int:
     """Compute a 64-bit SimHash for near-duplicate detection.
@@ -95,7 +95,7 @@ def hamming_distance(hash1: int, hash2: int) -> int:
     return bin(hash1 ^ hash2).count("1")
 
 
-# ── Store & Search ──────────────────────────────────────────
+# Store & Search
 
 async def store_topic_embedding(
     content_id: str,
@@ -210,7 +210,7 @@ async def check_similarity(
     return result
 
 
-# ── Freshness Score ─────────────────────────────────────────
+# Freshness Score
 
 async def compute_freshness(
     topic: str,

@@ -61,7 +61,7 @@ sys.path.insert(0, str(ROOT))
 
 logger = structlog.get_logger()
 
-# ── Extension → asset_type map ───────────────────────────────────────
+# Extension → asset_type map
 
 _EXT_MAP: dict[str, str] = {
     ".mp4": "stock_video",
@@ -125,7 +125,7 @@ _EXT_CONTENT_TYPE: dict[str, str] = {
 }
 
 
-# ── Metadata extraction ──────────────────────────────────────────────
+# Metadata extraction
 
 def _slug_to_words(filename: str) -> str:
     """'epic-cinematic-bgm_v2' → 'epic cinematic bgm v2'"""
@@ -184,7 +184,7 @@ def get_metadata(path: Path, asset_type: str) -> dict:
     return {"duration": 0.0, "width": 0, "height": 0}
 
 
-# ── Query generation ─────────────────────────────────────────────────
+# Query generation
 
 def generate_queries(
     path: Path,
@@ -226,7 +226,7 @@ def generate_queries(
     return unique
 
 
-# ── SBERT embedding ──────────────────────────────────────────────────
+# SBERT embedding
 
 def _try_embed(query: str) -> Optional[list[float]]:
     try:
@@ -241,7 +241,7 @@ def _try_embed(query: str) -> Optional[list[float]]:
         return None
 
 
-# ── File discovery ───────────────────────────────────────────────────
+# File discovery
 
 def discover_files(directory: Path, asset_type_override: Optional[str]) -> list[tuple[Path, str]]:
     """Walk directory recursively; return [(path, asset_type)] for known extensions."""
@@ -262,7 +262,7 @@ def discover_files(directory: Path, asset_type_override: Optional[str]) -> list[
     return results
 
 
-# ── Core import logic ────────────────────────────────────────────────
+# Core import logic
 
 async def import_asset(
     path: Path,
@@ -421,7 +421,7 @@ async def run_import(
     return len(files), imported
 
 
-# ── CLI ──────────────────────────────────────────────────────────────
+# CLI
 
 def main() -> None:
     ap = argparse.ArgumentParser(

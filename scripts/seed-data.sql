@@ -1,11 +1,7 @@
--- ============================================================
 -- YT Automation — Seed Data
 -- System Config + 10 Channels + 20 Beliefs + Prompt Registry
--- ============================================================
 
--- ════════════════════════════════════════════════════════════
 -- System Config
--- ════════════════════════════════════════════════════════════
 INSERT INTO system_config (config_key, config_value, description, updated_by) VALUES
     ('system_status',            'active', 'Master status: active/paused/stopped', 'setup_script'),
     ('emergency_stop',           'false',  'Emergency stop flag', 'setup_script'),
@@ -122,18 +118,14 @@ ON CONFLICT (config_key) DO UPDATE SET
     description = EXCLUDED.description,
     updated_by = EXCLUDED.updated_by;
 
--- ════════════════════════════════════════════════════════════
 -- Channels + Beliefs — intentionally empty.
 -- Create channels manually via the dashboard UI (Dashboard → Add Channel).
 -- See docs/CHANNEL-CREATION-GUIDE.md for all required fields.
--- ════════════════════════════════════════════════════════════
 
 -- (no seed channels — create channels manually via dashboard UI)
 
 
--- ════════════════════════════════════════════════════════════
 -- Prompt Registry — Core prompts for each module
--- ════════════════════════════════════════════════════════════
 INSERT INTO prompt_registry (prompt_id, module, prompt_name, system_prompt, user_prompt_template, version, is_active, notes) VALUES
 
 ('PRM_B1_RESEARCH_SYNTH', 'B1_research', 'Research Synthesizer',

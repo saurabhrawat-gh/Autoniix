@@ -73,7 +73,7 @@ async def analyze_composition(image_bytes: bytes) -> dict:
 
             features = {"width": width, "height": height}
 
-            # ── Face Detection ────────────────────────────
+            # Face Detection
             faces = _face_cascade.detectMultiScale(
                 img_gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
             features["has_face"] = len(faces) > 0
@@ -84,20 +84,20 @@ async def analyze_composition(image_bytes: bytes) -> dict:
             else:
                 features["face_area_ratio"] = 0.0
 
-            # ── Brightness ────────────────────────────────
+            # Brightness
             brightness = float(np.mean(img_gray)) / 255.0
             features["brightness"] = round(brightness, 3)
 
-            # ── Saturation ────────────────────────────────
+            # Saturation
             saturation = float(np.mean(img_hsv[:, :, 1])) / 255.0
             features["saturation"] = round(saturation, 3)
 
-            # ── Color Contrast ────────────────────────────
+            # Color Contrast
             # Measure std dev of luminance (higher = more contrast)
             luminance_std = float(np.std(img_gray)) / 255.0
             features["contrast"] = round(luminance_std * 10, 2)
 
-            # ── Dominant Colors ───────────────────────────
+            # Dominant Colors
             pixels = img_np.reshape(-1, 3)
             # Simple k-means with 3 clusters
             from collections import Counter
@@ -110,7 +110,7 @@ async def analyze_composition(image_bytes: bytes) -> dict:
                 for c in top_colors
             ]
 
-            # ── Rule of Thirds ────────────────────────────
+            # Rule of Thirds
             # Check if high-interest regions are near 1/3 or 2/3 lines
             thirds_h = [height // 3, 2 * height // 3]
             thirds_w = [width // 3, 2 * width // 3]
@@ -149,7 +149,7 @@ async def analyze_composition(image_bytes: bytes) -> dict:
         logger.warning("composition_analyzer.failed", error=str(e))
         return {"composition_score": 5.0, "error": str(e), "used_fallback": True}
 
-    # ── Compute composite score ──────────────────────────
+    # Compute composite score
     score = 5.0
     issues = []
 

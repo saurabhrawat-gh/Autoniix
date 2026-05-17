@@ -10,7 +10,7 @@ import type {
  * Each returns a `TransitionPresentation<{}>` which TransitionSeries can render.
  */
 
-// --- BlurSwap: outgoing blurs out & fades, incoming blurs in & fades up ---
+// BlurSwap: outgoing blurs out & fades, incoming blurs in & fades up
 
 const BlurSwapPresenter: React.FC<
   TransitionPresentationComponentProps<{ maxBlurPx: number }>
@@ -37,7 +37,7 @@ export const blurSwap = (
   props: { maxBlurPx: opts.maxBlurPx ?? 30 },
 });
 
-// --- Iris: circular mask expands/contracts around center ---
+// Iris: circular mask expands/contracts around center
 
 const IrisPresenter: React.FC<
   TransitionPresentationComponentProps<{ direction: "open" | "close" }>
@@ -76,7 +76,7 @@ export const iris = (
   props: { direction: opts.direction ?? "open" },
 });
 
-// --- WhipPan: fast horizontal motion blur sweep between scenes ---
+// WhipPan: fast horizontal motion blur sweep between scenes
 
 const WhipPanPresenter: React.FC<
   TransitionPresentationComponentProps<{ dir: "left" | "right"; maxBlurPx: number }>
@@ -111,7 +111,7 @@ export const whipPan = (
   props: { dir: opts.dir ?? "left", maxBlurPx: opts.maxBlurPx ?? 24 },
 });
 
-// --- Cover: incoming slides over stationary outgoing (outgoing holds, incoming overtakes) ---
+// Cover: incoming slides over stationary outgoing (outgoing holds, incoming overtakes)
 
 const CoverPresenter: React.FC<
   TransitionPresentationComponentProps<{ dir: "left" | "right" | "up" | "down" }>
@@ -142,7 +142,7 @@ export const cover = (
   props: { dir: opts.dir ?? "right" },
 });
 
-// --- ZoomPunch: outgoing scales up + blurs out; incoming scales in from zoom ---
+// ZoomPunch: outgoing scales up + blurs out; incoming scales in from zoom
 
 const ZoomPunchPresenter: React.FC<
   TransitionPresentationComponentProps<{ maxZoom: number; maxBlurPx: number }>
@@ -171,7 +171,7 @@ export const zoomPunch = (
   props: { maxZoom: opts.maxZoom ?? 2.4, maxBlurPx: opts.maxBlurPx ?? 16 },
 });
 
-// --- GlitchCut: very fast RGB-split flicker while swapping ---
+// GlitchCut: very fast RGB-split flicker while swapping
 
 const GlitchCutPresenter: React.FC<
   TransitionPresentationComponentProps<{ splitPx: number }>
@@ -209,7 +209,7 @@ export const glitchCut = (
   props: { splitPx: opts.splitPx ?? 18 },
 });
 
-// --- Shatter: outgoing breaks into a grid of tiles that fly outward ---
+// Shatter: outgoing breaks into a grid of tiles that fly outward
 
 const ShatterPresenter: React.FC<
   TransitionPresentationComponentProps<{ cols: number; rows: number; seed: string }>
@@ -277,7 +277,7 @@ export const shatter = (
   props: { cols: opts.cols ?? 8, rows: opts.rows ?? 5, seed: opts.seed ?? "shatter" },
 });
 
-// --- Morph: scale-dissolve cross-fade with slight blur (fake morph) ---
+// Morph: scale-dissolve cross-fade with slight blur (fake morph)
 // True morph-cut requires feature matching across scenes (ML preprocess).
 // This approximation reads well for talking-head/similar-framing transitions.
 

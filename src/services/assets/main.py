@@ -60,7 +60,7 @@ except Exception:  # pragma: no cover
 logger = structlog.get_logger()
 
 
-# ── Request Models ───────────────────────────────────────────
+# Request Models
 
 class AssetsRequest(BaseModel):
     content_id: str
@@ -77,7 +77,7 @@ class MusicRequest(BaseModel):
     duration_s: float = 45.0
 
 
-# ── Helpers ──────────────────────────────────────────────────
+# Helpers
 
 def _parse_json(text: str) -> dict:
     text = text.strip()
@@ -102,7 +102,7 @@ async def _log_usage(content_id: str, service: str, provider: str, cost: float):
         logger.warning("assets.db_log_failed", error=str(e))
 
 
-# ── Niche-Aware Query Expansion ──────────────────────────
+# Niche-Aware Query Expansion
 
 NICHE_KEYWORDS: dict[str, list[str]] = {
     "tech": ["technology", "digital", "futuristic", "code", "circuit"],
@@ -155,7 +155,7 @@ def _filter_by_aspect_ratio(clips: list[dict], content_mode: str = "short") -> l
     return scored
 
 
-# ── Stock Video Search ───────────────────────────────────────
+# Stock Video Search
 
 async def _search_pixabay_videos(query: str, min_duration: int = 5) -> list[dict]:
     """Search Pixabay for stock video clips."""
@@ -258,7 +258,7 @@ async def _search_freesound(query: str, duration_max: float = 30.0) -> list[dict
         return []
 
 
-# ── App ──────────────────────────────────────────────────────
+# App
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -306,7 +306,7 @@ async def generate_assets(req: AssetsRequest):
             manifest.append({"segment_id": seg_id, "type": "none", "assets": []})
             continue
 
-        # ── Intelligence: Optimize query ───────────────
+        # Intelligence: Optimize query
         optimized = optimize_query(seg)
         queries = optimized.get("queries", [])
         query_hash = optimized.get("primary_hash", "")
@@ -314,7 +314,7 @@ async def generate_assets(req: AssetsRequest):
         search_start = _time.time()
 
         try:
-            # ── Intelligence: Check asset cache first ────
+            # Intelligence: Check asset cache first
             if cache_enabled and query_hash:
                 cached = await check_asset_cache(query_hash)
                 if cached:
@@ -332,11 +332,11 @@ async def generate_assets(req: AssetsRequest):
                                      search_time_ms=int((_time.time() - search_start) * 1000))
                     continue
 
-            # ── Step 1: Expand query with niche context ──
+            # Step 1: Expand query with niche context
             niche = channel.get("niche", "") if channel else ""
             expanded_query = _expand_query_for_niche(query, niche, req.content_mode)
 
-            # ── Step 2: Multi-provider chain with semantic re-rank ──
+            # Step 2: Multi-provider chain with semantic re-rank
             # Pulls top-K from every healthy provider in parallel, scores
             # the union via the SBERT ranker, returns the best non-rejected
             # clip (final score >= 0.55) or None.
@@ -416,7 +416,7 @@ async def generate_assets(req: AssetsRequest):
                 except Exception as dl_err:
                     logger.warning("assets.stock_download_failed", seg=seg_id, error=str(dl_err))
 
-            # ── Fallback: kinetic-typography (no asset, no cost) ───────
+            # Fallback: kinetic-typography (no asset, no cost)
             # When the chain returns no candidate above the 0.55 threshold,
             # we DO NOT silently produce a black frame and we DO NOT burn a
             # DALL-E call. Instead we emit a manifest entry that tells the
@@ -508,7 +508,7 @@ async def generate_assets(req: AssetsRequest):
     )
 
 
-# ── Music & SFX ──────────────────────────────────────────────
+# Music & SFX
 
 @app.post("/search-music", response_model=ServiceResponse)
 async def search_music(req: MusicRequest):

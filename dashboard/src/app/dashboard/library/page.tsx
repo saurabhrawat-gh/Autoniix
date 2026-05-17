@@ -13,7 +13,7 @@ import {
 import { Button, Input } from '@/lib/ui';
 import { confirmDialog } from '@/lib/components/ConfirmDialog';
 
-// ── constants ─────────────────────────────────────────────────────────────────
+// constants
 
 type Scope = 'system' | 'workspace' | 'brand' | 'channel';
 type Kind = 'all' | 'image' | 'video' | 'audio' | 'font' | 'lut' | 'template' | 'document' | 'other';
@@ -57,9 +57,7 @@ function fmtBytes(b: number | null | undefined): string {
   return `${(b / 1024 / 1024).toFixed(1)} MB`;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Main page
-// ─────────────────────────────────────────────────────────────────────────────
 export default function LibraryPage() {
   const { showToast } = useToast();
   // scope + kind
@@ -92,7 +90,7 @@ export default function LibraryPage() {
 
   const acceptForKind = KINDS.find(k => k.key === kind)?.accept ?? '*';
 
-  // ── data loading ───────────────────────────────────────────────────────────
+  // data loading
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -126,7 +124,7 @@ export default function LibraryPage() {
     setLoadingDetail(false);
   };
 
-  // ── upload ──────────────────────────────────────────────────────────────────
+  // upload
 
   const handleUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -191,7 +189,7 @@ export default function LibraryPage() {
     loadSidebar();
   };
 
-  // ── render ──────────────────────────────────────────────────────────────────
+  // render
 
   return (
     <main className="flex-1 flex flex-col min-h-0 px-4 sm:px-6 py-6 max-w-[1400px] mx-auto w-full">

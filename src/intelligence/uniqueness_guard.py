@@ -102,7 +102,7 @@ def _embed(text: str) -> list[float] | None:
         return None
 
 
-# ── Authenticity score ──────────────────────────────────────
+# Authenticity score
 def compute_authenticity_score(video: dict[str, Any]) -> float:
     """Return a 0..1 authenticity score from a videos row.
 

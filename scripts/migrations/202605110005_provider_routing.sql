@@ -2,7 +2,7 @@
 -- Wave 2: provider_routes, provider_quotas, provider_marketplace_catalog, provider_sandbox_runs
 -- Additive only — no destructive changes to existing tables.
 
--- ── Provider marketplace catalog ──────────────────────────────────────────────
+-- Provider marketplace catalog
 -- Static registry of all known providers (connected or not).
 CREATE TABLE IF NOT EXISTS provider_marketplace_catalog (
     id              BIGSERIAL     PRIMARY KEY,
@@ -58,7 +58,7 @@ ON CONFLICT (provider_key) DO UPDATE
         featured      = EXCLUDED.featured;
 
 
--- ── Provider routing policies (scope-aware) ───────────────────────────────────
+-- Provider routing policies (scope-aware)
 -- Each row says: for capability X at scope Y, route using policy Z with these constraints.
 CREATE TABLE IF NOT EXISTS provider_routes (
     id              BIGSERIAL     PRIMARY KEY,
@@ -81,7 +81,7 @@ CREATE INDEX IF NOT EXISTS provider_routes_scope_idx ON provider_routes(scope, s
 CREATE INDEX IF NOT EXISTS provider_routes_category_idx ON provider_routes(category);
 
 
--- ── Provider quotas ───────────────────────────────────────────────────────────
+-- Provider quotas
 -- Monthly spend caps per scope. On INSERT/UPDATE the period resets each calendar month.
 CREATE TABLE IF NOT EXISTS provider_quotas (
     id              BIGSERIAL     PRIMARY KEY,
@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS provider_quotas (
     UNIQUE (scope, scope_id, category)
 );
 
--- ── Sandbox run log ───────────────────────────────────────────────────────────
+-- Sandbox run log
 -- Stores test inference outputs for the sandbox runner UI.
 CREATE TABLE IF NOT EXISTS provider_sandbox_runs (
     id              BIGSERIAL     PRIMARY KEY,

@@ -35,7 +35,7 @@ import structlog
 logger = structlog.get_logger()
 
 
-# ── Tunables ────────────────────────────────────────────────────────
+# Tunables
 
 
 # How many recent picks per (channel, bandit_type) to consider when
@@ -57,7 +57,7 @@ DIVERSITY_THRESHOLD = 0.55
 MIN_PICKS_FOR_GUARD = 8
 
 
-# ── Pure-function core ──────────────────────────────────────────────
+# Pure-function core
 
 
 def shannon_entropy(counts: Iterable[int]) -> float:
@@ -135,7 +135,7 @@ def pick_least_pulled(
     return min(arms, key=_key)
 
 
-# ── DB layer ────────────────────────────────────────────────────────
+# DB layer
 
 
 async def log_bandit_pick(

@@ -33,7 +33,7 @@ from src.observability.metrics import instrument_app
 logger = structlog.get_logger()
 
 
-# ── Request Models ───────────────────────────────────────────
+# Request Models
 
 class VoiceRequest(BaseModel):
     channel_id: str
@@ -44,7 +44,7 @@ class VoiceRequest(BaseModel):
     budget_guard: dict = Field(default_factory=lambda: {"max_cost_usd": 2.50, "accrued_cost_usd": 0.0})
 
 
-# ── Helpers ──────────────────────────────────────────────────
+# Helpers
 
 def _safe_format(template: str, **kwargs) -> str:
     """Replace {key} placeholders without failing on unknown/literal braces."""
@@ -92,7 +92,7 @@ def _split_sentences(text: str) -> list[str]:
     return [s.strip() for s in sentences if s.strip()]
 
 
-# ── App ──────────────────────────────────────────────────────
+# App
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -132,7 +132,7 @@ async def synthesize(req: VoiceRequest):
         tts = ProviderRegistry.get("tts")
         storage = ProviderRegistry.get("storage")
 
-        # ── Step 1: Split into sentences per segment ─────
+        # Step 1: Split into sentences per segment
         all_sentences = []
         for seg in req.script_segments:
             narration = seg.get("narration", "")
@@ -150,7 +150,7 @@ async def synthesize(req: VoiceRequest):
         if not all_sentences:
             raise HTTPException(status_code=400, detail="No narration text in segments")
 
-        # ── Step 2: Intelligence — Emotion Prediction ──────
+        # Step 2: Intelligence — Emotion Prediction
         # Check if we can use local prediction (saves LLM cost)
         use_prosody = await _load_config("voice_use_prosody_hints")
         has_prosody_hints = any(s.get("prosody_hint") for s in all_sentences)
@@ -233,7 +233,7 @@ async def synthesize(req: VoiceRequest):
                     sent["emphasis_words"] = []
                     sent["volume_shift"] = "normal"
 
-        # ── Step 2B: Apply ML-learned optimal params (if model exists)
+        # Step 2B: Apply ML-learned optimal params (if model exists)
         niche = channel.get("niche", "general")
         optimal_params = await predict_optimal_params(req.channel_id, niche)
         if optimal_params:
@@ -242,7 +242,7 @@ async def synthesize(req: VoiceRequest):
                 sent["stability"] = sent["stability"] * 0.7 + optimal_params.get("stability", sent["stability"]) * 0.3
                 sent["similarity_boost"] = sent["similarity_boost"] * 0.7 + optimal_params.get("similarity_boost", sent["similarity_boost"]) * 0.3
 
-        # ── Step 3: Per-Sentence TTS ─────────────────────
+        # Step 3: Per-Sentence TTS
         audio_chunks = []
         total_duration = 0.0
         total_chars = 0
@@ -270,7 +270,7 @@ async def synthesize(req: VoiceRequest):
             total_chars += len(sent["text"])
             total_cost += tts_result.cost_usd
 
-        # ── Step 4: Concatenate audio + upload ───────────
+        # Step 4: Concatenate audio + upload
         # Simple concatenation (in production, use pydub/ffmpeg for proper concat with pauses)
         combined_audio = b"".join(chunk["audio_bytes"] for chunk in audio_chunks)
 
@@ -296,7 +296,7 @@ async def synthesize(req: VoiceRequest):
             seg_sr = await storage.upload(StorageUpload(key=seg_key, data=seg_audio, content_type="audio/mpeg"))
             segment_urls[current_seg] = seg_sr.url
 
-        # ── Step 5: Validation ───────────────────────────
+        # Step 5: Validation
         word_count = sum(len(s["text"].split()) for s in all_sentences)
         wpm = (word_count / total_duration * 60) if total_duration > 0 else 0
 
@@ -309,13 +309,13 @@ async def synthesize(req: VoiceRequest):
             "total_chars": total_chars,
         }
 
-        # ── Step 5B: Intelligence — Audio Quality Analysis ──
+        # Step 5B: Intelligence — Audio Quality Analysis
         audio_analysis = await analyze_audio_quality(
             combined_audio, expected_duration_s=total_duration)
         emotion_variety = score_emotion_variety(
             [{"emotion": s.get("emotion", "neutral")} for s in all_sentences])
 
-        # ── Step 6: Quality score (enhanced with intelligence) ──
+        # Step 6: Quality score (enhanced with intelligence)
         quality_score = 10.0
 
         # WPM check
@@ -365,7 +365,7 @@ async def synthesize(req: VoiceRequest):
 
         quality_score = max(1.0, round(quality_score, 1))
 
-        # ── Step 6B: Intelligence — Store features for ML ──
+        # Step 6B: Intelligence — Store features for ML
         await extract_voice_features(
             req.content_id, req.channel_id,
             audio_analysis.get("metrics", {}),
@@ -433,7 +433,7 @@ async def synthesize(req: VoiceRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-# ── Intelligence Endpoints ────────────────────────────────
+# Intelligence Endpoints
 
 class VoiceFeedbackRequest(BaseModel):
     content_id: str

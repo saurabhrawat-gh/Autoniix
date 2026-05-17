@@ -19,7 +19,7 @@ from src.intelligence.prediction_calibration import (
 )
 
 
-# ── compute_abs_error ─────────────────────────────────────────────
+# compute_abs_error
 
 
 def test_abs_error_perfect_prediction_zero():
@@ -45,7 +45,7 @@ def test_abs_error_clamps_out_of_range_inputs():
     assert compute_abs_error(2.0, -1.0) == 1.0    # both clamped
 
 
-# ── compute_sample_weight ────────────────────────────────────────
+# compute_sample_weight
 
 
 def test_weight_baseline_is_one_for_perfect_predictions():
@@ -115,7 +115,7 @@ def test_weight_monotonicity_on_a_grid():
                 )
 
 
-# ── brier_score ──────────────────────────────────────────────────
+# brier_score
 
 
 def test_brier_zero_for_perfect_predictions():
@@ -149,7 +149,7 @@ def test_brier_returns_none_for_empty():
     assert brier_score([]) is None
 
 
-# ── expected_calibration_error ───────────────────────────────────
+# expected_calibration_error
 
 
 def test_ece_zero_for_perfect_calibration():
@@ -201,7 +201,7 @@ def test_ece_handles_perfect_confidence_at_boundary():
     assert ece < 0.01
 
 
-# ── Realistic scenarios ──────────────────────────────────────────
+# Realistic scenarios
 
 
 def test_high_confidence_miss_dominates_uniform_correct():
@@ -235,7 +235,7 @@ def test_weight_distribution_on_realistic_batch():
     assert all(w >= 1.0 for w in weights)
 
 
-# ── Constants sanity ─────────────────────────────────────────────
+# Constants sanity
 
 
 def test_constants_have_sensible_values():
@@ -244,7 +244,7 @@ def test_constants_have_sensible_values():
     assert DEFAULT_METRICS_LOOKBACK_DAYS >= 7
 
 
-# ── Function signatures (regression guard) ──────────────────────
+# Function signatures (regression guard)
 
 
 def test_predict_success_accepts_content_id_keyword_only():

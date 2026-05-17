@@ -30,7 +30,7 @@ def _hours_ago(h: float) -> str:
     return (datetime.now(timezone.utc) - timedelta(hours=h)).isoformat()
 
 
-# ── Weight invariant ─────────────────────────────────────────────
+# Weight invariant
 
 
 def test_subsystem_weights_sum_to_100():
@@ -51,7 +51,7 @@ def test_services_carries_the_most_weight():
             )
 
 
-# ── Bands ─────────────────────────────────────────────────────────
+# Bands
 
 
 def test_band_thresholds():
@@ -70,7 +70,7 @@ def test_band_ordering():
     assert YELLOW_THRESHOLD > 0
 
 
-# ── score_services ────────────────────────────────────────────────
+# score_services
 
 
 def test_services_perfect_when_all_ok():
@@ -97,7 +97,7 @@ def test_services_returns_none_on_no_data():
     assert score_services({"ok_count": 0, "total": 0})[0] is None
 
 
-# ── score_db_pool ─────────────────────────────────────────────────
+# score_db_pool
 
 
 def test_db_pool_zero_when_saturated():
@@ -126,7 +126,7 @@ def test_db_pool_empty_pool_scores_full():
     assert score == 100.0
 
 
-# ── score_pressure_24h ────────────────────────────────────────────
+# score_pressure_24h
 
 
 def test_pressure_perfect_when_quiet():
@@ -152,7 +152,7 @@ def test_pressure_none_on_missing_data():
     assert score_pressure_24h({})[0] is None
 
 
-# ── score_gate_calibration ────────────────────────────────────────
+# score_gate_calibration
 
 
 def test_gate_calibration_cold_start_returns_none():
@@ -199,7 +199,7 @@ def test_gate_calibration_returns_none_on_error():
     assert score is None
 
 
-# ── score_niche_pulse ─────────────────────────────────────────────
+# score_niche_pulse
 
 
 def test_niche_pulse_full_credit_when_fresh():
@@ -225,7 +225,7 @@ def test_niche_pulse_returns_none_on_cold_start():
     assert score is None
 
 
-# ── score_retention_coverage ──────────────────────────────────────
+# score_retention_coverage
 
 
 def test_retention_coverage_full_credit_when_covered():
@@ -253,7 +253,7 @@ def test_retention_coverage_none_when_window_empty():
     assert score is None
 
 
-# ── score_diversity_floor ─────────────────────────────────────────
+# score_diversity_floor
 
 
 def test_diversity_floor_full_credit_in_healthy_band():
@@ -301,7 +301,7 @@ def test_diversity_floor_returns_none_on_few_picks():
     assert score is None
 
 
-# ── score_calibration ─────────────────────────────────────────────
+# score_calibration
 
 
 def test_calibration_returns_none_when_too_few_predictions():
@@ -334,7 +334,7 @@ def test_calibration_partial_credit():
     assert score is not None and 30 < score < 80
 
 
-# ── aggregate_health (the headline) ───────────────────────────────
+# aggregate_health (the headline)
 
 
 def test_aggregate_unknown_when_no_subsystems_report():
@@ -471,7 +471,7 @@ def test_aggregate_monotonic_in_subsystem_quality():
     assert improved_score >= base_score
 
 
-# ── Reason strings (sanity) ───────────────────────────────────────
+# Reason strings (sanity)
 
 
 def test_reasons_are_concise_and_human_readable():

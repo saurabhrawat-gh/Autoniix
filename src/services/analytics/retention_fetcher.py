@@ -41,7 +41,7 @@ from src.quality.retention_features import (
 logger = structlog.get_logger()
 
 
-# ── Errors ──────────────────────────────────────────────────────────
+# Errors
 
 
 class RetentionFetchError(Exception):
@@ -55,7 +55,7 @@ class RetentionFetchError(Exception):
         self.status = status
 
 
-# ── OAuth token refresh ─────────────────────────────────────────────
+# OAuth token refresh
 
 
 _token_cache: dict[str, Any] = {"access_token": None, "expires_at": None}
@@ -109,7 +109,7 @@ async def _get_access_token() -> str:
     return token
 
 
-# ── Analytics fetch ─────────────────────────────────────────────────
+# Analytics fetch
 
 
 async def fetch_retention_curve(yt_video_id: str) -> list[CurvePoint]:
@@ -167,7 +167,7 @@ async def fetch_retention_curve(yt_video_id: str) -> list[CurvePoint]:
     return parse_curve(rows)
 
 
-# ── Persistence ─────────────────────────────────────────────────────
+# Persistence
 
 
 async def fetch_and_store_retention(content_id: str) -> dict:
@@ -271,7 +271,7 @@ async def fetch_and_store_retention(content_id: str) -> dict:
     }
 
 
-# ── Batch helper ────────────────────────────────────────────────────
+# Batch helper
 
 
 async def videos_needing_retention(

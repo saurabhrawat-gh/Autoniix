@@ -2,7 +2,7 @@
 -- Wave 1: Multi-user RBAC with scoped role bindings.
 -- Depends on: users table (202605090005), workspaces + brands (202605110001).
 
--- ── Workspace memberships ────────────────────────────────────
+-- Workspace memberships
 CREATE TABLE IF NOT EXISTS workspace_members (
     workspace_id    BIGINT          NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
     user_id         BIGINT          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -22,7 +22,7 @@ SELECT 1, id,
 FROM users
 ON CONFLICT (workspace_id, user_id) DO NOTHING;
 
--- ── Fine-grained role bindings (scope-level) ─────────────────
+-- Fine-grained role bindings (scope-level)
 CREATE TABLE IF NOT EXISTS role_bindings (
     id          BIGSERIAL       PRIMARY KEY,
     user_id     BIGINT          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS role_bindings (
 CREATE INDEX IF NOT EXISTS role_bindings_user_idx  ON role_bindings(user_id, scope);
 CREATE INDEX IF NOT EXISTS role_bindings_scope_idx ON role_bindings(scope, scope_id);
 
--- ── Workspace invitations ─────────────────────────────────────
+-- Workspace invitations
 CREATE TABLE IF NOT EXISTS workspace_invitations (
     id              BIGSERIAL       PRIMARY KEY,
     workspace_id    BIGINT          NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS workspace_invitations (
 );
 CREATE INDEX IF NOT EXISTS workspace_invitations_ws_idx ON workspace_invitations(workspace_id, accepted_at);
 
--- ── Permission check helper view ─────────────────────────────
+-- Permission check helper view
 -- Returns the effective role for (user, scope, scope_id).
 -- Resolution: global → workspace → brand → channel (most specific wins).
 -- Used by application code via SELECT * FROM effective_role WHERE ...
@@ -74,7 +74,7 @@ SELECT
 FROM role_bindings rb
 WHERE (rb.expires_at IS NULL OR rb.expires_at > NOW());
 
--- ── Feature flags for RBAC enforcement ───────────────────────
+-- Feature flags for RBAC enforcement
 INSERT INTO feature_flags (key, enabled, description) VALUES
     ('auth.rbac.enabled',        FALSE, 'Enforce fine-grained RBAC; when disabled, all authenticated users are treated as owner'),
     ('auth.invitations.enabled', FALSE, 'Enable workspace invitation flow')

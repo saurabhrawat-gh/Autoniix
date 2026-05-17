@@ -18,7 +18,7 @@ volumes:
 
 services:
 
-  # ── Databases ────────────────────────────────────────────
+  # Databases
   postgres-app:
     image: pgvector/pgvector:pg15
     environment:
@@ -91,7 +91,7 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # ── MinIO bootstrap (one-shot) ───────────────────────────
+  # MinIO bootstrap (one-shot)
   # Creates the bucket on first boot and applies a download policy to the
   # `public/` prefix (used for assets that must be fetched directly by
   # YouTube / browsers without presigning, e.g. thumbnails). Idempotent.
@@ -120,7 +120,7 @@ services:
         echo 'minio bootstrap complete'
     restart: "no"
 
-  # ── Secrets backend (Infisical) ──────────────────────────
+  # Secrets backend (Infisical)
   # Optional. Enabled when SECRETS_BACKEND=infisical (default: env).
   # The dashboard-bff and workers read provider credentials from here
   # via src/providers/secrets.py. If this service is down the chain
@@ -149,7 +149,7 @@ services:
         limits:
           memory: 512M
 
-  # ── Temporal ─────────────────────────────────────────────
+  # Temporal
   temporal:
     image: temporalio/auto-setup:latest
     environment:
@@ -188,7 +188,7 @@ services:
       - temporal
     restart: unless-stopped
 
-  # ── Application Services ─────────────────────────────────
+  # Application Services
   research:
     build: .
     command: uvicorn src.services.research.main:app --host 0.0.0.0 --port 8001
@@ -377,7 +377,7 @@ services:
     restart: unless-stopped
     deploy: { resources: { limits: { memory: 256M } } }
 
-  # ── Remotion Renderer ───────────────────────────────────
+  # Remotion Renderer
   remotion-api:
     build: { context: ./services/remotion, dockerfile: Dockerfile }
     command: ["npm", "run", "start:api"]
@@ -449,7 +449,7 @@ services:
     restart: unless-stopped
     deploy: { resources: { limits: { memory: 4G } } }
 
-  # ── Remotion Vision: tier-aware workers (P0.11) ──────────
+  # Remotion Vision: tier-aware workers (P0.11)
   # Off by default. Enable with `docker compose --profile vision up`.
   remotion-worker-tier1:
     profiles: ["vision"]
@@ -562,7 +562,7 @@ services:
     restart: unless-stopped
     deploy: { resources: { limits: { memory: 512M } } }
 
-  # ── Temporal Workers ─────────────────────────────────────
+  # Temporal Workers
   worker-production:
     build: .
     command: python -m src.workers.run_production
@@ -592,7 +592,7 @@ services:
     restart: unless-stopped
     deploy: { resources: { limits: { memory: 256M } } }
 
-  # ── Dashboard ──────────────────────────────────────────
+  # Dashboard
   dashboard-bff:
     build: .
     command: uvicorn src.services.dashboard.main:app --host 0.0.0.0 --port 8020
@@ -652,7 +652,7 @@ services:
         limits:
           memory: 256M
 
-  # ── Observability stack ──────────────────────────────────
+  # Observability stack
   # Prometheus scrapes /metrics from every FastAPI service (wired via
   # src/observability/metrics.py) plus self-scrape. Grafana provisions
   # the Prometheus + Loki datasources and the Pipeline Overview dashboard
@@ -755,7 +755,7 @@ services:
         limits:
           memory: 128M
 
-  # ── TLS Gateway (Traefik) ─────────────────────────────────
+  # TLS Gateway (Traefik)
   # Only activated with: docker compose --profile tls up -d
   # Prerequisites: DOMAIN resolves publicly + ports 80/443 open.
   # Local dev: skip this, use http://localhost:3000 + http://localhost:8020

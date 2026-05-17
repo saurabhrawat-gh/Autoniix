@@ -21,7 +21,7 @@ from src.services.research.saturation import (
 )
 
 
-# ── Cold-start: empty data ─────────────────────────────────────────
+# Cold-start: empty data
 
 
 def test_empty_pulse_returns_cold_start():
@@ -46,7 +46,7 @@ def test_pulse_with_no_matches_returns_zero_saturation():
     assert res.saturation_gap == 1.0
 
 
-# ── Saturation: high overlap → high score ──────────────────────────
+# Saturation: high overlap → high score
 
 
 def test_single_perfect_match_with_viral_velocity_pushes_saturation_up():
@@ -75,7 +75,7 @@ def test_many_perfect_matches_saturate():
     assert res.n_matches == min(8, TOP_K)
 
 
-# ── Recency decay: old videos count less ───────────────────────────
+# Recency decay: old videos count less
 
 
 def test_old_matches_contribute_less_than_recent():
@@ -100,7 +100,7 @@ def test_recency_decay_monotone_decreasing():
     assert 0.45 < _recency_decay(7.0) < 0.55
 
 
-# ── Velocity factor: log-scaled ────────────────────────────────────
+# Velocity factor: log-scaled
 
 
 def test_velocity_factor_log_scaled():
@@ -123,7 +123,7 @@ def test_zero_velocity_contributes_zero():
     assert res.saturation == 0.0
 
 
-# ── Cosine threshold: below it, contribution is zero ───────────────
+# Cosine threshold: below it, contribution is zero
 
 
 def test_below_cosine_threshold_treated_as_no_match():
@@ -148,7 +148,7 @@ def test_just_above_cosine_threshold_starts_contributing():
     assert res.saturation > 0.0
 
 
-# ── Output contract ────────────────────────────────────────────────
+# Output contract
 
 
 def test_saturation_gap_is_one_minus_saturation():
@@ -173,7 +173,7 @@ def test_top_match_similarity_reflects_actual_top():
     assert res.top_match_similarity == 0.91
 
 
-# ── Integration with opportunity scorer DEFAULT_WEIGHTS ────────────
+# Integration with opportunity scorer DEFAULT_WEIGHTS
 
 
 def test_opportunity_weights_include_saturation_gap_and_sum_to_one():

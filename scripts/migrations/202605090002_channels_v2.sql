@@ -4,7 +4,7 @@
 -- A backfill script (scripts/backfill_channel_profiles.py) seeds default
 -- profiles for the pre-existing channels.
 
--- ── Additive columns on channels ────────────────────────────
+-- Additive columns on channels
 ALTER TABLE channels
     ADD COLUMN IF NOT EXISTS platform                  VARCHAR(40),
     ADD COLUMN IF NOT EXISTS handle                    VARCHAR(120),
@@ -31,7 +31,7 @@ ALTER TABLE channels
     ADD COLUMN IF NOT EXISTS authenticity_threshold    DECIMAL(4,3) DEFAULT 0.700,
     ADD COLUMN IF NOT EXISTS source                    VARCHAR(20)  DEFAULT 'seed';
 
--- ── Channel profile (extended) ──────────────────────────────
+-- Channel profile (extended)
 CREATE TABLE IF NOT EXISTS channel_profiles (
     channel_id            VARCHAR(20)   PRIMARY KEY REFERENCES channels(channel_id) ON DELETE CASCADE,
     payload               JSONB         NOT NULL DEFAULT '{}'::jsonb,
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS channel_profiles (
     updated_at            TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
--- ── Pillars ──────────────────────────────────────────────────
+-- Pillars
 CREATE TABLE IF NOT EXISTS channel_pillars (
     id                    BIGSERIAL     PRIMARY KEY,
     channel_id            VARCHAR(20)   NOT NULL REFERENCES channels(channel_id) ON DELETE CASCADE,
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS channel_pillars (
 CREATE INDEX IF NOT EXISTS channel_pillars_channel_idx
     ON channel_pillars(channel_id, position);
 
--- ── Topic rules (avoid / safe / core / inspiration / competitor) ──
+-- Topic rules (avoid / safe / core / inspiration / competitor)
 CREATE TABLE IF NOT EXISTS channel_topic_rules (
     id                    BIGSERIAL     PRIMARY KEY,
     channel_id            VARCHAR(20)   NOT NULL REFERENCES channels(channel_id) ON DELETE CASCADE,
@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS channel_topic_rules (
 CREATE INDEX IF NOT EXISTS channel_topic_rules_channel_idx
     ON channel_topic_rules(channel_id, kind);
 
--- ── References (PDFs / URLs / videos / asset packs) ─────────
+-- References (PDFs / URLs / videos / asset packs)
 CREATE TABLE IF NOT EXISTS channel_references (
     id                    BIGSERIAL     PRIMARY KEY,
     channel_id            VARCHAR(20)   NOT NULL REFERENCES channels(channel_id) ON DELETE CASCADE,
@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS channel_references (
 CREATE INDEX IF NOT EXISTS channel_references_channel_idx
     ON channel_references(channel_id, kind);
 
--- ── Persistent channel memory (viral patterns etc.) ─────────
+-- Persistent channel memory (viral patterns etc.)
 CREATE TABLE IF NOT EXISTS channel_memory (
     id                    BIGSERIAL     PRIMARY KEY,
     channel_id            VARCHAR(20)   NOT NULL REFERENCES channels(channel_id) ON DELETE CASCADE,
@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS channel_memory (
 CREATE INDEX IF NOT EXISTS channel_memory_channel_idx
     ON channel_memory(channel_id, memory_type, created_at DESC);
 
--- ── Reusable channel presets (Faceless Educational, Commentary, etc.) ──
+-- Reusable channel presets (Faceless Educational, Commentary, etc.)
 CREATE TABLE IF NOT EXISTS channel_presets (
     id                    BIGSERIAL     PRIMARY KEY,
     name                  VARCHAR(120)  UNIQUE NOT NULL,
@@ -132,7 +132,7 @@ INSERT INTO channel_presets (name, description, is_system, payload) VALUES
      '{"content_style":"hook_fact_payoff","narration_style":"energetic","music_style":"trap_ambient","pacing_style":"very_fast","content_type_tags":["shorts","viral"]}'::jsonb)
 ON CONFLICT (name) DO UPDATE SET payload = EXCLUDED.payload;
 
--- ── Wizard drafts (autosave) ────────────────────────────────
+-- Wizard drafts (autosave)
 CREATE TABLE IF NOT EXISTS channel_drafts (
     id                    BIGSERIAL     PRIMARY KEY,
     user_id               INTEGER,

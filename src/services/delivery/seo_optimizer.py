@@ -22,7 +22,7 @@ from src.db import get_pool
 
 logger = structlog.get_logger()
 
-# ── Power words that increase CTR ─────────────────────────
+# Power words that increase CTR
 POWER_WORDS = {
     "secret", "shocking", "revealed", "truth", "never", "instantly",
     "proven", "warning", "mistake", "surprising", "hidden", "deadly",
@@ -30,7 +30,7 @@ POWER_WORDS = {
     "insane", "unbelievable", "illegal", "dangerous", "destroyed",
 }
 
-# ── YouTube category optimization ─────────────────────────
+# YouTube category optimization
 CATEGORY_MAP = {
     "health": "26",       # How-to & Style
     "tech": "28",         # Science & Technology

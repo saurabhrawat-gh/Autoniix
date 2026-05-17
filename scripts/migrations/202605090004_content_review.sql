@@ -1,7 +1,7 @@
 -- 202605090004_content_review.sql
 -- Phase 3 (S2 + S5): Generated Content browse + Manual Review.
 
--- ── Additive columns on videos ──────────────────────────────
+-- Additive columns on videos
 ALTER TABLE videos
     ADD COLUMN IF NOT EXISTS review_state         VARCHAR(20),
     ADD COLUMN IF NOT EXISTS review_assigned_to   INTEGER,
@@ -42,7 +42,7 @@ CREATE INDEX IF NOT EXISTS videos_channel_created_idx
 CREATE INDEX IF NOT EXISTS videos_review_state_idx
     ON videos(review_state) WHERE review_state IS NOT NULL;
 
--- ── Review sessions ─────────────────────────────────────────
+-- Review sessions
 CREATE TABLE IF NOT EXISTS review_sessions (
     id            BIGSERIAL     PRIMARY KEY,
     video_id      VARCHAR(50)   NOT NULL,  -- videos.content_id
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS review_comments (
 CREATE INDEX IF NOT EXISTS review_comments_session_idx
     ON review_comments(session_id, created_at);
 
--- ── Script & thumbnail versioning ───────────────────────────
+-- Script & thumbnail versioning
 CREATE TABLE IF NOT EXISTS script_versions (
     id              BIGSERIAL    PRIMARY KEY,
     video_id        VARCHAR(50)  NOT NULL,
@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS thumbnail_versions (
 CREATE INDEX IF NOT EXISTS thumbnail_versions_video_idx
     ON thumbnail_versions(video_id, version DESC);
 
--- ── Postgres FTS for content search ─────────────────────────
+-- Postgres FTS for content search
 ALTER TABLE videos
     ADD COLUMN IF NOT EXISTS title_tsv tsvector
     GENERATED ALWAYS AS (

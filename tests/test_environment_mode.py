@@ -16,7 +16,7 @@ from src.environment import (
 )
 
 
-# ── get_mode / is_test / is_production ────────────────────
+# get_mode / is_test / is_production
 
 
 class TestEnvironmentHelpers:
@@ -50,7 +50,7 @@ class TestEnvironmentHelpers:
         assert is_test() is True
 
 
-# ── require_production ────────────────────────────────────
+# require_production
 
 
 class TestRequireProduction:
@@ -70,7 +70,7 @@ class TestRequireProduction:
         require_production("youtube_upload")  # Should not raise
 
 
-# ── Storage prefix ────────────────────────────────────────
+# Storage prefix
 
 
 class TestStoragePrefix:
@@ -89,7 +89,7 @@ class TestStoragePrefix:
         assert get_storage_prefix() == "prod"
 
 
-# ── Content ID prefix ────────────────────────────────────
+# Content ID prefix
 
 
 class TestContentIdPrefix:
@@ -108,7 +108,7 @@ class TestContentIdPrefix:
         assert get_content_id_prefix() == "VID"
 
 
-# ── Provider remapping ────────────────────────────────────
+# Provider remapping
 
 
 class TestProviderRemapping:
@@ -131,7 +131,7 @@ class TestProviderRemapping:
         assert "storage" not in _TEST_PROVIDER_MAP
 
 
-# ── MinIO key prefixing ──────────────────────────────────
+# MinIO key prefixing
 
 
 try:

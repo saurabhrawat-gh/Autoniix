@@ -1,7 +1,7 @@
 -- Wave 3: DAM — scoped asset store, versions, collections
 -- Additive only; does not touch existing asset_library / brand_assets tables.
 
--- ── dam_assets ────────────────────────────────────────────────────────────────
+-- dam_assets
 CREATE TABLE IF NOT EXISTS dam_assets (
     id            BIGSERIAL PRIMARY KEY,
     scope         VARCHAR(20)   NOT NULL DEFAULT 'workspace'
@@ -43,7 +43,7 @@ CREATE INDEX IF NOT EXISTS idx_dam_assets_created
 CREATE INDEX IF NOT EXISTS idx_dam_assets_fts
     ON dam_assets USING GIN (to_tsvector('english', display_name));
 
--- ── dam_asset_versions ────────────────────────────────────────────────────────
+-- dam_asset_versions
 CREATE TABLE IF NOT EXISTS dam_asset_versions (
     id           BIGSERIAL PRIMARY KEY,
     asset_id     BIGINT        NOT NULL REFERENCES dam_assets(id) ON DELETE CASCADE,
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS dam_asset_versions (
 
 CREATE INDEX IF NOT EXISTS idx_dam_versions_asset ON dam_asset_versions (asset_id);
 
--- ── dam_collections ───────────────────────────────────────────────────────────
+-- dam_collections
 CREATE TABLE IF NOT EXISTS dam_collections (
     id          BIGSERIAL PRIMARY KEY,
     scope       VARCHAR(20)   NOT NULL DEFAULT 'workspace',
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS dam_collections (
 CREATE INDEX IF NOT EXISTS idx_dam_collections_scope
     ON dam_collections (scope, scope_id);
 
--- ── dam_brand_kits ────────────────────────────────────────────────────────────
+-- dam_brand_kits
 CREATE TABLE IF NOT EXISTS dam_brand_kits (
     id              BIGSERIAL PRIMARY KEY,
     scope           VARCHAR(20)  NOT NULL DEFAULT 'brand',
@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS dam_brand_kits (
 CREATE INDEX IF NOT EXISTS idx_dam_brand_kits_scope
     ON dam_brand_kits (scope, scope_id);
 
--- ── helper trigger: updated_at ─────────────────────────────────────────────
+-- helper trigger: updated_at
 CREATE OR REPLACE FUNCTION dam_set_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END;

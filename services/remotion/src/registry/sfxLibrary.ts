@@ -80,7 +80,7 @@ const mk = (
 
 export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
   [
-    // --- whoosh (10) ---
+    // whoosh (10)
     mk("sfx.whoosh.short",        "whoosh", "Whoosh short",        300, "whoosh/whoosh_short.mp3", ["transition"]),
     mk("sfx.whoosh.long",         "whoosh", "Whoosh long",         900, "whoosh/whoosh_long.mp3",  ["transition"]),
     mk("sfx.whoosh.airy",         "whoosh", "Whoosh airy",         600, "whoosh/whoosh_airy.mp3"),
@@ -92,7 +92,7 @@ export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
     mk("sfx.whoosh.heavy",        "whoosh", "Whoosh heavy",        850, "whoosh/whoosh_heavy.mp3"),
     mk("sfx.whoosh.wind",         "whoosh", "Wind whoosh",         1200, "whoosh/whoosh_wind.mp3"),
 
-    // --- impact (10) ---
+    // impact (10)
     mk("sfx.impact.punch",        "impact", "Impact punch",        250, "impact/impact_punch.mp3"),
     mk("sfx.impact.boom",         "impact", "Impact boom",         1100, "impact/impact_boom.mp3"),
     mk("sfx.impact.cinematic",    "impact", "Cinematic hit",       1400, "impact/impact_cinematic.mp3"),
@@ -104,7 +104,7 @@ export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
     mk("sfx.impact.stinger",      "impact", "Orchestral stinger",  2200, "impact/impact_stinger.mp3"),
     mk("sfx.impact.kick_808",     "impact", "808 kick",            500, "impact/impact_kick_808.mp3"),
 
-    // --- pop (6) ---
+    // pop (6)
     mk("sfx.pop.bubble",          "pop", "Bubble pop",             180, "pop/pop_bubble.mp3"),
     mk("sfx.pop.tight",           "pop", "Tight pop",              120, "pop/pop_tight.mp3"),
     mk("sfx.pop.mouth",           "pop", "Mouth pop",              150, "pop/pop_mouth.mp3"),
@@ -112,7 +112,7 @@ export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
     mk("sfx.pop.cartoon",         "pop", "Cartoon pop",            200, "pop/pop_cartoon.mp3"),
     mk("sfx.pop.boing",           "pop", "Boing",                  380, "pop/pop_boing.mp3"),
 
-    // --- swoosh (6) ---
+    // swoosh (6)
     mk("sfx.swoosh.fast",         "swoosh", "Swoosh fast",         250, "swoosh/swoosh_fast.mp3"),
     mk("sfx.swoosh.slow",         "swoosh", "Swoosh slow",         700, "swoosh/swoosh_slow.mp3"),
     mk("sfx.swoosh.tape",         "swoosh", "Tape swoosh",         500, "swoosh/swoosh_tape.mp3"),
@@ -120,7 +120,7 @@ export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
     mk("sfx.swoosh.paper",        "swoosh", "Paper swoosh",        300, "swoosh/swoosh_paper.mp3"),
     mk("sfx.swoosh.cinema",       "swoosh", "Cinematic swoosh",    900, "swoosh/swoosh_cinema.mp3"),
 
-    // --- ding (6) ---
+    // ding (6)
     mk("sfx.ding.bell",           "ding", "Bell ding",             600, "ding/ding_bell.mp3"),
     mk("sfx.ding.notification",   "ding", "Notification ding",     450, "ding/ding_notification.mp3"),
     mk("sfx.ding.triangle",       "ding", "Triangle ding",         800, "ding/ding_triangle.mp3"),
@@ -128,7 +128,7 @@ export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
     mk("sfx.ding.cash",           "ding", "Cash register",         900, "ding/ding_cash.mp3"),
     mk("sfx.ding.achievement",    "ding", "Achievement",           1200, "ding/ding_achievement.mp3"),
 
-    // --- click / ui (8) ---
+    // click / ui (8)
     mk("sfx.click.soft",          "click", "Soft click",           80, "click/click_soft.mp3"),
     mk("sfx.click.hard",          "click", "Hard click",           100, "click/click_hard.mp3"),
     mk("sfx.click.keyboard",      "click", "Keyboard click",       90, "click/click_keyboard.mp3"),
@@ -138,7 +138,7 @@ export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
     mk("sfx.ui.confirm",          "ui",    "UI confirm",           260, "ui/ui_confirm.mp3"),
     mk("sfx.ui.cancel",           "ui",    "UI cancel",            240, "ui/ui_cancel.mp3"),
 
-    // --- riser / drop (8) ---
+    // riser / drop (8)
     mk("sfx.riser.short",         "riser", "Riser short",          1500, "riser/riser_short.mp3"),
     mk("sfx.riser.long",          "riser", "Riser long",           4000, "riser/riser_long.mp3"),
     mk("sfx.riser.noise",         "riser", "Noise riser",          3000, "riser/riser_noise.mp3"),
@@ -148,7 +148,7 @@ export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
     mk("sfx.drop.reverse",        "drop",  "Reverse drop",         900,  "drop/drop_reverse.mp3"),
     mk("sfx.drop.sub",            "drop",  "Sub drop",             1800, "drop/drop_sub.mp3"),
 
-    // --- glitch / tech (10) ---
+    // glitch / tech (10)
     mk("sfx.glitch.digital",      "glitch", "Digital glitch",      300, "glitch/glitch_digital.mp3"),
     mk("sfx.glitch.heavy",        "glitch", "Heavy glitch",        600, "glitch/glitch_heavy.mp3"),
     mk("sfx.glitch.static",       "glitch", "Static glitch",       400, "glitch/glitch_static.mp3"),
@@ -160,7 +160,7 @@ export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
     mk("sfx.tech.powerup",        "tech",   "Power-up",            900, "tech/tech_powerup.mp3"),
     mk("sfx.tech.hologram",       "tech",   "Hologram",            800, "tech/tech_hologram.mp3"),
 
-    // --- cinematic / ambient (10) ---
+    // cinematic / ambient (10)
     mk("sfx.cinematic.reverse_hit","cinematic", "Reverse hit",     1400, "cinematic/cine_reverse_hit.mp3"),
     mk("sfx.cinematic.hit_rumble", "cinematic", "Hit + rumble",    2000, "cinematic/cine_hit_rumble.mp3"),
     mk("sfx.cinematic.suspense",   "cinematic", "Suspense drone",  4000, "cinematic/cine_suspense.mp3"),
@@ -172,7 +172,7 @@ export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
     mk("sfx.ambient.office",       "ambient",   "Office ambience", 6000, "ambient/amb_office.mp3", [], -18),
     mk("sfx.ambient.rain",         "ambient",   "Rain",            6000, "ambient/amb_rain.mp3", [], -18),
 
-    // --- transition / notification (12) ---
+    // transition / notification (12)
     mk("sfx.transition.slide",     "transition", "Slide",          400, "transition/trans_slide.mp3"),
     mk("sfx.transition.zoom",      "transition", "Zoom",           500, "transition/trans_zoom.mp3"),
     mk("sfx.transition.flash",     "transition", "Flash",          200, "transition/trans_flash.mp3"),

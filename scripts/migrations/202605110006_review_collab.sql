@@ -6,7 +6,7 @@
 --
 -- Safe to re-run (CREATE … IF NOT EXISTS + DO blocks).
 
--- ── Frame-accurate comments (new — supplements 004's review_comments) ─────
+-- Frame-accurate comments (new — supplements 004's review_comments)
 CREATE TABLE IF NOT EXISTS frame_comments (
     id            BIGSERIAL PRIMARY KEY,
     session_id    BIGINT NOT NULL REFERENCES review_sessions(id) ON DELETE CASCADE,
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS frame_comments (
 CREATE INDEX IF NOT EXISTS idx_frame_comments_session  ON frame_comments(session_id);
 CREATE INDEX IF NOT EXISTS idx_frame_comments_resolved ON frame_comments(session_id, resolved);
 
--- ── Annotations (visual overlays on thumbnail / frame) ────────────────────
+-- Annotations (visual overlays on thumbnail / frame)
 CREATE TABLE IF NOT EXISTS review_annotations (
     id            BIGSERIAL PRIMARY KEY,
     session_id    BIGINT NOT NULL REFERENCES review_sessions(id) ON DELETE CASCADE,
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS review_annotations (
 );
 CREATE INDEX IF NOT EXISTS idx_annotations_session ON review_annotations(session_id);
 
--- ── Approvals (per-reviewer decision) ────────────────────────────────────
+-- Approvals (per-reviewer decision)
 CREATE TABLE IF NOT EXISTS review_approvals (
     id            BIGSERIAL PRIMARY KEY,
     session_id    BIGINT NOT NULL REFERENCES review_sessions(id) ON DELETE CASCADE,
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS review_approvals (
 );
 CREATE INDEX IF NOT EXISTS idx_approvals_session ON review_approvals(session_id);
 
--- ── Content generation queue (trigger tracking) ──────────────────────────
+-- Content generation queue (trigger tracking)
 CREATE TABLE IF NOT EXISTS content_triggers (
     id            BIGSERIAL PRIMARY KEY,
     channel_id    TEXT NOT NULL,
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS content_triggers (
 CREATE INDEX IF NOT EXISTS idx_triggers_channel ON content_triggers(channel_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_triggers_status  ON content_triggers(status);
 
--- ── updated_at triggers (only for tables that own an updated_at column) ──
+-- updated_at triggers (only for tables that own an updated_at column)
 CREATE OR REPLACE FUNCTION _set_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN NEW.updated_at = NOW(); RETURN NEW; END;

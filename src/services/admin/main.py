@@ -74,7 +74,7 @@ async def health():
     return HealthResponse(service="admin")
 
 
-# ── Dashboard ────────────────────────────────────────────────
+# Dashboard
 
 @app.get("/dashboard", response_model=ServiceResponse)
 async def dashboard():
@@ -107,7 +107,7 @@ async def dashboard():
     )
 
 
-# ── Channels CRUD ────────────────────────────────────────────
+# Channels CRUD
 
 @app.get("/channels", response_model=ServiceResponse)
 async def list_channels():
@@ -184,7 +184,7 @@ async def update_channel(channel_id: str, req: ChannelUpdate):
     return ServiceResponse(status="success", data={"channel_id": channel_id})
 
 
-# ── System Config ────────────────────────────────────────────
+# System Config
 
 @app.get("/config", response_model=ServiceResponse)
 async def get_config():
@@ -213,7 +213,7 @@ async def update_config(key: str, req: ConfigUpdate):
     return ServiceResponse(status="success", data={"key": key, "value": req.config_value})
 
 
-# ── Emergency Stop ───────────────────────────────────────────
+# Emergency Stop
 
 @app.post("/emergency-stop", response_model=ServiceResponse)
 async def emergency_stop():
@@ -235,7 +235,7 @@ async def emergency_resume():
     return ServiceResponse(status="success", data={"emergency_stop": False})
 
 
-# ── Videos ───────────────────────────────────────────────────
+# Videos
 
 @app.get("/videos", response_model=ServiceResponse)
 async def list_videos(channel_id: str | None = None, status: str | None = None, limit: int = 50):
@@ -274,7 +274,7 @@ async def list_videos(channel_id: str | None = None, status: str | None = None, 
     return ServiceResponse(status="success", data={"videos": videos, "count": len(videos)})
 
 
-# ── A/B Experiment Endpoints ──────────────────────────────
+# A/B Experiment Endpoints
 
 class ExperimentCreate(BaseModel):
     name: str
@@ -321,7 +321,7 @@ async def experiment_results(name: str):
     return ServiceResponse(status="success", data=result)
 
 
-# ── Intelligence Dashboard Endpoints ─────────────────────────
+# Intelligence Dashboard Endpoints
 
 @app.get("/intelligence/decisions", response_model=ServiceResponse)
 async def intelligence_decisions(days: int = 30, service: str = ""):

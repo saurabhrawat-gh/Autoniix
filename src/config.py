@@ -4,20 +4,20 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # ── Environment Mode ──────────────────────────────────
+    # Environment Mode
     environment_mode: str = "test"  # "test" or "production"
 
-    # ── App Database ─────────────────────────────────────
+    # App Database
     db_host: str = "postgres-app"
     db_port: int = 5432
     db_name: str = "autoniix"
     db_user: str = "app"
     db_password: str = "change_me"
 
-    # ── Redis ────────────────────────────────────────────
+    # Redis
     redis_url: str = "redis://redis:6379"
 
-    # ── S3 / MinIO ──────────────────────────────────────
+    # S3 / MinIO
     s3_endpoint: str = "http://minio:9000"
     s3_access_key: str = "minioadmin"
     s3_secret_key: str = "minioadmin"
@@ -25,23 +25,23 @@ class Settings(BaseSettings):
     s3_public_base_url: str = ""
     s3_force_path_style: bool = True
 
-    # ── AI Providers ────────────────────────────────────
+    # AI Providers
     openai_api_key: str = ""
     anthropic_api_key: str = ""
     google_ai_api_key: str = ""
 
-    # ── TTS ─────────────────────────────────────────────
+    # TTS
     fish_audio_api_key: str = ""
     elevenlabs_api_key: str = ""
     elevenlabs_model_id: str = "eleven_multilingual_v2"
     tts_provider: str = "fishaudio"
 
-    # ── Search ──────────────────────────────────────────
+    # Search
     serpapi_key: str = ""
     news_api_key: str = ""
     search_provider: str = "serpapi"
 
-    # ── Image / Stock Footage ─────────────────────────────
+    # Image / Stock Footage
     pixabay_api_key: str = ""
     pexels_api_key: str = ""
     freesound_api_key: str = ""
@@ -49,10 +49,10 @@ class Settings(BaseSettings):
     # Use scripts/import_local_assets.py to ingest manually downloaded assets.
     image_provider: str = "dalle"
 
-    # ── Storage ─────────────────────────────────────────
+    # Storage
     storage_provider: str = "minio"
 
-    # ── LLM Routing ─────────────────────────────────────
+    # LLM Routing
     llm_openai_model: str = "gpt-4o-mini"
     llm_claude_model: str = "claude-sonnet-4-20250514"
     llm_gemini_model: str = "gemini-2.5-flash"
@@ -67,7 +67,7 @@ class Settings(BaseSettings):
     llm_direction_provider: str = "openai"
     llm_emotion_provider: str = "openai"
 
-    # ── Temporal ────────────────────────────────────────
+    # Temporal
     temporal_host: str = "temporal:7233"
     temporal_namespace: str = "default"
     # Phase 6 — scale-out knobs. Defaults match the previous hard-coded
@@ -82,7 +82,7 @@ class Settings(BaseSettings):
     temporal_default_activity_start_to_close_s: int = 1800   # 30 min
     temporal_default_activity_heartbeat_s: int = 60
 
-    # ── Postgres pool ──────────────────────────────────
+    # Postgres pool
     # The pool is *per-process*. Each FastAPI service + each Temporal
     # worker creates its own. With ~6 services and 2 workers, the
     # default of max=10 caps the fleet at ~80 simultaneous DB ops —
@@ -97,20 +97,20 @@ class Settings(BaseSettings):
     # than letting requests pile up.
     db_pool_acquire_timeout_s: float = 10.0
 
-    # ── Remotion ────────────────────────────────────────
+    # Remotion
     remotion_base_url: str = "http://remotion-api:4000"
 
-    # ── YouTube / Google OAuth ────────────────────────
+    # YouTube / Google OAuth
     youtube_api_key: str = ""
     google_oauth_client_id: str = ""
     google_oauth_client_secret: str = ""
     google_oauth_refresh_token: str = ""
 
-    # ── Google Sheets Sync ────────────────────────────
+    # Google Sheets Sync
     google_sheets_id: str = "11-vlRvjXfDVLQMnrHzuujE5A1i4luy2DG-ycUtsS-c4"
     google_sheets_credentials_json: str = ""
 
-    # ── Admin ───────────────────────────────────────────
+    # Admin
     admin_jwt_secret: str = "change_me"
 
     @property

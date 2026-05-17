@@ -28,7 +28,7 @@ from src.db import get_pool
 logger = structlog.get_logger()
 
 
-# ── Variant Assignment ───────────────────────────────────────
+# Variant Assignment
 
 def _deterministic_variant(experiment_name: str, content_id: str, variants: list[str],
                            weights: list[float] | None = None) -> str:
@@ -47,7 +47,7 @@ def _deterministic_variant(experiment_name: str, content_id: str, variants: list
     return variants[-1]
 
 
-# ── Experiment CRUD ──────────────────────────────────────────
+# Experiment CRUD
 
 async def create_experiment(name: str, description: str,
                             variants: list[dict],
@@ -110,7 +110,7 @@ async def list_experiments(status: str = "") -> list[dict]:
     return [dict(r) for r in rows]
 
 
-# ── Assignment ───────────────────────────────────────────────
+# Assignment
 
 async def assign_variant(experiment_name: str, content_id: str,
                           channel_id: str = "") -> dict:
@@ -151,7 +151,7 @@ async def assign_variant(experiment_name: str, content_id: str,
     return {"variant": variant_name, "config": variant_config, "in_experiment": True}
 
 
-# ── Outcome Recording ────────────────────────────────────────
+# Outcome Recording
 
 async def record_outcome(experiment_name: str, content_id: str,
                           variant_name: str, metrics: dict) -> None:
@@ -165,7 +165,7 @@ async def record_outcome(experiment_name: str, content_id: str,
     """, experiment_name, content_id, variant_name, json.dumps(metrics))
 
 
-# ── Statistical Analysis ─────────────────────────────────────
+# Statistical Analysis
 
 async def analyze_experiment(experiment_name: str) -> dict:
     """Analyze experiment results with statistical significance testing."""

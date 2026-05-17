@@ -262,7 +262,7 @@ export default function ChannelWizard() {
   );
 }
 
-// ── Field primitive ──────────────────────────────────────
+// Field primitive
 function Field({
   label, hint, children, suggest,
 }: { label: string; hint?: string; children: React.ReactNode; suggest?: () => void }) {
@@ -296,7 +296,7 @@ async function aiSuggest(field: string, context: any, set: (v: string) => void) 
   } catch {/* ignore */}
 }
 
-// ── Step components ──────────────────────────────────────
+// Step components
 function BasicsStep({ state, update }: { state: FormState; update: any }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

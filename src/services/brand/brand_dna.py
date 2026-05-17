@@ -23,7 +23,7 @@ from src.db import get_pool
 
 logger = structlog.get_logger()
 
-# ── Default brand templates per niche ─────────────────────
+# Default brand templates per niche
 NICHE_DEFAULTS: dict[str, dict] = {
     "health": {
         "color_mood": "calm_trust",
@@ -67,7 +67,7 @@ NICHE_DEFAULTS: dict[str, dict] = {
     },
 }
 
-# ── Color psychology mapping ──────────────────────────────
+# Color psychology mapping
 COLOR_PSYCHOLOGY: dict[str, dict] = {
     "#1A237E": {"mood": "trust", "energy": "low", "emotion": "calm"},
     "#E91E63": {"mood": "passion", "energy": "high", "emotion": "excitement"},

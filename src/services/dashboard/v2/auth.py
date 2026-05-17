@@ -107,7 +107,7 @@ def _refresh_token() -> tuple[str, str]:
     return raw, hashed
 
 
-# ── Schemas ─────────────────────────────────────────────────
+# Schemas
 class RegisterIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
@@ -143,7 +143,7 @@ class ProfileIn(BaseModel):
     new_password: str | None = Field(default=None, min_length=8)
 
 
-# ── Endpoints ───────────────────────────────────────────────
+# Endpoints
 @router.get("/mode")
 async def auth_mode():
     """Public — no auth required. Returns which auth backends are active.
@@ -408,7 +408,7 @@ async def reset(body: ResetIn):
     return {"status": "ok"}
 
 
-# ── Multi-workspace endpoints ───────────────────────────────
+# Multi-workspace endpoints
 
 class SwitchWorkspaceIn(BaseModel):
     workspace_id: int

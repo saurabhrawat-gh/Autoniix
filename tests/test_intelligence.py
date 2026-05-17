@@ -16,7 +16,7 @@ from src.intelligence import niche_templates as nt
 from src.intelligence.performance_feedback import _format_for_tests
 
 
-# ── Niche templates ─────────────────────────────────────────────────
+# Niche templates
 
 
 def test_list_templates_returns_nonempty_list():
@@ -71,7 +71,7 @@ def test_list_templates_returns_copies_not_internal_state():
     assert b[0]["label"] != "MUTATED"
 
 
-# ── Performance feedback formatter ──────────────────────────────────
+# Performance feedback formatter
 
 
 def test_format_empty_returns_empty_string():

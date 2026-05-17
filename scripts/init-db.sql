@@ -1,16 +1,13 @@
--- ============================================================
 -- Enable pgvector extension for embeddings
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- ============================================================
 -- YT Automation — Full Database Schema
 -- Matches 10 Google Sheets tabs: Channel_DNA (63 cols),
 -- Execution_Locks, Belief_Registry, Output_Log, Feedback_Loop,
 -- Performance_Memory, Prompt_Registry, Trend_Intelligence,
 -- API_Usage_Tracker, System_Config + Audit_Log
--- ============================================================
 
--- ── Tab 1: Channel_DNA (63 columns) ────────────────────────
+-- Tab 1: Channel_DNA (63 columns)
 CREATE TABLE IF NOT EXISTS channels (
     channel_id              VARCHAR(20)   PRIMARY KEY,
     channel_name            VARCHAR(255)  NOT NULL,
@@ -81,7 +78,7 @@ CREATE TABLE IF NOT EXISTS channels (
     updated_at              TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ── Tab 2: Execution_Locks ──────────────────────────────────
+-- Tab 2: Execution_Locks
 CREATE TABLE IF NOT EXISTS execution_locks (
     id                  BIGSERIAL     PRIMARY KEY,
     channel_id          VARCHAR(20)   REFERENCES channels(channel_id),
@@ -95,7 +92,7 @@ CREATE TABLE IF NOT EXISTS execution_locks (
     UNIQUE(channel_id, execution_week)
 );
 
--- ── Tab 3: Belief_Registry ──────────────────────────────────
+-- Tab 3: Belief_Registry
 CREATE TABLE IF NOT EXISTS belief_registry (
     belief_id           VARCHAR(50)   PRIMARY KEY,
     channel_id          VARCHAR(20)   REFERENCES channels(channel_id),
@@ -113,7 +110,7 @@ CREATE TABLE IF NOT EXISTS belief_registry (
     created_at          TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ── Tab 4: Output_Log (videos — 49+ columns) ───────────────
+-- Tab 4: Output_Log (videos — 49+ columns)
 CREATE TABLE IF NOT EXISTS videos (
     id                      BIGSERIAL     PRIMARY KEY,
     content_id              VARCHAR(100)  UNIQUE NOT NULL,
@@ -184,7 +181,7 @@ CREATE TABLE IF NOT EXISTS videos (
 
 CREATE INDEX IF NOT EXISTS idx_videos_environment ON videos(environment);
 
--- ── Tab 5: Feedback_Loop ────────────────────────────────────
+-- Tab 5: Feedback_Loop
 CREATE TABLE IF NOT EXISTS feedback_loop (
     id                      BIGSERIAL     PRIMARY KEY,
     video_id                VARCHAR(100)  REFERENCES videos(content_id),
@@ -215,7 +212,7 @@ CREATE TABLE IF NOT EXISTS feedback_loop (
     updated_at              TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ── Tab 6: Performance_Memory ───────────────────────────────
+-- Tab 6: Performance_Memory
 CREATE TABLE IF NOT EXISTS performance_memory (
     memory_id           VARCHAR(50)   PRIMARY KEY,
     channel_id          VARCHAR(20)   REFERENCES channels(channel_id),
@@ -230,7 +227,7 @@ CREATE TABLE IF NOT EXISTS performance_memory (
     updated_at          TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ── Tab 7: Prompt_Registry ──────────────────────────────────
+-- Tab 7: Prompt_Registry
 CREATE TABLE IF NOT EXISTS prompt_registry (
     prompt_id           VARCHAR(100)  PRIMARY KEY,
     module              VARCHAR(50)   NOT NULL,
@@ -243,7 +240,7 @@ CREATE TABLE IF NOT EXISTS prompt_registry (
     notes               TEXT
 );
 
--- ── Tab 8: Trend_Intelligence ───────────────────────────────
+-- Tab 8: Trend_Intelligence
 CREATE TABLE IF NOT EXISTS trend_intelligence (
     trend_id            VARCHAR(50)   PRIMARY KEY,
     channel_id          VARCHAR(20)   REFERENCES channels(channel_id),
@@ -263,7 +260,7 @@ CREATE TABLE IF NOT EXISTS trend_intelligence (
     expires_at          TIMESTAMPTZ
 );
 
--- ── Tab 9: API_Usage_Tracker ────────────────────────────────
+-- Tab 9: API_Usage_Tracker
 CREATE TABLE IF NOT EXISTS api_usage (
     id                  BIGSERIAL     PRIMARY KEY,
     date                DATE          DEFAULT CURRENT_DATE,
@@ -297,7 +294,7 @@ CREATE TABLE IF NOT EXISTS api_usage (
     created_at          TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ── Tab 10: System_Config ───────────────────────────────────
+-- Tab 10: System_Config
 CREATE TABLE IF NOT EXISTS system_config (
     config_key          VARCHAR(100)  PRIMARY KEY,
     config_value        TEXT          NOT NULL,
@@ -306,7 +303,7 @@ CREATE TABLE IF NOT EXISTS system_config (
     updated_at          TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ── Audit_Log ───────────────────────────────────────────────
+-- Audit_Log
 CREATE TABLE IF NOT EXISTS audit_log (
     id               BIGSERIAL     PRIMARY KEY,
     actor            VARCHAR(200)  NOT NULL,
@@ -317,7 +314,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     created_at       TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ── Research Intelligence: Competitor Channels ────────────
+-- Research Intelligence: Competitor Channels
 CREATE TABLE IF NOT EXISTS competitor_channels (
     id                  BIGSERIAL     PRIMARY KEY,
     channel_id          VARCHAR(20)   REFERENCES channels(channel_id),
@@ -335,7 +332,7 @@ CREATE TABLE IF NOT EXISTS competitor_channels (
     UNIQUE(channel_id, competitor_yt_id)
 );
 
--- ── Research Intelligence: Competitor Videos ──────────────
+-- Research Intelligence: Competitor Videos
 CREATE TABLE IF NOT EXISTS competitor_videos (
     id                  BIGSERIAL     PRIMARY KEY,
     competitor_yt_id    VARCHAR(50)   NOT NULL,
@@ -358,7 +355,7 @@ CREATE TABLE IF NOT EXISTS competitor_videos (
     updated_at          TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ── Research Intelligence: Trend Signals ──────────────────
+-- Research Intelligence: Trend Signals
 CREATE TABLE IF NOT EXISTS trend_signals (
     id                  BIGSERIAL     PRIMARY KEY,
     niche               VARCHAR(100)  NOT NULL,
@@ -377,7 +374,7 @@ CREATE TABLE IF NOT EXISTS trend_signals (
     UNIQUE(niche, keyword, source, snapshot_date)
 );
 
--- ── Research Intelligence: Topic Embeddings (pgvector) ────
+-- Research Intelligence: Topic Embeddings (pgvector)
 CREATE TABLE IF NOT EXISTS topic_embeddings (
     id                  BIGSERIAL     PRIMARY KEY,
     content_id          VARCHAR(100),
@@ -389,7 +386,7 @@ CREATE TABLE IF NOT EXISTS topic_embeddings (
     created_at          TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ── Research Intelligence: Research Features (for ML) ─────
+-- Research Intelligence: Research Features (for ML)
 CREATE TABLE IF NOT EXISTS research_features (
     id                  BIGSERIAL     PRIMARY KEY,
     content_id          VARCHAR(100)  NOT NULL,
@@ -411,7 +408,7 @@ CREATE TABLE IF NOT EXISTS research_features (
     created_at          TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ── Research Intelligence: Performance Outcomes (labels) ──
+-- Research Intelligence: Performance Outcomes (labels)
 CREATE TABLE IF NOT EXISTS performance_outcomes (
     id                  BIGSERIAL     PRIMARY KEY,
     content_id          VARCHAR(100)  UNIQUE NOT NULL,
@@ -435,7 +432,7 @@ CREATE TABLE IF NOT EXISTS performance_outcomes (
     updated_at          TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ── Research Intelligence: Model Store ────────────────────
+-- Research Intelligence: Model Store
 CREATE TABLE IF NOT EXISTS ml_models (
     id                  BIGSERIAL     PRIMARY KEY,
     model_name          VARCHAR(100)  NOT NULL,
@@ -451,7 +448,7 @@ CREATE TABLE IF NOT EXISTS ml_models (
     UNIQUE(model_name, niche, model_version)
 );
 
--- ── Research Intelligence: Bandit State ───────────────────
+-- Research Intelligence: Bandit State
 CREATE TABLE IF NOT EXISTS bandit_state (
     id                  BIGSERIAL     PRIMARY KEY,
     niche               VARCHAR(100)  NOT NULL,
@@ -464,7 +461,7 @@ CREATE TABLE IF NOT EXISTS bandit_state (
     UNIQUE(niche, arm_name)
 );
 
--- ── Research Intelligence: Phrase Bank ────────────────────
+-- Research Intelligence: Phrase Bank
 CREATE TABLE IF NOT EXISTS phrase_bank (
     id                  BIGSERIAL     PRIMARY KEY,
     niche               VARCHAR(100)  NOT NULL,
@@ -477,9 +474,7 @@ CREATE TABLE IF NOT EXISTS phrase_bank (
     UNIQUE(niche, phrase)
 );
 
--- ════════════════════════════════════════════════════════════
 -- INDEXES
--- ════════════════════════════════════════════════════════════
 CREATE INDEX IF NOT EXISTS idx_channels_niche         ON channels(niche);
 CREATE INDEX IF NOT EXISTS idx_channels_status        ON channels(status);
 CREATE INDEX IF NOT EXISTS idx_exec_locks_channel     ON execution_locks(channel_id);
@@ -507,7 +502,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_actor            ON audit_log(actor);
 CREATE INDEX IF NOT EXISTS idx_audit_created          ON audit_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_resource         ON audit_log(resource_type, resource_id);
 
--- ── Research Intelligence Indexes ─────────────────────────
+-- Research Intelligence Indexes
 CREATE INDEX IF NOT EXISTS idx_comp_channels_channel   ON competitor_channels(channel_id);
 CREATE INDEX IF NOT EXISTS idx_comp_channels_niche     ON competitor_channels(niche);
 CREATE INDEX IF NOT EXISTS idx_comp_videos_yt_id       ON competitor_videos(competitor_yt_id);
@@ -528,7 +523,7 @@ CREATE INDEX IF NOT EXISTS idx_bandit_niche            ON bandit_state(niche);
 CREATE INDEX IF NOT EXISTS idx_phrase_bank_niche       ON phrase_bank(niche);
 CREATE INDEX IF NOT EXISTS idx_phrase_bank_rising      ON phrase_bank(is_rising) WHERE is_rising = TRUE;
 
--- ── Script Intelligence: Script Features (for ML) ──────────
+-- Script Intelligence: Script Features (for ML)
 CREATE TABLE IF NOT EXISTS script_features (
     id                      BIGSERIAL     PRIMARY KEY,
     content_id              VARCHAR(100)  NOT NULL,
@@ -564,7 +559,7 @@ CREATE TABLE IF NOT EXISTS script_features (
     created_at              TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ── Script Intelligence: Script Outcomes (labels for ML) ───
+-- Script Intelligence: Script Outcomes (labels for ML)
 CREATE TABLE IF NOT EXISTS script_outcomes (
     id                      BIGSERIAL     PRIMARY KEY,
     content_id              VARCHAR(100)  UNIQUE NOT NULL,
@@ -592,7 +587,7 @@ CREATE TABLE IF NOT EXISTS script_outcomes (
     updated_at              TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ── Script Intelligence: Model Store ────────────────────────
+-- Script Intelligence: Model Store
 CREATE TABLE IF NOT EXISTS script_models (
     id                      BIGSERIAL     PRIMARY KEY,
     model_name              VARCHAR(100)  NOT NULL,
@@ -608,7 +603,7 @@ CREATE TABLE IF NOT EXISTS script_models (
     UNIQUE(model_name, niche, model_version)
 );
 
--- ── Script Intelligence: Bandit State ───────────────────────
+-- Script Intelligence: Bandit State
 CREATE TABLE IF NOT EXISTS script_bandit_state (
     id                      BIGSERIAL     PRIMARY KEY,
     niche                   VARCHAR(100)  NOT NULL,
@@ -623,7 +618,7 @@ CREATE TABLE IF NOT EXISTS script_bandit_state (
     UNIQUE(niche, bandit_type, arm_name)
 );
 
--- ── Script Intelligence Indexes ─────────────────────────────
+-- Script Intelligence Indexes
 CREATE INDEX IF NOT EXISTS idx_script_feat_content    ON script_features(content_id);
 CREATE INDEX IF NOT EXISTS idx_script_feat_channel    ON script_features(channel_id);
 CREATE INDEX IF NOT EXISTS idx_script_out_content     ON script_outcomes(content_id);
@@ -632,9 +627,7 @@ CREATE INDEX IF NOT EXISTS idx_script_out_success     ON script_outcomes(is_succ
 CREATE INDEX IF NOT EXISTS idx_script_models_active   ON script_models(model_name, niche) WHERE is_active = TRUE;
 CREATE INDEX IF NOT EXISTS idx_script_bandit_niche    ON script_bandit_state(niche, bandit_type);
 
--- ══════════════════════════════════════════════════════════
--- ── Brand Identity Intelligence ──────────────────────────
--- ══════════════════════════════════════════════════════════
+-- Brand Identity Intelligence
 
 CREATE TABLE IF NOT EXISTS brand_profiles (
     id                      BIGSERIAL     PRIMARY KEY,
@@ -693,9 +686,7 @@ CREATE TABLE IF NOT EXISTS brand_style_history (
     UNIQUE(channel_id, snapshot_date)
 );
 
--- ══════════════════════════════════════════════════════════
--- ── Voice Intelligence ───────────────────────────────────
--- ══════════════════════════════════════════════════════════
+-- Voice Intelligence
 
 CREATE TABLE IF NOT EXISTS voice_features (
     id                      BIGSERIAL     PRIMARY KEY,
@@ -750,9 +741,7 @@ CREATE TABLE IF NOT EXISTS voice_models (
     UNIQUE(model_name, niche, model_version)
 );
 
--- ══════════════════════════════════════════════════════════
--- ── Asset Intelligence ───────────────────────────────────
--- ══════════════════════════════════════════════════════════
+-- Asset Intelligence
 
 CREATE TABLE IF NOT EXISTS asset_library (
     id                      BIGSERIAL     PRIMARY KEY,
@@ -795,9 +784,7 @@ CREATE TABLE IF NOT EXISTS asset_search_log (
     created_at              TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ══════════════════════════════════════════════════════════
--- ── Thumbnail Intelligence ───────────────────────────────
--- ══════════════════════════════════════════════════════════
+-- Thumbnail Intelligence
 
 CREATE TABLE IF NOT EXISTS thumbnail_features (
     id                      BIGSERIAL     PRIMARY KEY,
@@ -838,9 +825,7 @@ CREATE TABLE IF NOT EXISTS thumbnail_outcomes (
     updated_at              TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ══════════════════════════════════════════════════════════
--- ── Direction Intelligence ───────────────────────────────
--- ══════════════════════════════════════════════════════════
+-- Direction Intelligence
 
 CREATE TABLE IF NOT EXISTS direction_features (
     id                      BIGSERIAL     PRIMARY KEY,
@@ -858,9 +843,7 @@ CREATE TABLE IF NOT EXISTS direction_features (
     created_at              TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ══════════════════════════════════════════════════════════
--- ── Editor / Post-Production Intelligence ────────────────
--- ══════════════════════════════════════════════════════════
+-- Editor / Post-Production Intelligence
 
 CREATE TABLE IF NOT EXISTS editor_sessions (
     id                      BIGSERIAL     PRIMARY KEY,
@@ -881,9 +864,7 @@ CREATE TABLE IF NOT EXISTS editor_sessions (
     created_at              TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ══════════════════════════════════════════════════════════
--- ── Assembly Intelligence ────────────────────────────────
--- ══════════════════════════════════════════════════════════
+-- Assembly Intelligence
 
 CREATE TABLE IF NOT EXISTS assembly_render_log (
     id                      BIGSERIAL     PRIMARY KEY,
@@ -907,9 +888,7 @@ CREATE TABLE IF NOT EXISTS assembly_render_log (
     created_at              TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ══════════════════════════════════════════════════════════
--- ── Delivery Intelligence ────────────────────────────────
--- ══════════════════════════════════════════════════════════
+-- Delivery Intelligence
 
 CREATE TABLE IF NOT EXISTS delivery_features (
     id                      BIGSERIAL     PRIMARY KEY,
@@ -936,9 +915,7 @@ CREATE TABLE IF NOT EXISTS delivery_features (
     updated_at              TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ══════════════════════════════════════════════════════════
--- ── Analytics Patterns (cross-service learning) ──────────
--- ══════════════════════════════════════════════════════════
+-- Analytics Patterns (cross-service learning)
 
 CREATE TABLE IF NOT EXISTS analytics_patterns (
     id                      BIGSERIAL     PRIMARY KEY,
@@ -954,9 +931,7 @@ CREATE TABLE IF NOT EXISTS analytics_patterns (
     UNIQUE(channel_id, pattern_type, pattern_key)
 );
 
--- ══════════════════════════════════════════════════════════
--- ── Intelligence Indexes ─────────────────────────────────
--- ══════════════════════════════════════════════════════════
+-- Intelligence Indexes
 
 CREATE INDEX IF NOT EXISTS idx_brand_profiles_channel   ON brand_profiles(channel_id);
 CREATE INDEX IF NOT EXISTS idx_brand_assets_channel     ON brand_assets(channel_id);
@@ -984,8 +959,7 @@ CREATE INDEX IF NOT EXISTS idx_assembly_render_content  ON assembly_render_log(c
 CREATE INDEX IF NOT EXISTS idx_delivery_feat_content    ON delivery_features(content_id);
 CREATE INDEX IF NOT EXISTS idx_analytics_patterns_ch    ON analytics_patterns(channel_id, pattern_type);
 
--- ── A/B Testing Framework ─────────────────────────────────
--- ══════════════════════════════════════════════════════════
+-- A/B Testing Framework
 
 CREATE TABLE IF NOT EXISTS experiments (
     id                      BIGSERIAL     PRIMARY KEY,
@@ -1026,8 +1000,7 @@ CREATE INDEX IF NOT EXISTS idx_exp_assign_exp         ON experiment_assignments(
 CREATE INDEX IF NOT EXISTS idx_exp_assign_content     ON experiment_assignments(content_id);
 CREATE INDEX IF NOT EXISTS idx_exp_outcome_exp        ON experiment_outcomes(experiment_name);
 
--- ── Intelligence Observability ────────────────────────────
--- ══════════════════════════════════════════════════════════
+-- Intelligence Observability
 
 CREATE TABLE IF NOT EXISTS intelligence_metrics (
     id                      BIGSERIAL     PRIMARY KEY,
@@ -1065,8 +1038,7 @@ CREATE INDEX IF NOT EXISTS idx_intel_metrics_service   ON intelligence_metrics(s
 CREATE INDEX IF NOT EXISTS idx_intel_metrics_time      ON intelligence_metrics(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_model_health_name       ON model_health(model_name, niche);
 
--- ── Dashboard: Job Events (per-step progress tracking) ──────
--- ══════════════════════════════════════════════════════════
+-- Dashboard: Job Events (per-step progress tracking)
 
 CREATE TABLE IF NOT EXISTS job_events (
     id              BIGSERIAL     PRIMARY KEY,
@@ -1085,14 +1057,12 @@ CREATE INDEX IF NOT EXISTS idx_job_events_content   ON job_events(content_id);
 CREATE INDEX IF NOT EXISTS idx_job_events_channel   ON job_events(channel_id);
 CREATE INDEX IF NOT EXISTS idx_job_events_created   ON job_events(created_at DESC);
 
--- ── pgvector Indexes (IVFFlat for ANN search) ─────────────
+-- pgvector Indexes (IVFFlat for ANN search)
 -- These require data to build; create with small nlist for initial use
 CREATE INDEX IF NOT EXISTS idx_topic_emb_vector        ON topic_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 10);
 CREATE INDEX IF NOT EXISTS idx_comp_video_emb_vector   ON competitor_videos USING ivfflat (title_embedding vector_cosine_ops) WITH (lists = 10);
 
--- ══════════════════════════════════════════════════════════
--- ── Phase 4: Quality gate + LLM router additions ─────────
--- ══════════════════════════════════════════════════════════
+-- Phase 4: Quality gate + LLM router additions
 
 -- Per-channel daily LLM cost cap. Router blocks all LLM calls for a channel
 -- once today's spend (UTC midnight rollover) reaches this value. NULL or 0
@@ -1122,7 +1092,7 @@ CREATE INDEX IF NOT EXISTS idx_qgd_channel   ON quality_gate_decisions(channel_i
 CREATE INDEX IF NOT EXISTS idx_qgd_decision  ON quality_gate_decisions(decision);
 
 
--- ── Phase 7: per-niche self-tuning gate thresholds ─────────────────
+-- Phase 7: per-niche self-tuning gate thresholds
 --
 -- The static PRODUCTION_THRESHOLDS dict in src/quality/gate.py is the
 -- floor. This table layers per-niche overrides on top so a calibrator
@@ -1156,7 +1126,7 @@ CREATE INDEX IF NOT EXISTS idx_gate_thresholds_niche
 CREATE INDEX IF NOT EXISTS idx_api_usage_channel_date ON api_usage(channel_id, date);
 
 
--- ── Phase 9: retention curves ────────────────────────────────────────
+-- Phase 9: retention curves
 --
 -- The Phase 7 calibrator currently labels each (sub_score, sample) with
 -- the noisy compound `performance_tier` (S/A/B/C/D). That works, but it
@@ -1202,7 +1172,7 @@ CREATE INDEX IF NOT EXISTS idx_retention_curves_yt
     ON retention_curves(yt_video_id);
 
 
--- ── Phase 10: bandit pick audit + diversity floor ────────────────────
+-- Phase 10: bandit pick audit + diversity floor
 --
 -- The Thompson-sampling bandits in research/script services maintain
 -- aggregated Beta(α, β) state in `bandit_state`, which is enough for
@@ -1237,7 +1207,7 @@ CREATE INDEX IF NOT EXISTS idx_bandit_picks_niche
     ON bandit_picks(niche, bandit_type, picked_at DESC);
 
 
--- ── Phase 11: prediction-error correction loop ───────────────────────
+-- Phase 11: prediction-error correction loop
 --
 -- The Phase 5 success predictor (`predict_success`) returns a probability
 -- and a confidence. After delivery the feedback ingestor learns the
@@ -1299,7 +1269,6 @@ CREATE INDEX IF NOT EXISTS idx_prediction_log_scored
     ON prediction_log(content_id, model_kind)
     WHERE actual_outcome IS NOT NULL;
 
--- ============================================================================
 -- Remotion Vision (P0.12) — scene-graph + agent telemetry tables.
 --
 -- These tables back the IR persistence and observability described in
@@ -1308,7 +1277,6 @@ CREATE INDEX IF NOT EXISTS idx_prediction_log_scored
 --
 -- All migrations are additive and idempotent. The `pgvector` extension is
 -- already declared earlier in this file.
--- ============================================================================
 
 -- Scene graphs — the canonical IR per render job. Keeping the full graph in
 -- a JSONB column means tools (analytics, debug, replay) can inspect it
@@ -1423,7 +1391,6 @@ CREATE TABLE IF NOT EXISTS retention_features (
 CREATE INDEX IF NOT EXISTS idx_retention_features_channel
     ON retention_features (channel_id, created_at DESC);
 
--- ============================================================================
 -- Phase 1E — Per-clip render cache for advanced editing features.
 -- Tracks the four content hashes that determine whether a clip needs to be
 -- re-rendered after a diff:
@@ -1434,7 +1401,6 @@ CREATE INDEX IF NOT EXISTS idx_retention_features_channel
 --
 -- One row per (scene_graph_hash, clip_id). Diff cache lookups in the renderer
 -- do an O(1) probe on these hashes before scheduling work.
--- ============================================================================
 CREATE TABLE IF NOT EXISTS clip_render_cache (
     id                BIGSERIAL    PRIMARY KEY,
     scene_graph_hash  CHAR(64)     NOT NULL,

@@ -22,7 +22,7 @@ import src.providers.boot  # noqa: F401
 from src.providers.registry import ProviderRegistry
 from src.providers.llm.base import LLMRequest
 
-# ── Research Intelligence Modules ────────────────────────────
+# Research Intelligence Modules
 from src.services.research.trend_collector import collect_trends
 from src.services.research.competitor_insights import collect_competitor_insights
 from src.services.research.similarity import (
@@ -44,7 +44,7 @@ from src.observability.metrics import instrument_app
 logger = structlog.get_logger()
 
 
-# ── Request Models ───────────────────────────────────────────
+# Request Models
 
 class ResearchRequest(BaseModel):
     channel_id: str
@@ -64,7 +64,7 @@ class IdeationRequest(BaseModel):
     research_data: dict = Field(default_factory=dict)
 
 
-# ── Helpers ──────────────────────────────────────────────────
+# Helpers
 
 def _safe_format(template: str, **kwargs) -> str:
     """Replace {key} placeholders without failing on unknown/literal braces."""
@@ -137,7 +137,7 @@ async def _load_prompt(prompt_id: str) -> dict:
     return dict(row) if row else {}
 
 
-# ── Multi-Source Research ────────────────────────────────────
+# Multi-Source Research
 
 async def _search_youtube(topic: str, niche: str) -> list[dict]:
     """Search YouTube Data API for trending/relevant videos."""
@@ -291,7 +291,7 @@ async def _search_wikipedia(topic: str) -> list[dict]:
         return []
 
 
-# ── Core Research Pipeline ───────────────────────────────────
+# Core Research Pipeline
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -321,7 +321,7 @@ async def research(req: ResearchRequest):
     total_cost = 0.0
 
     try:
-        # ── Load Channel DNA ─────────────────────────────
+        # Load Channel DNA
         channel = await _load_channel_dna(req.channel_id)
         if not channel:
             raise HTTPException(status_code=404, detail=f"Channel {req.channel_id} not found")
@@ -338,7 +338,7 @@ async def research(req: ResearchRequest):
             queries = [t.strip() for t in topic_domain.split(",")[:3]]
         primary_topic = queries[0] if queries else niche
 
-        # ── Step 1: Multi-source search (parallel) ───────
+        # Step 1: Multi-source search (parallel)
         import asyncio
         youtube_task = _search_youtube(primary_topic, niche)
         serpapi_task = _search_serpapi([f"{q} {niche}" for q in queries])
@@ -355,7 +355,7 @@ async def research(req: ResearchRequest):
                      youtube=len(youtube_results), serp=len(serp_results),
                      reddit=len(reddit_results), news=len(news_results), wiki=len(wiki_results))
 
-        # ── Step 2: LLM Research Synthesis (via router) ──────
+        # Step 2: LLM Research Synthesis (via router)
         # The router handles per-channel daily cost cap + provider-ladder
         # fallback (gemini → openai → claude). We keep the existing
         # _log_usage call below for richer service-label telemetry, so the
@@ -399,7 +399,7 @@ async def research(req: ResearchRequest):
                                  "title_candidates": [], "sources": [], "fact_claims": [],
                                  "trend_data": {}, "competitor_analysis": {}, "audience_pain_points": []}
 
-            # ── Quality Gate: research_depth_score >= 8.0 ──
+            # Quality Gate: research_depth_score >= 8.0
             depth_score = float(research_data.get("research_depth_score", 0))
             if depth_score >= 8.0:
                 logger.info("research.quality_gate_passed", score=depth_score, attempt=attempt)
@@ -413,7 +413,7 @@ async def research(req: ResearchRequest):
             else:
                 logger.warning("research.quality_gate_failed", score=depth_score)
 
-        # ── Step 3: Fact-Check Claims ────────────────────
+        # Step 3: Fact-Check Claims
         fact_claims = research_data.get("fact_claims", [])
         if fact_claims:
             fc_prompt = await _load_prompt("PRM_B1_FACT_CHECK")
@@ -463,7 +463,7 @@ async def research(req: ResearchRequest):
                 logger.warning("research.factcheck_json_failed")
                 research_data["fact_confidence_score"] = 5.0
 
-        # ── Step 4: Intelligence Layer (zero API cost) ──────
+        # Step 4: Intelligence Layer (zero API cost)
         selected_topic = research_data.get("selected_topic", primary_topic)
 
         # 4a. Collect trend signals (parallel)
@@ -649,7 +649,7 @@ async def research(req: ResearchRequest):
         except Exception:
             pass
 
-        # ── Duplicate hard gate ────────────────────────────
+        # Duplicate hard gate
         if research_data.get("similarity_check", {}).get("is_duplicate"):
             research_data["_warning"] = "HIGH_SIMILARITY_DETECTED"
             logger.warning("research.duplicate_detected",
@@ -678,7 +678,7 @@ async def research(req: ResearchRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-# ── Ideation Pipeline ────────────────────────────────────────
+# Ideation Pipeline
 
 @app.post("/ideate", response_model=ServiceResponse)
 async def ideate(req: IdeationRequest):
@@ -703,7 +703,7 @@ async def ideate(req: IdeationRequest):
         ]
         selected_belief = available_beliefs[0] if available_beliefs else (beliefs[0] if beliefs else None)
 
-        # ── Step 1: Generate 10 ideas ────────────────────
+        # Step 1: Generate 10 ideas
         prompt = await _load_prompt("PRM_B1_IDEATION")
         llm = ProviderRegistry.get("llm.ideation")
 
@@ -759,7 +759,7 @@ async def ideate(req: IdeationRequest):
 
             ideas = ideation_data.get("ideas", [])
 
-            # ── Step 2: Score ideas ──────────────────────
+            # Step 2: Score ideas
             for idea in ideas:
                 curiosity = float(idea.get("curiosity_score", 5))
                 novelty = float(idea.get("novelty_score", 5))
@@ -768,7 +768,7 @@ async def ideate(req: IdeationRequest):
                 composite = (curiosity * 0.3 + novelty * 0.3 + emotion * 0.4)
                 idea["composite_score"] = round(composite, 2)
 
-            # ── Step 3: Novelty check vs used topics ─────
+            # Step 3: Novelty check vs used topics
             for idea in ideas:
                 title_lower = idea.get("title", "").lower()
                 is_novel = not any(
@@ -781,7 +781,7 @@ async def ideate(req: IdeationRequest):
             novel_ideas = [i for i in ideas if i.get("is_novel", True)]
             novel_ideas.sort(key=lambda x: x.get("composite_score", 0), reverse=True)
 
-            # ── Quality Gate: top idea >= 7.5 ────────────
+            # Quality Gate: top idea >= 7.5
             top_score = novel_ideas[0].get("composite_score", 0) if novel_ideas else 0
             if top_score >= 7.5:
                 logger.info("ideation.quality_gate_passed", score=top_score, attempt=attempt, ideas=len(novel_ideas))
@@ -824,9 +824,7 @@ async def ideate(req: IdeationRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-# ═══════════════════════════════════════════════════════════
 # Intelligence API Endpoints
-# ═══════════════════════════════════════════════════════════
 
 
 class FeedbackRequest(BaseModel):
