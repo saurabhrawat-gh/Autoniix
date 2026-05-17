@@ -156,6 +156,13 @@ jobs:
           S3_BUCKET: autoniix
           S3_PUBLIC_BASE_URL: http://localhost:9000/autoniix
         run: |
+          # docker-compose.yml has 19 services with `env_file: .env`. Modern
+          # compose (>=2.32) hard-errors when ANY referenced env_file is
+          # missing on disk, even for services we're not starting. The e2e
+          # services use `${VAR:-default}` interpolation, not env_file, so
+          # an empty .env satisfies the validator without changing runtime.
+          touch .env
+
           # Wait only on services that expose a healthcheck. The
           # remotion-worker is a BullMQ consumer with no HTTP endpoint
           # and its healthcheck is intentionally disabled, so docker
