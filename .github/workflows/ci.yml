@@ -156,7 +156,12 @@ jobs:
           S3_BUCKET: autoniix
           S3_PUBLIC_BASE_URL: http://localhost:9000/autoniix
         run: |
-          docker compose up -d --wait minio minio-bootstrap remotion-api remotion-worker
+          # Wait only on services that expose a healthcheck. The
+          # remotion-worker is a BullMQ consumer with no HTTP endpoint
+          # and its healthcheck is intentionally disabled, so docker
+          # compose >=2.20 would fail --wait if it's included here.
+          docker compose up -d --wait minio minio-bootstrap remotion-api
+          docker compose up -d remotion-worker
           docker compose logs --tail=50 minio-bootstrap
 
       - uses: actions/setup-python@v5
