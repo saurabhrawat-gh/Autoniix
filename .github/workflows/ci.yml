@@ -189,6 +189,86 @@ jobs:
     needs: [python-lint-and-tests, remotion-typecheck, dependency-scan]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip deploy]')
     steps:
+      # Pre-flight check. The appleboy/ssh-action's failure modes
+      # ("ssh: no key found", "dial tcp ***:***: i/o timeout") are
+      # opaque — they don't tell you which secret is wrong. This step
+      # asserts each VPS_* secret is present and that VPS_SSH_KEY at
+      # least has a valid PEM envelope, then fails fast with a clear
+      # message if anything is off. Lengths are printed but contents
+      # never are; PEM headers/footers are constants, not secrets.
+      - name: Verify deploy secrets are configured
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+        run: |
+          fail=0
+          check_required () {
+            local name=$1 val=$2
+            if [ -z "$val" ]; then
+              echo "::error::$name secret is empty or unset"
+              fail=1
+            else
+              echo "ok   $name is set (${#val} chars)"
+            fi
+          }
+          check_optional () {
+            local name=$1 val=$2 default=$3
+            if [ -z "$val" ]; then
+              echo "info $name not set — workflow will use default '$default'"
+            else
+              echo "ok   $name is set (${#val} chars)"
+            fi
+          }
+
+          echo "── Required secrets ────────────────────────────────"
+          check_required VPS_HOST    "$VPS_HOST"
+          check_required VPS_USER    "$VPS_USER"
+          check_required VPS_SSH_KEY "$VPS_SSH_KEY"
+          echo "── Optional secrets ────────────────────────────────"
+          check_optional VPS_SSH_PORT "$VPS_SSH_PORT" "2222"
+
+          echo "── VPS_SSH_KEY format checks ───────────────────────"
+          if [ -n "$VPS_SSH_KEY" ]; then
+            first_line=$(printf '%s\n' "$VPS_SSH_KEY" | head -1)
+            last_line=$(printf '%s\n' "$VPS_SSH_KEY" | grep -E '^-----END' | tail -1)
+
+            if printf '%s' "$first_line" | grep -qE '^-----BEGIN (OPENSSH|RSA|EC|DSA|ENCRYPTED) PRIVATE KEY-----'; then
+              echo "ok   first line is a valid PEM BEGIN header"
+            else
+              echo "::error::VPS_SSH_KEY first line is NOT a PEM BEGIN header — you probably pasted the .pub file or stripped the header lines."
+              echo "         expected something like: -----BEGIN OPENSSH PRIVATE KEY-----"
+              fail=1
+            fi
+
+            if [ -n "$last_line" ]; then
+              echo "ok   PEM END footer found"
+            else
+              echo "::error::VPS_SSH_KEY has NO '-----END ... PRIVATE KEY-----' footer — newlines were probably stripped on paste."
+              fail=1
+            fi
+
+            if printf '%s' "$first_line" | grep -q 'ENCRYPTED'; then
+              echo "::error::VPS_SSH_KEY is passphrase-protected. Either re-export it without a passphrase, or add a VPS_SSH_PASSPHRASE secret + wire it into the workflow."
+              fail=1
+            fi
+
+            if printf '%s' "$VPS_SSH_KEY" | head -1 | grep -qE '^(ssh-rsa|ssh-ed25519|ecdsa-sha2)'; then
+              echo "::error::VPS_SSH_KEY looks like a PUBLIC key (id_*.pub). You need the matching PRIVATE key (no .pub extension)."
+              fail=1
+            fi
+          fi
+
+          if [ "$fail" -ne 0 ]; then
+            echo
+            echo "Deploy aborted. Fix the items marked ::error:: above, then re-run."
+            echo "Quickstart: see the 'Deploying to a VPS' section of the repo wiki, or"
+            echo "  gh secret set VPS_SSH_KEY --repo \$GITHUB_REPOSITORY < ~/.ssh/id_ed25519"
+            exit 1
+          fi
+          echo "all deploy secrets look valid"
+
       - name: Deploy to VPS via SSH
         id: deploy
         uses: appleboy/ssh-action@v1.0.3
