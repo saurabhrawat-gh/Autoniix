@@ -245,7 +245,41 @@ class MockLLM(LLMProvider):
             data = self._detect_and_mock(system_text, user_text)
             return json.dumps(data)
 
-        return "This is a mock response generated in test mode. The pipeline is working correctly but no real LLM was called."
+        return self._static_text_response(system_text, user_text)
+
+    def _static_text_response(self, system_text: str, user_text: str) -> str:
+        """Build a deterministic, topic-aware text response.
+
+        Prompt-eval cases that use ``response_format='text'`` typically
+        assert that the output references words from the user-supplied
+        topic (e.g. ``must_include_any: ['pasta', 'water']``). Echoing
+        the topic back inside a hook-style sentence keeps those specs
+        passing on the no-API-key code path without requiring real LLM
+        calls in CI.
+        """
+        import re as _re
+        topic_match = _re.search(r"topic[:\s]+([^.\n]+)", user_text, flags=_re.I)
+        if topic_match:
+            topic = topic_match.group(1).strip()
+        else:
+            # Fall back to the first non-trivial line of the user message.
+            topic = user_text.strip().splitlines()[0] if user_text.strip() else ""
+            topic = topic[:140]
+        topic = topic.rstrip(".").strip()
+        if not topic:
+            return (
+                "This is a mock response generated in test mode. "
+                "The pipeline is working correctly but no real LLM was called."
+            )
+        if "hook" in system_text:
+            return (
+                f"Most people don't realise {topic} — and that's costing "
+                f"them every single day."
+            )
+        return (
+            f"Here's the truth about {topic}: it changes everything once "
+            f"you actually understand it."
+        )
 
     def _detect_and_mock(self, system_text: str, user_text: str) -> dict:
         """Produce mock JSON matching the expected schema for each pipeline phase.

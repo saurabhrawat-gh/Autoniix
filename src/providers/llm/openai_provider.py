@@ -26,6 +26,17 @@ class OpenAILLM(LLMProvider):
             logger.warning("openai.no_api_key")
 
     async def complete(self, request: LLMRequest) -> LLMResult:
+        if not self.api_key:
+            # Fail fast with a clear, permanent error. Without this guard
+            # httpx raises "Illegal header value b'Bearer '" because the
+            # bearer string ends with a space, which is opaque and easy
+            # to misread as a transient network issue.
+            raise RuntimeError(
+                "openai provider has no api_key configured. Set "
+                "OPENAI_API_KEY or remove 'openai' from the provider "
+                "ladder for this category."
+            )
+
         model = request.model or self.default_model()
         start = time.monotonic()
 

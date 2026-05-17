@@ -17,6 +17,9 @@ venv/
 .vscode/
 .idea/
 
+# Local prompt-eval reports (timestamped JSON, runtime artefacts)
+prompt_eval_reports/
+
 # Claude Code personal preferences
 .claude/CLAUDE.local.md
 *.log

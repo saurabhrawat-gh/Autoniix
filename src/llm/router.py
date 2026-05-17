@@ -313,36 +313,55 @@ class Router:
         ladder: Iterable[str] | None = None,
         record_usage: bool = True,
     ) -> LLMResult:
+        # 0. Test-mode short-circuit. When ENVIRONMENT_MODE=test AND no
+        #    explicit ladder was passed, force mock_llm and skip every
+        #    DB-bound side effect (budget, content_mode lookup, DB chain,
+        #    usage rollup). Keeps CI evals deterministic, $0, and free
+        #    of network calls. Tests that pass an explicit ladder still
+        #    exercise the full path (budget, breaker, telemetry).
+        from src.environment import is_test
+        forced_mock = is_test() and ladder is None
+        if forced_mock:
+            ladder = ["mock_llm"]
+            record_usage = False
+
         # 1. Budget check (DB-authoritative).
-        cap = await _cap_for(channel_id)
-        if cap > 0:
-            spent = await _spent_today(channel_id)
-            if spent >= cap:
-                LLM_REQUESTS_TOTAL.labels(
-                    category=category, provider="-", outcome="budget"
-                ).inc()
-                logger.warning("router.budget_exceeded",
-                               channel_id=channel_id, spent=spent, cap=cap)
-                raise BudgetExceeded(channel_id, spent, cap)
+        if not forced_mock:
+            cap = await _cap_for(channel_id)
+            if cap > 0:
+                spent = await _spent_today(channel_id)
+                if spent >= cap:
+                    LLM_REQUESTS_TOTAL.labels(
+                        category=category, provider="-", outcome="budget"
+                    ).inc()
+                    logger.warning("router.budget_exceeded",
+                                   channel_id=channel_id, spent=spent, cap=cap)
+                    raise BudgetExceeded(channel_id, spent, cap)
 
         # 2. Resolve content_mode if the caller didn't pass it (cheap
         #    lookup; DB chain key includes mode so this matters).
-        if content_mode is None and content_id:
+        if not forced_mock and content_mode is None and content_id:
             content_mode = await _content_mode_for(content_id)
 
         # 3. Ladder. The DB chain (scope+mode aware) wins when configured;
         #    fall back to the env-driven ladder for back-compat.
-        db_pairs = await _db_chain_pairs(
-            category, channel_id=channel_id or None, content_mode=content_mode,
-        )
         if ladder:
             candidates: list[tuple[str, Any | None, str | None]] = [
                 (p, None, None) for p in ladder
             ]
-        elif db_pairs:
-            candidates = db_pairs
         else:
-            candidates = [(p, None, None) for p in _ladder_for(category)]
+            db_pairs = (
+                []
+                if forced_mock
+                else await _db_chain_pairs(
+                    category, channel_id=channel_id or None,
+                    content_mode=content_mode,
+                )
+            )
+            if db_pairs:
+                candidates = db_pairs
+            else:
+                candidates = [(p, None, None) for p in _ladder_for(category)]
 
         attempts: list[tuple[str, str]] = []
         for prov_name, db_member, pinned_model in candidates:
