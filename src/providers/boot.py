@@ -2,7 +2,22 @@
 
 Every service that uses ProviderRegistry should import this module once:
     import src.providers.boot  # noqa: F401
+
+Scripts that need an explicit call site can use ``boot_providers()``;
+the function is a no-op because the registration happens as a side
+effect of importing this module.
 """
+
+
+def boot_providers() -> None:
+    """Idempotent no-op. Provider registration happens at import time.
+
+    Kept for callers that prefer an explicit function call over a bare
+    module import (``scripts/run_prompt_eval.py``, ``curate_library.py``,
+    ``import_local_assets.py``).
+    """
+    return None
+
 
 # LLM Providers
 import src.providers.llm.openai_provider       # noqa: F401
