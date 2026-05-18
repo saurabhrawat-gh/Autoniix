@@ -197,10 +197,13 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip deploy]')
     steps:
       - name: Deploy
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           git config --global --add safe.directory /home/autoniix/autoniix
           cd /home/autoniix/autoniix
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/saurabhrawat-gh/Autoniix.git"
           git fetch --all --prune
           git reset --hard origin/main
           export RELEASE_SHA="${GITHUB_SHA:-$(git rev-parse HEAD)}"
