@@ -1,25 +1,15 @@
 /**
  * v2 API client.
  *
- * Authenticates with either the legacy session token (set by /api/auth/login)
- * or a v2 JWT (set by /api/v2/auth/login). The backend accepts both for v2
- * endpoints, so we just send whichever is present.
+ * v2 auth uses HttpOnly cookies (set by the backend on login/refresh).
+ * Cookies are sent automatically via credentials:'include'.
+ * Legacy single-password auth still uses localStorage dashboard_token.
  */
 const BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 function readToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('v2_access_token') || localStorage.getItem('dashboard_token');
-}
-
-export function setV2Tokens(access: string, refresh: string) {
-  localStorage.setItem('v2_access_token', access);
-  localStorage.setItem('v2_refresh_token', refresh);
-}
-
-export function clearV2Tokens() {
-  localStorage.removeItem('v2_access_token');
-  localStorage.removeItem('v2_refresh_token');
+  return localStorage.getItem('dashboard_token');
 }
 
 async function request<T = any>(path: string, opts: RequestInit = {}): Promise<T> {
@@ -30,9 +20,8 @@ async function request<T = any>(path: string, opts: RequestInit = {}): Promise<T
     ...((opts.headers as Record<string, string>) || {}),
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(`${BASE}${path}`, { ...opts, headers });
+  const res = await fetch(`${BASE}${path}`, { ...opts, headers, credentials: 'include' });
   if (res.status === 401) {
-    clearV2Tokens();
     if (typeof window !== 'undefined') window.location.href = '/login';
     throw new Error('Unauthorized');
   }
@@ -57,14 +46,14 @@ export const authApi = {
   register: (email: string, password: string, display_name?: string) =>
     request('/api/v2/auth/register', { method: 'POST', body: JSON.stringify({ email, password, display_name }) }),
   login: (email: string, password: string, mfa_code?: string) =>
-    request<{ access_token: string; refresh_token: string; user: any }>(
+    request<{ status: string; user: any }>(
       '/api/v2/auth/login',
       { method: 'POST', body: JSON.stringify({ email, password, mfa_code }) }
     ),
-  refresh: (refresh_token: string) =>
-    request<{ access_token: string }>('/api/v2/auth/refresh', { method: 'POST', body: JSON.stringify({ refresh_token }) }),
-  logout: (refresh_token: string) =>
-    request('/api/v2/auth/logout', { method: 'POST', body: JSON.stringify({ refresh_token }) }),
+  refresh: () =>
+    request<{ status: string }>('/api/v2/auth/refresh', { method: 'POST' }),
+  logout: () =>
+    request('/api/v2/auth/logout', { method: 'POST' }),
   me: () => request<{ data: { user_id: number | null; email: string | null; role: string; source: string } }>('/api/v2/auth/me'),
   forgot: (email: string) =>
     request<{ reset_token?: string }>('/api/v2/auth/forgot', { method: 'POST', body: JSON.stringify({ email }) }),
@@ -78,12 +67,12 @@ export const authApi = {
   listWorkspaces: () =>
     request<{ data: Array<{ id: number; name: string; slug: string; plan: string; role: string; active: boolean }> }>('/api/v2/auth/workspaces'),
   switchWorkspace: (workspace_id: number) =>
-    request<{ status: string; access_token: string; refresh_token: string; workspace_id: number; role: string }>(
+    request<{ status: string; workspace_id: number; role: string }>(
       '/api/v2/auth/switch-workspace',
       { method: 'POST', body: JSON.stringify({ workspace_id }) }
     ),
   acceptInvite: (token: string, password?: string, display_name?: string) =>
-    request<{ status: string; access_token: string; refresh_token: string; workspace_id: number; role: string }>(
+    request<{ status: string; workspace_id: number; role: string }>(
       '/api/v2/auth/accept-invite',
       { method: 'POST', body: JSON.stringify({ token, password, display_name }) }
     ),
@@ -475,6 +464,10 @@ export const usersApi = {
 export const workspaceApi = {
   get: () => request<{ data: any }>('/api/v2/workspace'),
   update: (body: any) => request('/api/v2/workspace', { method: 'PUT', body: JSON.stringify(body) }),
+  getIntegrations: () =>
+    request<{ data: { slack_webhook_url: string | null } }>('/api/v2/workspace/integrations'),
+  updateIntegrations: (body: { slack_webhook_url?: string | null }) =>
+    request('/api/v2/workspace/integrations', { method: 'PUT', body: JSON.stringify(body) }),
 };
 
 // Brands
@@ -553,11 +546,12 @@ export const jobsApi = {
   stop: (id: string) => request(`/api/v2/jobs/${encodeURIComponent(id)}/stop`, { method: 'POST' }),
 };
 
-// Session utilities (replaces api.ts)
-// Checks v2 JWT first, then falls back to the legacy session token.
+// Session utilities
 export function isLoggedIn(): boolean {
   if (typeof window === 'undefined') return false;
-  if (localStorage.getItem('v2_access_token')) return true;
+  // v2 JWT: check non-HttpOnly auth_status cookie set by the backend on login
+  if (document.cookie.split(';').some(c => c.trim() === 'auth_status=1')) return true;
+  // Legacy localStorage check
   const token = localStorage.getItem('dashboard_token');
   if (!token) return false;
   const expires = localStorage.getItem('dashboard_token_expires');

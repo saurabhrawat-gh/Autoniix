@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { authApi, setV2Tokens } from '@/lib/api-v2';
+import { authApi } from '@/lib/api-v2';
 import { ThemeToggle } from '@/lib/theme';
 import { Button, Input, Label, Card } from '@/lib/ui';
 
@@ -20,8 +20,7 @@ export default function RegisterPage() {
     setBusy(true); setErr(null);
     try {
       await authApi.register(email, password, name || undefined);
-      const r = await authApi.login(email, password);
-      setV2Tokens(r.access_token, r.refresh_token);
+      await authApi.login(email, password);
       router.push('/dashboard');
     } catch (e: any) {
       setErr(e?.message || 'Registration failed');

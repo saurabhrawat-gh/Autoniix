@@ -9,7 +9,7 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [stage, setStage] = useState<'request' | 'reset' | 'done'>('request');
+  const [stage, setStage] = useState<'request' | 'reset' | 'slack' | 'done'>('request');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -21,8 +21,10 @@ export default function ForgotPasswordPage() {
       const res = await authApi.forgot(email);
       if (res.reset_token) {
         setResetToken(res.reset_token);
+        setStage('reset');
+      } else {
+        setStage('slack');
       }
-      setStage('reset');
     } catch (err: any) {
       setError(err.message || 'Request failed');
     } finally {
@@ -51,7 +53,8 @@ export default function ForgotPasswordPage() {
           <div className="text-center space-y-1">
             <h1 className="text-xl font-semibold text-content-primary">Reset password</h1>
             <p className="text-content-tertiary text-sm">
-              {stage === 'request' && 'Enter your email to receive a reset token.'}
+              {stage === 'request' && 'Enter your email to receive a reset link.'}
+              {stage === 'slack' && 'Check your Slack DM for the reset link.'}
               {stage === 'reset' && 'Enter the reset token and your new password.'}
               {stage === 'done' && 'Password updated successfully.'}
             </p>
@@ -123,6 +126,12 @@ export default function ForgotPasswordPage() {
                 {loading ? 'Updating…' : 'Set new password'}
               </Button>
             </form>
+          )}
+
+          {stage === 'slack' && (
+            <Button asChild size="lg" className="w-full">
+              <Link href="/login">Back to login</Link>
+            </Button>
           )}
 
           {stage === 'done' && (

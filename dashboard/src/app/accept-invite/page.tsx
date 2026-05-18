@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { authApi, setV2Tokens } from '@/lib/api-v2';
+import { authApi } from '@/lib/api-v2';
 import { Button, Input, Label, Card } from '@/lib/ui';
 import { ShieldCheck, AlertCircle, CheckCircle2 } from '@/lib/components/Icon';
 
@@ -37,12 +37,11 @@ function AcceptInviteContent() {
     }
     setBusy(true);
     try {
-      const r = await authApi.acceptInvite(
+      await authApi.acceptInvite(
         token,
         needsAccount ? password : undefined,
         needsAccount && displayName ? displayName : undefined,
       );
-      setV2Tokens(r.access_token, r.refresh_token);
       setDone(true);
       setTimeout(() => router.push('/dashboard'), 1500);
     } catch (e: any) {
