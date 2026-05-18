@@ -12,17 +12,26 @@ Use this workflow to implement a feature from a GitHub Issue that has been BA-ap
    - Use `mcp0_list_issues` on `saurabhrawat-gh/Autoniix` with label `ready-for-dev`, sorted by `created` asc
    - Pick the oldest open issue
    - Read the full issue body: Summary, Use Cases, Acceptance Criteria, Impacted Files, DoD
+   - Note the issue type label: `feature` | `bug` | `hotfix` | `task` | `subtask`
+   - Note the linked test-case issue (from parent story's QA Test Cases section)
 
-2. **Label as in-dev**
-   - Remove `ready-for-dev` label, add `in-dev` label on the issue
+2. **Label as in-progress**
+   - Remove `ready-for-dev` label, add `in-progress` label on the issue
 
 3. **Pre-implementation audit**
    - Run `/pre-commit` workflow on all Impacted Files listed in the issue
    - Run `/safety-audit` if credentials, auth, or DB changes are involved
 
-4. **Create a feature branch**
+4. **Create a branch — name based on issue type**
+   | Issue Type | Branch prefix | Example |
+   |---|---|---|
+   | `feature` | `feat/` | `feat/issue-42-add-slack-webhook` |
+   | `bug` | `fix/` | `fix/issue-38-refresh-token-rotation` |
+   | `hotfix` | `hotfix/` | `hotfix/issue-55-prod-login-broken` |
+   | `task` / `subtask` | `chore/` | `chore/issue-20-5role-migration` |
+
    ```bash
-   git checkout -b feature/issue-{number}-{short-slug}
+   git checkout -b {prefix}/issue-{number}-{short-slug}
    ```
 
 5. **Implement in this order**
@@ -45,20 +54,27 @@ Use this workflow to implement a feature from a GitHub Issue that has been BA-ap
 8. **Run diff review**
    - Run `/diff-review` workflow — verify no unrelated changes, no style drift
 
-9. **Commit and push**
+9. **Commit and push — prefix based on issue type**
+   | Issue Type | Commit prefix |
+   |---|---|
+   | `feature` | `feat(#N):` |
+   | `bug` | `fix(#N):` |
+   | `hotfix` | `hotfix(#N):` |
+   | `task` / `subtask` | `chore(#N):` |
+
    ```bash
-   git add -A && git commit -m "feat(#{issue_number}): {short description}"
-   git push origin feature/issue-{number}-{short-slug}
+   git add -A && git commit -m "{prefix}: {short description}"
+   git push origin {branch-name}
    ```
 
 10. **Open a Pull Request**
-    - Title: `feat(#{issue_number}): {story title}`
-    - Body: `Closes #{issue_number}\n\n## Changes\n- ...\n\n## Testing\n- ...'`
+    - Title: `{prefix}: {story title}` (e.g. `fix(#38): session refresh token rotation`)
+    - Body: `Closes #{issue_number}\n\nTest plan: #{test_case_issue}\n\n## Changes\n- ...\n\n## Testing\n- ...'`
     - Label PR: `in-review`
 
 11. **Update issue labels**
-    - Remove `in-dev`, add `in-review`
-    - Post a comment: "PR opened: #{pr_number}"
+    - Remove `in-progress`, add `dev-done`
+    - Post a comment: "PR opened: #{pr_number}. Test cases in #{test_case_issue} — ready for QA."
 
 ## Rules
 - Never implement without reading the full issue (use cases + acceptance criteria)

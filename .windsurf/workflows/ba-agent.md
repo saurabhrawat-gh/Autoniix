@@ -43,16 +43,21 @@ Use this workflow at the START of every new feature request, before any code is 
 
 7. **Create GitHub Issues in saurabhrawat-gh/Autoniix**
    - One **Epic** issue (label: `epic`) — Goal, Business Value, Stories list, Out of Scope, DoD
-   - One **Story** issue per deliverable unit (label: `story`, `ready-for-dev`) — Summary, Personas, Use Cases, ACs, Impacted Files, DoD
+   - One **Story** issue per deliverable unit (label: `story`, `ready-for-qa`) — Summary, Personas, Use Cases, ACs, Impacted Files, DoD
    - Add **Task** issues (label: `task`) only if a story has complex sub-steps worth tracking separately
+   - Stories are labelled `ready-for-qa` (not `ready-for-dev`) — the QA agent handles the handoff
 
-8. **Label lifecycle**
-   ```
-   ba-approved → ready-for-dev → in-dev → in-review → done
-   ```
-   Stories start at `ready-for-dev` after user sign-off.
+8. **Hand off to QA agent**
+   After all issues are created, instruct the user:
+   > "Stories are ready. Run `/qa-agent` to generate test-case issues with full checkbox suites before dev picks them up."
 
-9. **Update PENDING.md if needed**
+9. **Label lifecycle**
+   ```
+   ba-approved → ready-for-qa → (qa-agent) → qa-approved + ready-for-dev → in-progress → dev-done → in-qa → qa-verified → ready-to-merge → in-prod → prod-verified → closed
+   ```
+   Stories start at `ready-for-qa`. QA agent promotes them to `ready-for-dev`.
+
+10. **Update PENDING.md if needed**
    If any part of this feature is intentionally deferred, add an entry to PENDING.md with a concrete trigger condition.
 
 ## Rules
