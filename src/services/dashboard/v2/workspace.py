@@ -48,10 +48,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import secrets
 from datetime import datetime, timedelta
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, EmailStr, Field
 
@@ -59,6 +61,24 @@ from src.db import get_pool
 from ._deps import Principal, audit, principal_dep, require_role
 
 router = APIRouter()
+
+# Plan member limits (None = unlimited)
+_PLAN_MEMBER_LIMITS: dict[str, int | None] = {
+    "starter":    3,
+    "growth":     10,
+    "scale":      None,
+    "enterprise": None,
+}
+
+
+async def _notify_slack(webhook_url: str, message: str) -> None:
+    """Best-effort Slack notification — never raises."""
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            await client.post(webhook_url, json={"text": message})
+    except Exception:
+        pass
+
 
 # Pydantic models
 
@@ -628,9 +648,24 @@ async def set_member_role(
     actor: Principal = Depends(require_role("owner", "admin")),
 ):
     pool = await get_pool()
-    VALID_ROLES = {"owner","admin","producer","editor","reviewer","analyst","viewer"}
+    VALID_ROLES = {"owner", "admin", "producer", "editor", "viewer"}
     if body.role not in VALID_ROLES:
         raise HTTPException(400, f"Invalid role. Must be one of: {', '.join(sorted(VALID_ROLES))}")
+    if body.role == "owner" and actor.role != "owner":
+        raise HTTPException(403, "Only an owner can assign the owner role")
+    # Prevent demoting the last owner
+    if body.role != "owner":
+        current = await pool.fetchval(
+            "SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
+            actor.workspace_id, user_id,
+        )
+        if current == "owner":
+            owner_count = await pool.fetchval(
+                "SELECT COUNT(*) FROM workspace_members WHERE workspace_id=$1 AND role='owner'",
+                actor.workspace_id,
+            )
+            if (owner_count or 0) <= 1:
+                raise HTTPException(400, "Cannot demote the last owner of a workspace")
     res = await pool.execute(
         "UPDATE workspace_members SET role=$1 WHERE workspace_id=$2 AND user_id=$3",
         body.role, actor.workspace_id, user_id,
@@ -662,7 +697,7 @@ async def remove_member(
 
 # Invitations
 
-VALID_INVITE_ROLES = {"admin", "producer", "editor", "reviewer", "analyst", "viewer"}
+VALID_INVITE_ROLES = {"admin", "producer", "editor", "viewer"}
 
 
 class InviteIn(BaseModel):
@@ -693,6 +728,28 @@ async def create_invite(
     if body.role not in VALID_INVITE_ROLES:
         raise HTTPException(400, f"Invalid role. Choose from: {', '.join(sorted(VALID_INVITE_ROLES))}")
     pool = await get_pool()
+    # Plan limit check
+    ws_row = await pool.fetchrow(
+        "SELECT plan FROM workspaces WHERE id=$1", actor.workspace_id
+    )
+    plan = (ws_row["plan"] if ws_row else "starter") or "starter"
+    limit = _PLAN_MEMBER_LIMITS.get(plan)  # None = unlimited
+    if limit is not None:
+        member_count = await pool.fetchval(
+            "SELECT COUNT(*) FROM workspace_members WHERE workspace_id=$1",
+            actor.workspace_id,
+        ) or 0
+        pending_count = await pool.fetchval(
+            "SELECT COUNT(*) FROM workspace_invitations WHERE workspace_id=$1 AND accepted_at IS NULL AND expires_at > NOW()",
+            actor.workspace_id,
+        ) or 0
+        if (member_count + pending_count) >= limit:
+            raise HTTPException(
+                402,
+                f"Plan limit reached: {plan!r} plan allows {limit} members "
+                f"({member_count} current + {pending_count} pending invites). "
+                "Upgrade your plan to invite more members.",
+            )
     # Check member doesn't already exist
     existing = await pool.fetchval(
         """SELECT wm.user_id FROM workspace_members wm
@@ -713,6 +770,21 @@ async def create_invite(
     )
     await audit(actor=actor, action="invite.create", target_type="workspace_invitation",
                 target_id=str(inv_id), after={"email": body.email, "role": body.role}, request=request)
+    # Slack DM notification (best-effort)
+    integration = await pool.fetchrow(
+        "SELECT slack_webhook_url FROM workspace_integrations WHERE workspace_id=$1",
+        actor.workspace_id,
+    )
+    if integration and integration["slack_webhook_url"]:
+        frontend_url = os.getenv("FRONTEND_URL", "")
+        invite_link = f"{frontend_url}/accept-invite?token={raw}" if frontend_url else f"/accept-invite?token={raw}"
+        await _notify_slack(
+            integration["slack_webhook_url"],
+            f":envelope: *Workspace invitation sent*\n"
+            f"• *To:* {body.email}\n"
+            f"• *Role:* {body.role}\n"
+            f"• *Link:* {invite_link}",
+        )
     return {"status": "ok", "id": inv_id, "token": raw,
             "invite_url": f"/accept-invite?token={raw}"}
 
@@ -732,6 +804,46 @@ async def revoke_invite(
         raise HTTPException(404, "Invitation not found or already accepted")
     await audit(actor=actor, action="invite.revoke", target_type="workspace_invitation",
                 target_id=str(invite_id), request=request)
+    return {"status": "ok"}
+
+
+# Workspace integrations (Slack webhook, etc.)
+
+class IntegrationPatch(BaseModel):
+    slack_webhook_url: str | None = None
+
+
+@router.get("/integrations")
+async def get_integrations(actor: Principal = Depends(require_role("owner", "admin"))):
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT slack_webhook_url FROM workspace_integrations WHERE workspace_id=$1",
+        actor.workspace_id,
+    )
+    return {"data": {
+        "slack_webhook_url": row["slack_webhook_url"] if row else None,
+    }}
+
+
+@router.put("/integrations")
+async def update_integrations(
+    body: IntegrationPatch,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "admin")),
+):
+    pool = await get_pool()
+    await pool.execute(
+        """INSERT INTO workspace_integrations (workspace_id, slack_webhook_url)
+           VALUES ($1, $2)
+           ON CONFLICT (workspace_id) DO UPDATE
+           SET slack_webhook_url=$2, updated_at=NOW()""",
+        actor.workspace_id, body.slack_webhook_url,
+    )
+    masked = (body.slack_webhook_url[:30] + "...") if body.slack_webhook_url else None
+    await audit(actor=actor, action="workspace.integrations.update",
+                target_type="workspace_integrations",
+                target_id=str(actor.workspace_id),
+                after={"slack_webhook_url": masked}, request=request)
     return {"status": "ok"}
 
 
