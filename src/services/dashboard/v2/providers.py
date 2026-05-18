@@ -28,16 +28,29 @@ import json
 import time
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from src.db import get_pool
 from src.providers.invalidation import publish_invalidate
 from src.providers.secrets import get_secret_at, put_secret_at
 
-from ._deps import Principal, audit, principal_dep, require_role
+from ._deps import Principal, audit, flag_enabled, principal_dep, require_role
 
 router = APIRouter()
+
+
+async def _require_cred_actor(p: Principal = Depends(principal_dep)) -> Principal:
+    """Owner always allowed; Admin allowed only when providers.admin_credentials.enabled is ON."""
+    if p.role == "owner":
+        return p
+    if p.role == "admin" and await flag_enabled("providers.admin_credentials.enabled"):
+        return p
+    raise HTTPException(
+        403,
+        "Owner role required. Admins can be granted access via the "
+        "'providers.admin_credentials.enabled' feature flag.",
+    )
 
 
 class CredentialIn(BaseModel):
@@ -48,6 +61,8 @@ class CredentialIn(BaseModel):
     secret_key: str = "api_key"
     model: str | None = None   # pinned model (validated against supported_models())
     extra_config: dict = Field(default_factory=dict)
+    channel_id: str | None = None    # NULL = workspace-level
+    content_mode: str | None = None  # NULL = all modes
 
 
 class CredentialPatch(BaseModel):
@@ -85,26 +100,32 @@ async def list_categories(_: Principal = Depends(principal_dep)):
 @router.get("/credentials")
 async def list_credentials(
     category: str | None = None,
+    channel_id: str | None = Query(None),
+    content_mode: str | None = Query(None),
     _: Principal = Depends(principal_dep),
 ):
     pool = await get_pool()
+    filters = []
+    args: list[Any] = []
     if category:
-        rows = await pool.fetch(
-            """SELECT id, category, provider_name, label, vault_path, extra_config,
-                      model, is_default_fallback,
-                      enabled, last_health_ok, last_health_at, last_latency_ms,
-                      rotated_at, created_at
-                 FROM provider_credentials WHERE category=$1 ORDER BY id""",
-            category,
-        )
-    else:
-        rows = await pool.fetch(
-            """SELECT id, category, provider_name, label, vault_path, extra_config,
-                      model, is_default_fallback,
-                      enabled, last_health_ok, last_health_at, last_latency_ms,
-                      rotated_at, created_at
-                 FROM provider_credentials ORDER BY category, id"""
-        )
+        args.append(category)
+        filters.append(f"category=${len(args)}")
+    if channel_id is not None:
+        args.append(channel_id)
+        filters.append(f"channel_id=${len(args)}")
+    if content_mode is not None:
+        args.append(content_mode)
+        filters.append(f"content_mode=${len(args)}")
+    where = f"WHERE {' AND '.join(filters)}" if filters else ""
+    rows = await pool.fetch(
+        f"""SELECT id, category, provider_name, label, vault_path, extra_config,
+                  model, is_default_fallback, channel_id, content_mode, scope_priority,
+                  enabled, last_health_ok, last_health_at, last_latency_ms,
+                  rotated_at, created_at
+             FROM provider_credentials {where}
+            ORDER BY category, scope_priority DESC, id""",
+        *args,
+    )
     return {"data": [dict(r) for r in rows]}
 
 
@@ -112,7 +133,7 @@ async def list_credentials(
 async def create_credential(
     body: CredentialIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(_require_cred_actor),
 ):
     pool = await get_pool()
     cat = await pool.fetchrow(
@@ -157,17 +178,26 @@ async def create_credential(
     except Exception as exc:
         raise HTTPException(500, f"Failed to store secret: {exc}")
 
+    scope_priority = 0
+    if body.channel_id and body.content_mode:
+        scope_priority = 20
+    elif body.channel_id:
+        scope_priority = 10
+
     cid = await pool.fetchval(
         """INSERT INTO provider_credentials
-            (category, provider_name, label, vault_path, extra_config, model, enabled, created_by)
-           VALUES ($1,$2,$3,$4,$5::jsonb,$6,TRUE,$7) RETURNING id""",
+            (category, provider_name, label, vault_path, extra_config, model,
+             channel_id, content_mode, scope_priority, enabled, created_by)
+           VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,TRUE,$10) RETURNING id""",
         body.category, body.provider_name, body.label, path,
-        json.dumps(body.extra_config), body.model, actor.user_id,
+        json.dumps(body.extra_config), body.model,
+        body.channel_id, body.content_mode, scope_priority, actor.user_id,
     )
     await audit(actor=actor, action="provider.credential.create",
                 target_type="provider_credential", target_id=str(cid),
                 after={"category": body.category, "provider": body.provider_name,
                        "label": body.label, "model": body.model,
+                       "channel_id": body.channel_id, "content_mode": body.content_mode,
                        "backend": backend_used},
                 request=request)
     await publish_invalidate(category=body.category)
@@ -179,7 +209,7 @@ async def update_credential(
     credential_id: int,
     body: CredentialPatch,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(_require_cred_actor),
 ):
     pool = await get_pool()
     updates = body.model_dump(exclude_unset=True)
@@ -223,7 +253,7 @@ async def update_credential(
 async def delete_credential(
     credential_id: int,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(_require_cred_actor),
 ):
     pool = await get_pool()
     cat_row = await pool.fetchrow(
@@ -307,11 +337,13 @@ async def rotate_credential(
     credential_id: int,
     body: RotateIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(_require_cred_actor),
 ):
+    if not await flag_enabled("providers.credentials.rotate.enabled"):
+        raise HTTPException(403, "Credential rotation is disabled")
     pool = await get_pool()
     row = await pool.fetchrow(
-        "SELECT vault_path FROM provider_credentials WHERE id=$1", credential_id
+        "SELECT id, vault_path, category, provider_name, label FROM provider_credentials WHERE id=$1", credential_id
     )
     if not row:
         raise HTTPException(404, "Credential not found")
