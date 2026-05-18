@@ -2,6 +2,7 @@ name: autoniix
 
 networks:
   autoniix-net:
+    name: autoniix-net    # disable compose's project-name prefix so Traefik label "autoniix-net" matches
     driver: bridge
 
 volumes:
