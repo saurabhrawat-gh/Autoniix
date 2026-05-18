@@ -23,40 +23,57 @@ Use this workflow for any infrastructure, deployment, or operations task. Invoke
 | Incident | Diagnose → restart → escalate or rollback | `run_command` + Hostinger MCP |
 | Deployment | Pre-deploy gate, build validation, smoke test, rollback | `run_command` + GitHub MCP |
 
-**Limits (SSH access not available):**
-- Production deploy commands are prepared and must be run manually on the VPS
-- Grafana/Prometheus UIs are not directly accessible — agent configures their YAML files
+**How deploys actually happen:**
+- Production deploys are **fully automated** via a self-hosted GitHub Actions runner on the VPS. Merging a PR to `main` triggers `deploy` in `ci.yml`, which `git reset --hard origin/main` + `docker compose --profile tls up -d --build` on the VPS.
+- The agent **never** runs `ssh` for routine deploys — it merges the PR via GitHub MCP and watches the Actions run.
+- SSH to the VPS is only used during `incident` / `rollback` triage when the runner itself is broken.
+- Grafana/Prometheus UIs are not directly accessible — agent configures their YAML files.
 
 ---
 
 ## Task: `deploy`
 
-Use after `ready-to-merge` label is set on a GitHub issue.
+**Pipeline reality (do not bypass):** A self-hosted GitHub Actions runner lives on the VPS. The `deploy` job in `.github/workflows/ci.yml` fires automatically on every `push` to `main` (gated by `github.event_name == 'push' && github.ref == 'refs/heads/main'`). PRs do **not** trigger deploy — this is by design.
+
+Therefore the deploy task is **not "SSH and pull"** — it is **"merge the PR and verify the auto-deploy"**.
+
+Use this task after the user signals `ready-to-merge` (or after the develop→main PR has all green CI checks and user approval).
 
 ```
-1. Run pre-deploy checks:
-   make deploy-check
-   # Checks: no CHANGE_ME values, required env vars set, pending migrations, unit tests pass
+1. Pre-merge gate — verify the open develop→main PR is mergeable:
+   a. List open PRs targeting main:
+      mcp0_list_pull_requests(owner=..., repo=..., state=open, base=main)
+   b. For each PR, fetch status:
+      mcp0_get_pull_request_status(... pull_number=N)
+   c. Confirm ALL required checks are green:
+        - Python — lint + unit tests
+        - Remotion — typecheck
+        - Dashboard — typecheck + UI token lint
+        - Security — pip-audit + SBOM
+        - E2E — render smoke
+      The `Deploy — VPS (main push only)` job MUST be skipped (this is expected — it only runs after merge).
+   d. If any check failed, STOP. Report which check, link to logs, recommend fix.
 
-2. Validate docker-compose syntax:
-   docker compose config --quiet
+2. Merge the PR (squash or merge per repo convention):
+   mcp0_merge_pull_request(owner=..., repo=..., pull_number=N, merge_method='merge')
 
-3. Check latest GitHub Actions run status (mcp0_list_commits + CI check)
+3. Watch the post-merge deploy run:
+   a. Poll mcp0_list_commits(sha='main') for the merge commit SHA.
+   b. Open the Actions run for that SHA in the browser (or report the URL):
+      https://github.com/{owner}/{repo}/actions
+   c. Wait until the `Deploy — VPS (main push only)` job either succeeds or fails.
 
-4. Output copy-pasteable prod deploy commands:
-   ssh -p 2222 -i ~/.ssh/id_ed25519_autoniix autoniix@187.127.155.126
-   cd ~/autoniix && git pull origin main
-   docker compose --profile tls up -d --build
-   docker compose ps
+4. Post-deploy verification (the workflow already runs `Post-deploy smoke`, but double-check):
+   a. curl -sf https://api.autoniix.com/health | jq .
+   b. curl -sf https://dash.autoniix.com | grep -q "Autoniix"
+   c. Optional: SSH to VPS only if smoke fails, to inspect logs.
 
-5. After user confirms deploy is done:
-   a. Run smoke tests against prod URLs:
-      curl -sf https://api.autoniix.com/health | jq .
-      curl -sf https://dash.autoniix.com | grep -q "Autoniix"
-   b. Check all containers are healthy:
-      docker compose ps --format json | jq '.[] | select(.Health != "healthy")'
+5. On deploy failure:
+   - Read the Actions run logs (mcp0 has no direct log-fetch — surface the URL).
+   - If a transient infra issue, re-run the job via the Actions UI.
+   - If a code issue, run the `rollback` task (see below) and open a hotfix issue.
 
-6. Update GitHub issue labels:
+6. Update GitHub issue labels for every issue in the merged delta:
    Remove: ready-to-merge
    Add: in-prod
    Comment: "Deployed to production. Smoke tests passed."
