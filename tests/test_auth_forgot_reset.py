@@ -1,11 +1,19 @@
 """Unit tests for forgot-password / reset-password flow (Story #18).
 
-Covers test plan #33 (TC-18-*). Verifies:
-- Slack webhook delivery with correct link + 1h TTL
-- No email enumeration (registered vs unregistered identical responses)
-- Token never exposed in HTTP response when ENVIRONMENT_MODE=production
+Covers test plan #33 (TC-18-*). After the 2026-05-18 requirement change,
+the reset link is delivered by **email** (SMTP) rather than Slack DM.
+Tests mock ``src.services.dashboard.v2._email.send_email`` so no real
+mail server is ever contacted.
+
+Verified behaviours:
+- Email delivered to the user's registered address with the correct link
+  + 1-hour TTL message
+- No email enumeration (registered vs unregistered identical 200 OK)
+- Token never exposed in HTTP response when SMTP is configured
+- Token IS exposed in response in dev/test mode when SMTP is unconfigured
+  (so local flows can complete without a real mail server)
 - Reset honors used_at + expires_at; all user sessions revoked on success
-- FRONTEND_URL env propagates into the Slack link
+- FRONTEND_URL env propagates into the email link
 """
 from __future__ import annotations
 
@@ -19,6 +27,7 @@ from fastapi import HTTPException
 from tests.conftest import FakePool, FakeRecord
 
 _AUTH_MODULE = "src.services.dashboard.v2.auth"
+_EMAIL_MODULE = "src.services.dashboard.v2._email"
 
 
 def _pool_ctx(pool):
@@ -26,18 +35,13 @@ def _pool_ctx(pool):
     return patch(f"{_AUTH_MODULE}.get_pool", new_callable=AsyncMock, return_value=pool)
 
 
-def _httpx_ctx(post_mock: AsyncMock):
-    """Patch httpx.AsyncClient so the test can observe Slack POSTs without
-    network access. The auth module does `import httpx` inside the function
-    body, so we patch the package symbol."""
-    fake_client = MagicMock()
-    fake_client.post = post_mock
-    fake_client.__aenter__ = AsyncMock(return_value=fake_client)
-    fake_client.__aexit__ = AsyncMock(return_value=None)
-
-    fake_httpx = MagicMock()
-    fake_httpx.AsyncClient = MagicMock(return_value=fake_client)
-    return patch.dict("sys.modules", {"httpx": fake_httpx})
+def _email_ctx(send_mock: AsyncMock, *, configured: bool = True):
+    """Patch send_email + is_configured on the _email module so auth.py's
+    ``from ._email import send_email, is_configured`` picks them up."""
+    return [
+        patch(f"{_EMAIL_MODULE}.send_email", new=send_mock),
+        patch(f"{_EMAIL_MODULE}.is_configured", new=MagicMock(return_value=configured)),
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -46,116 +50,126 @@ def _httpx_ctx(post_mock: AsyncMock):
 
 class TestForgot:
     @pytest.mark.asyncio
-    async def test_forgot_known_email_sends_slack_and_returns_token_in_test_mode(self):
-        """TC-18-01 + TC-18-05: known email -> Slack POST + token in body (test mode)."""
+    async def test_forgot_known_email_sends_message_with_correct_link_and_no_token_in_body(self):
+        """TC-18-01 + TC-18-11 + TC-18-16: SMTP configured -> email send invoked
+        with the right To/Subject/link; response is 200 ok with NO token."""
         from src.services.dashboard.v2.auth import forgot, ForgotIn
 
         pool = FakePool()
         pool.fetchrow.return_value = FakeRecord(id=42)
-        post = AsyncMock()
+        send = AsyncMock(return_value=True)
 
         env = {
-            "SLACK_WEBHOOK_URL": "https://hooks.slack.com/services/T0/B0/XYZ",
             "FRONTEND_URL": "https://dash.autoniix.com",
             "ENVIRONMENT_MODE": "test",
         }
-        with _pool_ctx(pool), _httpx_ctx(post), patch.dict(os.environ, env, clear=False):
+        e1, e2 = _email_ctx(send, configured=True)
+        with _pool_ctx(pool), e1, e2, patch.dict(os.environ, env, clear=False):
             res = await forgot(ForgotIn(email="alice@example.com"))
 
-        assert res["status"] == "ok"
-        # TC-18-13 inverse: in test mode the token IS returned for testability
-        assert "reset_token" in res and len(res["reset_token"]) > 20
-        # TC-18-14: SQL uses 1 hour TTL
+        # Token is NOT exposed once SMTP is configured, even in test mode.
+        assert res == {"status": "ok"}
+        send.assert_awaited_once()
+        kwargs = send.await_args.kwargs
+        assert kwargs["to"] == "alice@example.com"
+        assert "Reset your Autoniix password" in kwargs["subject"]
+        assert "https://dash.autoniix.com/reset-password?token=" in kwargs["html"]
+        assert "https://dash.autoniix.com/reset-password?token=" in kwargs["text"]
+        assert "expires in 1 hour" in kwargs["text"]
+        # TC-18-18: SQL uses 1 hour TTL
         insert_sql = pool.execute.await_args.args[0]
         assert "1 hour" in insert_sql.lower()
-        # TC-18-11: Slack POST hit our webhook with the FRONTEND_URL link
-        post.assert_awaited_once()
-        webhook_arg, = post.await_args.args
-        assert webhook_arg == env["SLACK_WEBHOOK_URL"]
-        payload = post.await_args.kwargs["json"]
-        assert "https://dash.autoniix.com/reset-password?token=" in payload["text"]
-        assert "expires in 1 hour" in payload["text"]
 
     @pytest.mark.asyncio
-    async def test_forgot_unknown_email_returns_ok_without_slack_post(self):
-        """TC-18-05 + TC-18-15: unknown email -> 200 ok, NO Slack POST, NO DB write."""
+    async def test_forgot_unknown_email_returns_ok_without_email_or_db_write(self):
+        """TC-18-05 + TC-18-19: unknown email -> 200 ok, NO email send, NO DB row."""
         from src.services.dashboard.v2.auth import forgot, ForgotIn
 
         pool = FakePool()
-        pool.fetchrow.return_value = None  # user not found
-        post = AsyncMock()
+        pool.fetchrow.return_value = None
+        send = AsyncMock(return_value=True)
 
-        env = {"SLACK_WEBHOOK_URL": "https://hooks.slack.com/services/T0/B0/XYZ"}
-        with _pool_ctx(pool), _httpx_ctx(post), patch.dict(os.environ, env, clear=False):
+        e1, e2 = _email_ctx(send, configured=True)
+        with _pool_ctx(pool), e1, e2:
             res = await forgot(ForgotIn(email="nobody@example.com"))
 
         # Identical surface to known-email response (no enumeration)
         assert res == {"status": "ok"}
-        post.assert_not_awaited()
+        send.assert_not_awaited()
         pool.execute.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_forgot_in_production_does_not_return_token(self):
-        """TC-18-13: production mode never exposes the token in HTTP response."""
+    async def test_forgot_in_production_without_smtp_does_not_return_token(self):
+        """TC-18-15: production + SMTP missing -> still no token leak in body."""
         from src.services.dashboard.v2.auth import forgot, ForgotIn
 
         pool = FakePool()
         pool.fetchrow.return_value = FakeRecord(id=7)
-        post = AsyncMock()
+        send = AsyncMock(return_value=False)  # send_email returns False when unconfigured
 
-        env = {
-            "SLACK_WEBHOOK_URL": "https://hooks.slack.com/services/T0/B0/XYZ",
-            "ENVIRONMENT_MODE": "production",
-        }
-        with _pool_ctx(pool), _httpx_ctx(post), patch.dict(os.environ, env, clear=False):
+        env = {"ENVIRONMENT_MODE": "production"}
+        e1, e2 = _email_ctx(send, configured=False)
+        with _pool_ctx(pool), e1, e2, patch.dict(os.environ, env, clear=False):
             res = await forgot(ForgotIn(email="bob@example.com"))
 
         assert res == {"status": "ok"}
         assert "reset_token" not in res
-        post.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_forgot_without_slack_webhook_still_succeeds(self):
-        """AC: graceful fallback when SLACK_WEBHOOK_URL is unset."""
+    async def test_forgot_dev_mode_without_smtp_returns_token_for_testability(self):
+        """TC-18-14 + UC-FP-05: dev mode + SMTP missing -> token in body so local
+        flows are testable without a real mail server."""
         from src.services.dashboard.v2.auth import forgot, ForgotIn
 
         pool = FakePool()
         pool.fetchrow.return_value = FakeRecord(id=1)
-        post = AsyncMock()
+        send = AsyncMock(return_value=False)
 
-        env_keys_to_clear = {"SLACK_WEBHOOK_URL": ""}
-        with _pool_ctx(pool), _httpx_ctx(post), \
-             patch.dict(os.environ, env_keys_to_clear, clear=False):
-            # Force unset (patch.dict with empty string doesn't unset; pop instead)
-            saved = os.environ.pop("SLACK_WEBHOOK_URL", None)
-            try:
-                res = await forgot(ForgotIn(email="carol@example.com"))
-            finally:
-                if saved is not None:
-                    os.environ["SLACK_WEBHOOK_URL"] = saved
+        env = {"ENVIRONMENT_MODE": "test"}
+        e1, e2 = _email_ctx(send, configured=False)
+        with _pool_ctx(pool), e1, e2, patch.dict(os.environ, env, clear=False):
+            res = await forgot(ForgotIn(email="carol@example.com"))
 
         assert res["status"] == "ok"
-        post.assert_not_awaited()  # no webhook -> no POST attempt
+        assert "reset_token" in res and len(res["reset_token"]) > 20
 
     @pytest.mark.asyncio
-    async def test_forgot_slack_post_failure_does_not_break_endpoint(self):
-        """AC: Slack delivery failure must NOT bubble up; user still sees 200 ok."""
+    async def test_forgot_smtp_send_failure_does_not_break_endpoint(self):
+        """TC-18-13: best-effort delivery — send_email failure does NOT bubble up;
+        user still sees 200 ok with no error."""
         from src.services.dashboard.v2.auth import forgot, ForgotIn
 
         pool = FakePool()
         pool.fetchrow.return_value = FakeRecord(id=99)
-        post = AsyncMock(side_effect=RuntimeError("Slack down"))
+        # send_email itself swallows exceptions and returns False; simulate that.
+        send = AsyncMock(return_value=False)
 
-        env = {"SLACK_WEBHOOK_URL": "https://hooks.slack.com/services/T0/B0/XYZ"}
-        with _pool_ctx(pool), _httpx_ctx(post), patch.dict(os.environ, env, clear=False):
+        e1, e2 = _email_ctx(send, configured=True)
+        with _pool_ctx(pool), e1, e2:
             res = await forgot(ForgotIn(email="dave@example.com"))
 
-        assert res["status"] == "ok"
-        post.assert_awaited_once()  # we did try
+        assert res == {"status": "ok"}
+        send.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_forgot_email_subject_prefix_applied(self):
+        """MAIL_SUBJECT_PREFIX env prepends to the subject line."""
+        from src.services.dashboard.v2.auth import forgot, ForgotIn
+
+        pool = FakePool()
+        pool.fetchrow.return_value = FakeRecord(id=2)
+        send = AsyncMock(return_value=True)
+
+        env = {"MAIL_SUBJECT_PREFIX": "[Staging]"}
+        e1, e2 = _email_ctx(send, configured=True)
+        with _pool_ctx(pool), e1, e2, patch.dict(os.environ, env, clear=False):
+            await forgot(ForgotIn(email="ed@example.com"))
+
+        assert send.await_args.kwargs["subject"].startswith("[Staging] Reset your Autoniix password")
 
 
 # ---------------------------------------------------------------------------
-# /reset — UC-FP-03, UC-FP-04
+# /reset — UC-FP-03, UC-FP-04 (unchanged by the email-delivery requirement)
 # ---------------------------------------------------------------------------
 
 class TestReset:
@@ -172,9 +186,6 @@ class TestReset:
             used_at=None,
         )
 
-        # The endpoint enters `async with pool.acquire() as conn: async with conn.transaction():`
-        # so we need acquire() to return an async context manager wrapping a conn that
-        # also exposes transaction() as an async context manager. Build that here.
         conn = MagicMock()
         conn.execute = AsyncMock(return_value="UPDATE 1")
         tx = MagicMock()
@@ -194,8 +205,7 @@ class TestReset:
         assert conn.execute.await_count == 3
         sqls = [call.args[0] for call in conn.execute.await_args_list]
         assert any("UPDATE users SET password_hash" in s for s in sqls)
-        assert any("password_resets SET used_at" in s.lower().replace("  ", " ") for s in sqls) \
-               or any("UPDATE password_resets" in s for s in sqls)
+        assert any("UPDATE password_resets" in s for s in sqls)
         assert any("UPDATE sessions SET revoked_at" in s for s in sqls)
 
     @pytest.mark.asyncio
@@ -256,3 +266,28 @@ class TestReset:
 
         with pytest.raises(ValidationError):
             ResetIn(token="anytoken", password="short")
+
+
+# ---------------------------------------------------------------------------
+# _email helper itself
+# ---------------------------------------------------------------------------
+
+class TestEmailHelper:
+    def test_is_configured_false_when_smtp_host_unset(self, monkeypatch):
+        from src.services.dashboard.v2 import _email
+        monkeypatch.delenv("SMTP_HOST", raising=False)
+        assert _email.is_configured() is False
+
+    def test_is_configured_true_when_smtp_host_set(self, monkeypatch):
+        from src.services.dashboard.v2 import _email
+        monkeypatch.setenv("SMTP_HOST", "smtp.example.com")
+        assert _email.is_configured() is True
+
+    @pytest.mark.asyncio
+    async def test_send_email_short_circuits_when_unconfigured(self, monkeypatch):
+        from src.services.dashboard.v2 import _email
+        monkeypatch.delenv("SMTP_HOST", raising=False)
+        ok = await _email.send_email(
+            to="x@example.com", subject="s", html="<p>h</p>", text="t"
+        )
+        assert ok is False
