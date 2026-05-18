@@ -1,0 +1,56 @@
+# Caddyfile — Autoniix reverse proxy + auto-HTTPS
+#
+# Caddy runs as a host systemd service (NOT in docker), terminating TLS
+# on 80/443 and proxying to the docker containers' published ports on
+# localhost. Replaces Traefik (see git history for why).
+#
+# Deploy: copy this file to /etc/caddy/Caddyfile on the VPS, then:
+#   sudo systemctl reload caddy
+#
+# Auto-HTTPS: Caddy provisions Let's Encrypt certs automatically the first
+# time each domain is hit. No ACME config required.
+
+{
+    email admin@autoniix.com
+}
+
+# Dashboard UI
+dash.autoniix.com {
+    reverse_proxy localhost:3000
+    encode gzip zstd
+}
+
+# Dashboard API (BFF)
+api.autoniix.com {
+    reverse_proxy localhost:8020
+    encode gzip zstd
+}
+
+# Grafana
+grafana.autoniix.com {
+    reverse_proxy localhost:3001
+    encode gzip zstd
+}
+
+# Prometheus (basic auth recommended at app level)
+prometheus.autoniix.com {
+    reverse_proxy localhost:9090
+    encode gzip zstd
+}
+
+# Alertmanager
+alerts.autoniix.com {
+    reverse_proxy localhost:9093
+    encode gzip zstd
+}
+
+# Temporal UI
+temporal.autoniix.com {
+    reverse_proxy localhost:8080
+    encode gzip zstd
+}
+
+# Root domain — redirect to dashboard
+autoniix.com, www.autoniix.com {
+    redir https://dash.autoniix.com{uri} permanent
+}

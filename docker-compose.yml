@@ -763,7 +763,7 @@ services:
   # makes the daemon happy without needing to touch Traefik or Docker.
   socket-proxy:
     image: nginx:1.27-alpine
-    profiles: ["tls"]
+    profiles: ["disabled-replaced-by-caddy"]
     command: ["nginx", "-g", "daemon off;"]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -781,7 +781,7 @@ services:
   # Local dev: skip this, use http://localhost:3000 + http://localhost:8020
   traefik:
     image: traefik:v3.3
-    profiles: ["tls"]
+    profiles: ["disabled-replaced-by-caddy"]
     command:
       - "--configFile=/traefik/traefik.yml"
     ports:
