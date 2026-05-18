@@ -771,6 +771,8 @@ services:
     environment:
       - ACME_EMAIL=${ACME_EMAIL:-admin@yourdomain.com}
       - DOMAIN=${DOMAIN:-localhost}
+      # Force compatible Docker API version (Hostinger VPS daemon enforces min 1.40)
+      - DOCKER_API_VERSION=1.41
     labels:
       # Defines the admin-auth middleware referenced by grafana/prometheus/
       # alertmanager/temporal-ui routers. TRAEFIK_BASIC_AUTH must be set in
