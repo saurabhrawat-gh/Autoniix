@@ -49,12 +49,20 @@ async def principal_dep(
     """Resolve a Principal from either legacy session or v2 JWT.
 
     Order:
-      1. v2 JWT (looks like a JWT — starts with ``ey`` and has 2 dots).
-      2. Legacy in-memory session map from ``main._sessions`` (backwards-compat).
+      1. Authorization: Bearer header (v2 JWT or legacy session token).
+      2. HttpOnly ``access_token`` cookie (set by v2 login/refresh).
+      3. Legacy in-memory session map from ``main._sessions`` (backwards-compat).
     """
-    if creds is None:
-        raise HTTPException(status_code=401, detail="Missing authorization header")
-    token = creds.credentials
+    token: str | None = None
+
+    if creds is not None:
+        token = creds.credentials
+
+    if not token:
+        token = request.cookies.get("access_token")
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
 
     if token.count(".") == 2 and token.startswith("ey"):
         claims = _decode_jwt(token)

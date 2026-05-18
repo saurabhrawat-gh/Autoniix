@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { authApi, setV2Tokens, legacyLogin } from '@/lib/api-v2';
+import { authApi, legacyLogin } from '@/lib/api-v2';
 import { ThemeToggle } from '@/lib/theme';
 import { Button, Input, Label, Card } from '@/lib/ui';
 
@@ -48,12 +48,10 @@ export default function LoginPage() {
     setError('');
     try {
       if (step === 'credentials') {
-        const res = await authApi.login(email, password);
-        setV2Tokens(res.access_token, res.refresh_token);
+        await authApi.login(email, password);
         router.push('/dashboard');
       } else {
-        const res = await authApi.login(email, password, mfaCode);
-        setV2Tokens(res.access_token, res.refresh_token);
+        await authApi.login(email, password, mfaCode);
         router.push('/dashboard');
       }
     } catch (err: any) {

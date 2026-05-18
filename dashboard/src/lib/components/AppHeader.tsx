@@ -40,7 +40,7 @@ import {
   Check,
 } from './Icon';
 import { clearToken } from '../api';
-import { authApi, setV2Tokens } from '../api-v2';
+import { authApi } from '../api-v2';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { confirmDialog } from './ConfirmDialog';
 import { Button } from '../ui';
@@ -78,6 +78,7 @@ export function AppHeader() {
     });
     if (!ok) return;
     clearToken();
+    try { await authApi.logout(); } catch { /* ignore — redirect regardless */ }
     router.push('/login');
   }
 
@@ -108,8 +109,7 @@ export function AppHeader() {
     if (switchingWs) return;
     setSwitchingWs(true);
     try {
-      const r = await authApi.switchWorkspace(id);
-      setV2Tokens(r.access_token, r.refresh_token);
+      await authApi.switchWorkspace(id);
       showToast('Workspace switched', 'success');
       window.location.reload();
     } catch (e: any) {

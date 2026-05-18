@@ -40,6 +40,7 @@ import {
   SelectItem,
 } from '@/lib/ui';
 import { workspaceApi, brandsApi, membersApi, invitesApi } from '@/lib/api-v2';
+import { Bell } from '@/lib/components/Icon';
 import { useToast } from '@/lib/toast';
 import { confirmDialog, promptDialog } from '@/lib/components/ConfirmDialog';
 
@@ -81,14 +82,14 @@ type Invite = {
   invite_url?: string;
 };
 
-const ROLES = ['owner', 'admin', 'editor', 'reviewer', 'viewer'] as const;
-const INVITE_ROLES = ['admin', 'producer', 'editor', 'reviewer', 'analyst', 'viewer'] as const;
+const ROLES = ['owner', 'admin', 'producer', 'editor', 'viewer'] as const;
+const INVITE_ROLES = ['admin', 'producer', 'editor', 'viewer'] as const;
 
 const ROLE_BADGE: Record<string, 'neutral' | 'success' | 'warning' | 'info' | 'secondary'> = {
   owner: 'success',
   admin: 'warning',
+  producer: 'info',
   editor: 'info',
-  reviewer: 'neutral',
   viewer: 'secondary',
 };
 
@@ -113,14 +114,19 @@ export default function WorkspacePage() {
   const [logoUrl, setLogoUrl] = useState('');
   const [savingWs, setSavingWs] = useState(false);
 
+  // Integrations
+  const [slackWebhook, setSlackWebhook] = useState('');
+  const [savingSlack, setSavingSlack] = useState(false);
+
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [w, m, b, inv] = await Promise.all([
+      const [w, m, b, inv, intg] = await Promise.all([
         workspaceApi.get(),
         membersApi.list().catch(() => ({ data: [] as Member[] })),
         brandsApi.list().catch(() => ({ data: [] as Brand[] })),
         invitesApi.list().catch(() => ({ data: [] as Invite[] })),
+        workspaceApi.getIntegrations().catch(() => ({ data: { slack_webhook_url: null } })),
       ]);
       const wd: Workspace | null = (w as any).data;
       setWs(wd);
@@ -133,6 +139,7 @@ export default function WorkspacePage() {
       setMembers(((m as any).data || []) as Member[]);
       setBrands(((b as any).data || []) as Brand[]);
       setInvites(((inv as any).data || []) as Invite[]);
+      setSlackWebhook((intg as any).data?.slack_webhook_url || '');
     } catch (e: any) {
       showToast(e?.message || 'Failed to load workspace', 'error');
     } finally {
@@ -232,6 +239,19 @@ export default function WorkspacePage() {
   const copyInviteUrl = (url: string) => {
     const full = `${window.location.origin}${url}`;
     navigator.clipboard.writeText(full).then(() => showToast('Invite link copied', 'success'));
+  };
+
+  // Slack integration
+  const saveSlack = async () => {
+    setSavingSlack(true);
+    try {
+      await workspaceApi.updateIntegrations({ slack_webhook_url: slackWebhook.trim() || null });
+      showToast('Slack webhook saved', 'success');
+    } catch (e: any) {
+      showToast(e?.message || 'Failed to save webhook', 'error');
+    } finally {
+      setSavingSlack(false);
+    }
   };
 
   // Brand actions
@@ -493,6 +513,37 @@ export default function WorkspacePage() {
             ))}
           </div>
         )}
+      </Card>
+
+      {/* Integrations */}
+      <Card variant="elevated" padding="lg" className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Bell size={16} className="text-content-secondary" />
+          <h2 className="text-sm font-semibold text-content-primary">Integrations</h2>
+        </div>
+        <p className="text-xs text-content-tertiary">
+          Connect a Slack webhook to receive invite notifications, budget alerts, and video completion pings.
+        </p>
+        <div className="space-y-2">
+          <Label htmlFor="slack-webhook">Slack Incoming Webhook URL</Label>
+          <div className="flex gap-2">
+            <Input
+              id="slack-webhook"
+              value={slackWebhook}
+              onChange={e => setSlackWebhook(e.target.value)}
+              placeholder="https://hooks.slack.com/services/…"
+              className="flex-1"
+            />
+            <Button onClick={saveSlack} loading={savingSlack} leftIcon={<Save size={14} />}>
+              Save
+            </Button>
+          </div>
+          {slackWebhook && (
+            <p className="text-xs text-status-success flex items-center gap-1">
+              <Check size={11} /> Webhook configured
+            </p>
+          )}
+        </div>
       </Card>
 
       {/* Brands */}

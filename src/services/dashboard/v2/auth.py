@@ -23,7 +23,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 
 from src.db import get_pool
@@ -105,6 +105,35 @@ def _refresh_token() -> tuple[str, str]:
     raw = secrets.token_urlsafe(48)
     hashed = hashlib.sha256(raw.encode()).hexdigest()
     return raw, hashed
+
+
+def _cookie_secure() -> bool:
+    return os.getenv("ENVIRONMENT_MODE", "test").lower() == "production"
+
+
+def _set_auth_cookies(response: Response, access: str, refresh: str) -> None:
+    secure = _cookie_secure()
+    response.set_cookie(
+        key="access_token", value=access,
+        httponly=True, secure=secure, samesite="lax",
+        max_age=3600, path="/",
+    )
+    response.set_cookie(
+        key="refresh_token", value=refresh,
+        httponly=True, secure=secure, samesite="lax",
+        max_age=2592000, path="/api/v2/auth/refresh",
+    )
+    response.set_cookie(
+        key="auth_status", value="1",
+        httponly=False, secure=secure, samesite="lax",
+        max_age=3600, path="/",
+    )
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/api/v2/auth/refresh")
+    response.delete_cookie("auth_status", path="/")
 
 
 # Schemas
@@ -210,7 +239,7 @@ async def register(body: RegisterIn, request: Request):
 
 @router.post("/login")
 @limiter.limit("10/minute")
-async def login(request: Request, body: LoginIn):
+async def login(request: Request, body: LoginIn, response: Response):
     pool = await get_pool()
     user = await pool.fetchrow(
         "SELECT id, email, password_hash, role, mfa_secret, mfa_enabled, disabled "
@@ -252,25 +281,39 @@ async def login(request: Request, body: LoginIn):
     )
     ws_role = wm["role"] if wm else user["role"]
     access = _issue_jwt(dict(user), workspace_id=wid, ws_role=ws_role)
-    return {"status": "ok", "access_token": access, "refresh_token": raw,
-            "user": {"id": user["id"], "email": user["email"], "role": ws_role, "workspace_id": wid}}
+    _set_auth_cookies(response, access, raw)
+    return {"status": "ok", "user": {"id": user["id"], "email": user["email"], "role": ws_role, "workspace_id": wid}}
 
 
 @router.post("/refresh")
-async def refresh(body: RefreshIn):
-    h = hashlib.sha256(body.refresh_token.encode()).hexdigest()
+async def refresh(request: Request, response: Response, body: RefreshIn | None = None):
+    raw_token = request.cookies.get("refresh_token")
+    if not raw_token and body:
+        raw_token = body.refresh_token
+    if not raw_token:
+        raise HTTPException(401, "Missing refresh token")
+    h = hashlib.sha256(raw_token.encode()).hexdigest()
     pool = await get_pool()
     row = await pool.fetchrow(
-        """SELECT s.id, s.user_id, s.expires_at, s.revoked_at,
+        """SELECT s.id, s.user_id, s.expires_at, s.revoked_at, s.rotated_at,
                   u.email, u.role, u.disabled
              FROM sessions s JOIN users u ON u.id = s.user_id
             WHERE s.refresh_token_hash=$1""",
         h,
     )
-    if not row or row["revoked_at"] is not None or row["expires_at"] < datetime.utcnow() or row["disabled"]:
+    if (not row or row["revoked_at"] is not None or row["rotated_at"] is not None
+            or row["expires_at"] < datetime.utcnow() or row["disabled"]):
         raise HTTPException(401, "Invalid refresh token")
-    await pool.execute("UPDATE sessions SET last_seen_at=NOW() WHERE id=$1", row["id"])
-    # Re-embed workspace_id in refreshed token
+    new_raw, new_hashed = _refresh_token()
+    new_expires = datetime.utcnow() + timedelta(days=30)
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute("UPDATE sessions SET rotated_at=NOW() WHERE id=$1", row["id"])
+            await conn.execute(
+                """INSERT INTO sessions (user_id, refresh_token_hash, expires_at)
+                   VALUES ($1,$2,$3)""",
+                row["user_id"], new_hashed, new_expires,
+            )
     ws_row = await pool.fetchrow(
         "SELECT active_workspace_id FROM users WHERE id=$1", row["user_id"]
     )
@@ -283,16 +326,22 @@ async def refresh(body: RefreshIn):
         {"id": row["user_id"], "email": row["email"], "role": ws_role},
         workspace_id=wid, ws_role=ws_role,
     )
-    return {"access_token": access}
+    _set_auth_cookies(response, access, new_raw)
+    return {"status": "ok"}
 
 
 @router.post("/logout")
-async def logout(body: RefreshIn, _: Principal = Depends(principal_dep)):
-    h = hashlib.sha256(body.refresh_token.encode()).hexdigest()
-    pool = await get_pool()
-    await pool.execute(
-        "UPDATE sessions SET revoked_at=NOW() WHERE refresh_token_hash=$1", h
-    )
+async def logout(request: Request, response: Response, body: RefreshIn | None = None, _: Principal = Depends(principal_dep)):
+    raw_token = request.cookies.get("refresh_token")
+    if not raw_token and body:
+        raw_token = body.refresh_token
+    if raw_token:
+        h = hashlib.sha256(raw_token.encode()).hexdigest()
+        pool = await get_pool()
+        await pool.execute(
+            "UPDATE sessions SET revoked_at=NOW() WHERE refresh_token_hash=$1", h
+        )
+    _clear_auth_cookies(response)
     return {"status": "ok"}
 
 
@@ -377,9 +426,19 @@ async def forgot(body: ForgotIn):
            VALUES ($1,$2,NOW() + INTERVAL '1 hour')""",
         user["id"], h,
     )
-    # In dev/single-user we return the token so the user can complete the
-    # reset without an email service. Production should email + return ok.
-    return {"status": "ok", "reset_token": raw}
+    webhook_url = os.getenv("SLACK_WEBHOOK_URL")
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    reset_link = f"{frontend_url}/reset-password?token={raw}"
+    if webhook_url:
+        try:
+            import httpx
+            msg = f"Password reset requested for {body.email}. Link: {reset_link} (expires in 1 hour)."
+            async with httpx.AsyncClient() as client:
+                await client.post(webhook_url, json={"text": msg}, timeout=5.0)
+        except Exception:
+            pass
+    is_prod = os.getenv("ENVIRONMENT_MODE", "test").lower() == "production"
+    return {"status": "ok"} if is_prod else {"status": "ok", "reset_token": raw}
 
 
 @router.post("/reset")
@@ -441,7 +500,7 @@ async def list_workspaces(p: Principal = Depends(principal_dep)):
 
 
 @router.post("/switch-workspace")
-async def switch_workspace(body: SwitchWorkspaceIn, p: Principal = Depends(principal_dep)):
+async def switch_workspace(body: SwitchWorkspaceIn, response: Response, p: Principal = Depends(principal_dep)):
     """Switch the current user's active workspace and return a new JWT pair."""
     if not p.user_id:
         raise HTTPException(403, "Cannot switch workspace on a legacy session")
@@ -470,8 +529,8 @@ async def switch_workspace(body: SwitchWorkspaceIn, p: Principal = Depends(princ
         p.user_id, hashed, expires,
     )
     access = _issue_jwt(dict(user), workspace_id=body.workspace_id, ws_role=member["role"])
-    return {"status": "ok", "access_token": access, "refresh_token": raw,
-            "workspace_id": body.workspace_id, "role": member["role"]}
+    _set_auth_cookies(response, access, raw)
+    return {"status": "ok", "workspace_id": body.workspace_id, "role": member["role"]}
 
 
 @router.get("/invite-info")
@@ -502,7 +561,7 @@ async def invite_info(token: str):
 
 
 @router.post("/accept-invite")
-async def accept_invite(body: AcceptInviteIn, request: Request):
+async def accept_invite(body: AcceptInviteIn, request: Request, response: Response):
     """Accept a workspace invitation. Creates account if needed."""
     h = hashlib.sha256(body.token.encode()).hexdigest()
     pool = await get_pool()
@@ -570,8 +629,8 @@ async def accept_invite(body: AcceptInviteIn, request: Request):
         request.headers.get("user-agent"), expires,
     )
     access = _issue_jwt(dict(user_row), workspace_id=invite["workspace_id"], ws_role=invite["role"])
-    return {"status": "ok", "access_token": access, "refresh_token": raw,
-            "workspace_id": invite["workspace_id"], "role": invite["role"]}
+    _set_auth_cookies(response, access, raw)
+    return {"status": "ok", "workspace_id": invite["workspace_id"], "role": invite["role"]}
 
 
 @router.post("/mfa/setup")
