@@ -207,6 +207,7 @@ jobs:
           git fetch --all --prune
           git reset --hard origin/main
           export RELEASE_SHA="${GITHUB_SHA:-$(git rev-parse HEAD)}"
+          docker compose --profile tls down --remove-orphans 2>/dev/null || true
           docker compose --profile tls up -d --build --remove-orphans
           docker compose ps --format "table {{.Name}}\t{{.Status}}"
           echo "Deploy complete at $(date -u)"
