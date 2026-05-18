@@ -223,7 +223,8 @@ jobs:
             fi
             sleep 3
           done
-          pip install pytest httpx --quiet --break-system-packages
+          python3 -m pip install --user --quiet pytest httpx || true
+          export PATH="$HOME/.local/bin:$PATH"
           make smoke
 
       - name: Notify Slack on failure
