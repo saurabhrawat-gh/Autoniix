@@ -29,8 +29,14 @@ labels: story
 - `dashboard/...`
 - Migration: `scripts/migrations/...`
 
+## QA Test Cases
+<!-- Linked test-case issue(s) created by /qa-agent -->
+- Test plan: #
+
 ## Definition of Done
+- [ ] `/qa-agent` run — test-case issue(s) created and linked above
 - [ ] All acceptance criteria met
 - [ ] Tests written and passing
 - [ ] PR opened and linked to this issue
 - [ ] `/diff-review` workflow passed
+- [ ] All test-case checkboxes verified (`qa-verified`)
