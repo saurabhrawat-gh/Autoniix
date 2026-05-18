@@ -223,9 +223,9 @@ jobs:
             fi
             sleep 3
           done
-          python3 -m pip install --user --quiet pytest httpx || true
-          export PATH="$HOME/.local/bin:$PATH"
-          make smoke
+          # Stack health checks only (unit tests already ran in python-lint-and-tests CI job).
+          bash scripts/check-stack.sh
+          curl -fsS http://localhost:8020/metrics | grep -q 'python_info' && echo "✅ /metrics reachable"
 
       - name: Notify Slack on failure
         if: failure()
