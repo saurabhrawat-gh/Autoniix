@@ -756,6 +756,26 @@ services:
         limits:
           memory: 128M
 
+  # Docker socket proxy — bypasses Traefik's API version negotiation bug
+  # (Docker 26+ rejects fallback v1.24 client; socket-proxy speaks current API).
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    profiles: ["tls"]
+    environment:
+      CONTAINERS: 1
+      SERVICES: 1
+      TASKS: 1
+      NETWORKS: 1
+      EVENTS: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [autoniix-net]
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
   # TLS Gateway (Traefik)
   # Only activated with: docker compose --profile tls up -d
   # Prerequisites: DOMAIN resolves publicly + ports 80/443 open.
@@ -771,8 +791,8 @@ services:
     environment:
       - ACME_EMAIL=${ACME_EMAIL:-admin@yourdomain.com}
       - DOMAIN=${DOMAIN:-localhost}
-      # Force compatible Docker API version (Hostinger VPS daemon enforces min 1.40)
-      - DOCKER_API_VERSION=1.41
+    depends_on:
+      - socket-proxy
     labels:
       # Defines the admin-auth middleware referenced by grafana/prometheus/
       # alertmanager/temporal-ui routers. TRAEFIK_BASIC_AUTH must be set in
@@ -782,7 +802,6 @@ services:
       - "traefik.http.middlewares.admin-auth.basicauth.realm=Autoniix Admin"
       - "traefik.http.middlewares.admin-auth.basicauth.removeheader=true"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik:/traefik:ro
       - letsencrypt_data:/letsencrypt
     networks: [autoniix-net]
