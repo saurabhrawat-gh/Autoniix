@@ -12,16 +12,49 @@ function readToken(): string | null {
   return localStorage.getItem('dashboard_token');
 }
 
-async function request<T = any>(path: string, opts: RequestInit = {}): Promise<T> {
+let _refreshing: Promise<boolean> | null = null;
+
+async function refreshOnce(): Promise<boolean> {
+  if (_refreshing) return _refreshing;
+  _refreshing = (async () => {
+    try {
+      const res = await fetch(`${BASE}/api/v2/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      if (res.ok) {
+        try {
+          const body = await res.json();
+          if (body?.access_token) setToken(body.access_token, body.expires_in);
+        } catch { /* refresh may return empty body in legacy paths */ }
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    } finally {
+      _refreshing = null;
+    }
+  })();
+  return _refreshing;
+}
+
+async function request<T = any>(path: string, opts: RequestInit = {}, _isRetry = false): Promise<T> {
   const token = readToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'X-Source': 'ui',
     ...((opts.headers as Record<string, string>) || {}),
   };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  // On retry after refresh, omit stale Bearer so the backend uses the new access_token cookie
+  if (token && !_isRetry) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(`${BASE}${path}`, { ...opts, headers, credentials: 'include' });
   if (res.status === 401) {
+    if (!_isRetry) {
+      const refreshed = await refreshOnce();
+      if (refreshed) return request<T>(path, opts, true);
+    }
     if (typeof window !== 'undefined') window.location.href = '/login';
     throw new Error('Unauthorized');
   }
@@ -45,15 +78,31 @@ export const authApi = {
     fetch(`${BASE}/api/v2/auth/mode`).then(r => r.json()) as Promise<{ v2_enabled: boolean; legacy_enabled: boolean }>,
   register: (email: string, password: string, display_name?: string) =>
     request('/api/v2/auth/register', { method: 'POST', body: JSON.stringify({ email, password, display_name }) }),
-  login: (email: string, password: string, mfa_code?: string) =>
-    request<{ status: string; user: any }>(
+  login: async (email: string, password: string, mfa_code?: string) => {
+    const res = await request<{ status: string; user: any; access_token?: string; expires_in?: number }>(
       '/api/v2/auth/login',
       { method: 'POST', body: JSON.stringify({ email, password, mfa_code }) }
-    ),
-  refresh: () =>
-    request<{ status: string }>('/api/v2/auth/refresh', { method: 'POST' }),
-  logout: () =>
-    request('/api/v2/auth/logout', { method: 'POST' }),
+    );
+    // Persist token to localStorage as a fallback when dev proxy doesn't forward Set-Cookie.
+    if (res.access_token) setToken(res.access_token, res.expires_in);
+    return res;
+  },
+  refresh: async (): Promise<{ status: string }> => {
+    const res = await fetch(`${BASE}/api/v2/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail || body.error || `HTTP ${res.status}`);
+    }
+    return res.json();
+  },
+  logout: async () => {
+    clearToken();
+    return request('/api/v2/auth/logout', { method: 'POST' });
+  },
   me: () => request<{ data: { user_id: number | null; email: string | null; role: string; source: string } }>('/api/v2/auth/me'),
   forgot: (email: string) =>
     request<{ reset_token?: string }>('/api/v2/auth/forgot', { method: 'POST', body: JSON.stringify({ email }) }),

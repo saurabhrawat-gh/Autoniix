@@ -25,12 +25,16 @@ _LEGACY = "http://localhost:8020"
 
 async def _proxy(request: Request, method: str, path: str, **kwargs) -> dict:
     token = request.headers.get("Authorization", "")
+    if not token:
+        cookie_token = request.cookies.get("access_token")
+        if cookie_token:
+            token = f"Bearer {cookie_token}"
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.request(
                 method,
                 f"{_LEGACY}{path}",
-                headers={"Authorization": token},
+                headers={"Authorization": token} if token else {},
                 **kwargs,
             )
         if resp.status_code >= 400:
