@@ -23,7 +23,14 @@ async function refreshOnce(): Promise<boolean> {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
       });
-      return res.ok;
+      if (res.ok) {
+        try {
+          const body = await res.json();
+          if (body?.access_token) setToken(body.access_token, body.expires_in);
+        } catch { /* refresh may return empty body in legacy paths */ }
+        return true;
+      }
+      return false;
     } catch {
       return false;
     } finally {
@@ -71,11 +78,15 @@ export const authApi = {
     fetch(`${BASE}/api/v2/auth/mode`).then(r => r.json()) as Promise<{ v2_enabled: boolean; legacy_enabled: boolean }>,
   register: (email: string, password: string, display_name?: string) =>
     request('/api/v2/auth/register', { method: 'POST', body: JSON.stringify({ email, password, display_name }) }),
-  login: (email: string, password: string, mfa_code?: string) =>
-    request<{ status: string; user: any }>(
+  login: async (email: string, password: string, mfa_code?: string) => {
+    const res = await request<{ status: string; user: any; access_token?: string; expires_in?: number }>(
       '/api/v2/auth/login',
       { method: 'POST', body: JSON.stringify({ email, password, mfa_code }) }
-    ),
+    );
+    // Persist token to localStorage as a fallback when dev proxy doesn't forward Set-Cookie.
+    if (res.access_token) setToken(res.access_token, res.expires_in);
+    return res;
+  },
   refresh: async (): Promise<{ status: string }> => {
     const res = await fetch(`${BASE}/api/v2/auth/refresh`, {
       method: 'POST',
