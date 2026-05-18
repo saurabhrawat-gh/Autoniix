@@ -279,6 +279,16 @@ async def verify_token(creds: HTTPAuthorizationCredentials | None = Depends(secu
     if creds is None:
         raise HTTPException(status_code=401, detail="Missing authorization header")
     token = creds.credentials
+    # Accept v2 JWTs (forwarded by the v2 proxy layer for cookie-auth users)
+    if token.count(".") == 2 and token.startswith("ey"):
+        try:
+            import jwt as _jwt
+            secret = os.getenv("AUTH_JWT_SECRET") or os.getenv("DASHBOARD_JWT_SECRET") or "dev-insecure-change-me"
+            _jwt.decode(token, secret, algorithms=["HS256"])
+            return token
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+    # Legacy in-memory session token
     expiry = _sessions.get(token)
     if expiry is None or expiry < time.time():
         _sessions.pop(token, None)

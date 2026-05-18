@@ -12,16 +12,42 @@ function readToken(): string | null {
   return localStorage.getItem('dashboard_token');
 }
 
-async function request<T = any>(path: string, opts: RequestInit = {}): Promise<T> {
+let _refreshing: Promise<boolean> | null = null;
+
+async function refreshOnce(): Promise<boolean> {
+  if (_refreshing) return _refreshing;
+  _refreshing = (async () => {
+    try {
+      const res = await fetch(`${BASE}/api/v2/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      return res.ok;
+    } catch {
+      return false;
+    } finally {
+      _refreshing = null;
+    }
+  })();
+  return _refreshing;
+}
+
+async function request<T = any>(path: string, opts: RequestInit = {}, _isRetry = false): Promise<T> {
   const token = readToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'X-Source': 'ui',
     ...((opts.headers as Record<string, string>) || {}),
   };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  // On retry after refresh, omit stale Bearer so the backend uses the new access_token cookie
+  if (token && !_isRetry) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(`${BASE}${path}`, { ...opts, headers, credentials: 'include' });
   if (res.status === 401) {
+    if (!_isRetry) {
+      const refreshed = await refreshOnce();
+      if (refreshed) return request<T>(path, opts, true);
+    }
     if (typeof window !== 'undefined') window.location.href = '/login';
     throw new Error('Unauthorized');
   }
@@ -50,10 +76,22 @@ export const authApi = {
       '/api/v2/auth/login',
       { method: 'POST', body: JSON.stringify({ email, password, mfa_code }) }
     ),
-  refresh: () =>
-    request<{ status: string }>('/api/v2/auth/refresh', { method: 'POST' }),
-  logout: () =>
-    request('/api/v2/auth/logout', { method: 'POST' }),
+  refresh: async (): Promise<{ status: string }> => {
+    const res = await fetch(`${BASE}/api/v2/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail || body.error || `HTTP ${res.status}`);
+    }
+    return res.json();
+  },
+  logout: async () => {
+    clearToken();
+    return request('/api/v2/auth/logout', { method: 'POST' });
+  },
   me: () => request<{ data: { user_id: number | null; email: string | null; role: string; source: string } }>('/api/v2/auth/me'),
   forgot: (email: string) =>
     request<{ reset_token?: string }>('/api/v2/auth/forgot', { method: 'POST', body: JSON.stringify({ email }) }),
