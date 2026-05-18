@@ -199,6 +199,7 @@ jobs:
       - name: Deploy
         run: |
           set -euo pipefail
+          git config --global --add safe.directory /home/autoniix/autoniix
           cd /home/autoniix/autoniix
           git fetch --all --prune
           git reset --hard origin/main
