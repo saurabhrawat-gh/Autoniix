@@ -434,19 +434,43 @@ async def forgot(body: ForgotIn):
            VALUES ($1,$2,NOW() + INTERVAL '1 hour')""",
         user["id"], h,
     )
-    webhook_url = os.getenv("SLACK_WEBHOOK_URL")
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
     reset_link = f"{frontend_url}/reset-password?token={raw}"
-    if webhook_url:
-        try:
-            import httpx
-            msg = f"Password reset requested for {body.email}. Link: {reset_link} (expires in 1 hour)."
-            async with httpx.AsyncClient() as client:
-                await client.post(webhook_url, json={"text": msg}, timeout=5.0)
-        except Exception:
-            pass
+
+    from ._email import send_email, is_configured as _smtp_configured
+    subject_prefix = os.getenv("MAIL_SUBJECT_PREFIX", "").strip()
+    subject = (f"{subject_prefix} " if subject_prefix else "") + "Reset your Autoniix password"
+    text_body = (
+        f"Hi,\n\nWe received a request to reset the password for {body.email}.\n"
+        f"Open this link to choose a new password (expires in 1 hour):\n\n"
+        f"{reset_link}\n\n"
+        f"If you didn't request this, you can safely ignore this email — your password won't change.\n\n"
+        f"— Autoniix"
+    )
+    html_body = (
+        f"<p>Hi,</p>"
+        f"<p>We received a request to reset the password for "
+        f"<strong>{body.email}</strong>.</p>"
+        f"<p><a href=\"{reset_link}\" "
+        f"style=\"display:inline-block;padding:10px 18px;background:#10b981;color:#fff;"
+        f"text-decoration:none;border-radius:6px;font-weight:600\">Reset password</a></p>"
+        f"<p>Or paste this link into your browser (expires in 1 hour):<br>"
+        f"<a href=\"{reset_link}\">{reset_link}</a></p>"
+        f"<p style=\"color:#6b7280;font-size:13px\">If you didn't request this, you can safely "
+        f"ignore this email — your password won't change.</p>"
+        f"<p style=\"color:#6b7280;font-size:13px\">— Autoniix</p>"
+    )
+    # Best-effort send; failures are logged inside send_email and do not bubble up.
+    await send_email(to=body.email, subject=subject, html=html_body, text=text_body)
+
+    # Dev/test fallback: when SMTP is not configured AND we're not in production,
+    # expose the token in the response so local flows remain testable without a
+    # real mail server. Production with SMTP missing returns a generic OK
+    # (and logs loudly inside send_email so the operator notices).
     is_prod = os.getenv("ENVIRONMENT_MODE", "test").lower() == "production"
-    return {"status": "ok"} if is_prod else {"status": "ok", "reset_token": raw}
+    if not _smtp_configured() and not is_prod:
+        return {"status": "ok", "reset_token": raw}
+    return {"status": "ok"}
 
 
 @router.post("/reset")

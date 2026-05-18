@@ -54,7 +54,7 @@ export default function ForgotPasswordPage() {
             <h1 className="text-xl font-semibold text-content-primary">Reset password</h1>
             <p className="text-content-tertiary text-sm">
               {stage === 'request' && 'Enter your email to receive a reset link.'}
-              {stage === 'slack' && 'Check your Slack DM for the reset link.'}
+              {stage === 'slack' && "If an account exists for that email, we've sent you a reset link. Check your inbox (and spam folder)."}
               {stage === 'reset' && 'Enter the reset token and your new password.'}
               {stage === 'done' && 'Password updated successfully.'}
             </p>
