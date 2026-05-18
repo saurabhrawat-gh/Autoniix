@@ -282,7 +282,15 @@ async def login(request: Request, body: LoginIn, response: Response):
     ws_role = wm["role"] if wm else user["role"]
     access = _issue_jwt(dict(user), workspace_id=wid, ws_role=ws_role)
     _set_auth_cookies(response, access, raw)
-    return {"status": "ok", "user": {"id": user["id"], "email": user["email"], "role": ws_role, "workspace_id": wid}}
+    # Also return token in body as a fallback for environments where the dev
+    # proxy (e.g. `next dev` rewrites) does not forward Set-Cookie reliably.
+    # The frontend persists it in localStorage and sends as Authorization: Bearer.
+    return {
+        "status": "ok",
+        "user": {"id": user["id"], "email": user["email"], "role": ws_role, "workspace_id": wid},
+        "access_token": access,
+        "expires_in": 3600,
+    }
 
 
 @router.post("/refresh")
@@ -327,7 +335,7 @@ async def refresh(request: Request, response: Response, body: RefreshIn | None =
         workspace_id=wid, ws_role=ws_role,
     )
     _set_auth_cookies(response, access, new_raw)
-    return {"status": "ok"}
+    return {"status": "ok", "access_token": access, "expires_in": 3600}
 
 
 @router.post("/logout")
