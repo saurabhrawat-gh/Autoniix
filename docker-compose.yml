@@ -767,6 +767,11 @@ services:
       TASKS: 1
       NETWORKS: 1
       EVENTS: 1
+      # Required for Traefik's Docker SDK to negotiate API version
+      # (without these, SDK falls back to v1.24 which Docker 26+ rejects)
+      PING: 1
+      VERSION: 1
+      INFO: 1
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks: [autoniix-net]
@@ -781,7 +786,7 @@ services:
   # Prerequisites: DOMAIN resolves publicly + ports 80/443 open.
   # Local dev: skip this, use http://localhost:3000 + http://localhost:8020
   traefik:
-    image: traefik:v3.1
+    image: traefik:v3.3
     profiles: ["tls"]
     command:
       - "--configFile=/traefik/traefik.yml"
