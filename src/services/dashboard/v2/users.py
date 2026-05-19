@@ -10,7 +10,7 @@ from ._deps import Principal, audit, principal_dep, require_role
 
 router = APIRouter()
 
-_ROLES = ("owner", "admin", "editor", "reviewer", "viewer")
+_ROLES = ("owner", "admin", "producer", "editor", "viewer")
 
 
 class RoleIn(BaseModel):

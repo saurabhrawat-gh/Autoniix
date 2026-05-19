@@ -1,0 +1,78 @@
+name: "Story"
+description: "A user-facing feature or behaviour to implement"
+labels: ["story", "ready-for-dev"]
+assignees: ["saurabhrawat-gh"]
+body:
+  - type: dropdown
+    id: parent_epic
+    attributes:
+      label: "Parent Epic"
+      description: "Which epic does this story belong to?"
+      options:
+        - "#12 — Authentication & Authorization"
+        - "#13 — Workspace & Teams"
+        - "#14 — Provider Credentials"
+        - "#15 — BA Process & Developer Workflow"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: "Priority"
+      options:
+        - "priority:critical"
+        - "priority:high"
+        - "priority:medium"
+        - "priority:low"
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: "What This Is About"
+      description: "Plain English — what problem does this solve and who benefits?"
+      placeholder: "When a user does X, they should be able to Y..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: "Acceptance Criteria"
+      description: "Each line becomes a checkbox the user ticks to close this issue"
+      placeholder: |
+        - [ ] User can do X
+        - [ ] System responds with Y
+        - [ ] Error case Z is handled gracefully
+    validations:
+      required: true
+
+  - type: textarea
+    id: test_local
+    attributes:
+      label: "How to Test Locally"
+      description: "Step-by-step — start from localhost:3000"
+      placeholder: |
+        1. git checkout develop && git pull
+        2. docker compose up -d
+        3. Open http://localhost:3000 and...
+    validations:
+      required: true
+
+  - type: textarea
+    id: test_prod
+    attributes:
+      label: "How to Test on Production"
+      description: "Same steps but on https://dash.autoniix.com"
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: "Notes / Impacted Files"
+      description: "Any extra context, files to change, or links to related issues"
+    validations:
+      required: false

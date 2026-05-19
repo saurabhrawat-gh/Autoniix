@@ -1,0 +1,140 @@
+name: Sync issue labels → Project board status
+
+on:
+  issues:
+    types: [labeled, unlabeled, reopened, closed]
+
+jobs:
+  sync-status:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: read
+
+    steps:
+      - name: Map label to project Status and update
+        uses: actions/github-script@v7
+        env:
+          PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          PROJECT_NUMBER: "1"
+          PROJECT_OWNER: "saurabhrawat-gh"
+        with:
+          github-token: ${{ env.PROJECT_TOKEN }}
+          script: |
+            const owner = process.env.PROJECT_OWNER;
+            const projectNumber = parseInt(process.env.PROJECT_NUMBER);
+            const issueNumber = context.payload.issue.number;
+
+            // Map lifecycle labels to project Status option names (must match exactly)
+            const LABEL_TO_STATUS = {
+              "ready-for-dev":    "Todo",
+              "in-progress":      "In Progress",
+              "dev-done":         "In QA",
+              "in-qa":            "In QA",
+              "qa-verified":      "QA Verified",
+              "ready-to-deploy":  "Ready to Deploy",
+              "in-prod":          "In Prod",
+              "prod-verified":    "Prod Verified",
+            };
+
+            // Priority order — higher index wins when multiple labels present
+            const PRIORITY = [
+              "ready-for-dev", "in-progress", "dev-done", "in-qa",
+              "qa-verified", "ready-to-deploy", "in-prod", "prod-verified"
+            ];
+
+            const currentLabels = context.payload.issue.labels.map(l => l.name);
+
+            // If issue is closed, force Done
+            let targetStatus = null;
+            if (context.payload.issue.state === "closed") {
+              targetStatus = "Done";
+            } else {
+              // Find the highest-priority lifecycle label on the issue
+              let bestIdx = -1;
+              for (const lbl of currentLabels) {
+                const idx = PRIORITY.indexOf(lbl);
+                if (idx > bestIdx) {
+                  bestIdx = idx;
+                  targetStatus = LABEL_TO_STATUS[lbl];
+                }
+              }
+            }
+
+            if (!targetStatus) {
+              core.info(`No lifecycle label found on #${issueNumber} — skipping`);
+              return;
+            }
+
+            core.info(`#${issueNumber} → target status: ${targetStatus}`);
+
+            // Step 1: Get project node ID + Status field ID + option IDs
+            const projectQuery = await github.graphql(`
+              query($owner: String!, $number: Int!) {
+                user(login: $owner) {
+                  projectV2(number: $number) {
+                    id
+                    fields(first: 20) {
+                      nodes {
+                        ... on ProjectV2SingleSelectField {
+                          id
+                          name
+                          options { id name }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `, { owner, number: projectNumber });
+
+            const project = projectQuery.user.projectV2;
+            const statusField = project.fields.nodes.find(f => f.name === "Status");
+            if (!statusField) {
+              core.error("Status field not found in project");
+              return;
+            }
+
+            const option = statusField.options.find(o => o.name === targetStatus);
+            if (!option) {
+              core.error(`Status option "${targetStatus}" not found — add it to the project board first`);
+              return;
+            }
+
+            // Step 2: Get the project item ID for this issue
+            const issueQuery = await github.graphql(`
+              query($owner: String!, $repo: String!, $issue: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  issue(number: $issue) {
+                    projectItems(first: 10) {
+                      nodes { id project { id } }
+                    }
+                  }
+                }
+              }
+            `, { owner, repo: context.repo.repo, issue: issueNumber });
+
+            const items = issueQuery.repository.issue.projectItems.nodes;
+            const item = items.find(i => i.project.id === project.id);
+            if (!item) {
+              core.info(`Issue #${issueNumber} is not in project ${projectNumber} — skipping`);
+              return;
+            }
+
+            // Step 3: Update the Status field
+            await github.graphql(`
+              mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $project
+                  itemId: $item
+                  fieldId: $field
+                  value: { singleSelectOptionId: $option }
+                }) { projectV2Item { id } }
+              }
+            `, {
+              project: project.id,
+              item: item.id,
+              field: statusField.id,
+              option: option.id,
+            });
+
+            core.info(`✅ #${issueNumber} Status → "${targetStatus}"`);
