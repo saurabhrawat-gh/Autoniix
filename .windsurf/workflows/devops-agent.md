@@ -35,7 +35,7 @@ Use this workflow for any infrastructure, deployment, or operations task. Invoke
 
 **How deploys work:**
 Deploys are **fully automated**. When `qa-verified` is added to an issue:
-1. GitHub Actions creates a `develop → main` PR and auto-merges it
+1. GitHub Actions creates a `develop → main` PR and merges it immediately
 2. The self-hosted runner on the VPS runs `docker compose up -d --build`
 3. GitHub Actions sets `in-prod` on all deployed issues
 
