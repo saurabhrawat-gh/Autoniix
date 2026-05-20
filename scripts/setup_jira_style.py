@@ -18,7 +18,7 @@ import time
 from urllib.parse import quote
 import requests
 
-# ── Config ────────────────────────────────────────────────────────────────────────────
+# ── Config ────────────────────────────────────────────────────────────────────
 OWNER    = "saurabhrawat-gh"
 REPO     = "Autoniix"
 PREFIX   = "ATNX"
@@ -36,7 +36,8 @@ HEADERS = {
     "X-GitHub-Api-Version": "2022-11-28",
 }
 
-# ── Label Definitions ───────────────────────────────────────────────────────────────────────
+# ── Label Definitions ─────────────────────────────────────────────────────────
+#   Colors intentionally distinct (Jira-inspired palette).
 TYPE_LABELS = [
     {
         "name": "type:epic",
@@ -66,7 +67,7 @@ TYPE_LABELS = [
 ]
 
 
-# ── Helpers ─────────────────────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _get(path, **params):
     r = requests.get(f"{BASE_URL}{path}", headers=HEADERS, params=params)
@@ -84,10 +85,10 @@ def _patch(path, data):
     return r
 
 
-# ── Step 1: Labels ──────────────────────────────────────────────────────────────────────────────
+# ── Step 1: Labels ─────────────────────────────────────────────────────────────
 
 def ensure_labels():
-    print("── STEP 1: Type Labels ────────────────────────────────────────────────")
+    print("── STEP 1: Type Labels ──────────────────────────────────────────────")
     for lbl in TYPE_LABELS:
         encoded = quote(lbl["name"], safe="")
         r = requests.get(f"{BASE_URL}/labels/{encoded}", headers=HEADERS)
@@ -119,7 +120,7 @@ def ensure_labels():
         time.sleep(0.1)
 
 
-# ── Step 2 & 3: Issues ────────────────────────────────────────────────────────────────────────────
+# ── Step 2 & 3: Issues ────────────────────────────────────────────────────────
 
 def infer_type_label(label_names: set) -> str:
     """Return the correct type:* label given an issue's current label set."""
@@ -207,16 +208,16 @@ def process_issues(issues: list, dry_run: bool):
             print(f"  ❌  #{num:>3}  HTTP {r.status_code}: {r.text[:120]}")
             errors += 1
 
-        time.sleep(0.25)
+        time.sleep(0.25)   # stay well within GitHub's 5000 req/hr secondary rate limit
 
     return updated, skipped, errors
 
 
-# ── Filter Reference ──────────────────────────────────────────────────────────────────────────────
+# ── Filter Reference ──────────────────────────────────────────────────────────
 
 def print_filters():
     base = f"https://github.com/{OWNER}/{REPO}/issues"
-    print("\n── SAVED FILTER LINKS ────────────────────────────────────────────────")
+    print("\n── SAVED FILTER LINKS ───────────────────────────────────────────────")
     rows = [
         ("Epics",    "type:epic"),
         ("Stories",  "type:story"),
@@ -228,7 +229,7 @@ def print_filters():
         print(f"  {name:<10} {base}?q=is%3Aopen+label%3A{quote(lbl, safe='')}")
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────────────────
+# ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
     dry_run = "--dry-run" in sys.argv
@@ -238,13 +239,13 @@ def main():
 
     ensure_labels()
 
-    print("\n── Fetching all issues … ────────────────────────────────────────────────")
+    print("\n── Fetching all issues … ────────────────────────────────────────────")
     issues = fetch_all_issues()
     print(f"  Found {len(issues)} issues (open + closed, PRs excluded)")
 
     updated, skipped, errors = process_issues(issues, dry_run)
 
-    print("\n── SUMMARY ────────────────────────────────────────────────────────────────────────────")
+    print("\n── SUMMARY ──────────────────────────────────────────────────────────")
     if dry_run:
         needs_update = sum(1 for i in issues if not i["title"].startswith(f"[{PREFIX}-{i['number']}]"))
         print(f"  Would update : {needs_update}")

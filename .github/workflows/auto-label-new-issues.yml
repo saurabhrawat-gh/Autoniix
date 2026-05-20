@@ -8,6 +8,7 @@ on:
 
 jobs:
   label-todo:
+    if: ${{ false }}  # disabled — triggers too many runs
     runs-on: ubuntu-latest
     permissions:
       issues: write
