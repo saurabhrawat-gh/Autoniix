@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Epic (use BA Agent)
+    url: https://github.com/saurabhrawat-gh/Autoniix/issues/new?labels=epic
+    about: Epics are created by the BA Agent workflow — run /ba-agent in Windsurf instead

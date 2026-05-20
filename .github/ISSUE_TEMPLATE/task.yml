@@ -1,0 +1,55 @@
+name: "Task / Subtask"
+description: "A technical task, chore, or sub-step of a story"
+labels: ["task", "ready-for-dev"]
+assignees: ["saurabhrawat-gh"]
+body:
+  - type: input
+    id: parent_story
+    attributes:
+      label: "Parent Story"
+      description: "Issue number of the parent story (e.g. #18)"
+      placeholder: "#N"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: parent_epic
+    attributes:
+      label: "Parent Epic"
+      options:
+        - "#12 — Authentication & Authorization"
+        - "#13 — Workspace & Teams"
+        - "#14 — Provider Credentials"
+        - "#15 — BA Process & Developer Workflow"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: "Priority"
+      options:
+        - "priority:critical"
+        - "priority:high"
+        - "priority:medium"
+        - "priority:low"
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: "What needs to be done"
+      placeholder: "Describe the technical task..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: "Done When"
+      placeholder: |
+        - [ ] Migration file created and applied
+        - [ ] Tests pass
+    validations:
+      required: true

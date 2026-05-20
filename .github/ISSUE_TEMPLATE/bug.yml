@@ -1,0 +1,73 @@
+name: "Bug Report"
+description: "Something is broken in existing functionality"
+labels: ["bug", "ready-for-dev"]
+assignees: ["saurabhrawat-gh"]
+body:
+  - type: input
+    id: parent_story
+    attributes:
+      label: "Related Story (if known)"
+      description: "Issue number of the story this bug belongs to (e.g. #18)"
+      placeholder: "#N"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: parent_epic
+    attributes:
+      label: "Parent Epic"
+      options:
+        - "#12 — Authentication & Authorization"
+        - "#13 — Workspace & Teams"
+        - "#14 — Provider Credentials"
+        - "#15 — BA Process & Developer Workflow"
+        - "None / Unknown"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: "Priority"
+      options:
+        - "priority:critical"
+        - "priority:high"
+        - "priority:medium"
+        - "priority:low"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: "What happened?"
+      placeholder: "Describe what went wrong..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro_local
+    attributes:
+      label: "Steps to reproduce (local)"
+      placeholder: |
+        1. Go to http://localhost:3000/...
+        2. Click on...
+        3. See error: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro_prod
+    attributes:
+      label: "Steps to reproduce (production)"
+      placeholder: |
+        1. Go to https://dash.autoniix.com/...
+    validations:
+      required: false
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: "What should happen instead?"
+    validations:
+      required: true
