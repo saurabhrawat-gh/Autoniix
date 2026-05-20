@@ -15,6 +15,46 @@ Use this workflow at the START of every new feature or epic, before any code is 
 
 ---
 
+## Step 0 — Pre-flight: Read Before You Ask
+
+**Perform this step completely before asking a single question.** Its purpose is to prevent asking about decisions already made, avoid conflicts with locked architecture, and give context-aware recommendations.
+
+### 0A — Read Existing GitHub Issues
+1. Fetch the Epic issue for this feature if it exists. Read its summary, child stories list, and DoD.
+2. Fetch every child Story issue linked to that Epic. Note: current status label, existing ACs, impacted files.
+3. Fetch sibling Epics that this feature **depends on** or that **depend on it**. For each, identify:
+   - Decisions already locked (data models, API contracts, auth patterns, DB tables)
+   - Patterns already established (provider pattern, retry policy, cost tracking, SSE, Caddy proxy)
+   - Constraints this epic must respect (budget caps, concurrency limits, role matrix)
+4. Check `PENDING.md` for any deferred items touching this feature area.
+
+### 0B — Scan the Codebase
+Use `code_search` to locate:
+- Existing service files for this feature domain
+- Existing DB schema/migrations relevant to this feature
+- Existing API endpoints that may be extended
+- Existing Temporal workflow activities that are already registered
+
+### 0C — Write a Pre-flight Summary
+Before asking Q1, output a short summary in this format:
+
+> **Pre-flight summary for [Feature Name]:**
+> - Already decided in Epic #X: [list locked decisions that apply here]
+> - Already exists in code: [list files/tables/endpoints already present]
+> - Confirmed dependencies: [list what must be complete before this ships]
+> - Open unknowns I will focus questions on: [list gaps that need clarification]
+> - Potential conflicts I spotted: [anything in existing issues that may clash with this feature]
+
+This summary tells the user exactly what you already know, so the session focuses only on what's genuinely unknown.
+
+### 0D — Rules for the Session
+- Never ask about a decision that was already locked in a prior BA session or existing issue AC
+- When referencing a prior decision, cite it: "In Epic #41 we decided X — does the same apply here?"
+- When a new decision in THIS session would conflict with an existing AC elsewhere, flag it explicitly before locking it
+- Add cross-references in issue bodies: "Related decision: Epic #41, AC: [text]"
+
+---
+
 ## Step 1 — Orient and Scope
 
 Ask these first. They frame all remaining questions.
