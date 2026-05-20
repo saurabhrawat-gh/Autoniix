@@ -684,6 +684,21 @@ async def remove_member(
     actor: Principal = Depends(require_role("owner", "admin")),
 ):
     pool = await get_pool()
+    target_role = await pool.fetchval(
+        "SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
+        actor.workspace_id, user_id,
+    )
+    if target_role == "owner":
+        owner_count = await pool.fetchval(
+            "SELECT COUNT(*) FROM workspace_members WHERE workspace_id=$1 AND role='owner'",
+            actor.workspace_id,
+        )
+        if (owner_count or 0) <= 1:
+            raise HTTPException(
+                400,
+                "Cannot remove the last owner of a workspace. "
+                "Transfer ownership to another member first.",
+            )
     res = await pool.execute(
         "DELETE FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
         actor.workspace_id, user_id,
