@@ -125,7 +125,7 @@ def _set_auth_cookies(response: Response, access: str, refresh: str) -> None:
     response.set_cookie(
         key="refresh_token", value=refresh,
         httponly=True, secure=secure, samesite="lax",
-        max_age=2592000, path="/api",
+        max_age=2592000, path="/",
     )
     response.set_cookie(
         key="auth_status", value="1",
@@ -136,7 +136,7 @@ def _set_auth_cookies(response: Response, access: str, refresh: str) -> None:
 
 def _clear_auth_cookies(response: Response) -> None:
     response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/api")
+    response.delete_cookie("refresh_token", path="/")
     response.delete_cookie("auth_status", path="/")
 
 
