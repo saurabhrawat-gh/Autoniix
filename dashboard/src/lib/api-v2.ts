@@ -24,10 +24,6 @@ async function refreshOnce(): Promise<boolean> {
         credentials: 'include',
       });
       if (res.ok) {
-        try {
-          const body = await res.json();
-          if (body?.access_token) setToken(body.access_token, body.expires_in);
-        } catch { /* refresh may return empty body in legacy paths */ }
         return true;
       }
       return false;
@@ -41,14 +37,12 @@ async function refreshOnce(): Promise<boolean> {
 }
 
 async function request<T = any>(path: string, opts: RequestInit = {}, _isRetry = false): Promise<T> {
-  const token = readToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'X-Source': 'ui',
     ...((opts.headers as Record<string, string>) || {}),
   };
-  // On retry after refresh, omit stale Bearer so the backend uses the new access_token cookie
-  if (token && !_isRetry) headers['Authorization'] = `Bearer ${token}`;
+  // v2 auth uses HttpOnly cookies only — no Authorization header needed
   const res = await fetch(`${BASE}${path}`, { ...opts, headers, credentials: 'include' });
   if (res.status === 401) {
     if (!_isRetry) {
@@ -94,8 +88,6 @@ export const authApi = {
       throw new Error(body.detail || body.error || `HTTP ${res.status}`);
     }
     const data = await res.json();
-    // Persist token to localStorage as a fallback when dev proxy doesn't forward Set-Cookie.
-    if (data.access_token) setToken(data.access_token, data.expires_in);
     return data;
   },
   refresh: async (): Promise<{ status: string }> => {
@@ -610,17 +602,7 @@ export const jobsApi = {
 export function isLoggedIn(): boolean {
   if (typeof window === 'undefined') return false;
   // v2 JWT: check non-HttpOnly auth_status cookie set by the backend on login
-  if (document.cookie.split(';').some(c => c.trim() === 'auth_status=1')) return true;
-  // Legacy localStorage check
-  const token = localStorage.getItem('dashboard_token');
-  if (!token) return false;
-  const expires = localStorage.getItem('dashboard_token_expires');
-  if (expires && Date.now() > parseInt(expires, 10)) {
-    localStorage.removeItem('dashboard_token');
-    localStorage.removeItem('dashboard_token_expires');
-    return false;
-  }
-  return true;
+  return document.cookie.split(';').some(c => c.trim() === 'auth_status=1');
 }
 
 export function setToken(token: string, expiresIn?: number) {
