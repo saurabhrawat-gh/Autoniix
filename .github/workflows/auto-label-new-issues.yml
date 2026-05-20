@@ -1,8 +1,10 @@
 name: Auto-label new issues as ready-for-dev (Todo)
 
 on:
-  issues:
-    types: [opened]
+  workflow_dispatch:
+  # issues:
+  #   types: [opened]
+  # Disabled — issues created via API already have ready-for-dev + milestone set.
 
 jobs:
   label-todo:
