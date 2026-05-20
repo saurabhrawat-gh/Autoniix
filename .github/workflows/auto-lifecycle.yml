@@ -78,12 +78,11 @@ jobs:
             echo "Using existing PR #$PR_NUM"
           fi
 
-          # Enable auto-merge (merges as soon as CI passes)
+          # Merge immediately (dev + QA already validated on develop)
           gh pr merge "$PR_NUM" \
             --repo "$GITHUB_REPOSITORY" \
             --merge \
-            --auto \
-            || echo "Auto-merge already enabled or not available — PR will merge after CI"
+            || echo "PR already merged or not mergeable"
 
   # ─────────────────────────────────────────────────────────────────────
   # TRIGGER: push to main (after PR merge from develop or hotfix)
