@@ -26,10 +26,12 @@ Pass a mode when invoking:
 1. **Fetch the backlog**
    - Use `mcp0_list_issues` on `saurabhrawat-gh/Autoniix` with label `ready-for-dev`, `state=open`
    - Also fetch all issues with NO lifecycle label (unlabelled — potential backlog leaks)
+   - Exclude: Epics (label `epic`), test-case issues (label `test-case`)
    - Sort by priority: `priority:critical` first, then `priority:high`, then `priority:medium`, then `priority:low`
 
 2. **Fetch current WIP (work in progress)**
    - Fetch all open issues with labels: `in-progress`, `in-qa`, `ready-to-deploy`, `in-prod`
+   - Exclude Epics and test-case issues from WIP count
    - Count total WIP items
 
 3. **Calculate available capacity**
@@ -38,11 +40,12 @@ Pass a mode when invoking:
 
 4. **Recommend sprint issues**
    - Pick the top `(3 - WIP)` issues from the sorted backlog
+   - Skip any issue whose dependency is not yet `prod-verified` (check Impacted Files / "Depends on" in body)
    - For each recommended issue, show:
      - Issue number + title
      - Priority label
-     - Estimated complexity: check the issue body for number of AC checkboxes (1–3 = small, 4–7 = medium, 8+ = large)
-     - Blocking dependencies: note any issue that references this one as a prerequisite
+     - Estimated complexity: count AC checkboxes (1–3 = small, 4–7 = medium, 8+ = large)
+     - Blocking dependencies: note any issue referenced as a prerequisite
 
 5. **Print sprint plan**
    ```
@@ -79,7 +82,8 @@ Pass a mode when invoking:
 
 2. **Fetch all issues grouped by lifecycle state**
    - Use `mcp0_list_issues` with `state=all`, `milestone=1`
-   - Group: closed (done), open by status label
+   - Exclude Epics (`epic` label) and test-case issues (`test-case` label) from all counts
+   - Group: closed (done), open by lifecycle label
 
 3. **Calculate velocity** (stories completed recently)
    - Fetch issues closed in the last 7 days (check `closed_at` field)
@@ -89,7 +93,9 @@ Pass a mode when invoking:
    - Issues `in-progress` with `updated_at` older than 5 days → stalled
    - Issues `in-qa` with `updated_at` older than 3 days → QA blocked
    - Issues with `priority:critical` NOT yet `qa-verified` → at-risk for launch
-   - Any epic with ALL child stories still open → epic at risk
+   - Any Epic with ALL child stories still `ready-for-dev` → epic not started, at risk
+   - Any Epic with mixed story states (some done, some not started) → epic at risk of partial delivery
+   - Bug issues with label `bug:production` → flag immediately regardless of priority
 
 5. **Print status report**
    ```
@@ -101,12 +107,13 @@ Pass a mode when invoking:
      Velocity : 2 stories closed this week
 
    PIPELINE SUMMARY:
-     ✅ Done          : 8 stories
-     🔵 In Progress   : 1 story  (#20)
-     🔍 In QA         : 1 story  (#18)
-     🚀 Ready Deploy  : 0
-     🟢 In Prod       : 2 stories (#16, #17)
-     📋 Backlog       : 13 stories
+     ✅ Done              : 8 stories
+     🔵 In Progress       : 1 story  (#20)
+     🔍 In QA             : 1 story  (#18)
+     ⏳ QA Verified       : 0
+     🚀 Ready to Deploy   : 0
+     🟢 In Prod           : 2 stories (#16, #17)
+     📋 Backlog           : 13 stories
 
    AT RISK:
      ⚠️ #20 stalled in-progress for 6 days — check with dev
@@ -127,10 +134,13 @@ Pass a mode when invoking:
 
 ## Rules
 
-- Never move issues between labels in `report` mode — read-only
+- Never move issues between labels — read-only in both modes
 - In `plan` mode, only add a sprint-focus comment — do NOT change lifecycle labels
-- Lifecycle transitions are handled by `/scrum-master`, not this workflow
+- Lifecycle transitions are handled by Dev Agent, QA Agent, and GitHub Actions — not this workflow
 - WIP limit is **3 stories maximum** in active states (`in-progress` + `in-qa` + `in-prod`)
-- If WIP ≥ 3, recommend finishing existing work before starting anything new ("stop starting, start finishing")
-- Epic issues and test-plan issues are excluded from velocity counting
+- If WIP ≥ 3, recommend finishing existing work before starting anything new
+- Epics and test-case issues are excluded from velocity and WIP counting
+- An Epic is NOT done until ALL its child stories are closed
+- A Story is NOT done until ALL its child tasks are closed AND it is `prod-verified`
+- `bug:production` issues are always recommended first, above any backlog priority ordering
 - Always recommend the highest-priority unblocked story from the backlog

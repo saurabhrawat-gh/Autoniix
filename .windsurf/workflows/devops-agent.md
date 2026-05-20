@@ -31,52 +31,62 @@ Use this workflow for any infrastructure, deployment, or operations task. Invoke
 
 ---
 
-## Task: `deploy`
+## Task: `deploy` (monitoring + verification only)
 
-**Pipeline reality (do not bypass):** A self-hosted GitHub Actions runner lives on the VPS. The `deploy` job in `.github/workflows/ci.yml` fires automatically on every `push` to `main` (gated by `github.event_name == 'push' && github.ref == 'refs/heads/main'`). PRs do **not** trigger deploy — this is by design.
+**How deploys work:**
+Deploys are **fully automated**. When `qa-verified` is added to an issue:
+1. GitHub Actions creates a `develop → main` PR and auto-merges it
+2. The self-hosted runner on the VPS runs `docker compose up -d --build`
+3. GitHub Actions sets `in-prod` on all deployed issues
 
-Therefore the deploy task is **not "SSH and pull"** — it is **"merge the PR and verify the auto-deploy"**.
-
-Use this task after the user signals `ready-to-merge` (or after the develop→main PR has all green CI checks and user approval).
+**Your role:** Monitor that the above happened correctly and verify the smoke test.
 
 ```
-1. Pre-merge gate — verify the open develop→main PR is mergeable:
-   a. List open PRs targeting main:
-      mcp0_list_pull_requests(owner=..., repo=..., state=open, base=main)
-   b. For each PR, fetch status:
-      mcp0_get_pull_request_status(... pull_number=N)
-   c. Confirm ALL required checks are green:
-        - Python — lint + unit tests
-        - Remotion — typecheck
-        - Dashboard — typecheck + UI token lint
-        - Security — pip-audit + SBOM
-        - E2E — render smoke
-      The `Deploy — VPS (main push only)` job MUST be skipped (this is expected — it only runs after merge).
-   d. If any check failed, STOP. Report which check, link to logs, recommend fix.
+1. Check GitHub Actions for the latest deploy run:
+   - URL: https://github.com/saurabhrawat-gh/Autoniix/actions
+   - Look for the "Deploy — VPS (main push only)" job
+   - If it succeeded → proceed to step 2
+   - If it failed → run the `incident` task
 
-2. Merge the PR (squash or merge per repo convention):
-   mcp0_merge_pull_request(owner=..., repo=..., pull_number=N, merge_method='merge')
-
-3. Watch the post-merge deploy run:
-   a. Poll mcp0_list_commits(sha='main') for the merge commit SHA.
-   b. Open the Actions run for that SHA in the browser (or report the URL):
-      https://github.com/{owner}/{repo}/actions
-   c. Wait until the `Deploy — VPS (main push only)` job either succeeds or fails.
-
-4. Post-deploy verification (the workflow already runs `Post-deploy smoke`, but double-check):
+2. Post-deploy smoke check:
    a. curl -sf https://api.autoniix.com/health | jq .
    b. curl -sf https://dash.autoniix.com | grep -q "Autoniix"
-   c. Optional: SSH to VPS only if smoke fails, to inspect logs.
+   c. If either fails → run the `incident` task immediately
 
-5. On deploy failure:
-   - Read the Actions run logs (mcp0 has no direct log-fetch — surface the URL).
-   - If a transient infra issue, re-run the job via the Actions UI.
-   - If a code issue, run the `rollback` task (see below) and open a hotfix issue.
+3. If the deploy PR was NOT created automatically (GHA didn't trigger):
+   a. Check that the issue has the `qa-verified` label
+   b. Check the auto-lifecycle.yml Actions run for errors
+   c. If GHA failed: manually create and merge the PR:
+      mcp0_list_pull_requests(base=main, state=open) — check if PR exists
+      If not: mcp0_create_pull_request(head=develop, base=main, title="Release: deploy ready-to-deploy stories")
+      mcp0_merge_pull_request(pull_number=N, merge_method='merge')
 
-6. Update GitHub issue labels for every issue in the merged delta:
-   Remove: ready-to-merge
-   Add: in-prod
-   Comment: "Deployed to production. Smoke tests passed."
+4. On deploy success — update GitHub issues:
+   - Fetch all issues with label `ready-to-deploy` (if GHA didn't set in-prod yet)
+   - For each: mcp0_update_issue — remove `ready-to-deploy`, add `in-prod`
+   - Comment: "Deployed to production. Verify at https://dash.autoniix.com"
+```
+
+---
+
+## Task: `hotfix-deploy`
+
+Use when a `bug:production` or `hotfix` issue was fixed by the dev agent and pushed directly to `main`.
+
+```
+1. Verify the hotfix push triggered CI:
+   - Check GitHub Actions — look for the "Deploy — VPS (main push only)" job
+   - It will fire because main was pushed directly
+
+2. Same smoke checks as `deploy` task (steps 2–3 above)
+
+3. Verify backport to develop:
+   - git log develop --oneline -5
+   - The hotfix commit should appear (dev agent backports as part of H7)
+   - If missing: manually cherry-pick to develop
+
+4. The issue should already be labelled `in-prod` by the dev agent (step H8)
+   - If not: mcp0_update_issue — add `in-prod`
 ```
 
 ---
@@ -269,23 +279,29 @@ Use when a deploy causes production issues.
 ## DevOps Agent Position in SDLC
 
 ```
-/ba-agent    → Epic + Stories  (label: ready-for-qa)
+/ba-agent      → Epic + Stories created  (label: ready-for-qa)
      ↓
-/qa-agent    → Test-case issues  (label: ready-for-dev)
+/qa-agent      → Test-case issues created  (label: ready-for-dev)
      ↓
-/dev-agent   → Implements  (label: in-progress → dev-done)
+/dev-agent     → Implements → merges to develop  (label: in-qa)
      ↓
-You          → Merge PR to bug-fixes/main
+/qa-agent      → Walks test cases with you  (label: qa-verified on pass)
      ↓
-/devops-agent deploy
-     → pre-flight checks
-     → copy-pasteable prod commands
-     → smoke test after you confirm deploy
-     → label: in-prod
+[GHA AUTO]     → qa-verified → ready-to-deploy → develop→main PR merged → in-prod
      ↓
-You          → verify in prod  (label: prod-verified)
+You            → verify on https://dash.autoniix.com → tick all AC checkboxes
      ↓
-/devops-agent close
-     → mcp0_update_issue → state: closed
-     → comment: "Verified in production. Closing."
+You            → add prod-verified label
+     ↓
+[GHA AUTO]     → all ACs checked → issue CLOSED
+
+HOTFIX PATH:
+/dev-agent     → Implements → merges to main directly  (label: in-prod)
+     ↓
+[GHA AUTO]     → CI deploys
+     ↓
+You            → verify → add prod-verified → GHA closes
+
+/devops-agent  → Monitors deploys, handles incidents, infra changes, rollbacks
+               → Called when: deploy fails, service goes down, DNS change needed, scale needed
 ```

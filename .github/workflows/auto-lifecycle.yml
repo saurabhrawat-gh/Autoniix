@@ -1,0 +1,231 @@
+name: Issue Lifecycle Automation
+
+on:
+  issues:
+    types: [labeled]
+  push:
+    branches: [main]
+
+permissions:
+  issues: write
+  pull-requests: write
+  contents: write
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────
+  # TRIGGER: qa-verified label added
+  # ACTION : remove qa-verified, add ready-to-deploy
+  #          create develop→main PR and enable auto-merge
+  # ─────────────────────────────────────────────────────────────────────
+  on-qa-verified:
+    if: github.event_name == 'issues' && github.event.label.name == 'qa-verified'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add ready-to-deploy label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const n = context.payload.issue.number;
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: n, labels: ['ready-to-deploy']
+            });
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: n,
+              body: '🚀 **Ready to Deploy**\n\nQA signed off on `develop`. Creating deploy PR...'
+            });
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and auto-merge develop→main PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Collect all ready-to-deploy issues for PR body
+          ISSUES=$(gh issue list \
+            --repo "$GITHUB_REPOSITORY" \
+            --label "ready-to-deploy" \
+            --state open \
+            --json number \
+            --jq '[.[] | "Closes #\(.number)"] | join("\n")' 2>/dev/null || echo "")
+
+          # Check if PR already exists
+          EXISTING=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head develop \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty' 2>/dev/null || echo "")
+
+          if [ -z "$EXISTING" ]; then
+            PR_URL=$(gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head develop \
+              --title "Release: deploy ready-to-deploy stories" \
+              --body "${ISSUES:-Automated release deploy}")
+            PR_NUM=$(echo "$PR_URL" | grep -o '[0-9]*$')
+            echo "Created PR #$PR_NUM"
+          else
+            PR_NUM="$EXISTING"
+            echo "Using existing PR #$PR_NUM"
+          fi
+
+          # Enable auto-merge (merges as soon as CI passes)
+          gh pr merge "$PR_NUM" \
+            --repo "$GITHUB_REPOSITORY" \
+            --merge \
+            --auto \
+            || echo "Auto-merge already enabled or not available — PR will merge after CI"
+
+  # ─────────────────────────────────────────────────────────────────────
+  # TRIGGER: push to main (after PR merge from develop or hotfix)
+  # ACTION : set in-prod on all ready-to-deploy issues
+  # ─────────────────────────────────────────────────────────────────────
+  on-main-push:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set in-prod on deployed issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = context.sha.slice(0, 7);
+
+            // Find all open issues with ready-to-deploy label
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'ready-to-deploy',
+              state: 'open',
+              per_page: 100
+            });
+
+            for (const issue of issues) {
+              if (issue.pull_request) continue; // skip PRs
+
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  issue_number: issue.number, name: 'ready-to-deploy'
+                });
+              } catch (_) {}
+
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: issue.number, labels: ['in-prod']
+              });
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `🟢 **In Production** — commit \`${sha}\`\n\nDeployed to https://dash.autoniix.com.\n\nPlease verify ALL acceptance criteria checkboxes in this issue on production.\nWhen every box is ticked ✅, add the \`prod-verified\` label — this issue will close automatically.`
+              });
+            }
+
+  # ─────────────────────────────────────────────────────────────────────
+  # TRIGGER: prod-verified label added
+  # ACTION : check all AC checkboxes ticked → close issue
+  #          if boxes remain → remove prod-verified, post reminder
+  # ─────────────────────────────────────────────────────────────────────
+  on-prod-verified:
+    if: github.event_name == 'issues' && github.event.label.name == 'prod-verified'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check ACs and close if complete
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const n = context.payload.issue.number;
+            const body = context.payload.issue.body || '';
+
+            // Count unchecked boxes: - [ ]
+            const unchecked = (body.match(/- \[ \]/g) || []).length;
+
+            if (unchecked === 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: n,
+                body: '✅ **Production Verified — Closing**\n\nAll acceptance criteria are ticked. Closed automatically.'
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: n, state: 'closed'
+              });
+            } else {
+              // Remove the label — not actually verified yet
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  issue_number: n, name: 'prod-verified'
+                });
+              } catch (_) {}
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: n,
+                body: `⚠️ **Cannot close — ${unchecked} acceptance criteria box(es) are still unchecked.**\n\nPlease tick all \`- [ ]\` checkboxes in the issue body after verifying on production, then add \`prod-verified\` again.`
+              });
+            }
+
+  # ─────────────────────────────────────────────────────────────────────
+  # TRIGGER: bug-reopened label added
+  # ACTION : remove prod-verified (if set), set in-progress,
+  #          post instructions for reopen comment
+  # ─────────────────────────────────────────────────────────────────────
+  on-bug-reopened:
+    if: github.event_name == 'issues' && github.event.label.name == 'bug:reopened'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Handle bug reopen
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const n = context.payload.issue.number;
+            const labels = context.payload.issue.labels.map(l => l.name);
+
+            // Escalate priority one level
+            const priorityMap = {
+              'priority:low': 'priority:medium',
+              'priority:medium': 'priority:high',
+              'priority:high': 'priority:critical'
+            };
+            for (const [from, to] of Object.entries(priorityMap)) {
+              if (labels.includes(from)) {
+                try { await github.rest.issues.removeLabel({ owner: context.repo.owner, repo: context.repo.repo, issue_number: n, name: from }); } catch (_) {}
+                await github.rest.issues.addLabels({ owner: context.repo.owner, repo: context.repo.repo, issue_number: n, labels: [to] });
+                break;
+              }
+            }
+
+            // Remove prod-verified if present
+            if (labels.includes('prod-verified')) {
+              try { await github.rest.issues.removeLabel({ owner: context.repo.owner, repo: context.repo.repo, issue_number: n, name: 'prod-verified' }); } catch (_) {}
+            }
+
+            // Reopen the issue if closed
+            if (context.payload.issue.state === 'closed') {
+              await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: n, state: 'open' });
+            }
+
+            // Set back to in-progress
+            const lifecycleLabels = ['in-qa', 'qa-verified', 'ready-to-deploy', 'in-prod', 'ready-for-dev'];
+            for (const label of lifecycleLabels) {
+              if (labels.includes(label)) {
+                try { await github.rest.issues.removeLabel({ owner: context.repo.owner, repo: context.repo.repo, issue_number: n, name: label }); } catch (_) {}
+              }
+            }
+            await github.rest.issues.addLabels({ owner: context.repo.owner, repo: context.repo.repo, issue_number: n, labels: ['in-progress', 'ready-for-dev'] });
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: n,
+              body: `🔁 **Bug Reopened**\n\nThis issue has been reopened. Priority escalated by one level.\n\n⚠️ **Action required:** Add a comment explaining WHY this was reopened (what failed, who found it, steps to reproduce).\n\nPick up via \`/dev-agent\` — issue is back in \`ready-for-dev\`.`
+            });

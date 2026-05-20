@@ -1,201 +1,146 @@
 ---
-description: Scrum Master — scan all open issues, execute automatic lifecycle transitions, and post a sprint board summary
+description: Scrum Master — scan all open issues, report board state, surface anomalies, and flag what needs human attention. Does NOT execute transitions — those are handled by GitHub Actions and agents automatically.
 ---
 
 # Scrum Master Workflow
 
-Run this workflow at any time to advance issues through the lifecycle automatically and surface what needs human attention.
+Run `/scrum-master` at any time to get a full board health report.
 
-## Full Issue Lifecycle
+**What this agent does:** Reads, scans, reports, flags anomalies, and suggests actions.
+**What this agent does NOT do:** Change labels, close issues, or move tickets. Transitions are handled by:
+- Dev Agent → sets `in-qa` when branch merges to develop
+- QA Agent → sets `qa-verified` when all tests pass
+- GitHub Actions → handles `qa-verified → ready-to-deploy → in-prod → closed`
+
+## Full Issue Lifecycle (reference)
 
 ```
-ready-for-dev  →  in-progress  →  dev-done
-                                     ↓  (auto)
-                                   in-qa
-                                     ↓  (human: QA ticks test cases)
-                                 qa-verified
-                                     ↓  (auto)
-                              ready-to-deploy
-                                     ↓  (auto: triggers deploy PR)
-                                   in-prod
-                                     ↓  (human: ticks all AC checkboxes)
-                                prod-verified  →  CLOSED  (auto)
+ready-for-dev → in-progress → in-qa → qa-verified → ready-to-deploy → in-prod → prod-verified → CLOSED
+
+Hotfix path: ready-for-dev → in-progress → in-prod → prod-verified → CLOSED
 ```
 
-**Auto** = this workflow executes it.  
-**Human** = only the user can do it.
+Who drives each transition:
+- `ready-for-dev → in-progress` : Dev Agent (picks up issue)
+- `in-progress → in-qa` : Dev Agent (merges to develop + calls GitHub MCP)
+- `in-qa → qa-verified` : QA Agent (walks test cases with user + calls GitHub MCP)
+- `qa-verified → ready-to-deploy` : **GitHub Actions** (auto, label trigger)
+- `ready-to-deploy → in-prod` : **GitHub Actions** (auto, after deploy to main)
+- `in-prod → CLOSED` : **GitHub Actions** (auto, after user adds `prod-verified` + all ACs ticked)
+- `in-progress → in-prod` (hotfix) : Dev Agent (merges to main + calls GitHub MCP)
 
 ---
 
 ## Steps
 
-1. **Fetch the current board**
-   - Use `mcp0_list_issues` on `saurabhrawat-gh/Autoniix` with `state=open`, `per_page=100`
-   - Filter to actual issues only (skip anything with `pull_request` key)
-   - Group by lifecycle label. Print a board summary table:
+### 1. Fetch the full board
+- Use `mcp0_list_issues` on `saurabhrawat-gh/Autoniix` with `state=open`, `per_page=100`
+- Skip any issue with a `pull_request` key (those are PRs, not issues)
+- Group by lifecycle label
 
-   | Status | Issues |
-   |---|---|
-   | `ready-for-dev` | #N title, #N title … |
-   | `in-progress` | … |
-   | `dev-done` | … |
-   | `in-qa` | … |
-   | `qa-verified` | … |
-   | `ready-to-deploy` | … |
-   | `in-prod` | … |
-   | No lifecycle label | … |
+### 2. Print board state
 
-   Issues with NO lifecycle label are flagged as **⚠️ Unlabelled**.
+```
+── BOARD STATE ── {date} ──────────────────────────────────
+  ready-for-dev    : #N title, #N title …
+  in-progress      : …
+  in-qa            : …
+  qa-verified      : …
+  ready-to-deploy  : …
+  in-prod          : …
+  ⚠️ No label      : … (these need investigation)
+──────────────────────────────────────────────────────────
+```
 
----
+### 3. Check Epic → Story → Task hierarchy health
+For each open Epic issue:
+- Search its body for `#{N}` child story references
+- Fetch each child story's state and lifecycle label
+- Determine Epic status:
+  - ALL stories closed → flag: "Epic ready to close"
+  - SOME stories in-prod or beyond → flag: "Epic partially complete"
+  - ZERO stories started → flag: "Epic not started"
+  - Any story stuck `in-progress` > 5 days → flag: "Epic has stalled story"
 
-2. **Transition: `dev-done` → `in-qa`** *(automatic)*
-   For every open issue labelled `dev-done` but NOT `in-qa`:
-   - Call `mcp0_update_issue`: remove label `dev-done`, add label `in-qa`
-   - Look for a linked test-plan issue: search the issue body for `[TEST]` issue reference or `#3N` pattern in a "Test Plan" section
-   - Call `mcp0_add_issue_comment`:
-     ```
-     🔍 **QA Phase Started**
+For each open Story issue:
+- Search its body for child task references
+- If all child tasks are closed but story is not `prod-verified`: flag "Story has all tasks done — needs prod verification"
+- If story is `qa-verified` or beyond but Epic is still `in-progress`: flag "Epic label may be stale"
 
-     This story is ready for testing. All dev work is merged to `develop`.
+### 4. Check for stale issues
+Flag any issue stuck in the same state too long:
 
-     **Test plan:** #{test_plan_issue} ← open this and tick each checkbox as you verify
+| State | Stale after |
+|---|---|
+| `in-progress` | 5 days since last update |
+| `in-qa` | 3 days since last update |
+| `ready-to-deploy` | 2 days (GHA should have acted) |
+| `in-prod` | 7 days with unchecked AC boxes |
 
-     **How to test locally:**
-     1. `git checkout develop && git pull`
-     2. `docker compose build dashboard-bff dashboard-ui && docker compose up -d --force-recreate dashboard-bff dashboard-ui`
-     3. Open http://localhost:3000 and follow the test cases in #{test_plan_issue}
+Use `updated_at` from the API response.
 
-     Once all test cases in #{test_plan_issue} are ticked ✅, add the `qa-verified` label to THIS issue.
-     ```
-   - Log: `✅ #N dev-done → in-qa`
+### 5. Check for bug lifecycle anomalies
+- `bug:normal` with no parent story link → flag: "Normal bug must be linked to a parent story"
+- `bug:production` without `priority:critical` or `priority:high` → flag: "Production bug priority may be too low"
+- `bug:reopened` without a comment explaining why → flag: "Reopened bug needs a reason comment"
+- Any issue labelled `in-prod` that was previously `prod-verified` and then reopened → flag as: "Regression — was prod-verified"
 
----
+### 6. Check for lifecycle anomalies
+- Issues with `qa-verified` label that still also have `in-qa` → flag: "Duplicate label — remove in-qa"
+- Issues with `ready-to-deploy` for more than 2 days → flag: "GHA should have created deploy PR — check Actions tab"
+- Issues with no lifecycle label that are not Epics, test-case issues, or milestones → flag: "Unlabelled issue — needs triage"
+- Any issue closed without `prod-verified` label → flag: "Closed without prod-verified — may have been closed manually"
 
-3. **Transition: `qa-verified` → `ready-to-deploy`** *(automatic)*
-   For every open issue labelled `qa-verified` but NOT `ready-to-deploy`:
-   - Call `mcp0_update_issue`: remove label `qa-verified`, add label `ready-to-deploy`
-   - Call `mcp0_add_issue_comment`:
-     ```
-     🚀 **Ready to Deploy**
+### 7. Check prod-verification pending
+For every open issue labelled `in-prod`:
+- Fetch full body via `mcp0_get_issue`
+- Count `- [ ]` patterns
+- If unchecked boxes remain: flag "#{N} in-prod — {count} AC boxes need verification"
+- If zero unchecked: flag "#{N} in-prod — all ACs ticked, waiting for prod-verified label"
 
-     QA has signed off on `develop`. This story is queued for the next production deploy.
+### 8. Print full report
 
-     Next step: merge the open `develop → main` PR (or run `/devops-agent` to open one).
-     After the deploy, this issue will move to `in-prod` automatically.
-     ```
-   - Log: `✅ #N qa-verified → ready-to-deploy`
+```
+── SCRUM MASTER REPORT ── {date} ──────────────────────────
 
----
+BOARD STATE:
+  ready-for-dev    : #21, #22, #23
+  in-progress      : #20
+  in-qa            : #18
+  qa-verified      : —
+  ready-to-deploy  : #19
+  in-prod          : #16, #17
+  ⚠️ No label      : #5 (needs triage)
 
-4. **Transition: `ready-to-deploy` → `in-prod`** *(automatic — checks for merged deploy PR)*
-   For every open issue labelled `ready-to-deploy`:
-   a. Call `mcp0_list_pull_requests` with `base=main`, `state=closed` — look for a PR merged in the last 24h whose head was `develop`
-   b. If a recent merged PR exists:
-      - Call `mcp0_update_issue`: remove label `ready-to-deploy`, add label `in-prod`
-      - Call `mcp0_add_issue_comment`:
-        ```
-        🟢 **In Production**
+EPIC HEALTH:
+  #40 Provider & API Config   : 3/13 stories closed (23%) — in-progress
+  #41 Video Pipeline          : 0/13 stories closed (0%)  — not started
+  #43 Infrastructure          : 0/6 stories closed (0%)   — not started
 
-        Deployed to https://dash.autoniix.com via PR #{pr_number}.
+⚠️ ANOMALIES:
+  #20 in-progress for 6 days — stale
+  #19 ready-to-deploy for 3 days — GHA may not have triggered, check Actions
+  #16 in-prod — 2 AC boxes still unchecked (7 days)
+  #5 has no lifecycle label — needs triage
 
-        Please verify ALL acceptance criteria checkboxes in this issue on production.
-        When every box is ticked ✅, the scrum master will automatically close this issue.
-        ```
-      - Log: `✅ #N ready-to-deploy → in-prod`
-   c. If NO recent merged PR:
-      - Check if a `develop → main` PR is already open via `mcp0_list_pull_requests` with `base=main`, `state=open`, `head=saurabhrawat-gh:develop`
-      - If no open PR: call `mcp0_create_pull_request`:
-        - title: `Release: Autoniix MVP — Sprint deploy`
-        - head: `develop`, base: `main`
-        - body: list all `ready-to-deploy` issues with `Closes #N` lines
-      - Log: `⏳ #N ready-to-deploy — deploy PR opened/exists, awaiting merge`
+PROD VERIFICATION NEEDED:
+  #16: 2 boxes unchecked — verify on https://dash.autoniix.com
+  #17: all boxes ticked — add prod-verified label to close
 
----
-
-5. **Transition: `in-prod` → `prod-verified` → CLOSED** *(automatic — checks AC checkboxes)*
-   For every open issue labelled `in-prod`:
-   a. Use `mcp0_get_issue` to fetch the full issue body
-   b. Count unchecked boxes: look for `- [ ]` patterns in the body
-   c. If **zero unchecked boxes** (all `- [x]`):
-      - Call `mcp0_update_issue`: add label `prod-verified`, `state=closed`
-      - Call `mcp0_add_issue_comment`:
-        ```
-        ✅ **Prod Verified — Issue Closed**
-
-        All acceptance criteria have been ticked. This story is complete in production.
-        Closed automatically by `/scrum-master`.
-        ```
-      - Log: `✅ #N prod-verified → CLOSED`
-   d. If unchecked boxes remain:
-      - Count them and post a reminder (only if no reminder was posted in the last 24h — check recent comments)
-      - Call `mcp0_add_issue_comment`:
-        ```
-        ⏳ **Prod Verification Pending**
-
-        This story is live on https://dash.autoniix.com but {N} acceptance criteria checkboxes are still unticked.
-        Please verify on production and tick each checkbox in the issue body.
-        Once all are checked, this issue will close automatically on the next `/scrum-master` run.
-        ```
-      - Log: `⏳ #N in-prod — {N} checkboxes remaining`
-
----
-
-6. **Check for stale issues** *(informational — no auto-transition)*
-   Flag any issue that has been stuck in the same status for too long:
-   - `in-progress` for more than **5 days** since last update → ⚠️ stale
-   - `in-qa` for more than **3 days** since last update → ⚠️ stale  
-   - `ready-to-deploy` for more than **2 days** → ⚠️ stale (deploy is blocked)
-   - `in-prod` for more than **7 days** with unchecked boxes → ⚠️ prod verification overdue
-
-   Use `updated_at` from the issue API response to calculate staleness.
-   Print a **⚠️ Blockers** section at the end of the report with any stale issues.
-
----
-
-7. **Final report**
-   Print a clean sprint board summary showing:
-   - How many issues were automatically transitioned (and to which state)
-   - Current board state (re-fetch and re-group after all transitions)
-   - Any blockers or stale issues
-   - Suggested next human actions (e.g., "QA needed on #18, #19")
-
-   Format:
-   ```
-   ── SCRUM MASTER REPORT ── {date} ──────────────────────────
-
-   TRANSITIONS EXECUTED:
-     ✅ #18 dev-done → in-qa
-     ✅ #19 qa-verified → ready-to-deploy
-     ⏳ #16 in-prod — 2 checkboxes remaining
-
-   CURRENT BOARD:
-     ready-for-dev    : #21, #22, #23
-     in-progress      : #20
-     in-qa            : #18
-     qa-verified      : —
-     ready-to-deploy  : #19
-     in-prod          : #16, #17
-     prod-verified    : —
-
-   ⚠️ BLOCKERS:
-     #20 in-progress for 6 days (stale — check with dev)
-     #16 in-prod for 8 days — 2 unchecked AC boxes
-
-   NEXT ACTIONS FOR YOU:
-     → Tick test cases in #33 to move #18 to qa-verified
-     → Tick AC checkboxes in #16 and #17 on https://dash.autoniix.com
-   ```
+SUGGESTED NEXT ACTIONS:
+  1. Run /qa-agent post-dev → walk test cases for #18 (in-qa)
+  2. Tick AC boxes in #16 on https://dash.autoniix.com
+  3. Add prod-verified to #17 (all ACs already ticked)
+  4. Check GitHub Actions tab — #19 ready-to-deploy for 3 days
+  5. Triage unlabelled issue #5
+```
 
 ---
 
 ## Rules
-
-- Never transition `in-qa → qa-verified` — only the user/QA can do this (by ticking test case checkboxes)
-- Never transition `in-progress → dev-done` — only the dev agent does this after implementation
-- Never close an issue unless ALL `- [ ]` boxes are gone (all ticked `- [x]`)
-- Never create a deploy PR if one is already open — check first
-- If an issue has BOTH `dev-done` and `in-qa` labels, remove `dev-done` (it's redundant)
-- Epics (#12, #13, #14, #15) do NOT follow this lifecycle — skip them in all transitions
-- Test-plan issues (`test-plan` label) do NOT follow this lifecycle — skip them too
-- Run this workflow at any time — it is safe to run multiple times (idempotent)
+- Never change any issue label — read-only
+- Never close any issue — read-only
+- Never create PRs or branches — read-only
+- Epics and test-case issues (`test-case` label) do NOT follow the lifecycle — do not flag them for missing lifecycle labels
+- Safe to run multiple times — fully idempotent (read-only)
+- If an issue appears stuck and the reason is unclear, suggest: "Comment on the issue asking for status update"

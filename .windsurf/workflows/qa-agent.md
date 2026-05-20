@@ -1,119 +1,192 @@
 ---
-description: QA Agent — read BA-produced stories, classify deliverables as bug/feature/task/hotfix/subtask, and create linked GitHub test-case issues with full happy/sad/edge checkbox suites
+description: QA Agent — two modes: (A) pre-dev test plan generation for ready-for-qa stories, (B) post-dev local QA walk-through for in-qa issues that sets qa-verified
 ---
 
 # QA Agent Workflow
 
-Use this workflow after the BA agent has created stories (labelled `ready-for-qa`), before the dev agent picks them up.
+The QA Agent has two distinct modes. It auto-detects which mode to run based on what issues are present.
 
-## Steps
+- **Mode A — Pre-dev**: Runs after BA Agent. Reads `ready-for-qa` stories, generates a test-case issue, promotes story to `ready-for-dev`.
+- **Mode B — Post-dev**: Runs after Dev Agent. Reads `in-qa` issues, walks you through every test case interactively, sets `qa-verified` when all tests pass.
 
-1. **Accept input**
-   - Accept a story or epic issue number, OR process all open `ready-for-qa` issues
-   - Use `mcp0_list_issues` on `saurabhrawat-gh/Autoniix` with label `ready-for-qa`, sorted by `created` asc, if no number given
-   - If given an Epic: fetch all child stories listed in its body and process each one
+Invoke as `/qa-agent` (auto-detect) or `/qa-agent pre-dev` / `/qa-agent post-dev` to force a mode.
 
-2. **Fetch and parse the issue**
-   - Use `mcp0_get_issue` to read the full body
-   - Extract: Summary, Personas, Use Cases table (`UC-XX-NN` rows), Acceptance Criteria checkboxes, Impacted Files
-   - Note the issue type context: is this a new capability, a defect, a migration, a security fix?
+---
 
-3. **Classify each deliverable**
-   Determine the issue type for each acceptance criteria group or use case cluster:
+## Mode A — Pre-Dev Test Plan (ready-for-qa → ready-for-dev)
 
-   | Condition | Type | Label | Branch prefix | Commit prefix |
-   |---|---|---|---|---|
-   | New endpoint / screen / capability | `feature` | `feature` | `feat/` | `feat(#N):` |
-   | Defect in existing shipped code | `bug` | `bug` | `fix/` | `fix(#N):` |
-   | Urgent prod-impacting issue | `hotfix` | `hotfix` | `hotfix/` | `hotfix(#N):` |
-   | Small isolated technical change | `task` | `task` | `chore/` | `chore(#N):` |
-   | Sub-step of a task too large to be atomic | `subtask` | `subtask` | `chore/` | `chore(#N):` |
+### A1. Fetch stories to process
+- Use `mcp0_list_issues` with label `ready-for-qa`, `state=open`, sorted by `created` asc
+- If a specific issue number is given, use that
+- If given an Epic: fetch all child stories from its body
 
-4. **Generate test cases**
-   For every use case row and acceptance criteria checkbox, generate:
+### A2. For each story — parse and classify
+- Use `mcp0_get_issue` to read the full body
+- Extract: Summary, Use Cases table, Acceptance Criteria checkboxes, Impacted Files
+- Classify the deliverable type:
 
-   **Happy Flow** (minimum 2 per story):
-   - One TC per use case: actor does X with valid input → system does Y correctly
-   - Include all roles that should succeed (owner, admin, etc.)
+| Condition | Type | Label | Branch | Commit |
+|---|---|---|---|---|
+| New endpoint / screen / capability | `feature` | `feature` | `feat/` | `feat(#N):` |
+| Defect in existing code (pre-prod) | `bug:normal` | `bug` | `fix/` | `fix(#N):` |
+| Urgent prod-impacting defect | `bug:production` | `bug` `hotfix` | `hotfix/` | `hotfix(#N):` |
+| Small isolated technical change | `task` | `task` | `chore/` | `chore(#N):` |
 
-   **Sad / Error Flow** (minimum 3 per story — always include these):
-   - Invalid or malformed input → proper error code + message
-   - Wrong role (non-owner calls owner-only endpoint) → 403
-   - Resource not found → 404
-   - Duplicate entry where uniqueness is enforced → 409
-   - Expired or revoked token → 401
-   - Missing required field → 422
+### A3. Generate test cases
+For every use case and AC checkbox, generate:
 
-   **Edge Cases** (minimum 2 per story):
-   - Plan limit boundary (at limit, over limit)
-   - Empty state (no records exist)
-   - Concurrent / race condition (two requests simultaneously)
-   - Maximum payload or list size
-   - Special characters in text inputs
-   - Action on already-completed / already-cancelled resource
+**Happy Flow** (min 2 per story):
+- One TC per use case — actor does X with valid input → system responds Y
 
-   **Security / Auth checks** (always add when story involves auth, tokens, or permissions):
-   - No cookie + no header → 401
-   - Expired JWT → 401
-   - Token not in localStorage (XSS check)
+**Sad / Error Flow** (min 3 per story — never skip):
+- Invalid or malformed input → correct error code + message
+- Wrong role → 403
+- Resource not found → 404
+- Duplicate where uniqueness enforced → 409
+- Expired token → 401
+- Missing required field → 422
 
-5. **Create child GitHub issues**
-   For each classified work item, call `mcp0_create_issue` with:
-   - **Title:** `[TEST] {story_title} — {item_short_description}`
-   - **Body:** use the `test-case` issue template, pre-filled with all generated TCs as checkboxes (use `TC-{story_number}-NN` IDs)
-   - **Labels:** `test-case`, the item's type label (`feature` / `bug` / `task` / etc.), `ready-for-dev`
-   - **Body header:** `**Parent Story:** #{story_number}` and `**Issue Type:** {type}`
+**Edge Cases** (min 2 per story):
+- Empty state (no records)
+- At-limit (boundary condition)
+- Concurrent access (race condition)
+- Special characters in text inputs
 
-6. **Comment on the parent story**
-   Call `mcp0_add_issue_comment` on the story issue:
-   ```
-   QA review complete. Test cases created:
-   - #{tc_issue_number}: {description}
-   - ...
-   All happy / sad / edge cases documented as checkboxes.
-   Story is now ready for dev.
-   ```
+**Security / Auth** (always when story touches auth or permissions):
+- No cookie + no header → 401
+- Expired JWT → 401
+- All 5 role checks: owner ✓, admin ✓/✗, producer ✓/✗, editor ✓/✗, viewer ✗
 
-7. **Update parent story labels**
-   Call `mcp0_update_issue` on the story:
-   - Remove label: `ready-for-qa`
-   - Add labels: `qa-approved`, `ready-for-dev`
+### A4. Create test-case issue
+Call `mcp0_create_issue` with:
+- **Title:** `[TEST] #{story_number} — {story_title}`
+- **Labels:** `test-case`, the deliverable type label, `ready-for-dev`
+- **Body:**
+  ```
+  **Parent Story:** #{story_number}
+  **Type:** {feature/bug/task}
 
-8. **If processing a batch (all ready-for-qa)**
-   Continue to the next `ready-for-qa` issue until the list is empty.
+  ## Test Cases
+
+  ### Happy Path
+  - [ ] TC-{N}-01: {description}
+  - [ ] TC-{N}-02: {description}
+
+  ### Sad / Error
+  - [ ] TC-{N}-03: {description}
+  ...
+
+  ### Edge Cases
+  - [ ] TC-{N}-0X: {description}
+
+  ### Security
+  - [ ] TC-{N}-0X: {description}
+  ```
+
+### A5. Comment on parent story and promote to ready-for-dev
+- Call `mcp0_add_issue_comment` on the story:
+  ```
+  QA plan ready. Test-case issue: #{tc_issue_number}
+  {N} test cases generated (happy + sad + edge + security).
+  Story promoted to ready-for-dev — dev agent can now pick it up.
+  ```
+- Call `mcp0_update_issue` on the story: remove `ready-for-qa`, add `ready-for-dev`
+
+### A6. Continue batch
+Process next `ready-for-qa` issue until list is empty.
+
+---
+
+## Mode B — Post-Dev QA Walk-Through (in-qa → qa-verified)
+
+This mode is run AFTER the dev agent merges to `develop` and sets `in-qa`.
+You run `/qa-agent` (or `/qa-agent post-dev`) after pulling `develop` locally.
+
+### B1. Fetch in-qa issues
+- Use `mcp0_list_issues` with label `in-qa`, `state=open`, sorted by `created` asc
+- For each issue, also fetch the linked test-case issue (look for `[TEST] #N` in comments or body)
+
+### B2. For each in-qa issue — announce what to test
+- Use `mcp0_get_issue` to read the full body of both the story AND its test-case issue
+- Print a clear QA session header:
+  ```
+  ── QA SESSION: #{issue_number} ─────────────────────────────
+  Story: {title}
+  Test cases: #{tc_issue_number}
+  Environment: local develop (git checkout develop && docker compose up)
+  ─────────────────────────────────────────────────────────────
+  ```
+
+### B3. Walk through test cases one by one
+For each test case checkbox in the test-case issue:
+1. Print the test case clearly: what to do, what to check
+2. Ask: **"Did this test PASS or FAIL?"**
+3. If PASS → continue to next
+4. If FAIL:
+   - Ask for a brief description of what failed
+   - Create a `bug:normal` child issue:
+     - Title: `BUG #N: {test_case_id} — {what_failed}`
+     - Labels: `bug`, `bug:normal`, `ready-for-dev`, same priority as parent
+     - Body: parent story link, reproduction steps, expected vs actual
+   - Mark the story as **BLOCKED** — do NOT set `qa-verified`
+   - Post comment on story: "QA BLOCKED on TC-{N}-{id}. Bug filed: #{bug_issue_number}. Fix and re-test before promoting."
+   - Stop the QA session for this story
+
+### B4. If ALL test cases passed — set qa-verified
+- Call `mcp0_update_issue` on the story: remove `in-qa`, add `qa-verified`
+- Call `mcp0_add_issue_comment`:
+  ```
+  ✅ **QA Passed** — all {N} test cases verified on local `develop`.
+
+  GitHub Actions will automatically:
+  1. Set `ready-to-deploy`
+  2. Create the develop→main PR and merge it
+  3. Set `in-prod` after deploy completes
+
+  Next step for you: verify on https://dash.autoniix.com after the deploy.
+  ```
+
+### B5. Continue to next in-qa issue
+Process all `in-qa` issues until list is empty or a blocker is found.
 
 ---
 
 ## Test Case Quality Rules
-- Every permission-sensitive endpoint: test all 5 roles (owner ✓, admin ✓/✗, producer ✓/✗, editor ✓/✗, viewer ✗)
-- Every DB write: test duplicate entry + missing required field
-- Every auth endpoint: test expired token + replayed token (if refresh rotation involved)
-- Every plan-limited feature: test at limit (success) and over limit (402)
-- Every list endpoint: test empty list + list with items
-- Every delete: test delete own resource (✓) + delete other's resource (403/404)
+- Every permission-sensitive endpoint: test all 5 roles
+- Every DB write: test duplicate + missing required field
+- Every auth endpoint: test expired token + replayed token
+- Every list endpoint: test empty list + populated list
+- Every delete: test delete own resource (✓) + delete another's (403/404)
+- Every plan-limited feature: test at-limit and over-limit
 
 ---
 
-## Lifecycle After QA Agent Runs
+## Full Lifecycle
+
 ```
-QA agent creates test-case issue (label: test-case, ready-for-dev)
+BA Agent creates stories (ready-for-qa)
          ↓
-/dev-agent picks up parent story (now labelled ready-for-dev)
+/qa-agent Mode A → creates test-case issues → story: ready-for-dev
          ↓
-Dev implements → story label: in-progress → dev-done
+/dev-agent → implements → merges to develop → story: in-qa
          ↓
-You open the test-case issue → tick checkboxes
+/qa-agent Mode B → walks test cases with you
+  PASS → story: qa-verified
+  FAIL → bug filed → story stays in-qa until bug fixed
          ↓
-All checked → update story label: qa-verified
+GitHub Actions: qa-verified → ready-to-deploy → develop→main PR merged → in-prod
          ↓
-/devops-agent deploy → in-prod → prod-verified → closed
+You verify on https://dash.autoniix.com → add prod-verified label
+         ↓
+GitHub Actions: all ACs checked → CLOSED
 ```
 
 ---
 
 ## Rules
-- Never write code during QA phase
+- Never write code during QA
 - Never skip edge cases for auth, permissions, or plan limits
-- One test-case issue per story — all TCs inside one issue as checkboxes
-- If a story has >15 TCs, split into two test-case issues (happy+sad in one, edges in another)
-- When you tick all boxes and move to `qa-verified`, comment on the parent story: "QA passed — all {N} test cases verified ✓"
+- One test-case issue per story — all TCs inside one issue
+- If story has >15 TCs: split into two issues (happy+sad in one, edge+security in another)
+- Never set `qa-verified` if even one test case failed — file the bug first
+- In Mode B, walk test cases in order — do not skip any

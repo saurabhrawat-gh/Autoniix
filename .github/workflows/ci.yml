@@ -249,6 +249,34 @@ jobs:
             --data "{\"text\":\":rotating_light: *Deploy FAILED* on \`${GITHUB_REF_NAME}\` (\`${GITHUB_SHA:0:7}\`)\nCommit: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}\nRun: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
             "${SLACK_WEBHOOK_URL}"
 
+      - name: Set in-prod labels on deployed issues
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Move any remaining ready-to-deploy issues to in-prod
+          # (backup in case auto-lifecycle.yml workflow-to-workflow trigger was blocked)
+          ISSUES=$(gh issue list \
+            --repo "$GITHUB_REPOSITORY" \
+            --label "ready-to-deploy" \
+            --state open \
+            --json number \
+            --jq '.[].number' 2>/dev/null || echo "")
+          for N in $ISSUES; do
+            gh issue edit "$N" --repo "$GITHUB_REPOSITORY" \
+              --remove-label "ready-to-deploy" \
+              --add-label "in-prod" 2>/dev/null || true
+            gh issue comment "$N" --repo "$GITHUB_REPOSITORY" \
+              --body "🟢 **In Production** — commit \`${GITHUB_SHA:0:7}\`
+
+Deployed to https://dash.autoniix.com.
+
+Please verify ALL acceptance criteria checkboxes on production.
+When every box is ticked ✅, add the \`prod-verified\` label — this issue will close automatically." 2>/dev/null || true
+            echo "Set #$N to in-prod"
+          done
+
       - name: Notify Slack on success
         if: success()
         env:

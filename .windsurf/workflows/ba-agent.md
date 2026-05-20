@@ -300,6 +300,21 @@ Only after user confirms the summary in Step 16:
 - **Task** issues (`task`) only for complex sub-steps worth tracking separately
 - Stories labelled `ready-for-qa` — QA agent handles promotion to `ready-for-dev`
 
+**If filing a bug instead of a feature:**
+
+| Bug situation | Labels to use | Branch | Merges to |
+|---|---|---|---|
+| Found during dev/QA, not yet in production | `bug` `bug:normal` `ready-for-dev` | `fix/issue-N-slug` | `develop` |
+| Found in production (dash.autoniix.com is live) | `bug` `bug:production` `hotfix` `priority:critical` `ready-for-dev` | `hotfix/issue-N-slug` | `main` directly |
+| Was fixed, verified, but the problem came back | `bug` `bug:reopened` | Re-uses original branch type | Same path as original |
+
+**Bug severity for production bugs** (override `priority:critical` only if clearly lower severity):
+- Data loss / auth broken / videos not uploading → keep `priority:critical`
+- Core feature broken but workaround exists → `priority:high`
+- Cosmetic or edge case → `priority:medium`
+
+**Normal bug** should always reference its parent story: add `**Parent Story:** #{N}` in the body.
+
 After creating: "Stories are filed. Run `/qa-agent` to generate test plans before dev picks them up."
 
 ---
