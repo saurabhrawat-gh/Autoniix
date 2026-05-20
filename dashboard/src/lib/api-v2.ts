@@ -79,13 +79,24 @@ export const authApi = {
   register: (email: string, password: string, display_name?: string) =>
     request('/api/v2/auth/register', { method: 'POST', body: JSON.stringify({ email, password, display_name }) }),
   login: async (email: string, password: string, mfa_code?: string) => {
-    const res = await request<{ status: string; user: any; access_token?: string; expires_in?: number }>(
-      '/api/v2/auth/login',
-      { method: 'POST', body: JSON.stringify({ email, password, mfa_code }) }
-    );
+    // Use raw fetch — NOT the request() wrapper — so a 401 from the login
+    // endpoint is surfaced as an error to the caller instead of triggering
+    // the global refresh-then-redirect interceptor (which causes a silent
+    // page reload with no error message).
+    const res = await fetch(`${BASE}/api/v2/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Source': 'ui' },
+      body: JSON.stringify({ email, password, mfa_code }),
+      credentials: 'include',
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail || body.error || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
     // Persist token to localStorage as a fallback when dev proxy doesn't forward Set-Cookie.
-    if (res.access_token) setToken(res.access_token, res.expires_in);
-    return res;
+    if (data.access_token) setToken(data.access_token, data.expires_in);
+    return data;
   },
   refresh: async (): Promise<{ status: string }> => {
     const res = await fetch(`${BASE}/api/v2/auth/refresh`, {

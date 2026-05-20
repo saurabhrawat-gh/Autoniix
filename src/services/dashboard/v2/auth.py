@@ -23,8 +23,11 @@ import time
 from datetime import datetime, timedelta
 from typing import Any
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr, Field
+
+_log = structlog.get_logger(__name__)
 
 from src.db import get_pool
 from src.services.dashboard._limiter import limiter
@@ -81,7 +84,8 @@ def _verify_pw(pw: str, hashed: str) -> bool:
             return True
         except VerifyMismatchError:
             return False
-    except Exception:
+    except Exception as exc:
+        _log.warning("_verify_pw.unexpected_error", exc=repr(exc), hash_prefix=hashed[:8] if hashed else "<empty>")
         return False
 
 
