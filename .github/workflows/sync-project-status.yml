@@ -1,8 +1,11 @@
 name: Sync issue labels → Project board status
 
 on:
-  issues:
-    types: [labeled, unlabeled, reopened, closed]
+  workflow_dispatch:
+  # issues:
+  #   types: [labeled, unlabeled, reopened, closed]
+  # NOTE: Disabled — requires PROJECT_TOKEN secret (classic PAT with 'project' scope).
+  # Re-enable once the secret is added in Settings → Secrets → Actions.
 
 jobs:
   sync-status:
