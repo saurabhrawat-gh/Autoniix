@@ -9,6 +9,7 @@ on:
 
 jobs:
   sync-status:
+    if: ${{ false }}  # disabled — triggers too many runs
     runs-on: ubuntu-latest
     permissions:
       issues: read

@@ -145,6 +145,34 @@ for >1 hour, OR query latency p99 climbing on the slow-query log.
 
 # 3. DEFERRED — LONG-HORIZON
 
+## provider-custom-anthropic-gemini-compat — custom base_url for Anthropic/Gemini SDKs
+
+**Status:** deferred (Epic #40 v1.1)
+**Trigger:** A user reports that their Anthropic or Gemini-compatible proxy (e.g. AWS Bedrock, Vertex AI) cannot be configured via the existing Custom OpenAI-compat endpoint.
+
+---
+
+## provider-custom-categories-ui — add new provider categories from the dashboard
+
+**Status:** deferred (Epic #40 v1.1)
+**Trigger:** A user requests a category that does not exist (e.g. a video generation provider, a custom embedding API) and there is no way to model it without a code change.
+
+---
+
+## provider-midjourney-stability-ai-ideogram — image generation providers beyond DALL-E
+
+**Status:** deferred (Epic #40 v1.1)
+**Trigger:** Thumbnail quality tests show DALL-E 3 is insufficient AND at least one of Midjourney / Stability AI / Ideogram has a stable API.
+
+---
+
+## provider-automated-key-rotation — SDK-driven rotation without human input
+
+**Status:** deferred (Epic #40 v1.1)
+**Trigger:** Any provider exposes an API for programmatic key creation/rotation (e.g. OpenAI API key management endpoint) that we can automate end-to-end without a human pasting a new key.
+
+---
+
 ## cross-niche-transfer-learning
 
 **Status:** deferred
