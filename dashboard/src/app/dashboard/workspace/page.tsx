@@ -84,6 +84,7 @@ type Invite = {
 
 const ROLES = ['owner', 'admin', 'producer', 'editor', 'viewer'] as const;
 const INVITE_ROLES = ['admin', 'producer', 'editor', 'viewer'] as const;
+const roleLabel = (r: string) => r.charAt(0).toUpperCase() + r.slice(1);
 
 const ROLE_BADGE: Record<string, 'neutral' | 'success' | 'warning' | 'info' | 'secondary'> = {
   owner: 'success',
@@ -378,7 +379,7 @@ export default function WorkspacePage() {
                 </div>
                 <Badge variant={ROLE_BADGE[m.role] || 'neutral'} size="sm">
                   <ShieldCheck size={10} className="mr-1" />
-                  {m.role}
+                  {roleLabel(m.role)}
                 </Badge>
                 <Select value={m.role} onValueChange={(role: string) => updateRole(m.user_id, role)}>
                   <SelectTrigger className="w-[120px] h-8 text-xs">
@@ -386,7 +387,7 @@ export default function WorkspacePage() {
                   </SelectTrigger>
                   <SelectContent>
                     {ROLES.map(r => (
-                      <SelectItem key={r} value={r}>{r}</SelectItem>
+                      <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -436,7 +437,7 @@ export default function WorkspacePage() {
               </SelectTrigger>
               <SelectContent>
                 {INVITE_ROLES.map(r => (
-                  <SelectItem key={r} value={r}>{r}</SelectItem>
+                  <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
