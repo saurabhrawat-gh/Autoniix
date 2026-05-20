@@ -3,9 +3,15 @@
  *
  * v2 auth uses HttpOnly cookies (set by the backend on login/refresh).
  * Cookies are sent automatically via credentials:'include'.
- * Legacy single-password auth still uses localStorage dashboard_token.
+ * No auth tokens are stored in localStorage.
  */
 const BASE = process.env.NEXT_PUBLIC_API_URL || '';
+
+// One-time purge: remove any legacy localStorage token keys left from old builds.
+if (typeof window !== 'undefined') {
+  localStorage.removeItem('dashboard_token');
+  localStorage.removeItem('dashboard_token_expires');
+}
 
 function readToken(): string | null {
   if (typeof window === 'undefined') return null;
