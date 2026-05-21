@@ -18,7 +18,7 @@ Verified behaviours:
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -182,7 +182,7 @@ class TestReset:
         pool.fetchrow.return_value = FakeRecord(
             id=1,
             user_id=42,
-            expires_at=datetime.utcnow() + timedelta(minutes=30),
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
             used_at=None,
         )
 
@@ -232,7 +232,7 @@ class TestReset:
         pool.fetchrow.return_value = FakeRecord(
             id=1,
             user_id=42,
-            expires_at=datetime.utcnow() - timedelta(minutes=1),
+            expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
             used_at=None,
         )
 
@@ -250,8 +250,8 @@ class TestReset:
         pool.fetchrow.return_value = FakeRecord(
             id=1,
             user_id=42,
-            expires_at=datetime.utcnow() + timedelta(minutes=30),
-            used_at=datetime.utcnow() - timedelta(minutes=5),
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+            used_at=datetime.now(timezone.utc) - timedelta(minutes=5),
         )
 
         with _pool_ctx(pool):

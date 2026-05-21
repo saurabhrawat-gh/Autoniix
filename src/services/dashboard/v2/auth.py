@@ -20,7 +20,7 @@ import hashlib
 import os
 import secrets
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import structlog
@@ -125,7 +125,7 @@ def _set_auth_cookies(response: Response, access: str, refresh: str) -> None:
     response.set_cookie(
         key="refresh_token", value=refresh,
         httponly=True, secure=secure, samesite="lax",
-        max_age=2592000, path="/api/v2/auth/refresh",
+        max_age=2592000, path="/",
     )
     response.set_cookie(
         key="auth_status", value="1",
@@ -136,7 +136,7 @@ def _set_auth_cookies(response: Response, access: str, refresh: str) -> None:
 
 def _clear_auth_cookies(response: Response) -> None:
     response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/api/v2/auth/refresh")
+    response.delete_cookie("refresh_token", path="/")
     response.delete_cookie("auth_status", path="/")
 
 
@@ -266,7 +266,7 @@ async def login(request: Request, body: LoginIn, response: Response):
         except Exception:
             raise HTTPException(500, "MFA verification unavailable")
     raw, hashed = _refresh_token()
-    expires = datetime.utcnow() + timedelta(days=30)
+    expires = datetime.now(timezone.utc) + timedelta(days=30)
     await pool.execute(
         """INSERT INTO sessions (user_id, refresh_token_hash, ip, user_agent, expires_at)
            VALUES ($1,$2,$3,$4,$5)""",
@@ -314,10 +314,10 @@ async def refresh(request: Request, response: Response, body: RefreshIn | None =
         h,
     )
     if (not row or row["revoked_at"] is not None or row["rotated_at"] is not None
-            or row["expires_at"] < datetime.utcnow() or row["disabled"]):
+            or row["expires_at"] < datetime.now(timezone.utc) or row["disabled"]):
         raise HTTPException(401, "Invalid refresh token")
     new_raw, new_hashed = _refresh_token()
-    new_expires = datetime.utcnow() + timedelta(days=30)
+    new_expires = datetime.now(timezone.utc) + timedelta(days=30)
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute("UPDATE sessions SET rotated_at=NOW() WHERE id=$1", row["id"])
@@ -485,7 +485,7 @@ async def reset(body: ResetIn):
         "SELECT id, user_id, expires_at, used_at FROM password_resets WHERE token_hash=$1",
         h,
     )
-    if not row or row["used_at"] or row["expires_at"] < datetime.utcnow():
+    if not row or row["used_at"] or row["expires_at"] < datetime.now(timezone.utc):
         raise HTTPException(400, "Invalid or expired token")
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -558,7 +558,7 @@ async def switch_workspace(body: SwitchWorkspaceIn, response: Response, p: Princ
     )
     # Issue fresh token pair
     raw, hashed = _refresh_token()
-    expires = datetime.utcnow() + timedelta(days=30)
+    expires = datetime.now(timezone.utc) + timedelta(days=30)
     await pool.execute(
         """INSERT INTO sessions (user_id, refresh_token_hash, expires_at)
            VALUES ($1,$2,$3)""",
@@ -582,7 +582,7 @@ async def invite_info(token: str):
         raise HTTPException(400, "Invalid invitation token")
     if invite["accepted_at"] is not None:
         raise HTTPException(400, "Invitation already used")
-    if invite["expires_at"] < datetime.utcnow():
+    if invite["expires_at"] < datetime.now(timezone.utc):
         raise HTTPException(400, "Invitation has expired")
     user_exists = bool(await pool.fetchval(
         "SELECT id FROM users WHERE lower(email)=lower($1)", invite["email"]
@@ -610,7 +610,7 @@ async def accept_invite(body: AcceptInviteIn, request: Request, response: Respon
         raise HTTPException(400, "Invalid invitation token")
     if invite["accepted_at"] is not None:
         raise HTTPException(400, "Invitation already used")
-    if invite["expires_at"] < datetime.utcnow():
+    if invite["expires_at"] < datetime.now(timezone.utc):
         raise HTTPException(400, "Invitation has expired")
 
     async with pool.acquire() as conn:
@@ -656,7 +656,7 @@ async def accept_invite(body: AcceptInviteIn, request: Request, response: Respon
         "SELECT id, email, role FROM users WHERE id=$1", uid
     )
     raw, hashed = _refresh_token()
-    expires = datetime.utcnow() + timedelta(days=30)
+    expires = datetime.now(timezone.utc) + timedelta(days=30)
     await pool.execute(
         """INSERT INTO sessions (user_id, refresh_token_hash, ip, user_agent, expires_at)
            VALUES ($1,$2,$3,$4,$5)""",

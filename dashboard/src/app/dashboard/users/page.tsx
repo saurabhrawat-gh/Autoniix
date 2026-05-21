@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { usersApi } from '@/lib/api-v2';
 import { Button, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/lib/ui';
 
-const ROLES = ['owner', 'admin', 'editor', 'reviewer', 'viewer'] as const;
+const ROLES = ['owner', 'admin', 'producer', 'editor', 'viewer'] as const;
+const roleLabel = (r: string) => r.charAt(0).toUpperCase() + r.slice(1);
 
 export default function Users() {
   const [rows, setRows] = useState<any[]>([]);
@@ -30,7 +31,7 @@ export default function Users() {
               <Select value={u.role} onValueChange={async (v: string) => { await usersApi.setRole(u.id, v); refresh(); }}>
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {ROLES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                  {ROLES.map(r => <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
