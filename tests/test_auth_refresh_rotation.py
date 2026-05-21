@@ -8,7 +8,7 @@ Covers test plan #32 (TC-19-*). Verifies:
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -42,7 +42,7 @@ def _valid_session_row(user_id: int = 42, sid: int = 7):
     return FakeRecord(
         id=sid,
         user_id=user_id,
-        expires_at=datetime.utcnow() + timedelta(days=15),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=15),
         revoked_at=None,
         rotated_at=None,
         email="user@example.com",
@@ -120,7 +120,7 @@ class TestRefreshRejected:
 
         pool = FakePool()
         rotated_row = _valid_session_row()
-        rotated_row["rotated_at"] = datetime.utcnow() - timedelta(seconds=30)
+        rotated_row["rotated_at"] = datetime.now(timezone.utc) - timedelta(seconds=30)
         pool.fetchrow.return_value = rotated_row
 
         req = _build_request("rotated-token")
@@ -138,7 +138,7 @@ class TestRefreshRejected:
 
         pool = FakePool()
         expired = _valid_session_row()
-        expired["expires_at"] = datetime.utcnow() - timedelta(days=1)
+        expired["expires_at"] = datetime.now(timezone.utc) - timedelta(days=1)
         pool.fetchrow.return_value = expired
 
         req = _build_request("expired-token")
@@ -156,7 +156,7 @@ class TestRefreshRejected:
 
         pool = FakePool()
         revoked = _valid_session_row()
-        revoked["revoked_at"] = datetime.utcnow() - timedelta(minutes=5)
+        revoked["revoked_at"] = datetime.now(timezone.utc) - timedelta(minutes=5)
         pool.fetchrow.return_value = revoked
 
         req = _build_request("revoked-token")
