@@ -46,7 +46,11 @@ async def send_email(to: str, subject: str, html: str, text: str) -> bool:
     failure or when SMTP is not configured. Never raises — callers receive
     a boolean and the failure (if any) is logged at WARNING."""
     if not is_configured():
-        log.info("SMTP not configured; skipping email to %s (subject=%r)", to, subject)
+        log.warning(
+            "SMTP not configured (SMTP_HOST unset) — email NOT sent to %s (subject=%r). "
+            "Set SMTP_HOST and credentials in .env to enable transactional mail.",
+            to, subject,
+        )
         return False
 
     host = os.getenv("SMTP_HOST", "")
