@@ -1,0 +1,489 @@
+name: Automation
+
+# Single workflow holding all issue-level automation:
+#   1. on-qa-verified     — auto-create + merge develop→main release PR
+#   2. on-main-push       — mark all ready-to-deploy issues as in-prod
+#   3. on-prod-verified   — close issue if every AC checkbox is ticked
+#   4. on-bug-reopened    — escalate priority + revert lifecycle
+#   5. epic-rollup        — propagate child story state to parent Epic
+#   6. sync-board-status  — mirror lifecycle labels to GH Projects board
+
+on:
+  issues:
+    types: [labeled, unlabeled, reopened, closed]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      epic_number:
+        description: "Re-evaluate a specific Epic number (manual epic-rollup run)"
+        required: false
+        type: string
+
+permissions:
+  issues: write
+  pull-requests: write
+  contents: write
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────
+  # JOB 1: qa-verified → create + merge develop→main release PR
+  # ─────────────────────────────────────────────────────────────────────
+  on-qa-verified:
+    if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'qa-verified'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add ready-to-deploy label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const n = context.payload.issue.number;
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: n, labels: ['ready-to-deploy']
+            });
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: n,
+              body: '🚀 **Ready to Deploy**\n\nQA signed off on `develop`. Creating deploy PR...'
+            });
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and auto-merge develop→main PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          ISSUES=$(gh issue list \
+            --repo "$GITHUB_REPOSITORY" \
+            --label "ready-to-deploy" \
+            --state open \
+            --json number \
+            --jq '[.[] | "Closes #\(.number)"] | join("\n")' 2>/dev/null || echo "")
+
+          EXISTING=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head develop \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty' 2>/dev/null || echo "")
+
+          if [ -z "$EXISTING" ]; then
+            PR_URL=$(gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head develop \
+              --title "Release: deploy ready-to-deploy stories" \
+              --body "${ISSUES:-Automated release deploy}")
+            PR_NUM=$(echo "$PR_URL" | grep -o '[0-9]*$')
+            echo "Created PR #$PR_NUM"
+          else
+            PR_NUM="$EXISTING"
+            echo "Using existing PR #$PR_NUM"
+          fi
+
+          gh pr merge "$PR_NUM" \
+            --repo "$GITHUB_REPOSITORY" \
+            --merge \
+            || echo "PR already merged or not mergeable"
+
+  # ─────────────────────────────────────────────────────────────────────
+  # JOB 2: push to main → mark ready-to-deploy issues as in-prod
+  # ─────────────────────────────────────────────────────────────────────
+  on-main-push:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set in-prod on deployed issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = context.sha.slice(0, 7);
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'ready-to-deploy',
+              state: 'open',
+              per_page: 100
+            });
+
+            for (const issue of issues) {
+              if (issue.pull_request) continue;
+
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  issue_number: issue.number, name: 'ready-to-deploy'
+                });
+              } catch (_) {}
+
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: issue.number, labels: ['in-prod']
+              });
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `🟢 **In Production** — commit \`${sha}\`\n\nDeployed to https://dash.autoniix.com.\n\nPlease verify ALL acceptance criteria checkboxes in this issue on production.\nWhen every box is ticked ✅, add the \`prod-verified\` label — this issue will close automatically.`
+              });
+            }
+
+  # ─────────────────────────────────────────────────────────────────────
+  # JOB 3: prod-verified label → close if every AC checkbox is ticked
+  # ─────────────────────────────────────────────────────────────────────
+  on-prod-verified:
+    if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'prod-verified'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check ACs and close if complete
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const n = context.payload.issue.number;
+            const body = context.payload.issue.body || '';
+
+            const unchecked = (body.match(/- \[ \]/g) || []).length;
+
+            if (unchecked === 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: n,
+                body: '✅ **Production Verified — Closing**\n\nAll acceptance criteria are ticked. Closed automatically.'
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: n, state: 'closed'
+              });
+            } else {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  issue_number: n, name: 'prod-verified'
+                });
+              } catch (_) {}
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: n,
+                body: `⚠️ **Cannot close — ${unchecked} acceptance criteria box(es) are still unchecked.**\n\nPlease tick all \`- [ ]\` checkboxes in the issue body after verifying on production, then add \`prod-verified\` again.`
+              });
+            }
+
+  # ─────────────────────────────────────────────────────────────────────
+  # JOB 4: bug:reopened label → escalate priority + revert lifecycle
+  # ─────────────────────────────────────────────────────────────────────
+  on-bug-reopened:
+    if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'bug:reopened'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Handle bug reopen
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const n = context.payload.issue.number;
+            const labels = context.payload.issue.labels.map(l => l.name);
+
+            const priorityMap = {
+              'priority:low': 'priority:medium',
+              'priority:medium': 'priority:high',
+              'priority:high': 'priority:critical'
+            };
+            for (const [from, to] of Object.entries(priorityMap)) {
+              if (labels.includes(from)) {
+                try { await github.rest.issues.removeLabel({ owner: context.repo.owner, repo: context.repo.repo, issue_number: n, name: from }); } catch (_) {}
+                await github.rest.issues.addLabels({ owner: context.repo.owner, repo: context.repo.repo, issue_number: n, labels: [to] });
+                break;
+              }
+            }
+
+            if (labels.includes('prod-verified')) {
+              try { await github.rest.issues.removeLabel({ owner: context.repo.owner, repo: context.repo.repo, issue_number: n, name: 'prod-verified' }); } catch (_) {}
+            }
+
+            if (context.payload.issue.state === 'closed') {
+              await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: n, state: 'open' });
+            }
+
+            const lifecycleLabels = ['in-qa', 'qa-verified', 'ready-to-deploy', 'in-prod', 'ready-for-dev'];
+            for (const label of lifecycleLabels) {
+              if (labels.includes(label)) {
+                try { await github.rest.issues.removeLabel({ owner: context.repo.owner, repo: context.repo.repo, issue_number: n, name: label }); } catch (_) {}
+              }
+            }
+            await github.rest.issues.addLabels({ owner: context.repo.owner, repo: context.repo.repo, issue_number: n, labels: ['in-progress', 'ready-for-dev'] });
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: n,
+              body: `🔁 **Bug Reopened**\n\nThis issue has been reopened. Priority escalated by one level.\n\n⚠️ **Action required:** Add a comment explaining WHY this was reopened (what failed, who found it, steps to reproduce).\n\nPick up via \`/dev-agent\` — issue is back in \`ready-for-dev\`.`
+            });
+
+  # ─────────────────────────────────────────────────────────────────────
+  # JOB 5: epic-rollup — propagate child story state to parent Epic
+  # ─────────────────────────────────────────────────────────────────────
+  epic-rollup:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issues' && (
+        github.event.action == 'closed' ||
+        github.event.action == 'reopened' ||
+        (
+          (github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
+          contains(fromJSON('["qa-verified","prod-verified"]'), github.event.label.name)
+        )
+      ))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Roll up child state to parent Epic
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+
+            let epicNumber = null;
+
+            if (context.eventName === 'workflow_dispatch') {
+              epicNumber = parseInt(context.payload.inputs?.epic_number || '0', 10) || null;
+            } else {
+              const story = context.payload.issue;
+              if (!story?.body) {
+                core.info(`#${story?.number}: no body, skipping`);
+                return;
+              }
+              const m = story.body.match(/\*\*Parent Epic:\*\*\s*#(\d+)/i);
+              if (!m) {
+                core.info(`#${story.number}: no "Parent Epic: #N" reference, skipping`);
+                return;
+              }
+              epicNumber = parseInt(m[1], 10);
+            }
+
+            if (!epicNumber) {
+              core.info('No epic number resolved, skipping');
+              return;
+            }
+
+            core.info(`Re-evaluating Epic #${epicNumber}`);
+
+            let epic;
+            try {
+              epic = (await github.rest.issues.get({
+                owner, repo, issue_number: epicNumber
+              })).data;
+            } catch (e) {
+              core.warning(`Could not fetch Epic #${epicNumber}: ${e.message}`);
+              return;
+            }
+
+            const epicLabels = epic.labels.map(l => l.name);
+            if (!epicLabels.includes('epic') && !epicLabels.includes('type:epic')) {
+              core.info(`#${epicNumber} is not an Epic, skipping`);
+              return;
+            }
+
+            const body = epic.body || '';
+            const childNumbers = [...body.matchAll(/^\s*-\s*\[[ xX]\]\s*#(\d+)/gm)]
+              .map(m => parseInt(m[1], 10));
+
+            if (childNumbers.length === 0) {
+              core.info(`Epic #${epicNumber} body has no "- [ ] #N" child references, skipping`);
+              return;
+            }
+
+            core.info(`Epic #${epicNumber} children: ${childNumbers.join(', ')}`);
+
+            const children = [];
+            for (const n of childNumbers) {
+              try {
+                const c = (await github.rest.issues.get({
+                  owner, repo, issue_number: n
+                })).data;
+                children.push(c);
+              } catch (e) {
+                core.warning(`Could not fetch child #${n}: ${e.message} — bailing`);
+                return;
+              }
+            }
+
+            const allClosed       = children.every(c => c.state === 'closed');
+            const allQaVerified   = children.every(c => c.labels.some(l => l.name === 'qa-verified') || c.labels.some(l => l.name === 'prod-verified'));
+            const allProdVerified = children.every(c => c.labels.some(l => l.name === 'prod-verified'));
+
+            core.info(`Aggregate: allClosed=${allClosed} allQaVerified=${allQaVerified} allProdVerified=${allProdVerified}`);
+
+            const epicHasLabel = (name) => epicLabels.includes(name);
+            const actions = [];
+
+            if (allQaVerified && !epicHasLabel('qa-verified') && !epicHasLabel('prod-verified')) {
+              await github.rest.issues.addLabels({
+                owner, repo, issue_number: epicNumber, labels: ['qa-verified']
+              });
+              actions.push('added qa-verified');
+            }
+
+            if (allProdVerified && !epicHasLabel('prod-verified')) {
+              await github.rest.issues.addLabels({
+                owner, repo, issue_number: epicNumber, labels: ['prod-verified']
+              });
+              actions.push('added prod-verified');
+            }
+
+            if (allClosed && epic.state === 'open') {
+              await github.rest.issues.update({
+                owner, repo, issue_number: epicNumber,
+                state: 'closed', state_reason: 'completed'
+              });
+              actions.push('closed');
+            }
+
+            if (!allClosed && epic.state === 'closed' && context.payload.action === 'reopened') {
+              await github.rest.issues.update({
+                owner, repo, issue_number: epicNumber, state: 'open'
+              });
+              actions.push('reopened');
+            }
+
+            if (actions.length === 0) {
+              core.info(`No changes needed for Epic #${epicNumber}`);
+            } else {
+              core.info(`✅ Epic #${epicNumber}: ${actions.join(', ')}`);
+            }
+
+  # ─────────────────────────────────────────────────────────────────────
+  # JOB 6: sync-board-status — mirror lifecycle labels to GH Projects board
+  # ─────────────────────────────────────────────────────────────────────
+  sync-board-status:
+    if: >-
+      github.event_name == 'issues' && (
+        github.event.action == 'closed' ||
+        github.event.action == 'reopened' ||
+        (
+          (github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
+          contains(fromJSON('["ready-for-dev","in-progress","dev-done","in-qa","qa-verified","ready-to-deploy","in-prod","prod-verified"]'), github.event.label.name)
+        )
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Map label to project Status and update
+        uses: actions/github-script@v7
+        env:
+          PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          PROJECT_NUMBER: "1"
+          PROJECT_OWNER: "saurabhrawat-gh"
+        with:
+          github-token: ${{ env.PROJECT_TOKEN }}
+          script: |
+            if (!process.env.PROJECT_TOKEN) {
+              core.info('PROJECT_TOKEN not set — skipping board sync');
+              return;
+            }
+
+            const owner = process.env.PROJECT_OWNER;
+            const projectNumber = parseInt(process.env.PROJECT_NUMBER);
+            const issueNumber = context.payload.issue.number;
+
+            const LABEL_TO_STATUS = {
+              "ready-for-dev":    "Todo",
+              "in-progress":      "In Progress",
+              "dev-done":         "In QA",
+              "in-qa":            "In QA",
+              "qa-verified":      "QA Verified",
+              "ready-to-deploy":  "Ready to Deploy",
+              "in-prod":          "In Prod",
+              "prod-verified":    "Prod Verified",
+            };
+
+            const PRIORITY = [
+              "ready-for-dev", "in-progress", "dev-done", "in-qa",
+              "qa-verified", "ready-to-deploy", "in-prod", "prod-verified"
+            ];
+
+            const currentLabels = context.payload.issue.labels.map(l => l.name);
+
+            let targetStatus = null;
+            if (context.payload.issue.state === "closed") {
+              targetStatus = "Done";
+            } else {
+              let bestIdx = -1;
+              for (const lbl of currentLabels) {
+                const idx = PRIORITY.indexOf(lbl);
+                if (idx > bestIdx) {
+                  bestIdx = idx;
+                  targetStatus = LABEL_TO_STATUS[lbl];
+                }
+              }
+            }
+
+            if (!targetStatus) {
+              core.info(`No lifecycle label found on #${issueNumber} — skipping`);
+              return;
+            }
+
+            core.info(`#${issueNumber} → target status: ${targetStatus}`);
+
+            const projectQuery = await github.graphql(`
+              query($owner: String!, $number: Int!) {
+                user(login: $owner) {
+                  projectV2(number: $number) {
+                    id
+                    fields(first: 20) {
+                      nodes {
+                        ... on ProjectV2SingleSelectField {
+                          id name options { id name }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `, { owner, number: projectNumber });
+
+            const project = projectQuery.user.projectV2;
+            const statusField = project.fields.nodes.find(f => f.name === "Status");
+            if (!statusField) { core.error("Status field not found in project"); return; }
+
+            const option = statusField.options.find(o => o.name === targetStatus);
+            if (!option) {
+              core.error(`Status option "${targetStatus}" not found — add it to the project board first`);
+              return;
+            }
+
+            const issueQuery = await github.graphql(`
+              query($owner: String!, $repo: String!, $issue: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  issue(number: $issue) {
+                    projectItems(first: 10) { nodes { id project { id } } }
+                  }
+                }
+              }
+            `, { owner, repo: context.repo.repo, issue: issueNumber });
+
+            const items = issueQuery.repository.issue.projectItems.nodes;
+            const item = items.find(i => i.project.id === project.id);
+            if (!item) {
+              core.info(`Issue #${issueNumber} is not in project ${projectNumber} — skipping`);
+              return;
+            }
+
+            await github.graphql(`
+              mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $project, itemId: $item, fieldId: $field,
+                  value: { singleSelectOptionId: $option }
+                }) { projectV2Item { id } }
+              }
+            `, {
+              project: project.id, item: item.id,
+              field: statusField.id, option: option.id,
+            });
+
+            core.info(`✅ #${issueNumber} Status → "${targetStatus}"`);
