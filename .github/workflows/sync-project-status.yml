@@ -2,14 +2,21 @@ name: Sync issue labels → Project board status
 
 on:
   workflow_dispatch:
-  # issues:
-  #   types: [labeled, unlabeled, reopened, closed]
-  # NOTE: Disabled — requires PROJECT_TOKEN secret (classic PAT with 'project' scope).
-  # Re-enable once the secret is added in Settings → Secrets → Actions.
+  issues:
+    types: [labeled, unlabeled, reopened, closed]
 
 jobs:
   sync-status:
-    if: ${{ false }}  # disabled — triggers too many runs
+    # Run on labeled events only when a lifecycle label was added/removed,
+    # plus on every closed/reopened event. Skip everything else.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.action == 'closed' ||
+      github.event.action == 'reopened' ||
+      (
+        (github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
+        contains(fromJSON('["ready-for-dev","in-progress","dev-done","in-qa","qa-verified","ready-to-deploy","in-prod","prod-verified"]'), github.event.label.name)
+      )
     runs-on: ubuntu-latest
     permissions:
       issues: read
