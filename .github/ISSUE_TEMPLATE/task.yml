@@ -1,8 +1,32 @@
 name: "Task / Subtask"
 description: "A technical task, chore, or sub-step of a story"
+title: "task | [Layer] | "
 labels: ["task", "ready-for-dev"]
 assignees: ["saurabhrawat-gh"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        **Title format:** `task | DB | Migrate provider catalog to new schema`
+        Layers: `UI` `Gateway` `Service` `DB` `Auth` `Worker` `Infra`
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: "Layer"
+      description: "Which layer does this task touch?"
+      options:
+        - "UI"
+        - "Gateway"
+        - "Service"
+        - "DB"
+        - "Auth"
+        - "Worker"
+        - "Infra"
+        - "Multiple"
+    validations:
+      required: true
+
   - type: input
     id: parent_story
     attributes:

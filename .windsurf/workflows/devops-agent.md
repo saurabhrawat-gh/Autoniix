@@ -61,10 +61,23 @@ Deploys are **fully automated**. When `qa-verified` is added to an issue:
       If not: mcp0_create_pull_request(head=develop, base=main, title="Release: deploy ready-to-deploy stories")
       mcp0_merge_pull_request(pull_number=N, merge_method='merge')
 
-4. On deploy success — update GitHub issues:
+4. On deploy success — update GitHub issues (if GHA didn't already):
    - Fetch all issues with label `ready-to-deploy` (if GHA didn't set in-prod yet)
    - For each: mcp0_update_issue — remove `ready-to-deploy`, add `in-prod`
-   - Comment: "Deployed to production. Verify at https://dash.autoniix.com"
+   - Comment: "Deployed to production. When you have verified, type `verified #N` in Windsurf — agent will tick all ACs and close automatically."
+
+5. Emit HandoffPayload:
+```yaml
+handoff:
+  from_team: devops
+  to_team: human
+  issue: {N}
+  summary: "Deploy successful. Smoke tests passed. Issues set to in-prod."
+  risk_level: low
+  actions_pending:
+    - "Product owner: verify on https://dash.autoniix.com"
+    - "Product owner: type `verified #N` when confirmed"
+  blockers: []
 ```
 
 ---

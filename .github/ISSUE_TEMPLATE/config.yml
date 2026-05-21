@@ -1,5 +1,11 @@
-blank_issues_enabled: false
+blank_issues_enabled: true
 contact_links:
   - name: Epic (use BA Agent)
     url: https://github.com/saurabhrawat-gh/Autoniix/issues/new?labels=epic
     about: Epics are created by the BA Agent workflow — run /ba-agent in Windsurf instead
+  - name: Mark issue as verified (QA or Prod)
+    url: https://github.com/saurabhrawat-gh/Autoniix
+    about: "In Windsurf, type: verified #N  (or: verified all)"
+  - name: File a bug from testing
+    url: https://github.com/saurabhrawat-gh/Autoniix
+    about: "In Windsurf, type: bug: description, issue #N — agent creates the issue automatically"

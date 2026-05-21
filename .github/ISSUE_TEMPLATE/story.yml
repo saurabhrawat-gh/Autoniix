@@ -1,8 +1,32 @@
 name: "Story"
 description: "A user-facing feature or behaviour to implement"
+title: "story | [Layer] | "
 labels: ["story", "ready-for-dev"]
 assignees: ["saurabhrawat-gh"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        **Title format:** `story | Auth | HttpOnly Cookie Auth`
+        Layers: `UI` `Gateway` `Service` `DB` `Auth` `Worker` `Infra`
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: "Layer"
+      description: "Primary layer this story touches"
+      options:
+        - "UI"
+        - "Gateway"
+        - "Service"
+        - "DB"
+        - "Auth"
+        - "Worker"
+        - "Infra"
+        - "Multiple"
+    validations:
+      required: true
+
   - type: dropdown
     id: parent_epic
     attributes:

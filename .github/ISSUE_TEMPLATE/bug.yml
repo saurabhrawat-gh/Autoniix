@@ -1,16 +1,51 @@
 name: "Bug Report"
 description: "Something is broken in existing functionality"
+title: "bug | [QA/Prod] | [Layer] | "
 labels: ["bug", "ready-for-dev"]
 assignees: ["saurabhrawat-gh"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        **Title format:** `bug | QA | Gateway | What went wrong` or `bug | Prod | Service | What went wrong`
+        Layers: `UI` `Gateway` `Service` `DB` `Auth` `Worker` `Infra` `Test`
+        > **Note:** You don't need to fill this form manually. Just type `bug: description, issue #N` in Windsurf and the agent creates this automatically.
+
+  - type: dropdown
+    id: env
+    attributes:
+      label: "Where was this found?"
+      options:
+        - "QA — found during local testing on develop"
+        - "Prod — found on https://dash.autoniix.com"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: "Layer"
+      description: "Which part of the system is affected?"
+      options:
+        - "UI"
+        - "Gateway"
+        - "Service"
+        - "DB"
+        - "Auth"
+        - "Worker"
+        - "Infra"
+        - "Test"
+    validations:
+      required: true
+
   - type: input
     id: parent_story
     attributes:
-      label: "Related Story (if known)"
+      label: "Parent Story"
       description: "Issue number of the story this bug belongs to (e.g. #18)"
       placeholder: "#N"
     validations:
-      required: false
+      required: true
 
   - type: dropdown
     id: parent_epic

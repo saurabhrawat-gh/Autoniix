@@ -23,26 +23,41 @@ Pass a mode when invoking:
 
 ### MODE: `plan` — Sprint Planning
 
-1. **Fetch the backlog**
+1. **Check for production bugs first (mandatory)**
+   - Call `mcp0_list_issues` with label `bug:production` AND state `open`
+   - If ANY exist: stop all other planning. Print:
+     ```
+     🚨 PRODUCTION BUGS ACTIVE — Sprint plan is paused.
+        #{N} bug | Prod | {layer} | {description} — priority:critical
+        Run /conductor hotfix to address immediately.
+     ```
+   - Do NOT recommend any other work until `bug:production` issues are resolved
+
+2. **Fetch the backlog**
    - Use `mcp0_list_issues` on `saurabhrawat-gh/Autoniix` with label `ready-for-dev`, `state=open`
    - Also fetch all issues with NO lifecycle label (unlabelled — potential backlog leaks)
    - Exclude: Epics (label `epic`), test-case issues (label `test-case`)
-   - Sort by priority: `priority:critical` first, then `priority:high`, then `priority:medium`, then `priority:low`
+   - Sort strictly by priority tier:
+     1. `bug:normal` + `priority:critical` or `priority:high` (QA bugs not yet fixed)
+     2. `feat`/`task`/`story` with `priority:critical`
+     3. `feat`/`task`/`story` with `priority:high`
+     4. `feat`/`task`/`story` with `priority:medium`
+     5. Everything else
 
-2. **Fetch current WIP (work in progress)**
+3. **Fetch current WIP (work in progress)**
    - Fetch all open issues with labels: `in-progress`, `in-qa`, `ready-to-deploy`, `in-prod`
    - Exclude Epics and test-case issues from WIP count
    - Count total WIP items
 
-3. **Calculate available capacity**
+4. **Calculate available capacity**
    - If WIP ≥ 3 stories: flag as **over capacity** — do NOT pull in new work until WIP reduces
    - If WIP < 3 stories: recommend pulling in `(3 - WIP)` issues from the backlog
 
-4. **Recommend sprint issues**
+5. **Recommend sprint issues**
    - Pick the top `(3 - WIP)` issues from the sorted backlog
    - Skip any issue whose dependency is not yet `prod-verified` (check Impacted Files / "Depends on" in body)
    - For each recommended issue, show:
-     - Issue number + title
+     - Issue number + title (note the `[Type] | [Layer] | Description` format)
      - Priority label
      - Estimated complexity: count AC checkboxes (1–3 = small, 4–7 = medium, 8+ = large)
      - Blocking dependencies: note any issue referenced as a prerequisite
@@ -117,7 +132,7 @@ Pass a mode when invoking:
 
    AT RISK:
      ⚠️ #20 stalled in-progress for 6 days — check with dev
-     ⚠️ #16 priority:critical — in-prod but 2 AC boxes unchecked for 8 days
+     ⚠️ #16 priority:critical — in-prod, pending verification
 
    EPIC HEALTH:
      #12 Auth Epic       : 2/4 stories done (50%)
@@ -126,8 +141,8 @@ Pass a mode when invoking:
      #15 Process Epic    : 1/1 stories done (100%) ✅
 
    RECOMMENDATION:
-     Focus this week on closing #16 (tick prod checkboxes) and
-     pulling #22 (Ownership Transfer) into dev to keep velocity up.
+     Verify #16 on prod (type `verified #16` when ready).
+     Then run `/conductor feature #22` to keep velocity up.
    ```
 
 ---

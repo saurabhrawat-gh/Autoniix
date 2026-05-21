@@ -25,10 +25,17 @@ Before anything else, check for open hotfix issues:
 ## Normal Path (feature / bug / task)
 
 ### 1. Fetch the issue
-- Use `mcp0_list_issues` on `saurabhrawat-gh/Autoniix` with label `ready-for-dev`, sorted by `created` asc
-- Pick the oldest open issue that is NOT a `hotfix` or `bug:production`
+- Use `mcp0_list_issues` on `saurabhrawat-gh/Autoniix` with label `ready-for-dev`, sorted by `created` asc, then by priority (`priority:critical` first)
+- Pick the highest-priority open issue that is NOT a `hotfix` or `bug:production`
 - Read the full issue body: Summary, Use Cases, Acceptance Criteria, Impacted Files, DoD
 - Note the linked test-case issue number from the "Test Plan" section
+- Note the issue title format: `[Type] | [Layer] | Description` — confirm the layer before starting
+
+### 1a. Read Research Notes
+- Search the issue comments for a comment containing `## Research Notes`
+- If found: read the Codebase Impact map, Dependency section, and Recommended Approach
+- **Follow the recommended approach exactly** — do not deviate from it
+- If NOT found: proceed (Research Team may not have run yet — follow existing patterns)
 
 ### 2. Label as in-progress
 - Call `mcp0_update_issue`: remove `ready-for-dev`, add `in-progress`
@@ -104,12 +111,30 @@ git merge --no-ff {branch-name} -m "{prefix}: merge issue-{N} into develop"
   2. `docker compose build && docker compose up -d`
   3. Follow the test cases in #{test_case_issue}
 
-  Once all tests pass, run `/qa-agent` to confirm and promote to deploy queue.
+  When testing is complete, type `verified #N` in Windsurf to qa-verify this issue.
+  If you find a bug, type `bug: description, issue #N` to file it automatically.
   ```
 - Push develop to remote:
   ```bash
   git push origin develop
   ```
+
+### 12. Emit HandoffPayload
+```yaml
+handoff:
+  from_team: dev
+  to_team: security
+  issue: {N}
+  branch: {branch_name}
+  summary: "Implementation complete. Merged to develop. Issue set to in-qa."
+  changed_files:
+    - {list all files modified or created}
+  risk_level: {low|medium|high based on changes: auth/db/external_api = high, new endpoint = medium, test/docs = low}
+  actions_pending:
+    - "Security Agent scans diff for secrets and policy violations"
+    - "QA Mode B: product owner tests locally, types verified #{N} when done"
+  blockers: []
+```
 
 ---
 
@@ -160,9 +185,28 @@ git push origin develop
   🔥 Hotfix deployed directly to `main`.
 
   Deployed to https://dash.autoniix.com.
-  Please verify the fix in production and tick all AC checkboxes.
-  Once all boxes are checked, add `prod-verified` label to close this issue.
+  When you have verified the fix in production, type `verified #{N}` in Windsurf.
+  The agent will tick all AC checkboxes and close this issue automatically.
+  If you find another issue, type `bug: description, issue #{N}`.
   ```
+
+### H9. Emit HandoffPayload
+```yaml
+handoff:
+  from_team: dev
+  to_team: security
+  issue: {N}
+  branch: hotfix/issue-{N}-{slug}
+  summary: "Hotfix merged to main and backported to develop."
+  changed_files:
+    - {list all files modified or created}
+  risk_level: high
+  actions_pending:
+    - "Security Agent scans hotfix diff"
+    - "DevOps: smoke test on production"
+    - "Product owner: type verified #{N} after confirming fix on https://dash.autoniix.com"
+  blockers: []
+```
 
 ---
 
@@ -175,4 +219,7 @@ git push origin develop
 - If the issue is ambiguous, comment on the issue and flag to the user — do NOT guess
 - Role checks must use `require_role()` from `_deps.py` — never inline permission logic
 - All DB changes must be in a timestamped migration file, never applied directly
-- Never tick AC checkboxes in issue bodies — that is the user's job during QA
+- Never tick AC checkboxes in issue bodies — the `/verified` command does this automatically when the user says verified
+- Always emit the HandoffPayload comment at the end of implementation (Step 12 / H9)
+- When creating bug issues, always use the standard format: `bug | {QA/Prod} | {Layer} | description`
+- Read Research Notes (if present) before writing a single line of code — the approach is already decided

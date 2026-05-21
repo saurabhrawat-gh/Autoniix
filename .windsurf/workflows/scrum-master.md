@@ -23,10 +23,10 @@ Hotfix path: ready-for-dev → in-progress → in-prod → prod-verified → CLO
 Who drives each transition:
 - `ready-for-dev → in-progress` : Dev Agent (picks up issue)
 - `in-progress → in-qa` : Dev Agent (merges to develop + calls GitHub MCP)
-- `in-qa → qa-verified` : QA Agent (walks test cases with user + calls GitHub MCP)
+- `in-qa → qa-verified` : **Product owner** types `verified #N` → `/verified` workflow adds label
 - `qa-verified → ready-to-deploy` : **GitHub Actions** (auto, label trigger)
 - `ready-to-deploy → in-prod` : **GitHub Actions** (auto, after deploy to main)
-- `in-prod → CLOSED` : **GitHub Actions** (auto, after user adds `prod-verified` + all ACs ticked)
+- `in-prod → CLOSED` : **Product owner** types `verified #N` → `/verified` workflow auto-ticks ACs + adds `prod-verified` → **GitHub Actions** closes
 - `in-progress → in-prod` (hotfix) : Dev Agent (merges to main + calls GitHub MCP)
 
 ---
@@ -95,8 +95,16 @@ Use `updated_at` from the API response.
 For every open issue labelled `in-prod`:
 - Fetch full body via `mcp0_get_issue`
 - Count `- [ ]` patterns
-- If unchecked boxes remain: flag "#{N} in-prod — {count} AC boxes need verification"
-- If zero unchecked: flag "#{N} in-prod — all ACs ticked, waiting for prod-verified label"
+- If unchecked boxes remain: flag "#{N} in-prod — needs prod verification → type `verified #{N}` in Windsurf when ready"
+- If zero unchecked but no `prod-verified` label: flag "#{N} — ACs all ticked — type `verified #{N}` to close"
+
+### 7a. Check for unlabeled issues (triage queue)
+For every open issue with NO lifecycle label (not epic, not test-case):
+- Flag: "#{N}: {title} — no lifecycle label, needs routing to dev queue"
+- Print: "→ Reply with: `route #N` to add `ready-for-dev`" or "→ Reply with: `skip #N` to ignore"
+- Wait for product owner to respond
+- If `route #N`: call `mcp0_update_issue` to add `ready-for-dev` label on that issue
+- If `skip #N` or no response: leave as-is, note in report
 
 ### 8. Print full report
 
@@ -124,15 +132,17 @@ EPIC HEALTH:
   #5 has no lifecycle label — needs triage
 
 PROD VERIFICATION NEEDED:
-  #16: 2 boxes unchecked — verify on https://dash.autoniix.com
-  #17: all boxes ticked — add prod-verified label to close
+  #16: needs verification → type `verified #16` in Windsurf when ready
+  #17: ready → type `verified #17` to auto-tick ACs and close
+
+UNLABELLED ISSUES (need routing):
+  #5 — No lifecycle label. Route to dev queue? Reply: route #5 / skip #5
 
 SUGGESTED NEXT ACTIONS:
-  1. Run /qa-agent post-dev → walk test cases for #18 (in-qa)
-  2. Tick AC boxes in #16 on https://dash.autoniix.com
-  3. Add prod-verified to #17 (all ACs already ticked)
-  4. Check GitHub Actions tab — #19 ready-to-deploy for 3 days
-  5. Triage unlabelled issue #5
+  1. Test locally → type `verified #18` when done (or `bug: description, issue #18`)
+  2. Verify on prod → type `verified #16` (agent auto-ticks ACs + closes)
+  3. Check GitHub Actions tab — #19 ready-to-deploy for 3 days
+  4. Route unlabelled #5 (reply: route #5)
 ```
 
 ---
@@ -144,3 +154,5 @@ SUGGESTED NEXT ACTIONS:
 - Epics and test-case issues (`test-case` label) do NOT follow the lifecycle — do not flag them for missing lifecycle labels
 - Safe to run multiple times — fully idempotent (read-only)
 - If an issue appears stuck and the reason is unclear, suggest: "Comment on the issue asking for status update"
+- **EXCEPTION: Step 7a unlabeled routing** — this is the ONLY place Scrum Master changes a label, and ONLY when the product owner explicitly types `route #N`
+- Always remind the product owner: "Type `verified #N` to move issues forward. Type `bug: description, issue #N` to file a bug."
