@@ -136,6 +136,99 @@ jobs:
               });
             }
 
+      # Bot-triggered label changes (above) don't re-fire `issues: labeled`
+      # events under GITHUB_TOKEN, so `sync-board-status` never runs for them.
+      # Sync the project board inline here using PROJECT_TOKEN.
+      - name: Sync project board → In Prod
+        uses: actions/github-script@v7
+        env:
+          PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          PROJECT_NUMBER: "2"
+          PROJECT_OWNER: "saurabhrawat-gh"
+        with:
+          github-token: ${{ secrets.PROJECT_TOKEN }}
+          script: |
+            if (!process.env.PROJECT_TOKEN) {
+              core.info('PROJECT_TOKEN not set — skipping board sync');
+              return;
+            }
+            const owner = process.env.PROJECT_OWNER;
+            const projectNumber = parseInt(process.env.PROJECT_NUMBER);
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'in-prod',
+              state: 'open',
+              per_page: 100
+            });
+
+            if (issues.length === 0) {
+              core.info('No in-prod issues to sync');
+              return;
+            }
+
+            const projectQuery = await github.graphql(`
+              query($owner: String!, $number: Int!) {
+                user(login: $owner) {
+                  projectV2(number: $number) {
+                    id
+                    fields(first: 30) {
+                      nodes {
+                        ... on ProjectV2SingleSelectField {
+                          id name options { id name }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `, { owner, number: projectNumber });
+
+            const project = projectQuery.user.projectV2;
+            if (!project) { core.error('Project not found'); return; }
+            const statusField = project.fields.nodes.find(f => f && f.name === 'Status');
+            const inProdOption = statusField?.options.find(o => o.name === 'In Prod');
+            if (!statusField || !inProdOption) {
+              core.error('Status field or "In Prod" option missing');
+              return;
+            }
+
+            for (const issue of issues) {
+              if (issue.pull_request) continue;
+
+              const itemQuery = await github.graphql(`
+                query($owner: String!, $repo: String!, $issue: Int!) {
+                  repository(owner: $owner, name: $repo) {
+                    issue(number: $issue) {
+                      projectItems(first: 10) { nodes { id project { id } } }
+                    }
+                  }
+                }
+              `, { owner, repo: context.repo.repo, issue: issue.number });
+
+              const item = itemQuery.repository.issue.projectItems.nodes
+                .find(i => i.project.id === project.id);
+              if (!item) {
+                core.info(`#${issue.number} not on project — skipping`);
+                continue;
+              }
+
+              await github.graphql(`
+                mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $project, itemId: $item, fieldId: $field,
+                    value: { singleSelectOptionId: $option }
+                  }) { projectV2Item { id } }
+                }
+              `, {
+                project: project.id, item: item.id,
+                field: statusField.id, option: inProdOption.id
+              });
+
+              core.info(`✅ #${issue.number} → In Prod`);
+            }
+
   # ─────────────────────────────────────────────────────────────────────
   # JOB 3: prod-verified label → close if every AC checkbox is ticked
   # ─────────────────────────────────────────────────────────────────────
@@ -377,7 +470,7 @@ jobs:
         uses: actions/github-script@v7
         env:
           PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }}
-          PROJECT_NUMBER: "1"
+          PROJECT_NUMBER: "2"
           PROJECT_OWNER: "saurabhrawat-gh"
         with:
           github-token: ${{ env.PROJECT_TOKEN }}
