@@ -263,17 +263,14 @@ jobs:
             --state open \
             --json number \
             --jq '.[].number' 2>/dev/null || echo "")
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          COMMENT_BODY=$(printf '🟢 **In Production** — commit `%s`\n\nDeployed to https://dash.autoniix.com.\n\nPlease verify ALL acceptance criteria checkboxes on production.\nWhen every box is ticked ✅, add the `prod-verified` label — this issue will close automatically.' "$SHORT_SHA")
           for N in $ISSUES; do
             gh issue edit "$N" --repo "$GITHUB_REPOSITORY" \
               --remove-label "ready-to-deploy" \
               --add-label "in-prod" 2>/dev/null || true
             gh issue comment "$N" --repo "$GITHUB_REPOSITORY" \
-              --body "🟢 **In Production** — commit \`${GITHUB_SHA:0:7}\`
-
-Deployed to https://dash.autoniix.com.
-
-Please verify ALL acceptance criteria checkboxes on production.
-When every box is ticked ✅, add the \`prod-verified\` label — this issue will close automatically." 2>/dev/null || true
+              --body "$COMMENT_BODY" 2>/dev/null || true
             echo "Set #$N to in-prod"
           done
 
