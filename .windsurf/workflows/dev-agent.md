@@ -12,6 +12,16 @@ There are two paths depending on issue type:
 
 ---
 
+## Step 0 — Autopick: hotfixes always take priority
+
+Before anything else, check for open hotfix issues:
+- Call `mcp0_list_issues` with label `bug:production` AND state `open`
+- Also call `mcp0_list_issues` with label `hotfix` AND state `open`
+- If ANY results exist → **immediately take the Hotfix Path** for the highest-priority one (`priority:critical` first, then `priority:high`, then oldest)
+- If none exist → continue to Normal Path below
+
+---
+
 ## Normal Path (feature / bug / task)
 
 ### 1. Fetch the issue
