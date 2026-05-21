@@ -464,14 +464,15 @@ async def forgot(body: ForgotIn):
         f"ignore this email — your password won't change.</p>"
         f"<p style=\"color:#6b7280;font-size:13px\">— Autoniix</p>"
     )
-    # Best-effort send; failures are logged inside send_email and do not bubble up.
-    await send_email(to=body.email, subject=subject, html=html_body, text=text_body)
-
-    # Dev/test fallback: when SMTP is not configured AND we're not in production,
-    # expose the token in the response so local flows remain testable without a
-    # real mail server. Production with SMTP missing returns a generic OK
-    # (and logs loudly inside send_email so the operator notices).
     is_prod = os.getenv("ENVIRONMENT_MODE", "test").lower() == "production"
+    sent = await send_email(to=body.email, subject=subject, html=html_body, text=text_body)
+
+    if not sent and is_prod:
+        _log.warning(
+            "forgot-password: reset email NOT delivered — check SMTP config in .env",
+            user_id=user["id"],
+        )
+
     if not _smtp_configured() and not is_prod:
         return {"status": "ok", "reset_token": raw}
     return {"status": "ok"}

@@ -291,3 +291,41 @@ class TestEmailHelper:
             to="x@example.com", subject="s", html="<p>h</p>", text="t"
         )
         assert ok is False
+
+    @pytest.mark.asyncio
+    async def test_send_email_logs_warning_when_unconfigured(self, monkeypatch, caplog):
+        import logging
+        from src.services.dashboard.v2 import _email
+        monkeypatch.delenv("SMTP_HOST", raising=False)
+        with caplog.at_level(logging.WARNING, logger="src.services.dashboard.v2._email"):
+            await _email.send_email(
+                to="x@example.com", subject="s", html="<p>h</p>", text="t"
+            )
+        assert any("SMTP not configured" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# Regression: prod mode never leaks reset token even if SMTP unconfigured
+# ---------------------------------------------------------------------------
+
+class TestForgotProdSmtpWarning:
+    @pytest.mark.asyncio
+    async def test_prod_mode_no_reset_token_in_response_when_smtp_missing(self, monkeypatch):
+        """Regression for #200: prod mode must NOT expose reset_token even when SMTP absent."""
+        from src.services.dashboard.v2 import auth as auth_mod
+
+        pool = FakePool()
+        pool.fetchrow.return_value = FakeRecord({"id": 1})
+        monkeypatch.setenv("ENVIRONMENT_MODE", "production")
+
+        send_mock = AsyncMock(return_value=False)
+        with _pool_ctx(pool):
+            for ctx in _email_ctx(send_mock, configured=False):
+                ctx.start()
+            try:
+                result = await auth_mod.forgot(auth_mod.ForgotIn(email="user@example.com"))
+            finally:
+                patch.stopall()
+
+        assert "reset_token" not in result
+        assert result["status"] == "ok"
