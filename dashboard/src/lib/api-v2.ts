@@ -242,11 +242,42 @@ export const providersApi = {
       `/api/v2/providers/credentials/${id}/test`,
       { method: 'POST' }
     ),
-  rotateCredential: (id: number, secret_value: string, secret_key = 'api_key') =>
+  rotateCredential: (id: number, secret_value: string, secret_key = 'api_key', hint?: string) =>
     request(`/api/v2/providers/credentials/${id}/rotate`, {
       method: 'POST',
-      body: JSON.stringify({ secret_value, secret_key }),
+      body: JSON.stringify({ secret_value, secret_key, hint }),
     }),
+  createCredentialFromWizard: (body: {
+    category: string; provider_key: string; label: string;
+    wizard_fields: Record<string, string | boolean>;
+    model?: string | null; channel_id?: string | null;
+    content_mode?: string | null;
+  }) =>
+    request<{ id: number; label: string; vault_path: string }>(
+      '/api/v2/providers/credentials/from-wizard',
+      { method: 'POST', body: JSON.stringify(body) }
+    ),
+  setupChecklist: () =>
+    request<{ data: Array<{
+      category: string; label: string; required: boolean;
+      configured: boolean; healthy: boolean | null;
+    }> }>('/api/v2/providers/setup-checklist'),
+  rotationStatus: (id: number) =>
+    request<{
+      id: number; label: string; category: string; provider_name: string;
+      rotated_at: string | null; rotation_hint: string | null;
+      days_since_rotation: number | null; overdue: boolean; warn_after_days: number;
+    }>(`/api/v2/providers/credentials/${id}/rotation-status`),
+  allRotationStatus: (params?: { category?: string; overdue_only?: boolean }) => {
+    const q = new URLSearchParams();
+    if (params?.category) q.set('category', params.category);
+    if (params?.overdue_only) q.set('overdue_only', 'true');
+    return request<{ data: Array<{
+      id: number; label: string; category: string; provider_name: string;
+      rotated_at: string | null; rotation_hint: string | null;
+      days_since_rotation: number | null; overdue: boolean; warn_after_days: number;
+    }> }>(`/api/v2/providers/credentials/rotation-status${q.toString() ? '?' + q : ''}`);
+  },
   chain: (category: string) => request<{ data: any[] }>(`/api/v2/providers/chains/${category}`),
   setChain: (category: string, credential_ids: number[]) =>
     request(`/api/v2/providers/chains/${category}`, {
@@ -291,6 +322,12 @@ export const providersApi = {
       has_free_tier: boolean | null;
       default_model: string | null;
       supported_models: string[];
+      config_schema: Array<{
+        name: string; type: string; label: string; required: boolean;
+        hint?: string; placeholder?: string; options?: string[];
+      }>;
+      docs_url: string | null;
+      pricing_tier: string | null;
     }[] }>(
       `/api/v2/providers/registered?category=${encodeURIComponent(category)}`
     ),

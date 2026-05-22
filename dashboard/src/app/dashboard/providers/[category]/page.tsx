@@ -10,7 +10,7 @@ import { confirmDialog } from '@/lib/components/ConfirmDialog';
 import {
   Plus, Activity, Trash2, ArrowUp, ArrowDown, X, Check, ChevronLeft,
   ShieldCheck, AlertTriangle, HelpCircle, Loader2, Eye, EyeOff, RotateCw,
-  Terminal, SlidersHorizontal, Play, Star,
+  Terminal, SlidersHorizontal, Play, Star, ExternalLink,
 } from '@/lib/components/Icon';
 import {
   Button,
@@ -92,6 +92,9 @@ export default function ProviderCategoryPage() {
   const [contentModes, setContentModes] = useState<{ name: string; label: string }[]>([]);
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
   const [resolvedChain, setResolvedChain] = useState<any[]>([]);
+  // AE-72 — rotation status
+  const [rotationByCredId, setRotationByCredId] = useState<Record<number, any>>({});
+  const [rotatingCred, setRotatingCred] = useState<any | null>(null);
 
   const refresh = useCallback(() => {
     setLoading(true);
@@ -103,6 +106,13 @@ export default function ProviderCategoryPage() {
       providersApi.resolved({ category: decoded, content_mode: selectedMode || undefined })
         .then(r => setResolvedChain(r.data || []))
         .catch(() => setResolvedChain([])),
+      providersApi.allRotationStatus({ category: decoded })
+        .then(r => {
+          const map: Record<number, any> = {};
+          (r.data || []).forEach((s: any) => { map[s.id] = s; });
+          setRotationByCredId(map);
+        })
+        .catch(() => {}),
       providersApi.routes('workspace').then(r => {
         const found = (r.data || []).find((rt: any) => rt.category === decoded);
         if (found) {
@@ -465,6 +475,24 @@ export default function ProviderCategoryPage() {
                             <div className="text-[11px] text-content-tertiary font-mono mt-0.5">
                               {c.provider_name} · {c.vault_path}
                             </div>
+                            {/* Rotation age badge */}
+                            {rotationByCredId[c.id] != null && (() => {
+                              const rs = rotationByCredId[c.id];
+                              const days = rs.days_since_rotation;
+                              if (days == null) return null;
+                              const isRed = days >= 90;
+                              const isAmber = days >= 60 && !isRed;
+                              if (!isAmber && !isRed) return null;
+                              return (
+                                <span className={cn(
+                                  'text-[10px] px-1.5 py-0.5 rounded font-medium flex items-center gap-1 w-fit mt-0.5',
+                                  isRed ? 'bg-status-error/15 text-status-error' : 'bg-status-warning/15 text-status-warning'
+                                )}>
+                                  <RotateCw size={9} />
+                                  {isRed ? 'Key overdue' : 'Rotation due'} · {days}d
+                                </span>
+                              );
+                            })()}
                             {/* Health sparkline */}
                             {healthHistory[c.id] && healthHistory[c.id].length > 0 && (
                               <div className="mt-1.5">
@@ -492,6 +520,17 @@ export default function ProviderCategoryPage() {
                                   ? 'bg-status-warning/15 text-status-warning hover:bg-status-warning/25'
                                   : 'border-border text-content-tertiary')}>
                               <Star size={12} />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setRotatingCred(c)}
+                              leftIcon={<RotateCw size={11} />}
+                              className="h-7 px-2.5 text-xs"
+                              title="Rotate API key (safe-swap: tested before replacing)"
+                            >
+                              Rotate
                             </Button>
                             <Button
                               type="button"
@@ -738,6 +777,13 @@ export default function ProviderCategoryPage() {
           }}
         />
       )}
+      {rotatingCred && (
+        <RotateCredentialDialog
+          cred={rotatingCred}
+          onClose={() => setRotatingCred(null)}
+          onRotated={() => { setRotatingCred(null); refresh(); showToast('Key rotated ✓', 'success'); }}
+        />
+      )}
     </main>
   );
 }
@@ -807,43 +853,31 @@ const CATEGORY_MODEL_LABEL: Record<string, string> = {
   tts: 'Voice',
 };
 
+type SchemaField = {
+  name: string; type: string; label: string; required: boolean;
+  hint?: string; placeholder?: string; options?: string[];
+};
+
 function AddCredentialDialog({ category, onClose, onAdded }: any) {
   const { showToast } = useToast();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [providerName, setProviderName] = useState('');
   const [label, setLabel] = useState('');
-  const [secret, setSecret] = useState('');
-  const [showSecret, setShowSecret] = useState(false);
+  const [fieldValues, setFieldValues] = useState<Record<string, string | boolean>>({});
   const [model, setModel] = useState('');
-  const [supportedModels, setSupportedModels] = useState<string[]>([]);
-  const [defaultModel, setDefaultModel] = useState<string | null>(null);
-  const [providerRegistered, setProviderRegistered] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [registered, setRegistered] = useState<{
-    provider_name: string;
-    display_name: string;
-    logo_url: string | null;
-    website_url: string | null;
-    has_free_tier: boolean | null;
-    default_model: string | null;
-    supported_models: string[];
-  }[]>([]);
+  const [registered, setRegistered] = useState<(ReturnType<typeof providersApi.registeredProviders> extends Promise<{ data: (infer T)[] }> ? T : any)[]>([]);
   const [registeredLoading, setRegisteredLoading] = useState(true);
 
   useEffect(() => {
     setRegisteredLoading(true);
     providersApi.registeredProviders(category)
       .then(r => {
-        // Filter out alias duplicates (fishaudio = same class as fish_audio)
         const deduped = (r.data || []).filter((p: any) => !PROVIDER_ALIASES_TO_HIDE.has(p.provider_name));
         setRegistered(deduped);
         if (deduped.length > 0 && !providerName) {
-          const first = deduped[0];
-          setProviderName(first.provider_name);
-          setSupportedModels(first.supported_models);
-          setDefaultModel(first.default_model);
-          setProviderRegistered(true);
+          setProviderName(deduped[0].provider_name);
         }
       })
       .catch(() => setRegistered([]))
@@ -851,51 +885,74 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category]);
 
+  const selProvider = (registered as any[]).find((r: any) => r.provider_name === providerName) ?? null;
+  const schema: SchemaField[] = selProvider?.config_schema ?? [];
+  const credFields = schema.filter(f => f.name !== 'model' && f.name !== 'model_id');
+  const modelField = schema.find(f => f.name === 'model' || f.name === 'model_id') ?? null;
+  const noKeyNeeded = NO_KEY_PROVIDERS.has(providerName);
+  const hasCredFields = credFields.length > 0;
+  const voiceHint = VOICE_HINTS[providerName] || null;
+  const modelLabel = voiceHint?.fieldLabel || CATEGORY_MODEL_LABEL[category] || 'Model';
+  const supportedModels: string[] = selProvider?.supported_models ?? [];
+  const defaultModel: string | null = selProvider?.default_model ?? null;
+
   useEffect(() => {
-    if (!providerName) {
-      setSupportedModels([]); setDefaultModel(null); setProviderRegistered(null);
-      return;
-    }
-    const match = registered.find(r => r.provider_name === providerName);
-    if (match) {
-      setSupportedModels(match.supported_models);
-      setDefaultModel(match.default_model);
-      setProviderRegistered(true);
-      if (!label) setLabel(match.display_name + ' — Primary');
-    } else {
-      setProviderRegistered(false);
-    }
+    if (selProvider && !label) setLabel(selProvider.display_name + ' — Primary');
+    setFieldValues({});
+    setModel('');
+    setErr(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [providerName, registered]);
+  }, [providerName]);
+
+  const setField = (name: string, val: string | boolean) =>
+    setFieldValues(prev => ({ ...prev, [name]: val }));
+
+  const step2Ready = noKeyNeeded || credFields.every(f => !f.required || fieldValues[f.name]);
 
   const submit = async () => {
     setBusy(true); setErr(null);
     try {
-      const effectiveSecret = NO_KEY_PROVIDERS.has(providerName) ? 'NO_KEY_REQUIRED' : secret;
-      const result = await providersApi.createCredential({
-        category, provider_name: providerName, label,
-        secret_value: effectiveSecret, secret_key: 'api_key',
-        model: model || null,
-        extra_config: {},
-      });
-      onAdded(result?.id);
-    } catch (e: any) { setErr(e?.message || 'Failed to save. Check your API key and try again.'); }
-    finally { setBusy(false); }
+      let result: any;
+      if (schema.length > 0) {
+        const wf: Record<string, string | boolean> = { ...fieldValues };
+        if (modelField && model) wf[modelField.name] = model;
+        result = await providersApi.createCredentialFromWizard({
+          category,
+          provider_key: providerName,
+          label,
+          wizard_fields: wf,
+          model: model || null,
+        });
+      } else {
+        const secretField = fieldValues['api_key'] as string || '';
+        const effectiveSecret = noKeyNeeded ? 'NO_KEY_REQUIRED' : secretField;
+        result = await providersApi.createCredential({
+          category, provider_name: providerName, label,
+          secret_value: effectiveSecret, secret_key: 'api_key',
+          model: model || null,
+          extra_config: {},
+        });
+      }
+      onAdded(result?.id ?? result?.data?.id);
+    } catch (e: any) {
+      setErr(e?.message || 'Failed to save. Check your credentials and try again.');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const keyHint      = KEY_HINTS[providerName] || null;
-  const voiceHint     = VOICE_HINTS[providerName] || null;
-  const selProvider   = registered.find(r => r.provider_name === providerName);
-  const noKeyNeeded   = NO_KEY_PROVIDERS.has(providerName);
-  const modelLabel    = voiceHint?.fieldLabel || CATEGORY_MODEL_LABEL[category] || 'Model';
-  const stepLabels    = ['Choose provider', noKeyNeeded ? 'No key needed ✔' : 'Enter API key', `${modelLabel} & save`] as const;
+  const stepLabels = [
+    'Choose provider',
+    noKeyNeeded ? 'No key needed ✔' : 'Enter credentials',
+    `${modelLabel} & save`,
+  ] as const;
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="rounded-xl bg-surface-0 max-w-lg w-full border border-border shadow-elevated" onClick={e => e.stopPropagation()}>
+      <div className="rounded-xl bg-surface-0 max-w-lg w-full border border-border shadow-elevated max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
 
         {/* ── Header ── */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border">
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border shrink-0">
           <div>
             <h3 className="font-semibold text-content-primary">Add credential</h3>
             <p className="text-[11px] text-content-tertiary mt-0.5">
@@ -908,7 +965,7 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
         </div>
 
         {/* ── Step indicator ── */}
-        <div className="flex items-center px-5 py-3 border-b border-border">
+        <div className="flex items-center px-5 py-3 border-b border-border shrink-0">
           {stepLabels.map((s, i) => {
             const n = (i + 1) as 1 | 2 | 3;
             const active = step === n;
@@ -933,7 +990,7 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
         </div>
 
         {/* ── Step body ── */}
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 overflow-y-auto flex-1">
 
           {/* Step 1 — Choose provider + nickname */}
           {step === 1 && (
@@ -947,33 +1004,49 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
                 ) : registered.length === 0 ? (
                   <div className="rounded-lg border border-status-warning/40 bg-status-warning/5 px-3 py-2.5 text-xs text-status-warning">
                     No providers are installed for the <strong>{category}</strong> category.
-                    The backend didn't load any provider classes. Check <span className="font-mono">src/providers/boot.py</span>.
+                    Check <span className="font-mono">src/providers/boot.py</span>.
                   </div>
                 ) : (
                   <Select value={providerName} onValueChange={setProviderName}>
                     <SelectTrigger><SelectValue placeholder="Select a provider…" /></SelectTrigger>
                     <SelectContent>
-                      {registered.map(r => (
+                      {(registered as any[]).map((r: any) => (
                         <SelectItem key={r.provider_name} value={r.provider_name}>
                           {r.display_name}
-                          {r.has_free_tier ? ' — Free tier available' : ''}
-                          {NO_KEY_PROVIDERS.has(r.provider_name) ? ' — No API key needed' : ''}
+                          {r.has_free_tier ? ' — Free' : ''}
+                          {NO_KEY_PROVIDERS.has(r.provider_name) ? ' — No key needed' : ''}
+                          {r.pricing_tier === 'paid' ? ' — Paid' : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 )}
-                {selProvider?.website_url && (
-                  <div className="mt-1.5">
-                    <a href={selProvider.website_url} target="_blank" rel="noreferrer"
-                      className="text-[11px] text-accent hover:underline inline-flex items-center gap-1">
-                      Visit {selProvider.display_name} to get your API key ↗
-                    </a>
+                {selProvider && (
+                  <div className="mt-1.5 flex items-center gap-3 flex-wrap">
+                    {selProvider.docs_url && (
+                      <a href={selProvider.docs_url} target="_blank" rel="noreferrer"
+                        className="text-[11px] text-accent hover:underline inline-flex items-center gap-1">
+                        <ExternalLink size={10} /> Docs ↗
+                      </a>
+                    )}
+                    {selProvider.website_url && (
+                      <a href={selProvider.website_url} target="_blank" rel="noreferrer"
+                        className="text-[11px] text-accent hover:underline inline-flex items-center gap-1">
+                        Get API key ↗
+                      </a>
+                    )}
+                    {selProvider.pricing_tier && (
+                      <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium',
+                        selProvider.pricing_tier === 'free' ? 'bg-status-success/10 text-status-success' :
+                        selProvider.pricing_tier === 'paid' ? 'bg-status-warning/10 text-status-warning' :
+                        'bg-surface-2 text-content-tertiary')}>
+                        {selProvider.pricing_tier}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
 
-              {/* Nickname — plain text, no datalist */}
               <div>
                 <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1.5">Give it a nickname</div>
                 <Input
@@ -983,74 +1056,73 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
                   placeholder={selProvider ? `${selProvider.display_name} — Primary` : 'e.g. My OpenAI Key'}
                 />
                 <p className="text-[11px] text-content-tertiary mt-1.5">
-                  Just a friendly name so <em>you</em> can tell your keys apart. Examples: “Main Account”, “Backup”, “High-volume”. Only you see this.
+                  A friendly name to tell your credentials apart. Only you see this.
                 </p>
               </div>
 
               <div className="flex justify-end gap-2 pt-1">
                 <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-                <Button type="button" size="sm" onClick={() => noKeyNeeded ? setStep(3) : setStep(2)} disabled={!providerName || !label.trim()}>
-                  {noKeyNeeded ? 'Skip to Voice →' : 'Next: Enter API key →'}
+                <Button type="button" size="sm"
+                  onClick={() => noKeyNeeded && !hasCredFields ? setStep(3) : setStep(2)}
+                  disabled={!providerName || !label.trim()}>
+                  {noKeyNeeded && !hasCredFields ? 'Skip to model →' : 'Next: Credentials →'}
                 </Button>
               </div>
             </div>
           )}
 
-          {/* Step 2 — Enter API key (skipped for no-key providers) */}
+          {/* Step 2 — Schema-driven credential fields */}
           {step === 2 && (
             <div className="space-y-4">
-              {keyHint && (
+              {selProvider?.docs_url && (
                 <div className="rounded-lg border border-accent/20 bg-accent/5 px-3 py-2.5">
-                  <p className="text-[12px] text-content-secondary">{keyHint.hint}</p>
-                  <a href={keyHint.helpUrl} target="_blank" rel="noreferrer"
-                    className="text-[11px] text-accent hover:underline mt-1 inline-block">
-                    → Open {selProvider?.display_name || providerName} dashboard to copy your key
+                  <a href={selProvider.docs_url} target="_blank" rel="noreferrer"
+                    className="text-[11px] text-accent hover:underline flex items-center gap-1">
+                    <ExternalLink size={10} /> How to get your {selProvider.display_name} credentials ↗
                   </a>
                 </div>
               )}
 
-              <div>
-                <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1.5">Paste your API key</div>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type={showSecret ? 'text' : 'password'}
-                    value={secret}
-                    onChange={e => setSecret(e.target.value)}
-                    placeholder={keyHint?.prefix ? `Starts with ${keyHint.prefix}` : 'Paste here…'}
-                    className="flex-1 font-mono"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setShowSecret(v => !v)}
-                    aria-label={showSecret ? 'Hide secret' : 'Show secret'}
-                    className="shrink-0 w-9 h-9"
-                  >
-                    {showSecret ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </Button>
+              {credFields.length === 0 && !noKeyNeeded && (
+                <div className="rounded-lg border border-border bg-surface-1 px-3 py-2.5 text-xs text-content-tertiary">
+                  No credential fields configured for this provider — using defaults.
                 </div>
-                <p className="text-[11px] text-content-tertiary mt-1.5">
-                  Your key is saved securely in Vault — it is <strong>never</strong> written to the database, logs, or source code.
-                </p>
-              </div>
+              )}
+
+              {credFields.map(field => (
+                <SchemaFieldInput
+                  key={field.name}
+                  field={field}
+                  value={fieldValues[field.name] ?? ''}
+                  onChange={val => setField(field.name, val)}
+                />
+              ))}
+
+              {noKeyNeeded && credFields.length === 0 && (
+                <div className="rounded-lg border border-status-success/30 bg-status-success/5 px-3 py-2.5 text-xs text-status-success flex items-center gap-2">
+                  <Check size={12} /> No API key required for {selProvider?.display_name ?? providerName}.
+                </div>
+              )}
+
+              <p className="text-[11px] text-content-tertiary">
+                Password fields are stored securely in Vault — <strong>never</strong> in the database or logs.
+              </p>
 
               <div className="flex justify-between gap-2 pt-1">
                 <Button type="button" variant="outline" size="sm" onClick={() => setStep(1)}>← Back</Button>
-                <Button type="button" size="sm" onClick={() => setStep(3)} disabled={!secret.trim()}>
-                  Next: Pick voice →
+                <Button type="button" size="sm" onClick={() => setStep(3)} disabled={!step2Ready}>
+                  Next: Model & save →
                 </Button>
               </div>
             </div>
           )}
 
-          {/* Step 3 — Voice/Model & save */}
+          {/* Step 3 — Model/voice + final save */}
           {step === 3 && (
             <div className="space-y-4">
               <div>
                 <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1.5">{modelLabel} (optional)</div>
 
-                {/* Voice suggestions for TTS providers */}
                 {voiceHint?.suggestions ? (
                   <div className="space-y-2">
                     <p className="text-[12px] text-content-secondary">{voiceHint.hint}</p>
@@ -1058,30 +1130,20 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
                       {voiceHint.suggestions.map(s => {
                         const val = s.split(' — ')[0];
                         return (
-                          <Button
-                            key={val}
-                            type="button"
-                            variant="ghost"
+                          <Button key={val} type="button" variant="ghost"
                             onClick={() => setModel(val)}
-                            className={cn(
-                              'text-left justify-start px-3 py-2 rounded-lg border text-sm h-auto',
+                            className={cn('text-left justify-start px-3 py-2 rounded-lg border text-sm h-auto',
                               model === val
                                 ? 'border-accent bg-accent/8 text-content-primary hover:bg-accent/15'
-                                : 'border-border hover:border-accent/40 hover:bg-surface-1 text-content-secondary',
-                            )}>
+                                : 'border-border hover:border-accent/40 hover:bg-surface-1 text-content-secondary')}>
                             <span className="font-mono text-xs text-content-tertiary mr-2">{val}</span>
                             <span className="text-[11px]">{s.split(' — ')[1] || ''}</span>
                           </Button>
                         );
                       })}
                     </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setModel('')}
-                      className="h-auto px-0 py-0 text-[11px] text-content-tertiary hover:text-accent mt-0.5 self-start"
-                    >
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setModel('')}
+                      className="h-auto px-0 py-0 text-[11px] text-content-tertiary hover:text-accent">
                       {model ? 'Clear selection (use default)' : '✔ Using default voice (Aria)'}
                     </Button>
                   </div>
@@ -1090,15 +1152,21 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
                     <div className="rounded-lg border border-border bg-surface-1/60 px-3 py-2.5">
                       <p className="text-[12px] text-content-secondary">{voiceHint.hint}</p>
                     </div>
-                    <Input
-                      type="text"
-                      value={model}
-                      onChange={e => setModel(e.target.value)}
-                      placeholder={voiceHint.placeholder}
-                    />
+                    <Input type="text" value={model} onChange={e => setModel(e.target.value)}
+                      placeholder={voiceHint.placeholder} />
                   </div>
+                ) : modelField?.options?.length ? (
+                  <Select value={model || '__default__'}
+                    onValueChange={(v: string) => setModel(v === '__default__' ? '' : v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__default__">Use provider default ({defaultModel || 'auto'})</SelectItem>
+                      {modelField.options.map((m: string) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 ) : supportedModels.length > 0 ? (
-                  <Select value={model || '__default__'} onValueChange={(v: string) => setModel(v === '__default__' ? '' : v)}>
+                  <Select value={model || '__default__'}
+                    onValueChange={(v: string) => setModel(v === '__default__' ? '' : v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__default__">Use provider default ({defaultModel || 'auto'})</SelectItem>
@@ -1107,14 +1175,10 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
                   </Select>
                 ) : (
                   <div className="space-y-2">
-                    <Input
-                      type="text"
-                      value={model}
-                      onChange={e => setModel(e.target.value)}
-                      placeholder={defaultModel || 'Leave blank to use the provider’s default model'}
-                    />
+                    <Input type="text" value={model} onChange={e => setModel(e.target.value)}
+                      placeholder={defaultModel || "Leave blank for provider default"} />
                     <p className="text-[11px] text-content-tertiary">
-                      Optional. One credential = one model. Add a second credential later if you want the same API key with a different model.
+                      Optional. One credential = one model. Add a second credential later for a different model.
                     </p>
                   </div>
                 )}
@@ -1127,21 +1191,176 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
               )}
 
               <div className="flex justify-between gap-2 pt-1">
-                <Button type="button" variant="outline" size="sm" onClick={() => noKeyNeeded ? setStep(1) : setStep(2)}>← Back</Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={submit}
-                  disabled={busy}
-                  loading={busy}
-                  leftIcon={!busy ? <Check size={13} /> : undefined}
-                >
+                <Button type="button" variant="outline" size="sm"
+                  onClick={() => noKeyNeeded && !hasCredFields ? setStep(1) : setStep(2)}>
+                  ← Back
+                </Button>
+                <Button type="button" size="sm" onClick={submit} disabled={busy} loading={busy}
+                  leftIcon={!busy ? <Check size={13} /> : undefined}>
                   {busy ? 'Saving…' : 'Save & activate'}
                 </Button>
               </div>
             </div>
           )}
 
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SchemaFieldInput({ field, value, onChange }: {
+  field: SchemaField;
+  value: string | boolean;
+  onChange: (v: string | boolean) => void;
+}) {
+  const [show, setShow] = useState(false);
+  if (field.type === 'boolean') {
+    return (
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-[10px] uppercase tracking-wide text-content-tertiary">{field.label}</div>
+          {field.hint && <div className="text-[11px] text-content-tertiary mt-0.5">{field.hint}</div>}
+        </div>
+        <UISwitch checked={!!value} onCheckedChange={onChange} />
+      </div>
+    );
+  }
+  if (field.type === 'select' && field.options?.length) {
+    return (
+      <div>
+        <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1.5">
+          {field.label}{field.required && <span className="text-status-error ml-0.5">*</span>}
+        </div>
+        <Select value={String(value || '')} onValueChange={onChange}>
+          <SelectTrigger><SelectValue placeholder={field.placeholder || 'Select…'} /></SelectTrigger>
+          <SelectContent>
+            {!field.required && <SelectItem value="">None (use provider default)</SelectItem>}
+            {field.options.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {field.hint && <div className="text-[11px] text-content-tertiary mt-1">{field.hint}</div>}
+      </div>
+    );
+  }
+  if (field.type === 'password') {
+    return (
+      <div>
+        <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1.5">
+          {field.label}{field.required && <span className="text-status-error ml-0.5">*</span>}
+        </div>
+        <div className="flex items-center gap-2">
+          <Input type={show ? 'text' : 'password'} value={String(value || '')}
+            onChange={e => onChange(e.target.value)}
+            placeholder={field.placeholder || 'Paste here…'}
+            className="flex-1 font-mono" />
+          <Button type="button" variant="outline" size="icon" onClick={() => setShow(v => !v)}
+            aria-label={show ? 'Hide' : 'Show'} className="shrink-0 w-9 h-9">
+            {show ? <EyeOff size={14} /> : <Eye size={14} />}
+          </Button>
+        </div>
+        {field.hint && <div className="text-[11px] text-content-tertiary mt-1">{field.hint}</div>}
+      </div>
+    );
+  }
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1.5">
+        {field.label}{field.required && <span className="text-status-error ml-0.5">*</span>}
+      </div>
+      <Input type="text" value={String(value || '')} onChange={e => onChange(e.target.value)}
+        placeholder={field.placeholder || ''} />
+      {field.hint && <div className="text-[11px] text-content-tertiary mt-1">{field.hint}</div>}
+    </div>
+  );
+}
+
+function RotateCredentialDialog({ cred, onClose, onRotated }: { cred: any; onClose: () => void; onRotated: () => void }) {
+  const { showToast } = useToast();
+  const [newKey, setNewKey] = useState('');
+  const [hint, setHint] = useState('');
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [rolledBack, setRolledBack] = useState(false);
+
+  const submit = async () => {
+    if (!newKey.trim()) return;
+    setBusy(true); setErr(null); setRolledBack(false);
+    try {
+      await providersApi.rotateCredential(cred.id, newKey.trim(), 'api_key', hint.trim() || undefined);
+      onRotated();
+    } catch (e: any) {
+      const msg = e?.message || 'Rotation failed';
+      const isRollback = msg.toLowerCase().includes('rolled_back') || msg.toLowerCase().includes('rollback') || msg.toLowerCase().includes('422');
+      setRolledBack(isRollback);
+      setErr(msg);
+      showToast(isRollback ? '❌ Rotation failed — old key restored automatically' : msg, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="rounded-xl bg-surface-0 max-w-md w-full border border-border shadow-elevated" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border">
+          <div>
+            <h3 className="font-semibold text-content-primary flex items-center gap-2">
+              <RotateCw size={14} className="text-accent" /> Rotate API Key
+            </h3>
+            <p className="text-[11px] text-content-tertiary mt-0.5">{cred.label} · {cred.provider_name}</p>
+          </div>
+          <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} className="w-7 h-7 text-content-tertiary">
+            <X size={14} />
+          </Button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="rounded-lg border border-accent/20 bg-accent/5 px-3 py-2.5 text-[12px] text-content-secondary">
+            The old key is kept and automatically restored if the new key fails its health check.
+          </div>
+
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1.5">New API Key<span className="text-status-error ml-0.5">*</span></div>
+            <div className="flex items-center gap-2">
+              <Input type={show ? 'text' : 'password'} value={newKey} onChange={e => setNewKey(e.target.value)}
+                placeholder="Paste new key here…" className="flex-1 font-mono" />
+              <Button type="button" variant="outline" size="icon" onClick={() => setShow(v => !v)}
+                aria-label={show ? 'Hide' : 'Show'} className="shrink-0 w-9 h-9">
+                {show ? <EyeOff size={14} /> : <Eye size={14} />}
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1.5">Hint (optional)</div>
+            <Input type="text" value={hint} onChange={e => setHint(e.target.value)}
+              placeholder="e.g. quarterly rotation" />
+            <p className="text-[11px] text-content-tertiary mt-1">Stored in audit log to explain why this key was rotated.</p>
+          </div>
+
+          {err && (
+            <div className={cn('rounded-lg border px-3 py-2.5 text-sm',
+              rolledBack
+                ? 'border-status-error/40 bg-status-error/5 text-status-error'
+                : 'border-status-error/40 bg-status-error/5 text-status-error')}>
+              {rolledBack && (
+                <div className="font-semibold mb-1 flex items-center gap-1.5">
+                  <AlertTriangle size={12} /> Old key restored automatically
+                </div>
+              )}
+              {err}
+            </div>
+          )}
+
+          <div className="flex justify-between gap-2 pt-1">
+            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={busy}>Cancel</Button>
+            <Button type="button" size="sm" onClick={submit} disabled={busy || !newKey.trim()}
+              loading={busy}
+              leftIcon={!busy ? <RotateCw size={12} /> : undefined}>
+              {busy ? 'Testing new key…' : 'Test & Rotate →'}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

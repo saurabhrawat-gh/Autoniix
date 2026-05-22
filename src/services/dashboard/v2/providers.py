@@ -922,7 +922,8 @@ async def registered_providers_endpoint(
     # Pre-fetch marketplace display names in one query.
     pool = await get_pool()
     catalog_rows = await pool.fetch(
-        "SELECT provider_key, display_name, logo_url, website_url, has_free_tier "
+        "SELECT provider_key, display_name, logo_url, website_url, has_free_tier, "
+        "       config_schema, docs_url, pricing_tier "
         "FROM provider_marketplace_catalog"
     )
     catalog: dict[str, dict] = {r["provider_key"]: dict(r) for r in catalog_rows}
@@ -960,6 +961,9 @@ async def registered_providers_endpoint(
             "has_free_tier": cat_entry.get("has_free_tier"),
             "default_model": default,
             "supported_models": models,
+            "config_schema": cat_entry.get("config_schema") or [],
+            "docs_url": cat_entry.get("docs_url"),
+            "pricing_tier": cat_entry.get("pricing_tier"),
         })
     return {"data": out}
 
