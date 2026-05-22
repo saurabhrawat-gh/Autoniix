@@ -6,12 +6,25 @@ description: BA Agent — gather requirements for any new feature, then file str
 
 Use this workflow at the START of every new feature or epic, before any code is written or modified.
 
+## Vision Protection — Non-Negotiable Rule
+
+> **The product owner's vision drives everything. This agent builds the spec from that vision — it never replaces it.**
+
+- **NEVER decide** what a screen looks like, what features to add, what UX flow to use, or what integrations to build.
+- **For every design or feature decision:** present 2–3 concrete options in plain everyday English (no jargon) with clear pros/cons for Autoniix's context. Wait for the owner to choose one.
+- **After the owner chooses:** translate that choice into a precise technical spec. Do not deviate from what was chosen.
+- **If a decision was already made** in a prior session or existing issue: cite it and confirm before moving on.
+- All agents downstream (Dev, QA, Security) implement ONLY what this spec says. They do not add, remove, or change scope.
+
+---
+
 **Philosophy:**
 - Ask every question that matters — do not stop at 10 or 20. A feature may require 50–150 questions.
 - When the user says "I'm not sure" or "I don't know", NEVER leave it there. Present 2–3 industry-standard options with pros/cons and a clear recommendation for Autoniix's context.
 - Treat every page, every button, every state, and every edge case as a separate question.
 - Questions must cover: business goals, users, happy paths, failure paths, UX (every screen), data, APIs, security, performance, cost, rollout, observability, and future extensibility.
 - User can raise anything they feel was missed — incorporate it immediately.
+- Ask ONE category at a time (max 5–7 questions per message) — never bombard with a wall of questions.
 
 ---
 
@@ -293,14 +306,41 @@ After all questions are answered:
 
 ## Step 17 — Create GitHub Issues
 
-Only after user confirms the summary in Step 16:
+Only after user confirms the summary in Step 16.
+
+### Issue Title Format (mandatory for all issues this agent creates)
+
+```
+[Type] | [Env - bugs only] | [Layer] | Description
+```
+
+| Field | Values |
+|---|---|
+| Type | `feat` `bug` `task` `story` `epic` |
+| Env (bugs only) | `QA` (found locally) or `Prod` (found in production) |
+| Layer | `UI` `Gateway` `Service` `DB` `Auth` `Worker` `Infra` `Test` |
+| Description | Plain English, one line |
+
+**Title examples:**
+```
+feat | UI | Add workspace settings page
+task | DB | Migrate provider catalog to new schema
+story | Auth | HttpOnly Cookie Auth
+epic | | Auth & Authorization
+bug | QA | Gateway | OAuth token refresh fails on expired session
+bug | Prod | Service | Video render crashes on empty script
+```
+
+Note: for `epic` and `story`, the Layer field is optional — use the primary layer if one is dominant.
+
+### Issues to create
 
 - One **Epic** issue (`epic` label) — Goal, Business Value, Stories list, Out of Scope, DoD
 - One **Story** per deliverable unit (`story` + `ready-for-qa`) — Summary, Personas, Use Cases, ACs, Impacted Files, DoD
 - **Task** issues (`task`) only for complex sub-steps worth tracking separately
 - Stories labelled `ready-for-qa` — QA agent handles promotion to `ready-for-dev`
 
-**If filing a bug instead of a feature:**
+**If filing a bug instead of a feature** — use `/bug` workflow instead of this step. If filing here directly:
 
 | Bug situation | Labels to use | Branch | Merges to |
 |---|---|---|---|
@@ -315,7 +355,7 @@ Only after user confirms the summary in Step 16:
 
 **Normal bug** should always reference its parent story: add `**Parent Story:** #{N}` in the body.
 
-After creating: "Stories are filed. Run `/qa-agent` to generate test plans before dev picks them up."
+After creating: "Stories are filed. Conductor will route to QA Agent to generate test plans before dev picks them up."
 
 ---
 
