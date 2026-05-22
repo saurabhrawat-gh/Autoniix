@@ -1,0 +1,128 @@
+name: Jira Sync
+
+# Mirrors GitHub PR lifecycle into Jira.
+#
+# Convention: Jira issue key (e.g. AE-123) must appear in either:
+#   - the branch name      e.g.  feat/AE-123-add-login
+#   - the PR title         e.g.  [AE-123] Add login
+#   - the PR body          e.g.  Closes AE-123
+#
+# Transitions:
+#   PR opened   -> In Progress
+#   PR merged -> develop  -> Dev Done
+#   PR merged -> main     -> In Prod
+#
+# Secrets required (Repo settings -> Secrets and variables -> Actions):
+#   JIRA_BASE_URL   = https://autoniix.atlassian.net
+#   JIRA_EMAIL      = admin@autoniix.com
+#   JIRA_API_TOKEN  = <atlassian api token>
+
+on:
+  pull_request:
+    types: [opened, edited, reopened]
+    branches: [develop, main]
+  pull_request_target:
+    types: [closed]
+    branches: [develop, main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  sync:
+    name: Transition Jira issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract Jira key
+        id: extract
+        env:
+          BRANCH: ${{ github.head_ref || github.event.pull_request.head.ref }}
+          TITLE:  ${{ github.event.pull_request.title }}
+          BODY:   ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          KEY=$(printf '%s\n%s\n%s\n' "$BRANCH" "$TITLE" "$BODY" \
+                | grep -oE -i 'AE-[0-9]+' \
+                | head -n 1 \
+                | tr '[:lower:]' '[:upper:]' || true)
+          if [ -z "$KEY" ]; then
+            echo "No Jira key (AE-NNN) found in branch/title/body. Skipping."
+            echo "key=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Found Jira key: $KEY"
+          echo "key=$KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Decide target status
+        id: target
+        if: steps.extract.outputs.key != ''
+        env:
+          ACTION: ${{ github.event.action }}
+          MERGED: ${{ github.event.pull_request.merged }}
+          BASE:   ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          STATUS=""
+          if [ "$ACTION" = "closed" ] && [ "$MERGED" = "true" ]; then
+            case "$BASE" in
+              develop) STATUS="Dev Done" ;;
+              main)    STATUS="In Prod"  ;;
+            esac
+          elif [ "$ACTION" = "opened" ] || [ "$ACTION" = "reopened" ] || [ "$ACTION" = "edited" ]; then
+            STATUS="In Progress"
+          fi
+          if [ -z "$STATUS" ]; then
+            echo "No target status for action=$ACTION merged=$MERGED base=$BASE. Skip."
+            echo "status=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Target status: $STATUS"
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+
+      - name: Transition Jira issue
+        if: steps.extract.outputs.key != '' && steps.target.outputs.status != ''
+        env:
+          JIRA_BASE_URL:  ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL:     ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          KEY:            ${{ steps.extract.outputs.key }}
+          TARGET:         ${{ steps.target.outputs.status }}
+          ACTION:         ${{ github.event.action }}
+          PR_URL:         ${{ github.event.pull_request.html_url }}
+        run: |
+          set -euo pipefail
+          : "${JIRA_BASE_URL:?JIRA_BASE_URL secret missing}"
+          : "${JIRA_EMAIL:?JIRA_EMAIL secret missing}"
+          : "${JIRA_API_TOKEN:?JIRA_API_TOKEN secret missing}"
+
+          AUTH="$JIRA_EMAIL:$JIRA_API_TOKEN"
+          API="$JIRA_BASE_URL/rest/api/3"
+
+          # 1. Look up transition id for the target status
+          TRANS_ID=$(curl -fsS -u "$AUTH" -H 'Accept: application/json' \
+                       "$API/issue/$KEY/transitions" \
+                     | jq -r --arg name "$TARGET" \
+                       '.transitions[] | select(.to.name==$name) | .id' \
+                     | head -n 1)
+
+          if [ -z "$TRANS_ID" ]; then
+            echo "::warning::No transition to '$TARGET' available on $KEY. Already there or not allowed."
+            exit 0
+          fi
+
+          # 2. Transition
+          curl -fsS -u "$AUTH" -H 'Content-Type: application/json' \
+               -X POST "$API/issue/$KEY/transitions" \
+               -d "{\"transition\":{\"id\":\"$TRANS_ID\"}}"
+          echo "Transitioned $KEY -> $TARGET"
+
+          # 3. Add a comment with the PR link only on close events (avoids edit spam)
+          if [ "$ACTION" = "closed" ]; then
+            COMMENT_BODY="PR merged: $PR_URL — new status: $TARGET"
+            ADF=$(jq -n --arg t "$COMMENT_BODY" '{body:{type:"doc",version:1,content:[{type:"paragraph",content:[{type:"text",text:$t}]}]}}')
+            curl -fsS -u "$AUTH" -H 'Content-Type: application/json' \
+                 -X POST "$API/issue/$KEY/comment" \
+                 -d "$ADF" >/dev/null
+            echo "Comment added on $KEY"
+          fi
