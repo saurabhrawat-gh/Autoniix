@@ -8,6 +8,7 @@ import type { LucideIcon } from 'lucide-react';
 import { cn } from '../utils';
 import { Tip } from './Tooltip';
 import { Button } from '../ui';
+import { usePermissions } from '../hooks/usePermissions';
 import {
   Home,
   Tv,
@@ -37,6 +38,7 @@ interface NavItem {
   icon: LucideIcon;
   shortcut?: string;
   badge?: string;
+  permission?: string;
 }
 
 interface NavGroup {
@@ -63,20 +65,20 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Resources',
     items: [
-      { href: '/dashboard/library', label: 'Library', icon: Archive, shortcut: 'g l' },
-      { href: '/dashboard/providers', label: 'Providers', icon: Plug, shortcut: 'g i' },
-      { href: '/dashboard/experiments', label: 'Experiments', icon: FlaskConical, shortcut: 'g e' },
+      { href: '/dashboard/library', label: 'Library', icon: Archive, shortcut: 'g l', permission: 'content.view' },
+      { href: '/dashboard/providers', label: 'Providers', icon: Plug, shortcut: 'g i', permission: 'provider.view' },
+      { href: '/dashboard/experiments', label: 'Experiments', icon: FlaskConical, shortcut: 'g e', permission: 'workspace.settings.edit' },
     ],
   },
   {
     label: 'System',
     items: [
       { href: '/dashboard/notifications', label: 'Notifications', icon: Bell, shortcut: 'g n' },
-      { href: '/dashboard/fleet', label: 'Fleet Health', icon: Cpu, shortcut: 'g f' },
-      { href: '/dashboard/debug', label: 'Debug', icon: Terminal, shortcut: 'g b' },
-      { href: '/dashboard/workspace', label: 'Workspace', icon: Boxes, shortcut: 'g w' },
-      { href: '/dashboard/users', label: 'Team', icon: Users, shortcut: 'g u' },
-      { href: '/dashboard/settings', label: 'Settings', icon: Settings, shortcut: 'g s' },
+      { href: '/dashboard/fleet', label: 'Fleet Health', icon: Cpu, shortcut: 'g f', permission: 'workspace.settings.edit' },
+      { href: '/dashboard/debug', label: 'Debug', icon: Terminal, shortcut: 'g b', permission: 'workspace.settings.edit' },
+      { href: '/dashboard/workspace', label: 'Workspace', icon: Boxes, shortcut: 'g w', permission: 'workspace.view' },
+      { href: '/dashboard/users', label: 'Team', icon: Users, shortcut: 'g u', permission: 'workspace.members.view' },
+      { href: '/dashboard/settings', label: 'Settings', icon: Settings, shortcut: 'g s', permission: 'workspace.settings.edit' },
     ],
   },
 ];
@@ -129,6 +131,7 @@ export function Sidebar() {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [gPressed, setGPressed] = useState(false);
+  const { hasPermission, loading: permsLoading } = usePermissions();
 
   useEffect(() => {
     try {
@@ -199,27 +202,33 @@ export function Sidebar() {
           'flex-1 overflow-y-auto overflow-x-hidden py-3',
           collapsed ? 'px-1.5 space-y-3' : 'px-2 space-y-4'
         )}>
-          {NAV_GROUPS.map((group, gIdx) => (
-            <div key={group.label}>
-              {!collapsed ? (
-                <div className="px-2.5 mb-1 text-[10px] uppercase tracking-widest font-semibold text-content-tertiary">
-                  {group.label}
+          {NAV_GROUPS.map((group, gIdx) => {
+            const visibleItems = group.items.filter(
+              item => !item.permission || permsLoading || hasPermission(item.permission)
+            );
+            if (visibleItems.length === 0) return null;
+            return (
+              <div key={group.label}>
+                {!collapsed ? (
+                  <div className="px-2.5 mb-1 text-[10px] uppercase tracking-widest font-semibold text-content-tertiary">
+                    {group.label}
+                  </div>
+                ) : gIdx > 0 ? (
+                  <div className="mx-3 mb-2 h-px bg-border" />
+                ) : null}
+                <div className={collapsed ? 'space-y-1' : 'space-y-0.5'}>
+                  {visibleItems.map(item => (
+                    <NavLink
+                      key={item.href}
+                      item={item}
+                      active={isActive(item.href)}
+                      collapsed={collapsed}
+                    />
+                  ))}
                 </div>
-              ) : gIdx > 0 ? (
-                <div className="mx-3 mb-2 h-px bg-border" />
-              ) : null}
-              <div className={collapsed ? 'space-y-1' : 'space-y-0.5'}>
-                {group.items.map(item => (
-                  <NavLink
-                    key={item.href}
-                    item={item}
-                    active={isActive(item.href)}
-                    collapsed={collapsed}
-                  />
-                ))}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </nav>
 
         {/* Bottom controls — collapse toggle only */}

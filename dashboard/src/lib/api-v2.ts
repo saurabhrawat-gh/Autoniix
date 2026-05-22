@@ -112,7 +112,7 @@ export const authApi = {
     clearToken();
     return request('/api/v2/auth/logout', { method: 'POST' });
   },
-  me: () => request<{ data: { user_id: number | null; email: string | null; role: string; source: string } }>('/api/v2/auth/me'),
+  me: () => request<{ data: { user_id: number | null; email: string | null; role: string; source: string; display_name: string | null; initials: string; permissions: string[] } }>('/api/v2/auth/me'),
   forgot: (email: string) =>
     request<{ reset_token?: string }>('/api/v2/auth/forgot', { method: 'POST', body: JSON.stringify({ email }) }),
   reset: (token: string, password: string) =>
