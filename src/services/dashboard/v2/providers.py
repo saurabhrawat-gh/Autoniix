@@ -57,12 +57,28 @@ class CredentialIn(BaseModel):
     category: str
     provider_name: str
     label: str
-    secret_value: str          # API key or token; write-only
+    secret_value: str = ""    # API key or token; write-only. Empty = no-key provider.
     secret_key: str = "api_key"
     model: str | None = None   # pinned model (validated against supported_models())
     extra_config: dict = Field(default_factory=dict)
     channel_id: str | None = None    # NULL = workspace-level
     content_mode: str | None = None  # NULL = all modes
+
+
+class WizardCredentialIn(BaseModel):
+    """Flat form body from the catalog wizard.
+
+    The wizard POSTs all form fields in ``wizard_fields``; this endpoint
+    splits them into secret vault entries and ``extra_config`` using the
+    provider's ``config_schema`` from ``provider_marketplace_catalog``.
+    """
+    category: str
+    provider_key: str           # matches provider_marketplace_catalog.provider_key
+    label: str
+    wizard_fields: dict         # {field_name: value} from the wizard form
+    model: str | None = None
+    channel_id: str | None = None
+    content_mode: str | None = None
 
 
 class CredentialPatch(BaseModel):
@@ -173,11 +189,14 @@ async def create_credential(
 
     path = _vault_path(body.category, body.provider_name, body.label)
 
-    backend_used = "env"
-    try:
-        backend_used = put_secret_at(path, body.secret_key, body.secret_value)
-    except Exception as exc:
-        raise HTTPException(500, f"Failed to store secret: {exc}")
+    if body.secret_value:
+        backend_used = "env"
+        try:
+            backend_used = put_secret_at(path, body.secret_key, body.secret_value)
+        except Exception as exc:
+            raise HTTPException(500, f"Failed to store secret: {exc}")
+    else:
+        backend_used = "none"
 
     scope_priority = 0
     if body.channel_id and body.content_mode:
@@ -203,6 +222,73 @@ async def create_credential(
                 request=request)
     await publish_invalidate(category=body.category)
     return {"status": "ok", "id": cid, "vault_path": path, "backend": backend_used}
+
+
+@router.post("/credentials/from-wizard")
+async def create_credential_from_wizard(
+    body: WizardCredentialIn,
+    request: Request,
+    actor: Principal = Depends(_require_cred_actor),
+):
+    """Catalog-wizard endpoint. Splits ``wizard_fields`` into vault secrets and
+    extra_config using the provider's ``config_schema``, then delegates to the
+    standard credential creation logic.
+
+    Password-type fields → stored in vault (only the first one used as api_key).
+    All other field types → stored in extra_config for the provider to read.
+    """
+    pool = await get_pool()
+    catalog_row = await pool.fetchrow(
+        """SELECT config_schema, category, provider_key
+             FROM provider_marketplace_catalog WHERE provider_key=$1""",
+        body.provider_key,
+    )
+    if not catalog_row:
+        raise HTTPException(400, f"Unknown provider_key {body.provider_key!r}")
+
+    schema: list[dict] = catalog_row["config_schema"] or []
+
+    # Validate required fields
+    missing = [
+        f["name"]
+        for f in schema
+        if f.get("required") and not body.wizard_fields.get(f["name"])
+    ]
+    if missing:
+        raise HTTPException(
+            422,
+            f"Required wizard field(s) missing: {', '.join(missing)}",
+        )
+
+    # Split fields: password type → vault secret; others → extra_config
+    secret_value = ""
+    secret_key = "api_key"
+    extra_config: dict = {}
+    for field in schema:
+        name = field["name"]
+        value = body.wizard_fields.get(name)
+        if value is None:
+            continue
+        if field.get("type") == "password":
+            if not secret_value:   # only first password field is the primary key
+                secret_value = str(value)
+                secret_key = name
+        else:
+            extra_config[name] = value
+
+    cred_in = CredentialIn(
+        category=body.category,
+        provider_name=body.provider_key,
+        label=body.label,
+        secret_value=secret_value,
+        secret_key=secret_key,
+        model=body.model,
+        extra_config=extra_config,
+        channel_id=body.channel_id,
+        content_mode=body.content_mode,
+    )
+    # Reuse the standard create flow by directly calling the helper
+    return await create_credential(cred_in, request, actor)
 
 
 @router.put("/credentials/{credential_id}")
