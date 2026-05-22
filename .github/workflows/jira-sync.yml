@@ -99,12 +99,24 @@ jobs:
           AUTH="$JIRA_EMAIL:$JIRA_API_TOKEN"
           API="$JIRA_BASE_URL/rest/api/3"
 
-          # 1. Look up transition id for the target status
-          TRANS_ID=$(curl -fsS -u "$AUTH" -H 'Accept: application/json' \
-                       "$API/issue/$KEY/transitions" \
-                     | jq -r --arg name "$TARGET" \
+          echo "DEBUG: API base = '$API'"
+          echo "DEBUG: KEY = '$KEY'"
+          echo "DEBUG: TARGET = '$TARGET'"
+          echo "DEBUG: email length=${#JIRA_EMAIL}, token length=${#JIRA_API_TOKEN}"
+
+          # 1. Look up transition id for the target status (with verbose error reporting)
+          HTTP_CODE=$(curl -sS -u "$AUTH" -H 'Accept: application/json' \
+                        -o /tmp/trans.json -w '%{http_code}' \
+                        "$API/issue/$KEY/transitions")
+          echo "DEBUG: GET transitions -> HTTP $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Response body:"
+            cat /tmp/trans.json
+            exit 1
+          fi
+          TRANS_ID=$(jq -r --arg name "$TARGET" \
                        '.transitions[] | select(.to.name==$name) | .id' \
-                     | head -n 1)
+                       < /tmp/trans.json | head -n 1)
 
           if [ -z "$TRANS_ID" ]; then
             echo "::warning::No transition to '$TARGET' available on $KEY. Already there or not allowed."
