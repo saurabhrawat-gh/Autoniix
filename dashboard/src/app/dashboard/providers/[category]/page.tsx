@@ -1,17 +1,33 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
-import { providersApi } from '@/lib/api-v2';
+import { providersApi, channelsApi } from '@/lib/api-v2';
 import { useToast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/lib/components/ConfirmDialog';
 import {
   Plus, Activity, Trash2, ArrowUp, ArrowDown, X, Check, ChevronLeft,
   ShieldCheck, AlertTriangle, HelpCircle, Loader2, Eye, EyeOff, RotateCw,
+<<<<<<< HEAD
   Terminal, SlidersHorizontal, Play, Star, ExternalLink,
+=======
+  Terminal, SlidersHorizontal, Play, Star, ExternalLink, GripVertical, ChevronDown,
+>>>>>>> feat/issue-92-chain-editor-ui
 } from '@/lib/components/Icon';
+import {
+  DndContext, closestCenter,
+  PointerSensor, KeyboardSensor,
+  useSensor, useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext, useSortable,
+  verticalListSortingStrategy, arrayMove,
+  sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   Button,
   Input,
@@ -92,18 +108,41 @@ export default function ProviderCategoryPage() {
   const [contentModes, setContentModes] = useState<{ name: string; label: string }[]>([]);
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
   const [resolvedChain, setResolvedChain] = useState<any[]>([]);
+<<<<<<< HEAD
   // AE-72 — rotation status
   const [rotationByCredId, setRotationByCredId] = useState<Record<number, any>>({});
   const [rotatingCred, setRotatingCred] = useState<any | null>(null);
+=======
+  // AE-73 — context switcher
+  const [scopeType, setScopeType] = useState<'workspace' | 'channel'>('workspace');
+  const [scopeId, setScopeId] = useState<string | null>(null);
+  const [channels, setChannels] = useState<any[]>([]);
+  const [scopeDropdownOpen, setScopeDropdownOpen] = useState(false);
+  const scopeDropdownRef = useRef<HTMLDivElement>(null);
+  // AE-73 — dnd sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+>>>>>>> feat/issue-92-chain-editor-ui
 
   const refresh = useCallback(() => {
     setLoading(true);
     Promise.all([
       providersApi.credentials(decoded).then(r => setCreds(r.data || [])),
-      providersApi.chainsV2({ scope: 'workspace', content_mode: selectedMode || undefined, category: decoded })
+      providersApi.chainsV2({
+        scope: scopeType,
+        scope_id: scopeId || undefined,
+        content_mode: selectedMode || undefined,
+        category: decoded,
+      })
         .then(r => setChain(r.data || []))
         .catch(() => setChain([])),
-      providersApi.resolved({ category: decoded, content_mode: selectedMode || undefined })
+      providersApi.resolved({
+        category: decoded,
+        channel_id: scopeType === 'channel' ? (scopeId || undefined) : undefined,
+        content_mode: selectedMode || undefined,
+      })
         .then(r => setResolvedChain(r.data || []))
         .catch(() => setResolvedChain([])),
       providersApi.allRotationStatus({ category: decoded })
@@ -122,13 +161,31 @@ export default function ProviderCategoryPage() {
         }
       }).catch(() => {}),
     ]).finally(() => setLoading(false));
-  }, [decoded, selectedMode]);
+  }, [decoded, selectedMode, scopeType, scopeId]);
 
   // Load the content-mode catalog once.
   useEffect(() => {
     providersApi.contentModes()
       .then(r => setContentModes(r.data || []))
       .catch(() => setContentModes([]));
+  }, []);
+
+  // AE-73 — load channels list for context switcher
+  useEffect(() => {
+    channelsApi.list()
+      .then(r => setChannels(r.data || []))
+      .catch(() => {});
+  }, []);
+
+  // AE-73 — close scope dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (scopeDropdownRef.current && !scopeDropdownRef.current.contains(e.target as Node)) {
+        setScopeDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
   // Auto-open add dialog when arriving via ?add=1 (from Marketplace / onboarding)
@@ -145,14 +202,33 @@ export default function ProviderCategoryPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [creds.length]);
 
-  const saveChain = (ids: number[]) =>
+  const saveChain = useCallback((ids: number[]) =>
     providersApi.upsertChainV2({
-      scope: 'workspace',
-      scope_id: null,
+      scope: scopeType,
+      scope_id: scopeId,
       content_mode: selectedMode,
       category: decoded,
       credential_ids: ids,
-    }).then(refresh);
+    }).then(refresh)
+  , [decoded, selectedMode, scopeType, scopeId, refresh]);
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIdx = chain.findIndex(c => c.credential_id === active.id);
+    const newIdx = chain.findIndex(c => c.credential_id === over.id);
+    if (oldIdx === -1 || newIdx === -1) return;
+    const reordered = arrayMove(chain, oldIdx, newIdx);
+    setChain(reordered); // optimistic
+    providersApi.upsertChainV2({
+      scope: scopeType, scope_id: scopeId,
+      content_mode: selectedMode, category: decoded,
+      credential_ids: reordered.map(c => c.credential_id),
+    }).then(refresh).catch(() => {
+      refresh();
+      showToast('Reorder failed — reverted', 'error');
+    });
+  }, [chain, decoded, selectedMode, scopeType, scopeId, refresh, showToast]);
 
   const moveChain = (idx: number, dir: -1 | 1) => {
     const ids = chain.map(c => c.credential_id);
@@ -294,9 +370,74 @@ export default function ProviderCategoryPage() {
         <span className="text-content-primary font-medium">{decoded}</span>
       </div>
 
-      <div className="flex items-center gap-3 mb-5">
+      <div className="flex items-center gap-3 mb-5 flex-wrap">
         <h1 className="text-xl font-semibold text-content-primary">{decoded}</h1>
+        {/* AE-73 Context Switcher */}
+        <div className="relative" ref={scopeDropdownRef}>
+          <button
+            type="button"
+            onClick={() => setScopeDropdownOpen(v => !v)}
+            className="flex items-center gap-1.5 h-8 px-3 rounded-md border border-border bg-surface-0 text-xs text-content-primary hover:border-accent/50 hover:bg-surface-1 transition-colors">
+            <span className="font-medium">
+              {scopeType === 'workspace'
+                ? 'Workspace (default)'
+                : (channels.find((c: any) => String(c.id) === scopeId)?.name || 'Channel')}
+            </span>
+            <ChevronDown size={11} className={cn('text-content-tertiary transition-transform', scopeDropdownOpen && 'rotate-180')} />
+          </button>
+          {scopeDropdownOpen && (
+            <div className="absolute left-0 top-full mt-1 w-56 rounded-lg border border-border bg-surface-0 shadow-modal z-30 py-1 text-xs">
+              <button
+                type="button"
+                className={cn('flex w-full items-center gap-2 px-3 py-2 hover:bg-surface-1 transition-colors',
+                  scopeType === 'workspace' ? 'text-accent font-medium' : 'text-content-primary')}
+                onClick={() => { setScopeType('workspace'); setScopeId(null); setScopeDropdownOpen(false); }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
+                Workspace (default)
+              </button>
+              {channels.length > 0 && (
+                <>
+                  <div className="my-1 border-t border-border" />
+                  {channels.map((ch: any) => (
+                    <button
+                      key={ch.id}
+                      type="button"
+                      className={cn('flex w-full items-center gap-2 px-3 py-2 hover:bg-surface-1 transition-colors',
+                        scopeType === 'channel' && scopeId === String(ch.id) ? 'text-accent font-medium' : 'text-content-primary')}
+                      onClick={() => { setScopeType('channel'); setScopeId(String(ch.id)); setScopeDropdownOpen(false); }}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-surface-2 shrink-0" />
+                      {ch.name}
+                    </button>
+                  ))}
+                  <div className="my-1 border-t border-border" />
+                  <Link
+                    href="/dashboard/channels/new"
+                    className="flex w-full items-center gap-2 px-3 py-2 hover:bg-surface-1 transition-colors text-content-tertiary"
+                    onClick={() => setScopeDropdownOpen(false)}>
+                    <Plus size={11} />
+                    Set up per-channel override
+                  </Link>
+                </>
+              )}
+            </div>
+          )}
+        </div>
         <div className="ml-auto flex items-center gap-2">
+          {scopeType === 'channel' && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-xs text-status-error hover:bg-status-error/10 hover:text-status-error h-8"
+              onClick={async () => {
+                await providersApi.deleteChainV2({ scope: 'channel', scope_id: scopeId || undefined, category: decoded });
+                setScopeType('workspace');
+                setScopeId(null);
+                showToast('Channel override cleared', 'success');
+              }}>
+              Clear channel override
+            </Button>
+          )}
           <Button type="button" variant="outline" size="icon-sm" onClick={refresh} disabled={loading} aria-label="Refresh" className="w-8 h-8">
             <RotateCw size={13} className={cn(loading && 'animate-spin')} />
           </Button>
@@ -367,59 +508,37 @@ export default function ProviderCategoryPage() {
                 </div>
               </div>
             )}
-            <div className="rounded-md border border-border bg-surface-0 overflow-hidden">
-              {chain.length === 0 ? (
-                <div className="p-5 text-sm text-content-tertiary text-center">
-                  No chain configured yet. Use "Add to chain" on a credential below.
-                </div>
-              ) : (
-                <div className="divide-y divide-border">
-                  {chain.map((c: any, i: number) => {
-                    const health = getHealth(c);
-                    const entryEnabled = c.is_enabled ?? true;
-                    return (
-                      <div key={c.id ?? c.credential_id} className={cn(
-                        'flex items-center gap-3 px-4 py-3',
-                        !entryEnabled && 'opacity-60'
-                      )}>
-                        <span className="text-xs font-mono text-content-tertiary w-5 shrink-0">{i + 1}.</span>
-                        <div className="flex items-center gap-1.5">
-                          {HEALTH_ICON[health]}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className={cn(
-                            'text-sm font-medium text-content-primary',
-                            !entryEnabled && 'line-through'
-                          )}>{c.label}</div>
-                          <div className="text-[11px] text-content-tertiary">{c.provider_name}</div>
-                        </div>
-                        {!entryEnabled && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">
-                            disabled
-                          </span>
-                        )}
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Switch
-                            checked={entryEnabled}
-                            onChange={() => toggleChainEntryEnabled(c)}
-                            title={entryEnabled ? 'Disable in this chain' : 'Enable in this chain'}
-                          />
-                          <Button type="button" variant="ghost" size="icon-sm" onClick={() => moveChain(i, -1)} disabled={i === 0} aria-label="Move up" className="w-7 h-7 text-content-tertiary">
-                            <ArrowUp size={13} />
-                          </Button>
-                          <Button type="button" variant="ghost" size="icon-sm" onClick={() => moveChain(i, 1)} disabled={i === chain.length - 1} aria-label="Move down" className="w-7 h-7 text-content-tertiary">
-                            <ArrowDown size={13} />
-                          </Button>
-                          <Button type="button" variant="ghost" size="icon-sm" onClick={() => removeFromChain(c.credential_id)} aria-label="Remove from chain" className="w-7 h-7 text-content-tertiary hover:text-status-error hover:bg-status-error/10">
-                            <X size={13} />
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <div className="rounded-md border border-border bg-surface-0 overflow-hidden">
+                {chain.length === 0 ? (
+                  <div className="p-5 text-sm text-content-tertiary text-center">
+                    No chain configured yet. Use "Add to chain" on a credential below.
+                    {scopeType === 'channel' && (
+                      <span className="ml-1 text-content-tertiary">
+                        Channel inherits workspace chain by default.
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <SortableContext items={chain.map(c => c.credential_id)} strategy={verticalListSortingStrategy}>
+                    <div className="divide-y divide-border">
+                      {chain.map((c: any, i: number) => (
+                        <SortableChainItem
+                          key={c.id ?? c.credential_id}
+                          entry={c}
+                          index={i}
+                          total={chain.length}
+                          toggleChainEntryEnabled={toggleChainEntryEnabled}
+                          moveChain={moveChain}
+                          removeFromChain={removeFromChain}
+                          inherited={scopeType === 'channel' && c.scope === 'workspace'}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                )}
+              </div>
+            </DndContext>
           </section>
 
           {/* ── Credentials ─────────────────────────────── */}
@@ -1408,6 +1527,103 @@ function HealthSparkline({ data }: { data: Array<{ ok: boolean; latency_ms: numb
         ))}
       </svg>
       <span className="text-[9px] text-content-tertiary">{n} checks</span>
+    </div>
+  );
+}
+
+// AE-73 — sortable chain item with drag handle + keyboard arrow fallback
+function SortableChainItem({
+  entry, index, total,
+  toggleChainEntryEnabled, moveChain, removeFromChain, inherited,
+}: {
+  entry: any;
+  index: number;
+  total: number;
+  toggleChainEntryEnabled: (e: any) => void;
+  moveChain: (i: number, dir: -1 | 1) => void;
+  removeFromChain: (credId: number) => void;
+  inherited: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: entry.credential_id, disabled: inherited });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+  };
+  const health = getHealth(entry);
+  const entryEnabled = entry.is_enabled ?? true;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        'flex items-center gap-3 px-4 py-3 bg-surface-0',
+        !entryEnabled && 'opacity-60',
+        isDragging && 'shadow-lg bg-surface-1',
+        inherited && 'bg-surface-1/50',
+      )}>
+      {/* Drag handle / inherited lock */}
+      {inherited ? (
+        <span className="text-content-tertiary shrink-0 cursor-not-allowed" title="Inherited from workspace">
+          🔒
+        </span>
+      ) : (
+        <button
+          {...attributes}
+          {...listeners}
+          type="button"
+          aria-label="Drag to reorder"
+          className="cursor-grab active:cursor-grabbing text-content-tertiary hover:text-content-secondary shrink-0 touch-none">
+          <GripVertical size={15} />
+        </button>
+      )}
+      <span className="text-xs font-mono text-content-tertiary w-5 shrink-0">{index + 1}.</span>
+      <div className="flex items-center gap-1.5">
+        {HEALTH_ICON[health]}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={cn('text-sm font-medium text-content-primary', !entryEnabled && 'line-through')}>
+            {entry.label}
+          </span>
+          {inherited && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary font-medium">
+              ↳ from workspace
+            </span>
+          )}
+          {!entryEnabled && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">disabled</span>
+          )}
+        </div>
+        <div className="text-[11px] text-content-tertiary">{entry.provider_name}</div>
+      </div>
+      {!inherited && (
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Switch
+            checked={entryEnabled}
+            onChange={() => toggleChainEntryEnabled(entry)}
+            title={entryEnabled ? 'Disable in this chain' : 'Enable in this chain'}
+          />
+          <Button type="button" variant="ghost" size="icon-sm"
+            onClick={() => moveChain(index, -1)} disabled={index === 0}
+            aria-label="Move up" className="w-7 h-7 text-content-tertiary">
+            <ArrowUp size={13} />
+          </Button>
+          <Button type="button" variant="ghost" size="icon-sm"
+            onClick={() => moveChain(index, 1)} disabled={index === total - 1}
+            aria-label="Move down" className="w-7 h-7 text-content-tertiary">
+            <ArrowDown size={13} />
+          </Button>
+          <Button type="button" variant="ghost" size="icon-sm"
+            onClick={() => removeFromChain(entry.credential_id)}
+            aria-label="Remove from chain"
+            className="w-7 h-7 text-content-tertiary hover:text-status-error hover:bg-status-error/10">
+            <X size={13} />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
