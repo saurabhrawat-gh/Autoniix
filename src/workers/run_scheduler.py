@@ -36,11 +36,19 @@ from src.temporal_workflows.retention_activities import (
     list_videos_needing_retention_activity,
     fetch_retention_for_video_activity,
 )
+from src.workers.provider_health_beat import (
+    HealthBeatWorkflow,
+    check_all_provider_health,
+)
 from src.workers.activities.common import (
     acquire_channel_lock,
     check_system_status,
     get_eligible_channels,
     send_notification,
+)
+from src.workers.change_request_beat import (
+    ChangeRequestExpiryWorkflow,
+    expire_stale_change_requests,
 )
 
 logger = structlog.get_logger()
@@ -67,6 +75,8 @@ async def main() -> None:
             GateCalibrationWorkflow,
             NichePulseRefreshWorkflow,
             RetentionFetchWorkflow,
+            HealthBeatWorkflow,
+            ChangeRequestExpiryWorkflow,
         ],
         activities=[
             check_system_status,
@@ -87,6 +97,10 @@ async def main() -> None:
             # Phase 9 — retention-curve fetch activities
             list_videos_needing_retention_activity,
             fetch_retention_for_video_activity,
+            # AE-75 — provider health beat
+            check_all_provider_health,
+            # AE-76 — change request expiry
+            expire_stale_change_requests,
         ],
         max_concurrent_activities=settings.temporal_scheduler_max_activities,
     )

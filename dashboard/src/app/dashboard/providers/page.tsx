@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { providersApi } from '@/lib/api-v2';
+import { providersApi, changeRequestsApi, youtubeOAuthApi, type ChangeRequest, type YouTubeOAuthStatus } from '@/lib/api-v2';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import {
   Plug, ChevronRight, AlertTriangle, HelpCircle, Cpu,
   Activity, RotateCw, Plus, Loader2, ShieldCheck,
   Gauge, Network, Store, CheckCircle2, ExternalLink, Zap, Trash2,
+  ClipboardCheck, Check, X, Clock, Link2, AlertCircle, Tv,
 } from '@/lib/components/Icon';
 import { Button } from '@/lib/ui';
 import { promptDialog } from '@/lib/components/ConfirmDialog';
@@ -64,7 +65,7 @@ const MODE_CHIP: Record<string, string> = {
 
 export default function ProvidersIndex() {
   const { showToast } = useToast();
-  const [tab, setTab] = useState<'connected' | 'marketplace'>('connected');
+  const [tab, setTab] = useState<'connected' | 'marketplace' | 'accounts'>('connected');
   const [cats, setCats] = useState<any[]>([]);
   const [creds, setCreds] = useState<any[]>([]);
   const [market, setMarket] = useState<any[]>([]);
@@ -75,6 +76,15 @@ export default function ProvidersIndex() {
   // AE-72 — setup checklist + rotation overdue
   const [checklist, setChecklist] = useState<any[]>([]);
   const [overdueRotations, setOverdueRotations] = useState<any[]>([]);
+  const [showApprovals, setShowApprovals] = useState(false);
+  const [approvals, setApprovals] = useState<ChangeRequest[]>([]);
+  const [approvalsLoading, setApprovalsLoading] = useState(false);
+  const [reviewingId, setReviewingId] = useState<number | null>(null);
+  const [reviewNote, setReviewNote] = useState('');
+  const [ytStatus, setYtStatus] = useState<YouTubeOAuthStatus | null>(null);
+  const [ytLoading, setYtLoading] = useState(false);
+  const [ytConnecting, setYtConnecting] = useState(false);
+  const [ytDisconnecting, setYtDisconnecting] = useState(false);
 
   const cleanSlate = async () => {
     const phrase = await promptDialog({
@@ -113,6 +123,83 @@ export default function ProvidersIndex() {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  const loadApprovals = async () => {
+    setApprovalsLoading(true);
+    try {
+      const r = await changeRequestsApi.list({ status: 'pending_admin' });
+      const r2 = await changeRequestsApi.list({ status: 'pending_owner' });
+      setApprovals([...r.data, ...r2.data]);
+    } catch { setApprovals([]); } finally { setApprovalsLoading(false); }
+  };
+
+  const openApprovals = () => { setShowApprovals(true); loadApprovals(); };
+
+  const doAdminReview = async (id: number, action: 'approve_forward' | 'reject') => {
+    setReviewingId(id);
+    try {
+      await changeRequestsApi.adminReview(id, action, reviewNote || undefined);
+      showToast(action === 'approve_forward' ? 'Forwarded to owner' : 'Request rejected', 'success');
+      setReviewNote('');
+      await loadApprovals();
+    } catch (e: any) { showToast(e?.message || 'Review failed', 'error'); }
+    finally { setReviewingId(null); }
+  };
+
+  const doOwnerReview = async (id: number, action: 'approve' | 'reject') => {
+    setReviewingId(id);
+    try {
+      await changeRequestsApi.ownerReview(id, action, reviewNote || undefined);
+      showToast(action === 'approve' ? 'Change approved & applied' : 'Request rejected', 'success');
+      setReviewNote('');
+      await Promise.all([loadApprovals(), refresh()]);
+    } catch (e: any) { showToast(e?.message || 'Review failed', 'error'); }
+    finally { setReviewingId(null); }
+  };
+
+  const loadYouTubeStatus = async () => {
+    setYtLoading(true);
+    try {
+      const r = await youtubeOAuthApi.status();
+      setYtStatus(r.data);
+    } catch { setYtStatus(null); } finally { setYtLoading(false); }
+  };
+
+  useEffect(() => {
+    if (tab === 'accounts') loadYouTubeStatus();
+  }, [tab]);
+
+  const connectYouTube = () => {
+    setYtConnecting(true);
+    const popup = window.open(
+      youtubeOAuthApi.authUrl(),
+      'youtube_oauth',
+      'width=520,height=640,left=200,top=100',
+    );
+    const onMsg = (e: MessageEvent) => {
+      if (e.data?.type !== 'youtube_oauth') return;
+      window.removeEventListener('message', onMsg);
+      setYtConnecting(false);
+      if (e.data.ok) {
+        showToast(`Connected: ${e.data.channel_name}`, 'success');
+        loadYouTubeStatus();
+      } else {
+        showToast(e.data.error || 'OAuth failed', 'error');
+      }
+      popup?.close();
+    };
+    window.addEventListener('message', onMsg);
+  };
+
+  const disconnectYouTube = async () => {
+    setYtDisconnecting(true);
+    try {
+      await youtubeOAuthApi.disconnect();
+      showToast('YouTube disconnected', 'success');
+      setYtStatus({ connected: false });
+    } catch (e: any) { showToast(e?.message || 'Disconnect failed', 'error'); }
+    finally { setYtDisconnecting(false); }
+  };
 
   const grouped: Record<string, any[]> = cats.reduce((acc: any, c: any) => {
     if (STUB_KINDS.has(c.kind)) return acc; // hide unimplemented categories
@@ -173,6 +260,14 @@ export default function ProvidersIndex() {
           <Button
             variant="outline"
             size="sm"
+            onClick={openApprovals}
+            leftIcon={<ClipboardCheck size={12} />}
+          >
+            Approvals
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={probeAll}
             disabled={probingAll || totalCreds === 0}
             loading={probingAll}
@@ -212,14 +307,18 @@ export default function ProvidersIndex() {
 
       {/* Tabs */}
       <div className="flex items-center gap-0.5 bg-surface-1 rounded-md p-0.5 w-fit">
-        {([['connected', 'Connected', totalCreds], ['marketplace', 'Marketplace', unconnectedCount]] as const).map(([key, label, count]) => (
+        {([
+          ['connected',  'Connected',   totalCreds,        <Activity key="i-c" size={11} />],
+          ['marketplace','Marketplace', unconnectedCount,  <Store key="i-m" size={11} />],
+          ['accounts',   'Accounts',    ytStatus?.connected ? 1 : 0, <Link2 key="i-a" size={11} />],
+        ] as const).map(([key, label, count, icon]) => (
           <Button
             key={key}
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => setTab(key)}
-            leftIcon={key === 'connected' ? <Activity size={11} /> : <Store size={11} />}
+            onClick={() => setTab(key as any)}
+            leftIcon={icon}
             className={cn('h-7 px-3 text-xs',
               tab === key ? 'bg-surface-0 text-content-primary shadow-sm hover:bg-surface-0' : 'text-content-tertiary hover:text-content-secondary')}
           >
@@ -497,6 +596,96 @@ export default function ProvidersIndex() {
         </div>
       )}
 
+      {/* ── Connected Accounts tab ── */}
+      {tab === 'accounts' && (
+        <div className="space-y-4">
+          <p className="text-xs text-content-tertiary">
+            OAuth-based integrations — these use account authorization rather than API keys.
+          </p>
+
+          {/* YouTube card */}
+          <div className={cn(
+            'rounded-xl border bg-surface-0 p-5 flex items-start gap-4 transition-all',
+            ytStatus?.connected ? 'border-status-success/30' : 'border-border',
+          )}>
+            <div className="w-10 h-10 rounded-xl bg-[#FF0000]/10 flex items-center justify-center shrink-0">
+              <Tv size={20} className="text-[#FF0000]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-semibold text-content-primary">YouTube</span>
+                {ytStatus?.connected ? (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-success/10 text-status-success font-medium flex items-center gap-0.5">
+                    <CheckCircle2 size={9} /> Connected
+                  </span>
+                ) : (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">Not connected</span>
+                )}
+              </div>
+
+              {ytLoading ? (
+                <div className="mt-2"><Loader2 size={13} className="animate-spin text-content-tertiary" /></div>
+              ) : ytStatus?.connected ? (
+                <div className="mt-2 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    {ytStatus.channel_avatar && (
+                      <img src={ytStatus.channel_avatar} alt="" className="w-5 h-5 rounded-full" />
+                    )}
+                    <span className="text-xs text-content-secondary font-medium">{ytStatus.channel_name}</span>
+                    {ytStatus.channel_id && (
+                      <span className="text-[10px] text-content-tertiary font-mono">{ytStatus.channel_id}</span>
+                    )}
+                  </div>
+                  {ytStatus.missing_scopes && ytStatus.missing_scopes.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-status-warning">
+                      <AlertCircle size={10} />
+                      Missing upload scope — reconnect required
+                    </div>
+                  )}
+                  {ytStatus.connected_at && (
+                    <p className="text-[10px] text-content-tertiary">
+                      Connected {new Date(ytStatus.connected_at).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-[11px] text-content-tertiary mt-1">
+                  Connect your YouTube channel to enable automatic video uploads, thumbnail setting, and scheduled publishing.
+                </p>
+              )}
+
+              <div className="mt-3 text-[10px] text-content-tertiary space-y-0.5">
+                <div>Scopes: youtube.upload · youtube · yt-analytics.readonly</div>
+              </div>
+            </div>
+
+            <div className="shrink-0">
+              {ytStatus?.connected ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={disconnectYouTube}
+                  loading={ytDisconnecting}
+                  leftIcon={!ytDisconnecting ? <X size={12} /> : undefined}
+                  className="border-status-error/40 text-status-error hover:bg-status-error/10"
+                >
+                  Disconnect
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={connectYouTube}
+                  loading={ytConnecting}
+                  leftIcon={!ytConnecting ? <Link2 size={12} /> : undefined}
+                >
+                  Connect with Google
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Architecture tips (only on connected tab) */}
       {tab === 'connected' && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -513,6 +702,126 @@ export default function ProvidersIndex() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── Approval Queue Sheet ── */}
+      {showApprovals && (
+        <div className="fixed inset-0 z-50 flex justify-end" onClick={() => setShowApprovals(false)}>
+          <div
+            className="relative h-full w-full max-w-lg bg-surface-0 border-l border-border shadow-2xl flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <div className="flex items-center gap-2">
+                <ClipboardCheck size={15} className="text-accent" />
+                <h2 className="text-sm font-semibold text-content-primary">Pending Approvals</h2>
+                {approvals.length > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/15 text-accent font-semibold">{approvals.length}</span>
+                )}
+              </div>
+              <button onClick={() => setShowApprovals(false)} className="p-1 rounded hover:bg-surface-2 text-content-tertiary hover:text-content-primary transition-colors">
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {approvalsLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 size={20} className="animate-spin text-content-tertiary" />
+                </div>
+              ) : approvals.length === 0 ? (
+                <div className="py-16 text-center">
+                  <Check size={28} className="mx-auto mb-3 text-status-success opacity-60" />
+                  <p className="text-sm text-content-tertiary">No pending approvals</p>
+                </div>
+              ) : approvals.map(req => (
+                <div key={req.id} className="rounded-xl border border-border bg-surface-1 p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-content-primary capitalize">
+                        {req.request_type.replace(/_/g, ' ')} — {req.category}
+                        {req.provider_name && <span className="text-content-tertiary"> / {req.provider_name}</span>}
+                      </div>
+                      <div className="text-[10px] text-content-tertiary mt-0.5">
+                        {req.requester_name || req.requester_email || `User #${req.requested_by}`}
+                        {' · '}
+                        <Clock size={9} className="inline" />{' '}
+                        {new Date(req.requested_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <span className={cn(
+                      'text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0',
+                      req.status === 'pending_admin' ? 'bg-status-warning/10 text-status-warning' : 'bg-status-info/10 text-status-info',
+                    )}>
+                      {req.status === 'pending_admin' ? 'Needs admin' : 'Needs owner'}
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-content-secondary bg-surface-2 rounded-lg px-3 py-2 leading-relaxed">
+                    {req.reason}
+                  </p>
+
+                  {req.admin_note && (
+                    <p className="text-[10px] text-content-tertiary italic">Admin note: {req.admin_note}</p>
+                  )}
+
+                  <textarea
+                    placeholder="Optional review note…"
+                    value={reviewingId === req.id ? reviewNote : ''}
+                    onChange={e => { setReviewingId(req.id); setReviewNote(e.target.value); }}
+                    className="w-full text-xs rounded-md border border-border bg-surface-0 px-3 py-2 resize-none h-14 focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-content-quaternary"
+                  />
+
+                  <div className="flex gap-2">
+                    {req.status === 'pending_admin' ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 border-status-success/40 text-status-success hover:bg-status-success/10"
+                          loading={reviewingId === req.id}
+                          onClick={() => doAdminReview(req.id, 'approve_forward')}
+                        >
+                          <Check size={11} className="mr-1" /> Forward to owner
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 border-status-error/40 text-status-error hover:bg-status-error/10"
+                          loading={reviewingId === req.id}
+                          onClick={() => doAdminReview(req.id, 'reject')}
+                        >
+                          <X size={11} className="mr-1" /> Reject
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 border-status-success/40 text-status-success hover:bg-status-success/10"
+                          loading={reviewingId === req.id}
+                          onClick={() => doOwnerReview(req.id, 'approve')}
+                        >
+                          <Check size={11} className="mr-1" /> Approve & apply
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 border-status-error/40 text-status-error hover:bg-status-error/10"
+                          loading={reviewingId === req.id}
+                          onClick={() => doOwnerReview(req.id, 'reject')}
+                        >
+                          <X size={11} className="mr-1" /> Reject
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </main>
