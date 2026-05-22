@@ -100,6 +100,26 @@ def require_role(*roles: str):
     return _checker
 
 
+def require_permission(permission: str):
+    """Dependency factory enforcing a named permission from the RBAC matrix.
+
+    Returns HTTP 403 with ``{"detail": "Permission denied: <name>"}`` when the
+    caller's role lacks *permission*.  Cache is warmed by
+    :mod:`._permissions` (30 s TTL + Redis pub/sub invalidation).
+    """
+    async def _checker(p: Principal = Depends(principal_dep)) -> Principal:
+        from ._permissions import get_permissions_for_role
+        perms = await get_permissions_for_role(p.role)
+        if permission not in perms:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Permission denied: {permission}",
+            )
+        return p
+
+    return _checker
+
+
 # Feature flags
 async def flag_enabled(key: str) -> bool:
     try:
