@@ -9,6 +9,7 @@ import { cn } from '../utils';
 import { Tip } from './Tooltip';
 import { Button } from '../ui';
 import { usePermissions } from '../hooks/usePermissions';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import {
   Home,
   Tv,
@@ -195,6 +196,11 @@ export function Sidebar() {
               YT Automation
             </span>
           )}
+        </div>
+
+        {/* Workspace switcher */}
+        <div className={cn('border-b border-border shrink-0', collapsed ? 'px-1.5 py-2' : 'px-2 py-2')}>
+          <WorkspaceSwitcher collapsed={collapsed} />
         </div>
 
         {/* Nav groups */}

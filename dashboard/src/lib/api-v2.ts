@@ -58,6 +58,30 @@ async function request<T = any>(path: string, opts: RequestInit = {}, _isRetry =
     if (typeof window !== 'undefined') window.location.href = '/login';
     throw new Error('Unauthorized');
   }
+  if (res.status === 403) {
+    const body = await res.json().catch(() => ({}));
+    if (body.detail === 'workspace_access_revoked' && typeof window !== 'undefined') {
+      // Try auto-switching to next available workspace
+      try {
+        const wRes = await fetch(`${BASE}/api/v2/auth/workspaces`, { headers, credentials: 'include' });
+        if (wRes.ok) {
+          const wData: { data: Array<{ id: number; active: boolean }> } = await wRes.json();
+          const next = wData.data.find(w => !w.active);
+          if (next) {
+            await fetch(`${BASE}/api/v2/auth/switch-workspace`, {
+              method: 'POST', headers, credentials: 'include',
+              body: JSON.stringify({ workspace_id: next.id }),
+            });
+            window.location.href = '/dashboard';
+            throw new Error('workspace_access_revoked');
+          }
+        }
+      } catch {}
+      window.location.href = '/register?reason=no_workspace';
+      throw new Error('workspace_access_revoked');
+    }
+    throw new Error(body.detail || body.error || `HTTP ${res.status}`);
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.detail || body.error || `HTTP ${res.status}`);
