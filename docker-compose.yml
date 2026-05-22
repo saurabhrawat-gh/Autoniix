@@ -654,6 +654,27 @@ services:
         limits:
           memory: 256M
 
+  # Marketing landing page — autoniix.com / www.autoniix.com
+  # Caddy (host systemd) reverse-proxies the apex domain to localhost:3002.
+  landing-ui:
+    build: ./web
+    ports:
+      - "3002:3002"
+    environment:
+      - HOSTNAME=0.0.0.0
+      - PORT=3002
+    networks: [autoniix-net]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3002"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
   # Observability stack
   # Prometheus scrapes /metrics from every FastAPI service (wired via
   # src/observability/metrics.py) plus self-scrape. Grafana provisions
