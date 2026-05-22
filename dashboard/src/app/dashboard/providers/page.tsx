@@ -2,14 +2,14 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { providersApi, changeRequestsApi, type ChangeRequest } from '@/lib/api-v2';
+import { providersApi, changeRequestsApi, youtubeOAuthApi, type ChangeRequest, type YouTubeOAuthStatus } from '@/lib/api-v2';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import {
   Plug, ChevronRight, AlertTriangle, HelpCircle, Cpu,
   Activity, RotateCw, Plus, Loader2, ShieldCheck,
   Gauge, Network, Store, CheckCircle2, ExternalLink, Zap, Trash2,
-  ClipboardCheck, Check, X, Clock,
+  ClipboardCheck, Check, X, Clock, Link2, AlertCircle, Tv,
 } from '@/lib/components/Icon';
 import { Button } from '@/lib/ui';
 import { promptDialog } from '@/lib/components/ConfirmDialog';
@@ -65,7 +65,7 @@ const MODE_CHIP: Record<string, string> = {
 
 export default function ProvidersIndex() {
   const { showToast } = useToast();
-  const [tab, setTab] = useState<'connected' | 'marketplace'>('connected');
+  const [tab, setTab] = useState<'connected' | 'marketplace' | 'accounts'>('connected');
   const [cats, setCats] = useState<any[]>([]);
   const [creds, setCreds] = useState<any[]>([]);
   const [market, setMarket] = useState<any[]>([]);
@@ -81,6 +81,10 @@ export default function ProvidersIndex() {
   const [approvalsLoading, setApprovalsLoading] = useState(false);
   const [reviewingId, setReviewingId] = useState<number | null>(null);
   const [reviewNote, setReviewNote] = useState('');
+  const [ytStatus, setYtStatus] = useState<YouTubeOAuthStatus | null>(null);
+  const [ytLoading, setYtLoading] = useState(false);
+  const [ytConnecting, setYtConnecting] = useState(false);
+  const [ytDisconnecting, setYtDisconnecting] = useState(false);
 
   const cleanSlate = async () => {
     const phrase = await promptDialog({
@@ -151,6 +155,50 @@ export default function ProvidersIndex() {
       await Promise.all([loadApprovals(), refresh()]);
     } catch (e: any) { showToast(e?.message || 'Review failed', 'error'); }
     finally { setReviewingId(null); }
+  };
+
+  const loadYouTubeStatus = async () => {
+    setYtLoading(true);
+    try {
+      const r = await youtubeOAuthApi.status();
+      setYtStatus(r.data);
+    } catch { setYtStatus(null); } finally { setYtLoading(false); }
+  };
+
+  useEffect(() => {
+    if (tab === 'accounts') loadYouTubeStatus();
+  }, [tab]);
+
+  const connectYouTube = () => {
+    setYtConnecting(true);
+    const popup = window.open(
+      youtubeOAuthApi.authUrl(),
+      'youtube_oauth',
+      'width=520,height=640,left=200,top=100',
+    );
+    const onMsg = (e: MessageEvent) => {
+      if (e.data?.type !== 'youtube_oauth') return;
+      window.removeEventListener('message', onMsg);
+      setYtConnecting(false);
+      if (e.data.ok) {
+        showToast(`Connected: ${e.data.channel_name}`, 'success');
+        loadYouTubeStatus();
+      } else {
+        showToast(e.data.error || 'OAuth failed', 'error');
+      }
+      popup?.close();
+    };
+    window.addEventListener('message', onMsg);
+  };
+
+  const disconnectYouTube = async () => {
+    setYtDisconnecting(true);
+    try {
+      await youtubeOAuthApi.disconnect();
+      showToast('YouTube disconnected', 'success');
+      setYtStatus({ connected: false });
+    } catch (e: any) { showToast(e?.message || 'Disconnect failed', 'error'); }
+    finally { setYtDisconnecting(false); }
   };
 
   const grouped: Record<string, any[]> = cats.reduce((acc: any, c: any) => {
@@ -259,14 +307,18 @@ export default function ProvidersIndex() {
 
       {/* Tabs */}
       <div className="flex items-center gap-0.5 bg-surface-1 rounded-md p-0.5 w-fit">
-        {([['connected', 'Connected', totalCreds], ['marketplace', 'Marketplace', unconnectedCount]] as const).map(([key, label, count]) => (
+        {([
+          ['connected',  'Connected',   totalCreds,        <Activity key="i-c" size={11} />],
+          ['marketplace','Marketplace', unconnectedCount,  <Store key="i-m" size={11} />],
+          ['accounts',   'Accounts',    ytStatus?.connected ? 1 : 0, <Link2 key="i-a" size={11} />],
+        ] as const).map(([key, label, count, icon]) => (
           <Button
             key={key}
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => setTab(key)}
-            leftIcon={key === 'connected' ? <Activity size={11} /> : <Store size={11} />}
+            onClick={() => setTab(key as any)}
+            leftIcon={icon}
             className={cn('h-7 px-3 text-xs',
               tab === key ? 'bg-surface-0 text-content-primary shadow-sm hover:bg-surface-0' : 'text-content-tertiary hover:text-content-secondary')}
           >
@@ -541,6 +593,96 @@ export default function ProvidersIndex() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Connected Accounts tab ── */}
+      {tab === 'accounts' && (
+        <div className="space-y-4">
+          <p className="text-xs text-content-tertiary">
+            OAuth-based integrations — these use account authorization rather than API keys.
+          </p>
+
+          {/* YouTube card */}
+          <div className={cn(
+            'rounded-xl border bg-surface-0 p-5 flex items-start gap-4 transition-all',
+            ytStatus?.connected ? 'border-status-success/30' : 'border-border',
+          )}>
+            <div className="w-10 h-10 rounded-xl bg-[#FF0000]/10 flex items-center justify-center shrink-0">
+              <Tv size={20} className="text-[#FF0000]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-semibold text-content-primary">YouTube</span>
+                {ytStatus?.connected ? (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-success/10 text-status-success font-medium flex items-center gap-0.5">
+                    <CheckCircle2 size={9} /> Connected
+                  </span>
+                ) : (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">Not connected</span>
+                )}
+              </div>
+
+              {ytLoading ? (
+                <div className="mt-2"><Loader2 size={13} className="animate-spin text-content-tertiary" /></div>
+              ) : ytStatus?.connected ? (
+                <div className="mt-2 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    {ytStatus.channel_avatar && (
+                      <img src={ytStatus.channel_avatar} alt="" className="w-5 h-5 rounded-full" />
+                    )}
+                    <span className="text-xs text-content-secondary font-medium">{ytStatus.channel_name}</span>
+                    {ytStatus.channel_id && (
+                      <span className="text-[10px] text-content-tertiary font-mono">{ytStatus.channel_id}</span>
+                    )}
+                  </div>
+                  {ytStatus.missing_scopes && ytStatus.missing_scopes.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-status-warning">
+                      <AlertCircle size={10} />
+                      Missing upload scope — reconnect required
+                    </div>
+                  )}
+                  {ytStatus.connected_at && (
+                    <p className="text-[10px] text-content-tertiary">
+                      Connected {new Date(ytStatus.connected_at).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-[11px] text-content-tertiary mt-1">
+                  Connect your YouTube channel to enable automatic video uploads, thumbnail setting, and scheduled publishing.
+                </p>
+              )}
+
+              <div className="mt-3 text-[10px] text-content-tertiary space-y-0.5">
+                <div>Scopes: youtube.upload · youtube · yt-analytics.readonly</div>
+              </div>
+            </div>
+
+            <div className="shrink-0">
+              {ytStatus?.connected ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={disconnectYouTube}
+                  loading={ytDisconnecting}
+                  leftIcon={!ytDisconnecting ? <X size={12} /> : undefined}
+                  className="border-status-error/40 text-status-error hover:bg-status-error/10"
+                >
+                  Disconnect
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={connectYouTube}
+                  loading={ytConnecting}
+                  leftIcon={!ytConnecting ? <Link2 size={12} /> : undefined}
+                >
+                  Connect with Google
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

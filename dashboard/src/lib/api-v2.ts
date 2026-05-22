@@ -816,3 +816,20 @@ export const changeRequestsApi = {
       { method: 'POST', body: JSON.stringify({ action, note }) },
     ),
 };
+
+export interface YouTubeOAuthStatus {
+  connected: boolean;
+  channel_name?: string | null;
+  channel_avatar?: string | null;
+  channel_id?: string | null;
+  connected_at?: string | null;
+  missing_scopes?: string[];
+}
+
+export const youtubeOAuthApi = {
+  authUrl: () => '/api/v2/providers/youtube/auth',
+  status: () =>
+    request<{ status: string; data: YouTubeOAuthStatus }>('/api/v2/providers/youtube/status'),
+  disconnect: () =>
+    request('/api/v2/providers/youtube/disconnect', { method: 'DELETE' }),
+};
