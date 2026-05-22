@@ -307,6 +307,13 @@ def _instantiate(
             setattr(inst, k, v)
         except Exception:
             pass
+    # Allow providers with connection state (e.g. MinIO) to reconnect
+    # after extra_config attributes have been injected.
+    if hasattr(inst, "_connect") and callable(inst._connect):
+        try:
+            inst._connect()
+        except Exception:
+            pass
     # Per-credential model pin (column on provider_credentials). If the
     # provider class supports a `model` attribute we set it; the LLM
     # router additionally fills `LLMRequest.model` from `_pinned_model`.

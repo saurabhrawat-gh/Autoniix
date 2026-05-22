@@ -17,17 +17,30 @@ logger = structlog.get_logger()
 class MinIOStorage(StorageProvider):
 
     def __init__(self) -> None:
-        endpoint = settings.s3_endpoint.replace("http://", "").replace("https://", "")
-        secure = settings.s3_endpoint.startswith("https")
+        # Configurable via chain extra_config:
+        #   endpoint, access_key, api_key (= secret_key), bucket, public_base
+        self.endpoint: str = settings.s3_endpoint
+        self.access_key: str = settings.s3_access_key
+        self.api_key: str = settings.s3_secret_key   # vault stores under 'api_key'
+        self.bucket: str = settings.s3_bucket
+        self.public_base: str = settings.s3_public_base_url
+        self.client: Minio | None = None
+        self._connect()
+
+    def _connect(self) -> None:
+        """(Re-)build the Minio client from current instance attributes.
+
+        Called at init time and by chain._instantiate after extra_config
+        attributes are injected, so credentials can be DB-driven.
+        """
+        endpoint = self.endpoint.replace("http://", "").replace("https://", "")
+        secure = self.endpoint.startswith("https")
         self.client = Minio(
             endpoint,
-            access_key=settings.s3_access_key,
-            secret_key=settings.s3_secret_key,
+            access_key=self.access_key,
+            secret_key=self.api_key,
             secure=secure,
         )
-        self.bucket = settings.s3_bucket
-        self.public_base = settings.s3_public_base_url
-
         # Ensure bucket exists
         try:
             if not self.client.bucket_exists(self.bucket):
