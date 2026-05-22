@@ -72,6 +72,9 @@ export default function ProvidersIndex() {
   const [probingAll, setProbingAll] = useState(false);
   const [marketFilter, setMarketFilter] = useState<string>('all');
   const [resetting, setResetting] = useState(false);
+  // AE-72 — setup checklist + rotation overdue
+  const [checklist, setChecklist] = useState<any[]>([]);
+  const [overdueRotations, setOverdueRotations] = useState<any[]>([]);
 
   const cleanSlate = async () => {
     const phrase = await promptDialog({
@@ -104,6 +107,8 @@ export default function ProvidersIndex() {
       providersApi.categories().then(r => setCats(r.data || [])),
       providersApi.credentials().then(r => setCreds(r.data || [])),
       providersApi.marketplace().then(r => setMarket(r.data || [])).catch(() => {}),
+      providersApi.setupChecklist().then(r => setChecklist(r.data || [])).catch(() => {}),
+      providersApi.allRotationStatus({ overdue_only: true }).then(r => setOverdueRotations(r.data || [])).catch(() => {}),
     ]).finally(() => setLoading(false));
   }, []);
 
@@ -239,37 +244,78 @@ export default function ProvidersIndex() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* ── Zero-credential onboarding guide ── */}
-            {totalCreds === 0 && (
+            {/* ── Rotation overdue banner ── */}
+            {overdueRotations.length > 0 && (
+              <div className="rounded-xl border border-status-error/30 bg-status-error/5 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle size={14} className="text-status-error" />
+                  <span className="text-sm font-semibold text-status-error">
+                    {overdueRotations.length} credential{overdueRotations.length !== 1 ? 's' : ''} with overdue key rotation
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {overdueRotations.map((r: any) => (
+                    <Link key={r.id}
+                      href={`/dashboard/providers/${encodeURIComponent(r.category)}`}
+                      className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-surface-0 border border-status-error/30 text-status-error hover:bg-status-error/10 transition-colors">
+                      {r.label} · {r.days_since_rotation}d
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* ── Zero-credential onboarding guide (API-driven) ── */}
+            {totalCreds === 0 && checklist.length > 0 && (
               <div className="rounded-xl border border-accent/30 bg-accent/5 p-5">
                 <div className="flex items-start gap-3 mb-4">
                   <div className="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center shrink-0 mt-0.5">
                     <Plug size={14} className="text-accent" />
                   </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-content-primary">Welcome — let's connect your first providers</h3>
-                    <p className="text-xs text-content-tertiary mt-1">
-                      No API keys are configured yet. Videos cannot be generated until you add credentials for the three required categories below.
-                      Click any row to open the setup page.
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-content-primary">⚡ Quick Setup
+                      </h3>
+                      <span className="text-[11px] text-content-tertiary">
+                        {checklist.filter((c: any) => c.configured && c.required).length} of {checklist.filter((c: any) => c.required).length} required complete
+                      </span>
+                    </div>
+                    <p className="text-xs text-content-tertiary mt-0.5">
+                      Complete these to produce your first video.
                     </p>
                   </div>
                 </div>
                 <div className="space-y-2">
-                  {ONBOARDING_STEPS.map((step, i) => {
-                    const catName = Object.entries(grouped).find(([k]) => k === step.kind)?.[1]?.[0]?.name;
+                  {checklist.map((step: any, i: number) => {
+                    const catName = Object.entries(grouped).find(([k]) => k === step.category)?.[1]?.[0]?.name;
                     const target = catName ? `/dashboard/providers/${encodeURIComponent(catName)}?add=1` : `/dashboard/providers`;
                     return (
-                      <a key={step.kind} href={target}
-                        className="flex items-start gap-3 rounded-lg border border-border bg-surface-0 px-4 py-3 hover:border-accent/40 hover:bg-surface-1 transition-all group">
-                        <span className="w-5 h-5 rounded-full bg-surface-2 group-hover:bg-accent/15 flex items-center justify-center text-[10px] font-bold text-content-tertiary group-hover:text-accent shrink-0 mt-0.5">{i + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-content-primary group-hover:text-accent transition-colors">{step.label}</span>
-                            {step.urgent && <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-error/10 text-status-error font-medium">Required</span>}
-                          </div>
-                          <p className="text-[11px] text-content-tertiary mt-0.5">{step.why}</p>
+                      <a key={step.category} href={target}
+                        className={cn('flex items-center gap-3 rounded-lg border px-4 py-3 hover:border-accent/40 hover:bg-surface-1 transition-all group',
+                          step.configured
+                            ? 'border-status-success/30 bg-status-success/5'
+                            : 'border-border bg-surface-0')}>
+                        <div className={cn('w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold',
+                          step.configured ? 'bg-status-success text-white' : 'bg-surface-2 text-content-tertiary group-hover:bg-accent/15 group-hover:text-accent')}>
+                          {step.configured ? '✓' : i + 1}
                         </div>
-                        <ChevronRight size={13} className="text-content-tertiary group-hover:text-accent shrink-0 mt-1" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={cn('text-sm font-medium transition-colors',
+                              step.configured ? 'text-content-secondary line-through' : 'text-content-primary group-hover:text-accent')}>
+                              {step.label}
+                            </span>
+                            {step.required && !step.configured && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-error/10 text-status-error font-medium">Required</span>
+                            )}
+                            {step.healthy === true && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-success/10 text-status-success font-medium">Healthy</span>
+                            )}
+                            {step.healthy === false && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-error/10 text-status-error font-medium">Unhealthy</span>
+                            )}
+                          </div>
+                        </div>
+                        <ChevronRight size={13} className="text-content-tertiary group-hover:text-accent shrink-0" />
                       </a>
                     );
                   })}
