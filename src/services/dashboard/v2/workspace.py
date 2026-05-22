@@ -699,6 +699,12 @@ async def remove_member(
                 "Cannot remove the last owner of a workspace. "
                 "Transfer ownership to another member first.",
             )
+    removed_user = await pool.fetchrow(
+        "SELECT email, display_name FROM users WHERE id=$1", user_id
+    )
+    ws_info = await pool.fetchrow(
+        "SELECT name FROM workspaces WHERE id=$1", actor.workspace_id
+    )
     res = await pool.execute(
         "DELETE FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
         actor.workspace_id, user_id,
@@ -707,6 +713,16 @@ async def remove_member(
         raise HTTPException(404, "Member not found")
     await audit(actor=actor, action="member.remove", target_type="workspace_member",
                 target_id=str(user_id), request=request)
+    # Invalidate membership cache immediately via Redis pub/sub
+    from ._membership import publish_revoked
+    await publish_revoked(user_id, actor.workspace_id)
+    # member-removed email (fire-and-forget)
+    if removed_user and removed_user["email"]:
+        from ._resend import send_email as _resend_send
+        _resend_send("member-removed", removed_user["email"], {
+            "name": removed_user["display_name"] or removed_user["email"],
+            "workspace_name": ws_info["name"] if ws_info else "your workspace",
+        })
     return {"status": "ok"}
 
 
