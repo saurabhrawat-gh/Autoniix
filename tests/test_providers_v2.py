@@ -183,6 +183,7 @@ class TestRotateCredential:
         pool.fetchrow.return_value = FakeRecord(
             id=1, category="llm", provider_name="openai", label="main",
             vault_path="providers/llm/openai/main",
+            extra_config={},
         )
         pool.execute = AsyncMock(return_value="UPDATE 1")
 
@@ -190,10 +191,18 @@ class TestRotateCredential:
         body = RotateIn(secret_value="sk-new")
         req = MagicMock()
 
+        # Mock the safe-swap health check: provider class returns health_ok=True
+        mock_inst = MagicMock()
+        mock_inst.health_check = AsyncMock(return_value=True)
+        mock_inst.api_key = ""
+        mock_cls = MagicMock(return_value=mock_inst)
+
         with patch(f"{_PROV_MODULE}.flag_enabled", new_callable=AsyncMock, return_value=True), \
              _pool_ctx(pool), \
              patch(f"{_PROV_MODULE}.put_secret_at", return_value="env"), \
-             patch(f"{_PROV_MODULE}.get_secret_at", return_value="sk-old"), \
+             patch(f"{_PROV_MODULE}.get_secret_at", return_value="sk-staged"), \
+             patch("src.providers.registry.ProviderRegistry._registries",
+                   {"llm": {"openai": mock_cls}}), \
              patch(f"{_PROV_MODULE}.publish_invalidate", new_callable=AsyncMock), \
              patch(f"{_PROV_MODULE}.audit", new_callable=AsyncMock):
             result = await rotate_credential(credential_id=1, body=body, request=req, actor=actor)

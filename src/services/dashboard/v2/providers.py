@@ -430,14 +430,69 @@ async def rotate_credential(
         raise HTTPException(403, "Credential rotation is disabled")
     pool = await get_pool()
     row = await pool.fetchrow(
-        "SELECT id, vault_path, category, provider_name, label FROM provider_credentials WHERE id=$1", credential_id
+        "SELECT id, vault_path, category, provider_name, label, extra_config "
+        "FROM provider_credentials WHERE id=$1", credential_id
     )
     if not row:
         raise HTTPException(404, "Credential not found")
+
+    # --- Safe-swap: write to a staging path, verify, then promote ---
+    staging_path = row["vault_path"] + "/__staging__"
+    try:
+        put_secret_at(staging_path, body.secret_key, body.secret_value)
+    except Exception as exc:
+        raise HTTPException(500, f"Failed to stage new secret: {exc}")
+
+    # Verify the new key by instantiating the provider with the staged secret
+    health_ok = False
+    health_error: str | None = None
+    try:
+        from src.providers.registry import ProviderRegistry
+        cls = ProviderRegistry._registries.get(row["category"], {}).get(row["provider_name"])
+        if cls is None:
+            health_error = f"Provider {row['provider_name']!r} not registered; skipping verification"
+            health_ok = True  # fall-open: can't verify unregistered provider
+        else:
+            test_inst = cls()
+            staged_key = get_secret_at(staging_path, body.secret_key)
+            if staged_key and hasattr(test_inst, "api_key") and not getattr(test_inst, "api_key", None):
+                test_inst.api_key = staged_key
+            for k, v in (row.get("extra_config") or {}).items():
+                try:
+                    setattr(test_inst, k, v)
+                except Exception:
+                    pass
+            if hasattr(test_inst, "_connect") and callable(test_inst._connect):
+                try:
+                    test_inst._connect()
+                except Exception:
+                    pass
+            hc = getattr(test_inst, "health_check", None)
+            if hc is None:
+                health_ok = True
+            else:
+                res = hc()
+                if hasattr(res, "__await__"):
+                    res = await res  # type: ignore[assignment]
+                health_ok = bool(res)
+    except Exception as exc:
+        health_error = str(exc)
+        health_ok = False
+
+    if not health_ok:
+        raise HTTPException(
+            422,
+            f"New credential failed health check — rotation aborted. "
+            f"Error: {health_error or 'health_check returned False'}. "
+            f"The old credential is still active.",
+        )
+
+    # Health check passed — promote staged key to live path
     try:
         backend = put_secret_at(row["vault_path"], body.secret_key, body.secret_value)
     except Exception as exc:
-        raise HTTPException(500, f"Failed to rotate: {exc}")
+        raise HTTPException(500, f"Failed to promote rotated secret: {exc}")
+
     await pool.execute(
         "UPDATE provider_credentials SET rotated_at=NOW(), rotation_hint=$2 WHERE id=$1",
         credential_id, body.hint,
@@ -452,13 +507,82 @@ async def rotate_credential(
         pass
     await audit(actor=actor, action="provider.credential.rotate",
                 target_type="provider_credential", target_id=str(credential_id),
-                after={"backend": backend}, request=request)
-    cat_row = await pool.fetchrow(
+                after={"backend": backend, "hint": body.hint}, request=request)
+    if cat_row := await pool.fetchrow(
         "SELECT category FROM provider_credentials WHERE id=$1", credential_id,
-    )
-    if cat_row:
+    ):
         await publish_invalidate(category=cat_row["category"])
-    return {"status": "ok"}
+    return {"status": "ok", "backend": backend}
+
+
+# ── Rotation status ──────────────────────────────────────────────────────────
+ROTATION_WARN_DAYS = 30   # flag as overdue after this many days without rotation
+
+
+@router.get("/credentials/{credential_id}/rotation-status")
+async def credential_rotation_status(
+    credential_id: int,
+    _: Principal = Depends(principal_dep),
+):
+    """Return rotation age and overdue flag for a single credential."""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """SELECT id, label, category, provider_name, rotated_at, rotation_hint, created_at
+             FROM provider_credentials WHERE id=$1""",
+        credential_id,
+    )
+    if not row:
+        raise HTTPException(404, "Credential not found")
+    return _rotation_status_dict(row)
+
+
+@router.get("/credentials/rotation-status")
+async def all_credentials_rotation_status(
+    category: str | None = None,
+    overdue_only: bool = False,
+    _: Principal = Depends(principal_dep),
+):
+    """Return rotation age for all (or a category's) credentials."""
+    pool = await get_pool()
+    where = "WHERE 1=1"
+    args: list[Any] = []
+    if category:
+        args.append(category)
+        where += f" AND category=${len(args)}"
+    rows = await pool.fetch(
+        f"""SELECT id, label, category, provider_name, rotated_at, rotation_hint, created_at
+              FROM provider_credentials {where}
+             ORDER BY category, id""",
+        *args,
+    )
+    items = [_rotation_status_dict(r) for r in rows]
+    if overdue_only:
+        items = [i for i in items if i["overdue"]]
+    return {"data": items}
+
+
+def _rotation_status_dict(row: Any) -> dict:
+    import datetime
+    from zoneinfo import ZoneInfo
+
+    now = datetime.datetime.now(tz=ZoneInfo("UTC"))
+    anchor = row["rotated_at"] or row["created_at"]
+    days_since: int | None = None
+    if anchor:
+        delta = now - anchor.replace(tzinfo=ZoneInfo("UTC")) if anchor.tzinfo is None else now - anchor
+        days_since = delta.days
+    overdue = days_since is not None and days_since >= ROTATION_WARN_DAYS
+    return {
+        "id": row["id"],
+        "label": row["label"],
+        "category": row["category"],
+        "provider_name": row["provider_name"],
+        "rotated_at": row["rotated_at"].isoformat() if row["rotated_at"] else None,
+        "rotation_hint": row["rotation_hint"],
+        "days_since_rotation": days_since,
+        "overdue": overdue,
+        "warn_after_days": ROTATION_WARN_DAYS,
+    }
 
 
 # Chains (legacy URL — proxies to v2 workspace+mode-agnostic)
