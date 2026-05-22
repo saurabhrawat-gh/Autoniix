@@ -444,39 +444,11 @@ async def forgot(body: ForgotIn):
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
     reset_link = f"{frontend_url}/reset-password?token={raw}"
 
-    from ._email import send_email, is_configured as _smtp_configured
-    subject_prefix = os.getenv("MAIL_SUBJECT_PREFIX", "").strip()
-    subject = (f"{subject_prefix} " if subject_prefix else "") + "Reset your Autoniix password"
-    text_body = (
-        f"Hi,\n\nWe received a request to reset the password for {body.email}.\n"
-        f"Open this link to choose a new password (expires in 1 hour):\n\n"
-        f"{reset_link}\n\n"
-        f"If you didn't request this, you can safely ignore this email — your password won't change.\n\n"
-        f"— Autoniix"
-    )
-    html_body = (
-        f"<p>Hi,</p>"
-        f"<p>We received a request to reset the password for "
-        f"<strong>{body.email}</strong>.</p>"
-        f"<p><a href=\"{reset_link}\" "
-        f"style=\"display:inline-block;padding:10px 18px;background:#10b981;color:#fff;"
-        f"text-decoration:none;border-radius:6px;font-weight:600\">Reset password</a></p>"
-        f"<p>Or paste this link into your browser (expires in 1 hour):<br>"
-        f"<a href=\"{reset_link}\">{reset_link}</a></p>"
-        f"<p style=\"color:#6b7280;font-size:13px\">If you didn't request this, you can safely "
-        f"ignore this email — your password won't change.</p>"
-        f"<p style=\"color:#6b7280;font-size:13px\">— Autoniix</p>"
-    )
+    from ._resend import send_email as _resend_send, is_configured as _resend_configured
+    _resend_send("forgot-password", body.email, {"email": body.email, "reset_link": reset_link})
+
     is_prod = os.getenv("ENVIRONMENT_MODE", "test").lower() == "production"
-    sent = await send_email(to=body.email, subject=subject, html=html_body, text=text_body)
-
-    if not sent and is_prod:
-        _log.warning(
-            "forgot-password: reset email NOT delivered — check SMTP config in .env",
-            user_id=user["id"],
-        )
-
-    if not _smtp_configured() and not is_prod:
+    if not _resend_configured() and not is_prod:
         return {"status": "ok", "reset_token": raw}
     return {"status": "ok"}
 
@@ -491,6 +463,7 @@ async def reset(body: ResetIn):
     )
     if not row or row["used_at"] or row["expires_at"] < datetime.now(timezone.utc):
         raise HTTPException(400, "Invalid or expired token")
+    user_email = await pool.fetchval("SELECT email FROM users WHERE id=$1", row["user_id"])
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute(
@@ -504,6 +477,9 @@ async def reset(body: ResetIn):
                 "UPDATE sessions SET revoked_at=NOW() WHERE user_id=$1 AND revoked_at IS NULL",
                 row["user_id"],
             )
+    from ._resend import send_email as _resend_send
+    if user_email:
+        _resend_send("password-changed", user_email, {"email": user_email})
     return {"status": "ok"}
 
 

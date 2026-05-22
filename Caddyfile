@@ -50,7 +50,8 @@ temporal.autoniix.com {
     encode gzip zstd
 }
 
-# Root domain — redirect to dashboard
+# Marketing landing page — apex + www
 autoniix.com, www.autoniix.com {
-    redir https://dash.autoniix.com{uri} permanent
+    reverse_proxy localhost:3002
+    encode gzip zstd
 }
