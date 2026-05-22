@@ -67,13 +67,25 @@ async def principal_dep(
     if token.count(".") == 2 and token.startswith("ey"):
         claims = _decode_jwt(token)
         if claims:
-            return Principal(
-                user_id=int(claims["sub"]) if "sub" in claims else None,
+            uid = int(claims["sub"]) if "sub" in claims else None
+            wid = int(claims.get("wid", 1))
+            principal = Principal(
+                user_id=uid,
                 email=claims.get("email"),
                 role=claims.get("role", "viewer"),
-                workspace_id=int(claims.get("wid", 1)),
+                workspace_id=wid,
                 source="v2_jwt",
             )
+            # Membership revocation check — skip for legacy/system tokens
+            if uid is not None:
+                from ._membership import check_membership
+                still_member = await check_membership(uid, wid)
+                if not still_member:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="workspace_access_revoked",
+                    )
+            return principal
 
     # Legacy fallback
     try:
@@ -95,6 +107,26 @@ def require_role(*roles: str):
     async def _checker(p: Principal = Depends(principal_dep)) -> Principal:
         if p.role not in allowed and p.role != "owner":
             raise HTTPException(status_code=403, detail=f"Role {p.role!r} not allowed")
+        return p
+
+    return _checker
+
+
+def require_permission(permission: str):
+    """Dependency factory enforcing a named permission from the RBAC matrix.
+
+    Returns HTTP 403 with ``{"detail": "Permission denied: <name>"}`` when the
+    caller's role lacks *permission*.  Cache is warmed by
+    :mod:`._permissions` (30 s TTL + Redis pub/sub invalidation).
+    """
+    async def _checker(p: Principal = Depends(principal_dep)) -> Principal:
+        from ._permissions import get_permissions_for_role
+        perms = await get_permissions_for_role(p.role)
+        if permission not in perms:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Permission denied: {permission}",
+            )
         return p
 
     return _checker

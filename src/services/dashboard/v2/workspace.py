@@ -58,7 +58,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, EmailStr, Field
 
 from src.db import get_pool
-from ._deps import Principal, audit, principal_dep, require_role
+from ._deps import Principal, audit, principal_dep, require_permission, require_role
 
 router = APIRouter()
 
@@ -217,7 +217,7 @@ async def get_workspace(p: Principal = Depends(principal_dep)):
 async def update_workspace(
     body: WorkspacePatch,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("workspace.settings.edit")),
 ):
     pool = await get_pool()
     updates = body.model_dump(exclude_unset=True)
@@ -255,7 +255,7 @@ async def list_brands(p: Principal = Depends(principal_dep)):
 async def create_brand(
     body: BrandIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("channel.create")),
 ):
     pool = await get_pool()
     slug = body.slug or "".join(c for c in body.name.lower().replace(" ", "-") if c.isalnum() or c == "-")
@@ -290,7 +290,7 @@ async def update_brand(
     brand_id: int,
     body: BrandPatch,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "producer")),
+    actor: Principal = Depends(require_permission("channel.settings.edit")),
 ):
     pool = await get_pool()
     updates = body.model_dump(exclude_unset=True)
@@ -341,7 +341,7 @@ async def list_series(
 async def create_series(
     body: SeriesIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "producer")),
+    actor: Principal = Depends(require_permission("project.create")),
 ):
     pool = await get_pool()
     sid = await pool.fetchval(
@@ -362,7 +362,7 @@ async def update_series(
     series_id: int,
     body: SeriesPatch,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "producer")),
+    actor: Principal = Depends(require_permission("project.edit")),
 ):
     pool = await get_pool()
     updates = body.model_dump(exclude_unset=True)
@@ -388,7 +388,7 @@ async def update_series(
 async def delete_series(
     series_id: int,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("project.delete")),
 ):
     pool = await get_pool()
     res = await pool.execute("DELETE FROM series WHERE id=$1", series_id)
@@ -432,7 +432,7 @@ async def list_campaigns(
 async def create_campaign(
     body: CampaignIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "producer")),
+    actor: Principal = Depends(require_permission("project.create")),
 ):
     pool = await get_pool()
     cid = await pool.fetchval(
@@ -452,7 +452,7 @@ async def update_campaign(
     campaign_id: int,
     body: CampaignPatch,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "producer")),
+    actor: Principal = Depends(require_permission("project.edit")),
 ):
     pool = await get_pool()
     updates = body.model_dump(exclude_unset=True)
@@ -523,7 +523,7 @@ async def list_projects(
 async def create_project(
     body: ProjectIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "producer", "editor")),
+    actor: Principal = Depends(require_permission("project.create")),
 ):
     pool = await get_pool()
     pid = await pool.fetchval(
@@ -579,7 +579,7 @@ async def update_project(
     project_id: int,
     body: ProjectPatch,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "producer", "editor")),
+    actor: Principal = Depends(require_permission("project.edit")),
 ):
     pool = await get_pool()
     updates = body.model_dump(exclude_unset=True)
@@ -612,7 +612,7 @@ async def update_project(
 async def delete_project(
     project_id: int,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("project.delete")),
 ):
     pool = await get_pool()
     res = await pool.execute("DELETE FROM projects WHERE id=$1", project_id)
@@ -645,7 +645,7 @@ async def set_member_role(
     user_id: int,
     body: MemberRolePatch,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("workspace.members.role.change")),
 ):
     pool = await get_pool()
     VALID_ROLES = {"owner", "admin", "producer", "editor", "viewer"}
@@ -681,7 +681,7 @@ async def set_member_role(
 async def remove_member(
     user_id: int,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("workspace.members.remove")),
 ):
     pool = await get_pool()
     target_role = await pool.fetchval(
@@ -699,6 +699,12 @@ async def remove_member(
                 "Cannot remove the last owner of a workspace. "
                 "Transfer ownership to another member first.",
             )
+    removed_user = await pool.fetchrow(
+        "SELECT email, display_name FROM users WHERE id=$1", user_id
+    )
+    ws_info = await pool.fetchrow(
+        "SELECT name FROM workspaces WHERE id=$1", actor.workspace_id
+    )
     res = await pool.execute(
         "DELETE FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
         actor.workspace_id, user_id,
@@ -707,6 +713,16 @@ async def remove_member(
         raise HTTPException(404, "Member not found")
     await audit(actor=actor, action="member.remove", target_type="workspace_member",
                 target_id=str(user_id), request=request)
+    # Invalidate membership cache immediately via Redis pub/sub
+    from ._membership import publish_revoked
+    await publish_revoked(user_id, actor.workspace_id)
+    # member-removed email (fire-and-forget)
+    if removed_user and removed_user["email"]:
+        from ._resend import send_email as _resend_send
+        _resend_send("member-removed", removed_user["email"], {
+            "name": removed_user["display_name"] or removed_user["email"],
+            "workspace_name": ws_info["name"] if ws_info else "your workspace",
+        })
     return {"status": "ok"}
 
 
@@ -738,7 +754,7 @@ async def list_invites(p: Principal = Depends(principal_dep)):
 async def create_invite(
     body: InviteIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("workspace.members.invite")),
 ):
     if body.role not in VALID_INVITE_ROLES:
         raise HTTPException(400, f"Invalid role. Choose from: {', '.join(sorted(VALID_INVITE_ROLES))}")
@@ -785,14 +801,27 @@ async def create_invite(
     )
     await audit(actor=actor, action="invite.create", target_type="workspace_invitation",
                 target_id=str(inv_id), after={"email": body.email, "role": body.role}, request=request)
+    frontend_url = os.getenv("FRONTEND_URL", "")
+    invite_link = f"{frontend_url}/accept-invite?token={raw}" if frontend_url else f"/accept-invite?token={raw}"
+    # Resend invite email (fire-and-forget)
+    ws_info = await pool.fetchrow("SELECT name FROM workspaces WHERE id=$1", actor.workspace_id)
+    actor_info = await pool.fetchrow("SELECT display_name FROM users WHERE id=$1", actor.user_id)
+    inviter_name = (actor_info["display_name"] if actor_info and actor_info["display_name"] else actor.email) or ""
+    from ._resend import send_email as _resend_send
+    _resend_send("workspace-invite", body.email, {
+        "inviter_name": inviter_name,
+        "inviter_email": actor.email or "",
+        "workspace_name": ws_info["name"] if ws_info else "a workspace",
+        "role": body.role,
+        "invite_url": invite_link,
+        "expires_days": body.expires_days,
+    })
     # Slack DM notification (best-effort)
     integration = await pool.fetchrow(
         "SELECT slack_webhook_url FROM workspace_integrations WHERE workspace_id=$1",
         actor.workspace_id,
     )
     if integration and integration["slack_webhook_url"]:
-        frontend_url = os.getenv("FRONTEND_URL", "")
-        invite_link = f"{frontend_url}/accept-invite?token={raw}" if frontend_url else f"/accept-invite?token={raw}"
         await _notify_slack(
             integration["slack_webhook_url"],
             f":envelope: *Workspace invitation sent*\n"
@@ -808,7 +837,7 @@ async def create_invite(
 async def revoke_invite(
     invite_id: int,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("workspace.members.invite")),
 ):
     pool = await get_pool()
     res = await pool.execute(
@@ -829,7 +858,7 @@ class IntegrationPatch(BaseModel):
 
 
 @router.get("/integrations")
-async def get_integrations(actor: Principal = Depends(require_role("owner", "admin"))):
+async def get_integrations(actor: Principal = Depends(require_permission("workspace.integrations.view"))):
     pool = await get_pool()
     row = await pool.fetchrow(
         "SELECT slack_webhook_url FROM workspace_integrations WHERE workspace_id=$1",
@@ -844,7 +873,7 @@ async def get_integrations(actor: Principal = Depends(require_role("owner", "adm
 async def update_integrations(
     body: IntegrationPatch,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("workspace.integrations.manage")),
 ):
     pool = await get_pool()
     await pool.execute(
@@ -882,7 +911,7 @@ async def get_settings(
 async def upsert_setting(
     body: EntitySettingUpsert,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("workspace.settings.edit")),
 ):
     pool = await get_pool()
     VALID_SCOPES = {"system","workspace","brand","channel","series","campaign","project"}
@@ -898,4 +927,80 @@ async def upsert_setting(
     await audit(actor=actor, action="settings.upsert", target_type="entity_settings",
                 target_id=f"{body.scope}/{body.scope_id}/{body.key}",
                 after={"value": body.value, "locked": body.locked}, request=request)
+    return {"status": "ok"}
+
+
+# Ownership Transfer
+
+class TransferOwnershipIn(BaseModel):
+    new_owner_user_id: int
+    current_password: str
+
+
+@router.post("/transfer-ownership")
+async def transfer_ownership(
+    body: TransferOwnershipIn,
+    request: Request,
+    actor: Principal = Depends(require_permission("workspace.ownership.transfer")),
+):
+    if not actor.user_id:
+        raise HTTPException(403, "No user context")
+    if body.new_owner_user_id == actor.user_id:
+        raise HTTPException(400, "Cannot transfer ownership to yourself")
+    pool = await get_pool()
+    # Verify current password
+    current_user = await pool.fetchrow(
+        "SELECT password_hash, display_name, email FROM users WHERE id=$1", actor.user_id
+    )
+    if not current_user:
+        raise HTTPException(404, "Current user not found")
+    from .auth import _verify_pw
+    if not _verify_pw(body.current_password, current_user["password_hash"] or ""):
+        raise HTTPException(401, "Password is incorrect")
+    # Verify new owner is an existing member
+    new_owner_member = await pool.fetchrow(
+        """SELECT wm.role, u.display_name, u.email
+             FROM workspace_members wm JOIN users u ON u.id = wm.user_id
+            WHERE wm.workspace_id=$1 AND wm.user_id=$2""",
+        actor.workspace_id, body.new_owner_user_id,
+    )
+    if not new_owner_member:
+        raise HTTPException(404, "Target user is not a member of this workspace")
+    ws_info = await pool.fetchrow("SELECT name FROM workspaces WHERE id=$1", actor.workspace_id)
+    workspace_name = ws_info["name"] if ws_info else "your workspace"
+    old_owner_name = current_user["display_name"] or current_user["email"] or ""
+    new_owner_name = new_owner_member["display_name"] or new_owner_member["email"] or ""
+    # Atomic role swap
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "UPDATE workspace_members SET role='owner' WHERE workspace_id=$1 AND user_id=$2",
+                actor.workspace_id, body.new_owner_user_id,
+            )
+            await conn.execute(
+                "UPDATE workspace_members SET role='admin' WHERE workspace_id=$1 AND user_id=$2",
+                actor.workspace_id, actor.user_id,
+            )
+    await audit(
+        actor=actor,
+        action="ownership.transfer",
+        target_type="workspace_member",
+        target_id=str(body.new_owner_user_id),
+        before={"owner_user_id": actor.user_id},
+        after={"owner_user_id": body.new_owner_user_id},
+        request=request,
+    )
+    # Emails — fire-and-forget
+    from ._resend import send_email as _resend_send
+    if new_owner_member["email"]:
+        _resend_send("ownership-transferred-new", new_owner_member["email"], {
+            "name": new_owner_name,
+            "workspace_name": workspace_name,
+        })
+    if current_user["email"]:
+        _resend_send("ownership-transferred-old", current_user["email"], {
+            "name": old_owner_name,
+            "workspace_name": workspace_name,
+            "new_owner_name": new_owner_name,
+        })
     return {"status": "ok"}
