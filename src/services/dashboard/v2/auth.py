@@ -145,6 +145,7 @@ class RegisterIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
     display_name: str | None = None
+    workspace_name: str = Field(min_length=2, max_length=60)
 
 
 class LoginIn(BaseModel):
@@ -206,39 +207,46 @@ async def register(body: RegisterIn, request: Request):
             "SELECT id FROM users WHERE lower(email)=lower($1)", body.email
         )
         if existing:
-            raise HTTPException(409, "Email already registered")
-        verify_token = secrets.token_urlsafe(32)
-        uid = await conn.fetchval(
-            """INSERT INTO users (email, display_name, password_hash, role,
-                                  email_verify_token, email_verified)
-               VALUES ($1,$2,$3,$4,$5,TRUE) RETURNING id""",
-            body.email.lower(), body.display_name, _hash_pw(body.password),
-            "owner", verify_token,
-        )
-        # Each registration creates a fresh workspace owned by this user
-        ws_name = (body.display_name or body.email.split("@")[0]).title() + "'s Workspace"
-        ws_slug = body.email.split("@")[0].lower().replace(".", "-")[:60]
-        # Make slug unique if colliding
-        suffix = 0
-        while await conn.fetchval("SELECT id FROM workspaces WHERE slug=$1", ws_slug if suffix == 0 else f"{ws_slug}-{suffix}"):
-            suffix += 1
-        if suffix:
-            ws_slug = f"{ws_slug}-{suffix}"
-        ws_id = await conn.fetchval(
-            """INSERT INTO workspaces (name, slug, plan, owner_user_id, billing_email)
-               VALUES ($1,$2,'starter',$3,$4) RETURNING id""",
-            ws_name, ws_slug, uid, body.email.lower(),
-        )
-        # Add to workspace_members as owner
-        await conn.execute(
-            "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1,$2,'owner')",
-            ws_id, uid,
-        )
-        # Set active workspace
-        await conn.execute(
-            "UPDATE users SET active_workspace_id=$1 WHERE id=$2", ws_id, uid
-        )
-    return {"status": "ok", "user_id": uid, "workspace_id": ws_id, "role": "owner"}
+            raise HTTPException(409, "An account with this email already exists")
+        async with conn.transaction():
+            verify_token = secrets.token_urlsafe(32)
+            uid = await conn.fetchval(
+                """INSERT INTO users (email, display_name, password_hash, role,
+                                      email_verify_token, email_verified)
+                   VALUES ($1,$2,$3,$4,$5,TRUE) RETURNING id""",
+                body.email.lower(), body.display_name, _hash_pw(body.password),
+                "owner", verify_token,
+            )
+            ws_name = body.workspace_name.strip()
+            ws_slug = body.workspace_name.strip().lower().replace(" ", "-")[:60]
+            # Make slug unique if colliding
+            suffix = 0
+            while await conn.fetchval(
+                "SELECT id FROM workspaces WHERE slug=$1",
+                ws_slug if suffix == 0 else f"{ws_slug}-{suffix}",
+            ):
+                suffix += 1
+            if suffix:
+                ws_slug = f"{ws_slug}-{suffix}"
+            ws_id = await conn.fetchval(
+                """INSERT INTO workspaces (name, slug, plan, owner_user_id, billing_email)
+                   VALUES ($1,$2,'starter',$3,$4) RETURNING id""",
+                ws_name, ws_slug, uid, body.email.lower(),
+            )
+            await conn.execute(
+                "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1,$2,'owner')",
+                ws_id, uid,
+            )
+            await conn.execute(
+                "UPDATE users SET active_workspace_id=$1 WHERE id=$2", ws_id, uid
+            )
+    # Welcome email (fire-and-forget)
+    from ._resend import send_email as _resend_send
+    _resend_send("welcome-new-user", body.email, {
+        "name": body.display_name or body.email,
+        "workspace_name": ws_name,
+    })
+    return {"status": "ok", "user_id": uid, "workspace_id": ws_id, "role": "owner", "onboarding_required": True}
 
 
 @router.post("/login")

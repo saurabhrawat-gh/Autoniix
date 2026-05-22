@@ -12,6 +12,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [workspaceName, setWorkspaceName] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -19,9 +20,9 @@ export default function RegisterPage() {
     e.preventDefault();
     setBusy(true); setErr(null);
     try {
-      await authApi.register(email, password, name || undefined);
+      await authApi.register(email, password, workspaceName, name || undefined);
       await authApi.login(email, password);
-      router.push('/dashboard');
+      router.push('/onboarding');
     } catch (e: any) {
       setErr(e?.message || 'Registration failed');
     } finally {
@@ -37,15 +38,29 @@ export default function RegisterPage() {
         <Card variant="elevated" padding="xl">
           <form onSubmit={submit} className="space-y-5">
             <div className="text-center space-y-1">
-              <h1 className="text-xl font-semibold text-content-primary">Create account</h1>
+              <h1 className="text-xl font-semibold text-content-primary">Create your workspace</h1>
               <p className="text-content-tertiary text-xs">
-                The first account becomes Owner. Subsequent accounts are Viewer until promoted.
+                You'll be the owner. Invite teammates after setup.
               </p>
             </div>
 
             {err && (
               <div className="bg-status-error/10 text-status-error text-sm rounded-lg p-3 text-center">{err}</div>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="r-ws" required>Workspace name</Label>
+              <Input
+                id="r-ws"
+                required
+                minLength={2}
+                maxLength={60}
+                value={workspaceName}
+                onChange={e => setWorkspaceName(e.target.value)}
+                placeholder="Acme Studios"
+                autoFocus
+              />
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="r-email" required>Email</Label>
@@ -56,7 +71,6 @@ export default function RegisterPage() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                autoFocus
               />
             </div>
 
@@ -87,10 +101,10 @@ export default function RegisterPage() {
               type="submit"
               size="lg"
               className="w-full"
-              disabled={!email || password.length < 8}
+              disabled={!email || password.length < 8 || workspaceName.length < 2}
               loading={busy}
             >
-              {busy ? 'Creating…' : 'Create account'}
+              {busy ? 'Creating…' : 'Create workspace'}
             </Button>
 
             <p className="text-center text-xs text-content-tertiary">
