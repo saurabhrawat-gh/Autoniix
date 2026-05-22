@@ -359,6 +359,7 @@ async def logout(request: Request, response: Response, body: RefreshIn | None = 
 
 @router.get("/me")
 async def me(p: Principal = Depends(principal_dep)):
+    from ._permissions import get_permissions_for_role
     display_name = None
     if p.user_id:
         pool = await get_pool()
@@ -371,6 +372,7 @@ async def me(p: Principal = Depends(principal_dep)):
         initials = (parts[0][0] + (parts[-1][0] if len(parts) > 1 else '')).upper()
     elif p.email:
         initials = p.email[0].upper()
+    permissions = sorted(await get_permissions_for_role(p.role))
     return {"data": {
         "user_id": p.user_id,
         "email": p.email,
@@ -378,6 +380,7 @@ async def me(p: Principal = Depends(principal_dep)):
         "source": p.source,
         "display_name": display_name,
         "initials": initials,
+        "permissions": permissions,
     }}
 
 

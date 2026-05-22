@@ -58,7 +58,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, EmailStr, Field
 
 from src.db import get_pool
-from ._deps import Principal, audit, principal_dep, require_role
+from ._deps import Principal, audit, principal_dep, require_permission, require_role
 
 router = APIRouter()
 
@@ -217,7 +217,7 @@ async def get_workspace(p: Principal = Depends(principal_dep)):
 async def update_workspace(
     body: WorkspacePatch,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("workspace.settings.edit")),
 ):
     pool = await get_pool()
     updates = body.model_dump(exclude_unset=True)
@@ -255,7 +255,7 @@ async def list_brands(p: Principal = Depends(principal_dep)):
 async def create_brand(
     body: BrandIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("channel.create")),
 ):
     pool = await get_pool()
     slug = body.slug or "".join(c for c in body.name.lower().replace(" ", "-") if c.isalnum() or c == "-")
@@ -290,7 +290,7 @@ async def update_brand(
     brand_id: int,
     body: BrandPatch,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "producer")),
+    actor: Principal = Depends(require_permission("channel.settings.edit")),
 ):
     pool = await get_pool()
     updates = body.model_dump(exclude_unset=True)
@@ -341,7 +341,7 @@ async def list_series(
 async def create_series(
     body: SeriesIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "producer")),
+    actor: Principal = Depends(require_permission("project.create")),
 ):
     pool = await get_pool()
     sid = await pool.fetchval(
@@ -362,7 +362,7 @@ async def update_series(
     series_id: int,
     body: SeriesPatch,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "producer")),
+    actor: Principal = Depends(require_permission("project.edit")),
 ):
     pool = await get_pool()
     updates = body.model_dump(exclude_unset=True)
@@ -388,7 +388,7 @@ async def update_series(
 async def delete_series(
     series_id: int,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("project.delete")),
 ):
     pool = await get_pool()
     res = await pool.execute("DELETE FROM series WHERE id=$1", series_id)
@@ -432,7 +432,7 @@ async def list_campaigns(
 async def create_campaign(
     body: CampaignIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "producer")),
+    actor: Principal = Depends(require_permission("project.create")),
 ):
     pool = await get_pool()
     cid = await pool.fetchval(
@@ -452,7 +452,7 @@ async def update_campaign(
     campaign_id: int,
     body: CampaignPatch,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "producer")),
+    actor: Principal = Depends(require_permission("project.edit")),
 ):
     pool = await get_pool()
     updates = body.model_dump(exclude_unset=True)
@@ -523,7 +523,7 @@ async def list_projects(
 async def create_project(
     body: ProjectIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "producer", "editor")),
+    actor: Principal = Depends(require_permission("project.create")),
 ):
     pool = await get_pool()
     pid = await pool.fetchval(
@@ -579,7 +579,7 @@ async def update_project(
     project_id: int,
     body: ProjectPatch,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "producer", "editor")),
+    actor: Principal = Depends(require_permission("project.edit")),
 ):
     pool = await get_pool()
     updates = body.model_dump(exclude_unset=True)
@@ -612,7 +612,7 @@ async def update_project(
 async def delete_project(
     project_id: int,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("project.delete")),
 ):
     pool = await get_pool()
     res = await pool.execute("DELETE FROM projects WHERE id=$1", project_id)
@@ -645,7 +645,7 @@ async def set_member_role(
     user_id: int,
     body: MemberRolePatch,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("workspace.members.role.change")),
 ):
     pool = await get_pool()
     VALID_ROLES = {"owner", "admin", "producer", "editor", "viewer"}
@@ -681,7 +681,7 @@ async def set_member_role(
 async def remove_member(
     user_id: int,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("workspace.members.remove")),
 ):
     pool = await get_pool()
     target_role = await pool.fetchval(
@@ -738,7 +738,7 @@ async def list_invites(p: Principal = Depends(principal_dep)):
 async def create_invite(
     body: InviteIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("workspace.members.invite")),
 ):
     if body.role not in VALID_INVITE_ROLES:
         raise HTTPException(400, f"Invalid role. Choose from: {', '.join(sorted(VALID_INVITE_ROLES))}")
@@ -808,7 +808,7 @@ async def create_invite(
 async def revoke_invite(
     invite_id: int,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("workspace.members.invite")),
 ):
     pool = await get_pool()
     res = await pool.execute(
@@ -829,7 +829,7 @@ class IntegrationPatch(BaseModel):
 
 
 @router.get("/integrations")
-async def get_integrations(actor: Principal = Depends(require_role("owner", "admin"))):
+async def get_integrations(actor: Principal = Depends(require_permission("workspace.integrations.view"))):
     pool = await get_pool()
     row = await pool.fetchrow(
         "SELECT slack_webhook_url FROM workspace_integrations WHERE workspace_id=$1",
@@ -844,7 +844,7 @@ async def get_integrations(actor: Principal = Depends(require_role("owner", "adm
 async def update_integrations(
     body: IntegrationPatch,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("workspace.integrations.manage")),
 ):
     pool = await get_pool()
     await pool.execute(
@@ -882,7 +882,7 @@ async def get_settings(
 async def upsert_setting(
     body: EntitySettingUpsert,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_permission("workspace.settings.edit")),
 ):
     pool = await get_pool()
     VALID_SCOPES = {"system","workspace","brand","channel","series","campaign","project"}
