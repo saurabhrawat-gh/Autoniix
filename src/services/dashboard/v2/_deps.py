@@ -15,6 +15,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src.db import get_pool
 
+from ._membership import check_membership  # re-exported so tests can monkeypatch
+
 logger = structlog.get_logger()
 
 _security = HTTPBearer(auto_error=False)
@@ -78,7 +80,6 @@ async def principal_dep(
             )
             # Membership revocation check — skip for legacy/system tokens
             if uid is not None:
-                from ._membership import check_membership
                 still_member = await check_membership(uid, wid)
                 if not still_member:
                     raise HTTPException(

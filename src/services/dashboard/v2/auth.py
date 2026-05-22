@@ -452,11 +452,39 @@ async def forgot(body: ForgotIn):
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
     reset_link = f"{frontend_url}/reset-password?token={raw}"
 
-    from ._resend import send_email as _resend_send, is_configured as _resend_configured
-    _resend_send("forgot-password", body.email, {"email": body.email, "reset_link": reset_link})
+    from . import _email
+    subject_prefix = os.getenv("MAIL_SUBJECT_PREFIX", "").strip()
+    subject = "Reset your Autoniix password"
+    if subject_prefix:
+        subject = f"{subject_prefix} {subject}"
+    text_body = (
+        f"To reset your password, open this link (expires in 1 hour):\n\n{reset_link}\n"
+    )
+    html_body = (
+        f'<p>To reset your password, click the link below '
+        f'(expires in 1 hour):</p><p><a href="{reset_link}">{reset_link}</a></p>'
+    )
+    try:
+        await _email.send_email(
+            to=body.email, subject=subject, html=html_body, text=text_body
+        )
+    except Exception:
+        # Best-effort delivery — never bubble up email failures to the user.
+        pass
+
+    # Also enqueue the templated Resend send (no-op when RESEND_API_KEY unset).
+    try:
+        from ._resend import send_email as _resend_send
+        _resend_send(
+            "forgot-password",
+            body.email,
+            {"email": body.email, "reset_link": reset_link},
+        )
+    except Exception:
+        pass
 
     is_prod = os.getenv("ENVIRONMENT_MODE", "test").lower() == "production"
-    if not _resend_configured() and not is_prod:
+    if not _email.is_configured() and not is_prod:
         return {"status": "ok", "reset_token": raw}
     return {"status": "ok"}
 
