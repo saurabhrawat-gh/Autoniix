@@ -135,6 +135,26 @@ export default function ProviderCategoryPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [creds.length]);
 
+  // AE-75 — real-time health badge updates via SSE
+  useEffect(() => {
+    const es = new EventSource(
+      providersApi.healthStreamUrl(decoded),
+      { withCredentials: true },
+    );
+    es.addEventListener('health_change', (e: MessageEvent) => {
+      try {
+        const evt = JSON.parse(e.data);
+        setCreds(prev => prev.map((c: any) =>
+          c.id === evt.credential_id
+            ? { ...c, last_health_ok: evt.ok, last_health_at: evt.at }
+            : c,
+        ));
+      } catch { /* ignore malformed event */ }
+    });
+    es.onerror = () => { /* auto-reconnects */ };
+    return () => es.close();
+  }, [decoded]);
+
   const saveChain = (ids: number[]) =>
     providersApi.upsertChainV2({
       scope: 'workspace',

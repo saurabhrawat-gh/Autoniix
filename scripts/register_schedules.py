@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from datetime import timedelta
 
 from temporalio.client import Client, Schedule, ScheduleActionStartWorkflow
 from temporalio.client import ScheduleCalendarSpec, ScheduleRange
@@ -61,15 +62,35 @@ _SCHEDULES: list[dict] = [
         "cron": "0 7 * * *",  # Daily 07:00 UTC — trigger video production
         "note": "Daily video production trigger for all active channels",
     },
+    {
+        "id": "provider-health-beat",
+        "workflow": "HealthBeatWorkflow",
+        "task_queue": "scheduler",
+        "cron": "*/5 * * * *",  # Every 5 minutes
+        "note": "AE-75: Health-check all enabled provider credentials every 5 min",
+    },
 ]
 
 
 def _cron_to_spec(cron: str) -> ScheduleSpec:
-    """Convert a simple 5-field cron string to a ScheduleSpec."""
+    """Convert a simple 5-field cron string to a ScheduleSpec.
+
+    Supports:
+    - ``*``          — wildcard (match all)
+    - integer        — exact value
+    - ``*/N``        — every N units → converted to a ScheduleIntervalSpec
+    """
+    from temporalio.client import ScheduleIntervalSpec
+
     parts = cron.split()
     if len(parts) != 5:
         raise ValueError(f"Expected 5-field cron, got: {cron!r}")
     minute, hour, dom, month, dow = parts
+
+    # Detect interval-only expressions like "*/5 * * * *"
+    if minute.startswith("*/") and all(p == "*" for p in [hour, dom, month, dow]):
+        interval_minutes = int(minute[2:])
+        return ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=interval_minutes))])
 
     def _range(val: str, offset: int = 0) -> list[ScheduleRange]:
         if val == "*":

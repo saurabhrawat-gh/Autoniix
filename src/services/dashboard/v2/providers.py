@@ -24,6 +24,7 @@ Wave 2 additions:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import Any
@@ -1564,6 +1565,71 @@ async def set_chain_entry_enabled(
         content_mode=row["content_mode"],
     )
     return {"status": "ok", "enabled": body.enabled}
+
+
+@router.get("/health-stream")
+async def health_stream(
+    category: str | None = Query(default=None, description="Filter events to a specific provider category"),
+    actor: Principal = Depends(principal_dep),
+):
+    """Server-Sent Events endpoint — streams real-time provider health changes.
+
+    The frontend subscribes via ``EventSource``. Each time a credential's
+    health status changes (detected by the Temporal health beat every 5 min),
+    this endpoint emits a ``health_change`` SSE event.
+
+    A ``heartbeat`` comment is emitted every 25 s to keep proxies alive.
+    """
+    from fastapi.responses import StreamingResponse
+    from src.workers.provider_health_beat import HEALTH_PUBSUB_CHANNEL
+
+    async def _event_generator():  # type: ignore[return]
+        try:
+            from src.redis_client import get_redis
+            redis = await get_redis()
+            pubsub = redis.pubsub()
+            await pubsub.subscribe(HEALTH_PUBSUB_CHANNEL)
+            while True:
+                try:
+                    msg = await asyncio.wait_for(
+                        pubsub.get_message(ignore_subscribe_messages=True, timeout=25),
+                        timeout=30,
+                    )
+                except asyncio.TimeoutError:
+                    yield ": heartbeat\n\n"
+                    continue
+                if msg and msg.get("type") == "message":
+                    raw = msg.get("data", "")
+                    if category:
+                        try:
+                            parsed = json.loads(raw)
+                            if parsed.get("category") != category:
+                                continue
+                        except Exception:
+                            pass
+                    yield f"event: health_change\ndata: {raw}\n\n"
+                else:
+                    yield ": heartbeat\n\n"
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:  # noqa: BLE001
+            yield f"event: error\ndata: {json.dumps({'error': str(exc)})}\n\n"
+        finally:
+            try:
+                await pubsub.unsubscribe(HEALTH_PUBSUB_CHANNEL)
+                await pubsub.aclose()
+            except Exception:  # noqa: BLE001
+                pass
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.post("/_admin/clean-slate")
