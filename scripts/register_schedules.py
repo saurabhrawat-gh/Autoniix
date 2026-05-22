@@ -61,6 +61,13 @@ _SCHEDULES: list[dict] = [
         "cron": "0 7 * * *",  # Daily 07:00 UTC — trigger video production
         "note": "Daily video production trigger for all active channels",
     },
+    {
+        "id": "change-request-expiry",
+        "workflow": "ChangeRequestExpiryWorkflow",
+        "task_queue": "scheduler",
+        "cron": "0 * * * *",  # Hourly
+        "note": "AE-76: Expire stale provider change requests after 7 days",
+    },
 ]
 
 
