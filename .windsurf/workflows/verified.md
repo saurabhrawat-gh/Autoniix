@@ -52,7 +52,11 @@ Call `mcp0_update_issue`:
 - Remove label: `in-qa`
 - Add label: `qa-verified`
 
-**3.3 Post comment**
+**3.3 Transition Jira**
+- Look up the Jira key for this issue via `scripts/migration/state/issue_map.json`
+- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, transition id `51` (→ QA Verified)
+
+**3.4 Post comment**
 Call `mcp0_add_issue_comment`:
 ```
 ✅ **QA Verified** — confirmed by product owner after local testing on `develop`.
@@ -65,7 +69,7 @@ GitHub Actions will now automatically:
 Next: verify at https://dash.autoniix.com once deployed.
 ```
 
-**3.4 Continue to next issue.**
+**3.5 Continue to next issue.**
 
 ---
 
@@ -86,7 +90,12 @@ Print:
 - Call `mcp0_update_issue` with the updated `body` to write the ticked checkboxes back.
 - Print: "Ticked {N} acceptance criteria checkboxes."
 
-**4.3 Add prod-verified label**
+**4.3 Transition Jira**
+- Look up the Jira key for this issue via `scripts/migration/state/issue_map.json`
+- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, transition id `4` (→ Prod Verified)
+- Then call `mcp0_transitionJiraIssue` with transition id `5` (→ Done)
+
+**4.4 Add prod-verified label**
 Call `mcp0_update_issue`:
 - Add label: `prod-verified`
 
@@ -94,7 +103,7 @@ GitHub Actions `on-prod-verified` job fires automatically:
 - Sees zero unchecked ACs → posts "✅ Production Verified — Closing" → closes the issue
 - Epic rollup runs if this was a child story
 
-**4.4 Post comment**
+**4.5 Post comment**
 Call `mcp0_add_issue_comment`:
 ```
 ✅ **Production Verified** — confirmed by product owner on https://dash.autoniix.com.
@@ -103,7 +112,7 @@ All acceptance criteria have been marked complete.
 GitHub Actions is closing this issue now.
 ```
 
-**4.5 Continue to next issue.**
+**4.6 Continue to next issue.**
 
 ---
 
