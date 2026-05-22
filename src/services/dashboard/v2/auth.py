@@ -145,6 +145,7 @@ class RegisterIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
     display_name: str | None = None
+    workspace_name: str = Field(min_length=2, max_length=60)
 
 
 class LoginIn(BaseModel):
@@ -206,39 +207,46 @@ async def register(body: RegisterIn, request: Request):
             "SELECT id FROM users WHERE lower(email)=lower($1)", body.email
         )
         if existing:
-            raise HTTPException(409, "Email already registered")
-        verify_token = secrets.token_urlsafe(32)
-        uid = await conn.fetchval(
-            """INSERT INTO users (email, display_name, password_hash, role,
-                                  email_verify_token, email_verified)
-               VALUES ($1,$2,$3,$4,$5,TRUE) RETURNING id""",
-            body.email.lower(), body.display_name, _hash_pw(body.password),
-            "owner", verify_token,
-        )
-        # Each registration creates a fresh workspace owned by this user
-        ws_name = (body.display_name or body.email.split("@")[0]).title() + "'s Workspace"
-        ws_slug = body.email.split("@")[0].lower().replace(".", "-")[:60]
-        # Make slug unique if colliding
-        suffix = 0
-        while await conn.fetchval("SELECT id FROM workspaces WHERE slug=$1", ws_slug if suffix == 0 else f"{ws_slug}-{suffix}"):
-            suffix += 1
-        if suffix:
-            ws_slug = f"{ws_slug}-{suffix}"
-        ws_id = await conn.fetchval(
-            """INSERT INTO workspaces (name, slug, plan, owner_user_id, billing_email)
-               VALUES ($1,$2,'starter',$3,$4) RETURNING id""",
-            ws_name, ws_slug, uid, body.email.lower(),
-        )
-        # Add to workspace_members as owner
-        await conn.execute(
-            "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1,$2,'owner')",
-            ws_id, uid,
-        )
-        # Set active workspace
-        await conn.execute(
-            "UPDATE users SET active_workspace_id=$1 WHERE id=$2", ws_id, uid
-        )
-    return {"status": "ok", "user_id": uid, "workspace_id": ws_id, "role": "owner"}
+            raise HTTPException(409, "An account with this email already exists")
+        async with conn.transaction():
+            verify_token = secrets.token_urlsafe(32)
+            uid = await conn.fetchval(
+                """INSERT INTO users (email, display_name, password_hash, role,
+                                      email_verify_token, email_verified)
+                   VALUES ($1,$2,$3,$4,$5,TRUE) RETURNING id""",
+                body.email.lower(), body.display_name, _hash_pw(body.password),
+                "owner", verify_token,
+            )
+            ws_name = body.workspace_name.strip()
+            ws_slug = body.workspace_name.strip().lower().replace(" ", "-")[:60]
+            # Make slug unique if colliding
+            suffix = 0
+            while await conn.fetchval(
+                "SELECT id FROM workspaces WHERE slug=$1",
+                ws_slug if suffix == 0 else f"{ws_slug}-{suffix}",
+            ):
+                suffix += 1
+            if suffix:
+                ws_slug = f"{ws_slug}-{suffix}"
+            ws_id = await conn.fetchval(
+                """INSERT INTO workspaces (name, slug, plan, owner_user_id, billing_email)
+                   VALUES ($1,$2,'starter',$3,$4) RETURNING id""",
+                ws_name, ws_slug, uid, body.email.lower(),
+            )
+            await conn.execute(
+                "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1,$2,'owner')",
+                ws_id, uid,
+            )
+            await conn.execute(
+                "UPDATE users SET active_workspace_id=$1 WHERE id=$2", ws_id, uid
+            )
+    # Welcome email (fire-and-forget)
+    from ._resend import send_email as _resend_send
+    _resend_send("welcome-new-user", body.email, {
+        "name": body.display_name or body.email,
+        "workspace_name": ws_name,
+    })
+    return {"status": "ok", "user_id": uid, "workspace_id": ws_id, "role": "owner", "onboarding_required": True}
 
 
 @router.post("/login")
@@ -444,11 +452,39 @@ async def forgot(body: ForgotIn):
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
     reset_link = f"{frontend_url}/reset-password?token={raw}"
 
-    from ._resend import send_email as _resend_send, is_configured as _resend_configured
-    _resend_send("forgot-password", body.email, {"email": body.email, "reset_link": reset_link})
+    from . import _email
+    subject_prefix = os.getenv("MAIL_SUBJECT_PREFIX", "").strip()
+    subject = "Reset your Autoniix password"
+    if subject_prefix:
+        subject = f"{subject_prefix} {subject}"
+    text_body = (
+        f"To reset your password, open this link (expires in 1 hour):\n\n{reset_link}\n"
+    )
+    html_body = (
+        f'<p>To reset your password, click the link below '
+        f'(expires in 1 hour):</p><p><a href="{reset_link}">{reset_link}</a></p>'
+    )
+    try:
+        await _email.send_email(
+            to=body.email, subject=subject, html=html_body, text=text_body
+        )
+    except Exception:
+        # Best-effort delivery — never bubble up email failures to the user.
+        pass
+
+    # Also enqueue the templated Resend send (no-op when RESEND_API_KEY unset).
+    try:
+        from ._resend import send_email as _resend_send
+        _resend_send(
+            "forgot-password",
+            body.email,
+            {"email": body.email, "reset_link": reset_link},
+        )
+    except Exception:
+        pass
 
     is_prod = os.getenv("ENVIRONMENT_MODE", "test").lower() == "production"
-    if not _resend_configured() and not is_prod:
+    if not _email.is_configured() and not is_prod:
         return {"status": "ok", "reset_token": raw}
     return {"status": "ok"}
 

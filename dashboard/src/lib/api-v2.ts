@@ -58,6 +58,30 @@ async function request<T = any>(path: string, opts: RequestInit = {}, _isRetry =
     if (typeof window !== 'undefined') window.location.href = '/login';
     throw new Error('Unauthorized');
   }
+  if (res.status === 403) {
+    const body = await res.json().catch(() => ({}));
+    if (body.detail === 'workspace_access_revoked' && typeof window !== 'undefined') {
+      // Try auto-switching to next available workspace
+      try {
+        const wRes = await fetch(`${BASE}/api/v2/auth/workspaces`, { headers, credentials: 'include' });
+        if (wRes.ok) {
+          const wData: { data: Array<{ id: number; active: boolean }> } = await wRes.json();
+          const next = wData.data.find(w => !w.active);
+          if (next) {
+            await fetch(`${BASE}/api/v2/auth/switch-workspace`, {
+              method: 'POST', headers, credentials: 'include',
+              body: JSON.stringify({ workspace_id: next.id }),
+            });
+            window.location.href = '/dashboard';
+            throw new Error('workspace_access_revoked');
+          }
+        }
+      } catch {}
+      window.location.href = '/register?reason=no_workspace';
+      throw new Error('workspace_access_revoked');
+    }
+    throw new Error(body.detail || body.error || `HTTP ${res.status}`);
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.detail || body.error || `HTTP ${res.status}`);
@@ -76,8 +100,8 @@ export const flagsApi = {
 export const authApi = {
   mode: () =>
     fetch(`${BASE}/api/v2/auth/mode`).then(r => r.json()) as Promise<{ v2_enabled: boolean; legacy_enabled: boolean }>,
-  register: (email: string, password: string, display_name?: string) =>
-    request('/api/v2/auth/register', { method: 'POST', body: JSON.stringify({ email, password, display_name }) }),
+  register: (email: string, password: string, workspace_name: string, display_name?: string) =>
+    request('/api/v2/auth/register', { method: 'POST', body: JSON.stringify({ email, password, workspace_name, display_name }) }),
   login: async (email: string, password: string, mfa_code?: string) => {
     // Use raw fetch — NOT the request() wrapper — so a 401 from the login
     // endpoint is surfaced as an error to the caller instead of triggering
@@ -112,7 +136,7 @@ export const authApi = {
     clearToken();
     return request('/api/v2/auth/logout', { method: 'POST' });
   },
-  me: () => request<{ data: { user_id: number | null; email: string | null; role: string; source: string } }>('/api/v2/auth/me'),
+  me: () => request<{ data: { user_id: number | null; email: string | null; role: string; source: string; display_name: string | null; initials: string; permissions: string[] } }>('/api/v2/auth/me'),
   forgot: (email: string) =>
     request<{ reset_token?: string }>('/api/v2/auth/forgot', { method: 'POST', body: JSON.stringify({ email }) }),
   reset: (token: string, password: string) =>
@@ -526,6 +550,19 @@ export const workspaceApi = {
     request<{ data: { slack_webhook_url: string | null } }>('/api/v2/workspace/integrations'),
   updateIntegrations: (body: { slack_webhook_url?: string | null }) =>
     request('/api/v2/workspace/integrations', { method: 'PUT', body: JSON.stringify(body) }),
+};
+
+// Entity settings
+export const settingsApi = {
+  get: (scope: string, scope_id: string) =>
+    request<{ data: Array<{ key: string; value: any; locked: boolean }> }>(
+      `/api/v2/workspace/settings?scope=${encodeURIComponent(scope)}&scope_id=${encodeURIComponent(scope_id)}`
+    ),
+  set: (scope: string, scope_id: string, key: string, value: any, locked = false) =>
+    request('/api/v2/workspace/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ scope, scope_id, key, value, locked }),
+    }),
 };
 
 // Brands

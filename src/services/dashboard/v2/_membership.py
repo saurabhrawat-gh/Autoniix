@@ -21,6 +21,8 @@ from typing import Any
 
 import structlog
 
+from src.db import get_pool  # re-exported at module level so tests can monkeypatch
+
 logger = structlog.get_logger()
 
 _TTL_SECONDS = 30.0
@@ -53,7 +55,6 @@ async def check_membership(user_id: int, workspace_id: int) -> bool:
     if cached is not None:
         return cached[0]
 
-    from src.db import get_pool
     try:
         pool = await get_pool()
         row = await pool.fetchval(

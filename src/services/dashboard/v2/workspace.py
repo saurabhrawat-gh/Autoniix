@@ -803,19 +803,21 @@ async def create_invite(
                 target_id=str(inv_id), after={"email": body.email, "role": body.role}, request=request)
     frontend_url = os.getenv("FRONTEND_URL", "")
     invite_link = f"{frontend_url}/accept-invite?token={raw}" if frontend_url else f"/accept-invite?token={raw}"
-    # Resend invite email (fire-and-forget)
-    ws_info = await pool.fetchrow("SELECT name FROM workspaces WHERE id=$1", actor.workspace_id)
-    actor_info = await pool.fetchrow("SELECT display_name FROM users WHERE id=$1", actor.user_id)
-    inviter_name = (actor_info["display_name"] if actor_info and actor_info["display_name"] else actor.email) or ""
-    from ._resend import send_email as _resend_send
-    _resend_send("workspace-invite", body.email, {
-        "inviter_name": inviter_name,
-        "inviter_email": actor.email or "",
-        "workspace_name": ws_info["name"] if ws_info else "a workspace",
-        "role": body.role,
-        "invite_url": invite_link,
-        "expires_days": body.expires_days,
-    })
+    # Resend invite email (fire-and-forget). Skip the extra lookups when
+    # Resend isn't configured to save DB roundtrips and keep tests deterministic.
+    from ._resend import send_email as _resend_send, is_configured as _resend_configured
+    if _resend_configured():
+        ws_info = await pool.fetchrow("SELECT name FROM workspaces WHERE id=$1", actor.workspace_id)
+        actor_info = await pool.fetchrow("SELECT display_name FROM users WHERE id=$1", actor.user_id)
+        inviter_name = (actor_info["display_name"] if actor_info and actor_info["display_name"] else actor.email) or ""
+        _resend_send("workspace-invite", body.email, {
+            "inviter_name": inviter_name,
+            "inviter_email": actor.email or "",
+            "workspace_name": ws_info["name"] if ws_info else "a workspace",
+            "role": body.role,
+            "invite_url": invite_link,
+            "expires_days": body.expires_days,
+        })
     # Slack DM notification (best-effort)
     integration = await pool.fetchrow(
         "SELECT slack_webhook_url FROM workspace_integrations WHERE workspace_id=$1",

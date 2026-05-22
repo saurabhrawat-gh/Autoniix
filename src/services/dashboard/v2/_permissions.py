@@ -16,6 +16,8 @@ from typing import Any
 
 import structlog
 
+from src.db import get_pool  # re-exported at module level so tests can monkeypatch
+
 logger = structlog.get_logger()
 
 _TTL_SECONDS = 30.0
@@ -48,7 +50,6 @@ async def get_permissions_for_role(role: str) -> frozenset[str]:
     if cached:
         return cached[0]
 
-    from src.db import get_pool
     try:
         pool = await get_pool()
         rows = await pool.fetch(
