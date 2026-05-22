@@ -93,6 +93,19 @@ if _HAS_INSTRUMENTATOR:
         "Quality gate evaluations that did not meet threshold.",
         labelnames=("service", "gate"),
     )
+
+    # AE-75 — provider health beat metrics
+    PROVIDER_HEALTH_UNHEALTHY = Counter(
+        "provider_credentials_unhealthy_total",
+        "Number of provider credentials that failed their health check.",
+        labelnames=("category",),
+    )
+    PROVIDER_HEALTH_CHECK_DURATION = Histogram(
+        "provider_health_check_duration_ms",
+        "Duration of a single provider credential health check in milliseconds.",
+        labelnames=("provider_name",),
+        buckets=(10, 50, 100, 250, 500, 1000, 2000, 5000, 10000),
+    )
 else:  # pragma: no cover
     class _Noop:
         def labels(self, *_a: Any, **_kw: Any) -> "_Noop": return self
@@ -109,6 +122,8 @@ else:  # pragma: no cover
     YT_VIDEOS_COMPLETED = _Noop()  # type: ignore
     YT_QC_CHECKED = _Noop()  # type: ignore
     YT_QC_FAILED = _Noop()  # type: ignore
+    PROVIDER_HEALTH_UNHEALTHY = _Noop()  # type: ignore
+    PROVIDER_HEALTH_CHECK_DURATION = _Noop()  # type: ignore
 
 
 def instrument_app(app: Any, *, service_name: str) -> None:

@@ -313,6 +313,11 @@ export const providersApi = {
     request<{ data: { name: string; label: string; description: string | null; sort_order: number; is_system: boolean }[] }>(
       '/api/v2/providers/content-modes'
     ),
+  healthStreamUrl: (category?: string) => {
+    const q = new URLSearchParams();
+    if (category) q.set('category', category);
+    return `/api/v2/providers/health-stream?${q}`;
+  },
   registeredProviders: (category: string) =>
     request<{ data: {
       provider_name: string;

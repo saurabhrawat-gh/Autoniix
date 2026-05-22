@@ -36,6 +36,10 @@ from src.temporal_workflows.retention_activities import (
     list_videos_needing_retention_activity,
     fetch_retention_for_video_activity,
 )
+from src.workers.provider_health_beat import (
+    HealthBeatWorkflow,
+    check_all_provider_health,
+)
 from src.workers.activities.common import (
     acquire_channel_lock,
     check_system_status,
@@ -67,6 +71,7 @@ async def main() -> None:
             GateCalibrationWorkflow,
             NichePulseRefreshWorkflow,
             RetentionFetchWorkflow,
+            HealthBeatWorkflow,
         ],
         activities=[
             check_system_status,
@@ -87,6 +92,8 @@ async def main() -> None:
             # Phase 9 — retention-curve fetch activities
             list_videos_needing_retention_activity,
             fetch_retention_for_video_activity,
+            # AE-75 — provider health beat
+            check_all_provider_health,
         ],
         max_concurrent_activities=settings.temporal_scheduler_max_activities,
     )
