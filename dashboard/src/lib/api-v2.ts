@@ -242,11 +242,42 @@ export const providersApi = {
       `/api/v2/providers/credentials/${id}/test`,
       { method: 'POST' }
     ),
-  rotateCredential: (id: number, secret_value: string, secret_key = 'api_key') =>
+  rotateCredential: (id: number, secret_value: string, secret_key = 'api_key', hint?: string) =>
     request(`/api/v2/providers/credentials/${id}/rotate`, {
       method: 'POST',
-      body: JSON.stringify({ secret_value, secret_key }),
+      body: JSON.stringify({ secret_value, secret_key, hint }),
     }),
+  createCredentialFromWizard: (body: {
+    category: string; provider_key: string; label: string;
+    wizard_fields: Record<string, string | boolean>;
+    model?: string | null; channel_id?: string | null;
+    content_mode?: string | null;
+  }) =>
+    request<{ id: number; label: string; vault_path: string }>(
+      '/api/v2/providers/credentials/from-wizard',
+      { method: 'POST', body: JSON.stringify(body) }
+    ),
+  setupChecklist: () =>
+    request<{ data: Array<{
+      category: string; label: string; required: boolean;
+      configured: boolean; healthy: boolean | null;
+    }> }>('/api/v2/providers/setup-checklist'),
+  rotationStatus: (id: number) =>
+    request<{
+      id: number; label: string; category: string; provider_name: string;
+      rotated_at: string | null; rotation_hint: string | null;
+      days_since_rotation: number | null; overdue: boolean; warn_after_days: number;
+    }>(`/api/v2/providers/credentials/${id}/rotation-status`),
+  allRotationStatus: (params?: { category?: string; overdue_only?: boolean }) => {
+    const q = new URLSearchParams();
+    if (params?.category) q.set('category', params.category);
+    if (params?.overdue_only) q.set('overdue_only', 'true');
+    return request<{ data: Array<{
+      id: number; label: string; category: string; provider_name: string;
+      rotated_at: string | null; rotation_hint: string | null;
+      days_since_rotation: number | null; overdue: boolean; warn_after_days: number;
+    }> }>(`/api/v2/providers/credentials/rotation-status${q.toString() ? '?' + q : ''}`);
+  },
   chain: (category: string) => request<{ data: any[] }>(`/api/v2/providers/chains/${category}`),
   setChain: (category: string, credential_ids: number[]) =>
     request(`/api/v2/providers/chains/${category}`, {
@@ -282,6 +313,11 @@ export const providersApi = {
     request<{ data: { name: string; label: string; description: string | null; sort_order: number; is_system: boolean }[] }>(
       '/api/v2/providers/content-modes'
     ),
+  healthStreamUrl: (category?: string) => {
+    const q = new URLSearchParams();
+    if (category) q.set('category', category);
+    return `/api/v2/providers/health-stream?${q}`;
+  },
   registeredProviders: (category: string) =>
     request<{ data: {
       provider_name: string;
@@ -291,6 +327,12 @@ export const providersApi = {
       has_free_tier: boolean | null;
       default_model: string | null;
       supported_models: string[];
+      config_schema: Array<{
+        name: string; type: string; label: string; required: boolean;
+        hint?: string; placeholder?: string; options?: string[];
+      }>;
+      docs_url: string | null;
+      pricing_tier: string | null;
     }[] }>(
       `/api/v2/providers/registered?category=${encodeURIComponent(category)}`
     ),
@@ -700,4 +742,94 @@ export const systemApi = {
   fleetHealth: () => request<{ status: string; data: any }>('/api/v2/system/fleet-health'),
   environment: () => request<{ status: string; data: any }>('/api/v2/system/environment'),
   cleanSlate: () => request('/api/v2/system/clean-slate', { method: 'POST' }),
+};
+
+export type ChangeRequestType =
+  | 'add_credential'
+  | 'change_chain_priority'
+  | 'remove_credential'
+  | 'change_model'
+  | 'rotate_credential';
+
+export type ChangeRequestStatus =
+  | 'pending_admin'
+  | 'pending_owner'
+  | 'applied'
+  | 'rejected_by_admin'
+  | 'rejected_by_owner'
+  | 'expired';
+
+export interface ChangeRequest {
+  id: number;
+  workspace_id: number;
+  requested_by: number;
+  requester_name: string | null;
+  requester_email: string | null;
+  requested_at: string;
+  request_type: ChangeRequestType;
+  category: string;
+  provider_name: string | null;
+  payload: Record<string, unknown>;
+  reason: string;
+  status: ChangeRequestStatus;
+  admin_reviewed_by: number | null;
+  admin_reviewer_name: string | null;
+  admin_reviewed_at: string | null;
+  admin_note: string | null;
+  owner_reviewed_by: number | null;
+  owner_reviewer_name: string | null;
+  owner_reviewed_at: string | null;
+  owner_note: string | null;
+  applied_at: string | null;
+  expires_at: string;
+  created_at: string;
+}
+
+export const changeRequestsApi = {
+  list: (params?: { status?: string; category?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.category) q.set('category', params.category);
+    return request<{ status: string; data: ChangeRequest[] }>(`/api/v2/providers/change-requests?${q}`);
+  },
+  create: (body: {
+    request_type: ChangeRequestType;
+    category: string;
+    provider_name?: string;
+    payload?: Record<string, unknown>;
+    reason: string;
+  }) =>
+    request<{ status: string; data: { id: number } }>('/api/v2/providers/change-requests', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  get: (id: number) =>
+    request<{ status: string; data: ChangeRequest }>(`/api/v2/providers/change-requests/${id}`),
+  adminReview: (id: number, action: 'approve_forward' | 'reject', note?: string) =>
+    request<{ status: string; data: { new_status: string } }>(
+      `/api/v2/providers/change-requests/${id}/admin-review`,
+      { method: 'POST', body: JSON.stringify({ action, note }) },
+    ),
+  ownerReview: (id: number, action: 'approve' | 'reject', note?: string) =>
+    request<{ status: string; data: { new_status: string } }>(
+      `/api/v2/providers/change-requests/${id}/owner-review`,
+      { method: 'POST', body: JSON.stringify({ action, note }) },
+    ),
+};
+
+export interface YouTubeOAuthStatus {
+  connected: boolean;
+  channel_name?: string | null;
+  channel_avatar?: string | null;
+  channel_id?: string | null;
+  connected_at?: string | null;
+  missing_scopes?: string[];
+}
+
+export const youtubeOAuthApi = {
+  authUrl: () => '/api/v2/providers/youtube/auth',
+  status: () =>
+    request<{ status: string; data: YouTubeOAuthStatus }>('/api/v2/providers/youtube/status'),
+  disconnect: () =>
+    request('/api/v2/providers/youtube/disconnect', { method: 'DELETE' }),
 };

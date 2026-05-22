@@ -105,6 +105,7 @@ class Settings(BaseSettings):
     google_oauth_client_id: str = ""
     google_oauth_client_secret: str = ""
     google_oauth_refresh_token: str = ""
+    google_oauth_redirect_uri: str = "https://dash.autoniix.com/api/v2/providers/youtube/callback"
 
     # Google Sheets Sync
     google_sheets_id: str = "11-vlRvjXfDVLQMnrHzuujE5A1i4luy2DG-ycUtsS-c4"

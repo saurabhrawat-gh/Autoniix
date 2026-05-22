@@ -24,6 +24,7 @@ Wave 2 additions:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import Any
@@ -57,12 +58,28 @@ class CredentialIn(BaseModel):
     category: str
     provider_name: str
     label: str
-    secret_value: str          # API key or token; write-only
+    secret_value: str = ""    # API key or token; write-only. Empty = no-key provider.
     secret_key: str = "api_key"
     model: str | None = None   # pinned model (validated against supported_models())
     extra_config: dict = Field(default_factory=dict)
     channel_id: str | None = None    # NULL = workspace-level
     content_mode: str | None = None  # NULL = all modes
+
+
+class WizardCredentialIn(BaseModel):
+    """Flat form body from the catalog wizard.
+
+    The wizard POSTs all form fields in ``wizard_fields``; this endpoint
+    splits them into secret vault entries and ``extra_config`` using the
+    provider's ``config_schema`` from ``provider_marketplace_catalog``.
+    """
+    category: str
+    provider_key: str           # matches provider_marketplace_catalog.provider_key
+    label: str
+    wizard_fields: dict         # {field_name: value} from the wizard form
+    model: str | None = None
+    channel_id: str | None = None
+    content_mode: str | None = None
 
 
 class CredentialPatch(BaseModel):
@@ -75,6 +92,7 @@ class CredentialPatch(BaseModel):
 class RotateIn(BaseModel):
     secret_value: str
     secret_key: str = "api_key"
+    hint: str | None = None   # human note stored in rotation_hint column
 
 
 class ChainIn(BaseModel):
@@ -172,11 +190,14 @@ async def create_credential(
 
     path = _vault_path(body.category, body.provider_name, body.label)
 
-    backend_used = "env"
-    try:
-        backend_used = put_secret_at(path, body.secret_key, body.secret_value)
-    except Exception as exc:
-        raise HTTPException(500, f"Failed to store secret: {exc}")
+    if body.secret_value:
+        backend_used = "env"
+        try:
+            backend_used = put_secret_at(path, body.secret_key, body.secret_value)
+        except Exception as exc:
+            raise HTTPException(500, f"Failed to store secret: {exc}")
+    else:
+        backend_used = "none"
 
     scope_priority = 0
     if body.channel_id and body.content_mode:
@@ -202,6 +223,73 @@ async def create_credential(
                 request=request)
     await publish_invalidate(category=body.category)
     return {"status": "ok", "id": cid, "vault_path": path, "backend": backend_used}
+
+
+@router.post("/credentials/from-wizard")
+async def create_credential_from_wizard(
+    body: WizardCredentialIn,
+    request: Request,
+    actor: Principal = Depends(_require_cred_actor),
+):
+    """Catalog-wizard endpoint. Splits ``wizard_fields`` into vault secrets and
+    extra_config using the provider's ``config_schema``, then delegates to the
+    standard credential creation logic.
+
+    Password-type fields → stored in vault (only the first one used as api_key).
+    All other field types → stored in extra_config for the provider to read.
+    """
+    pool = await get_pool()
+    catalog_row = await pool.fetchrow(
+        """SELECT config_schema, category, provider_key
+             FROM provider_marketplace_catalog WHERE provider_key=$1""",
+        body.provider_key,
+    )
+    if not catalog_row:
+        raise HTTPException(400, f"Unknown provider_key {body.provider_key!r}")
+
+    schema: list[dict] = catalog_row["config_schema"] or []
+
+    # Validate required fields
+    missing = [
+        f["name"]
+        for f in schema
+        if f.get("required") and not body.wizard_fields.get(f["name"])
+    ]
+    if missing:
+        raise HTTPException(
+            422,
+            f"Required wizard field(s) missing: {', '.join(missing)}",
+        )
+
+    # Split fields: password type → vault secret; others → extra_config
+    secret_value = ""
+    secret_key = "api_key"
+    extra_config: dict = {}
+    for field in schema:
+        name = field["name"]
+        value = body.wizard_fields.get(name)
+        if value is None:
+            continue
+        if field.get("type") == "password":
+            if not secret_value:   # only first password field is the primary key
+                secret_value = str(value)
+                secret_key = name
+        else:
+            extra_config[name] = value
+
+    cred_in = CredentialIn(
+        category=body.category,
+        provider_name=body.provider_key,
+        label=body.label,
+        secret_value=secret_value,
+        secret_key=secret_key,
+        model=body.model,
+        extra_config=extra_config,
+        channel_id=body.channel_id,
+        content_mode=body.content_mode,
+    )
+    # Reuse the standard create flow by directly calling the helper
+    return await create_credential(cred_in, request, actor)
 
 
 @router.put("/credentials/{credential_id}")
@@ -343,16 +431,72 @@ async def rotate_credential(
         raise HTTPException(403, "Credential rotation is disabled")
     pool = await get_pool()
     row = await pool.fetchrow(
-        "SELECT id, vault_path, category, provider_name, label FROM provider_credentials WHERE id=$1", credential_id
+        "SELECT id, vault_path, category, provider_name, label, extra_config "
+        "FROM provider_credentials WHERE id=$1", credential_id
     )
     if not row:
         raise HTTPException(404, "Credential not found")
+
+    # --- Safe-swap: write to a staging path, verify, then promote ---
+    staging_path = row["vault_path"] + "/__staging__"
+    try:
+        put_secret_at(staging_path, body.secret_key, body.secret_value)
+    except Exception as exc:
+        raise HTTPException(500, f"Failed to stage new secret: {exc}")
+
+    # Verify the new key by instantiating the provider with the staged secret
+    health_ok = False
+    health_error: str | None = None
+    try:
+        from src.providers.registry import ProviderRegistry
+        cls = ProviderRegistry._registries.get(row["category"], {}).get(row["provider_name"])
+        if cls is None:
+            health_error = f"Provider {row['provider_name']!r} not registered; skipping verification"
+            health_ok = True  # fall-open: can't verify unregistered provider
+        else:
+            test_inst = cls()
+            staged_key = get_secret_at(staging_path, body.secret_key)
+            if staged_key and hasattr(test_inst, "api_key") and not getattr(test_inst, "api_key", None):
+                test_inst.api_key = staged_key
+            for k, v in (row.get("extra_config") or {}).items():
+                try:
+                    setattr(test_inst, k, v)
+                except Exception:
+                    pass
+            if hasattr(test_inst, "_connect") and callable(test_inst._connect):
+                try:
+                    test_inst._connect()
+                except Exception:
+                    pass
+            hc = getattr(test_inst, "health_check", None)
+            if hc is None:
+                health_ok = True
+            else:
+                res = hc()
+                if hasattr(res, "__await__"):
+                    res = await res  # type: ignore[assignment]
+                health_ok = bool(res)
+    except Exception as exc:
+        health_error = str(exc)
+        health_ok = False
+
+    if not health_ok:
+        raise HTTPException(
+            422,
+            f"New credential failed health check — rotation aborted. "
+            f"Error: {health_error or 'health_check returned False'}. "
+            f"The old credential is still active.",
+        )
+
+    # Health check passed — promote staged key to live path
     try:
         backend = put_secret_at(row["vault_path"], body.secret_key, body.secret_value)
     except Exception as exc:
-        raise HTTPException(500, f"Failed to rotate: {exc}")
+        raise HTTPException(500, f"Failed to promote rotated secret: {exc}")
+
     await pool.execute(
-        "UPDATE provider_credentials SET rotated_at=NOW() WHERE id=$1", credential_id
+        "UPDATE provider_credentials SET rotated_at=NOW(), rotation_hint=$2 WHERE id=$1",
+        credential_id, body.hint,
     )
     # Reset chain cache so the next request picks up fresh creds.
     try:
@@ -364,13 +508,82 @@ async def rotate_credential(
         pass
     await audit(actor=actor, action="provider.credential.rotate",
                 target_type="provider_credential", target_id=str(credential_id),
-                after={"backend": backend}, request=request)
-    cat_row = await pool.fetchrow(
+                after={"backend": backend, "hint": body.hint}, request=request)
+    if cat_row := await pool.fetchrow(
         "SELECT category FROM provider_credentials WHERE id=$1", credential_id,
-    )
-    if cat_row:
+    ):
         await publish_invalidate(category=cat_row["category"])
-    return {"status": "ok"}
+    return {"status": "ok", "backend": backend}
+
+
+# ── Rotation status ──────────────────────────────────────────────────────────
+ROTATION_WARN_DAYS = 30   # flag as overdue after this many days without rotation
+
+
+@router.get("/credentials/{credential_id}/rotation-status")
+async def credential_rotation_status(
+    credential_id: int,
+    _: Principal = Depends(principal_dep),
+):
+    """Return rotation age and overdue flag for a single credential."""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """SELECT id, label, category, provider_name, rotated_at, rotation_hint, created_at
+             FROM provider_credentials WHERE id=$1""",
+        credential_id,
+    )
+    if not row:
+        raise HTTPException(404, "Credential not found")
+    return _rotation_status_dict(row)
+
+
+@router.get("/credentials/rotation-status")
+async def all_credentials_rotation_status(
+    category: str | None = None,
+    overdue_only: bool = False,
+    _: Principal = Depends(principal_dep),
+):
+    """Return rotation age for all (or a category's) credentials."""
+    pool = await get_pool()
+    where = "WHERE 1=1"
+    args: list[Any] = []
+    if category:
+        args.append(category)
+        where += f" AND category=${len(args)}"
+    rows = await pool.fetch(
+        f"""SELECT id, label, category, provider_name, rotated_at, rotation_hint, created_at
+              FROM provider_credentials {where}
+             ORDER BY category, id""",
+        *args,
+    )
+    items = [_rotation_status_dict(r) for r in rows]
+    if overdue_only:
+        items = [i for i in items if i["overdue"]]
+    return {"data": items}
+
+
+def _rotation_status_dict(row: Any) -> dict:
+    import datetime
+    from zoneinfo import ZoneInfo
+
+    now = datetime.datetime.now(tz=ZoneInfo("UTC"))
+    anchor = row["rotated_at"] or row["created_at"]
+    days_since: int | None = None
+    if anchor:
+        delta = now - anchor.replace(tzinfo=ZoneInfo("UTC")) if anchor.tzinfo is None else now - anchor
+        days_since = delta.days
+    overdue = days_since is not None and days_since >= ROTATION_WARN_DAYS
+    return {
+        "id": row["id"],
+        "label": row["label"],
+        "category": row["category"],
+        "provider_name": row["provider_name"],
+        "rotated_at": row["rotated_at"].isoformat() if row["rotated_at"] else None,
+        "rotation_hint": row["rotation_hint"],
+        "days_since_rotation": days_since,
+        "overdue": overdue,
+        "warn_after_days": ROTATION_WARN_DAYS,
+    }
 
 
 # Chains (legacy URL — proxies to v2 workspace+mode-agnostic)
@@ -419,6 +632,7 @@ class ChainV2In(BaseModel):
     scope: str = "workspace"           # system|workspace|brand|channel|project
     scope_id: str | None = None
     content_mode: str | None = None    # NULL = applies to all modes
+    pipeline_mode: str = "production"  # production|test
     category: str
     credential_ids: list[int] = Field(default_factory=list)
 
@@ -428,12 +642,13 @@ async def list_chain_v2(
     scope: str = "workspace",
     scope_id: str | None = None,
     content_mode: str | None = None,
+    pipeline_mode: str = "production",
     category: str | None = None,
     _: Principal = Depends(principal_dep),
 ):
-    """List chain rows for a given (scope, scope_id, content_mode, [category])."""
+    """List chain rows for a given (scope, scope_id, content_mode, pipeline_mode, [category])."""
     pool = await get_pool()
-    sql = """SELECT c.id, c.scope, c.scope_id, c.content_mode, c.category,
+    sql = """SELECT c.id, c.scope, c.scope_id, c.content_mode, c.pipeline_mode, c.category,
                     c.position, c.fallback_strategy,
                     COALESCE(c.is_enabled, TRUE) AS is_enabled,
                     pc.id AS credential_id, pc.label, pc.provider_name, pc.model,
@@ -442,10 +657,11 @@ async def list_chain_v2(
                JOIN provider_credentials pc ON pc.id = c.credential_id
               WHERE c.scope = $1
                 AND ($2::text IS NULL AND c.scope_id IS NULL OR c.scope_id = $2)
-                AND ($3::text IS NULL AND c.content_mode IS NULL OR c.content_mode = $3)"""
-    args: list[Any] = [scope, scope_id, content_mode]
+                AND ($3::text IS NULL AND c.content_mode IS NULL OR c.content_mode = $3)
+                AND COALESCE(c.pipeline_mode, 'production') = $4"""
+    args: list[Any] = [scope, scope_id, content_mode, pipeline_mode]
     if category:
-        sql += " AND c.category = $4"
+        sql += " AND c.category = $5"
         args.append(category)
     sql += " ORDER BY c.category, c.position"
     rows = await pool.fetch(sql, *args)
@@ -458,15 +674,15 @@ async def upsert_chain_v2(
     request: Request,
     actor: Principal = Depends(require_role("owner", "admin")),
 ):
-    """Replace the chain at (scope, scope_id, content_mode, category)."""
+    """Replace the chain at (scope, scope_id, content_mode, pipeline_mode, category)."""
     await _upsert_chain_v2(
         scope=body.scope, scope_id=body.scope_id, content_mode=body.content_mode,
-        category=body.category, credential_ids=body.credential_ids,
-        actor_user_id=actor.user_id,
+        pipeline_mode=body.pipeline_mode, category=body.category,
+        credential_ids=body.credential_ids, actor_user_id=actor.user_id,
     )
     await audit(actor=actor, action="provider.chain_v2.set",
                 target_type="provider_chain_v2",
-                target_id=f"{body.scope}:{body.scope_id or ''}:{body.content_mode or ''}:{body.category}",
+                target_id=f"{body.scope}:{body.scope_id or ''}:{body.content_mode or ''}:{body.pipeline_mode}:{body.category}",
                 after=body.model_dump(), request=request)
     await publish_invalidate(
         category=body.category,
@@ -482,6 +698,7 @@ async def delete_chain_v2(
     category: str,
     scope_id: str | None = None,
     content_mode: str | None = None,
+    pipeline_mode: str = "production",
     request: Request = None,  # type: ignore[assignment]
     actor: Principal = Depends(require_role("owner", "admin")),
 ):
@@ -492,12 +709,13 @@ async def delete_chain_v2(
             WHERE scope = $1
               AND ($2::text IS NULL AND scope_id IS NULL OR scope_id = $2)
               AND ($3::text IS NULL AND content_mode IS NULL OR content_mode = $3)
-              AND category = $4""",
-        scope, scope_id, content_mode, category,
+              AND COALESCE(pipeline_mode, 'production') = $4
+              AND category = $5""",
+        scope, scope_id, content_mode, pipeline_mode, category,
     )
     await audit(actor=actor, action="provider.chain_v2.delete",
                 target_type="provider_chain_v2",
-                target_id=f"{scope}:{scope_id or ''}:{content_mode or ''}:{category}",
+                target_id=f"{scope}:{scope_id or ''}:{content_mode or ''}:{pipeline_mode}:{category}",
                 request=request)
     await publish_invalidate(
         category=category,
@@ -512,6 +730,7 @@ async def _upsert_chain_v2(
     scope: str,
     scope_id: str | None,
     content_mode: str | None,
+    pipeline_mode: str = "production",
     category: str,
     credential_ids: list[int],
     actor_user_id: int | None,
@@ -524,16 +743,17 @@ async def _upsert_chain_v2(
                     WHERE scope = $1
                       AND ($2::text IS NULL AND scope_id IS NULL OR scope_id = $2)
                       AND ($3::text IS NULL AND content_mode IS NULL OR content_mode = $3)
-                      AND category = $4""",
-                scope, scope_id, content_mode, category,
+                      AND COALESCE(pipeline_mode, 'production') = $4
+                      AND category = $5""",
+                scope, scope_id, content_mode, pipeline_mode, category,
             )
             for pos, cid in enumerate(credential_ids):
                 await conn.execute(
                     """INSERT INTO provider_chains_v2
-                            (scope, scope_id, content_mode, category, position,
+                            (scope, scope_id, content_mode, pipeline_mode, category, position,
                              credential_id, created_by)
-                       VALUES ($1,$2,$3,$4,$5,$6,$7)""",
-                    scope, scope_id, content_mode, category, pos, cid, actor_user_id,
+                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)""",
+                    scope, scope_id, content_mode, pipeline_mode, category, pos, cid, actor_user_id,
                 )
 
 
@@ -703,7 +923,8 @@ async def registered_providers_endpoint(
     # Pre-fetch marketplace display names in one query.
     pool = await get_pool()
     catalog_rows = await pool.fetch(
-        "SELECT provider_key, display_name, logo_url, website_url, has_free_tier "
+        "SELECT provider_key, display_name, logo_url, website_url, has_free_tier, "
+        "       config_schema, docs_url, pricing_tier "
         "FROM provider_marketplace_catalog"
     )
     catalog: dict[str, dict] = {r["provider_key"]: dict(r) for r in catalog_rows}
@@ -741,6 +962,9 @@ async def registered_providers_endpoint(
             "has_free_tier": cat_entry.get("has_free_tier"),
             "default_model": default,
             "supported_models": models,
+            "config_schema": cat_entry.get("config_schema") or [],
+            "docs_url": cat_entry.get("docs_url"),
+            "pricing_tier": cat_entry.get("pricing_tier"),
         })
     return {"data": out}
 
@@ -783,6 +1007,7 @@ async def resolved_chain(
     category: str,
     channel_id: str | None = None,
     content_mode: str | None = None,
+    pipeline_mode: str = "production",
     _: Principal = Depends(principal_dep),
 ):
     """Return the merged chain that the runtime would use for this lookup.
@@ -820,10 +1045,11 @@ async def resolved_chain(
                       AND ($2::text IS NULL AND c.scope_id IS NULL OR c.scope_id = $2)
                       AND ($3::text IS NULL AND c.content_mode IS NULL OR c.content_mode = $3)
                       AND c.category = $4
+                      AND COALESCE(c.pipeline_mode, 'production') = $5
                       AND pc.enabled = TRUE
                       AND COALESCE(c.is_enabled, TRUE) = TRUE
                     ORDER BY c.position""",
-                scope, sid, mode, category,
+                scope, sid, mode, category, pipeline_mode,
             )
             for r in rows:
                 if r["credential_id"] in seen:
@@ -850,6 +1076,7 @@ async def resolved_chain(
         "category": category,
         "channel_id": channel_id,
         "content_mode": content_mode,
+        "pipeline_mode": pipeline_mode,
     }
 
 
@@ -880,7 +1107,9 @@ async def list_marketplace(_: Principal = Depends(principal_dep)):
     catalog = await pool.fetch(
         """SELECT id, provider_key, display_name, category, description,
                   logo_url, website_url, mode, capabilities, pricing_notes,
-                  cost_unit, regions, has_free_tier, featured, sort_order
+                  cost_unit, regions, has_free_tier, featured, sort_order,
+                  config_schema, supported_models, pricing_tier, docs_url,
+                  is_platform_seeded
              FROM provider_marketplace_catalog
             ORDER BY category, sort_order, display_name"""
     )
@@ -895,6 +1124,49 @@ async def list_marketplace(_: Principal = Depends(principal_dep)):
         d["connected"] = r["provider_key"] in connected
         result.append(d)
     return {"data": result}
+
+
+@router.get("/setup-checklist")
+async def setup_checklist(_: Principal = Depends(principal_dep)):
+    """Return setup progress across all required provider categories."""
+    pool = await get_pool()
+    categories = await pool.fetch(
+        "SELECT name FROM provider_categories ORDER BY name"
+    )
+    result = []
+    total_ok = 0
+    for cat in categories:
+        cname = cat["name"]
+        cred = await pool.fetchrow(
+            """SELECT COUNT(*) AS total,
+                      SUM(CASE WHEN enabled THEN 1 ELSE 0 END) AS enabled_count,
+                      SUM(CASE WHEN last_health_ok THEN 1 ELSE 0 END) AS healthy_count
+                 FROM provider_credentials WHERE category=$1""",
+            cname,
+        )
+        chain = await pool.fetchrow(
+            "SELECT COUNT(*) AS chain_entries FROM provider_chains_v2 WHERE category=$1",
+            cname,
+        )
+        ok = bool(cred["enabled_count"] and cred["enabled_count"] > 0)
+        if ok:
+            total_ok += 1
+        result.append({
+            "category": cname,
+            "credentials": int(cred["total"] or 0),
+            "enabled": int(cred["enabled_count"] or 0),
+            "healthy": int(cred["healthy_count"] or 0),
+            "chain_entries": int(chain["chain_entries"] or 0),
+            "ok": ok,
+        })
+    return {
+        "data": result,
+        "summary": {
+            "total_categories": len(result),
+            "configured": total_ok,
+            "complete": total_ok == len(result),
+        },
+    }
 
 
 # Probe-all
@@ -1297,6 +1569,71 @@ async def set_chain_entry_enabled(
         content_mode=row["content_mode"],
     )
     return {"status": "ok", "enabled": body.enabled}
+
+
+@router.get("/health-stream")
+async def health_stream(
+    category: str | None = Query(default=None, description="Filter events to a specific provider category"),
+    actor: Principal = Depends(principal_dep),
+):
+    """Server-Sent Events endpoint — streams real-time provider health changes.
+
+    The frontend subscribes via ``EventSource``. Each time a credential's
+    health status changes (detected by the Temporal health beat every 5 min),
+    this endpoint emits a ``health_change`` SSE event.
+
+    A ``heartbeat`` comment is emitted every 25 s to keep proxies alive.
+    """
+    from fastapi.responses import StreamingResponse
+    from src.workers.provider_health_beat import HEALTH_PUBSUB_CHANNEL
+
+    async def _event_generator():  # type: ignore[return]
+        try:
+            from src.redis_client import get_redis
+            redis = await get_redis()
+            pubsub = redis.pubsub()
+            await pubsub.subscribe(HEALTH_PUBSUB_CHANNEL)
+            while True:
+                try:
+                    msg = await asyncio.wait_for(
+                        pubsub.get_message(ignore_subscribe_messages=True, timeout=25),
+                        timeout=30,
+                    )
+                except asyncio.TimeoutError:
+                    yield ": heartbeat\n\n"
+                    continue
+                if msg and msg.get("type") == "message":
+                    raw = msg.get("data", "")
+                    if category:
+                        try:
+                            parsed = json.loads(raw)
+                            if parsed.get("category") != category:
+                                continue
+                        except Exception:
+                            pass
+                    yield f"event: health_change\ndata: {raw}\n\n"
+                else:
+                    yield ": heartbeat\n\n"
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:  # noqa: BLE001
+            yield f"event: error\ndata: {json.dumps({'error': str(exc)})}\n\n"
+        finally:
+            try:
+                await pubsub.unsubscribe(HEALTH_PUBSUB_CHANNEL)
+                await pubsub.aclose()
+            except Exception:  # noqa: BLE001
+                pass
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.post("/_admin/clean-slate")

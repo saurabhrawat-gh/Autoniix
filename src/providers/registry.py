@@ -66,6 +66,7 @@ class ProviderRegistry:
         override: str | None = None,
         channel_id: str | None = None,
         content_mode: str | None = None,
+        pipeline_mode: str = "production",
     ) -> Any:
         from src.environment import is_test
 
@@ -87,6 +88,7 @@ class ProviderRegistry:
             from src.providers.chain import EMPTY_CHAIN, NoProviderConfigured
             chain = cls._try_db_chain(
                 category, channel_id=channel_id, content_mode=content_mode,
+                pipeline_mode=pipeline_mode,
             )
             if chain is EMPTY_CHAIN:
                 raise NoProviderConfigured(
@@ -130,6 +132,7 @@ class ProviderRegistry:
         *,
         channel_id: str | None = None,
         content_mode: str | None = None,
+        pipeline_mode: str = "production",
     ) -> Any | None:
         """Best-effort DB chain resolution. Returns None on any failure
         so callers fall back to env-based lookup unchanged.
@@ -145,6 +148,7 @@ class ProviderRegistry:
                 return _asyncio.run(resolve_chain(
                     category, registry,
                     channel_id=channel_id, content_mode=content_mode,
+                    pipeline_mode=pipeline_mode,
                 ))
             # We're inside an event loop; schedule and wait on a
             # background thread to keep the call signature sync.
@@ -153,6 +157,7 @@ class ProviderRegistry:
                 fut = ex.submit(_asyncio.run, resolve_chain(
                     category, registry,
                     channel_id=channel_id, content_mode=content_mode,
+                    pipeline_mode=pipeline_mode,
                 ))
                 return fut.result(timeout=5)
         except Exception as exc:

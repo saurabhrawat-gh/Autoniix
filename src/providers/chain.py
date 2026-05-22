@@ -67,12 +67,17 @@ class NoProviderConfigured(RuntimeError):
         )
 
 # key -> (instance, expires_monotonic)
-_chain_cache: dict[tuple[str, str, str], tuple[Any, float]] = {}
+_chain_cache: dict[tuple[str, str, str, str], tuple[Any, float]] = {}
 _lock = asyncio.Lock()
 
 
-def _cache_key(category: str, channel_id: str | None, content_mode: str | None) -> tuple[str, str, str]:
-    return (channel_id or "", content_mode or "", category)
+def _cache_key(
+    category: str,
+    channel_id: str | None,
+    content_mode: str | None,
+    pipeline_mode: str | None = None,
+) -> tuple[str, str, str, str]:
+    return (channel_id or "", content_mode or "", category, pipeline_mode or "production")
 
 
 async def _flag_enabled() -> bool:
@@ -97,8 +102,9 @@ async def _load_layer(
     scope: str,
     scope_id: str | None,
     content_mode: str | None,
+    pipeline_mode: str = "production",
 ) -> list[dict]:
-    """Return chain rows for one (scope, scope_id, content_mode) layer."""
+    """Return chain rows for one (scope, scope_id, content_mode, pipeline_mode) layer."""
     rows = await conn.fetch(
         """
         SELECT pc.id, pc.provider_name, pc.vault_path, pc.extra_config,
@@ -112,9 +118,10 @@ async def _load_layer(
            AND COALESCE(c.is_enabled, TRUE) = TRUE
            AND ($3::text IS NULL AND c.scope_id IS NULL OR c.scope_id = $3)
            AND ($4::text IS NULL AND c.content_mode IS NULL OR c.content_mode = $4)
+           AND COALESCE(c.pipeline_mode, 'production') = $5
          ORDER BY c.position
         """,
-        scope, category, scope_id, content_mode,
+        scope, category, scope_id, content_mode, pipeline_mode,
     )
     return [dict(r) for r in rows]
 
@@ -138,6 +145,7 @@ async def _load_chain(
     *,
     channel_id: str | None,
     content_mode: str | None,
+    pipeline_mode: str = "production",
 ) -> list[dict]:
     """Load the merged 6-layer chain for ``category``.
 
@@ -163,7 +171,8 @@ async def _load_chain(
         for scope, sid, mode in layers:
             try:
                 rows = await _load_layer(
-                    conn, category=category, scope=scope, scope_id=sid, content_mode=mode,
+                    conn, category=category, scope=scope, scope_id=sid,
+                    content_mode=mode, pipeline_mode=pipeline_mode,
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.warning("provider.chain_layer_failed",
@@ -284,10 +293,25 @@ def _instantiate(
         upper = provider_name.upper().replace("-", "_") + "_API_KEY"
         os.environ.setdefault(upper, api_key)
     inst = cls()
+    # For providers that read api_key from settings at __init__ time the
+    # env-var shim above may arrive too late (settings already loaded).
+    # Directly set the attribute so the vault key always wins.
+    if api_key and hasattr(inst, "api_key") and not getattr(inst, "api_key", None):
+        try:
+            inst.api_key = api_key
+        except Exception:
+            pass
     # Allow extra_config to override attributes (e.g. base_url, voice_id).
     for k, v in (extra_config or {}).items():
         try:
             setattr(inst, k, v)
+        except Exception:
+            pass
+    # Allow providers with connection state (e.g. MinIO) to reconnect
+    # after extra_config attributes have been injected.
+    if hasattr(inst, "_connect") and callable(inst._connect):
+        try:
+            inst._connect()
         except Exception:
             pass
     # Per-credential model pin (column on provider_credentials). If the
@@ -311,6 +335,7 @@ async def resolve_chain(
     *,
     channel_id: str | None = None,
     content_mode: str | None = None,
+    pipeline_mode: str = "production",
 ) -> Any | None:
     """Return a :class:`FallbackProvider` for the (category, channel, mode) tuple.
 
@@ -327,7 +352,7 @@ async def resolve_chain(
     except Exception:  # noqa: BLE001
         pass
 
-    key = _cache_key(category, channel_id, content_mode)
+    key = _cache_key(category, channel_id, content_mode, pipeline_mode)
     cached = _chain_cache.get(key)
     now = time.monotonic()
     if cached and cached[1] > now:
@@ -342,6 +367,7 @@ async def resolve_chain(
         try:
             rows = await _load_chain(
                 category, channel_id=channel_id, content_mode=content_mode,
+                pipeline_mode=pipeline_mode,
             )
         except Exception as exc:
             logger.warning("provider.chain_load_failed",

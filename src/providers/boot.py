@@ -27,6 +27,7 @@ import src.providers.llm.gemini_provider        # noqa: F401
 import src.providers.llm.glm_provider           # noqa: F401  (Zhipu GLM, OpenAI-compatible)
 import src.providers.llm.kimi_provider          # noqa: F401  (Moonshot Kimi, OpenAI-compatible)
 import src.providers.llm.mock_provider          # noqa: F401  (test mode)
+import src.providers.llm.custom_openai_compat_provider  # noqa: F401  (user-defined OpenAI-compat endpoints)
 
 # TTS Providers
 import src.providers.tts.fish_audio             # noqa: F401

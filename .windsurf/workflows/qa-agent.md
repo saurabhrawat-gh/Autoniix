@@ -1,15 +1,51 @@
 ---
-description: QA Agent — two modes: (A) pre-dev test plan generation for ready-for-qa stories, (B) post-dev local QA walk-through for in-qa issues that sets qa-verified
+description: QA Agent — three modes: (C) natural language commands (verified / bug:), (A) pre-dev test plan generation for ready-for-qa stories, (B) post-dev local QA walk-through for in-qa issues that sets qa-verified
 ---
 
 # QA Agent Workflow
 
-The QA Agent has two distinct modes. It auto-detects which mode to run based on what issues are present.
+The QA Agent has three modes. It auto-detects which mode to run.
 
+- **Mode C — Natural Language Commands** *(checked first)*: Handles `verified` and `bug:` commands typed by the product owner. Routes immediately — does not run Modes A or B.
 - **Mode A — Pre-dev**: Runs after BA Agent. Reads `ready-for-qa` stories, generates a test-case issue, promotes story to `ready-for-dev`.
 - **Mode B — Post-dev**: Runs after Dev Agent. Reads `in-qa` issues, walks you through every test case interactively, sets `qa-verified` when all tests pass.
 
 Invoke as `/qa-agent` (auto-detect) or `/qa-agent pre-dev` / `/qa-agent post-dev` to force a mode.
+
+---
+
+## Mode C — Natural Language Commands (checked first, always)
+
+Before doing anything else, check if the input matches a command pattern.
+
+### C1. `verified` command
+
+**Triggers:** input starts with `verified` (case-insensitive)
+
+**Delegate immediately to the `/verified` workflow.** Pass through any issue numbers provided.
+
+Examples that trigger this:
+```
+verified #42
+verified #21 #22 #25
+verified all
+```
+
+### C2. `bug:` command
+
+**Triggers:** input starts with `bug:` (case-insensitive)
+
+**Delegate immediately to the `/bug` workflow.** Pass the full input string.
+
+Examples that trigger this:
+```
+bug: login crashes with special chars, issue #21
+bug: payment webhook not firing in production, issue #67
+```
+
+### C3. If neither pattern matches
+
+Fall through to Mode A / Mode B auto-detection below.
 
 ---
 
@@ -124,10 +160,10 @@ For each test case checkbox in the test-case issue:
 3. If PASS → continue to next
 4. If FAIL:
    - Ask for a brief description of what failed
-   - Create a `bug:normal` child issue:
-     - Title: `BUG #N: {test_case_id} — {what_failed}`
+   - Create a `bug:normal` child issue using the `/bug` workflow format:
+     - Title: `bug | QA | {layer} | {what_failed}` (determine layer from impacted files)
      - Labels: `bug`, `bug:normal`, `ready-for-dev`, same priority as parent
-     - Body: parent story link, reproduction steps, expected vs actual
+     - Body: parent story link `**Parent Story:** #{N}`, test case ID, reproduction steps, expected vs actual
    - Mark the story as **BLOCKED** — do NOT set `qa-verified`
    - Post comment on story: "QA BLOCKED on TC-{N}-{id}. Bug filed: #{bug_issue_number}. Fix and re-test before promoting."
    - Stop the QA session for this story

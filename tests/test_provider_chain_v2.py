@@ -27,9 +27,9 @@ class _FakeConn:
         self.fetchrow_calls: list[tuple] = []
 
     async def fetch(self, sql: str, *args: Any) -> list[dict]:
-        # Match `_load_layer`: (scope, category, scope_id, content_mode)
+        # Match `_load_layer`: (scope, category, scope_id, content_mode, pipeline_mode)
         if "FROM provider_chains_v2" in sql:
-            scope, category, sid, mode = args
+            scope, category, sid, mode = args[0], args[1], args[2], args[3]
             key = (scope, sid, mode, category)
             self.fetch_calls.append(key)
             return list(self._layer_rows.get(key, []))
