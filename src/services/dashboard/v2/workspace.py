@@ -928,3 +928,79 @@ async def upsert_setting(
                 target_id=f"{body.scope}/{body.scope_id}/{body.key}",
                 after={"value": body.value, "locked": body.locked}, request=request)
     return {"status": "ok"}
+
+
+# Ownership Transfer
+
+class TransferOwnershipIn(BaseModel):
+    new_owner_user_id: int
+    current_password: str
+
+
+@router.post("/transfer-ownership")
+async def transfer_ownership(
+    body: TransferOwnershipIn,
+    request: Request,
+    actor: Principal = Depends(require_permission("workspace.ownership.transfer")),
+):
+    if not actor.user_id:
+        raise HTTPException(403, "No user context")
+    if body.new_owner_user_id == actor.user_id:
+        raise HTTPException(400, "Cannot transfer ownership to yourself")
+    pool = await get_pool()
+    # Verify current password
+    current_user = await pool.fetchrow(
+        "SELECT password_hash, display_name, email FROM users WHERE id=$1", actor.user_id
+    )
+    if not current_user:
+        raise HTTPException(404, "Current user not found")
+    from .auth import _verify_pw
+    if not _verify_pw(body.current_password, current_user["password_hash"] or ""):
+        raise HTTPException(401, "Password is incorrect")
+    # Verify new owner is an existing member
+    new_owner_member = await pool.fetchrow(
+        """SELECT wm.role, u.display_name, u.email
+             FROM workspace_members wm JOIN users u ON u.id = wm.user_id
+            WHERE wm.workspace_id=$1 AND wm.user_id=$2""",
+        actor.workspace_id, body.new_owner_user_id,
+    )
+    if not new_owner_member:
+        raise HTTPException(404, "Target user is not a member of this workspace")
+    ws_info = await pool.fetchrow("SELECT name FROM workspaces WHERE id=$1", actor.workspace_id)
+    workspace_name = ws_info["name"] if ws_info else "your workspace"
+    old_owner_name = current_user["display_name"] or current_user["email"] or ""
+    new_owner_name = new_owner_member["display_name"] or new_owner_member["email"] or ""
+    # Atomic role swap
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "UPDATE workspace_members SET role='owner' WHERE workspace_id=$1 AND user_id=$2",
+                actor.workspace_id, body.new_owner_user_id,
+            )
+            await conn.execute(
+                "UPDATE workspace_members SET role='admin' WHERE workspace_id=$1 AND user_id=$2",
+                actor.workspace_id, actor.user_id,
+            )
+    await audit(
+        actor=actor,
+        action="ownership.transfer",
+        target_type="workspace_member",
+        target_id=str(body.new_owner_user_id),
+        before={"owner_user_id": actor.user_id},
+        after={"owner_user_id": body.new_owner_user_id},
+        request=request,
+    )
+    # Emails — fire-and-forget
+    from ._resend import send_email as _resend_send
+    if new_owner_member["email"]:
+        _resend_send("ownership-transferred-new", new_owner_member["email"], {
+            "name": new_owner_name,
+            "workspace_name": workspace_name,
+        })
+    if current_user["email"]:
+        _resend_send("ownership-transferred-old", current_user["email"], {
+            "name": old_owner_name,
+            "workspace_name": workspace_name,
+            "new_owner_name": new_owner_name,
+        })
+    return {"status": "ok"}
