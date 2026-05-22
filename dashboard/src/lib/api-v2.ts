@@ -552,6 +552,19 @@ export const workspaceApi = {
     request('/api/v2/workspace/integrations', { method: 'PUT', body: JSON.stringify(body) }),
 };
 
+// Entity settings
+export const settingsApi = {
+  get: (scope: string, scope_id: string) =>
+    request<{ data: Array<{ key: string; value: any; locked: boolean }> }>(
+      `/api/v2/workspace/settings?scope=${encodeURIComponent(scope)}&scope_id=${encodeURIComponent(scope_id)}`
+    ),
+  set: (scope: string, scope_id: string, key: string, value: any, locked = false) =>
+    request('/api/v2/workspace/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ scope, scope_id, key, value, locked }),
+    }),
+};
+
 // Brands
 export const brandsApi = {
   list: () => request<{ data: any[] }>('/api/v2/workspace/brands'),
