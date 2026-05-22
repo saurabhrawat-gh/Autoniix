@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { providersApi } from '@/lib/api-v2';
+import { providersApi, changeRequestsApi, type ChangeRequest } from '@/lib/api-v2';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import {
   Plug, ChevronRight, AlertTriangle, HelpCircle, Cpu,
   Activity, RotateCw, Plus, Loader2, ShieldCheck,
   Gauge, Network, Store, CheckCircle2, ExternalLink, Zap, Trash2,
+  ClipboardCheck, Check, X, Clock,
 } from '@/lib/components/Icon';
 import { Button } from '@/lib/ui';
 import { promptDialog } from '@/lib/components/ConfirmDialog';
@@ -75,6 +76,11 @@ export default function ProvidersIndex() {
   // AE-72 — setup checklist + rotation overdue
   const [checklist, setChecklist] = useState<any[]>([]);
   const [overdueRotations, setOverdueRotations] = useState<any[]>([]);
+  const [showApprovals, setShowApprovals] = useState(false);
+  const [approvals, setApprovals] = useState<ChangeRequest[]>([]);
+  const [approvalsLoading, setApprovalsLoading] = useState(false);
+  const [reviewingId, setReviewingId] = useState<number | null>(null);
+  const [reviewNote, setReviewNote] = useState('');
 
   const cleanSlate = async () => {
     const phrase = await promptDialog({
@@ -113,6 +119,39 @@ export default function ProvidersIndex() {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  const loadApprovals = async () => {
+    setApprovalsLoading(true);
+    try {
+      const r = await changeRequestsApi.list({ status: 'pending_admin' });
+      const r2 = await changeRequestsApi.list({ status: 'pending_owner' });
+      setApprovals([...r.data, ...r2.data]);
+    } catch { setApprovals([]); } finally { setApprovalsLoading(false); }
+  };
+
+  const openApprovals = () => { setShowApprovals(true); loadApprovals(); };
+
+  const doAdminReview = async (id: number, action: 'approve_forward' | 'reject') => {
+    setReviewingId(id);
+    try {
+      await changeRequestsApi.adminReview(id, action, reviewNote || undefined);
+      showToast(action === 'approve_forward' ? 'Forwarded to owner' : 'Request rejected', 'success');
+      setReviewNote('');
+      await loadApprovals();
+    } catch (e: any) { showToast(e?.message || 'Review failed', 'error'); }
+    finally { setReviewingId(null); }
+  };
+
+  const doOwnerReview = async (id: number, action: 'approve' | 'reject') => {
+    setReviewingId(id);
+    try {
+      await changeRequestsApi.ownerReview(id, action, reviewNote || undefined);
+      showToast(action === 'approve' ? 'Change approved & applied' : 'Request rejected', 'success');
+      setReviewNote('');
+      await Promise.all([loadApprovals(), refresh()]);
+    } catch (e: any) { showToast(e?.message || 'Review failed', 'error'); }
+    finally { setReviewingId(null); }
+  };
 
   const grouped: Record<string, any[]> = cats.reduce((acc: any, c: any) => {
     if (STUB_KINDS.has(c.kind)) return acc; // hide unimplemented categories
@@ -169,6 +208,14 @@ export default function ProvidersIndex() {
         <div className="flex items-center gap-2 shrink-0">
           <Button variant="outline" size="icon-sm" onClick={refresh} disabled={loading} aria-label="Refresh">
             <RotateCw size={13} className={cn(loading && 'animate-spin')} />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={openApprovals}
+            leftIcon={<ClipboardCheck size={12} />}
+          >
+            Approvals
           </Button>
           <Button
             variant="outline"
@@ -513,6 +560,126 @@ export default function ProvidersIndex() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── Approval Queue Sheet ── */}
+      {showApprovals && (
+        <div className="fixed inset-0 z-50 flex justify-end" onClick={() => setShowApprovals(false)}>
+          <div
+            className="relative h-full w-full max-w-lg bg-surface-0 border-l border-border shadow-2xl flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <div className="flex items-center gap-2">
+                <ClipboardCheck size={15} className="text-accent" />
+                <h2 className="text-sm font-semibold text-content-primary">Pending Approvals</h2>
+                {approvals.length > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/15 text-accent font-semibold">{approvals.length}</span>
+                )}
+              </div>
+              <button onClick={() => setShowApprovals(false)} className="p-1 rounded hover:bg-surface-2 text-content-tertiary hover:text-content-primary transition-colors">
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {approvalsLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 size={20} className="animate-spin text-content-tertiary" />
+                </div>
+              ) : approvals.length === 0 ? (
+                <div className="py-16 text-center">
+                  <Check size={28} className="mx-auto mb-3 text-status-success opacity-60" />
+                  <p className="text-sm text-content-tertiary">No pending approvals</p>
+                </div>
+              ) : approvals.map(req => (
+                <div key={req.id} className="rounded-xl border border-border bg-surface-1 p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-content-primary capitalize">
+                        {req.request_type.replace(/_/g, ' ')} — {req.category}
+                        {req.provider_name && <span className="text-content-tertiary"> / {req.provider_name}</span>}
+                      </div>
+                      <div className="text-[10px] text-content-tertiary mt-0.5">
+                        {req.requester_name || req.requester_email || `User #${req.requested_by}`}
+                        {' · '}
+                        <Clock size={9} className="inline" />{' '}
+                        {new Date(req.requested_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <span className={cn(
+                      'text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0',
+                      req.status === 'pending_admin' ? 'bg-status-warning/10 text-status-warning' : 'bg-status-info/10 text-status-info',
+                    )}>
+                      {req.status === 'pending_admin' ? 'Needs admin' : 'Needs owner'}
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-content-secondary bg-surface-2 rounded-lg px-3 py-2 leading-relaxed">
+                    {req.reason}
+                  </p>
+
+                  {req.admin_note && (
+                    <p className="text-[10px] text-content-tertiary italic">Admin note: {req.admin_note}</p>
+                  )}
+
+                  <textarea
+                    placeholder="Optional review note…"
+                    value={reviewingId === req.id ? reviewNote : ''}
+                    onChange={e => { setReviewingId(req.id); setReviewNote(e.target.value); }}
+                    className="w-full text-xs rounded-md border border-border bg-surface-0 px-3 py-2 resize-none h-14 focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-content-quaternary"
+                  />
+
+                  <div className="flex gap-2">
+                    {req.status === 'pending_admin' ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 border-status-success/40 text-status-success hover:bg-status-success/10"
+                          loading={reviewingId === req.id}
+                          onClick={() => doAdminReview(req.id, 'approve_forward')}
+                        >
+                          <Check size={11} className="mr-1" /> Forward to owner
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 border-status-error/40 text-status-error hover:bg-status-error/10"
+                          loading={reviewingId === req.id}
+                          onClick={() => doAdminReview(req.id, 'reject')}
+                        >
+                          <X size={11} className="mr-1" /> Reject
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 border-status-success/40 text-status-success hover:bg-status-success/10"
+                          loading={reviewingId === req.id}
+                          onClick={() => doOwnerReview(req.id, 'approve')}
+                        >
+                          <Check size={11} className="mr-1" /> Approve & apply
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 border-status-error/40 text-status-error hover:bg-status-error/10"
+                          loading={reviewingId === req.id}
+                          onClick={() => doOwnerReview(req.id, 'reject')}
+                        >
+                          <X size={11} className="mr-1" /> Reject
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </main>

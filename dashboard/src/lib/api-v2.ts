@@ -743,3 +743,76 @@ export const systemApi = {
   environment: () => request<{ status: string; data: any }>('/api/v2/system/environment'),
   cleanSlate: () => request('/api/v2/system/clean-slate', { method: 'POST' }),
 };
+
+export type ChangeRequestType =
+  | 'add_credential'
+  | 'change_chain_priority'
+  | 'remove_credential'
+  | 'change_model'
+  | 'rotate_credential';
+
+export type ChangeRequestStatus =
+  | 'pending_admin'
+  | 'pending_owner'
+  | 'applied'
+  | 'rejected_by_admin'
+  | 'rejected_by_owner'
+  | 'expired';
+
+export interface ChangeRequest {
+  id: number;
+  workspace_id: number;
+  requested_by: number;
+  requester_name: string | null;
+  requester_email: string | null;
+  requested_at: string;
+  request_type: ChangeRequestType;
+  category: string;
+  provider_name: string | null;
+  payload: Record<string, unknown>;
+  reason: string;
+  status: ChangeRequestStatus;
+  admin_reviewed_by: number | null;
+  admin_reviewer_name: string | null;
+  admin_reviewed_at: string | null;
+  admin_note: string | null;
+  owner_reviewed_by: number | null;
+  owner_reviewer_name: string | null;
+  owner_reviewed_at: string | null;
+  owner_note: string | null;
+  applied_at: string | null;
+  expires_at: string;
+  created_at: string;
+}
+
+export const changeRequestsApi = {
+  list: (params?: { status?: string; category?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.category) q.set('category', params.category);
+    return request<{ status: string; data: ChangeRequest[] }>(`/api/v2/providers/change-requests?${q}`);
+  },
+  create: (body: {
+    request_type: ChangeRequestType;
+    category: string;
+    provider_name?: string;
+    payload?: Record<string, unknown>;
+    reason: string;
+  }) =>
+    request<{ status: string; data: { id: number } }>('/api/v2/providers/change-requests', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  get: (id: number) =>
+    request<{ status: string; data: ChangeRequest }>(`/api/v2/providers/change-requests/${id}`),
+  adminReview: (id: number, action: 'approve_forward' | 'reject', note?: string) =>
+    request<{ status: string; data: { new_status: string } }>(
+      `/api/v2/providers/change-requests/${id}/admin-review`,
+      { method: 'POST', body: JSON.stringify({ action, note }) },
+    ),
+  ownerReview: (id: number, action: 'approve' | 'reject', note?: string) =>
+    request<{ status: string; data: { new_status: string } }>(
+      `/api/v2/providers/change-requests/${id}/owner-review`,
+      { method: 'POST', body: JSON.stringify({ action, note }) },
+    ),
+};

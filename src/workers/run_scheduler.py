@@ -46,6 +46,10 @@ from src.workers.activities.common import (
     get_eligible_channels,
     send_notification,
 )
+from src.workers.change_request_beat import (
+    ChangeRequestExpiryWorkflow,
+    expire_stale_change_requests,
+)
 
 logger = structlog.get_logger()
 
@@ -72,6 +76,7 @@ async def main() -> None:
             NichePulseRefreshWorkflow,
             RetentionFetchWorkflow,
             HealthBeatWorkflow,
+            ChangeRequestExpiryWorkflow,
         ],
         activities=[
             check_system_status,
@@ -94,6 +99,8 @@ async def main() -> None:
             fetch_retention_for_video_activity,
             # AE-75 — provider health beat
             check_all_provider_health,
+            # AE-76 — change request expiry
+            expire_stale_change_requests,
         ],
         max_concurrent_activities=settings.temporal_scheduler_max_activities,
     )

@@ -69,6 +69,13 @@ _SCHEDULES: list[dict] = [
         "cron": "*/5 * * * *",  # Every 5 minutes
         "note": "AE-75: Health-check all enabled provider credentials every 5 min",
     },
+    {
+        "id": "change-request-expiry",
+        "workflow": "ChangeRequestExpiryWorkflow",
+        "task_queue": "scheduler",
+        "cron": "0 * * * *",  # Hourly
+        "note": "AE-76: Expire stale provider change requests after 7 days",
+    },
 ]
 
 
