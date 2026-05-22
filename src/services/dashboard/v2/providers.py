@@ -75,6 +75,7 @@ class CredentialPatch(BaseModel):
 class RotateIn(BaseModel):
     secret_value: str
     secret_key: str = "api_key"
+    hint: str | None = None   # human note stored in rotation_hint column
 
 
 class ChainIn(BaseModel):
@@ -352,7 +353,8 @@ async def rotate_credential(
     except Exception as exc:
         raise HTTPException(500, f"Failed to rotate: {exc}")
     await pool.execute(
-        "UPDATE provider_credentials SET rotated_at=NOW() WHERE id=$1", credential_id
+        "UPDATE provider_credentials SET rotated_at=NOW(), rotation_hint=$2 WHERE id=$1",
+        credential_id, body.hint,
     )
     # Reset chain cache so the next request picks up fresh creds.
     try:
@@ -880,7 +882,9 @@ async def list_marketplace(_: Principal = Depends(principal_dep)):
     catalog = await pool.fetch(
         """SELECT id, provider_key, display_name, category, description,
                   logo_url, website_url, mode, capabilities, pricing_notes,
-                  cost_unit, regions, has_free_tier, featured, sort_order
+                  cost_unit, regions, has_free_tier, featured, sort_order,
+                  config_schema, supported_models, pricing_tier, docs_url,
+                  is_platform_seeded
              FROM provider_marketplace_catalog
             ORDER BY category, sort_order, display_name"""
     )
@@ -895,6 +899,49 @@ async def list_marketplace(_: Principal = Depends(principal_dep)):
         d["connected"] = r["provider_key"] in connected
         result.append(d)
     return {"data": result}
+
+
+@router.get("/setup-checklist")
+async def setup_checklist(_: Principal = Depends(principal_dep)):
+    """Return setup progress across all required provider categories."""
+    pool = await get_pool()
+    categories = await pool.fetch(
+        "SELECT name FROM provider_categories ORDER BY name"
+    )
+    result = []
+    total_ok = 0
+    for cat in categories:
+        cname = cat["name"]
+        cred = await pool.fetchrow(
+            """SELECT COUNT(*) AS total,
+                      SUM(CASE WHEN enabled THEN 1 ELSE 0 END) AS enabled_count,
+                      SUM(CASE WHEN last_health_ok THEN 1 ELSE 0 END) AS healthy_count
+                 FROM provider_credentials WHERE category=$1""",
+            cname,
+        )
+        chain = await pool.fetchrow(
+            "SELECT COUNT(*) AS chain_entries FROM provider_chains_v2 WHERE category=$1",
+            cname,
+        )
+        ok = bool(cred["enabled_count"] and cred["enabled_count"] > 0)
+        if ok:
+            total_ok += 1
+        result.append({
+            "category": cname,
+            "credentials": int(cred["total"] or 0),
+            "enabled": int(cred["enabled_count"] or 0),
+            "healthy": int(cred["healthy_count"] or 0),
+            "chain_entries": int(chain["chain_entries"] or 0),
+            "ok": ok,
+        })
+    return {
+        "data": result,
+        "summary": {
+            "total_categories": len(result),
+            "configured": total_ok,
+            "complete": total_ok == len(result),
+        },
+    }
 
 
 # Probe-all
