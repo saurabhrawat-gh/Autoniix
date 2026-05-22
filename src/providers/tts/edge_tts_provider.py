@@ -27,6 +27,7 @@ class EdgeTTSProvider(TTSProvider):
     """Free TTS using Microsoft Edge voices via edge-tts package."""
 
     def __init__(self) -> None:
+        self.voice: str = ""  # configurable via extra_config (wizard field)
         try:
             import edge_tts  # noqa: F401
             self._available = True
@@ -35,9 +36,11 @@ class EdgeTTSProvider(TTSProvider):
             self._available = False
 
     async def synthesize(self, request: TTSRequest) -> TTSResult:
+        # Priority: per-request voice_id > credential extra_config.voice > DEFAULT_VOICE
+        voice = request.voice_id or self.voice or DEFAULT_VOICE
         return await self.synthesize_with_params(
             text=request.text,
-            voice_id=request.voice_id or DEFAULT_VOICE,
+            voice_id=voice,
         )
 
     async def synthesize_with_params(

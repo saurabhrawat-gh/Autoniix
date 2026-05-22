@@ -293,6 +293,14 @@ def _instantiate(
         upper = provider_name.upper().replace("-", "_") + "_API_KEY"
         os.environ.setdefault(upper, api_key)
     inst = cls()
+    # For providers that read api_key from settings at __init__ time the
+    # env-var shim above may arrive too late (settings already loaded).
+    # Directly set the attribute so the vault key always wins.
+    if api_key and hasattr(inst, "api_key") and not getattr(inst, "api_key", None):
+        try:
+            inst.api_key = api_key
+        except Exception:
+            pass
     # Allow extra_config to override attributes (e.g. base_url, voice_id).
     for k, v in (extra_config or {}).items():
         try:
