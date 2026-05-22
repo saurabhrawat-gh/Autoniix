@@ -240,6 +240,27 @@ jobs:
           docker compose ps --format "table {{.Name}}\t{{.Status}}"
           echo "Deploy complete at $(date -u)"
 
+      - name: Sync Caddyfile + reload Caddy
+        # Non-fatal: if NOPASSWD sudo isn't configured for the runner user,
+        # we log a warning and continue. Manual reload required in that case.
+        continue-on-error: true
+        run: |
+          cd /home/autoniix/autoniix
+          if sudo -n true 2>/dev/null; then
+            if ! sudo -n diff -q Caddyfile /etc/caddy/Caddyfile >/dev/null 2>&1; then
+              echo "Caddyfile changed — syncing and reloading"
+              sudo -n cp Caddyfile /etc/caddy/Caddyfile
+              sudo -n caddy validate --config /etc/caddy/Caddyfile && \
+              sudo -n systemctl reload caddy && \
+              echo "✅ Caddy reloaded"
+            else
+              echo "Caddyfile unchanged — skipping reload"
+            fi
+          else
+            echo "⚠️  NOPASSWD sudo not configured for runner — skipping Caddy reload."
+            echo "    Run manually on VPS: sudo cp Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy"
+          fi
+
       - name: Post-deploy smoke
         run: |
           set -euo pipefail
