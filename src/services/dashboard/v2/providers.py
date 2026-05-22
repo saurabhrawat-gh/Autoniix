@@ -421,6 +421,7 @@ class ChainV2In(BaseModel):
     scope: str = "workspace"           # system|workspace|brand|channel|project
     scope_id: str | None = None
     content_mode: str | None = None    # NULL = applies to all modes
+    pipeline_mode: str = "production"  # production|test
     category: str
     credential_ids: list[int] = Field(default_factory=list)
 
@@ -430,12 +431,13 @@ async def list_chain_v2(
     scope: str = "workspace",
     scope_id: str | None = None,
     content_mode: str | None = None,
+    pipeline_mode: str = "production",
     category: str | None = None,
     _: Principal = Depends(principal_dep),
 ):
-    """List chain rows for a given (scope, scope_id, content_mode, [category])."""
+    """List chain rows for a given (scope, scope_id, content_mode, pipeline_mode, [category])."""
     pool = await get_pool()
-    sql = """SELECT c.id, c.scope, c.scope_id, c.content_mode, c.category,
+    sql = """SELECT c.id, c.scope, c.scope_id, c.content_mode, c.pipeline_mode, c.category,
                     c.position, c.fallback_strategy,
                     COALESCE(c.is_enabled, TRUE) AS is_enabled,
                     pc.id AS credential_id, pc.label, pc.provider_name, pc.model,
@@ -444,10 +446,11 @@ async def list_chain_v2(
                JOIN provider_credentials pc ON pc.id = c.credential_id
               WHERE c.scope = $1
                 AND ($2::text IS NULL AND c.scope_id IS NULL OR c.scope_id = $2)
-                AND ($3::text IS NULL AND c.content_mode IS NULL OR c.content_mode = $3)"""
-    args: list[Any] = [scope, scope_id, content_mode]
+                AND ($3::text IS NULL AND c.content_mode IS NULL OR c.content_mode = $3)
+                AND COALESCE(c.pipeline_mode, 'production') = $4"""
+    args: list[Any] = [scope, scope_id, content_mode, pipeline_mode]
     if category:
-        sql += " AND c.category = $4"
+        sql += " AND c.category = $5"
         args.append(category)
     sql += " ORDER BY c.category, c.position"
     rows = await pool.fetch(sql, *args)
@@ -460,15 +463,15 @@ async def upsert_chain_v2(
     request: Request,
     actor: Principal = Depends(require_role("owner", "admin")),
 ):
-    """Replace the chain at (scope, scope_id, content_mode, category)."""
+    """Replace the chain at (scope, scope_id, content_mode, pipeline_mode, category)."""
     await _upsert_chain_v2(
         scope=body.scope, scope_id=body.scope_id, content_mode=body.content_mode,
-        category=body.category, credential_ids=body.credential_ids,
-        actor_user_id=actor.user_id,
+        pipeline_mode=body.pipeline_mode, category=body.category,
+        credential_ids=body.credential_ids, actor_user_id=actor.user_id,
     )
     await audit(actor=actor, action="provider.chain_v2.set",
                 target_type="provider_chain_v2",
-                target_id=f"{body.scope}:{body.scope_id or ''}:{body.content_mode or ''}:{body.category}",
+                target_id=f"{body.scope}:{body.scope_id or ''}:{body.content_mode or ''}:{body.pipeline_mode}:{body.category}",
                 after=body.model_dump(), request=request)
     await publish_invalidate(
         category=body.category,
@@ -484,6 +487,7 @@ async def delete_chain_v2(
     category: str,
     scope_id: str | None = None,
     content_mode: str | None = None,
+    pipeline_mode: str = "production",
     request: Request = None,  # type: ignore[assignment]
     actor: Principal = Depends(require_role("owner", "admin")),
 ):
@@ -494,12 +498,13 @@ async def delete_chain_v2(
             WHERE scope = $1
               AND ($2::text IS NULL AND scope_id IS NULL OR scope_id = $2)
               AND ($3::text IS NULL AND content_mode IS NULL OR content_mode = $3)
-              AND category = $4""",
-        scope, scope_id, content_mode, category,
+              AND COALESCE(pipeline_mode, 'production') = $4
+              AND category = $5""",
+        scope, scope_id, content_mode, pipeline_mode, category,
     )
     await audit(actor=actor, action="provider.chain_v2.delete",
                 target_type="provider_chain_v2",
-                target_id=f"{scope}:{scope_id or ''}:{content_mode or ''}:{category}",
+                target_id=f"{scope}:{scope_id or ''}:{content_mode or ''}:{pipeline_mode}:{category}",
                 request=request)
     await publish_invalidate(
         category=category,
@@ -514,6 +519,7 @@ async def _upsert_chain_v2(
     scope: str,
     scope_id: str | None,
     content_mode: str | None,
+    pipeline_mode: str = "production",
     category: str,
     credential_ids: list[int],
     actor_user_id: int | None,
@@ -526,16 +532,17 @@ async def _upsert_chain_v2(
                     WHERE scope = $1
                       AND ($2::text IS NULL AND scope_id IS NULL OR scope_id = $2)
                       AND ($3::text IS NULL AND content_mode IS NULL OR content_mode = $3)
-                      AND category = $4""",
-                scope, scope_id, content_mode, category,
+                      AND COALESCE(pipeline_mode, 'production') = $4
+                      AND category = $5""",
+                scope, scope_id, content_mode, pipeline_mode, category,
             )
             for pos, cid in enumerate(credential_ids):
                 await conn.execute(
                     """INSERT INTO provider_chains_v2
-                            (scope, scope_id, content_mode, category, position,
+                            (scope, scope_id, content_mode, pipeline_mode, category, position,
                              credential_id, created_by)
-                       VALUES ($1,$2,$3,$4,$5,$6,$7)""",
-                    scope, scope_id, content_mode, category, pos, cid, actor_user_id,
+                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)""",
+                    scope, scope_id, content_mode, pipeline_mode, category, pos, cid, actor_user_id,
                 )
 
 
@@ -785,6 +792,7 @@ async def resolved_chain(
     category: str,
     channel_id: str | None = None,
     content_mode: str | None = None,
+    pipeline_mode: str = "production",
     _: Principal = Depends(principal_dep),
 ):
     """Return the merged chain that the runtime would use for this lookup.
@@ -822,10 +830,11 @@ async def resolved_chain(
                       AND ($2::text IS NULL AND c.scope_id IS NULL OR c.scope_id = $2)
                       AND ($3::text IS NULL AND c.content_mode IS NULL OR c.content_mode = $3)
                       AND c.category = $4
+                      AND COALESCE(c.pipeline_mode, 'production') = $5
                       AND pc.enabled = TRUE
                       AND COALESCE(c.is_enabled, TRUE) = TRUE
                     ORDER BY c.position""",
-                scope, sid, mode, category,
+                scope, sid, mode, category, pipeline_mode,
             )
             for r in rows:
                 if r["credential_id"] in seen:
@@ -852,6 +861,7 @@ async def resolved_chain(
         "category": category,
         "channel_id": channel_id,
         "content_mode": content_mode,
+        "pipeline_mode": pipeline_mode,
     }
 
 
