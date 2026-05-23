@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { Brain, PenTool, Mic2, Film, BarChart3, Globe2 } from 'lucide-react'
 
 /* ─── Feature data ───────────────────────────────────────── */
@@ -288,10 +288,15 @@ export default function Features() {
     return () => observers.forEach(o => o?.disconnect())
   }, [])
 
-  const active = FEATURES[activeIndex]
-
   return (
-    <section id="features" className="section-pad relative overflow-hidden">
+    <section id="features" className="section-pad relative" style={{ overflowX: 'clip' }}>
+      {/* Features-specific pink/violet glow — driven by --gradient-features token */}
+      <div className="features-glow" />
+      <div className="rainbow-glow" style={{ opacity: 0.45 }} />
+      <div className="noise-texture" />
+      <div className="section-blend section-blend-top" />
+      <div className="section-blend section-blend-bottom" />
+
       {/* Section header */}
       <div className="max-w-7xl mx-auto px-6">
         <motion.div
@@ -301,83 +306,104 @@ export default function Features() {
           transition={{ duration: 0.55 }}
           className="text-center mb-20"
         >
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/8 text-xs text-white/40 font-medium tracking-[0.15em] uppercase mb-5">
+          <div
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full border t-eyebrow mb-5"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+          >
             Under the hood
           </div>
-          <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">
+          <h2 className="t-display-lg mb-4" style={{ color: 'var(--text-primary)' }}>
             Six modules. One engine.
             <br />
             <span className="gradient-text">Every step automated.</span>
           </h2>
-          <p className="text-white/45 text-lg max-w-xl mx-auto">
+          <p className="t-body-lg max-w-xl mx-auto" style={{ color: 'var(--text-muted)' }}>
             From research to publish — every step of the content machine runs on its own, intelligently.
           </p>
         </motion.div>
       </div>
 
       {/* ── Sticky scroll layout (desktop) ── */}
-      <div className="max-w-7xl mx-auto px-6 hidden lg:block">
+      <div className="max-w-7xl mx-auto px-6 hidden lg:block relative z-10">
         <div className="grid grid-cols-2 gap-16 relative">
 
-          {/* Left — sticky info panel */}
-          <div className="sticky top-[100px] h-[calc(100vh-200px)] flex flex-col justify-center self-start">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={active.id}
-                initial={{ opacity: 0, y: 24, filter: 'blur(6px)' }}
-                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                exit={{ opacity: 0, y: -24, filter: 'blur(6px)' }}
-                transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-              >
-                {/* Number */}
-                <div className="font-mono text-[72px] font-black leading-none mb-6 select-none"
-                  style={{ color: `${active.accent}12`, WebkitTextStroke: `1px ${active.accent}30` }}>
-                  {active.number}
-                </div>
-
-                {/* Subtitle */}
-                <div className="text-sm font-mono tracking-[0.15em] uppercase mb-3" style={{ color: active.accent }}>
-                  {active.subtitle}
-                </div>
-
-                {/* Title */}
-                <h3 className="font-display text-4xl font-black tracking-tighter text-white mb-5 leading-tight">
-                  {active.title}
-                </h3>
-
-                {/* Description */}
-                <p className="text-white/50 text-lg leading-relaxed mb-8 max-w-sm">
-                  {active.description}
-                </p>
-
-                {/* Tags */}
-                <div className="flex flex-wrap gap-2">
-                  {active.tags.map(tag => (
-                    <span
-                      key={tag}
-                      className="text-xs font-medium px-3 py-1.5 rounded-full border"
-                      style={{ color: active.accent, borderColor: `${active.accent}30`, background: `${active.accent}0E` }}
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Progress indicator */}
-                <div className="flex items-center gap-2 mt-10">
-                  {FEATURES.map((_, i) => (
+          {/* Left — cell stretches with grid row; inner sticky panel sits inside.
+              Each feature panel is rendered absolutely; we crossfade by toggling opacity
+              so SOMETHING is always visible regardless of motion timing. */}
+          <div className="relative">
+            <div className="sticky top-[120px] h-[calc(100vh-220px)]">
+              <div className="relative w-full h-full">
+                {FEATURES.map((feature, i) => {
+                  const isActive = i === activeIndex
+                  return (
                     <div
-                      key={i}
-                      className="h-0.5 rounded-full transition-all duration-500"
+                      key={feature.id}
+                      className="absolute inset-0 flex flex-col justify-center"
                       style={{
-                        width: i === activeIndex ? '24px' : '6px',
-                        background: i === activeIndex ? active.accent : 'rgba(255,255,255,0.12)',
+                        opacity: isActive ? 1 : 0,
+                        transform: `translateY(${isActive ? 0 : 12}px)`,
+                        transition: 'opacity 0.45s ease, transform 0.45s ease',
+                        pointerEvents: isActive ? 'auto' : 'none',
                       }}
-                    />
-                  ))}
-                </div>
-              </motion.div>
-            </AnimatePresence>
+                    >
+                      {/* Number */}
+                      <div
+                        className="font-mono text-[88px] leading-none mb-6 select-none"
+                        style={{
+                          color: `${feature.accent}14`,
+                          WebkitTextStroke: `1px ${feature.accent}40`,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {feature.number}
+                      </div>
+
+                      <div className="t-eyebrow mb-3" style={{ color: feature.accent }}>
+                        {feature.subtitle}
+                      </div>
+
+                      <h3 className="t-display-md mb-5" style={{ color: 'var(--text-primary)' }}>
+                        {feature.title}
+                      </h3>
+
+                      <p className="t-body-lg mb-8 max-w-md" style={{ color: 'var(--text-muted)' }}>
+                        {feature.description}
+                      </p>
+
+                      <div className="flex flex-wrap gap-2 mb-10">
+                        {feature.tags.map(tag => (
+                          <span
+                            key={tag}
+                            className="t-body-sm px-3 py-1.5 rounded-full border"
+                            style={{
+                              color: feature.accent,
+                              borderColor: `${feature.accent}40`,
+                              background: `${feature.accent}10`,
+                            }}
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Progress indicator inside each panel so it's always visible */}
+                      <div className="flex items-center gap-2">
+                        {FEATURES.map((f, j) => (
+                          <div
+                            key={j}
+                            className="h-0.5 rounded-full transition-all duration-500"
+                            style={{
+                              width: j === activeIndex ? '24px' : '6px',
+                              background: j === activeIndex ? f.accent : 'var(--border-strong)',
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           </div>
 
           {/* Right — scrolling feature visuals */}
@@ -403,11 +429,14 @@ export default function Features() {
                       style={{
                         background: i === activeIndex
                           ? `linear-gradient(135deg, ${feature.accent}50, ${feature.accent}15, transparent)`
-                          : 'rgba(255,255,255,0.06)',
+                          : 'var(--border)',
                         transition: 'background 0.4s ease',
                       }}
                     >
-                      <div className="rounded-[15px] p-6 bg-[#0D0D18]">
+                      <div
+                        className="rounded-[15px] p-6"
+                        style={{ background: 'var(--bg-card-elevated)' }}
+                      >
                         <Visual accent={feature.accent} />
                       </div>
                     </div>
@@ -431,19 +460,26 @@ export default function Features() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-40px' }}
               transition={{ duration: 0.5, delay: i * 0.07 }}
-              className="glass-card rounded-2xl p-5 border border-white/[0.08]"
+              className="glass-card rounded-2xl p-5 border"
+              style={{ borderColor: 'var(--border)' }}
             >
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${feature.accent}18`, border: `1px solid ${feature.accent}28` }}>
-                  <Icon className="w-4 h-4" style={{ color: feature.accent }} />
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center"
+                  style={{ background: `${feature.accent}18`, border: `1px solid ${feature.accent}30` }}
+                >
+                  <Icon className="w-4 h-4" strokeWidth={1.75} style={{ color: feature.accent }} />
                 </div>
                 <div>
-                  <p className="text-white font-bold text-sm">{feature.title}</p>
-                  <p className="text-[10px] font-mono" style={{ color: feature.accent }}>{feature.subtitle}</p>
+                  <p className="t-headline" style={{ color: 'var(--text-primary)', fontSize: '0.95rem' }}>{feature.title}</p>
+                  <p className="t-micro" style={{ color: feature.accent }}>{feature.subtitle}</p>
                 </div>
               </div>
-              <p className="text-white/45 text-xs leading-relaxed mb-4">{feature.description}</p>
-              <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.05]">
+              <p className="t-body-sm mb-4" style={{ color: 'var(--text-muted)' }}>{feature.description}</p>
+              <div
+                className="p-3 rounded-xl border"
+                style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
+              >
                 <Visual accent={feature.accent} />
               </div>
             </motion.div>

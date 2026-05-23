@@ -1,6 +1,7 @@
 import type { Config } from 'tailwindcss'
 
 const config: Config = {
+  darkMode: 'class',
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
@@ -9,26 +10,23 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        'bg-base': '#09090F',
-        'bg-card': 'rgba(255,255,255,0.04)',
-        'accent-green': '#00D89F',
-        'accent-green-dim': '#00A876',
-        'accent-purple': '#6645C1',
-        'accent-violet': '#7C3AED',
-        'accent-cyan': '#06B6D4',
-        'accent-blue': '#2563EB',
-        'text-primary': '#FFFFFF',
-        'text-secondary': 'rgba(255,255,255,0.65)',
-        'text-muted': 'rgba(255,255,255,0.38)',
-        'border-subtle': 'rgba(255,255,255,0.08)',
-        'border-card': 'rgba(255,255,255,0.10)',
+        accent: {
+          violet:  '#7C3AED',
+          'violet-light': '#9B6FF5',
+          'violet-dark':  '#5B21B6',
+          green:   '#00D89F',
+          'green-dark':   '#00A876',
+          cyan:    '#06B6D4',
+          pink:    '#EC4899',
+        },
       },
       fontFamily: {
-        sans: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
-        display: ['var(--font-display)', 'Bricolage Grotesque', 'system-ui', 'sans-serif'],
-        hero: ['var(--font-syne)', 'Syne', 'system-ui', 'sans-serif'],
-        serif: ['var(--font-serif)', 'Instrument Serif', 'Georgia', 'serif'],
-        mono: ['var(--font-mono)', 'JetBrains Mono', 'Fira Code', 'monospace'],
+        sans:      ['var(--font-google-sans)', 'Google Sans Flex', 'system-ui', 'sans-serif'],
+        serif:     ['var(--font-google-sans)', 'Google Sans Flex', 'system-ui', 'sans-serif'],
+        display:   ['var(--font-google-sans)', 'Google Sans Flex', 'system-ui', 'sans-serif'],
+        hero:      ['var(--font-google-sans)', 'Google Sans Flex', 'system-ui', 'sans-serif'],
+        cursive:   ['var(--font-cattalague)', 'Cattalague', 'cursive'],
+        mono:      ['var(--font-mono)', 'JetBrains Mono', 'monospace'],
       },
       letterSpacing: {
         tight: '-0.022em',

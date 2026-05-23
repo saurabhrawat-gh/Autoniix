@@ -76,8 +76,8 @@ function TiltCard({ children, accent }: { children: React.ReactNode; accent: str
       ref={ref}
       onMouseMove={handleMove}
       onMouseLeave={handleLeave}
-      className="tilt-card glass-card rounded-2xl p-6 border border-white/[0.08] h-full"
-      style={{ transition: 'transform 0.25s ease, box-shadow 0.25s ease' }}
+      className="tilt-card glass-card rounded-2xl p-6 border h-full"
+      style={{ transition: 'transform 0.25s ease, box-shadow 0.25s ease', borderColor: 'var(--border)' }}
     >
       {children}
     </div>
@@ -111,7 +111,7 @@ function LiveTerminal() {
   }
 
   return (
-    <div className="gradient-border-card">
+    <div className="gradient-border-card mockup-dark">
       <div className="gradient-border-card-inner">
         {/* Chrome bar */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.07] bg-white/[0.02]">
@@ -150,14 +150,13 @@ function LiveTerminal() {
 /* ─── HowItWorks ─────────────────────────────────────────── */
 export default function HowItWorks() {
   return (
-    <section id="how-it-works" className="section-pad relative overflow-hidden">
-      {/* Ambient background glow */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[600px] rounded-full"
-          style={{ background: 'radial-gradient(ellipse, rgba(124,58,237,0.08) 0%, transparent 65%)', filter: 'blur(60px)' }}
-        />
-      </div>
+    <section id="how-it-works" className="section-pad relative" style={{ overflowX: 'clip' }}>
+      {/* Aurora + rainbow ambient (SS3 look) */}
+      <div className="section-glow-aurora" style={{ opacity: 0.85 }} />
+      <div className="rainbow-glow" style={{ opacity: 0.4 }} />
+      <div className="noise-texture" />
+      <div className="section-blend section-blend-top" />
+      <div className="section-blend section-blend-bottom" />
 
       <div className="max-w-7xl mx-auto px-6 relative z-10">
         {/* Header */}
@@ -168,15 +167,18 @@ export default function HowItWorks() {
           transition={{ duration: 0.55 }}
           className="text-center mb-20"
         >
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/8 text-xs text-white/40 font-medium tracking-[0.15em] uppercase mb-5">
+          <div
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full border t-eyebrow mb-5"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+          >
             How it works
           </div>
-          <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">
+          <h2 className="t-display-lg mb-4" style={{ color: 'var(--text-primary)' }}>
             Configure once.
             <br />
             <span className="gradient-text">Publish forever.</span>
           </h2>
-          <p className="text-white/45 text-lg max-w-lg mx-auto">
+          <p className="t-body-lg max-w-lg mx-auto" style={{ color: 'var(--text-muted)' }}>
             Three steps, then Autoniix takes over completely.
           </p>
         </motion.div>
@@ -220,13 +222,20 @@ export default function HowItWorks() {
                     </span>
                   </div>
 
-                  <h3 className="text-white font-bold text-xl mb-2 tracking-tight">{step.title}</h3>
-                  <p className="text-white/45 text-sm leading-relaxed mb-4">{step.description}</p>
+                  <h3 className="t-headline mb-2" style={{ color: 'var(--text-primary)' }}>{step.title}</h3>
+                  <p className="t-body-sm mb-4" style={{ color: 'var(--text-muted)' }}>{step.description}</p>
 
                   {/* Detail pill */}
                   <div
-                    className="text-[10px] font-mono px-3 py-2 rounded-lg leading-relaxed"
-                    style={{ background: `${step.accent}0A`, color: `${step.accent}CC`, border: `1px solid ${step.accent}18` }}
+                    className="t-micro px-3 py-2 rounded-lg"
+                    style={{
+                      background: `${step.accent}0A`,
+                      color: step.accent,
+                      border: `1px solid ${step.accent}28`,
+                      textTransform: 'none',
+                      letterSpacing: 0,
+                      fontSize: '0.6875rem',
+                    }}
                   >
                     {step.detail}
                   </div>
@@ -244,7 +253,7 @@ export default function HowItWorks() {
           transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
         >
           <div className="text-center mb-6">
-            <p className="text-white/35 text-sm font-mono tracking-[0.12em]">WATCH THE ENGINE RUN — LIVE</p>
+            <p className="t-eyebrow" style={{ color: 'var(--text-muted)' }}>Watch the engine run — live</p>
           </div>
           <div className="max-w-3xl mx-auto">
             <LiveTerminal />

@@ -3,115 +3,202 @@
 import { useRef } from 'react'
 import { motion, useScroll, useTransform } from 'framer-motion'
 
-/* ─── Wavy SVG divider ───────────────────────────────────── */
-function WaveDivider({ flip = false, color = '#09090F' }: { flip?: boolean; color?: string }) {
-  return (
-    <div className={`wave-divider ${flip ? 'rotate-180' : ''}`} style={{ marginTop: flip ? 0 : -2, marginBottom: flip ? -2 : 0 }}>
-      <svg viewBox="0 0 1440 60" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-        <motion.path
-          d="M0,30 C240,60 480,0 720,30 C960,60 1200,0 1440,30 L1440,60 L0,60 Z"
-          fill={color}
-          animate={{ d: [
-            'M0,30 C240,60 480,0 720,30 C960,60 1200,0 1440,30 L1440,60 L0,60 Z',
-            'M0,20 C240,0 480,60 720,20 C960,0 1200,60 1440,20 L1440,60 L0,60 Z',
-            'M0,30 C240,60 480,0 720,30 C960,60 1200,0 1440,30 L1440,60 L0,60 Z',
-          ]}}
-          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-        />
-      </svg>
-    </div>
-  )
-}
-
-/* ─── Animated visuals ───────────────────────────────────── */
-function AutopilotVisual() {
+/* ─── Visual: Orchestration diagram (Ten Models, One Brain) ────── */
+function AutopilotVisual({ accent }: { accent: string }) {
   const models = [
-    { name: 'Gemini 2.5 Flash', role: 'Research',  color: '#00D89F', ms: '120ms' },
-    { name: 'Claude Sonnet 4',  role: 'Script',    color: '#7C3AED', ms: '340ms' },
-    { name: 'GPT-4o',           role: 'Fact-check', color: '#06B6D4', ms: '80ms' },
-    { name: 'Fish Audio',       role: 'Voice',     color: '#F59E0B', ms: '210ms' },
+    { name: 'Gemini',   role: 'Research',    color: '#00D89F', angle: -90 },
+    { name: 'Claude',   role: 'Script',      color: '#7C3AED', angle: -30 },
+    { name: 'GPT-4o',   role: 'Fact-check',  color: '#06B6D4', angle:  30 },
+    { name: 'Fish',     role: 'Voice',       color: '#F59E0B', angle:  90 },
+    { name: 'Veo',      role: 'Render',      color: '#EC4899', angle: 150 },
+    { name: 'FFmpeg',   role: 'Encode',      color: '#3B82F6', angle: 210 },
   ]
+  const cx = 200, cy = 180, r = 120
+
   return (
-    <div className="space-y-3">
-      <div className="text-[10px] font-mono text-white/25 uppercase tracking-[0.2em] mb-5">AI orchestration layer</div>
-      {models.map((m, i) => (
-        <motion.div
-          key={m.name}
-          initial={{ opacity: 0, x: 20 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: i * 0.1, duration: 0.5, ease: [0.16,1,0.3,1] }}
-          className="flex items-center gap-4 glass-card rounded-xl px-4 py-3 border border-white/[0.07]"
-        >
-          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: m.color, boxShadow: `0 0 8px ${m.color}80` }} />
-          <div className="flex-1 min-w-0">
-            <p className="text-white/75 text-sm font-medium truncate">{m.name}</p>
-            <p className="text-white/30 text-[10px] font-mono">{m.role}</p>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <div className="h-1 w-12 bg-white/[0.06] rounded-full overflow-hidden">
-              <motion.div
-                className="h-full rounded-full"
-                style={{ background: m.color }}
-                initial={{ width: '0%' }}
-                whileInView={{ width: '100%' }}
-                viewport={{ once: true }}
-                transition={{ duration: 1.2, delay: 0.4 + i * 0.15 }}
+    <div className="relative w-full" style={{ aspectRatio: '1.1 / 1' }}>
+      <svg viewBox="0 0 400 360" className="w-full h-full">
+        <defs>
+          <radialGradient id="brainGrad" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor={accent} stopOpacity="0.55" />
+            <stop offset="60%" stopColor={accent} stopOpacity="0.18" />
+            <stop offset="100%" stopColor={accent} stopOpacity="0" />
+          </radialGradient>
+          <linearGradient id="edgeGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor={accent} stopOpacity="0.05" />
+            <stop offset="50%" stopColor={accent} stopOpacity="0.45" />
+            <stop offset="100%" stopColor={accent} stopOpacity="0.05" />
+          </linearGradient>
+        </defs>
+
+        {/* Outer glow ring */}
+        <circle cx={cx} cy={cy} r={r + 30} fill="url(#brainGrad)" opacity="0.6" />
+
+        {/* Connection lines + flowing particles */}
+        {models.map((m, i) => {
+          const rad = (m.angle * Math.PI) / 180
+          const x = cx + Math.cos(rad) * r
+          const y = cy + Math.sin(rad) * r
+          return (
+            <g key={m.name}>
+              <line
+                x1={cx} y1={cy} x2={x} y2={y}
+                stroke="url(#edgeGrad)"
+                strokeWidth="1.2"
+                strokeDasharray="3 4"
+                style={{ animation: `flowDash 2.4s linear infinite ${i * 0.3}s` }}
               />
-            </div>
-            <span className="text-[10px] font-mono" style={{ color: m.color }}>{m.ms}</span>
-          </div>
-        </motion.div>
-      ))}
-      {/* Status bar */}
-      <div className="flex items-center gap-2 pt-2">
-        <div className="w-1.5 h-1.5 rounded-full bg-[#00D89F] animate-pulse" />
-        <span className="text-[11px] font-mono text-white/35">All models nominal · 99.9% uptime</span>
+              <circle r="2.5" fill={m.color} opacity="0.85">
+                <animateMotion
+                  dur="3s"
+                  repeatCount="indefinite"
+                  begin={`${i * 0.5}s`}
+                  path={`M${cx},${cy} L${x},${y}`}
+                />
+              </circle>
+            </g>
+          )
+        })}
+
+        {/* Central brain */}
+        <circle cx={cx} cy={cy} r="44" fill={`${accent}10`} stroke={accent} strokeWidth="1.2" />
+        <circle cx={cx} cy={cy} r="28" fill={`${accent}22`} />
+        <circle cx={cx} cy={cy} r="14" fill={accent}>
+          <animate attributeName="r" values="14;18;14" dur="2.8s" repeatCount="indefinite" />
+        </circle>
+        <text x={cx} y={cy + 4} textAnchor="middle" fontSize="10" fontFamily="var(--font-mono)" fontWeight="600" fill="#FFFFFF">
+          BRAIN
+        </text>
+
+        {/* Outer model nodes */}
+        {models.map((m) => {
+          const rad = (m.angle * Math.PI) / 180
+          const x = cx + Math.cos(rad) * r
+          const y = cy + Math.sin(rad) * r
+          return (
+            <g key={m.name}>
+              <circle
+                cx={x} cy={y} r="22"
+                stroke={m.color} strokeWidth="1.5"
+                style={{ fill: 'var(--bg-card-elevated)' }}
+              />
+              <circle cx={x} cy={y} r="6" fill={m.color}>
+                <animate attributeName="opacity" values="1;0.4;1" dur="2.4s" repeatCount="indefinite" />
+              </circle>
+              <text
+                x={x} y={y + 38} textAnchor="middle" fontSize="10" fontWeight="500"
+                fontFamily="var(--font-google-sans)"
+                style={{ fill: 'var(--text-primary)' }}
+              >
+                {m.name}
+              </text>
+              <text
+                x={x} y={y + 50} textAnchor="middle" fontSize="8"
+                fontFamily="var(--font-mono)" letterSpacing="0.05em"
+                style={{ fill: 'var(--text-muted)' }}
+              >
+                {m.role.toUpperCase()}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+
+      {/* Floating status pill */}
+      <div
+        className="absolute bottom-2 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full t-micro border"
+        style={{
+          background: 'var(--bg-card)',
+          borderColor: 'var(--border)',
+          color: 'var(--text-muted)',
+          backdropFilter: 'blur(8px)',
+        }}
+      >
+        <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: accent }} />
+        ALL MODELS NOMINAL · 99.9% UPTIME
       </div>
     </div>
   )
 }
 
-function ContentQualityVisual() {
-  const before = { score: 4.1, retention: '38%', ctr: '2.1%' }
-  const after  = { score: 9.4, retention: '73%', ctr: '8.7%' }
+/* ─── Visual: Quality dial + comparison bars ──────────────── */
+function ContentQualityVisual({ accent }: { accent: string }) {
+  const score = 9.4
+  const circumference = 2 * Math.PI * 60
+  const offset = circumference - (score / 10) * circumference
+
   const metrics = [
-    { label: 'Quality score', before: before.score,    after: after.score,    max: 10,   suffix: '/10' },
-    { label: 'Avg retention', before: 38,              after: 73,             max: 100,  suffix: '%'  },
-    { label: 'Click-through', before: 2.1,             after: 8.7,            max: 15,   suffix: '%'  },
+    { label: 'Avg retention', before: 38, after: 73, suffix: '%' },
+    { label: 'Click-through', before: 21, after: 87, suffix: '%' },
+    { label: 'Quality score', before: 41, after: 94, suffix: '%' },
   ]
+
   return (
-    <div>
-      <div className="text-[10px] font-mono text-white/25 uppercase tracking-[0.2em] mb-5">Quality comparison · AI vs manual</div>
-      <div className="space-y-5">
-        {metrics.map(m => (
-          <div key={m.label}>
-            <div className="flex items-center justify-between text-[11px] font-mono mb-2">
-              <span className="text-white/40">{m.label}</span>
-              <span className="text-white/25">{m.before}{m.suffix} → <span className="text-[#00D89F]">{m.after}{m.suffix}</span></span>
-            </div>
-            <div className="relative h-2 bg-white/[0.06] rounded-full overflow-hidden">
-              {/* Before bar */}
-              <div className="absolute left-0 top-0 h-full rounded-full bg-white/10"
-                style={{ width: `${(m.before / m.max) * 100}%` }} />
-              {/* After bar */}
-              <motion.div
-                className="absolute left-0 top-0 h-full rounded-full"
-                style={{ background: 'linear-gradient(90deg, #00D89F88, #00D89F)' }}
-                initial={{ width: '0%' }}
-                whileInView={{ width: `${(m.after / m.max) * 100}%` }}
-                viewport={{ once: true }}
-                transition={{ duration: 1.4, ease: [0.16,1,0.3,1], delay: 0.3 }}
-              />
-            </div>
+    <div className="relative w-full">
+      <div className="grid grid-cols-2 gap-6 items-center">
+        {/* Big circular dial */}
+        <div className="relative flex items-center justify-center" style={{ minHeight: 180 }}>
+          <svg viewBox="0 0 160 160" className="w-44 h-44">
+            <defs>
+              <linearGradient id="dialGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor={accent} />
+                <stop offset="100%" stopColor={accent} stopOpacity="0.65" />
+              </linearGradient>
+            </defs>
+            <circle cx="80" cy="80" r="60" fill="none" strokeWidth="6" style={{ stroke: 'var(--border-strong)' }} />
+            <motion.circle
+              cx="80" cy="80" r="60"
+              fill="none"
+              stroke="url(#dialGrad)"
+              strokeWidth="6"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              initial={{ strokeDashoffset: circumference }}
+              whileInView={{ strokeDashoffset: offset }}
+              viewport={{ once: true }}
+              transition={{ duration: 1.6, ease: [0.16, 1, 0.3, 1] }}
+              transform="rotate(-90 80 80)"
+            />
+          </svg>
+          <div className="absolute flex flex-col items-center">
+            <span className="t-micro" style={{ color: 'var(--text-muted)' }}>QUALITY</span>
+            <span style={{ color: 'var(--text-primary)', fontSize: '2.5rem', fontWeight: 500, letterSpacing: '-0.04em', lineHeight: 1 }}>
+              9.4
+            </span>
+            <span className="t-micro" style={{ color: accent }}>OUT OF 10</span>
           </div>
-        ))}
+        </div>
+
+        {/* Comparison bars */}
+        <div className="space-y-4">
+          <div className="t-eyebrow" style={{ color: 'var(--text-muted)' }}>AI vs Manual</div>
+          {metrics.map((m, i) => (
+            <div key={m.label}>
+              <div className="flex items-center justify-between mb-1.5 t-micro">
+                <span style={{ color: 'var(--text-muted)' }}>{m.label}</span>
+                <span style={{ color: accent }}>+{m.after - m.before}{m.suffix}</span>
+              </div>
+              <div className="relative h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
+                <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${m.before}%`, background: 'var(--text-faint)' }} />
+                <motion.div
+                  className="absolute inset-y-0 left-0 rounded-full"
+                  style={{ background: `linear-gradient(90deg, ${accent}, var(--accent))` }}
+                  initial={{ width: 0 }}
+                  whileInView={{ width: `${m.after}%` }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 1.2, delay: 0.2 + i * 0.1, ease: [0.16, 1, 0.3, 1] }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
 }
 
-function ScaleDemoVisual() {
+/* ─── Visual: Scale stack ─────────────────────────────────── */
+function ScaleDemoVisual({ accent }: { accent: string }) {
   const tiers = [
     { label: '1 profile',    videos: 4,   color: '#00D89F' },
     { label: '10 profiles',  videos: 40,  color: '#7C3AED' },
@@ -120,57 +207,65 @@ function ScaleDemoVisual() {
   ]
   return (
     <div>
-      <div className="text-[10px] font-mono text-white/25 uppercase tracking-[0.2em] mb-5">Output volume · Monthly videos</div>
-      <div className="space-y-4">
+      <div className="t-eyebrow mb-4" style={{ color: 'var(--text-muted)' }}>OUTPUT VOLUME · MONTHLY VIDEOS</div>
+      <div className="space-y-3">
         {tiers.map((tier, i) => (
           <motion.div
             key={tier.label}
-            initial={{ opacity: 0, y: 10 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, x: -12 }}
+            whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ delay: i * 0.1 }}
+            className="rounded-xl border p-3"
+            style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}
           >
-            <div className="flex items-center justify-between text-[11px] font-mono mb-1.5">
-              <span className="text-white/50">{tier.label}</span>
-              <span style={{ color: tier.color }}>{tier.videos} videos/mo</span>
+            <div className="flex items-center justify-between mb-1.5 t-body-sm">
+              <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{tier.label}</span>
+              <span className="t-micro" style={{ color: tier.color }}>{tier.videos} VIDEOS / MO</span>
             </div>
-            <div className="h-2 bg-white/[0.05] rounded-full overflow-hidden">
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
               <motion.div
                 className="h-full rounded-full"
-                style={{ background: `linear-gradient(90deg, ${tier.color}88, ${tier.color})` }}
+                style={{ background: `linear-gradient(90deg, ${tier.color}99, ${tier.color})` }}
                 initial={{ width: '0%' }}
                 whileInView={{ width: `${(tier.videos / 400) * 100}%` }}
                 viewport={{ once: true }}
-                transition={{ duration: 1.2, ease: [0.16,1,0.3,1], delay: 0.2 + i * 0.12 }}
+                transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.2 + i * 0.1 }}
               />
             </div>
           </motion.div>
         ))}
       </div>
-      <div className="mt-5 glass-card rounded-xl px-4 py-3 border border-[#00D89F]/15 flex items-center gap-3">
-        <div className="text-2xl font-black gradient-text font-display">∞</div>
+      <div
+        className="mt-4 rounded-xl px-4 py-3 border flex items-center gap-3"
+        style={{
+          borderColor: `${accent}40`,
+          background: `${accent}0A`,
+        }}
+      >
+        <div style={{ fontSize: '2rem', color: accent, fontWeight: 500, lineHeight: 1 }}>∞</div>
         <div>
-          <p className="text-white/65 text-sm font-semibold">No hard limit</p>
-          <p className="text-white/30 text-[11px]">Scale to any volume on the Enterprise plan</p>
+          <p className="t-body-sm" style={{ color: 'var(--text-primary)', fontWeight: 500 }}>No hard limit</p>
+          <p className="t-micro" style={{ color: 'var(--text-muted)' }}>SCALE ANY VOLUME ON ENTERPRISE</p>
         </div>
       </div>
     </div>
   )
 }
 
-function HumanLoopVisual() {
+/* ─── Visual: Approval workflow ring ──────────────────────── */
+function HumanLoopVisual({ accent }: { accent: string }) {
   const steps = [
-    { label: 'AI generates script',  status: 'done',    color: '#00D89F' },
-    { label: 'Quality gate: 8.5+',   status: 'done',    color: '#00D89F' },
-    { label: 'Human review (opt.)',   status: 'pending', color: '#F59E0B' },
-    { label: 'Render + publish',      status: 'queued',  color: '#7C3AED' },
+    { label: 'AI generates',        status: 'done',    color: '#00D89F' },
+    { label: 'Quality gate ≥ 8.5',  status: 'done',    color: '#00D89F' },
+    { label: 'Human review (opt.)', status: 'pending', color: accent },
+    { label: 'Render + publish',    status: 'queued',  color: '#7C3AED' },
   ]
   return (
     <div>
-      <div className="text-[10px] font-mono text-white/25 uppercase tracking-[0.2em] mb-5">Approval workflow · Configurable</div>
+      <div className="t-eyebrow mb-4" style={{ color: 'var(--text-muted)' }}>APPROVAL WORKFLOW · CONFIGURABLE</div>
       <div className="relative">
-        {/* Vertical line */}
-        <div className="absolute left-3.5 top-4 bottom-4 w-px bg-white/[0.07]" />
+        <div className="absolute left-3.5 top-4 bottom-4 w-px" style={{ background: 'var(--border)' }} />
         <div className="space-y-4">
           {steps.map((step, i) => (
             <motion.div
@@ -184,22 +279,26 @@ function HumanLoopVisual() {
               <div
                 className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center border z-10 relative"
                 style={{
-                  background: step.status === 'queued' ? 'rgba(255,255,255,0.04)' : `${step.color}18`,
-                  borderColor: step.status === 'queued' ? 'rgba(255,255,255,0.1)' : `${step.color}50`,
+                  background: step.status === 'queued' ? 'var(--bg-card)' : `${step.color}20`,
+                  borderColor: step.status === 'queued' ? 'var(--border-strong)' : `${step.color}60`,
                 }}
               >
-                {step.status === 'done'    && <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke={step.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                {step.status === 'done' && (
+                  <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none">
+                    <path d="M2.5 6L5 8.5L9.5 3.5" stroke={step.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
                 {step.status === 'pending' && <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: step.color }} />}
-                {step.status === 'queued'  && <div className="w-2 h-2 rounded-full bg-white/20" />}
+                {step.status === 'queued' && <div className="w-2 h-2 rounded-full" style={{ background: 'var(--text-faint)' }} />}
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium" style={{ color: step.status === 'queued' ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.75)' }}>
+                <p className="t-body-sm" style={{ color: step.status === 'queued' ? 'var(--text-muted)' : 'var(--text-primary)', fontWeight: 500 }}>
                   {step.label}
                 </p>
               </div>
               <span
-                className="text-[10px] font-mono px-2 py-0.5 rounded"
-                style={{ color: step.color, background: `${step.color}12` }}
+                className="t-micro px-2 py-0.5 rounded"
+                style={{ color: step.color, background: `${step.color}15` }}
               >
                 {step.status}
               </span>
@@ -207,8 +306,8 @@ function HumanLoopVisual() {
           ))}
         </div>
       </div>
-      <div className="mt-4 text-[11px] text-white/30 font-mono border-t border-white/[0.06] pt-4">
-        Human review is <span className="text-[#F59E0B]">optional</span> — disable it and everything ships automatically.
+      <div className="mt-4 t-micro pt-4 border-t" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+        HUMAN REVIEW IS <span style={{ color: accent }}>OPTIONAL</span> — DISABLE IT AND EVERYTHING SHIPS AUTOMATICALLY.
       </div>
     </div>
   )
@@ -219,76 +318,88 @@ const SECTIONS = [
   {
     id: 'autopilot',
     eyebrow: 'AI Orchestration',
-    headline: 'Ten models.\nOne brain.',
-    subtext: 'Autoniix doesn\'t use a single AI — it orchestrates a team of specialist models, each best-in-class for its role. The result is content no single model could produce alone.',
-    accent: '#00D89F',
+    headline: 'Ten models.',
+    headline2: 'One brain.',
+    subtext: "Autoniix doesn't use a single AI — it orchestrates a team of specialist models, each best-in-class for its role. Result: content no single model could produce alone.",
+    accent: '#00A876',
+    accentDark: '#00D89F',
     visual: AutopilotVisual,
     reverse: false,
-    bgAccent: 'rgba(0,216,159,0.04)',
+    stat: { value: '10+', label: 'Specialist models' },
   },
   {
     id: 'quality',
     eyebrow: 'Content Quality',
-    headline: 'Not just fast.\nActually good.',
-    subtext: 'Every script is fact-checked, hook-optimised, and quality-scored before it touches your audience. Average score: 9.2/10. Average retention lift: +35%.',
-    accent: '#7C3AED',
+    headline: 'Not just fast.',
+    headline2: 'Actually good.',
+    subtext: 'Every script is fact-checked, hook-optimised, and quality-scored before it touches your audience. Average score: 9.4/10. Average retention lift: +35%.',
+    accent: '#6D28D9',
+    accentDark: '#7C3AED',
     visual: ContentQualityVisual,
     reverse: true,
-    bgAccent: 'rgba(124,58,237,0.04)',
+    stat: { value: '9.4 / 10', label: 'Avg quality score' },
   },
   {
     id: 'scale',
     eyebrow: 'Infinite Scale',
-    headline: 'One setup.\nEvery platform.',
-    subtext: 'Go from 1 channel to 100 overnight. Autoniix handles every profile identically — same quality, same speed, same reliability — whether you\'re running 5 or 500 jobs.',
-    accent: '#06B6D4',
+    headline: 'One setup.',
+    headline2: 'Every platform.',
+    subtext: 'Go from 1 channel to 100 overnight. Autoniix handles every profile identically — same quality, same speed, same reliability — whether you run 5 or 500 jobs.',
+    accent: '#0891B2',
+    accentDark: '#06B6D4',
     visual: ScaleDemoVisual,
     reverse: false,
-    bgAccent: 'rgba(6,182,212,0.04)',
+    stat: { value: '400+', label: 'Videos / month / 100 profiles' },
   },
   {
     id: 'control',
     eyebrow: 'Full Control',
-    headline: 'Autopilot on.\nYou still fly.',
-    subtext: 'Set a quality threshold and let everything through automatically — or require human sign-off before anything publishes. Every step is configurable, pausable, and reversible.',
-    accent: '#F59E0B',
+    headline: 'Autopilot on.',
+    headline2: 'You still fly.',
+    subtext: 'Set a quality threshold and let everything through automatically — or require human sign-off before anything publishes. Every step is configurable, pausable, reversible.',
+    accent: '#D97706',
+    accentDark: '#F59E0B',
     visual: HumanLoopVisual,
     reverse: true,
-    bgAccent: 'rgba(245,158,11,0.04)',
+    stat: { value: '100%', label: 'Reversible at any step' },
   },
 ]
 
-/* ─── MarketingSection (single) ─────────────────────────── */
-function MarketingSection({
-  section,
-  index,
-}: {
-  section: typeof SECTIONS[0]
-  index: number
-}) {
+/* ─── MarketingSection ────────────────────────────────────── */
+function MarketingSection({ section, index }: { section: typeof SECTIONS[0]; index: number }) {
   const ref = useRef<HTMLDivElement>(null)
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] })
-  const y = useTransform(scrollYProgress, [0, 1], [30, -30])
+  const yVisual = useTransform(scrollYProgress, [0, 1], [40, -40])
   const Visual = section.visual
 
   return (
-    <div
-      ref={ref}
-      className="marketing-section relative"
-      style={{ background: section.bgAccent !== 'rgba(0,0,0,0)' ? `linear-gradient(180deg, #09090F 0%, ${section.bgAccent.replace('0.04', '0.06')} 50%, #09090F 100%)` : undefined }}
-    >
-      {/* Ambient glow */}
-      <div
-        className="marketing-visual-glow w-[600px] h-[600px] pointer-events-none"
-        style={{
-          background: `radial-gradient(ellipse, ${section.accent}08 0%, transparent 70%)`,
-          top: '10%',
-          left: section.reverse ? 'auto' : '-10%',
-          right: section.reverse ? '-10%' : 'auto',
-        }}
-      />
+    <div ref={ref} className="relative py-28 md:py-36" style={{ overflowX: 'clip' }}>
+      {/* SS3-style aurora + rainbow mesh combo */}
+      <div className="section-glow-aurora" style={{ opacity: 0.95 }} />
+      <div className="rainbow-glow" style={{ opacity: 0.55 }} />
+      <div className="noise-texture" />
+      <div className="section-blend section-blend-top" />
+      <div className="section-blend section-blend-bottom" />
 
-      <div className="max-w-7xl mx-auto px-6">
+      {/* Decorative number watermark */}
+      <div
+        aria-hidden
+        className="absolute font-mono select-none pointer-events-none hidden xl:block"
+        style={{
+          top: '8%',
+          [section.reverse ? 'right' : 'left']: '4%',
+          fontSize: 'clamp(8rem, 14vw, 16rem)',
+          fontWeight: 600,
+          color: 'transparent',
+          WebkitTextStroke: '1px var(--border-strong)',
+          lineHeight: 1,
+          letterSpacing: '-0.05em',
+        }}
+      >
+        {String(index + 1).padStart(2, '0')}
+      </div>
+
+      <div className="relative z-10 max-w-7xl mx-auto px-6">
         <div className={`grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center ${section.reverse ? 'lg:[&>*:first-child]:order-2' : ''}`}>
 
           {/* Text column */}
@@ -296,72 +407,96 @@ function MarketingSection({
             initial={{ opacity: 0, x: section.reverse ? 32 : -32 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true, margin: '-80px' }}
-            transition={{ duration: 0.7, ease: [0.16,1,0.3,1] }}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
           >
             {/* Eyebrow */}
             <div
-              className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono tracking-[0.18em] uppercase border mb-6"
-              style={{ color: section.accent, borderColor: `${section.accent}28`, background: `${section.accent}0C` }}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full t-eyebrow border mb-6"
+              style={{
+                color: 'var(--accent-secondary)',
+                borderColor: 'color-mix(in srgb, var(--accent-secondary) 28%, transparent)',
+                background: 'color-mix(in srgb, var(--accent-secondary) 8%, transparent)',
+              }}
             >
-              <div className="w-1.5 h-1.5 rounded-full" style={{ background: section.accent }} />
+              <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-secondary)' }} />
               {section.eyebrow}
             </div>
 
-            {/* Headline */}
-            <h2 className="font-display text-4xl sm:text-5xl lg:text-[3.5rem] font-black tracking-tighter text-white mb-6 leading-[1.05] whitespace-pre-line">
+            {/* Headline — two lines, second line gradient-text */}
+            <h2 className="t-display-lg mb-6" style={{ color: 'var(--text-primary)' }}>
               {section.headline}
+              <br />
+              <span className="gradient-text">{section.headline2}</span>
             </h2>
 
             {/* Body */}
-            <p className="text-white/50 text-lg leading-relaxed mb-8 max-w-md">
+            <p className="t-body-lg mb-6 max-w-md" style={{ color: 'var(--text-muted)' }}>
               {section.subtext}
             </p>
 
-            {/* Section number — large decorative */}
+            {/* Stat callout chip */}
             <div
-              className="text-[120px] font-black font-mono leading-none select-none absolute -bottom-8 -left-4 pointer-events-none hidden xl:block"
-              style={{ color: `${section.accent}06`, WebkitTextStroke: `1px ${section.accent}10` }}
+              className="inline-flex items-center gap-3 px-4 py-2.5 rounded-2xl border"
+              style={{
+                borderColor: 'var(--border)',
+                background: 'var(--bg-card)',
+                backdropFilter: 'blur(12px)',
+              }}
             >
-              {String(index + 1).padStart(2, '0')}
+              <span style={{ fontSize: '1.5rem', fontWeight: 500, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                {section.stat.value}
+              </span>
+              <span className="t-micro" style={{ color: 'var(--text-muted)' }}>
+                {section.stat.label}
+              </span>
             </div>
           </motion.div>
 
           {/* Visual column */}
           <motion.div
-            style={{ y }}
+            style={{ y: yVisual }}
             initial={{ opacity: 0, x: section.reverse ? -32 : 32 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true, margin: '-80px' }}
-            transition={{ duration: 0.7, delay: 0.1, ease: [0.16,1,0.3,1] }}
+            transition={{ duration: 0.7, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
           >
-            {/* Gradient border card */}
-            <div
-              className="rounded-2xl p-px"
-              style={{
-                background: `linear-gradient(135deg, ${section.accent}40 0%, ${section.accent}10 40%, transparent 60%, ${section.accent}15 100%)`,
-              }}
-            >
-              <div className="rounded-[15px] p-6 bg-[#0D0D18]">
-                <Visual />
+            <div className="relative">
+              {/* SS3 halo backdrop — silver/violet halos behind card */}
+              <div className="halo-backdrop" />
+
+              {/* Glowing gradient border card */}
+              <div
+                className="rounded-3xl p-px relative"
+                style={{
+                  background: `linear-gradient(135deg, color-mix(in srgb, var(--accent-secondary) 45%, transparent) 0%, color-mix(in srgb, var(--accent-tertiary) 28%, transparent) 50%, transparent 100%)`,
+                }}
+              >
+                <div
+                  className="rounded-[23px] p-6 md:p-8 backdrop-blur-md"
+                  style={{
+                    background: 'color-mix(in srgb, var(--bg-card-elevated) 92%, transparent)',
+                    boxShadow: 'var(--shadow-card-hover)',
+                  }}
+                >
+                  <Visual accent={section.accentDark} />
+                </div>
               </div>
             </div>
 
-            {/* Floating accent chip */}
-            <motion.div
-              className="mt-4 flex justify-end"
-              initial={{ opacity: 0, y: 10 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.5, duration: 0.45 }}
-            >
+            {/* Floating live-data chip */}
+            <div className="mt-4 flex justify-end">
               <div
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-mono"
-                style={{ color: section.accent, borderColor: `${section.accent}22`, background: `${section.accent}0A` }}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full t-micro border"
+                style={{
+                  color: 'var(--accent)',
+                  borderColor: 'color-mix(in srgb, var(--accent) 28%, transparent)',
+                  background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
+                }}
               >
-                <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: section.accent }} />
-                Live data
+                <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--accent)' }} />
+                LIVE DATA
               </div>
-            </motion.div>
+            </div>
           </motion.div>
         </div>
       </div>
@@ -369,41 +504,39 @@ function MarketingSection({
   )
 }
 
-/* ─── MarketingFeatures (replaces FAQ) ───────────────────── */
+/* ─── MarketingFeatures (entry) ──────────────────────────── */
 export default function MarketingFeatures() {
   return (
     <section id="deep-dive" className="relative">
       {/* Section intro */}
-      <div className="max-w-7xl mx-auto px-6 pt-24 pb-4 text-center">
+      <div className="max-w-7xl mx-auto px-6 pt-24 pb-4 text-center relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.55 }}
         >
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/8 text-xs text-white/40 font-medium tracking-[0.15em] uppercase mb-5">
+          <div
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full border t-eyebrow mb-5"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+          >
             What makes it different
           </div>
-          <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">
+          <h2 className="t-display-lg mb-4" style={{ color: 'var(--text-primary)' }}>
             Built different.
             <br />
             <span className="gradient-text">Works different.</span>
           </h2>
-          <p className="text-white/40 text-lg max-w-xl mx-auto">
+          <p className="t-body-lg max-w-xl mx-auto" style={{ color: 'var(--text-muted)' }}>
             Every design decision was made to maximise output quality and minimise your involvement.
           </p>
         </motion.div>
       </div>
 
-      {/* Alternating sections with wavy dividers */}
+      {/* Sections — no wavy dividers, glow backgrounds instead */}
       {SECTIONS.map((section, i) => (
-        <div key={section.id}>
-          <WaveDivider flip={i % 2 === 1} />
-          <MarketingSection section={section} index={i} />
-        </div>
+        <MarketingSection key={section.id} section={section} index={i} />
       ))}
-
-      <WaveDivider />
     </section>
   )
 }
