@@ -24,12 +24,17 @@ import time
 from datetime import timedelta
 from typing import Any
 
-import structlog
 from temporalio import activity, workflow
 from temporalio.exceptions import ApplicationError
 
-from src.db import get_pool
-from src.providers.secrets import get_secret_at
+# Imports below are not deterministic (structlog -> rich.style calls
+# random.getrandbits at module load). Pass them through so the Temporal
+# workflow sandbox does not try to validate them.
+with workflow.unsafe.imports_passed_through():
+    import structlog
+
+    from src.db import get_pool
+    from src.providers.secrets import get_secret_at
 
 logger = structlog.get_logger()
 
