@@ -6,7 +6,7 @@ import HowItWorks from '@/components/HowItWorks'
 import ProductPreview from '@/components/ProductPreview'
 import Stats from '@/components/Stats'
 import Pricing from '@/components/Pricing'
-import FAQ from '@/components/FAQ'
+import MarketingFeatures from '@/components/MarketingFeatures'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
 
@@ -21,7 +21,7 @@ export default function Home() {
       <ProductPreview />
       <Stats />
       <Pricing />
-      <FAQ />
+      <MarketingFeatures />
       <FinalCTA />
       <Footer />
     </main>

@@ -1,43 +1,163 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Settings2, Cpu, Send } from 'lucide-react'
-import GradientOrb from './ui/GradientOrb'
 
-const steps = [
+/* ─── Step data ──────────────────────────────────────────── */
+const STEPS = [
   {
     number: '01',
     icon: Settings2,
     title: 'Configure',
     description: 'Set your niche, tone, brand voice, and target platforms. Takes minutes, drives everything.',
     accent: '#00D89F',
+    detail: 'Pick a niche → Define your voice → Connect platforms → Done.',
   },
   {
     number: '02',
     icon: Cpu,
     title: 'Automate',
-    description: 'AI researches trending topics, writes scripts, synthesises voice, renders video — fully autonomous.',
-    accent: '#6645C1',
+    description: 'AI researches trends, writes scripts, synthesises voice, and renders video — fully autonomous.',
+    accent: '#7C3AED',
+    detail: 'Research → Script → Voice → Render → Queue',
   },
   {
     number: '03',
     icon: Send,
     title: 'Publish',
-    description: 'Content goes live on schedule. Analytics feed back into the loop. The system learns and improves.',
+    description: 'Content ships on schedule. Analytics feed back into the loop. System learns and improves.',
     accent: '#2563EB',
+    detail: 'Auto-schedule → Multi-platform → Analytics loop',
   },
 ]
 
+/* ─── Terminal lines ─────────────────────────────────────── */
+const TERMINAL_LINES = [
+  { text: 'Initialising Autoniix engine v2.5...', type: 'info',       delay: 0    },
+  { text: '✓ Gemini 2.5 Flash  ready',           type: 'success',    delay: 500  },
+  { text: '✓ Claude Sonnet 4   ready',           type: 'success',    delay: 900  },
+  { text: '✓ Fish Audio        ready',           type: 'success',    delay: 1250 },
+  { text: 'Scanning trends → niche: Finance',    type: 'processing', delay: 1700 },
+  { text: '✓ 47 topics scored. Top: 9.4/10',    type: 'success',    delay: 2600 },
+  { text: 'Generating script → 1,847 words',     type: 'processing', delay: 3100 },
+  { text: '✓ Hook score: 9.1 · Quality: 9.2',   type: 'success',    delay: 4000 },
+  { text: 'Synthesising voice (6m 42s)...',      type: 'processing', delay: 4500 },
+  { text: '✓ Voice rendered — Fish Audio',       type: 'success',    delay: 5400 },
+  { text: 'Rendering video — 9,840 frames...',   type: 'processing', delay: 5900 },
+  { text: '✓ 1080p exported in 38s',             type: 'success',    delay: 6800 },
+  { text: '✓ Uploaded to YouTube · TikTok',      type: 'success',    delay: 7300 },
+  { text: '✓ Next job queued. Running at 00:00', type: 'success',    delay: 7800 },
+]
+
+/* ─── TiltCard ───────────────────────────────────────────── */
+function TiltCard({ children, accent }: { children: React.ReactNode; accent: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  const handleMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = ref.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const x = (e.clientX - rect.left) / rect.width  - 0.5
+    const y = (e.clientY - rect.top)  / rect.height - 0.5
+    el.style.transform = `perspective(700px) rotateX(${-y * 10}deg) rotateY(${x * 10}deg) scale(1.02)`
+    el.style.boxShadow = `0 20px 50px rgba(0,0,0,0.4), 0 0 30px ${accent}20`
+  }
+
+  const handleLeave = () => {
+    const el = ref.current
+    if (!el) return
+    el.style.transform = 'perspective(700px) rotateX(0deg) rotateY(0deg) scale(1)'
+    el.style.boxShadow = ''
+  }
+
+  return (
+    <div
+      ref={ref}
+      onMouseMove={handleMove}
+      onMouseLeave={handleLeave}
+      className="tilt-card glass-card rounded-2xl p-6 border border-white/[0.08] h-full"
+      style={{ transition: 'transform 0.25s ease, box-shadow 0.25s ease' }}
+    >
+      {children}
+    </div>
+  )
+}
+
+/* ─── Terminal component ─────────────────────────────────── */
+function LiveTerminal() {
+  const [visible, setVisible] = useState<number[]>([])
+  const [cycle, setCycle] = useState(0)
+
+  useEffect(() => {
+    setVisible([])
+    const timeouts: ReturnType<typeof setTimeout>[] = []
+
+    TERMINAL_LINES.forEach((line, i) => {
+      const t = setTimeout(() => setVisible(v => [...v, i]), line.delay)
+      timeouts.push(t)
+    })
+
+    const reset = setTimeout(() => setCycle(c => c + 1), 10500)
+    timeouts.push(reset)
+
+    return () => timeouts.forEach(clearTimeout)
+  }, [cycle])
+
+  const colorMap: Record<string, string> = {
+    success:    'text-[#00D89F]',
+    processing: 'text-[#7C3AED]',
+    info:       'text-white/40',
+  }
+
+  return (
+    <div className="gradient-border-card">
+      <div className="gradient-border-card-inner">
+        {/* Chrome bar */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.07] bg-white/[0.02]">
+          <div className="w-3 h-3 rounded-full bg-[#FF5F57]" />
+          <div className="w-3 h-3 rounded-full bg-[#FFBD2E]" />
+          <div className="w-3 h-3 rounded-full bg-[#28CA41]" />
+          <span className="ml-3 text-[11px] text-white/25 font-mono">autoniix — ai-pipeline</span>
+          <div className="ml-auto flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#00D89F] animate-pulse" />
+            <span className="text-[10px] font-mono text-[#00D89F]">running</span>
+          </div>
+        </div>
+
+        {/* Lines */}
+        <div className="p-5 space-y-1.5 min-h-[280px] overflow-hidden">
+          {TERMINAL_LINES.map((line, i) => (
+            visible.includes(i) && (
+              <div key={`${cycle}-${i}`} className="terminal-line animate-fade-in-up">
+                <span className="terminal-prompt flex-shrink-0">›</span>
+                <span className={colorMap[line.type] || 'text-white/60'}>{line.text}</span>
+              </div>
+            )
+          ))}
+          {visible.length < TERMINAL_LINES.length && (
+            <div className="terminal-line">
+              <span className="terminal-prompt">›</span>
+              <span className="text-white/30 animate-blink">█</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─── HowItWorks ─────────────────────────────────────────── */
 export default function HowItWorks() {
   return (
     <section id="how-it-works" className="section-pad relative overflow-hidden">
-      {/* Background orb */}
-      <GradientOrb
-        variant="purple"
-        size={800}
-        className="top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
-        style={{ opacity: 0.12 }}
-      />
+      {/* Ambient background glow */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[600px] rounded-full"
+          style={{ background: 'radial-gradient(ellipse, rgba(124,58,237,0.08) 0%, transparent 65%)', filter: 'blur(60px)' }}
+        />
+      </div>
 
       <div className="max-w-7xl mx-auto px-6 relative z-10">
         {/* Header */}
@@ -48,86 +168,86 @@ export default function HowItWorks() {
           transition={{ duration: 0.55 }}
           className="text-center mb-20"
         >
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/8 text-xs text-white/40 font-medium tracking-wider uppercase mb-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/8 text-xs text-white/40 font-medium tracking-[0.15em] uppercase mb-5">
             How it works
           </div>
           <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">
-            From idea to published
+            Configure once.
             <br />
-            <span className="gradient-text">in minutes</span>
+            <span className="gradient-text">Publish forever.</span>
           </h2>
-          <p className="text-white/50 text-lg max-w-lg mx-auto">
-            Three steps. Infinite content.
+          <p className="text-white/45 text-lg max-w-lg mx-auto">
+            Three steps, then Autoniix takes over completely.
           </p>
         </motion.div>
 
-        {/* Steps */}
-        <div className="relative">
-          {/* Connector line (desktop) */}
-          <div className="hidden lg:block absolute top-16 left-[calc(16.66%+40px)] right-[calc(16.66%+40px)] h-px bg-gradient-to-r from-[#00D89F]/40 via-[#6645C1]/40 to-[#2563EB]/40 z-0" />
+        {/* ── Steps row ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-16 relative">
+          {/* Desktop connector */}
+          <div className="hidden lg:block absolute top-10 left-[calc(16.66%+48px)] right-[calc(16.66%+48px)] h-px z-0"
+            style={{ background: 'linear-gradient(90deg, #00D89F40, #7C3AED40, #2563EB40)' }}
+          />
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 lg:gap-8">
-            {steps.map((step, i) => {
-              const Icon = step.icon
-              return (
-                <motion.div
-                  key={step.number}
-                  initial={{ opacity: 0, y: 32 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: '-60px' }}
-                  transition={{ duration: 0.55, delay: i * 0.15, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex flex-col items-center text-center relative z-10"
-                >
-                  {/* Step circle */}
-                  <div
-                    className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6 relative"
-                    style={{
-                      background: `linear-gradient(135deg, ${step.accent}20 0%, ${step.accent}08 100%)`,
-                      border: `1px solid ${step.accent}35`,
-                      boxShadow: `0 0 24px ${step.accent}20`,
-                    }}
-                  >
-                    <Icon className="w-7 h-7" style={{ color: step.accent }} />
-                    {/* Number badge */}
-                    <span
-                      className="absolute -top-2 -right-2 text-[10px] font-bold font-mono px-1.5 py-0.5 rounded-md"
+          {STEPS.map((step, i) => {
+            const Icon = step.icon
+            return (
+              <motion.div
+                key={step.number}
+                initial={{ opacity: 0, y: 32 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-60px' }}
+                transition={{ duration: 0.55, delay: i * 0.14, ease: [0.16, 1, 0.3, 1] }}
+                className="relative z-10"
+              >
+                <TiltCard accent={step.accent}>
+                  {/* Icon + badge */}
+                  <div className="flex items-start justify-between mb-5">
+                    <div
+                      className="w-12 h-12 rounded-2xl flex items-center justify-center"
                       style={{
-                        background: step.accent,
-                        color: '#0A0A0F',
+                        background: `linear-gradient(135deg, ${step.accent}20 0%, ${step.accent}08 100%)`,
+                        border: `1px solid ${step.accent}30`,
+                        boxShadow: `0 0 20px ${step.accent}18`,
                       }}
+                    >
+                      <Icon className="w-5 h-5" style={{ color: step.accent }} />
+                    </div>
+                    <span
+                      className="text-[11px] font-bold font-mono px-2.5 py-1 rounded-lg"
+                      style={{ background: `${step.accent}18`, color: step.accent, border: `1px solid ${step.accent}28` }}
                     >
                       {step.number}
                     </span>
                   </div>
 
-                  <h3 className="text-white font-bold text-xl mb-3 tracking-tight">
-                    {step.title}
-                  </h3>
-                  <p className="text-white/50 text-base leading-relaxed max-w-xs">
-                    {step.description}
-                  </p>
-                </motion.div>
-              )
-            })}
-          </div>
+                  <h3 className="text-white font-bold text-xl mb-2 tracking-tight">{step.title}</h3>
+                  <p className="text-white/45 text-sm leading-relaxed mb-4">{step.description}</p>
+
+                  {/* Detail pill */}
+                  <div
+                    className="text-[10px] font-mono px-3 py-2 rounded-lg leading-relaxed"
+                    style={{ background: `${step.accent}0A`, color: `${step.accent}CC`, border: `1px solid ${step.accent}18` }}
+                  >
+                    {step.detail}
+                  </div>
+                </TiltCard>
+              </motion.div>
+            )
+          })}
         </div>
 
-        {/* Optional human review callout */}
+        {/* ── Terminal section ── */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-60px' }}
-          transition={{ duration: 0.55, delay: 0.4 }}
-          className="mt-16 flex justify-center"
+          transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
         >
-          <div className="glass-card rounded-2xl px-6 py-4 flex items-center gap-4 border border-white/8 max-w-xl w-full">
-            <div className="w-8 h-8 rounded-lg bg-[#00D89F]/12 border border-[#00D89F]/25 flex items-center justify-center flex-shrink-0">
-              <span className="text-[#00D89F] text-sm">∞</span>
-            </div>
-            <div>
-              <p className="text-white/80 text-sm font-medium">Want manual review? Just enable it.</p>
-              <p className="text-white/40 text-xs mt-0.5">Human-in-the-loop review available at every stage — approve before publish, or run fully autonomous.</p>
-            </div>
+          <div className="text-center mb-6">
+            <p className="text-white/35 text-sm font-mono tracking-[0.12em]">WATCH THE ENGINE RUN — LIVE</p>
+          </div>
+          <div className="max-w-3xl mx-auto">
+            <LiveTerminal />
           </div>
         </motion.div>
       </div>
