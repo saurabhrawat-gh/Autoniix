@@ -1,28 +1,22 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter, Bricolage_Grotesque, Instrument_Serif, JetBrains_Mono, Syne } from 'next/font/google'
+import localFont from 'next/font/local'
+import { JetBrains_Mono } from 'next/font/google'
 import CursorSpotlight from '@/components/ui/CursorSpotlight'
 import ScrollProgress from '@/components/ui/ScrollProgress'
 import BackToTop from '@/components/ui/BackToTop'
+import { ThemeProvider } from '@/components/ui/ThemeProvider'
 import './globals.css'
 
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
+const googleSansFlex = localFont({
+  src: '../../public/fonts/GoogleSansFlex.ttf',
+  variable: '--font-google-sans',
+  weight: '100 900',
   display: 'swap',
 })
 
-const bricolage = Bricolage_Grotesque({
-  subsets: ['latin'],
-  variable: '--font-display',
-  weight: ['400', '500', '600', '700', '800'],
-  display: 'swap',
-})
-
-const instrumentSerif = Instrument_Serif({
-  subsets: ['latin'],
-  variable: '--font-serif',
-  weight: '400',
-  style: ['normal', 'italic'],
+const cattalague = localFont({
+  src: '../../public/fonts/Cattalague.ttf',
+  variable: '--font-cattalague',
   display: 'swap',
 })
 
@@ -30,13 +24,6 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-mono',
   weight: ['400', '500', '600'],
-  display: 'swap',
-})
-
-const syne = Syne({
-  subsets: ['latin'],
-  variable: '--font-syne',
-  weight: ['400', '500', '600', '700', '800'],
   display: 'swap',
 })
 
@@ -77,13 +64,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`dark ${inter.variable} ${bricolage.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} ${syne.variable}`}
+      suppressHydrationWarning
+      className={`${googleSansFlex.variable} ${cattalague.variable} ${jetbrainsMono.variable}`}
     >
-      <body className="bg-[#0A0A0F] text-white antialiased font-sans">
-        <ScrollProgress />
-        <CursorSpotlight />
-        {children}
-        <BackToTop />
+      <body className="antialiased font-sans transition-colors duration-300">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem={false}
+          disableTransitionOnChange={false}
+        >
+          <ScrollProgress />
+          <CursorSpotlight />
+          {children}
+          <BackToTop />
+        </ThemeProvider>
       </body>
     </html>
   )

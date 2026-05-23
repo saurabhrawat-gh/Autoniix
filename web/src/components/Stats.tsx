@@ -13,19 +13,23 @@ const STATS = [
 
 export default function Stats() {
   return (
-    <section className="relative py-28 overflow-hidden">
-      {/* Full-bleed ambient background */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#09090F] via-[#0D0D1A] to-[#09090F]" />
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: 'radial-gradient(ellipse 80% 60% at 50% 50%, rgba(0,216,159,0.06) 0%, rgba(124,58,237,0.05) 40%, transparent 70%)',
-        }}
-      />
+    <section className="relative py-28" style={{ overflowX: 'clip' }}>
+      {/* Aurora + rainbow glow combo */}
+      <div className="section-glow-aurora" style={{ opacity: 0.9 }} />
+      <div className="rainbow-glow" style={{ opacity: 0.45 }} />
+      <div className="noise-texture" />
+      <div className="section-blend section-blend-top" />
+      <div className="section-blend section-blend-bottom" />
 
-      {/* Top / bottom separator lines */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#00D89F]/15 to-transparent" />
-      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#7C3AED]/10 to-transparent" />
+      {/* Top / bottom hairlines */}
+      <div
+        className="absolute top-0 left-0 right-0 h-px"
+        style={{ background: 'linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 40%, transparent), transparent)' }}
+      />
+      <div
+        className="absolute bottom-0 left-0 right-0 h-px"
+        style={{ background: 'linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-secondary) 30%, transparent), transparent)' }}
+      />
 
       <div className="relative z-10 max-w-7xl mx-auto px-6">
         {/* Header */}
@@ -36,10 +40,13 @@ export default function Stats() {
           transition={{ duration: 0.55 }}
           className="text-center mb-16"
         >
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/8 text-xs text-white/40 font-medium tracking-[0.15em] uppercase mb-5">
+          <div
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full border t-eyebrow mb-5"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+          >
             By the numbers
           </div>
-          <h2 className="font-display text-3xl sm:text-4xl font-black tracking-tighter text-white">
+          <h2 className="t-display-lg" style={{ color: 'var(--text-primary)' }}>
             Built for scale.{' '}
             <span className="gradient-text">Proven in production.</span>
           </h2>
@@ -55,7 +62,8 @@ export default function Stats() {
               viewport={{ once: true, margin: '-60px' }}
               transition={{ duration: 0.55, delay: i * 0.09, ease: [0.16, 1, 0.3, 1] }}
               whileHover={{ y: -4, transition: { duration: 0.2 } }}
-              className="relative glass-card rounded-2xl p-6 text-center border border-white/[0.07] group overflow-hidden"
+              className="relative glass-card rounded-2xl p-6 text-center border group overflow-hidden"
+              style={{ borderColor: 'var(--border)' }}
             >
               {/* Hover glow */}
               <div
@@ -95,8 +103,8 @@ export default function Stats() {
                 </motion.div>
               )}
 
-              <p className="text-white/75 text-sm font-semibold mb-1">{stat.label}</p>
-              <p className="text-white/30 text-[11px] leading-snug">{stat.description}</p>
+              <p className="t-body-sm mb-1" style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{stat.label}</p>
+              <p className="t-micro" style={{ color: 'var(--text-muted)', textTransform: 'none', letterSpacing: 0 }}>{stat.description}</p>
             </motion.div>
           ))}
         </div>

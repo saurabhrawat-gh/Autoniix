@@ -8,7 +8,7 @@ const footerLinks = {
 
 export default function Footer() {
   return (
-    <footer className="border-t border-white/5 bg-black/20">
+    <footer className="border-t" style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--text-primary) 4%, transparent)' }}>
       <div className="max-w-7xl mx-auto px-6 pt-16 pb-8">
         {/* Top row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-16">
@@ -16,11 +16,11 @@ export default function Footer() {
           <div className="col-span-2 md:col-span-1">
             <a href="/" className="flex items-center gap-2 mb-4">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#00D89F] to-[#00A876] flex items-center justify-center shadow-[0_0_12px_rgba(0,216,159,0.3)]">
-                <Zap className="w-4 h-4 text-[#0A0A0F] fill-[#0A0A0F]" />
+                <Zap className="w-4 h-4 text-[#0A0A0F] fill-[#0A0A0F]" strokeWidth={2} />
               </div>
-              <span className="font-display text-white font-bold text-lg tracking-tight">Autoniix</span>
+              <span className="t-headline" style={{ color: 'var(--text-primary)', fontSize: '1.125rem', fontWeight: 500 }}>Autoniix</span>
             </a>
-            <p className="text-white/40 text-sm leading-relaxed max-w-[220px]">
+            <p className="t-body-sm max-w-[220px]" style={{ color: 'var(--text-muted)' }}>
               AI-powered content automation. Research, script, voice, render, publish.
             </p>
             {/* Social */}
@@ -36,7 +36,12 @@ export default function Footer() {
                   aria-label={s.label}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-8 h-8 rounded-lg glass-card border border-white/8 flex items-center justify-center text-white/40 hover:text-white/70 hover:border-white/15 transition-all duration-150 text-xs font-bold font-mono"
+                  className="w-8 h-8 rounded-lg glass-card border flex items-center justify-center transition-all duration-150 t-micro"
+                  style={{
+                    borderColor: 'var(--border)',
+                    color: 'var(--text-muted)',
+                    fontSize: '0.625rem',
+                  }}
                 >
                   {s.name}
                 </a>
@@ -47,7 +52,7 @@ export default function Footer() {
           {/* Link columns */}
           {Object.entries(footerLinks).map(([category, links]) => (
             <div key={category}>
-              <p className="text-white/60 text-xs font-semibold uppercase tracking-wider mb-4">
+              <p className="t-eyebrow mb-4" style={{ color: 'var(--text-secondary)' }}>
                 {category}
               </p>
               <ul className="space-y-3">
@@ -55,7 +60,8 @@ export default function Footer() {
                   <li key={link}>
                     <a
                       href="#"
-                      className="text-white/38 hover:text-white/65 text-sm transition-colors duration-150"
+                      className="t-body-sm transition-colors duration-150 hover:opacity-100"
+                      style={{ color: 'var(--text-muted)' }}
                     >
                       {link}
                     </a>
@@ -67,11 +73,11 @@ export default function Footer() {
         </div>
 
         {/* Bottom bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-white/5">
-          <p className="text-white/25 text-xs">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t" style={{ borderColor: 'var(--border)' }}>
+          <p className="t-body-sm" style={{ color: 'var(--text-faint)' }}>
             © {new Date().getFullYear()} Autoniix. All rights reserved.
           </p>
-          <p className="text-white/25 text-xs">
+          <p className="t-body-sm" style={{ color: 'var(--text-faint)' }}>
             Built with AI, for creators.
           </p>
         </div>

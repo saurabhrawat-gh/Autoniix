@@ -19,9 +19,19 @@ export default function ProductPreview() {
   const y = useTransform(scrollYProgress, [0, 1], [40, -40])
 
   return (
-    <section id="preview" className="section-pad relative overflow-hidden" ref={sectionRef}>
+    <section id="preview" className="section-pad relative" style={{ overflowX: 'clip' }} ref={sectionRef}>
+      {/* Aurora + rainbow ambient — keeps the dashboard "lit from behind" */}
+      <div className="section-glow-aurora" style={{ opacity: 0.85 }} />
+      <div className="rainbow-glow" style={{ opacity: 0.45 }} />
+      <div className="noise-texture" />
+      <div className="section-blend section-blend-top" />
+      <div className="section-blend section-blend-bottom" />
+
       {/* Subtle divider */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/8 to-transparent" />
+      <div
+        className="absolute top-0 left-0 right-0 h-px"
+        style={{ background: 'linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-secondary) 28%, transparent), transparent)' }}
+      />
 
       <div className="max-w-7xl mx-auto px-6">
         {/* Header */}
@@ -32,15 +42,18 @@ export default function ProductPreview() {
           transition={{ duration: 0.55 }}
           className="text-center mb-16"
         >
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/8 text-xs text-white/40 font-medium tracking-wider uppercase mb-4">
+          <div
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full border t-eyebrow mb-5"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+          >
             Dashboard
           </div>
-          <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">
+          <h2 className="t-display-lg mb-4" style={{ color: 'var(--text-primary)' }}>
             A command centre
             <br />
             <span className="gradient-text">built for creators</span>
           </h2>
-          <p className="text-white/50 text-lg max-w-lg mx-auto">
+          <p className="t-body-lg max-w-lg mx-auto" style={{ color: 'var(--text-muted)' }}>
             Access everything from a single, beautiful dashboard. No clutter, no confusion.
           </p>
         </motion.div>
@@ -54,22 +67,41 @@ export default function ProductPreview() {
           style={{ y }}
           className="relative max-w-5xl mx-auto"
         >
+          {/* Soft glow under the mock (light + dark) */}
+          <div
+            aria-hidden
+            className="absolute -inset-x-8 -inset-y-4 -z-10"
+            style={{
+              background: 'radial-gradient(60% 70% at 50% 60%, color-mix(in srgb, var(--accent-secondary) 22%, transparent) 0%, transparent 70%)',
+              filter: 'blur(48px)',
+            }}
+          />
+
           {/* Dashboard frame */}
-          <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.08)] group hover:border-[#00D89F]/20 transition-colors duration-500">
-            {/* Window chrome */}
-            <div className="flex items-center gap-2 px-4 py-3 bg-white/[0.03] border-b border-white/8">
+          <div
+            className="relative rounded-2xl overflow-hidden border group transition-colors duration-500"
+            style={{
+              borderColor: 'var(--border-strong)',
+              boxShadow: '0 24px 60px rgba(10,8,20,0.18), 0 0 0 1px var(--border)',
+            }}
+          >
+            {/* Window chrome (always dark — it's a product screenshot) */}
+            <div
+              className="flex items-center gap-2 px-4 py-3 border-b"
+              style={{ background: '#0A0A12', borderColor: 'rgba(255,255,255,0.08)' }}
+            >
               <div className="w-3 h-3 rounded-full bg-[#FF5F57]" />
               <div className="w-3 h-3 rounded-full bg-[#FFBD2E]" />
               <div className="w-3 h-3 rounded-full bg-[#28CA41]" />
-              <span className="ml-3 text-xs text-white/25 font-mono">dash.autoniix.com — Dashboard</span>
+              <span className="ml-3 t-micro" style={{ color: 'rgba(255,255,255,0.45)', textTransform: 'none', letterSpacing: 0 }}>dash.autoniix.com — Dashboard</span>
               <div className="ml-auto flex items-center gap-1.5">
                 <div className="w-2 h-2 rounded-full bg-[#00D89F] animate-pulse" />
-                <span className="text-xs text-white/30 font-mono">3 jobs running</span>
+                <span className="t-micro" style={{ color: '#00D89F' }}>3 RUNNING</span>
               </div>
             </div>
 
-            {/* Dashboard body — styled mock UI */}
-            <div className="bg-[#0F1015] p-6" style={{ minHeight: 420 }}>
+            {/* Dashboard body — always dark mock UI */}
+            <div className="mockup-dark" style={{ background: 'var(--bg-mockup)', padding: '24px', minHeight: 420 }}>
               {/* Top stats row */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                 {[

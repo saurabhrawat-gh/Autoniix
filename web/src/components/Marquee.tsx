@@ -15,12 +15,18 @@ export default function Marquee() {
   const doubled = [...items, ...items]
 
   return (
-    <div className="relative py-14 border-y border-white/5 overflow-hidden">
-      {/* Fade edges */}
-      <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-[#0A0A0F] to-transparent z-10 pointer-events-none" />
-      <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-[#0A0A0F] to-transparent z-10 pointer-events-none" />
+    <div className="relative py-14 border-y overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+      {/* Fade edges — theme-aware */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-24 z-10 pointer-events-none"
+        style={{ background: 'linear-gradient(90deg, var(--bg-page) 0%, transparent 100%)' }}
+      />
+      <div
+        className="absolute right-0 top-0 bottom-0 w-24 z-10 pointer-events-none"
+        style={{ background: 'linear-gradient(-90deg, var(--bg-page) 0%, transparent 100%)' }}
+      />
 
-      <div className="text-xs text-white/25 text-center font-medium tracking-[0.2em] uppercase mb-6">
+      <div className="t-eyebrow text-center mb-6" style={{ color: 'var(--text-faint)' }}>
         Powered by the world&apos;s best AI infrastructure
       </div>
 
@@ -29,10 +35,11 @@ export default function Marquee() {
           {doubled.map((item, i) => (
             <div
               key={i}
-              className="inline-flex items-center gap-2 text-white/35 hover:text-white/60 transition-colors duration-200 select-none"
+              className="inline-flex items-center gap-2 transition-colors duration-200 select-none t-body-sm"
+              style={{ color: 'var(--text-muted)' }}
             >
-              <span className="text-[#00D89F]/50 text-xs">{item.icon}</span>
-              <span className="text-sm font-medium whitespace-nowrap">{item.name}</span>
+              <span style={{ color: 'var(--accent)', opacity: 0.6, fontSize: '0.75rem' }}>{item.icon}</span>
+              <span className="whitespace-nowrap" style={{ fontWeight: 500 }}>{item.name}</span>
             </div>
           ))}
         </div>

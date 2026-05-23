@@ -2,7 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* Fonts loaded via next/font in layout.tsx (Google Sans Flex + JetBrains Mono)
+   — matches the marketing site exactly. Do not re-import via @import url(). */
 
 /* ── Light theme (default) ─────────────────────── */
 /* Warm off-white palette — eye-soothing, Apple/Notion/Linear inspired.

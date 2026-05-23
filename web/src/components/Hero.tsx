@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, useMotionValue, useSpring } from 'framer-motion'
 import { ArrowRight, Activity, ChevronDown } from 'lucide-react'
 import GlowButton from './ui/GlowButton'
+import ParticleField from './ui/ParticleField'
 
 /* ─── Pipeline stages ─────────────────────────────────────── */
 const STAGES = [
@@ -277,8 +278,15 @@ export default function Hero() {
   return (
     <section
       ref={sectionRef}
-      className="relative min-h-screen flex flex-col justify-center overflow-hidden dot-grid"
+      className="relative min-h-screen flex flex-col justify-center"
+      style={{ overflowX: 'clip' }}
     >
+      {/* ── Hero glow (theme-aware radial) ── */}
+      <div className="hero-glow" />
+
+      {/* ── Rainbow ambient mesh (pastel in light, neon in dark) ── */}
+      <div className="rainbow-glow" style={{ opacity: 0.95 }} />
+
       {/* ── Mesh gradient background ── */}
       <div className="mesh-bg">
         <div className="mesh-orb mesh-orb-1" style={{ transform: `translate(${mx * -40}px, ${my * -25}px)` }} />
@@ -286,9 +294,6 @@ export default function Hero() {
         <div className="mesh-orb mesh-orb-3" style={{ transform: `translate(${mx * 25}px, ${my * 28}px)` }} />
         <div className="mesh-orb mesh-orb-4" style={{ transform: `translate(${mx * -20}px, ${my * 20}px)` }} />
       </div>
-
-      {/* ── Scanlines overlay ── */}
-      <div className="absolute inset-0 scanlines pointer-events-none z-[1]" />
 
       {/* ── Content ── */}
       <div className="relative z-10 max-w-7xl mx-auto px-6 pt-28 pb-12 w-full">
@@ -300,23 +305,31 @@ export default function Hero() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="flex justify-center mb-8"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#00D89F]/22 bg-[#00D89F]/[0.07] text-sm text-[#00D89F] font-medium">
+          <div
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border t-eyebrow"
+            style={{
+              borderColor: 'color-mix(in srgb, var(--accent) 28%, transparent)',
+              background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
+              color: 'var(--accent)',
+              letterSpacing: '0.18em',
+            }}
+          >
             <span className="relative flex h-2 w-2 flex-shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00D89F] opacity-60" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00D89F]" />
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ background: 'var(--accent)' }} />
+              <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: 'var(--accent)' }} />
             </span>
-            AI-Powered Automated Content Engine
+            AI-Powered Content Engine
           </div>
         </motion.div>
 
         {/* ── Headline ── */}
         <div className="text-center mb-6">
-          <h1 className="font-hero text-[3rem] sm:text-[4.5rem] md:text-[6rem] lg:text-[7.5rem] xl:text-[8.5rem] leading-[0.95] tracking-[-0.04em] text-white mb-0">
+          <h1 className="t-display-xl mb-0" style={{ color: 'var(--text-primary)' }}>
             {H_LINE1.map((word, i) => (
               <motion.span
                 key={word}
-                initial={{ opacity: 0, y: 32, filter: 'blur(8px)' }}
-                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                initial={{ opacity: 0, y: 32 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.65, delay: 0.15 + i * 0.1, ease: [0.16, 1, 0.3, 1] }}
                 className="inline-block mr-[0.18em]"
               >
@@ -325,18 +338,19 @@ export default function Hero() {
             ))}
             <br />
             <motion.span
-              initial={{ opacity: 0, y: 32, filter: 'blur(8px)' }}
-              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              initial={{ opacity: 0, y: 32 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.65, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              className="inline-block mr-[0.18em] text-white/75"
+              className="inline-block mr-[0.05em]"
+              style={{ color: 'var(--text-secondary)' }}
             >
               {H_LINE2_PLAIN}
             </motion.span>
             <motion.span
-              initial={{ opacity: 0, y: 32, filter: 'blur(8px)' }}
-              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              initial={{ opacity: 0, y: 32 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.65, delay: 0.46, ease: [0.16, 1, 0.3, 1] }}
-              className="inline-block gradient-text-animated font-serif-display"
+              className="inline-block gradient-shimmer"
             >
               {H_LINE2_ACCENT}
             </motion.span>
@@ -348,10 +362,11 @@ export default function Hero() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          className="text-center text-lg sm:text-xl text-white/50 max-w-2xl mx-auto leading-relaxed mb-10"
+          className="text-center t-body-lg max-w-2xl mx-auto mb-10"
+          style={{ color: 'var(--text-muted)' }}
         >
           Research, script, voice, render, publish — across every platform, at any scale.
-          <span className="text-white/30"> Set it once. Let it run forever.</span>
+          <span style={{ color: 'var(--text-faint)' }}> Set it once. Let it run forever.</span>
         </motion.p>
 
         {/* CTA row */}
@@ -385,55 +400,56 @@ export default function Hero() {
           transition={{ delay: 0.85 }}
           className="flex justify-center mb-14"
         >
-          <div className="flex items-center gap-3 px-4 py-2 rounded-full border border-white/[0.07] bg-white/[0.025] text-xs text-white/40">
-            <Activity className="w-3 h-3 text-[#00D89F]" />
+          <div
+            className="flex items-center gap-3 px-4 py-2 rounded-full border t-body-sm"
+            style={{
+              borderColor: 'var(--border)',
+              background: 'var(--bg-card)',
+              color: 'var(--text-muted)',
+              backdropFilter: 'blur(12px)',
+            }}
+          >
+            <Activity className="w-3.5 h-3.5" strokeWidth={1.75} style={{ color: 'var(--accent)' }} />
             <span>47 videos published today</span>
-            <span className="w-px h-3 bg-white/10" />
-            <span>6 pipelines running now</span>
-            <span className="w-px h-3 bg-white/10" />
+            <span className="w-px h-3" style={{ background: 'var(--border)' }} />
+            <span>6 pipelines running</span>
+            <span className="w-px h-3" style={{ background: 'var(--border)' }} />
             <span>3 platforms active</span>
           </div>
         </motion.div>
 
-        {/* ── Split visual panel ── */}
+        {/* ── Antigravity-style particle hero card ── */}
         <motion.div
           initial={{ opacity: 0, y: 48 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, delay: 0.7, ease: [0.16, 1, 0.3, 1] }}
-          className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-5xl mx-auto"
+          className="max-w-6xl mx-auto relative"
         >
-          {/* Left — Live jobs feed */}
-          <div className="gradient-border-card">
-            <div className="gradient-border-card-inner p-5">
-              {/* Header chrome */}
-              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-white/[0.06]">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#FF5F57]" />
-                <div className="w-2.5 h-2.5 rounded-full bg-[#FFBD2E]" />
-                <div className="w-2.5 h-2.5 rounded-full bg-[#28CA41]" />
-                <span className="ml-2 text-[10px] text-white/25 font-mono">autoniix — pipeline feed</span>
-              </div>
-              <LiveJobsFeed mouseX={mx} mouseY={my} />
-            </div>
-          </div>
+          {/* SS3-style halo backdrop — silver/violet ring behind the dark card */}
+          <div className="halo-backdrop" />
 
-          {/* Right — Pipeline SVG */}
-          <div className="gradient-border-card">
-            <div className="gradient-border-card-inner p-6 flex flex-col justify-center min-h-[320px]">
-              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-white/[0.06]">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#FF5F57]" />
-                <div className="w-2.5 h-2.5 rounded-full bg-[#FFBD2E]" />
-                <div className="w-2.5 h-2.5 rounded-full bg-[#28CA41]" />
-                <span className="ml-2 text-[10px] text-white/25 font-mono">autoniix — engine topology</span>
-                <div className="ml-auto flex items-center gap-1">
-                  <span
-                    className="text-[10px] font-mono px-2 py-0.5 rounded"
-                    style={{ color: STAGES[activeNode].color, background: `${STAGES[activeNode].color}15` }}
-                  >
-                    {STAGES[activeNode].label}
-                  </span>
-                </div>
+          <div className="hero-particle-card mockup-dark relative">
+            <ParticleField count={420} color="#7C3AED" altColor="#06B6D4" centerX={0.72} centerY={0.5} radius={0.55} />
+            <div className="hero-particle-card-inner">
+              <div className="t-eyebrow mb-4" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                The Engine
               </div>
-              <PipelineSVG active={activeNode} mouseX={mx} mouseY={my} />
+              <h3 className="t-display-md text-white mb-4">
+                Ten models. One brain.
+                <br />
+                <span style={{ color: 'rgba(255,255,255,0.55)' }}>Working in parallel.</span>
+              </h3>
+              <p className="t-body-lg max-w-md mb-6" style={{ color: 'rgba(255,255,255,0.62)' }}>
+                Gemini, Claude, GPT-4, ElevenLabs, Veo, FFmpeg — orchestrated together so every step of the
+                pipeline gets the model best suited for it.
+              </p>
+              <div className="inline-flex items-center gap-2 t-micro" style={{ color: '#00D89F' }}>
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60 bg-[#00D89F]" />
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#00D89F]" />
+                </span>
+                {STAGES[activeNode].label.toUpperCase()} · ACTIVE
+              </div>
             </div>
           </div>
         </motion.div>
@@ -444,10 +460,11 @@ export default function Hero() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1.4 }}
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-white/25 z-10"
+        className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 z-10"
+        style={{ color: 'var(--text-faint)' }}
       >
-        <span className="text-[10px] font-mono tracking-[0.2em] uppercase">Scroll</span>
-        <ChevronDown className="w-4 h-4 animate-bounce" />
+        <span className="t-micro">Scroll</span>
+        <ChevronDown className="w-4 h-4 animate-bounce" strokeWidth={1.5} />
       </motion.div>
     </section>
   )

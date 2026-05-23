@@ -72,8 +72,17 @@ export default function Pricing() {
   const [annual, setAnnual] = useState(false)
 
   return (
-    <section id="pricing" className="section-pad relative overflow-hidden">
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/8 to-transparent" />
+    <section id="pricing" className="section-pad relative" style={{ overflowX: 'clip' }}>
+      {/* Aurora + rainbow ambient */}
+      <div className="section-glow-aurora" style={{ opacity: 0.8 }} />
+      <div className="rainbow-glow" style={{ opacity: 0.4 }} />
+      <div className="noise-texture" />
+      <div className="section-blend section-blend-top" />
+      <div className="section-blend section-blend-bottom" />
+      <div
+        className="absolute top-0 left-0 right-0 h-px"
+        style={{ background: 'linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-secondary) 28%, transparent), transparent)' }}
+      />
 
       <div className="max-w-7xl mx-auto px-6">
         {/* Header */}
@@ -84,15 +93,18 @@ export default function Pricing() {
           transition={{ duration: 0.55 }}
           className="text-center mb-12"
         >
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/8 text-xs text-white/40 font-medium tracking-wider uppercase mb-4">
+          <div
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full border t-eyebrow mb-5"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+          >
             Pricing
           </div>
-          <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">
+          <h2 className="t-display-lg mb-4" style={{ color: 'var(--text-primary)' }}>
             Simple, transparent
             <br />
             <span className="gradient-text-animated">pricing</span>
           </h2>
-          <p className="text-white/50 text-lg max-w-lg mx-auto mb-8">
+          <p className="t-body-lg max-w-lg mx-auto mb-8" style={{ color: 'var(--text-muted)' }}>
             Start free. Scale as you grow. No surprises.
           </p>
 
@@ -147,12 +159,12 @@ export default function Pricing() {
 
               {/* Plan name */}
               <div className="mb-4">
-                <p className="text-white/60 text-xs font-medium uppercase tracking-wider mb-1">{plan.name}</p>
+                <p className="t-eyebrow mb-1" style={{ color: 'var(--text-muted)' }}>{plan.name}</p>
 
                 {/* Price */}
                 <AnimatePresence mode="wait">
                   {plan.enterprise ? (
-                    <div className="text-2xl font-black text-white tracking-tight">Custom</div>
+                    <div style={{ color: 'var(--text-primary)', fontSize: '1.75rem', fontWeight: 500, letterSpacing: '-0.025em', lineHeight: 1 }}>Custom</div>
                   ) : (
                     <motion.div
                       key={annual ? 'annual' : 'monthly'}
@@ -162,16 +174,16 @@ export default function Pricing() {
                       transition={{ duration: 0.2 }}
                       className="flex items-end gap-1"
                     >
-                      <span className="text-3xl font-black text-white tracking-tight">
+                      <span style={{ color: 'var(--text-primary)', fontSize: '2.25rem', fontWeight: 500, letterSpacing: '-0.03em', lineHeight: 1 }}>
                         ${annual ? plan.annual : plan.monthly}
                       </span>
-                      <span className="text-white/40 text-sm mb-1">/mo</span>
+                      <span className="t-body-sm mb-1" style={{ color: 'var(--text-muted)' }}>/mo</span>
                     </motion.div>
                   )}
                 </AnimatePresence>
 
                 {annual && !plan.enterprise && (
-                  <p className="text-[#00D89F]/70 text-xs mt-1">
+                  <p className="t-micro mt-1.5" style={{ color: 'var(--accent)', textTransform: 'none', letterSpacing: 0 }}>
                     billed ${((annual ? plan.annual! : plan.monthly!) * 12)} / year
                   </p>
                 )}
@@ -195,10 +207,11 @@ export default function Pricing() {
               {/* Features */}
               <ul className="space-y-2 flex-1 mb-6">
                 {plan.features.map((feat) => (
-                  <li key={feat} className="flex items-start gap-2 text-xs text-white/60">
+                  <li key={feat} className="flex items-start gap-2 t-body-sm" style={{ color: 'var(--text-secondary)' }}>
                     <Check
                       className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"
-                      style={{ color: plan.enterprise ? '#6645C1' : '#00D89F' }}
+                      strokeWidth={1.75}
+                      style={{ color: plan.enterprise ? 'var(--accent-secondary)' : 'var(--accent)' }}
                     />
                     {feat}
                   </li>
@@ -236,7 +249,8 @@ export default function Pricing() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ delay: 0.5 }}
-          className="text-center text-white/28 text-xs mt-8"
+          className="text-center t-body-sm mt-8"
+          style={{ color: 'var(--text-faint)' }}
         >
           Extra seats at +$15/seat/mo. All plans include AI research, scripting, voice synthesis, rendering, and analytics.
           Cancel anytime.
