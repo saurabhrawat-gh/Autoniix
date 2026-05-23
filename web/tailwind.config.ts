@@ -9,11 +9,13 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        'bg-base': '#0A0A0F',
+        'bg-base': '#09090F',
         'bg-card': 'rgba(255,255,255,0.04)',
         'accent-green': '#00D89F',
         'accent-green-dim': '#00A876',
         'accent-purple': '#6645C1',
+        'accent-violet': '#7C3AED',
+        'accent-cyan': '#06B6D4',
         'accent-blue': '#2563EB',
         'text-primary': '#FFFFFF',
         'text-secondary': 'rgba(255,255,255,0.65)',
@@ -24,6 +26,7 @@ const config: Config = {
       fontFamily: {
         sans: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
         display: ['var(--font-display)', 'Bricolage Grotesque', 'system-ui', 'sans-serif'],
+        hero: ['var(--font-syne)', 'Syne', 'system-ui', 'sans-serif'],
         serif: ['var(--font-serif)', 'Instrument Serif', 'Georgia', 'serif'],
         mono: ['var(--font-mono)', 'JetBrains Mono', 'Fira Code', 'monospace'],
       },
@@ -57,6 +60,16 @@ const config: Config = {
         'scan': 'scan 8s linear infinite',
         'blink': 'blink 1s step-end infinite',
         'gradient-shift': 'gradient-shift 8s ease infinite',
+        'mesh-drift-1': 'meshDrift1 18s ease-in-out infinite',
+        'mesh-drift-2': 'meshDrift2 22s ease-in-out infinite 3s',
+        'mesh-drift-3': 'meshDrift3 26s ease-in-out infinite 7s',
+        'wave-flow': 'waveFlow 6s ease-in-out infinite',
+        'reveal-blur': 'revealBlur 0.7s cubic-bezier(0.16,1,0.3,1) forwards',
+        'node-pulse': 'nodePulse 2.4s ease-in-out infinite',
+        'flow-dash': 'flowDash 1.8s linear infinite',
+        'job-enter': 'jobEnter 0.5s cubic-bezier(0.16,1,0.3,1) forwards',
+        'shimmer-flow': 'shimmerFlow 2.5s linear infinite',
+        'border-rotate': 'borderRotate 4s linear infinite',
       },
       keyframes: {
         float: {
@@ -82,6 +95,48 @@ const config: Config = {
         'gradient-shift': {
           '0%, 100%': { backgroundPosition: '0% 50%' },
           '50%': { backgroundPosition: '100% 50%' },
+        },
+        meshDrift1: {
+          '0%, 100%': { transform: 'translate(0px, 0px) scale(1)' },
+          '33%': { transform: 'translate(60px, -40px) scale(1.08)' },
+          '66%': { transform: 'translate(-30px, 50px) scale(0.95)' },
+        },
+        meshDrift2: {
+          '0%, 100%': { transform: 'translate(0px, 0px) scale(1)' },
+          '40%': { transform: 'translate(-70px, 30px) scale(1.1)' },
+          '70%': { transform: 'translate(40px, -60px) scale(0.92)' },
+        },
+        meshDrift3: {
+          '0%, 100%': { transform: 'translate(0px, 0px) scale(1)' },
+          '50%': { transform: 'translate(50px, 50px) scale(1.05)' },
+        },
+        waveFlow: {
+          '0%, 100%': { transform: 'translateX(-5%) scaleY(1)' },
+          '50%': { transform: 'translateX(5%) scaleY(1.08)' },
+        },
+        revealBlur: {
+          '0%': { opacity: '0', filter: 'blur(8px)', transform: 'translateY(20px)' },
+          '100%': { opacity: '1', filter: 'blur(0px)', transform: 'translateY(0)' },
+        },
+        nodePulse: {
+          '0%, 100%': { boxShadow: '0 0 0 0 rgba(0,216,159,0.4)' },
+          '50%': { boxShadow: '0 0 0 8px rgba(0,216,159,0)' },
+        },
+        flowDash: {
+          '0%': { strokeDashoffset: '100' },
+          '100%': { strokeDashoffset: '0' },
+        },
+        jobEnter: {
+          '0%': { opacity: '0', transform: 'translateX(-16px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
+        shimmerFlow: {
+          '0%': { backgroundPosition: '-200% center' },
+          '100%': { backgroundPosition: '200% center' },
+        },
+        borderRotate: {
+          '0%': { '--border-angle': '0deg' } as Record<string, string>,
+          '100%': { '--border-angle': '360deg' } as Record<string, string>,
         },
       },
     },

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter, Bricolage_Grotesque, Instrument_Serif, JetBrains_Mono } from 'next/font/google'
+import { Inter, Bricolage_Grotesque, Instrument_Serif, JetBrains_Mono, Syne } from 'next/font/google'
 import CursorSpotlight from '@/components/ui/CursorSpotlight'
 import ScrollProgress from '@/components/ui/ScrollProgress'
 import BackToTop from '@/components/ui/BackToTop'
@@ -30,6 +30,13 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-mono',
   weight: ['400', '500', '600'],
+  display: 'swap',
+})
+
+const syne = Syne({
+  subsets: ['latin'],
+  variable: '--font-syne',
+  weight: ['400', '500', '600', '700', '800'],
   display: 'swap',
 })
 
@@ -70,7 +77,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`dark ${inter.variable} ${bricolage.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable}`}
+      className={`dark ${inter.variable} ${bricolage.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} ${syne.variable}`}
     >
       <body className="bg-[#0A0A0F] text-white antialiased font-sans">
         <ScrollProgress />

@@ -23,19 +23,28 @@ export default function Navbar() {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
         scrolled
-          ? 'bg-[#0A0A0F]/80 backdrop-blur-xl border-b border-white/10 shadow-[0_1px_0_0_rgba(255,255,255,0.05)]'
-          : 'bg-transparent border-b border-transparent'
+          ? 'bg-[#09090F]/85 backdrop-blur-2xl'
+          : 'bg-transparent'
       }`}
     >
+      {/* Gradient border-bottom — only when scrolled */}
+      <div
+        className="absolute bottom-0 left-0 right-0 h-px transition-opacity duration-500"
+        style={{
+          background: 'linear-gradient(90deg, transparent 0%, rgba(0,216,159,0.2) 30%, rgba(124,58,237,0.15) 70%, transparent 100%)',
+          opacity: scrolled ? 1 : 0,
+        }}
+      />
+
       <nav className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <a href="/" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#00D89F] to-[#00A876] flex items-center justify-center shadow-[0_0_12px_rgba(0,216,159,0.4)] group-hover:shadow-[0_0_20px_rgba(0,216,159,0.5)] transition-shadow duration-200">
-            <Zap className="w-4 h-4 text-[#0A0A0F] fill-[#0A0A0F]" />
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#00D89F] to-[#00A876] flex items-center justify-center transition-all duration-300 group-hover:shadow-[0_0_22px_rgba(0,216,159,0.55)] group-hover:scale-110">
+            <Zap className="w-4 h-4 text-[#09090F] fill-[#09090F]" />
           </div>
-          <span className="font-display text-white font-bold text-lg tracking-tight">Autoniix</span>
+          <span className="font-hero text-white font-bold text-lg tracking-tight">Autoniix</span>
         </a>
 
         {/* Desktop nav */}
@@ -44,10 +53,10 @@ export default function Navbar() {
             <a
               key={link.label}
               href={link.href}
-              className="relative px-4 py-2 text-sm text-white/60 hover:text-white transition-all duration-150 group"
+              className="relative px-4 py-2 text-sm text-white/55 hover:text-white transition-colors duration-200 group"
             >
               {link.label}
-              <span className="absolute bottom-1 left-4 right-4 h-px bg-[#00D89F] scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left rounded-full" />
+              <span className="absolute bottom-0.5 left-4 right-4 h-px bg-gradient-to-r from-[#00D89F] to-[#7C3AED] scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-center rounded-full" />
             </a>
           ))}
         </div>
@@ -84,7 +93,7 @@ export default function Navbar() {
           menuOpen ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'
         }`}
       >
-        <div className="bg-[#0A0A0F]/95 backdrop-blur-xl border-b border-white/10 px-6 py-6 flex flex-col gap-2">
+        <div className="bg-[#09090F]/96 backdrop-blur-2xl border-b border-white/[0.07] px-6 py-6 flex flex-col gap-2">
           {NAV_LINKS.map((link) => (
             <a
               key={link.label}
