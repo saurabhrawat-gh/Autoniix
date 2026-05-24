@@ -94,13 +94,22 @@ ruff check src/ tests/ && pytest --tb=short -q
 git add -A && git commit -m "{prefix}: {short description}"
 ```
 
-### 10. Merge branch to develop locally (no PR)
+### 10. Merge branch to develop locally, then delete the feature branch (no push of feature branch)
 ```bash
 git checkout develop
+git pull --ff-only origin develop
 git merge --no-ff {branch-name} -m "{prefix}: merge issue-{N} into develop"
+# Feature branch lifetime ends here — never push it to remote
+git branch -d {branch-name}
 ```
 
-### 11. Set issue to in-qa, update Jira, cascade tasks, and push develop
+**Hard rules — non-negotiable:**
+- Feature branches must NEVER be pushed to `origin` for any reason
+- Feature branches must be deleted locally immediately after merging into `develop`
+- If `git branch -d` refuses (unmerged), STOP and report — do not force-delete without product-owner approval
+- The only branches that ever exist on `origin` are `main` and `develop`
+
+### 11. Set issue to in-qa, update Jira, cascade tasks, push develop, and raise/update the develop→main PR
 - Call `mcp0_update_issue` on the issue: remove `in-progress`, add `in-qa`
 - Look up the Jira key for this issue via `scripts/migration/state/issue_map.json`
 - Call `mcp0_transitionJiraIssue` with transition id `41` (→ Dev Done) on the Story's Jira key
@@ -124,6 +133,15 @@ git merge --no-ff {branch-name} -m "{prefix}: merge issue-{N} into develop"
   ```bash
   git push origin develop
   ```
+- **Always ensure an open PR from `develop` → `main` exists.** This is the standing release PR — never closed unless merged.
+  - Call `mcp1_list_pull_requests` with `owner=saurabhrawat-gh`, `repo=Autoniix`, `head=saurabhrawat-gh:develop`, `base=main`, `state=open`
+  - If zero results: call `mcp1_create_pull_request` with:
+    - `title`: `Release: develop → main`
+    - `head`: `develop`
+    - `base`: `main`
+    - `body`: bullet list of issues currently sitting on develop ahead of main (one line per issue with link)
+  - If one already exists: call `mcp1_add_issue_comment` on the PR number with: `- #{N}: {title} merged on {date}` so the release PR stays a live changelog
+  - Never auto-merge this PR — only the product owner merges develop → main
 
 ### 12. Emit HandoffPayload
 ```yaml
@@ -173,19 +191,28 @@ git checkout -b hotfix/issue-{number}-{short-slug}
 git add -A && git commit -m "hotfix(#N): {short description}"
 ```
 
-### H6. Merge directly to main
+### H6. Merge directly to main, then delete the hotfix branch
 ```bash
 git checkout main
+git pull --ff-only origin main
 git merge --no-ff hotfix/issue-{number}-{short-slug} -m "hotfix(#N): merge into main"
 git push origin main
 ```
 
-### H7. Backport to develop
+### H7. Backport to develop and delete the hotfix branch
 ```bash
 git checkout develop
+git pull --ff-only origin develop
 git merge --no-ff main -m "chore: backport hotfix(#N) to develop"
 git push origin develop
+# Hotfix branch lifetime ends here — never leave it lingering
+git branch -d hotfix/issue-{number}-{short-slug}
 ```
+
+**Hard rules — non-negotiable (same as Normal Path):**
+- Hotfix branches must NEVER be pushed to `origin`
+- Hotfix branches must be deleted locally immediately after merging into `main` AND backporting to `develop`
+- The only branches that ever exist on `origin` are `main` and `develop`
 
 ### H8. Set issue to in-prod
 - Call `mcp0_update_issue`: remove `in-progress`, add `in-prod`
@@ -225,7 +252,9 @@ handoff:
 - Never skip writing tests (even for hotfixes — at minimum a regression test)
 - One issue per branch — never bundle multiple issues
 - Never push directly to `main` except for hotfixes
-- Never open a PR for normal issues — merge to develop locally
+- Never open a PR for individual feature/bug/task issues — merge them to `develop` locally and delete the feature branch
+- **The only branches that may ever exist on `origin` are `main` and `develop`.** Feature/hotfix branches are local-only and must be deleted after merge
+- **Every push to `develop` MUST be followed by raising or updating the standing PR `develop` → `main`.** This PR is the release queue; only the product owner merges it
 - If the issue is ambiguous, comment on the issue and flag to the user — do NOT guess
 - Role checks must use `require_role()` from `_deps.py` — never inline permission logic
 - All DB changes must be in a timestamped migration file, never applied directly
