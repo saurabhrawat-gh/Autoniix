@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Minus } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 
 const faqs = [
   {
@@ -51,7 +51,7 @@ export default function FAQ() {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-80px' }}
-          transition={{ duration: 0.55 }}
+          transition={{ duration: 0.26, ease: [0.12, 0, 0.1, 1] }}
           className="text-center mb-12"
         >
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/8 text-xs text-white/40 font-medium tracking-wider uppercase mb-4">
@@ -69,7 +69,7 @@ export default function FAQ() {
               initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-40px' }}
-              transition={{ duration: 0.4, delay: i * 0.05 }}
+              transition={{ duration: 0.26, delay: i * 0.04, ease: [0.12, 0, 0.1, 1] }}
               className="glass-card rounded-xl border border-white/8 overflow-hidden"
             >
               <button
@@ -79,13 +79,15 @@ export default function FAQ() {
                 <span className="text-white/85 font-medium text-sm pr-4 group-hover:text-white transition-colors duration-150">
                   {faq.q}
                 </span>
-                <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-white/5 border border-white/8 flex items-center justify-center group-hover:border-[#00D89F]/30 transition-colors duration-150">
-                  {open === i ? (
-                    <Minus className="w-3.5 h-3.5 text-[#00D89F]" />
-                  ) : (
-                    <Plus className="w-3.5 h-3.5 text-white/50" />
-                  )}
-                </div>
+                <motion.div
+                  animate={{ rotate: open === i ? 45 : 0 }}
+                  transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
+                  className="flex-shrink-0 w-7 h-7 rounded-lg bg-white/5 border border-white/8 flex items-center justify-center group-hover:border-[#00D89F]/30 transition-colors duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)]"
+                >
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-colors duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)] ${open === i ? 'text-[#00D89F]' : 'text-white/50'}`}
+                  />
+                </motion.div>
               </button>
 
               <AnimatePresence initial={false}>

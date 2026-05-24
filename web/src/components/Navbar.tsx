@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Menu, X, Zap, Sun, Moon } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import GlowButton from './ui/GlowButton'
@@ -46,7 +47,7 @@ export default function Navbar() {
       <nav className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <a href="/" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#00D89F] to-[#00A876] flex items-center justify-center transition-all duration-300 group-hover:shadow-[0_0_22px_rgba(0,216,159,0.55)] group-hover:scale-110">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#00D89F] to-[#00A876] flex items-center justify-center transition-[transform,box-shadow] duration-[200ms] ease-[cubic-bezier(0.2,0,0,1)] group-hover:shadow-[0_0_22px_rgba(0,216,159,0.55)] group-hover:scale-110">
             <Zap className="w-4 h-4 text-[#09090F] fill-[#09090F]" strokeWidth={2} />
           </div>
           <span className="t-headline" style={{ color: 'var(--text-primary)', fontSize: '1.0625rem', fontWeight: 500, letterSpacing: '-0.018em' }}>Autoniix</span>
@@ -97,48 +98,65 @@ export default function Navbar() {
 
         {/* Mobile hamburger */}
         <button
-          className="md:hidden text-white/70 hover:text-white transition-colors p-2"
+          className="md:hidden text-white/70 hover:text-white transition-colors duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)] p-2"
           onClick={() => setMenuOpen(!menuOpen)}
+          aria-expanded={menuOpen}
           aria-label="Toggle menu"
         >
-          {menuOpen ? <X className="w-5 h-5" strokeWidth={1.5} /> : <Menu className="w-5 h-5" strokeWidth={1.5} />}
+          <motion.span
+            animate={{ rotate: menuOpen ? 90 : 0 }}
+            transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
+            style={{ display: 'inline-flex' }}
+          >
+            {menuOpen ? <X className="w-5 h-5" strokeWidth={1.5} /> : <Menu className="w-5 h-5" strokeWidth={1.5} />}
+          </motion.span>
         </button>
       </nav>
 
       {/* Mobile menu */}
-      <div
-        className={`md:hidden transition-all duration-300 overflow-hidden ${
-          menuOpen ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'
-        }`}
-      >
-        <div className="bg-white/95 dark:bg-[#08080F]/96 backdrop-blur-2xl border-b border-black/[0.06] dark:border-white/[0.07] px-6 py-6 flex flex-col gap-2">
-          {NAV_LINKS.map((link) => (
-            <a
-              key={link.label}
-              href={link.href}
-              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] py-3 border-b border-black/5 dark:border-white/5 last:border-0 transition-colors text-base"
-              onClick={() => setMenuOpen(false)}
-            >
-              {link.label}
-            </a>
-          ))}
-          <div className="pt-4 flex flex-col gap-3">
-            <a
-              href="https://dash.autoniix.com/login"
-              className="text-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors py-2"
-            >
-              Sign in
-            </a>
-            <GlowButton
-              size="md"
-              className="w-full justify-center"
-              onClick={() => window.open('https://dash.autoniix.com/register', '_blank')}
-            >
-              Get started free →
-            </GlowButton>
-          </div>
-        </div>
-      </div>
+      <AnimatePresence initial={false}>
+        {menuOpen && (
+          <motion.div
+            key="mobile-menu"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.26, ease: [0.12, 0, 0.1, 1] }}
+            className="md:hidden overflow-hidden"
+          >
+            <div className="bg-white/95 dark:bg-[#08080F]/96 backdrop-blur-2xl border-b border-black/[0.06] dark:border-white/[0.07] px-6 py-6 flex flex-col gap-2">
+              {NAV_LINKS.map((link, i) => (
+                <motion.a
+                  key={link.label}
+                  href={link.href}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.12, delay: i * 0.04, ease: [0.12, 0, 0.1, 1] }}
+                  className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] py-3 border-b border-black/5 dark:border-white/5 last:border-0 transition-colors duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)] text-base"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  {link.label}
+                </motion.a>
+              ))}
+              <div className="pt-4 flex flex-col gap-3">
+                <a
+                  href="https://dash.autoniix.com/login"
+                  className="text-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)] py-2"
+                >
+                  Sign in
+                </a>
+                <GlowButton
+                  size="md"
+                  className="w-full justify-center"
+                  onClick={() => window.open('https://dash.autoniix.com/register', '_blank')}
+                >
+                  Get started free →
+                </GlowButton>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   )
 }
