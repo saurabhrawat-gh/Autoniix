@@ -23,10 +23,24 @@ logger = structlog.get_logger()
 _TTL_SECONDS = 30.0
 CHANNEL_NAME = "permissions.invalidate"
 
+# Roles that MUST have at least one permission seeded. An empty result for any
+# of these signals an uninitialized RBAC matrix (e.g. seed migration not run).
+KNOWN_ROLES: frozenset[str] = frozenset({"owner", "admin", "producer", "editor", "viewer"})
+
 # Cache: role → (frozenset[permission_names], expires_at)
 _cache: dict[str, tuple[frozenset[str], float]] = {}
 
 _subscriber_task: asyncio.Task[Any] | None = None
+
+
+class PermissionMatrixUnavailable(RuntimeError):
+    """Raised when the RBAC catalog is missing, unreadable, or empty for a known role.
+
+    Distinct from a legitimate "role exists but has zero permissions" case so
+    callers (e.g. ``/auth/me``) can surface a clear 503 instead of silently
+    returning an empty permissions list and breaking the dashboard nav.
+    """
+
 
 
 def _is_cached(role: str) -> tuple[frozenset[str], float] | None:
@@ -57,11 +71,44 @@ async def get_permissions_for_role(role: str) -> frozenset[str]:
         )
         perms: frozenset[str] = frozenset(r["permission"] for r in rows)
     except Exception as exc:
-        logger.warning("permissions.cache.db_error", role=role, error=str(exc))
-        return frozenset()
+        logger.error(
+            "permissions.cache.matrix_unavailable",
+            role=role,
+            error=str(exc),
+            hint="Run 'make migrate' to apply scripts/migrations/202605220001_named_permissions.sql",
+        )
+        raise PermissionMatrixUnavailable(
+            f"role_permissions table unreadable for role={role!r}: {exc}"
+        ) from exc
+
+    if not perms and role in KNOWN_ROLES:
+        # Known role with zero seeded permissions → RBAC matrix not initialized.
+        # Treat the same as a missing table so the dashboard surfaces a clear error
+        # instead of silently hiding every gated nav item.
+        logger.error(
+            "permissions.cache.empty_for_known_role",
+            role=role,
+            hint="Run 'make migrate' to seed scripts/migrations/202605220001_named_permissions.sql",
+        )
+        raise PermissionMatrixUnavailable(
+            f"role_permissions matrix has no rows for known role={role!r} — "
+            "RBAC catalog appears uninitialized"
+        )
 
     _cache[role] = (perms, time.monotonic() + _TTL_SECONDS)
     return perms
+
+
+async def verify_matrix_initialized() -> None:
+    """Startup probe: assert the RBAC catalog is populated for the owner role.
+
+    Intended to be called from app startup. Logs at ERROR (not warning) and
+    raises :class:`PermissionMatrixUnavailable` if the matrix is missing or
+    empty so the operator gets a loud signal instead of a silently broken
+    dashboard.
+    """
+    perms = await get_permissions_for_role("owner")
+    logger.info("permissions.matrix.verified", owner_perm_count=len(perms))
 
 
 def invalidate(role: str | None = None) -> None:
