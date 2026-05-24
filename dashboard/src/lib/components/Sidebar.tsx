@@ -66,8 +66,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Resources',
     items: [
-      { href: '/dashboard/library', label: 'Library', icon: Archive, shortcut: 'g l', permission: 'content.view' },
-      { href: '/dashboard/providers', label: 'Providers', icon: Plug, shortcut: 'g i', permission: 'provider.view' },
+      { href: '/dashboard/library', label: 'Library', icon: Archive, shortcut: 'g l', permission: 'project.view' },
+      { href: '/dashboard/providers', label: 'Providers', icon: Plug, shortcut: 'g i', permission: 'credentials.view.labels' },
       { href: '/dashboard/experiments', label: 'Experiments', icon: FlaskConical, shortcut: 'g e', permission: 'workspace.settings.edit' },
     ],
   },
