@@ -18,9 +18,9 @@ interface EmptyStateProps {
 export function EmptyState({ icon: Icon, title, body, cta, className }: EmptyStateProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 6 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25 }}
+      transition={{ duration: 0.26, ease: [0.12, 0, 0.1, 1] }}
       className={cn(
         'flex flex-col items-center justify-center text-center py-16 px-6 rounded-xl',
         'border border-dashed border-border bg-surface-1/40',

@@ -464,7 +464,12 @@ export default function Hero() {
         style={{ color: 'var(--text-faint)' }}
       >
         <span className="t-micro">Scroll</span>
-        <ChevronDown className="w-4 h-4 animate-bounce" strokeWidth={1.5} />
+        <motion.span
+          animate={{ y: [0, 5, 0], opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <ChevronDown className="w-4 h-4" strokeWidth={1.5} />
+        </motion.span>
       </motion.div>
     </section>
   )
