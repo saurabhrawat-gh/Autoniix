@@ -98,6 +98,23 @@ For every open issue labelled `in-prod`:
 - If unchecked boxes remain: flag "#{N} in-prod — needs prod verification → type `verified #{N}` in Windsurf when ready"
 - If zero unchecked but no `prod-verified` label: flag "#{N} — ACs all ticked — type `verified #{N}` to close"
 
+### 7b. Check branch hygiene
+Run branch hygiene scan — this is a hard invariant of the workflow.
+
+```bash
+git fetch --prune
+git branch -a
+```
+
+Flag each anomaly:
+- **Any remote branch other than `origin/main` or `origin/develop`** → flag: `Stale remote branch '{name}' — must be deleted (git push origin --delete {name}). Only main and develop may live on origin.`
+- **Any local branch other than `main` or `develop`** that is fully merged into `develop` → flag: `Local feature branch '{name}' is merged but not deleted — run 'git branch -d {name}'.`
+- **Any local branch other than `main` or `develop`** that is NOT merged into `develop` AND has not been updated in > 7 days → flag: `Local branch '{name}' is stale and unmerged — likely abandoned. Confirm with product owner before deleting.`
+- **`develop` ahead of `origin/develop`** → flag: `Local develop has unpushed commits — Dev Agent should have pushed. Run 'git push origin develop'.`
+- **`develop` ahead of `origin/main` AND no open `develop → main` PR** → flag: `Standing release PR missing. Dev Agent must raise it next time it merges to develop.`
+
+Check the standing release PR via `mcp1_list_pull_requests` with `head=saurabhrawat-gh:develop`, `base=main`, `state=open`. If zero results AND `git log origin/main..origin/develop --oneline` is non-empty → flag the missing release PR.
+
 ### 7a. Check for unlabeled issues (triage queue)
 For every open issue with NO lifecycle label (not epic, not test-case):
 - Flag: "#{N}: {title} — no lifecycle label, needs routing to dev queue"
@@ -131,6 +148,12 @@ EPIC HEALTH:
   #16 in-prod — 2 AC boxes still unchecked (7 days)
   #5 has no lifecycle label — needs triage
 
+BRANCH HYGIENE:
+  origin branches      : main, develop ✅
+  local stale branches : (none)
+  develop vs origin    : in sync ✅
+  release PR (dev→main): #{N} open — N issues queued for prod
+
 PROD VERIFICATION NEEDED:
   #16: needs verification → type `verified #16` in Windsurf when ready
   #17: ready → type `verified #17` to auto-tick ACs and close
@@ -151,6 +174,7 @@ SUGGESTED NEXT ACTIONS:
 - Never change any issue label — read-only
 - Never close any issue — read-only
 - Never create PRs or branches — read-only
+- Branch hygiene check (Step 7b) is read-only — only REPORT anomalies, never auto-delete branches or open the release PR yourself. The Dev Agent owns those actions on its next run.
 - Epics and test-case issues (`test-case` label) do NOT follow the lifecycle — do not flag them for missing lifecycle labels
 - Safe to run multiple times — fully idempotent (read-only)
 - If an issue appears stuck and the reason is unclear, suggest: "Comment on the issue asking for status update"
