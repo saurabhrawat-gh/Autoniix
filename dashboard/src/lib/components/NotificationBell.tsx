@@ -55,9 +55,10 @@ export function NotificationBell() {
             {unread > 0 && (
               <motion.span
                 key={unread}
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
                 className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-accent text-content-inverse text-[9px] font-semibold flex items-center justify-center"
               >
                 {unread > 9 ? '9+' : unread}

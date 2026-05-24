@@ -99,16 +99,16 @@ export function CommandPalette() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.12 }}
+          transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
           className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-[15vh] px-4"
           onClick={() => setPaletteOpen(false)}
         >
           <motion.div
             key="palette-shell"
-            initial={{ opacity: 0, scale: 0.96, y: -8 }}
+            initial={{ opacity: 0, scale: 0.98, y: -8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: -8 }}
-            transition={{ duration: 0.14, ease: 'easeOut' }}
+            exit={{ opacity: 0, scale: 0.98, y: -8 }}
+            transition={{ duration: 0.12, ease: [0.12, 0, 0.1, 1] }}
             className="w-full max-w-xl"
             onClick={(e) => e.stopPropagation()}
           >

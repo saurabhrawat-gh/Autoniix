@@ -17,7 +17,7 @@ export function AnimatedNumber({
   decimals = 2,
   prefix = '',
   suffix = '',
-  duration = 0.6,
+  duration = 0.15,
   className,
 }: AnimatedNumberProps) {
   const reduce = useReducedMotion();
@@ -29,7 +29,7 @@ export function AnimatedNumber({
       mv.set(value);
       return;
     }
-    const controls = animate(mv, value, { duration, ease: 'easeOut' });
+    const controls = animate(mv, value, { duration, ease: [0.2, 0, 0, 1] });
     return () => controls.stop();
   }, [value, duration, reduce, mv]);
 

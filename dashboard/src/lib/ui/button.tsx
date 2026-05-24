@@ -7,9 +7,12 @@ import { Loader2 } from 'lucide-react';
 import { cn } from './cn';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-1.5 font-medium rounded-md transition-all ' +
+  'inline-flex items-center justify-center gap-1.5 font-medium rounded-md ' +
+    'transition-[color,background-color,border-color,box-shadow,opacity,transform] duration-[120ms] ' +
+    'ease-[cubic-bezier(0.2,0,0,1)] ' +
+    'active:scale-[0.98] ' +
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ' +
-    'disabled:opacity-50 disabled:cursor-not-allowed select-none',
+    'disabled:opacity-[0.56] disabled:cursor-not-allowed disabled:pointer-events-none select-none',
   {
     variants: {
       variant: {

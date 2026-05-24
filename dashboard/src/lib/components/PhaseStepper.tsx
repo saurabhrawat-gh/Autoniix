@@ -1,9 +1,10 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X, Pause as PauseIcon } from './Icon';
 import { cn } from '../utils';
 import { PHASE_ORDER, PHASE_LABELS } from '../utils';
+import { ease, dur } from '../motion';
 
 interface PhaseStepperProps {
   currentPhase: string | null;
@@ -57,10 +58,10 @@ export function PhaseStepper({
         style={{ left: `${insetPct}%` }}
         initial={false}
         animate={{ width: fillWidthExpr }}
-        transition={{ duration: 0.7, ease: 'easeOut' }}
+        transition={{ duration: dur.base, ease: ease.standard }}
       />
 
-      <div className="relative flex items-start">
+      <div className="relative flex items-start" role="group" aria-label="Pipeline phases">
         {PHASE_ORDER.map((phase, idx) => {
           const isCurrent = currentPhase === phase;
           const isCompleted = currentIdx > idx;
@@ -94,15 +95,25 @@ export function PhaseStepper({
                     : { duration: 0.2 }
                 }
               >
-                {isPhaseFailed ? (
-                  <X size={10} strokeWidth={3} />
-                ) : isPhasePaused ? (
-                  <PauseIcon size={8} strokeWidth={3} />
-                ) : isCompleted ? (
-                  <Check size={10} strokeWidth={3} />
-                ) : null}
+                <AnimatePresence mode="wait" initial={false}>
+                  {isPhaseFailed ? (
+                    <motion.span key="x" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }} transition={{ duration: dur.fast, ease: ease.emphasis }}>
+                      <X size={10} strokeWidth={3} />
+                    </motion.span>
+                  ) : isPhasePaused ? (
+                    <motion.span key="pause" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }} transition={{ duration: dur.fast, ease: ease.emphasis }}>
+                      <PauseIcon size={8} strokeWidth={3} />
+                    </motion.span>
+                  ) : isCompleted ? (
+                    <motion.span key="check" initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.96, opacity: 0 }} transition={{ duration: 0.14, ease: ease.emphasis }}>
+                      <Check size={10} strokeWidth={3} />
+                    </motion.span>
+                  ) : null}
+                </AnimatePresence>
               </motion.div>
               <span
+                aria-current={isCurrent ? 'step' : undefined}
+                aria-live={isCurrent ? 'polite' : undefined}
                 className={cn(
                   'text-[8px] mt-1 font-medium text-center leading-tight',
                   isPhaseFailed

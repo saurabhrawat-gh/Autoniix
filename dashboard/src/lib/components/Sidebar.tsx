@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useHotkeys } from 'react-hotkeys-hook';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../utils';
@@ -173,13 +174,10 @@ export function Sidebar() {
 
   return (
     <>
-      <aside
-        className={cn(
-          'hidden md:flex flex-col shrink-0 h-full',
-          'bg-surface-0 border-r border-border',
-          'transition-all duration-200 ease-in-out',
-          collapsed ? 'w-[60px]' : 'w-[220px]'
-        )}
+      <motion.aside
+        className="hidden md:flex flex-col shrink-0 h-full bg-surface-0 border-r border-border overflow-hidden"
+        animate={{ width: collapsed ? 60 : 220 }}
+        transition={{ duration: 0.26, ease: [0.2, 0, 0, 1] }}
       >
         {/* Logo */}
         <div className={cn(
@@ -191,11 +189,20 @@ export function Sidebar() {
               <Video size={14} className="text-accent" />
             </div>
           </Link>
-          {!collapsed && (
-            <span className="text-sm font-semibold text-content-primary truncate">
-              YT Automation
-            </span>
-          )}
+          <AnimatePresence initial={false}>
+            {!collapsed && (
+              <motion.span
+                key="brand"
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -6 }}
+                transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
+                className="text-sm font-semibold text-content-primary truncate"
+              >
+                YT Automation
+              </motion.span>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Workspace switcher */}
@@ -215,13 +222,22 @@ export function Sidebar() {
             if (visibleItems.length === 0) return null;
             return (
               <div key={group.label}>
-                {!collapsed ? (
-                  <div className="px-2.5 mb-1 text-[10px] uppercase tracking-widest font-semibold text-content-tertiary">
-                    {group.label}
-                  </div>
-                ) : gIdx > 0 ? (
-                  <div className="mx-3 mb-2 h-px bg-border" />
-                ) : null}
+                <AnimatePresence initial={false}>
+              {!collapsed ? (
+                <motion.div
+                  key="label"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
+                  className="px-2.5 mb-1 text-[10px] uppercase tracking-widest font-semibold text-content-tertiary"
+                >
+                  {group.label}
+                </motion.div>
+              ) : gIdx > 0 ? (
+                <div className="mx-3 mb-2 h-px bg-border" />
+              ) : null}
+            </AnimatePresence>
                 <div className={collapsed ? 'space-y-1' : 'space-y-0.5'}>
                   {visibleItems.map(item => (
                     <NavLink
@@ -253,15 +269,29 @@ export function Sidebar() {
               collapsed ? 'w-10 h-8 justify-center mx-auto' : 'w-full justify-start gap-2 px-2.5 py-1.5 h-auto'
             )}
           >
-            {collapsed ? <ChevronRight size={14} /> : (
-              <>
-                <ChevronLeft size={13} />
-                <span>Collapse</span>
-              </>
-            )}
+            <motion.span
+              animate={{ rotate: collapsed ? 0 : 180 }}
+              transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
+              style={{ display: 'inline-flex' }}
+            >
+              <ChevronRight size={14} />
+            </motion.span>
+            <AnimatePresence initial={false}>
+              {!collapsed && (
+                <motion.span
+                  key="collapse-label"
+                  initial={{ opacity: 0, x: -4 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -4 }}
+                  transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
+                >
+                  Collapse
+                </motion.span>
+              )}
+            </AnimatePresence>
           </Button>
         </div>
-      </aside>
+      </motion.aside>
     </>
   );
 }
