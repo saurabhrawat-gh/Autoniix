@@ -485,7 +485,7 @@ async def deploy_status():
     try:
         client = await asyncio.wait_for(_get_temporal_client(), timeout=2.0)
         ids: list[str] = []
-        async for s in client.list_schedules():
+        async for s in await client.list_schedules():
             ids.append(s.id)
         schedules["count"] = len(ids)
         schedules["ids"] = sorted(ids)
