@@ -133,7 +133,7 @@ export function Sidebar() {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [gPressed, setGPressed] = useState(false);
-  const { hasPermission, loading: permsLoading } = usePermissions();
+  const { hasPermission, loading: permsLoading, error: permsError } = usePermissions();
 
   useEffect(() => {
     try {
@@ -217,7 +217,7 @@ export function Sidebar() {
         )}>
           {NAV_GROUPS.map((group, gIdx) => {
             const visibleItems = group.items.filter(
-              item => !item.permission || permsLoading || hasPermission(item.permission)
+              item => !item.permission || permsLoading || permsError || hasPermission(item.permission)
             );
             if (visibleItems.length === 0) return null;
             return (

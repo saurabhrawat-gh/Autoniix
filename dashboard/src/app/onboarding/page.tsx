@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, ChevronRight, Users, Youtube, Rocket, Building2 } from 'lucide-react';
-import { workspaceApi, invitesApi, settingsApi, isLoggedIn } from '@/lib/api-v2';
+import { workspaceApi, invitesApi, settingsApi, authApi, isLoggedIn } from '@/lib/api-v2';
 import { Button, Input, Label } from '@/lib/ui';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/lib/theme';
@@ -58,11 +58,16 @@ export default function OnboardingPage() {
     await saveProgress(nextStep);
   }
 
-  // Step 1: confirm workspace name
+  // Step 1: confirm workspace name (create if none exists, update if renaming)
   async function saveWorkspaceName() {
     setSaving(true);
     try {
-      await workspaceApi.update({ name: wsName.trim() });
+      if (!wsId) {
+        const res = await authApi.createWorkspace(wsName.trim());
+        setWsId(res.workspace_id);
+      } else {
+        await workspaceApi.update({ name: wsName.trim() });
+      }
       await goNext(2);
     } finally { setSaving(false); }
   }

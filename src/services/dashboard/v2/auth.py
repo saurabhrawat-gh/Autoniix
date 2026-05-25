@@ -287,22 +287,25 @@ async def login(request: Request, body: LoginIn, response: Response):
     ws_row = await pool.fetchrow(
         "SELECT active_workspace_id FROM users WHERE id=$1", user["id"]
     )
-    wid = (ws_row["active_workspace_id"] if ws_row else None) or 1
+    wid: int | None = ws_row["active_workspace_id"] if ws_row else None
     wm = await pool.fetchrow(
-        "SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2", wid, user["id"]
-    )
+        "SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2", wid or 0, user["id"]
+    ) if wid else None
     ws_role = wm["role"] if wm else user["role"]
-    access = _issue_jwt(dict(user), workspace_id=wid, ws_role=ws_role)
+    access = _issue_jwt(dict(user), workspace_id=wid or 0, ws_role=ws_role)
     _set_auth_cookies(response, access, raw)
     # Also return token in body as a fallback for environments where the dev
     # proxy (e.g. `next dev` rewrites) does not forward Set-Cookie reliably.
     # The frontend persists it in localStorage and sends as Authorization: Bearer.
-    return {
+    resp: dict = {
         "status": "ok",
         "user": {"id": user["id"], "email": user["email"], "role": ws_role, "workspace_id": wid},
         "access_token": access,
         "expires_in": 3600,
     }
+    if not wid:
+        resp["setup_required"] = True
+    return resp
 
 
 @router.post("/refresh")
@@ -530,6 +533,81 @@ async def reset(body: ResetIn):
     return {"status": "ok"}
 
 
+class CreateWorkspaceIn(BaseModel):
+    workspace_name: str = Field(min_length=2, max_length=60)
+
+
+@router.post("/create-workspace")
+async def create_workspace_for_existing_user(
+    body: CreateWorkspaceIn,
+    request: Request,
+    response: Response,
+    p: Principal = Depends(principal_dep),
+):
+    """Create a workspace for an authenticated user who has none (e.g. seeded accounts).
+
+    Idempotent: if the user already has a workspace, returns the existing one unchanged.
+    Issues a fresh JWT with the correct ``wid`` claim.
+    """
+    if not p.user_id:
+        raise HTTPException(403, "Legacy session — cannot create workspace")
+    pool = await get_pool()
+    # Check if user already has a workspace
+    existing = await pool.fetchrow(
+        "SELECT workspace_id FROM workspace_members WHERE user_id=$1 LIMIT 1", p.user_id
+    )
+    if existing:
+        wid = existing["workspace_id"]
+    else:
+        ws_name = body.workspace_name.strip()
+        ws_slug = ws_name.lower().replace(" ", "-")[:60]
+        suffix = 0
+        while await pool.fetchval(
+            "SELECT id FROM workspaces WHERE slug=$1",
+            ws_slug if suffix == 0 else f"{ws_slug}-{suffix}",
+        ):
+            suffix += 1
+        if suffix:
+            ws_slug = f"{ws_slug}-{suffix}"
+        user = await pool.fetchrow(
+            "SELECT id, email, role FROM users WHERE id=$1", p.user_id
+        )
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                wid = await conn.fetchval(
+                    """INSERT INTO workspaces (name, slug, plan, owner_user_id, billing_email)
+                       VALUES ($1,$2,'starter',$3,$4) RETURNING id""",
+                    ws_name, ws_slug, p.user_id, user["email"],
+                )
+                await conn.execute(
+                    "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1,$2,'owner')",
+                    wid, p.user_id,
+                )
+                await conn.execute(
+                    "UPDATE users SET active_workspace_id=$1 WHERE id=$2", wid, p.user_id
+                )
+    # Issue fresh token pair with the correct workspace
+    user_row = await pool.fetchrow(
+        "SELECT id, email, role, mfa_enabled, disabled FROM users WHERE id=$1", p.user_id
+    )
+    wm = await pool.fetchrow(
+        "SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2", wid, p.user_id
+    )
+    ws_role = wm["role"] if wm else user_row["role"]
+    raw, hashed = _refresh_token()
+    expires = datetime.now(timezone.utc) + timedelta(days=30)
+    await pool.execute(
+        """INSERT INTO sessions (user_id, refresh_token_hash, ip, user_agent, expires_at)
+           VALUES ($1,$2,$3,$4,$5)""",
+        p.user_id, hashed,
+        (request.client.host if request.client else None),
+        request.headers.get("user-agent"), expires,
+    )
+    access = _issue_jwt(dict(user_row), workspace_id=wid, ws_role=ws_role)
+    _set_auth_cookies(response, access, raw)
+    return {"status": "ok", "workspace_id": wid, "role": ws_role, "access_token": access}
+
+
 # Multi-workspace endpoints
 
 class SwitchWorkspaceIn(BaseModel):
@@ -546,8 +624,7 @@ class AcceptInviteIn(BaseModel):
 async def list_workspaces(p: Principal = Depends(principal_dep)):
     """Return all workspaces the current user is a member of."""
     if not p.user_id:
-        return {"data": [{"id": 1, "name": "Default Workspace", "slug": "default",
-                          "plan": "starter", "role": "owner", "active": True}]}
+        return {"data": []}
     pool = await get_pool()
     rows = await pool.fetch(
         """SELECT w.id, w.name, w.slug, w.plan, wm.role,

@@ -158,6 +158,11 @@ export const authApi = {
       '/api/v2/auth/accept-invite',
       { method: 'POST', body: JSON.stringify({ token, password, display_name }) }
     ),
+  createWorkspace: (workspace_name: string) =>
+    request<{ status: string; workspace_id: number; role: string; access_token: string }>(
+      '/api/v2/auth/create-workspace',
+      { method: 'POST', body: JSON.stringify({ workspace_name }) }
+    ),
 };
 
 // Channels
