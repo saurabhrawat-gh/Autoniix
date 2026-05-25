@@ -21,7 +21,7 @@ import sys
 from datetime import timedelta
 
 from temporalio.client import Client, Schedule, ScheduleActionStartWorkflow
-from temporalio.client import ScheduleCalendarSpec, ScheduleRange
+from temporalio.client import ScheduleAlreadyRunningError, ScheduleCalendarSpec, ScheduleRange
 from temporalio.client import ScheduleSpec, ScheduleState
 from temporalio.service import RPCError
 
@@ -130,6 +130,7 @@ async def register_all(temporal_host: str) -> None:
                 Schedule(
                     action=ScheduleActionStartWorkflow(
                         s["workflow"],
+                        id=schedule_id,
                         task_queue=s["task_queue"],
                     ),
                     spec=_cron_to_spec(s["cron"]),
@@ -138,8 +139,8 @@ async def register_all(temporal_host: str) -> None:
             )
             print(f"  ✅ Created  {schedule_id}  ({s['cron']})")
             created += 1
-        except RPCError as exc:
-            if "already exists" in str(exc).lower():
+        except (RPCError, ScheduleAlreadyRunningError) as exc:
+            if isinstance(exc, ScheduleAlreadyRunningError) or "already exists" in str(exc).lower():
                 print(f"  ⏭  Skipped  {schedule_id}  (already exists)")
                 skipped += 1
             else:
