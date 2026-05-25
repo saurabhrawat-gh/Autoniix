@@ -48,11 +48,11 @@ export default function LoginPage() {
     setError('');
     try {
       if (step === 'credentials') {
-        await authApi.login(email, password);
-        router.push('/dashboard');
+        const data = await authApi.login(email, password);
+        router.push((data as any).setup_required ? '/onboarding' : '/dashboard');
       } else {
-        await authApi.login(email, password, mfaCode);
-        router.push('/dashboard');
+        const data = await authApi.login(email, password, mfaCode);
+        router.push((data as any).setup_required ? '/onboarding' : '/dashboard');
       }
     } catch (err: any) {
       const msg: string = err.message || 'Login failed';
