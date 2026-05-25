@@ -458,6 +458,49 @@ async def health():
     }
 
 
+@app.get("/deploy-status")
+async def deploy_status():
+    """Public deploy verification probe — applied migrations + Temporal schedules.
+
+    Designed for CI post-deploy verification. Returns counts and IDs so CI
+    can assert that ``make migrate`` and ``make schedule-register`` ran
+    successfully on this commit. Never raises — surfaces partial failure
+    via per-section ``error`` fields so a missing schema_migrations table
+    or unreachable Temporal frontend does not crash the probe.
+    """
+    migrations: dict = {"applied_count": None, "latest_version": None, "error": None}
+    try:
+        pool = await asyncio.wait_for(get_pool(), timeout=2.0)
+        async with pool.acquire() as conn:
+            count = await conn.fetchval("SELECT COUNT(*) FROM schema_migrations")
+            latest = await conn.fetchval(
+                "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1"
+            )
+        migrations["applied_count"] = int(count or 0)
+        migrations["latest_version"] = latest
+    except Exception as exc:  # noqa: BLE001 — probe must never raise
+        migrations["error"] = str(exc)
+
+    schedules: dict = {"count": None, "ids": [], "error": None}
+    try:
+        client = await asyncio.wait_for(_get_temporal_client(), timeout=2.0)
+        ids: list[str] = []
+        async for s in client.list_schedules():
+            ids.append(s.id)
+        schedules["count"] = len(ids)
+        schedules["ids"] = sorted(ids)
+    except Exception as exc:  # noqa: BLE001 — probe must never raise
+        schedules["error"] = str(exc)
+
+    return {
+        "status": "ok",
+        "service": "dashboard-bff",
+        "git_sha": os.getenv("GIT_SHA", "unknown"),
+        "migrations": migrations,
+        "temporal_schedules": schedules,
+    }
+
+
 # Auth
 
 @app.post("/api/auth/login", response_model=LoginResponse)

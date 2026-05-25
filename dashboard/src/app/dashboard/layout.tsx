@@ -3,9 +3,11 @@ import { AppHeader } from '@/lib/components/AppHeader';
 import { Sidebar } from '@/lib/components/Sidebar';
 import { PageTransition } from '@/lib/components/PageTransition';
 import { ConfirmDialogProvider } from '@/lib/components/ConfirmDialog';
+import { WorkspaceGuard } from '@/lib/components/WorkspaceGuard';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
+    <WorkspaceGuard>
     <ConfirmDialogProvider>
     <div className="h-screen flex overflow-hidden">
       {/* Skip to main content (keyboard a11y) */}
@@ -30,5 +32,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       </div>
     </div>
     </ConfirmDialogProvider>
+    </WorkspaceGuard>
   );
 }

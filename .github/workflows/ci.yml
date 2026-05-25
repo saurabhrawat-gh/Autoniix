@@ -261,6 +261,34 @@ jobs:
             echo "    Run manually on VPS: sudo cp Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy"
           fi
 
+      - name: Post-deploy — apply pending DB migrations + register Temporal schedules
+        # AE-49 / AE-50: closes the manual gap where new SQL migrations
+        # and Temporal schedules sat unapplied on prod after every deploy.
+        # Both scripts are idempotent — they no-op when state is already
+        # in sync (run_migrations skips applied versions via checksum;
+        # register_schedules catches "already exists" RPCError).
+        run: |
+          set -euo pipefail
+          cd /home/autoniix/autoniix
+
+          # Wait for BFF /health to become 200 — at that point postgres-app +
+          # temporal are both confirmed reachable (see _probe_db / _probe_temporal
+          # in src/services/dashboard/main.py), so it is safe to migrate + register.
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8020/health >/dev/null 2>&1; then
+              echo "bff healthy after ${i} attempts — proceeding"
+              break
+            fi
+            sleep 3
+          done
+
+          echo "── Applying pending DB migrations (idempotent) ──"
+          docker compose exec -T dashboard-bff python -m scripts.run_migrations
+
+          echo "── Registering Temporal schedules (idempotent) ──"
+          docker compose exec -T worker-scheduler \
+            python -m scripts.register_schedules --temporal-host temporal:7233
+
       - name: Post-deploy smoke
         run: |
           set -euo pipefail
@@ -275,6 +303,28 @@ jobs:
           # Stack health checks only (unit tests already ran in python-lint-and-tests CI job).
           bash scripts/check-stack.sh
           curl -fsS http://localhost:8020/metrics | grep -q 'python_info' && echo "✅ /metrics reachable"
+
+          # AE-13: assert post-deploy state via /deploy-status — migrations
+          # must be applied and Temporal schedules must be registered for
+          # the deploy to count as successful. CI fails loudly if either
+          # surfaces an `error` field or the counts are zero.
+          echo "── Verifying /deploy-status (migrations + schedules) ──"
+          curl -fsS http://localhost:8020/deploy-status | tee /tmp/deploy-status.json | python3 -m json.tool
+          python3 - <<'PY'
+          import json, sys
+          with open("/tmp/deploy-status.json") as f:
+              d = json.load(f)
+          m, s = d.get("migrations", {}), d.get("temporal_schedules", {})
+          if m.get("error"):
+              print(f"❌ migrations probe error: {m['error']}", file=sys.stderr); sys.exit(1)
+          if s.get("error"):
+              print(f"❌ temporal schedules probe error: {s['error']}", file=sys.stderr); sys.exit(1)
+          if not m.get("applied_count"):
+              print("❌ zero migrations applied — run_migrations likely failed", file=sys.stderr); sys.exit(1)
+          if not s.get("count"):
+              print("❌ zero Temporal schedules registered — register_schedules likely failed", file=sys.stderr); sys.exit(1)
+          print(f"✅ deploy-status OK — {m['applied_count']} migrations @ {m['latest_version']}, {s['count']} schedules")
+          PY
 
       - name: Notify Slack on failure
         if: failure()
