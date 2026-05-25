@@ -13,6 +13,7 @@ RUN python -m spacy download en_core_web_sm \
     && python -c "import nltk; nltk.download('wordnet', quiet=True); nltk.download('omw-1.4', quiet=True)"
 
 COPY src/ ./src/
+COPY scripts/ ./scripts/
 
 # Build-time injection of the git SHA for /health introspection. Pass via:
 #   docker compose build --build-arg GIT_SHA=$(git rev-parse --short HEAD)
