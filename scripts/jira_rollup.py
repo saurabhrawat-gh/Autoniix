@@ -4,7 +4,7 @@
 Stories and Epics get ONLY 3 statuses: To Do | In Progress | Done
 
 Rules:
-  all children In Prod/Prod Verified/Done → Done
+  all children Prod Verified/Done         → Done
   all children To Do                      → To Do
   otherwise                               → In Progress
 
@@ -14,7 +14,7 @@ Usage:
 from __future__ import annotations
 import base64, json, os, sys, urllib.error, urllib.parse, urllib.request
 
-DONE_STATUSES = frozenset({"In Prod", "Prod Verified", "Done"})
+DONE_STATUSES = frozenset({"Prod Verified", "Done"})
 TODO, IN_PROGRESS, DONE = "To Do", "In Progress", "Done"
 
 _BASE = (os.environ.get("JIRA_BASE_URL") or "").rstrip("/")
