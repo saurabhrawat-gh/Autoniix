@@ -100,6 +100,35 @@ class TestRefreshHappyPath:
 # Sad paths — UC-RT-02
 # ---------------------------------------------------------------------------
 
+class TestRefreshNoWorkspace:
+    @pytest.mark.asyncio
+    async def test_refresh_no_workspace_returns_wid_zero_not_one(self):
+        """Regression: refresh with active_workspace_id=None must not fall back to wid=1 (AE-217)."""
+        from src.services.dashboard.v2.auth import refresh
+
+        pool = FakePool()
+        pool.fetchrow.side_effect = [
+            _valid_session_row(),
+            FakeRecord(active_workspace_id=None),
+        ]
+
+        conn_execute = AsyncMock(return_value="UPDATE 1")
+        pool.acquire = MagicMock(return_value=_build_acquire(conn_execute))
+
+        req = _build_request("rawrefreshtoken")
+        resp = MagicMock()
+        resp.set_cookie = MagicMock()
+
+        with _pool_ctx(pool):
+            result = await refresh(request=req, response=resp, body=None)
+
+        assert result["status"] == "ok"
+        import jwt as _jwt, os
+        token = result["access_token"]
+        payload = _jwt.decode(token, os.environ["AUTH_JWT_SECRET"], algorithms=["HS256"])
+        assert payload["wid"] == 0, f"Expected wid=0, got wid={payload['wid']} (regression: AE-217)"
+
+
 class TestRefreshRejected:
     @pytest.mark.asyncio
     async def test_refresh_missing_cookie_and_body_returns_401(self):
