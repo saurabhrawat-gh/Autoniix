@@ -109,39 +109,25 @@ git branch -d {branch-name}
 - If `git branch -d` refuses (unmerged), STOP and report — do not force-delete without product-owner approval
 - The only branches that ever exist on `origin` are `main` and `develop`
 
-### 11. Set issue to in-qa, update Jira, cascade tasks, push develop, and raise/update the develop→main PR
-- Call `mcp0_update_issue` on the issue: remove `in-progress`, add `in-qa`
+### 11. Set issue to ready-to-deploy, update Jira, push develop (GHA auto-merges to main)
+- Call `mcp0_update_issue` on the issue: remove `in-progress`, add `ready-to-deploy`
 - Look up the Jira key for this issue via `scripts/migration/state/issue_map.json`
 - Call `mcp0_transitionJiraIssue` with transition id `41` (→ Dev Done) on the Story's Jira key
-- Call `mcp0_editJiraIssue` to assign to QA Agent: `{"assignee": {"accountId": "712020:2575a2a0-33aa-422e-b26e-a99456cf0359"}}`
-- **Cascade linked Tasks to In QA:** Call `mcp0_getJiraIssue` on the Story to get its `issuelinks`. For each linked issue where `type.name == "Relates"`, call `mcp0_transitionJiraIssue` with transition id `31` (→ In QA) on that Task key.
 - Call `mcp0_add_issue_comment`:
   ```
   ✅ Implementation complete. Merged to `develop`.
 
-  **Ready for local QA testing.**
+  Pushing to `develop` — GitHub Actions will automatically:
+  1. Merge `develop → main`
+  2. Set this issue to `in-prod` after deploy
 
-  How to test:
-  1. `git checkout develop && git pull`
-  2. `docker compose build && docker compose up -d`
-  3. Follow the test cases in #{test_case_issue}
-
-  When testing is complete, type `verified #N` in Windsurf to qa-verify this issue.
+  Once it is in production, verify at https://dash.autoniix.com and type `verified #N` in Windsurf.
   If you find a bug, type `bug: description, issue #N` to file it automatically.
   ```
 - Push develop to remote:
   ```bash
   git push origin develop
   ```
-- **Always ensure an open PR from `develop` → `main` exists.** This is the standing release PR — never closed unless merged.
-  - Call `mcp1_list_pull_requests` with `owner=saurabhrawat-gh`, `repo=Autoniix`, `head=saurabhrawat-gh:develop`, `base=main`, `state=open`
-  - If zero results: call `mcp1_create_pull_request` with:
-    - `title`: `Release: develop → main`
-    - `head`: `develop`
-    - `base`: `main`
-    - `body`: bullet list of issues currently sitting on develop ahead of main (one line per issue with link)
-  - If one already exists: call `mcp1_add_issue_comment` on the PR number with: `- #{N}: {title} merged on {date}` so the release PR stays a live changelog
-  - Never auto-merge this PR — only the product owner merges develop → main
 
 ### 12. Emit HandoffPayload
 ```yaml
@@ -150,13 +136,13 @@ handoff:
   to_team: security
   issue: {N}
   branch: {branch_name}
-  summary: "Implementation complete. Merged to develop. Issue set to in-qa."
+  summary: "Implementation complete. Merged to develop. Pushed — GHA auto-merges to main."
   changed_files:
     - {list all files modified or created}
   risk_level: {low|medium|high based on changes: auth/db/external_api = high, new endpoint = medium, test/docs = low}
   actions_pending:
     - "Security Agent scans diff for secrets and policy violations"
-    - "QA Mode B: product owner tests locally, types verified #{N} when done"
+    - "Product owner: verify on https://dash.autoniix.com once in-prod, then type verified #{N}"
   blockers: []
 ```
 
@@ -254,7 +240,7 @@ handoff:
 - Never push directly to `main` except for hotfixes
 - Never open a PR for individual feature/bug/task issues — merge them to `develop` locally and delete the feature branch
 - **The only branches that may ever exist on `origin` are `main` and `develop`.** Feature/hotfix branches are local-only and must be deleted after merge
-- **Every push to `develop` MUST be followed by raising or updating the standing PR `develop` → `main`.** This PR is the release queue; only the product owner merges it
+- **Every push to `develop` triggers GHA `on-develop-push` which auto-merges `develop → main` and deploys to production automatically**
 - If the issue is ambiguous, comment on the issue and flag to the user — do NOT guess
 - Role checks must use `require_role()` from `_deps.py` — never inline permission logic
 - All DB changes must be in a timestamped migration file, never applied directly

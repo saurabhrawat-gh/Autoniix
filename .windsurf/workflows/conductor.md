@@ -1,5 +1,5 @@
 ---
-description: Conductor — top-level orchestrator that routes work between all 8 agent teams, enforces human checkpoints at every team boundary, and maintains resumable session state on GitHub issues.
+description: Conductor — top-level orchestrator that routes work between all agent teams, enforces human checkpoints at every team boundary, and maintains resumable session state on GitHub issues.
 ---
 
 # /conductor — Multi-Agent Orchestrator
@@ -38,16 +38,12 @@ Step 1:  BA Team         (only if no issue exists yet, or if /conductor new feat
          → Human Checkpoint
 Step 2:  Research Team   (codebase impact + approach)
          → Human Checkpoint
-Step 3:  QA Mode A       (test plan generation)
-         → Human Checkpoint (review test cases before dev starts)
-Step 4:  Dev Team        (implement)
+Step 3:  Dev Team        (implement + push to develop → GHA auto-merges to main → in-prod)
          → Human Checkpoint (review diff before merge)
-Step 5:  Security Team   (scan diff)
+Step 4:  Security Team   (scan diff)
          → Human Checkpoint if risk MEDIUM+; auto-proceed if LOW
-Step 6:  QA Mode B       (test walkthrough — human in loop per test case)
-         → [implicit checkpoint — human says "verified" when done]
-Step 7:  DevOps Team     (deploy monitoring + smoke test)
-         → Human Checkpoint before any prod action
+Step 5:  DevOps Team     (deploy monitoring + smoke test)
+         → Human Checkpoint: "Verify on prod — type verified #N when done"
 ```
 
 ### Feature Path — Detailed Steps
@@ -63,41 +59,26 @@ Step 7:  DevOps Team     (deploy monitoring + smoke test)
 - Invoke `/research-agent` workflow
 - Research Lead runs Codebase Analyst + Dep Auditor + Architecture Advisor
 - Posts `research_notes` comment on issue
-- Emit HandoffPayload: `from_team: research, to_team: qa` (Mode A)
+- Emit HandoffPayload: `from_team: research, to_team: dev`
 - Print checkpoint → wait for "proceed"
 
-**Step 3: QA Mode A**
-- Invoke `/qa-agent pre-dev`
-- Generates test-case issue
-- Emit HandoffPayload: `from_team: qa, to_team: dev`
-- Print checkpoint (show test cases summary) → wait for "proceed"
-
-**Step 4: Dev Team**
+**Step 3: Dev Team**
 - Invoke `/dev-agent` for the specific issue
 - Dev Lead reads Research notes before coding
 - Backend Dev + Frontend Dev + Test Writer run in sequence
-- Merges to develop, sets `in-qa`
+- Merges to develop, pushes → GHA auto-merges to main → issue set to `in-prod`
 - Emit HandoffPayload: `from_team: dev, to_team: security`
 - Print checkpoint (show diff summary) → wait for "proceed"
 
-**Step 5: Security Team**
+**Step 4: Security Team**
 - Invoke `/security-agent` workflow
 - Runs Secret Scanner + Dep Scanner + Policy Enforcer
 - Posts security report as issue comment
-- Emit HandoffPayload: `from_team: security, to_team: qa` (Mode B)
+- Emit HandoffPayload: `from_team: security, to_team: devops`
 - If risk LOW → auto-proceed (log it, skip checkpoint)
 - If risk MEDIUM+ → print checkpoint → wait for "proceed"
 
-**Step 6: QA Mode B**
-- Invoke `/qa-agent post-dev`
-- QA Lead reads Security report
-- Test Walker walks product owner through test cases
-- Product owner says `verified #N` when all pass
-- `/verified` workflow fires: adds `qa-verified` label
-- GHA automation fires: `qa-verified → ready-to-deploy → in-prod`
-- [No explicit conductor checkpoint here — `/verified` is the implicit gate]
-
-**Step 7: DevOps Team**
+**Step 5: DevOps Team**
 - Invoke `/devops-agent deploy` (monitor mode)
 - Checks GHA deploy run status
 - Runs smoke tests
@@ -150,11 +131,9 @@ Step 4:  DevOps Team     (smoke test + verify)
 Use for: `/conductor sprint`
 
 ```
-Step 1:  Scrum Team      (board health scan + anomaly report)
-         → Human Checkpoint if anomalies found
-Step 2:  PM Team         (sprint plan + velocity report)
+Step 1:  PM Team         (sprint plan + velocity report)
          → Human Checkpoint before any priority changes
-Step 3:  (optional) Route to Feature Path for top ready-for-dev issues
+Step 2:  (optional) Route to Feature Path for top ready-for-dev issues
 ```
 
 ---
@@ -164,9 +143,7 @@ Step 3:  (optional) Route to Feature Path for top ready-for-dev issues
 Use for: `/conductor incident`
 
 ```
-Step 1:  Scrum Team      (detect what is down / anomalous)
-         → Human Checkpoint
-Step 2:  DevOps Team     (diagnose → restart → rollback if needed)
+Step 1:  DevOps Team     (diagnose what is down → restart → rollback if needed)
          → Human Checkpoint before any production action
 ```
 
@@ -229,7 +206,7 @@ The conductor always:
 If the product owner creates a GitHub issue manually (any format, any labels):
 - If it has `bug:production` → treat as hotfix, pick up immediately in pre-flight
 - If it has `bug:normal` or `ready-for-dev` → it enters the queue respecting priority order
-- If it has NO lifecycle label → Scrum Master flags it in the next board scan; conductor asks product owner once: "Route #N to dev queue?" → on yes, adds `ready-for-dev`
+- If it has NO lifecycle label → conductor asks product owner once: "Route #N to dev queue?" → on yes, adds `ready-for-dev`
 
 The conductor never silently ignores a manually created issue.
 

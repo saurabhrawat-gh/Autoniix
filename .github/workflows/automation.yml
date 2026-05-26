@@ -1,7 +1,7 @@
 name: Automation
 
 # Single workflow holding all issue-level automation:
-#   1. on-qa-verified     — auto-create + merge develop→main release PR
+#   1. on-develop-push    — auto-create + merge develop→main release PR
 #   2. on-main-push       — mark all ready-to-deploy issues as in-prod
 #   3. on-prod-verified   — close issue if every AC checkbox is ticked
 #   4. on-bug-reopened    — escalate priority + revert lifecycle
@@ -12,7 +12,7 @@ on:
   issues:
     types: [labeled, unlabeled, reopened, closed]
   push:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
     inputs:
       epic_number:
@@ -27,33 +27,18 @@ permissions:
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────
-  # JOB 1: qa-verified → create + merge develop→main release PR
+  # JOB 1: develop push → auto-create + merge develop→main release PR
   # ─────────────────────────────────────────────────────────────────────
-  on-qa-verified:
-    if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'qa-verified'
+  on-develop-push:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     steps:
-      - name: Add ready-to-deploy label
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const n = context.payload.issue.number;
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner, repo: context.repo.repo,
-              issue_number: n, labels: ['ready-to-deploy']
-            });
-            await github.rest.issues.createComment({
-              owner: context.repo.owner, repo: context.repo.repo,
-              issue_number: n,
-              body: '🚀 **Ready to Deploy**\n\nQA signed off on `develop`. Creating deploy PR...'
-            });
-
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create and auto-merge develop→main PR
+      - name: Auto-merge develop→main
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -79,8 +64,8 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --base main \
               --head develop \
-              --title "Release: deploy ready-to-deploy stories" \
-              --body "${ISSUES:-Automated release deploy}")
+              --title "Release: develop → main" \
+              --body "${ISSUES:-Automated release: develop pushed}")
             PR_NUM=$(echo "$PR_URL" | grep -o '[0-9]*$')
             echo "Created PR #$PR_NUM"
           else
@@ -132,7 +117,7 @@ jobs:
               await github.rest.issues.createComment({
                 owner: context.repo.owner, repo: context.repo.repo,
                 issue_number: issue.number,
-                body: `🟢 **In Production** — commit \`${sha}\`\n\nDeployed to https://dash.autoniix.com.\n\nPlease verify ALL acceptance criteria checkboxes in this issue on production.\nWhen every box is ticked ✅, add the \`prod-verified\` label — this issue will close automatically.`
+                body: `🟢 **In Production** — commit \`${sha}\`\n\nDeployed to https://dash.autoniix.com.\n\nOnce you have tested this in production, type \`verified #${issue.number}\` in Windsurf.\nThis will auto-tick all acceptance criteria and close the issue automatically.`
               });
             }
 
@@ -305,7 +290,7 @@ jobs:
               await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: n, state: 'open' });
             }
 
-            const lifecycleLabels = ['in-qa', 'qa-verified', 'ready-to-deploy', 'in-prod', 'ready-for-dev'];
+            const lifecycleLabels = ['ready-to-deploy', 'in-prod', 'ready-for-dev'];
             for (const label of lifecycleLabels) {
               if (labels.includes(label)) {
                 try { await github.rest.issues.removeLabel({ owner: context.repo.owner, repo: context.repo.repo, issue_number: n, name: label }); } catch (_) {}
@@ -330,7 +315,7 @@ jobs:
         github.event.action == 'reopened' ||
         (
           (github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
-          contains(fromJSON('["qa-verified","prod-verified"]'), github.event.label.name)
+          contains(fromJSON('["prod-verified"]'), github.event.label.name)
         )
       ))
     runs-on: ubuntu-latest
@@ -408,20 +393,12 @@ jobs:
             }
 
             const allClosed       = children.every(c => c.state === 'closed');
-            const allQaVerified   = children.every(c => c.labels.some(l => l.name === 'qa-verified') || c.labels.some(l => l.name === 'prod-verified'));
             const allProdVerified = children.every(c => c.labels.some(l => l.name === 'prod-verified'));
 
-            core.info(`Aggregate: allClosed=${allClosed} allQaVerified=${allQaVerified} allProdVerified=${allProdVerified}`);
+            core.info(`Aggregate: allClosed=${allClosed} allProdVerified=${allProdVerified}`);
 
             const epicHasLabel = (name) => epicLabels.includes(name);
             const actions = [];
-
-            if (allQaVerified && !epicHasLabel('qa-verified') && !epicHasLabel('prod-verified')) {
-              await github.rest.issues.addLabels({
-                owner, repo, issue_number: epicNumber, labels: ['qa-verified']
-              });
-              actions.push('added qa-verified');
-            }
 
             if (allProdVerified && !epicHasLabel('prod-verified')) {
               await github.rest.issues.addLabels({
@@ -461,7 +438,7 @@ jobs:
         github.event.action == 'reopened' ||
         (
           (github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
-          contains(fromJSON('["ready-for-dev","in-progress","dev-done","in-qa","qa-verified","ready-to-deploy","in-prod","prod-verified"]'), github.event.label.name)
+          contains(fromJSON('["ready-for-dev","in-progress","ready-to-deploy","in-prod","prod-verified"]'), github.event.label.name)
         )
       )
     runs-on: ubuntu-latest
@@ -487,17 +464,13 @@ jobs:
             const LABEL_TO_STATUS = {
               "ready-for-dev":    "Todo",
               "in-progress":      "In Progress",
-              "dev-done":         "In QA",
-              "in-qa":            "In QA",
-              "qa-verified":      "QA Verified",
               "ready-to-deploy":  "Ready to Deploy",
               "in-prod":          "In Prod",
               "prod-verified":    "Prod Verified",
             };
 
             const PRIORITY = [
-              "ready-for-dev", "in-progress", "dev-done", "in-qa",
-              "qa-verified", "ready-to-deploy", "in-prod", "prod-verified"
+              "ready-for-dev", "in-progress", "ready-to-deploy", "in-prod", "prod-verified"
             ];
 
             const currentLabels = context.payload.issue.labels.map(l => l.name);
