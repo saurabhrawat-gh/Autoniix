@@ -7,7 +7,6 @@ import structlog
 from minio import Minio
 
 from src.config import settings
-from src.environment import get_storage_prefix
 from src.providers.registry import ProviderRegistry
 from src.providers.storage.base import StorageProvider, StorageResult, StorageUpload
 
@@ -107,11 +106,10 @@ class MinIOStorage(StorageProvider):
 
     @staticmethod
     def _prefixed_key(key: str) -> str:
-        """Prefix key with environment (test/ or prod/) if not already prefixed."""
-        prefix = get_storage_prefix()
-        if key.startswith(f"{prefix}/") or key.startswith("test/") or key.startswith("prod/"):
+        """Prefix key with prod/ if not already prefixed."""
+        if key.startswith("prod/") or key.startswith("test/"):
             return key
-        return f"{prefix}/{key}"
+        return f"prod/{key}"
 
     def delete_prefix(self, prefix: str) -> int:
         """Delete all objects under a prefix. Used for test data cleanup."""

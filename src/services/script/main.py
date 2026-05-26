@@ -338,13 +338,6 @@ async def generate_script(req: ScriptRequest):
         target_overall_score = 9.0
         overall_score = critique_data.get("overall_score", 7.0)
 
-        # In test mode, skip rewrites — mock LLM returns static data so rewrites are pointless
-        from src.environment import is_test
-        if is_test():
-            logger.info("script.test_mode_skip_rewrites", score=overall_score)
-            weak_dims = []
-            overall_score = max(overall_score, target_overall_score)
-
         while (weak_dims or overall_score < target_overall_score) and rewrite_count < 3:
             rewrite_count += 1
             logger.info("script.rewriting", attempt=rewrite_count, weak=weak_dims,

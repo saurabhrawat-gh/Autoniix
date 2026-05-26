@@ -398,7 +398,7 @@ services:
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_KEY:-minioadmin}
       - S3_PUBLIC_BASE_URL=${S3_PUBLIC_BASE_URL:-http://minio:9000/autoniix}
       - S3_FORCE_PATH_STYLE=true
-      - S3_KEY_PREFIX=${ENVIRONMENT_MODE:-test}
+      - S3_KEY_PREFIX=prod
     ports:
       - "4000:4000"
     networks: [autoniix-net]
@@ -435,7 +435,7 @@ services:
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_KEY:-minioadmin}
       - S3_PUBLIC_BASE_URL=${S3_PUBLIC_BASE_URL:-http://minio:9000/autoniix}
       - S3_FORCE_PATH_STYLE=true
-      - S3_KEY_PREFIX=${ENVIRONMENT_MODE:-test}
+      - S3_KEY_PREFIX=prod
     volumes:
       - remotion_tmp:/app/tmp
     networks: [autoniix-net]
@@ -474,7 +474,7 @@ services:
       - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY:-minioadmin}
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_KEY:-minioadmin}
       - S3_FORCE_PATH_STYLE=true
-      - S3_KEY_PREFIX=${ENVIRONMENT_MODE:-test}
+      - S3_KEY_PREFIX=prod
     volumes:
       - remotion_tmp:/app/tmp
       - remotion_bundle_cache:/bundle-cache
@@ -505,7 +505,7 @@ services:
       - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY:-minioadmin}
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_KEY:-minioadmin}
       - S3_FORCE_PATH_STYLE=true
-      - S3_KEY_PREFIX=${ENVIRONMENT_MODE:-test}
+      - S3_KEY_PREFIX=prod
     volumes:
       - remotion_tmp:/app/tmp
     networks: [autoniix-net]
@@ -534,7 +534,7 @@ services:
       - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY:-minioadmin}
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_KEY:-minioadmin}
       - S3_FORCE_PATH_STYLE=true
-      - S3_KEY_PREFIX=${ENVIRONMENT_MODE:-test}
+      - S3_KEY_PREFIX=prod
     volumes:
       - remotion_tmp:/app/tmp
     networks: [autoniix-net]
@@ -590,6 +590,19 @@ services:
     depends_on:
       temporal: { condition: service_started }
       postgres-app: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 256M } } }
+
+  # Sentry Agent — monitors #alerts-critical and #alerts-warnings Slack channels,
+  # triages Sentry errors into Jira bugs, and attempts LLM-powered auto-fixes via PR.
+  sentry-agent:
+    build: { context: ./services/sentry-agent }
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    networks: [autoniix-net]
+    depends_on:
       redis: { condition: service_healthy }
     restart: unless-stopped
     deploy: { resources: { limits: { memory: 256M } } }

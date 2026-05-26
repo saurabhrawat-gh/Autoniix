@@ -25,24 +25,6 @@ _ENV_MAP: dict[str, str] = {
     "storage": "STORAGE_PROVIDER",
 }
 
-# Test mode remaps expensive providers to free alternatives.
-# Storage stays the same (MinIO is self-hosted, just paths change).
-_TEST_PROVIDER_MAP: dict[str, str] = {
-    "tts": "edge_tts",
-    "llm": "mock_llm",
-    "llm.research": "mock_llm",
-    "llm.script": "mock_llm",
-    "llm.factcheck": "mock_llm",
-    "llm.qc": "mock_llm",
-    "llm.vision": "mock_llm",
-    "llm.ideation": "mock_llm",
-    "llm.hook": "mock_llm",
-    "llm.direction": "mock_llm",
-    "llm.emotion": "mock_llm",
-    "search": "mock_search",
-    "image": "placeholder",
-    # storage: NOT remapped — MinIO is free (self-hosted)
-}
 
 
 class ProviderRegistry:
@@ -68,16 +50,11 @@ class ProviderRegistry:
         content_mode: str | None = None,
         pipeline_mode: str = "production",
     ) -> Any:
-        from src.environment import is_test
-
         # 1) Explicit override always wins
         if override:
             name = override
-        # 2) Test mode short-circuits to free providers
-        elif is_test() and category in _TEST_PROVIDER_MAP:
-            name = _TEST_PROVIDER_MAP[category]
         else:
-            # 3) Try the DB-driven priority chain. Three outcomes:
+            # 2) Try the DB-driven priority chain. Three outcomes:
             #      • FallbackProvider — DB chain resolved, use it.
             #      • EMPTY_CHAIN     — DB reachable, no enabled creds.
             #                          Raise NoProviderConfigured so the

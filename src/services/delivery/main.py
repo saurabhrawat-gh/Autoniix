@@ -150,20 +150,6 @@ async def upload(req: DeliveryRequest):
     logger.info("delivery.uploading", content_id=req.content_id, title=req.title[:50])
 
     try:
-        # Safety guard: block YouTube upload in test mode
-        from src.environment import get_mode_from_db
-        env_mode = await get_mode_from_db()
-        if env_mode != "production":
-            logger.warning("delivery.blocked_test_mode", content_id=req.content_id)
-            return ServiceResponse(
-                status="skipped",
-                data={
-                    "content_id": req.content_id,
-                    "youtube_video_id": "TEST_SKIP",
-                    "reason": "YouTube upload blocked in test mode",
-                },
-            )
-
         # Pre-flight: strict quality gate
         # Hard floors per dimension + composite threshold. Failing the gate
         # blocks the upload unless the caller explicitly sets
@@ -173,10 +159,9 @@ async def upload(req: DeliveryRequest):
         # back to PRODUCTION_THRESHOLDS for any (niche, dim) the
         # calibrator hasn't covered yet, so cold-start channels behave
         # exactly as before.
-        from src.environment import is_test
         from src.quality import record_decision as qg_record
         from src.quality.gate import evaluate_for_niche as qg_evaluate_niche
-        gate_profile = "test" if is_test() else "production"
+        gate_profile = "production"
         # Look up the channel's niche for per-niche threshold tuning.
         # Wrapped defensively — a DB blip here must not block delivery.
         niche: str | None = None
