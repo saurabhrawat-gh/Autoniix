@@ -594,6 +594,19 @@ services:
     restart: unless-stopped
     deploy: { resources: { limits: { memory: 256M } } }
 
+  # Sentry Agent — monitors #alerts-critical and #alerts-warnings Slack channels,
+  # triages Sentry errors into Jira bugs, and attempts LLM-powered auto-fixes via PR.
+  sentry-agent:
+    build: { context: ./services/sentry-agent }
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    networks: [autoniix-net]
+    depends_on:
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 256M } } }
+
   # Dashboard
   dashboard-bff:
     build: .
