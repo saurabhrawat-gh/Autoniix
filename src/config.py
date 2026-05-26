@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     db_port: int = 5432
     db_name: str = "autoniix"
     db_user: str = "app"
-    db_password: str = "change_me"
+    db_password: str = "change_me_strong_random_64"
 
     # Redis
     redis_url: str = "redis://redis:6379"

@@ -271,16 +271,28 @@ jobs:
           set -euo pipefail
           cd /home/autoniix/autoniix
 
-          # Wait for BFF /health to become 200 — at that point postgres-app +
-          # temporal are both confirmed reachable (see _probe_db / _probe_temporal
-          # in src/services/dashboard/main.py), so it is safe to migrate + register.
+          # Wait for BFF /health and specifically gate on components.db == true.
+          # /health always returns HTTP 200 (even when DB is degraded), so checking
+          # only the status code is insufficient — it would let migrations run even
+          # when DB auth is already broken (root cause of the InvalidPasswordError
+          # incident, 2026-05-26). We now parse components.db from the JSON payload.
+          DB_HEALTHY=false
           for i in $(seq 1 30); do
-            if curl -fsS http://localhost:8020/health >/dev/null 2>&1; then
-              echo "bff healthy after ${i} attempts — proceeding"
+            HEALTH=$(curl -fsS http://localhost:8020/health 2>/dev/null || echo '{}')
+            if echo "$HEALTH" | python3 -c \
+                "import sys,json; d=json.load(sys.stdin); sys.exit(0 if d.get('components',{}).get('db') else 1)" \
+                2>/dev/null; then
+              echo "bff+db healthy after ${i} attempts — proceeding"
+              DB_HEALTHY=true
               break
             fi
+            echo "attempt ${i}/30: db not healthy yet — waiting 3s"
             sleep 3
           done
+          if [ "$DB_HEALTHY" = "false" ]; then
+            echo "ERROR: BFF DB component not healthy after 90s — aborting migration to prevent false InvalidPasswordError"
+            exit 1
+          fi
 
           echo "── Applying pending DB migrations (idempotent) ──"
           docker compose exec -T dashboard-bff python -m scripts.run_migrations
