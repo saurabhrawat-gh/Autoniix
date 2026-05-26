@@ -70,18 +70,40 @@ jobs:
               --base main \
               --head develop \
               --title "Release: develop → main" \
-              --body "${ISSUES:-Automated release: develop pushed}")
-            PR_NUM=$(echo "$PR_URL" | grep -o '[0-9]*$')
-            echo "Created PR #$PR_NUM"
+              --body "${ISSUES:-Automated release: develop pushed}" 2>/dev/null) || true
+            PR_NUM=$(echo "$PR_URL" | grep -o '[0-9]*$' || echo "")
+            if [ -z "$PR_NUM" ]; then
+              # pr create may have failed because a PR already exists; re-lookup
+              PR_NUM=$(gh pr list \
+                --repo "$GITHUB_REPOSITORY" \
+                --base main \
+                --head develop \
+                --state open \
+                --json number \
+                --jq '.[0].number // empty' 2>/dev/null || echo "")
+            fi
+            echo "Created or found PR #$PR_NUM"
           else
             PR_NUM="$EXISTING"
             echo "Using existing PR #$PR_NUM"
           fi
 
+          if [ -z "$PR_NUM" ]; then
+            echo "No open develop→main PR found; nothing to merge."
+            exit 0
+          fi
+
+          # --auto queues the merge for after all required checks pass.
+          # This handles the self-referential case where this very check is
+          # still in-progress when gh pr merge is called.
           gh pr merge "$PR_NUM" \
             --repo "$GITHUB_REPOSITORY" \
             --merge \
-            || echo "PR already merged or not mergeable"
+            --auto \
+            || gh pr merge "$PR_NUM" \
+               --repo "$GITHUB_REPOSITORY" \
+               --merge \
+               || echo "PR merge queued, already merged, or not mergeable"
 
   # ─────────────────────────────────────────────────────────────────────
   # JOB 2: push to main → mark ready-to-deploy issues as in-prod
