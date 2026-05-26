@@ -5,9 +5,20 @@ Mocks DB pool, Redis, and external services so tests run without infrastructure.
 from __future__ import annotations
 
 import asyncio
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _test_jwt_secret():
+    """Provide a non-insecure JWT secret for the full test session.
+
+    The production _jwt_secret() now rejects the 'dev-insecure-change-me'
+    default so tests must supply a deterministic-but-safe value.
+    """
+    os.environ.setdefault("AUTH_JWT_SECRET", "ci-test-jwt-secret-not-for-production-use")
 
 
 # Event loop
