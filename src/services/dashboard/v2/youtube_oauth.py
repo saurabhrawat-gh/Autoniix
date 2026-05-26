@@ -210,7 +210,7 @@ async def youtube_callback(
     missing_scopes = _missing_scope_names(granted_scope)
 
     # Persist channel metadata + scope info in provider_credentials
-    if channel_info and workspace_id:
+    if workspace_id and (channel_info or _tokens_in_db):
         try:
             pool = await get_pool()
             existing = await pool.fetchval(
