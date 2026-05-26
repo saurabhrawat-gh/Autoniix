@@ -150,18 +150,6 @@
     ]
   },
   {
-    "path": "/api/environment",
-    "methods": [
-      "GET"
-    ]
-  },
-  {
-    "path": "/api/environment",
-    "methods": [
-      "PUT"
-    ]
-  },
-  {
     "path": "/api/fleet-health",
     "methods": [
       "GET"

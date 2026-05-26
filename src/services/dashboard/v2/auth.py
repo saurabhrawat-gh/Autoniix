@@ -340,14 +340,14 @@ async def refresh(request: Request, response: Response, body: RefreshIn | None =
     ws_row = await pool.fetchrow(
         "SELECT active_workspace_id FROM users WHERE id=$1", row["user_id"]
     )
-    wid = (ws_row["active_workspace_id"] if ws_row else None) or 1
+    wid: int | None = ws_row["active_workspace_id"] if ws_row else None
     wm = await pool.fetchrow(
         "SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2", wid, row["user_id"]
-    )
+    ) if wid else None
     ws_role = wm["role"] if wm else row["role"]
     access = _issue_jwt(
         {"id": row["user_id"], "email": row["email"], "role": ws_role},
-        workspace_id=wid, ws_role=ws_role,
+        workspace_id=wid or 0, ws_role=ws_role,
     )
     _set_auth_cookies(response, access, new_raw)
     return {"status": "ok", "access_token": access, "expires_in": 3600}

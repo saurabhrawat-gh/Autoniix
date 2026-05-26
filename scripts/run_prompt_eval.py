@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -43,7 +44,29 @@ def _load_cases(case_dir: Path) -> list[EvalCase]:
     return cases
 
 
+_REAL_KEY_ENVS = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY")
+_LLM_CATEGORIES = (
+    "LLM", "LLM.RESEARCH", "LLM.SCRIPT", "LLM.FACTCHECK",
+    "LLM.QC", "LLM.VISION", "LLM.IDEATION", "LLM.HOOK",
+    "LLM.DIRECTION", "LLM.EMOTION",
+)
+
+
+def _maybe_force_mock_ladder() -> None:
+    """Route every eval case through mock_llm when no real LLM keys are set.
+
+    The router resolves ladder env vars at call time, so setting them here
+    (before boot_providers) guarantees CI never hits a real provider.
+    """
+    if any(os.getenv(k) for k in _REAL_KEY_ENVS):
+        return
+    for cat in _LLM_CATEGORIES:
+        env_key = "LLM_" + cat.replace(".", "_") + "_LADDER"
+        os.environ.setdefault(env_key, "mock_llm")
+
+
 async def _amain(case_dir: Path, channel_id: str) -> int:
+    _maybe_force_mock_ladder()
     boot_providers()
     cases = _load_cases(case_dir)
     if not cases:
