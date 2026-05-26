@@ -4,9 +4,9 @@
 Stories and Epics get ONLY 3 statuses: To Do | In Progress | Done
 
 Rules:
-  all children Done/Prod Verified → Done
-  all children To Do              → To Do
-  otherwise                       → In Progress
+  all children In Prod/Prod Verified/Done → Done
+  all children To Do                      → To Do
+  otherwise                               → In Progress
 
 Usage:
   JIRA_BASE_URL=... JIRA_EMAIL=... JIRA_API_TOKEN=... python3 scripts/jira_rollup.py AE-123
@@ -14,7 +14,7 @@ Usage:
 from __future__ import annotations
 import base64, json, os, sys, urllib.error, urllib.parse, urllib.request
 
-DONE_STATUSES = frozenset({"Done", "Prod Verified"})
+DONE_STATUSES = frozenset({"In Prod", "Prod Verified", "Done"})
 TODO, IN_PROGRESS, DONE = "To Do", "In Progress", "Done"
 
 _BASE = (os.environ.get("JIRA_BASE_URL") or "").rstrip("/")
