@@ -192,11 +192,18 @@ async def youtube_callback(
     refresh_token = token_data.get("refresh_token", "")
     granted_scope = token_data.get("scope", "")
 
-    # Store tokens in vault
+    # Store tokens in vault/secrets backend; fall back to DB extra_config if backend is read-only
+    _tokens_in_db: dict[str, str] = {}
     if access_token:
-        put_secret_at(_token_path(workspace_id), "access_token", access_token)
+        try:
+            put_secret_at(_token_path(workspace_id), "access_token", access_token)
+        except NotImplementedError:
+            _tokens_in_db["access_token"] = access_token
     if refresh_token:
-        put_secret_at(_token_path(workspace_id), "refresh_token", refresh_token)
+        try:
+            put_secret_at(_token_path(workspace_id), "refresh_token", refresh_token)
+        except NotImplementedError:
+            _tokens_in_db["refresh_token"] = refresh_token
 
     # Fetch channel info
     channel_info = await _fetch_channel_info(access_token) if access_token else {}
@@ -215,6 +222,7 @@ async def youtube_callback(
             )
             extra = {
                 **channel_info,
+                **_tokens_in_db,
                 "workspace_id": workspace_id,
                 "missing_scopes": missing_scopes,
                 "connected_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -263,6 +271,16 @@ async def youtube_status(
 ):
     """Return connection status + channel info. Never returns tokens."""
     has_refresh = bool(get_secret_at(_token_path(actor.workspace_id), "refresh_token"))
+    if not has_refresh:
+        pool = await get_pool()
+        _row = await pool.fetchrow(
+            """SELECT extra_config FROM provider_credentials
+                WHERE category='youtube' AND provider_name='youtube_oauth'
+                  AND (extra_config->>'workspace_id')::int=$1""",
+            actor.workspace_id,
+        )
+        _extra = dict(_row["extra_config"]) if _row and _row["extra_config"] else {}
+        has_refresh = bool(_extra.get("refresh_token"))
     if not has_refresh:
         return {"status": "ok", "data": {"connected": False}}
 

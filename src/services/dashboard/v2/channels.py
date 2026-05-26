@@ -196,7 +196,8 @@ async def create_channel(
             "SELECT payload FROM channel_presets WHERE name=$1", body.preset
         )
         if row:
-            preset_payload = row["payload"] or {}
+            raw = row["payload"] or {}
+            preset_payload = json.loads(raw) if isinstance(raw, str) else raw
 
     async with pool.acquire() as conn:
         async with conn.transaction():
