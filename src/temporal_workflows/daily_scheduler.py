@@ -30,8 +30,6 @@ class DailySchedulerWorkflow:
             workflow.logger.warning("Budget exhausted")
             return {"triggered": 0, "reason": "budget_exhausted"}
 
-        environment_mode = status.get("environment_mode", "test")
-
         # Step 2: Get eligible channels
         channels = await workflow.execute_activity(
             "get_eligible_channels",
@@ -66,7 +64,7 @@ class DailySchedulerWorkflow:
                     content_mode=mode,
                     topic_candidates=ch.get("topic_candidates", []),
                     max_cost_usd=per_video_budget,
-                    environment=environment_mode,
+                    environment="production",
                 )],
                 id=f"video-{ch['channel_id']}-{mode[:1]}-{workflow.now().strftime('%Y%m%d-%H%M%S')}",
                 task_queue="video-production",

@@ -50,11 +50,11 @@ def _jwt_secret() -> str:
         or os.getenv("DASHBOARD_JWT_SECRET")
         or "dev-insecure-change-me"
     )
-    if secret in _INSECURE_JWT_DEFAULTS and os.getenv("ENVIRONMENT_MODE", "test").lower() == "production":
+    if secret in _INSECURE_JWT_DEFAULTS:
         raise RuntimeError(
             "AUTH_JWT_SECRET is the insecure default. "
             "Generate a real secret: openssl rand -base64 48 "
-            "and set it as AUTH_JWT_SECRET in your .env before running in production."
+            "and set it as AUTH_JWT_SECRET in your .env."
         )
     return secret
 
@@ -112,7 +112,7 @@ def _refresh_token() -> tuple[str, str]:
 
 
 def _cookie_secure() -> bool:
-    return os.getenv("ENVIRONMENT_MODE", "test").lower() == "production"
+    return True
 
 
 def _set_auth_cookies(response: Response, access: str, refresh: str) -> None:
@@ -497,9 +497,6 @@ async def forgot(body: ForgotIn):
     except Exception:
         pass
 
-    is_prod = os.getenv("ENVIRONMENT_MODE", "test").lower() == "production"
-    if not _email.is_configured() and not is_prod:
-        return {"status": "ok", "reset_token": raw}
     return {"status": "ok"}
 
 

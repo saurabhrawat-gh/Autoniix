@@ -82,7 +82,7 @@ class VideoParams:
     resume_from: str | None = None
     original_content_id: str | None = None
     content_id: str | None = None
-    environment: str = "test"
+    environment: str = "production"
 
 
 @dataclass

@@ -30,8 +30,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from src.db import get_pool
-from src.environment import get_mode_from_db
-
 from ._deps import Principal, audit, principal_dep, require_role
 
 router = APIRouter()
@@ -246,7 +244,7 @@ async def create_channel(
                 body.videos_per_week_long, body.short_form_duration,
                 body.long_form_duration, body.elevenlabs_voice_id,
                 body.voice_stability, body.voice_similarity, body.voice_style,
-                "wizard", "active", await get_mode_from_db(),
+                "wizard", "active", "production",
             )
 
             # Profile (extended payload)
@@ -314,11 +312,10 @@ async def list_channels(
     _: Principal = Depends(principal_dep),
 ):
     pool = await get_pool()
-    env_mode = await get_mode_from_db()
-    conditions = [f"c.environment = '{env_mode}'"]
+    conditions = []
     if not include_archived:
         conditions.append("c.status != 'archived'")
-    where = "WHERE " + " AND ".join(conditions)
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     rows = await pool.fetch(
         f"""
         SELECT c.channel_id, c.channel_name, c.niche, c.sub_niche, c.content_mode,
@@ -784,14 +781,12 @@ async def _enrich_channel_list(pool: Any, channels: list[dict]) -> list[dict]:
 async def _dashboard_stats_impl(_: Principal):
     """Shared implementation for GET /stats (registered early to beat /{channel_id})."""  # noqa
     pool = await get_pool()
-    env_mode = await get_mode_from_db()
     ch = await pool.fetchrow(
         """SELECT COUNT(*) AS total,
                   COUNT(*) FILTER (WHERE status = 'active')   AS active,
                   COUNT(*) FILTER (WHERE status = 'disabled') AS disabled,
                   COUNT(*) FILTER (WHERE status = 'archived') AS archived
-             FROM channels WHERE environment = $1""",
-        env_mode,
+             FROM channels"""
     )
     vid = await pool.fetchrow(
         """SELECT COUNT(*) AS total,
@@ -804,9 +799,6 @@ async def _dashboard_stats_impl(_: Principal):
     )
     budget_row = await pool.fetchrow(
         "SELECT config_value FROM system_config WHERE config_key = 'daily_budget_limit'"
-    )
-    env_row = await pool.fetchrow(
-        "SELECT config_value FROM system_config WHERE config_key = 'environment_mode'"
     )
     stop_row = await pool.fetchrow(
         "SELECT config_value FROM system_config WHERE config_key = 'emergency_stop'"
@@ -825,7 +817,6 @@ async def _dashboard_stats_impl(_: Principal):
                 "daily_limit": float(budget_row["config_value"]) if budget_row else 0.0,
                 "today_cost":  float(vid["total_cost"]),
             },
-            "environment_mode": (env_row["config_value"] if env_row else "test"),
             "emergency_stop": (stop_row["config_value"] or "").lower() in ("true", "1") if stop_row else False,
         }
     }

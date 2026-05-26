@@ -29,7 +29,7 @@ from temporalio.client import Client as TemporalClient
 
 from src.config import settings
 from src.db import get_pool
-from src.environment import get_mode, set_db_mode_override, is_test
+
 from src.schemas.common import VideoParams
 from src.observability.metrics import instrument_app
 from src.observability.sentry import init_sentry
@@ -150,8 +150,6 @@ try:
     _v2_router_loaded = True
 except Exception as _exc:
     logger.warning("dashboard.v2_router_disabled", error=str(_exc))
-    if os.getenv("ENVIRONMENT_MODE", "test").lower() != "production":
-        raise
 
 # CORS allowlist — never use wildcard with allow_credentials=True
 # (browsers reject it and it's a real CSRF surface). Configure per-deploy
@@ -199,8 +197,6 @@ async def _start_budget_gauge_refresh() -> None:
 
 @app.on_event("startup")
 async def _check_production_secrets() -> None:
-    if os.getenv("ENVIRONMENT_MODE", "test").lower() != "production":
-        return
     failures: list[str] = []
     for key, hint in _SECRET_ENV_KEYS:
         val = os.getenv(key, "")
@@ -208,8 +204,7 @@ async def _check_production_secrets() -> None:
             failures.append(f"  {key}  (hint: {hint})")
     if failures:
         msg = (
-            "FATAL: the following secrets are still set to insecure defaults "
-            "while ENVIRONMENT_MODE=production. "
+            "FATAL: the following secrets are still set to insecure defaults. "
             "Rotate them before starting:\n" + "\n".join(failures)
         )
         logger.error("startup.insecure_secrets", keys=[k for k, _ in zip(_SECRET_ENV_KEYS, failures)])
@@ -453,7 +448,6 @@ async def health():
         "service": "dashboard-bff",
         "version": app.version,
         "git_sha": os.getenv("GIT_SHA", "unknown"),
-        "environment": os.getenv("ENVIRONMENT_MODE", "test"),
         "components": components,
     }
 
@@ -533,13 +527,11 @@ async def list_channels(
     include_archived: bool = Query(default=False),
     _: str = Depends(verify_token),
 ):
-    from src.environment import get_mode_from_db as _get_env
     pool = await get_pool()
-    env_mode = await _get_env()
-    conditions = [f"environment = '{env_mode}'"]
+    conditions = []
     if not include_archived:
         conditions.append("status != 'archived'")
-    status_filter = "WHERE " + " AND ".join(conditions)
+    status_filter = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     rows = await pool.fetch(
         f"SELECT channel_id, channel_name, niche, sub_niche, content_mode, "
         f"auto_upload, status, videos_per_week_long, videos_per_week_short, "
@@ -1092,16 +1084,7 @@ async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depe
         raise HTTPException(status_code=409, detail=f"Channel already has an in-progress {content_mode} job")
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
 
-    # Resolve environment mode from DB
-    env_row = await pool.fetchrow(
-        "SELECT config_value FROM system_config WHERE config_key = 'environment_mode'"
-    )
-    env_mode = env_row["config_value"] if env_row else get_mode()
-
-    # Pre-create video record so the UI sees it immediately
-    is_test = env_mode != "production"
-    prefix = "TEST_VID" if is_test else "VID"
-    content_id = f"{prefix}_{channel_id}_{ts}"
+    content_id = f"VID_{channel_id}_{ts}"
     workflow_id = f"manual-{content_id}"
 
     # Mark all older failed/stopped jobs for this channel+mode as superseded
@@ -1113,9 +1096,9 @@ async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depe
 
     await pool.execute(
         "INSERT INTO videos (content_id, channel_id, status, content_mode, environment, updated_at) "
-        "VALUES ($1, $2, 'researching', $3, $4, NOW()) "
+        "VALUES ($1, $2, 'researching', $3, 'production', NOW()) "
         "ON CONFLICT (content_id) DO NOTHING",
-        content_id, channel_id, content_mode, env_mode,
+        content_id, channel_id, content_mode,
     )
 
     try:
@@ -1128,7 +1111,6 @@ async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depe
                 topic_candidates=req.topic_candidates,
                 max_cost_usd=req.max_cost_usd,
                 content_id=content_id,
-                environment=env_mode,
             ),
             id=workflow_id,
             task_queue="video-production",
@@ -1576,24 +1558,16 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
         video["channel_id"], content_mode,
     )
 
-    # Resolve environment
-    env_row = await pool.fetchrow(
-        "SELECT config_value FROM system_config WHERE config_key = 'environment_mode'"
-    )
-    env_mode = env_row["config_value"] if env_row else get_mode()
-
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    is_test_env = env_mode != "production"
-    prefix = "TEST_VID" if is_test_env else "VID"
-    new_content_id = f"{prefix}_{video['channel_id']}_{ts}"
+    new_content_id = f"VID_{video['channel_id']}_{ts}"
     workflow_id = f"retry-{new_content_id}"
 
     # Create new video row (fresh start); original is now 'superseded'
     await pool.execute(
         "INSERT INTO videos (content_id, channel_id, status, content_mode, environment, updated_at) "
-        "VALUES ($1, $2, 'researching', $3, $4, NOW()) "
+        "VALUES ($1, $2, 'researching', $3, 'production', NOW()) "
         "ON CONFLICT (content_id) DO NOTHING",
-        new_content_id, video["channel_id"], content_mode, env_mode,
+        new_content_id, video["channel_id"], content_mode,
     )
 
     try:
@@ -1604,7 +1578,6 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
                 channel_id=video["channel_id"],
                 content_mode=content_mode,
                 content_id=new_content_id,
-                environment=env_mode,
             ),
             id=workflow_id,
             task_queue="video-production",
@@ -1649,12 +1622,6 @@ async def restart_job(content_id: str, _: str = Depends(verify_token)):
     if running and int(running) > 0:
         raise HTTPException(status_code=409, detail=f"Channel already has an in-progress {content_mode} job")
 
-    # Resolve environment
-    env_row = await pool.fetchrow(
-        "SELECT config_value FROM system_config WHERE config_key = 'environment_mode'"
-    )
-    env_mode = env_row["config_value"] if env_row else get_mode()
-
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     workflow_id = f"restart-{content_id}-{ts}"
 
@@ -1675,7 +1642,6 @@ async def restart_job(content_id: str, _: str = Depends(verify_token)):
                 content_id=content_id,
                 resume_from=video["checkpoint"],
                 original_content_id=content_id,
-                environment=env_mode,
             ),
             id=workflow_id,
             task_queue="video-production",
@@ -1971,85 +1937,6 @@ async def emergency_resume(_: str = Depends(verify_token)):
     return R(status="ok", data={"emergency_stop": False, "workflows_resumed": resumed_count})
 
 
-# Environment Mode
-
-class EnvironmentSwitchRequest(BaseModel):
-    mode: str  # "test" or "production"
-    confirm: bool = False
-
-
-@app.get("/api/environment", deprecated=True)
-async def get_environment(_: str = Depends(verify_token)):
-    """Get current environment mode."""
-    pool = await get_pool()
-    row = await pool.fetchrow(
-        "SELECT config_value FROM system_config WHERE config_key = 'environment_mode'"
-    )
-    mode = row["config_value"] if row else "test"
-    switched_at_row = await pool.fetchrow(
-        "SELECT config_value FROM system_config WHERE config_key = 'environment_switched_at'"
-    )
-    switched_by_row = await pool.fetchrow(
-        "SELECT config_value FROM system_config WHERE config_key = 'environment_switched_by'"
-    )
-
-    # Cost estimate per video in production
-    cost_estimate = {
-        "llm": "$0.05-0.15",
-        "tts": "$0.01-0.03",
-        "image": "$0.04-0.12",
-        "search": "$0.02-0.05",
-        "total_per_video": "$0.12-0.35",
-    }
-
-    return R(status="ok", data={
-        "mode": mode,
-        "switched_at": switched_at_row["config_value"] if switched_at_row else None,
-        "switched_by": switched_by_row["config_value"] if switched_by_row else None,
-        "cost_estimate_production": cost_estimate,
-    })
-
-
-@app.put("/api/environment", deprecated=True)
-async def switch_environment(req: EnvironmentSwitchRequest, _: str = Depends(verify_token)):
-    """Switch environment mode. Requires confirm=true for production."""
-    if req.mode not in ("test", "production"):
-        raise HTTPException(status_code=400, detail="Mode must be 'test' or 'production'")
-
-    if req.mode == "production" and not req.confirm:
-        raise HTTPException(
-            status_code=400,
-            detail="Switching to production requires confirm=true. "
-                   "This will use paid APIs. Estimated cost: $0.12-0.35 per video."
-        )
-
-    pool = await get_pool()
-    now = datetime.utcnow().isoformat()
-    await pool.execute(
-        "UPDATE system_config SET config_value = $1, updated_at = NOW() "
-        "WHERE config_key = 'environment_mode'",
-        req.mode,
-    )
-    await pool.execute(
-        "UPDATE system_config SET config_value = $1, updated_at = NOW() "
-        "WHERE config_key = 'environment_switched_at'",
-        now,
-    )
-    await pool.execute(
-        "UPDATE system_config SET config_value = $1, updated_at = NOW() "
-        "WHERE config_key = 'environment_switched_by'",
-        "admin",
-    )
-
-    # Update in-memory override for all services in this process
-    set_db_mode_override(req.mode)
-
-    # Clear provider cache so next request uses correct providers
-    from src.providers.registry import ProviderRegistry
-    ProviderRegistry.reset()
-
-    logger.info("environment.switched", mode=req.mode)
-    return R(status="ok", data={"mode": req.mode, "switched_at": now})
 
 
 @app.get("/api/test-data/stats", deprecated=True)
@@ -2509,15 +2396,13 @@ async def fleet_health(_: str = Depends(verify_token)):
 
 @app.get("/api/stats", deprecated=True)
 async def dashboard_stats(_: str = Depends(verify_token)):
-    from src.environment import get_mode_from_db as _get_env
     pool = await get_pool()
-    _env = await _get_env()
     channels = await pool.fetchrow(
         "SELECT COUNT(*) as total, "
         "COUNT(*) FILTER (WHERE status = 'active') as active, "
         "COUNT(*) FILTER (WHERE status = 'disabled') as disabled, "
         "COUNT(*) FILTER (WHERE status = 'archived') as archived "
-        f"FROM channels WHERE environment = '{_env}'"
+        "FROM channels"
     )
     videos_today = await pool.fetchrow(
         "SELECT COUNT(*) as total, "
@@ -2533,12 +2418,6 @@ async def dashboard_stats(_: str = Depends(verify_token)):
     emergency_row = await pool.fetchrow(
         "SELECT config_value FROM system_config WHERE config_key = 'emergency_stop'"
     )
-    # Environment mode
-    env_row = await pool.fetchrow(
-        "SELECT config_value FROM system_config WHERE config_key = 'environment_mode'"
-    )
-    env_mode = env_row["config_value"] if env_row else "test"
-
     return R(status="ok", data={
         "channels": {
             "total": channels["total"],
@@ -2558,7 +2437,6 @@ async def dashboard_stats(_: str = Depends(verify_token)):
             "used_today": float(videos_today["total_cost"]),
         },
         "emergency_stop": emergency_row["config_value"] == "true" if emergency_row else False,
-        "environment_mode": env_mode,
     })
 
 

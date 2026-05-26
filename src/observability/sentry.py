@@ -54,7 +54,7 @@ def init_sentry(service_name: str, *, traces_sample_rate: float = 0.05) -> None:
 
     sentry_sdk.init(
         dsn=dsn,
-        environment=os.getenv("ENVIRONMENT_MODE", "test"),
+        environment="production",
         release=os.getenv("RELEASE_SHA") or os.getenv("GIT_SHA"),
         traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", traces_sample_rate)),
         send_default_pii=False,

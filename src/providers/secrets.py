@@ -265,7 +265,7 @@ class InfisicalBackend:
         client_id = os.getenv("INFISICAL_CLIENT_ID", "")
         client_secret = os.getenv("INFISICAL_CLIENT_SECRET", "")
         self._project_id = os.getenv("INFISICAL_PROJECT_ID", "")
-        self._env = os.getenv("INFISICAL_ENV", os.getenv("ENVIRONMENT_MODE", "dev"))
+        self._env = os.getenv("INFISICAL_ENV", "prod")
         self._client = InfisicalClient(
             ClientSettings(
                 auth=AuthenticationOptions(

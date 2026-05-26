@@ -59,10 +59,7 @@ class TestForgot:
         pool.fetchrow.return_value = FakeRecord(id=42)
         send = AsyncMock(return_value=True)
 
-        env = {
-            "FRONTEND_URL": "https://dash.autoniix.com",
-            "ENVIRONMENT_MODE": "test",
-        }
+        env = {"FRONTEND_URL": "https://dash.autoniix.com"}
         e1, e2 = _email_ctx(send, configured=True)
         with _pool_ctx(pool), e1, e2, patch.dict(os.environ, env, clear=False):
             res = await forgot(ForgotIn(email="alice@example.com"))
@@ -107,31 +104,28 @@ class TestForgot:
         pool.fetchrow.return_value = FakeRecord(id=7)
         send = AsyncMock(return_value=False)  # send_email returns False when unconfigured
 
-        env = {"ENVIRONMENT_MODE": "production"}
         e1, e2 = _email_ctx(send, configured=False)
-        with _pool_ctx(pool), e1, e2, patch.dict(os.environ, env, clear=False):
+        with _pool_ctx(pool), e1, e2:
             res = await forgot(ForgotIn(email="bob@example.com"))
 
         assert res == {"status": "ok"}
         assert "reset_token" not in res
 
     @pytest.mark.asyncio
-    async def test_forgot_dev_mode_without_smtp_returns_token_for_testability(self):
-        """TC-18-14 + UC-FP-05: dev mode + SMTP missing -> token in body so local
-        flows are testable without a real mail server."""
+    async def test_forgot_without_smtp_never_returns_token(self):
+        """TC-18-14 (updated): SMTP missing -> never leak token in response."""
         from src.services.dashboard.v2.auth import forgot, ForgotIn
 
         pool = FakePool()
         pool.fetchrow.return_value = FakeRecord(id=1)
         send = AsyncMock(return_value=False)
 
-        env = {"ENVIRONMENT_MODE": "test"}
         e1, e2 = _email_ctx(send, configured=False)
-        with _pool_ctx(pool), e1, e2, patch.dict(os.environ, env, clear=False):
+        with _pool_ctx(pool), e1, e2:
             res = await forgot(ForgotIn(email="carol@example.com"))
 
-        assert res["status"] == "ok"
-        assert "reset_token" in res and len(res["reset_token"]) > 20
+        assert res == {"status": "ok"}
+        assert "reset_token" not in res
 
     @pytest.mark.asyncio
     async def test_forgot_smtp_send_failure_does_not_break_endpoint(self):
@@ -316,8 +310,6 @@ class TestForgotProdSmtpWarning:
 
         pool = FakePool()
         pool.fetchrow.return_value = FakeRecord({"id": 1})
-        monkeypatch.setenv("ENVIRONMENT_MODE", "production")
-
         send_mock = AsyncMock(return_value=False)
         with _pool_ctx(pool):
             for ctx in _email_ctx(send_mock, configured=False):

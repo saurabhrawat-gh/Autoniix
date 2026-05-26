@@ -55,13 +55,9 @@ jobs:
           PY
 
       - name: Unit tests (skip e2e + integration)
-        env:
-          ENVIRONMENT_MODE: test
         run: pytest tests -q --ignore=tests/e2e -m "not integration"
 
       - name: Prompt-eval (golden cases on mock_llm)
-        env:
-          ENVIRONMENT_MODE: test
         run: python scripts/run_prompt_eval.py
 
   remotion-typecheck:
@@ -153,7 +149,6 @@ jobs:
 
       - name: Boot the render plane (MinIO + bootstrap + Remotion)
         env:
-          ENVIRONMENT_MODE: test
           S3_ACCESS_KEY: minioadmin
           S3_SECRET_KEY: minioadmin
           S3_BUCKET: autoniix

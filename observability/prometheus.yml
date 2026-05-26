@@ -3,7 +3,7 @@ global:
   evaluation_interval: 15s
   external_labels:
     cluster: yt-automation
-    env: ${ENVIRONMENT_MODE:-test}
+    env: prod
 
 alerting:
   alertmanagers:

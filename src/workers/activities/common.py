@@ -23,8 +23,7 @@ async def update_video_status(content_id: str, status: str,
     logger.info("activity.update_status", content_id=content_id, status=status,
                 channel_id=channel_id or "N/A")
     try:
-        from src.environment import get_mode_from_db
-        env = await get_mode_from_db()
+        env = "production"
         pool = await get_pool()
 
         # Terminal statuses should NOT update checkpoint
@@ -130,28 +129,6 @@ async def check_system_status() -> dict:
         emergency = (emergency_row and emergency_row["config_value"] == "true")
         daily_limit = float(budget_row["config_value"]) if budget_row else 50.0
 
-        # Environment mode
-        env_row = await pool.fetchrow(
-            "SELECT config_value FROM system_config WHERE config_key = 'environment_mode'"
-        )
-        environment_mode = env_row["config_value"] if env_row else "test"
-        is_test = environment_mode != "production"
-
-        # Test mode: apply tighter budget limits
-        if is_test:
-            test_budget_row = await pool.fetchrow(
-                "SELECT config_value FROM system_config WHERE config_key = 'test_daily_budget_limit'"
-            )
-            daily_limit = float(test_budget_row["config_value"]) if test_budget_row else 5.0
-
-        # Test mode: apply max videos per day limit
-        test_max_videos = 999
-        if is_test:
-            max_vid_row = await pool.fetchrow(
-                "SELECT config_value FROM system_config WHERE config_key = 'test_max_videos_per_day'"
-            )
-            test_max_videos = int(max_vid_row["config_value"]) if max_vid_row else 10
-
         videos_today = await pool.fetchval(
             "SELECT COUNT(*) FROM videos WHERE created_at::date = $1 AND status NOT IN ('failed','superseded')",
             date.today(),
@@ -164,18 +141,13 @@ async def check_system_status() -> dict:
         )
         daily_spent = float(spent_row["spent"]) if spent_row else 0.0
 
-        # Test mode video count guard
-        videos_at_limit = is_test and (videos_today or 0) >= test_max_videos
-
         return {
-            "is_active": is_active and not emergency and not videos_at_limit,
+            "is_active": is_active and not emergency,
             "system_active": is_active,
             "emergency_stop": emergency,
             "daily_budget_limit": daily_limit,
             "daily_budget_used": daily_spent,
             "budget_remaining": daily_limit - daily_spent,
-            "environment_mode": environment_mode,
-            "test_max_videos_per_day": test_max_videos if is_test else None,
             "videos_today": videos_today or 0,
         }
     except Exception as exc:
@@ -269,14 +241,12 @@ async def emit_job_event(content_id: str, channel_id: str, phase: str,
     """Insert a row into job_events for dashboard progress tracking."""
     logger.info("activity.emit_job_event", content_id=content_id, phase=phase, status=status)
     try:
-        from src.environment import get_mode_from_db
-        env = await get_mode_from_db()
         pool = await get_pool()
         await pool.execute(
             "INSERT INTO job_events (content_id, channel_id, phase, status, detail, cost_usd, environment) "
             "VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)",
             content_id, channel_id, phase, status,
-            __import__("json").dumps(detail or {}), float(cost_usd), env,
+            __import__("json").dumps(detail or {}), float(cost_usd), "production",
         )
     except Exception as exc:
         logger.warning("activity.emit_job_event.failed", error=str(exc))
