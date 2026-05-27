@@ -232,6 +232,22 @@ jobs:
           export RELEASE_SHA="${GITHUB_SHA:-$(git rev-parse HEAD)}"
           docker compose --profile tls down --remove-orphans 2>/dev/null || true
           docker compose --profile tls up -d --build --remove-orphans
+
+          # Sync postgres user password from .env → running postgres.
+          # The data volume persists across deploys; POSTGRES_PASSWORD in
+          # docker-compose only applies on first init. If .env ever drifted
+          # the BFF gets InvalidPasswordError on every startup. Connecting
+          # via Unix socket inside the container bypasses password auth.
+          DB_USER_VAL=$(grep -m1 '^DB_USER=' .env 2>/dev/null | sed 's/^DB_USER=//' | tr -d "\"'" || true)
+          DB_USER_VAL="${DB_USER_VAL:-app}"
+          DB_PASS_VAL=$(grep -m1 '^DB_PASSWORD=' .env 2>/dev/null | sed 's/^DB_PASSWORD=//' | tr -d "\"'" || true)
+          DB_PASS_VAL="${DB_PASS_VAL:-change_me_strong_random_64}"
+          printf "ALTER USER \"%s\" WITH ENCRYPTED PASSWORD '%s';\n" \
+            "${DB_USER_VAL}" "${DB_PASS_VAL}" | \
+            docker compose exec -T postgres-app psql -U "${DB_USER_VAL}" -d postgres \
+            && echo "✅ postgres password synced" \
+            || echo "⚠️  postgres password sync failed (non-fatal)"
+
           docker compose ps --format "table {{.Name}}\t{{.Status}}"
           echo "Deploy complete at $(date -u)"
 
@@ -285,6 +301,12 @@ jobs:
             sleep 3
           done
           if [ "$DB_HEALTHY" = "false" ]; then
+            echo "=== BFF container logs (last 100 lines) ==="
+            docker compose logs --tail=100 dashboard-bff 2>/dev/null || true
+            echo "=== postgres-app logs (last 50 lines) ==="
+            docker compose logs --tail=50 postgres-app 2>/dev/null || true
+            echo "=== raw /health response ==="
+            curl -fsS http://localhost:8020/health 2>/dev/null | python3 -m json.tool || echo "BFF not responding"
             echo "ERROR: BFF DB component not healthy after 90s — aborting migration to prevent false InvalidPasswordError"
             exit 1
           fi
