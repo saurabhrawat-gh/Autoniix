@@ -235,10 +235,9 @@ async def youtube_callback(
             else:
                 await pool.execute(
                     """INSERT INTO provider_credentials
-                       (workspace_id, category, provider_name, label, vault_path,
+                       (category, provider_name, label, vault_path,
                         extra_config, enabled)
-                       VALUES ($1,'youtube','youtube_oauth',$2,$3,$4::jsonb,TRUE)""",
-                    workspace_id,
+                       VALUES ('youtube','youtube_oauth',$1,$2,$3::jsonb,TRUE)""",
                     channel_info.get("channel_name", "YouTube"),
                     _token_path(workspace_id),
                     json.dumps(extra),
