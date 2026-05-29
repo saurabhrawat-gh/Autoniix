@@ -619,16 +619,31 @@ class AcceptInviteIn(BaseModel):
 
 @router.get("/workspaces")
 async def list_workspaces(p: Principal = Depends(principal_dep)):
-    """Return all workspaces the current user is a member of."""
+    """Return all workspaces the current user is a member of.
+
+    Each workspace row includes an ``onboarding_completed`` flag derived from
+    the per-workspace ``entity_settings`` row keyed ``onboarding``. The
+    frontend uses this to decide whether to redirect to the onboarding wizard
+    (e.g. for legacy seeded accounts that were backfilled into the synthetic
+    "Default Workspace" — see AE-222).
+    """
     if not p.user_id:
         return {"data": []}
     pool = await get_pool()
     rows = await pool.fetch(
         """SELECT w.id, w.name, w.slug, w.plan, wm.role,
-                  (w.id = u.active_workspace_id) AS active
+                  (w.id = u.active_workspace_id) AS active,
+                  COALESCE(
+                      (es.value->>'completed')::boolean,
+                      FALSE
+                  ) AS onboarding_completed
              FROM workspace_members wm
-             JOIN workspaces w ON w.id = wm.workspace_id
-             JOIN users u      ON u.id = wm.user_id
+             JOIN workspaces w  ON w.id = wm.workspace_id
+             JOIN users u       ON u.id = wm.user_id
+             LEFT JOIN entity_settings es
+                    ON es.scope    = 'workspace'
+                   AND es.scope_id = w.id::text
+                   AND es.key      = 'onboarding'
             WHERE wm.user_id = $1
             ORDER BY w.name""",
         p.user_id,

@@ -147,7 +147,7 @@ export const authApi = {
   updateProfile: (data: { display_name?: string; current_password?: string; new_password?: string }) =>
     request<{ status: string; message: string }>('/api/v2/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
   listWorkspaces: () =>
-    request<{ data: Array<{ id: number; name: string; slug: string; plan: string; role: string; active: boolean }> }>('/api/v2/auth/workspaces'),
+    request<{ data: Array<{ id: number; name: string; slug: string; plan: string; role: string; active: boolean; onboarding_completed: boolean }> }>('/api/v2/auth/workspaces'),
   switchWorkspace: (workspace_id: number) =>
     request<{ status: string; workspace_id: number; role: string }>(
       '/api/v2/auth/switch-workspace',
