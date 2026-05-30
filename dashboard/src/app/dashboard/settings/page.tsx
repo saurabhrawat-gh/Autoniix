@@ -1,14 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { systemApi } from '@/lib/api-v2';
+import { systemApi, authApi } from '@/lib/api-v2';
 import { isLoggedIn } from '@/lib/api-v2';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import { PageHeader } from '@/lib/components/PageHeader';
 import { Skeleton } from '@/lib/components/Skeleton';
-import { Power, PowerOff } from '@/lib/components/Icon';
+import { Power, PowerOff, Flag, ChevronRight } from '@/lib/components/Icon';
 import { useAppState } from '@/lib/components/AppStateProvider';
 import { useTheme } from '@/lib/theme';
 import {
@@ -96,12 +97,16 @@ export default function SettingsPage() {
   const [cleanSlateOpen, setCleanSlateOpen] = useState(false);
   const [cleanSlateInput, setCleanSlateInput] = useState('');
   const [cleanSlateRunning, setCleanSlateRunning] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const { showToast } = useToast();
   const systemStopped = emergency;
 
   useEffect(() => {
     if (!isLoggedIn()) { router.replace('/login'); return; }
     loadConfigs();
+    authApi.me().then((res: any) => {
+      setUserRole(res?.data?.role ?? null);
+    }).catch(() => setUserRole(null));
   }, [router]);
 
   async function loadConfigs() {
@@ -286,6 +291,30 @@ export default function SettingsPage() {
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-6 py-6">
           <DisplayPreferences />
+          {userRole === 'owner' && (
+            <div className="mb-8">
+              <h2 className="text-xs font-semibold text-content-secondary mb-3 flex items-center gap-2">
+                Advanced
+              </h2>
+              <Link
+                href="/dashboard/settings/flags"
+                className="card flex items-center justify-between gap-4 p-5 hover:bg-surface-1 transition-colors group"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-md bg-accent/10 text-accent shrink-0">
+                    <Flag size={16} />
+                  </span>
+                  <div>
+                    <div className="text-sm font-medium text-content-primary">Feature Flags</div>
+                    <div className="text-xs text-content-tertiary mt-0.5">
+                      Toggle preview features and gradual rollouts for this workspace.
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-content-tertiary group-hover:text-content-primary shrink-0" />
+              </Link>
+            </div>
+          )}
           {configError && (
             <div className="mb-6 p-4 rounded-lg bg-status-error/10 border border-status-error/20 text-sm">
               <span className="font-semibold text-status-error">Config load failed: </span>
