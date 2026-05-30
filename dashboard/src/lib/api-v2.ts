@@ -4,7 +4,15 @@
  * v2 auth uses HttpOnly cookies (set by the backend on login/refresh).
  * Cookies are sent automatically via credentials:'include'.
  * No auth tokens are stored in localStorage.
+ *
+ * Request layer (hotfix #304 / AE-263):
+ *   GET requests are routed through `dedupedGet()` from `./request-cache` to
+ *   coalesce in-flight duplicates and serve a short TTL cache. This neutralises
+ *   the hover/scroll/remount request-storm. Mutations bypass the cache and
+ *   invalidate it on completion.
  */
+import { dedupedGet, invalidateCache } from './request-cache';
+
 const BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 // One-time purge: remove any legacy localStorage token keys left from old builds.
@@ -42,7 +50,7 @@ async function refreshOnce(): Promise<boolean> {
   return _refreshing;
 }
 
-async function request<T = any>(path: string, opts: RequestInit = {}, _isRetry = false): Promise<T> {
+async function rawRequest<T = any>(path: string, opts: RequestInit = {}, _isRetry = false): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'X-Source': 'ui',
@@ -53,7 +61,9 @@ async function request<T = any>(path: string, opts: RequestInit = {}, _isRetry =
   if (res.status === 401) {
     if (!_isRetry) {
       const refreshed = await refreshOnce();
-      if (refreshed) return request<T>(path, opts, true);
+      // Recurse via rawRequest (NOT the cached `request`) to avoid the
+      // in-flight dedup map from waiting on the executor that owns it.
+      if (refreshed) return rawRequest<T>(path, opts, true);
     }
     if (typeof window !== 'undefined') window.location.href = '/login';
     throw new Error('Unauthorized');
@@ -87,6 +97,27 @@ async function request<T = any>(path: string, opts: RequestInit = {}, _isRetry =
     throw new Error(body.detail || body.error || `HTTP ${res.status}`);
   }
   return res.json();
+}
+
+/**
+ * Cache-aware request wrapper (hotfix #304 / AE-263).
+ *
+ * - GET → routed through `dedupedGet()`: in-flight coalescence + 5s TTL cache.
+ * - Mutations (POST/PUT/PATCH/DELETE) → call `rawRequest()` directly and
+ *   invalidate the entire response cache on success. Broad-stroke
+ *   invalidation is intentional: mutations are rare; the cost of one extra
+ *   refetch is dwarfed by the cost of stale UI.
+ *
+ * All existing callers keep the same signature; the change is transparent.
+ */
+async function request<T = any>(path: string, opts: RequestInit = {}): Promise<T> {
+  const method = (opts.method || 'GET').toUpperCase();
+  if (method !== 'GET') {
+    const result = await rawRequest<T>(path, opts);
+    invalidateCache();
+    return result;
+  }
+  return dedupedGet<T>(`GET ${path}`, () => rawRequest<T>(path, opts));
 }
 
 // Flags
