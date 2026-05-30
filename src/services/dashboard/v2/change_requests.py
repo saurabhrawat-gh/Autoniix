@@ -136,7 +136,7 @@ async def list_change_requests(
     actor: Principal = Depends(principal_dep),
 ):
     pool = await get_pool()
-    is_privileged = actor.role in ("owner", "admin")
+    is_privileged = actor.role in ("owner", "member")
 
     conditions = ["cr.workspace_id=$1"]
     params: list[Any] = [actor.workspace_id]
@@ -229,7 +229,7 @@ async def get_change_request(
     if not row:
         raise HTTPException(404, "Change request not found")
 
-    is_privileged = actor.role in ("owner", "admin")
+    is_privileged = actor.role in ("owner", "member")
     if not is_privileged and row["requested_by"] != actor.user_id:
         raise HTTPException(403, "Access denied")
 
@@ -241,7 +241,7 @@ async def admin_review(
     request_id: int,
     body: ReviewIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     if body.action not in ("approve_forward", "reject"):
         raise HTTPException(400, "action must be 'approve_forward' or 'reject'")

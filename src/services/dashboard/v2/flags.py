@@ -25,7 +25,7 @@ async def set_flag(
     key: str,
     body: dict,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     enabled = bool(body.get("enabled", False))

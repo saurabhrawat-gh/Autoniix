@@ -50,7 +50,7 @@ async def list_experiments(
 @router.post("")
 async def create_experiment(
     body: ExperimentCreateIn, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     payload = await _admin_call("POST", "/experiments", json=body.model_dump())
     await audit(actor=actor, action="experiment.create", target_type="experiment",
@@ -61,7 +61,7 @@ async def create_experiment(
 @router.post("/{name}/activate")
 async def activate(
     name: str, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     payload = await _admin_call("POST", f"/experiments/{name}/activate")
     await audit(actor=actor, action="experiment.activate", target_type="experiment",
@@ -72,7 +72,7 @@ async def activate(
 @router.post("/{name}/pause")
 async def pause(
     name: str, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     payload = await _admin_call("POST", f"/experiments/{name}/pause")
     await audit(actor=actor, action="experiment.pause", target_type="experiment",
@@ -84,7 +84,7 @@ async def pause(
 async def complete(
     name: str, request: Request,
     winner: str = Query("", description="Variant name of the winner (optional)"),
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     payload = await _admin_call("POST", f"/experiments/{name}/complete?winner={winner}")
     await audit(actor=actor, action="experiment.complete", target_type="experiment",

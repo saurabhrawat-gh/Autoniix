@@ -15,7 +15,7 @@ const STEPS = [
   { id: 4, label: "You're all set",  icon: Rocket },
 ];
 
-const ROLES = ['admin', 'producer', 'editor', 'viewer'];
+const ROLES = ['member', 'viewer'];
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -24,7 +24,7 @@ export default function OnboardingPage() {
   const [wsName, setWsName]           = useState('');
   const [saving, setSaving]           = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole]   = useState('editor');
+  const [inviteRole, setInviteRole]   = useState('member');
   const [inviting, setInviting]       = useState(false);
   const [inviteErr, setInviteErr]     = useState<string | null>(null);
   const [invitedEmails, setInvitedEmails] = useState<string[]>([]);

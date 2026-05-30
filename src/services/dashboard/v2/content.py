@@ -181,7 +181,7 @@ async def calendar(
 async def bulk_action(
     body: BulkActionIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     if not body.ids:
         return {"status": "noop"}
@@ -382,7 +382,7 @@ class TriggerIn(BaseModel):
 async def trigger_content(
     body: TriggerIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Queue a content generation job for a channel."""
     pool = await get_pool()

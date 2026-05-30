@@ -10,7 +10,7 @@ from ._deps import Principal, audit, principal_dep, require_role
 
 router = APIRouter()
 
-_ROLES = ("owner", "admin", "producer", "editor", "viewer")
+_ROLES = ("owner", "member", "viewer")
 
 
 class RoleIn(BaseModel):
@@ -18,7 +18,7 @@ class RoleIn(BaseModel):
 
 
 @router.get("")
-async def list_users(_: Principal = Depends(require_role("owner", "admin"))):
+async def list_users(_: Principal = Depends(require_role("owner", "member"))):
     pool = await get_pool()
     rows = await pool.fetch(
         "SELECT id, email, display_name, role, mfa_enabled, email_verified, "
@@ -48,7 +48,7 @@ async def set_role(
 @router.put("/{user_id}/disable")
 async def disable_user(
     user_id: int, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     await pool.execute("UPDATE users SET disabled=TRUE WHERE id=$1", user_id)
@@ -62,7 +62,7 @@ async def disable_user(
 @router.put("/{user_id}/enable")
 async def enable_user(
     user_id: int, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     await pool.execute("UPDATE users SET disabled=FALSE WHERE id=$1", user_id)

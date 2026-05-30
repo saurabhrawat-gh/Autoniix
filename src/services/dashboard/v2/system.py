@@ -73,7 +73,7 @@ class ConfigUpdateRequest(BaseModel):
 async def update_config(
     body: ConfigUpdateRequest,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Update a single system_config key."""
     pool = await get_pool()
@@ -98,7 +98,7 @@ async def update_config(
 @router.post("/emergency-stop")
 async def emergency_stop(
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Freeze system + pause all running Temporal workflows."""
     result = await _proxy(request, "POST", "/api/emergency-stop")
@@ -110,7 +110,7 @@ async def emergency_stop(
 @router.post("/emergency-resume")
 async def emergency_resume(
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Un-freeze system + resume all paused Temporal workflows."""
     result = await _proxy(request, "POST", "/api/emergency-resume")

@@ -82,8 +82,8 @@ type Invite = {
   invite_url?: string;
 };
 
-const ROLES = ['owner', 'admin', 'producer', 'editor', 'viewer'] as const;
-const INVITE_ROLES = ['admin', 'producer', 'editor', 'viewer'] as const;
+const ROLES = ['owner', 'member', 'viewer'] as const;
+const INVITE_ROLES = ['member', 'viewer'] as const;
 const roleLabel = (r: string) => r.charAt(0).toUpperCase() + r.slice(1);
 
 // Mirror of backend plan seat limits (src/api/billing/plans.py).
@@ -98,9 +98,7 @@ const planLabel = (p: string) => p.charAt(0).toUpperCase() + p.slice(1);
 
 const ROLE_BADGE: Record<string, 'neutral' | 'success' | 'warning' | 'info' | 'secondary'> = {
   owner: 'success',
-  admin: 'warning',
-  producer: 'info',
-  editor: 'info',
+  member: 'info',
   viewer: 'secondary',
 };
 

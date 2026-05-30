@@ -117,7 +117,7 @@ def _render(template_id: str, v: dict[str, Any]) -> tuple[str, str] | None:
 <h2>Workspace ownership transferred</h2>
 <p>Hi {name},</p>
 <p>Ownership of <strong>{workspace_name}</strong> has been transferred to <strong>{new_owner_name}</strong>.</p>
-<p>Your role has been changed to <strong>admin</strong>. You still have access to all workspace content.</p>
+<p>Your role has been changed to <strong>member</strong>. You still have access to all workspace content.</p>
 <p style="color:#6b7280;font-size:13px">If you did not initiate this transfer, please contact support immediately.</p>
 """)
         return subject, html
