@@ -48,6 +48,7 @@ export {
   BarChart3,
   Bell,
   Search,
+  Flag,
   Filter,
   Home,
   Folder,
