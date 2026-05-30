@@ -422,16 +422,21 @@ export default function ProviderCategoryPage() {
                       {ch.name}
                     </button>
                   ))}
-                  <div className="my-1 border-t border-border" />
-                  <Link
-                    href="/dashboard/channels/new"
-                    className="flex w-full items-center gap-2 px-3 py-2 hover:bg-surface-1 transition-colors text-content-tertiary"
-                    onClick={() => setScopeDropdownOpen(false)}>
-                    <Plus size={11} />
-                    Set up per-channel override
-                  </Link>
                 </>
               )}
+              <div className="my-1 border-t border-border" />
+              <Link
+                href="/dashboard/channels/new"
+                className="flex w-full flex-col items-start gap-0.5 px-3 py-2 hover:bg-surface-1 transition-colors text-content-tertiary"
+                onClick={() => setScopeDropdownOpen(false)}>
+                <span className="flex items-center gap-2">
+                  <Plus size={11} />
+                  {channels.length > 0 ? 'Add another channel' : 'Create a channel'}
+                </span>
+                <span className="pl-[19px] text-[10px] text-content-tertiary/70">
+                  to scope credentials per-channel
+                </span>
+              </Link>
             </div>
           )}
         </div>
