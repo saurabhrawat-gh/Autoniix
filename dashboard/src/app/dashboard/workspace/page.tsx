@@ -86,6 +86,16 @@ const ROLES = ['owner', 'admin', 'producer', 'editor', 'viewer'] as const;
 const INVITE_ROLES = ['admin', 'producer', 'editor', 'viewer'] as const;
 const roleLabel = (r: string) => r.charAt(0).toUpperCase() + r.slice(1);
 
+// Mirror of backend plan seat limits (src/api/billing/plans.py).
+// Update both sides if plan tiers change. AE-23 enforcement is deferred;
+// this is informational only.
+const PLAN_SEAT_LIMITS: Record<string, number | null> = {
+  starter: 3,
+  growth: 10,
+  scale: null, // unlimited
+};
+const planLabel = (p: string) => p.charAt(0).toUpperCase() + p.slice(1);
+
 const ROLE_BADGE: Record<string, 'neutral' | 'success' | 'warning' | 'info' | 'secondary'> = {
   owner: 'success',
   admin: 'warning',
@@ -352,13 +362,39 @@ export default function WorkspacePage() {
 
       {/* Members */}
       <Card variant="elevated" padding="lg" className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Users size={16} className="text-content-secondary" />
-            <h2 className="text-sm font-semibold text-content-primary">Members</h2>
-            <Badge variant="secondary" size="sm">{members.length}</Badge>
-          </div>
-        </div>
+        {(() => {
+          const plan = ws?.plan ?? 'starter';
+          const limit = plan in PLAN_SEAT_LIMITS ? PLAN_SEAT_LIMITS[plan] : PLAN_SEAT_LIMITS.starter;
+          const pendingCount = invites.filter(i => !i.accepted_at).length;
+          const used = members.length + pendingCount;
+          const ratio = limit ? used / limit : 0;
+          const nearLimit = limit !== null && ratio >= 0.8;
+          const atLimit = limit !== null && used >= limit;
+          return (
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Users size={16} className="text-content-secondary" />
+                <h2 className="text-sm font-semibold text-content-primary">Members</h2>
+                <Badge variant="secondary" size="sm">
+                  {planLabel(plan)} — {used}/{limit ?? '∞'} seats
+                </Badge>
+                <span className="text-xs text-content-tertiary">
+                  ({members.length} member{members.length === 1 ? '' : 's'}
+                  {pendingCount > 0 ? ` + ${pendingCount} pending` : ''})
+                </span>
+              </div>
+              {nearLimit && (
+                <Button
+                  size="sm"
+                  variant={atLimit ? 'primary' : 'outline'}
+                  onClick={() => showToast('Billing upgrade flow is coming soon — contact support to upgrade today.', 'info')}
+                >
+                  {atLimit ? 'Upgrade plan' : 'Upgrade — seats almost full'}
+                </Button>
+              )}
+            </div>
+          );
+        })()}
 
         {members.length === 0 ? (
           <p className="text-sm text-content-tertiary py-6 text-center">
