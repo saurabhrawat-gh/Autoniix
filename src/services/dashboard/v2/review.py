@@ -120,7 +120,7 @@ async def get_review(video_id: str, _: Principal = Depends(principal_dep)):
 @router.post("/{video_id}/open")
 async def open_review(
     video_id: str, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     video = await pool.fetchrow("SELECT channel_id FROM videos WHERE content_id=$1", video_id)
@@ -142,7 +142,7 @@ async def open_review(
 @router.post("/{video_id}/decide")
 async def decide(
     video_id: str, body: DecisionIn, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     if body.decision not in ("approved", "needs_edits", "rejected", "regenerating"):
         raise HTTPException(400, "Invalid decision")
@@ -268,7 +268,7 @@ async def _ai_rewrite_script(*, video_id: str, kind: str, source: str,
 @router.post("/{video_id}/script/edit")
 async def edit_script(
     video_id: str, body: ScriptEditIn, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Append a new script version.
 
@@ -343,7 +343,7 @@ async def edit_script(
 @router.post("/{video_id}/thumbnail/regenerate")
 async def regenerate_thumbnail(
     video_id: str, body: ThumbnailRegenIn, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Trigger a fresh thumbnail pipeline run.
 
@@ -442,7 +442,7 @@ async def regenerate_thumbnail(
 @router.post("/{video_id}/comments")
 async def add_comment(
     video_id: str, body: CommentIn, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     session = await pool.fetchrow(

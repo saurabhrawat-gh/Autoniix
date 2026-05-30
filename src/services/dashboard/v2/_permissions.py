@@ -25,7 +25,7 @@ CHANNEL_NAME = "permissions.invalidate"
 
 # Roles that MUST have at least one permission seeded. An empty result for any
 # of these signals an uninitialized RBAC matrix (e.g. seed migration not run).
-KNOWN_ROLES: frozenset[str] = frozenset({"owner", "admin", "producer", "editor", "viewer"})
+KNOWN_ROLES: frozenset[str] = frozenset({"owner", "member", "viewer"})
 
 # Cache: role → (frozenset[permission_names], expires_at)
 _cache: dict[str, tuple[frozenset[str], float]] = {}

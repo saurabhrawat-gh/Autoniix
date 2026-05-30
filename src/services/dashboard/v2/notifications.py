@@ -63,7 +63,7 @@ async def list_notifications(
 @router.post("")
 async def create_notification(
     body: NotifyIn,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     # Dedupe within 60s window
@@ -107,7 +107,7 @@ async def mark_read(
 
 
 @router.get("/routes")
-async def list_routes(_: Principal = Depends(require_role("owner", "admin"))):
+async def list_routes(_: Principal = Depends(require_role("owner", "member"))):
     pool = await get_pool()
     rows = await pool.fetch(
         "SELECT id, name, event_pattern, severity_min, channels, filter, config, enabled "
@@ -119,7 +119,7 @@ async def list_routes(_: Principal = Depends(require_role("owner", "admin"))):
 @router.post("/routes")
 async def upsert_route(
     body: RouteIn, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     rid = await pool.fetchval(
@@ -138,7 +138,7 @@ async def upsert_route(
 @router.put("/routes/{route_id}")
 async def update_route(
     route_id: int, body: RouteIn, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     res = await pool.execute(
@@ -157,7 +157,7 @@ async def update_route(
 @router.delete("/routes/{route_id}")
 async def delete_route(
     route_id: int, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     await pool.execute("DELETE FROM notification_routes WHERE id=$1", route_id)
@@ -170,7 +170,7 @@ async def delete_route(
 @router.get("/deliveries")
 async def list_deliveries(
     notification_id: int | None = None, limit: int = 100,
-    _: Principal = Depends(require_role("owner", "admin")),
+    _: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     if notification_id is not None:

@@ -75,13 +75,13 @@ class TestPermissionCache:
         from src.services.dashboard.v2 import _permissions as pm
 
         # Insert an already-expired entry
-        pm._cache["admin"] = (frozenset(["workspace.view"]), time.monotonic() - 1.0)
+        pm._cache["member"] = (frozenset(["workspace.view"]), time.monotonic() - 1.0)
 
         mock_pool = AsyncMock()
         mock_pool.fetch.return_value = [{"permission": "workspace.settings.edit"}]
         mock_get_pool = AsyncMock(return_value=mock_pool)
         with patch("src.services.dashboard.v2._permissions.get_pool", mock_get_pool):
-            perms = await pm.get_permissions_for_role("admin")
+            perms = await pm.get_permissions_for_role("member")
 
         assert "workspace.settings.edit" in perms
         mock_get_pool.assert_called_once()
@@ -90,18 +90,18 @@ class TestPermissionCache:
         from src.services.dashboard.v2 import _permissions as pm
 
         pm._cache["viewer"] = (frozenset(["workspace.view"]), time.monotonic() + 30.0)
-        pm._cache["admin"] = (frozenset(["workspace.view"]), time.monotonic() + 30.0)
+        pm._cache["member"] = (frozenset(["workspace.view"]), time.monotonic() + 30.0)
 
         pm.invalidate("viewer")
 
         assert "viewer" not in pm._cache
-        assert "admin" in pm._cache
+        assert "member" in pm._cache
 
     def test_invalidate_all(self):
         from src.services.dashboard.v2 import _permissions as pm
 
         pm._cache["viewer"] = (frozenset(["workspace.view"]), time.monotonic() + 30.0)
-        pm._cache["admin"] = (frozenset(["workspace.view"]), time.monotonic() + 30.0)
+        pm._cache["member"] = (frozenset(["workspace.view"]), time.monotonic() + 30.0)
 
         pm.invalidate(None)
 
@@ -147,8 +147,8 @@ class TestRequirePermission:
         from src.services.dashboard.v2._deps import require_permission
         from src.services.dashboard.v2 import _permissions as pm
 
-        pm._cache["editor"] = (frozenset(["project.view"]), time.monotonic() + 30.0)
-        principal = _make_principal("editor")
+        pm._cache["member"] = (frozenset(["project.view"]), time.monotonic() + 30.0)
+        principal = _make_principal("member")
 
         checker = require_permission("workspace.integrations.view")
         with pytest.raises(HTTPException) as exc_info:
@@ -157,20 +157,20 @@ class TestRequirePermission:
         assert exc_info.value.detail == "Permission denied: workspace.integrations.view"
 
 
-# ── admin-cannot-assign-owner guard ────────────────────────────────────────
+# ── non-owner-cannot-assign-owner guard ────────────────────────────────────
 
-class TestAdminCannotAssignOwner:
-    """The set_member_role endpoint must block admin from assigning owner role."""
+class TestNonOwnerCannotAssignOwner:
+    """The set_member_role endpoint must block non-owners from assigning owner role."""
 
     @pytest.mark.asyncio
-    async def test_admin_assign_owner_returns_403(self, mock_db_pool):
-        """Admin calling PUT /members/:id/role with role=owner gets HTTP 403."""
+    async def test_member_assign_owner_returns_403(self, mock_db_pool):
+        """Member calling PUT /members/:id/role with role=owner gets HTTP 403."""
         from src.services.dashboard.v2.workspace import set_member_role
         from src.services.dashboard.v2 import _permissions as pm
 
-        # Admin has workspace.members.role.change permission
-        pm._cache["admin"] = (frozenset(["workspace.members.role.change"]), time.monotonic() + 30.0)
-        actor = _make_principal("admin")
+        # Member has workspace.members.role.change permission via the new RBAC seed
+        pm._cache["member"] = (frozenset(["workspace.members.role.change"]), time.monotonic() + 30.0)
+        actor = _make_principal("member")
 
         class Body:
             role = "owner"

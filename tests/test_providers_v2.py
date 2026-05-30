@@ -44,39 +44,29 @@ class TestRequireCredActor:
         assert result.role == "owner"
 
     @pytest.mark.asyncio
-    async def test_admin_blocked_without_flag(self):
+    async def test_member_blocked_without_flag(self):
         from src.services.dashboard.v2.providers import _require_cred_actor
 
-        p = _make_principal(role="admin")
+        p = _make_principal(role="member")
         with patch(f"{_PROV_MODULE}.flag_enabled", new_callable=AsyncMock, return_value=False):
             with pytest.raises(HTTPException) as exc_info:
                 await _require_cred_actor(p=p)
         assert exc_info.value.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_admin_allowed_with_flag(self):
+    async def test_member_allowed_with_flag(self):
         from src.services.dashboard.v2.providers import _require_cred_actor
 
-        p = _make_principal(role="admin")
+        p = _make_principal(role="member")
         with patch(f"{_PROV_MODULE}.flag_enabled", new_callable=AsyncMock, return_value=True):
             result = await _require_cred_actor(p=p)
-        assert result.role == "admin"
+        assert result.role == "member"
 
     @pytest.mark.asyncio
     async def test_viewer_always_blocked(self):
         from src.services.dashboard.v2.providers import _require_cred_actor
 
         p = _make_principal(role="viewer")
-        with patch(f"{_PROV_MODULE}.flag_enabled", new_callable=AsyncMock, return_value=True):
-            with pytest.raises(HTTPException) as exc_info:
-                await _require_cred_actor(p=p)
-        assert exc_info.value.status_code == 403
-
-    @pytest.mark.asyncio
-    async def test_producer_always_blocked(self):
-        from src.services.dashboard.v2.providers import _require_cred_actor
-
-        p = _make_principal(role="producer")
         with patch(f"{_PROV_MODULE}.flag_enabled", new_callable=AsyncMock, return_value=True):
             with pytest.raises(HTTPException) as exc_info:
                 await _require_cred_actor(p=p)

@@ -116,7 +116,7 @@ class TestPrincipalDepRevocation:
         """When check_membership returns False, principal_dep raises 403."""
         from src.services.dashboard.v2._deps import principal_dep
 
-        fake_claims = {"sub": "5", "email": "bob@example.com", "role": "editor", "wid": "3"}
+        fake_claims = {"sub": "5", "email": "bob@example.com", "role": "member", "wid": "3"}
 
         def _fake_decode(token):
             return fake_claims
@@ -141,7 +141,7 @@ class TestPrincipalDepRevocation:
         """Active member resolves to Principal normally."""
         from src.services.dashboard.v2._deps import principal_dep
 
-        fake_claims = {"sub": "5", "email": "bob@example.com", "role": "editor", "wid": "3"}
+        fake_claims = {"sub": "5", "email": "bob@example.com", "role": "member", "wid": "3"}
 
         mock_request = MagicMock()
         mock_request.cookies.get.return_value = None

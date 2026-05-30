@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { usersApi } from '@/lib/api-v2';
 import { Button, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/lib/ui';
 
-const ROLES = ['owner', 'admin', 'producer', 'editor', 'viewer'] as const;
+const ROLES = ['owner', 'member', 'viewer'] as const;
 const roleLabel = (r: string) => r.charAt(0).toUpperCase() + r.slice(1);
 
 export default function Users() {
