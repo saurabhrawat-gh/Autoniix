@@ -151,9 +151,9 @@ export const api = {
   emergencyResume: () => request('/api/emergency-resume', { method: 'POST' }),
 
   // Environment
-  environment: () => request('/api/environment'),
+  environment: () => request('/api/v2/system/environment'),
   switchEnvironment: (mode: string, confirm: boolean = false) =>
-    request('/api/environment', { method: 'PUT', body: JSON.stringify({ mode, confirm }) }),
+    request('/api/v2/system/environment', { method: 'PUT', body: JSON.stringify({ mode, confirm }) }),
   testDataStats: () => request('/api/test-data/stats'),
   cleanupTestData: () => request('/api/test-data', { method: 'DELETE' }),
 

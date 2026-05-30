@@ -140,9 +140,38 @@ async def fleet_health(
 async def get_environment(
     _: Principal = Depends(principal_dep),
 ):
-    """Current environment mode (test / production) — reads ENVIRONMENT_MODE env var."""
-    mode = os.getenv("ENVIRONMENT_MODE", "production")
+    """Current environment mode — DB override first, then ENVIRONMENT_MODE env var."""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT config_value FROM system_config WHERE config_key = 'environment_mode'"
+    )
+    mode = row["config_value"] if row else os.getenv("ENVIRONMENT_MODE", "production")
     return {"status": "ok", "data": {"mode": mode}}
+
+
+class EnvSwitchIn(BaseModel):
+    mode: str
+    confirm: bool = False
+
+
+@router.put("/environment")
+async def set_environment(
+    body: EnvSwitchIn,
+    actor: Principal = Depends(require_role("owner")),
+):
+    """Switch environment mode (owner-only). Persists to system_config."""
+    if body.mode not in ("test", "production"):
+        raise HTTPException(400, "mode must be 'test' or 'production'")
+    pool = await get_pool()
+    await pool.execute(
+        """INSERT INTO system_config (config_key, config_value, updated_at)
+           VALUES ('environment_mode', $1, NOW())
+           ON CONFLICT (config_key) DO UPDATE
+               SET config_value = EXCLUDED.config_value,
+                   updated_at   = NOW()""",
+        body.mode,
+    )
+    return {"status": "ok", "data": {"mode": body.mode}}
 
 
 # Clean slate
