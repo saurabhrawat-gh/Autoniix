@@ -67,8 +67,8 @@ class TestPlanLimits:
             None,                        # no existing member
             None,                        # no slack integration
         ]
-        # member_count=2, pending=0, existing=None (no dup), inv_id=99
-        pool.fetchval.side_effect = [2, 0, None, 99]
+        # member_count=2, pending=0, existing=None, pending_inv=None (no dup), inv_id=99
+        pool.fetchval.side_effect = [2, 0, None, None, 99]
         pool.execute = AsyncMock(return_value="INSERT 0 1")
 
         actor = _make_principal(role="owner")
@@ -92,8 +92,8 @@ class TestPlanLimits:
             None,                           # no existing member
             None,                           # no slack integration
         ]
-        # No limit check → only: existing=None, inv_id=99
-        pool.fetchval.side_effect = [None, 99]
+        # No limit check → only: existing=None, pending_inv=None (no dup), inv_id=99
+        pool.fetchval.side_effect = [None, None, 99]
         pool.execute = AsyncMock(return_value="INSERT 0 1")
 
         actor = _make_principal(role="owner")
