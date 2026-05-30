@@ -10,6 +10,8 @@ Endpoints:
 """
 from __future__ import annotations
 
+import os
+
 from pydantic import BaseModel
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -136,11 +138,11 @@ async def fleet_health(
 
 @router.get("/environment")
 async def get_environment(
-    request: Request,
     _: Principal = Depends(principal_dep),
 ):
-    """Current environment mode (test / production)."""
-    return await _proxy(request, "GET", "/api/environment")
+    """Current environment mode (test / production) — reads ENVIRONMENT_MODE env var."""
+    mode = os.getenv("ENVIRONMENT_MODE", "production")
+    return {"status": "ok", "data": {"mode": mode}}
 
 
 # Clean slate
