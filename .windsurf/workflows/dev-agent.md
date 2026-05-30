@@ -12,7 +12,27 @@ There are two paths depending on issue type:
 
 ---
 
+## Step 0.A — Manual invocation by Jira key (NEW — takes precedence)
+
+If the user invoked this workflow with a Jira key (e.g. `/dev-agent AE-227`, or any message containing a `AE-\d+` pattern as the explicit target):
+
+1. **Resolve the Jira key to a GitHub issue number** via reverse-lookup in `scripts/migration/state/issue_map.json`:
+   ```bash
+   python3 -c "import json; m={v:int(k) for k,v in json.load(open('scripts/migration/state/issue_map.json')).items()}; print(m['AE-227'])"
+   ```
+2. **If no mapping found** → STOP. Report to the user: "AE-XXX has no GitHub mirror. Create the mirror first (use `/tmp/mirror_jira_to_gh.py` as template) and update `scripts/migration/state/issue_map.json` before invoking `/dev-agent`."
+3. **If mapping found** → set `{N}` = resolved GH issue number, then **skip Step 0 and Step 1**. Read the GH issue body directly via `mcp1_get_issue` and jump to Step 1a (Read Research Notes).
+4. **Path selection** — inspect the GH issue's labels:
+   - Has `bug:production` or `hotfix` → take the **Hotfix Path** starting at H2.
+   - Otherwise → take the **Normal Path** starting at step 2.
+
+This bypasses autopick. The user has explicitly chosen the ticket.
+
+---
+
 ## Step 0 — Autopick: hotfixes always take priority
+
+Only run this step if the user did NOT pass a Jira key (i.e. plain `/dev-agent` invocation).
 
 Before anything else, check for open hotfix issues:
 - Call `mcp0_list_issues` with label `bug:production` AND state `open`
