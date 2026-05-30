@@ -790,6 +790,15 @@ async def create_invite(
     )
     if existing:
         raise HTTPException(409, "User is already a member of this workspace")
+    # Check no pending invite already exists for this email
+    pending_inv = await pool.fetchval(
+        """SELECT id FROM workspace_invitations
+            WHERE workspace_id=$1 AND lower(email)=lower($2)
+              AND accepted_at IS NULL AND expires_at > NOW()""",
+        actor.workspace_id, body.email,
+    )
+    if pending_inv:
+        raise HTTPException(409, "A pending invitation already exists for this email address. Revoke it first or wait for it to expire.")
     raw = secrets.token_urlsafe(32)
     h = hashlib.sha256(raw.encode()).hexdigest()
     expires = datetime.utcnow() + timedelta(days=body.expires_days)
