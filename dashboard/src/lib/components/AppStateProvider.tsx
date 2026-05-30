@@ -38,7 +38,7 @@ interface AppState {
 
 const noop = () => {};
 const Ctx = createContext<AppState>({
-  envMode: 'test',
+  envMode: 'production',
   envSwitching: false,
   systemStopped: false,
   channelCount: 0,
@@ -61,7 +61,7 @@ const DENSITY_KEY = 'dashboard_density_v1';
 const MAX_NOTIFICATIONS = 50;
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
-  const [envMode, setEnvMode] = useState<EnvMode>('test');
+  const [envMode, setEnvMode] = useState<EnvMode>('production');
   const [envSwitching, setEnvSwitching] = useState(false);
   const [systemStopped, setSystemStopped] = useState(false);
   const [channelCount, setChannelCount] = useState(0);
