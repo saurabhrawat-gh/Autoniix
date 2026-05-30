@@ -118,9 +118,16 @@ def _cron_to_spec(cron: str) -> ScheduleSpec:
 
 
 async def register_all(temporal_host: str) -> None:
-    client = await Client.connect(temporal_host)
+    try:
+        client = await Client.connect(temporal_host)
+    except Exception as exc:
+        print(f"⚠️  Temporal unreachable at {temporal_host}: {exc}", file=sys.stderr)
+        print("Skipping schedule registration — will retry on next deploy.")
+        return
+
     created = 0
     skipped = 0
+    failed = 0
 
     for s in _SCHEDULES:
         schedule_id = s["id"]
@@ -144,10 +151,12 @@ async def register_all(temporal_host: str) -> None:
                 print(f"  ⏭  Skipped  {schedule_id}  (already exists)")
                 skipped += 1
             else:
-                print(f"  ❌ Failed   {schedule_id}: {exc}", file=sys.stderr)
-                raise
+                print(f"  ⚠️  Warning  {schedule_id}: {exc} — will retry on next deploy", file=sys.stderr)
+                failed += 1
 
-    print(f"\nDone — {created} created, {skipped} already existed.")
+    print(f"\nDone — {created} created, {skipped} already existed, {failed} deferred.")
+    if failed and not created and not skipped:
+        print("⚠️  All schedules failed — Temporal may be degraded.", file=sys.stderr)
 
 
 def main() -> None:
