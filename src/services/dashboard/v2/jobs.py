@@ -154,7 +154,7 @@ async def job_metadata(
 async def approve_job(
     content_id: str,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Mark a delivered video as approved."""
     pool = await get_pool()
@@ -175,7 +175,7 @@ async def approve_job(
 async def reject_job(
     content_id: str,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Reject a delivered video, freeing the weekly slot for regeneration."""
     pool = await get_pool()
@@ -198,7 +198,7 @@ async def reject_job(
 async def retry_job(
     content_id: str,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Retry a failed job — creates a brand-new video from scratch."""
     result = await _proxy(request, "POST", f"/api/jobs/{content_id}/retry")
@@ -211,7 +211,7 @@ async def retry_job(
 async def restart_job(
     content_id: str,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Restart a stopped/failed job from its last checkpoint."""
     result = await _proxy(request, "POST", f"/api/jobs/{content_id}/restart")
@@ -227,7 +227,7 @@ async def restart_job(
 async def pause_job(
     content_id: str,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Pause a specific running job."""
     result = await _proxy(request, "POST", f"/api/jobs/{content_id}/pause")
@@ -240,7 +240,7 @@ async def pause_job(
 async def resume_job(
     content_id: str,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Resume a paused job."""
     result = await _proxy(request, "POST", f"/api/jobs/{content_id}/resume")
@@ -253,7 +253,7 @@ async def resume_job(
 async def stop_job(
     content_id: str,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Terminate a specific running job immediately."""
     result = await _proxy(request, "POST", f"/api/jobs/{content_id}/stop")

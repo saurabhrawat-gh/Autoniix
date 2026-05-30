@@ -648,7 +648,7 @@ async def set_member_role(
     actor: Principal = Depends(require_permission("workspace.members.role.change")),
 ):
     pool = await get_pool()
-    VALID_ROLES = {"owner", "admin", "producer", "editor", "viewer"}
+    VALID_ROLES = {"owner", "member", "viewer"}
     if body.role not in VALID_ROLES:
         raise HTTPException(400, f"Invalid role. Must be one of: {', '.join(sorted(VALID_ROLES))}")
     if body.role == "owner" and actor.role != "owner":
@@ -728,7 +728,7 @@ async def remove_member(
 
 # Invitations
 
-VALID_INVITE_ROLES = {"admin", "producer", "editor", "viewer"}
+VALID_INVITE_ROLES = {"member", "viewer"}
 
 
 class InviteIn(BaseModel):
@@ -980,7 +980,7 @@ async def transfer_ownership(
                 actor.workspace_id, body.new_owner_user_id,
             )
             await conn.execute(
-                "UPDATE workspace_members SET role='admin' WHERE workspace_id=$1 AND user_id=$2",
+                "UPDATE workspace_members SET role='member' WHERE workspace_id=$1 AND user_id=$2",
                 actor.workspace_id, actor.user_id,
             )
     await audit(

@@ -42,10 +42,10 @@ router = APIRouter()
 
 
 async def _require_cred_actor(p: Principal = Depends(principal_dep)) -> Principal:
-    """Owner always allowed; Admin allowed only when providers.admin_credentials.enabled is ON."""
+    """Owner always allowed; Member allowed only when providers.admin_credentials.enabled is ON."""
     if p.role == "owner":
         return p
-    if p.role == "admin" and await flag_enabled("providers.admin_credentials.enabled"):
+    if p.role == "member" and await flag_enabled("providers.admin_credentials.enabled"):
         return p
     raise HTTPException(
         403,
@@ -364,7 +364,7 @@ async def delete_credential(
 async def test_credential(
     credential_id: int,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     row = await pool.fetchrow(
@@ -611,7 +611,7 @@ async def set_chain(
     category: str,
     body: ChainIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Legacy endpoint. Writes the workspace + mode-agnostic chain for the category."""
     await _upsert_chain_v2(
@@ -672,7 +672,7 @@ async def list_chain_v2(
 async def upsert_chain_v2(
     body: ChainV2In,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Replace the chain at (scope, scope_id, content_mode, pipeline_mode, category)."""
     await _upsert_chain_v2(
@@ -700,7 +700,7 @@ async def delete_chain_v2(
     content_mode: str | None = None,
     pipeline_mode: str = "production",
     request: Request = None,  # type: ignore[assignment]
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Remove an override layer so resolution falls through to the next layer up."""
     pool = await get_pool()
@@ -798,7 +798,7 @@ def _validate_model(category: str, provider_name: str, model: str) -> None:
 async def set_default_fallback(
     credential_id: int,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Mark this credential as the always-tried-last fallback for its category.
 
@@ -836,7 +836,7 @@ async def set_default_fallback(
 async def clear_default_fallback(
     credential_id: int,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Unset the default-fallback flag on this credential."""
     pool = await get_pool()
@@ -1174,7 +1174,7 @@ async def setup_checklist(_: Principal = Depends(principal_dep)):
 @router.post("/health/probe-all")
 async def probe_all_credentials(
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Fan-out health check on all enabled credentials. Returns summary."""
     pool = await get_pool()
@@ -1262,7 +1262,7 @@ async def upsert_route(
     category: str,
     body: RouteIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     row = await pool.fetchrow(
@@ -1326,7 +1326,7 @@ async def list_quotas(
 async def create_quota(
     body: QuotaIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     qid = await pool.fetchval(
@@ -1352,7 +1352,7 @@ async def update_quota(
     quota_id: int,
     body: QuotaIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     res = await pool.execute(
@@ -1384,7 +1384,7 @@ class SandboxRunIn(BaseModel):
 async def sandbox_run(
     body: SandboxRunIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Run a test inference against a specific credential and return the output."""
     pool = await get_pool()
@@ -1517,7 +1517,7 @@ async def set_credential_enabled(
     credential_id: int,
     body: EnabledIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Master switch for a credential. Disabled credentials are skipped
     by the resolver across every scope/mode."""
@@ -1543,7 +1543,7 @@ async def set_chain_entry_enabled(
     chain_entry_id: int,
     body: EnabledIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Per-chain-entry switch. Keeps position + ordering, but the
     resolver skips this entry while disabled."""

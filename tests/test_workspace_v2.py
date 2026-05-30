@@ -97,7 +97,7 @@ class TestPlanLimits:
         pool.execute = AsyncMock(return_value="INSERT 0 1")
 
         actor = _make_principal(role="owner")
-        body = InviteIn(email="anyone@test.com", role="editor")
+        body = InviteIn(email="anyone@test.com", role="member")
         req = MagicMock()
 
         with _pool_ctx(pool), \
@@ -121,7 +121,7 @@ class TestLastOwnerProtection:
         pool.fetchval.side_effect = ["owner", 1]  # current_role, owner_count
 
         actor = _make_principal(role="owner")
-        body = MemberRolePatch(role="admin")
+        body = MemberRolePatch(role="member")
         req = MagicMock()
 
         with _pool_ctx(pool):
@@ -141,7 +141,7 @@ class TestLastOwnerProtection:
         pool.execute = AsyncMock(return_value="UPDATE 1")
 
         actor = _make_principal(role="owner")
-        body = MemberRolePatch(role="admin")
+        body = MemberRolePatch(role="member")
         req = MagicMock()
 
         with _pool_ctx(pool), \

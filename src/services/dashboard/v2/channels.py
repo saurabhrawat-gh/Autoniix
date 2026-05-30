@@ -182,7 +182,7 @@ def _completeness(profile: dict) -> int:
 async def create_channel(
     body: ChannelCreate,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     channel_id = body.channel_id or _new_channel_id(body.channel_name)
@@ -402,7 +402,7 @@ async def patch_channel(
     channel_id: str,
     body: ChannelPatch,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     updates = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
     if not updates:
@@ -429,7 +429,7 @@ async def upsert_profile(
     channel_id: str,
     body: dict,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     payload = body.get("payload") or {}
@@ -460,7 +460,7 @@ async def upsert_profile(
 @router.post("/{channel_id}/pillars")
 async def add_pillar(
     channel_id: str, body: PillarIn, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     pid = await pool.fetchval(
@@ -477,7 +477,7 @@ async def add_pillar(
 @router.put("/{channel_id}/pillars/{pillar_id}")
 async def update_pillar(
     channel_id: str, pillar_id: int, body: PillarIn, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     res = await pool.execute(
@@ -497,7 +497,7 @@ async def update_pillar(
 @router.delete("/{channel_id}/pillars/{pillar_id}")
 async def delete_pillar(
     channel_id: str, pillar_id: int, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     res = await pool.execute(
@@ -515,7 +515,7 @@ async def delete_pillar(
 @router.post("/{channel_id}/topic-rules")
 async def add_topic_rule(
     channel_id: str, body: TopicRuleIn, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     rid = await pool.fetchval(
@@ -531,7 +531,7 @@ async def add_topic_rule(
 @router.delete("/{channel_id}/topic-rules/{rule_id}")
 async def delete_topic_rule(
     channel_id: str, rule_id: int, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     res = await pool.execute(
@@ -549,7 +549,7 @@ async def delete_topic_rule(
 @router.post("/{channel_id}/references")
 async def add_reference(
     channel_id: str, body: ReferenceIn, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     rid = await pool.fetchval(
@@ -566,7 +566,7 @@ async def add_reference(
 @router.delete("/{channel_id}/references/{ref_id}")
 async def delete_reference(
     channel_id: str, ref_id: int, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     res = await pool.execute(
@@ -583,7 +583,7 @@ async def delete_reference(
 @router.post("/{channel_id}/memory")
 async def add_memory(
     channel_id: str, body: MemoryIn, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     mid = await pool.fetchval(
@@ -600,7 +600,7 @@ async def add_memory(
 @router.post("/drafts")
 async def create_draft(
     body: DraftIn,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     did = await pool.fetchval(
@@ -614,7 +614,7 @@ async def create_draft(
 @router.put("/drafts/{draft_id}")
 async def save_draft(
     draft_id: int, body: DraftIn,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     res = await pool.execute(
@@ -631,7 +631,7 @@ async def save_draft(
 @router.get("/drafts/{draft_id}")
 async def get_draft(
     draft_id: int,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     row = await pool.fetchrow(
@@ -827,7 +827,7 @@ async def _dashboard_stats_impl(_: Principal):
 @router.put("/{channel_id}/enable")
 async def enable_channel(
     channel_id: str, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     res = await pool.execute(
@@ -843,7 +843,7 @@ async def enable_channel(
 @router.put("/{channel_id}/disable")
 async def disable_channel(
     channel_id: str, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     res = await pool.execute(
@@ -859,7 +859,7 @@ async def disable_channel(
 @router.put("/{channel_id}/archive")
 async def archive_channel(
     channel_id: str, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     res = await pool.execute(
@@ -875,7 +875,7 @@ async def archive_channel(
 @router.put("/{channel_id}/restore")
 async def restore_channel(
     channel_id: str, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     res = await pool.execute(
@@ -892,7 +892,7 @@ async def restore_channel(
 @router.post("/{channel_id}/clone")
 async def clone_channel(
     channel_id: str, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Proxy to legacy clone endpoint (Temporal-aware)."""
     import httpx
@@ -950,7 +950,7 @@ async def trigger_channel(
     channel_id: str,
     body: TriggerIn,
     request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Proxy trigger to the legacy BFF which handles Temporal start + budget checks."""
     import httpx
@@ -987,7 +987,7 @@ async def trigger_channel(
 @router.post("/{channel_id}/jobs/{content_id}/pause")
 async def pause_job(
     channel_id: str, content_id: str, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     import httpx
     token = request.headers.get("Authorization", "")
@@ -1006,7 +1006,7 @@ async def pause_job(
 @router.post("/{channel_id}/jobs/{content_id}/resume")
 async def resume_job(
     channel_id: str, content_id: str, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     import httpx
     token = request.headers.get("Authorization", "")
@@ -1025,7 +1025,7 @@ async def resume_job(
 @router.post("/{channel_id}/jobs/{content_id}/stop")
 async def stop_job(
     channel_id: str, content_id: str, request: Request,
-    actor: Principal = Depends(require_role("owner", "admin", "editor")),
+    actor: Principal = Depends(require_role("owner", "member")),
 ):
     import httpx
     token = request.headers.get("Authorization", "")
