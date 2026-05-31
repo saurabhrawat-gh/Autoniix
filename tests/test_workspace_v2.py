@@ -42,8 +42,10 @@ class TestPlanLimits:
         from tests.conftest import FakePool
 
         pool = FakePool()
+        # Plan lookup is outside the advisory-lock transaction (pool.fetchrow)
         pool.fetchrow.side_effect = [FakeRecord(plan="starter")]
-        pool.fetchval.side_effect = [3, 0]  # member_count=3, pending=0
+        # Inside transaction on conn: member_count=3, pending=0 → 402, no further calls
+        pool.conn.fetchval.side_effect = [3, 0]
 
         actor = _make_principal(role="owner")
         body = InviteIn(email="newuser@test.com", role="viewer")
@@ -62,14 +64,17 @@ class TestPlanLimits:
         from tests.conftest import FakePool
 
         pool = FakePool()
+        # pool.fetchrow: plan lookup (outside lock); slack integration (outside lock)
         pool.fetchrow.side_effect = [
             FakeRecord(plan="starter"),  # plan lookup
-            None,                        # no existing member
-            None,                        # no slack integration
+            None,                        # slack integration (no webhook)
         ]
-        # member_count=2, pending=0, existing=None, pending_inv=None (no dup), inv_id=99
-        pool.fetchval.side_effect = [2, 0, None, None, 99]
-        pool.execute = AsyncMock(return_value="INSERT 0 1")
+        # conn.fetchval inside transaction:
+        #   [0] member_count=2, [1] pending_count=0 → passes limit
+        #   [2] existing member → None (no clash)
+        #   [3] pending_inv   → None (no dup)
+        #   [4] INSERT RETURNING id → 99
+        pool.conn.fetchval.side_effect = [2, 0, None, None, 99]
 
         actor = _make_principal(role="owner")
         body = InviteIn(email="newuser@test.com", role="viewer")
@@ -87,14 +92,14 @@ class TestPlanLimits:
         from tests.conftest import FakePool
 
         pool = FakePool()
+        # pool.fetchrow: plan lookup; slack integration
         pool.fetchrow.side_effect = [
             FakeRecord(plan="enterprise"),  # plan lookup
-            None,                           # no existing member
-            None,                           # no slack integration
+            None,                           # slack integration (no webhook)
         ]
-        # No limit check → only: existing=None, pending_inv=None (no dup), inv_id=99
-        pool.fetchval.side_effect = [None, None, 99]
-        pool.execute = AsyncMock(return_value="INSERT 0 1")
+        # conn.fetchval inside transaction (no limit check for enterprise):
+        #   [0] existing member → None, [1] pending_inv → None, [2] INSERT RETURNING → 99
+        pool.conn.fetchval.side_effect = [None, None, 99]
 
         actor = _make_principal(role="owner")
         body = InviteIn(email="anyone@test.com", role="member")
