@@ -759,55 +759,66 @@ async def create_invite(
     if body.role not in VALID_INVITE_ROLES:
         raise HTTPException(400, f"Invalid role. Choose from: {', '.join(sorted(VALID_INVITE_ROLES))}")
     pool = await get_pool()
-    # Plan limit check
+    # Read plan outside the lock — idempotent, no mutation.
     ws_row = await pool.fetchrow(
         "SELECT plan FROM workspaces WHERE id=$1", actor.workspace_id
     )
     plan = (ws_row["plan"] if ws_row else "starter") or "starter"
     limit = _PLAN_MEMBER_LIMITS.get(plan)  # None = unlimited
-    if limit is not None:
-        member_count = await pool.fetchval(
-            "SELECT COUNT(*) FROM workspace_members WHERE workspace_id=$1",
-            actor.workspace_id,
-        ) or 0
-        pending_count = await pool.fetchval(
-            "SELECT COUNT(*) FROM workspace_invitations WHERE workspace_id=$1 AND accepted_at IS NULL AND expires_at > NOW()",
-            actor.workspace_id,
-        ) or 0
-        if (member_count + pending_count) >= limit:
-            raise HTTPException(
-                402,
-                f"Plan limit reached: {plan!r} plan allows {limit} members "
-                f"({member_count} current + {pending_count} pending invites). "
-                "Upgrade your plan to invite more members.",
-            )
-    # Check member doesn't already exist
-    existing = await pool.fetchval(
-        """SELECT wm.user_id FROM workspace_members wm
-             JOIN users u ON u.id = wm.user_id
-            WHERE wm.workspace_id=$1 AND lower(u.email)=lower($2)""",
-        actor.workspace_id, body.email,
-    )
-    if existing:
-        raise HTTPException(409, "User is already a member of this workspace")
-    # Check no pending invite already exists for this email
-    pending_inv = await pool.fetchval(
-        """SELECT id FROM workspace_invitations
-            WHERE workspace_id=$1 AND lower(email)=lower($2)
-              AND accepted_at IS NULL AND expires_at > NOW()""",
-        actor.workspace_id, body.email,
-    )
-    if pending_inv:
-        raise HTTPException(409, "A pending invitation already exists for this email address. Revoke it first or wait for it to expire.")
+
+    # AE-277 race-condition hotfix: take an advisory transaction lock keyed on
+    # workspace_id so that concurrent invite requests for the same workspace are
+    # serialized.  This prevents multiple requests from both seeing
+    # (current + pending) < limit and inserting more rows than the plan allows.
+    # pg_advisory_xact_lock is released automatically when the transaction ends.
     raw = secrets.token_urlsafe(32)
     h = hashlib.sha256(raw.encode()).hexdigest()
     expires = datetime.utcnow() + timedelta(days=body.expires_days)
-    inv_id = await pool.fetchval(
-        """INSERT INTO workspace_invitations
-               (workspace_id, email, role, token_hash, invited_by, expires_at)
-           VALUES ($1,$2,$3,$4,$5,$6) RETURNING id""",
-        actor.workspace_id, body.email.lower(), body.role, h, actor.user_id, expires,
-    )
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute("SELECT pg_advisory_xact_lock($1)", actor.workspace_id)
+            # Plan limit check (inside lock — counts are now authoritative)
+            if limit is not None:
+                member_count = await conn.fetchval(
+                    "SELECT COUNT(*) FROM workspace_members WHERE workspace_id=$1",
+                    actor.workspace_id,
+                ) or 0
+                pending_count = await conn.fetchval(
+                    "SELECT COUNT(*) FROM workspace_invitations "
+                    "WHERE workspace_id=$1 AND accepted_at IS NULL AND expires_at > NOW()",
+                    actor.workspace_id,
+                ) or 0
+                if (member_count + pending_count) >= limit:
+                    raise HTTPException(
+                        402,
+                        f"Plan limit reached: {plan!r} plan allows {limit} members "
+                        f"({member_count} current + {pending_count} pending invites). "
+                        "Upgrade your plan to invite more members.",
+                    )
+            # Check member doesn't already exist
+            existing = await conn.fetchval(
+                """SELECT wm.user_id FROM workspace_members wm
+                     JOIN users u ON u.id = wm.user_id
+                    WHERE wm.workspace_id=$1 AND lower(u.email)=lower($2)""",
+                actor.workspace_id, body.email,
+            )
+            if existing:
+                raise HTTPException(409, "User is already a member of this workspace")
+            # Check no pending invite already exists for this email
+            pending_inv = await conn.fetchval(
+                """SELECT id FROM workspace_invitations
+                    WHERE workspace_id=$1 AND lower(email)=lower($2)
+                      AND accepted_at IS NULL AND expires_at > NOW()""",
+                actor.workspace_id, body.email,
+            )
+            if pending_inv:
+                raise HTTPException(409, "A pending invitation already exists for this email address. Revoke it first or wait for it to expire.")
+            inv_id = await conn.fetchval(
+                """INSERT INTO workspace_invitations
+                       (workspace_id, email, role, token_hash, invited_by, expires_at)
+                   VALUES ($1,$2,$3,$4,$5,$6) RETURNING id""",
+                actor.workspace_id, body.email.lower(), body.role, h, actor.user_id, expires,
+            )
     await audit(actor=actor, action="invite.create", target_type="workspace_invitation",
                 target_id=str(inv_id), after={"email": body.email, "role": body.role}, request=request)
     frontend_url = os.getenv("FRONTEND_URL", "")

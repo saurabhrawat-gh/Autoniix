@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -39,6 +40,21 @@ class FakeRecord(dict):
             raise AttributeError(key)
 
 
+class FakeConn:
+    """Asyncpg connection mock — yielded by FakePool.acquire()."""
+
+    def __init__(self):
+        self.execute = AsyncMock(return_value=None)
+        self.executemany = AsyncMock()
+        self.fetchrow = AsyncMock(return_value=None)
+        self.fetchval = AsyncMock(return_value=0)
+        self.fetch = AsyncMock(return_value=[])
+
+    @asynccontextmanager
+    async def transaction(self):
+        yield self
+
+
 class FakePool:
     """Minimal asyncpg pool mock."""
 
@@ -48,6 +64,11 @@ class FakePool:
         self.fetchrow = AsyncMock(return_value=None)
         self.fetchval = AsyncMock(return_value=0)
         self.fetch = AsyncMock(return_value=[])
+        self.conn = FakeConn()
+
+    @asynccontextmanager
+    async def acquire(self):
+        yield self.conn
 
 
 @pytest.fixture
