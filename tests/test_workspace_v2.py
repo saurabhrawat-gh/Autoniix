@@ -237,3 +237,176 @@ class TestWorkspaceIntegrations:
             result = await update_integrations(body=body, request=req, actor=actor)
         assert result["status"] == "ok"
         pool.execute.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# AE-276 regression — Cross-workspace entity_settings tenant isolation
+# ---------------------------------------------------------------------------
+
+class TestEntitySettingsTenantIsolation:
+    """Regression: ``GET /workspace/settings`` and ``PUT /workspace/settings``
+    must reject any ``scope_id`` whose owning workspace does not match the
+    caller's workspace.  Bug AE-276."""
+
+    @pytest.mark.asyncio
+    async def test_get_settings_rejects_foreign_workspace_scope_id(self):
+        """READ leak fix: caller in workspace 1 cannot read workspace 2's settings."""
+        from src.services.dashboard.v2.workspace import get_settings
+        from tests.conftest import FakePool
+
+        pool = FakePool()
+        actor = _make_principal(role="owner", workspace_id=1)
+
+        with _pool_ctx(pool):
+            with pytest.raises(HTTPException) as exc_info:
+                await get_settings(scope="workspace", scope_id="2", p=actor)
+        assert exc_info.value.status_code == 403
+        assert "cross-workspace" in exc_info.value.detail.lower()
+        # Ensure no SELECT against entity_settings happened — the gate fires first.
+        pool.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_put_settings_rejects_foreign_workspace_scope_id(self):
+        """WRITE leak fix (more severe): caller in workspace 1 cannot upsert into
+        workspace 2's entity_settings — verifies the audit + INSERT never runs."""
+        from src.services.dashboard.v2.workspace import upsert_setting, EntitySettingUpsert
+        from tests.conftest import FakePool
+
+        pool = FakePool()
+        body = EntitySettingUpsert(
+            scope="workspace", scope_id="999", key="qa_canary",
+            value={"tampered": True}, locked=False,
+        )
+        actor = _make_principal(role="owner", workspace_id=1)
+        req = MagicMock()
+
+        with _pool_ctx(pool), patch(f"{_WS_MODULE}.audit", new_callable=AsyncMock) as audit_mock:
+            with pytest.raises(HTTPException) as exc_info:
+                await upsert_setting(body=body, request=req, actor=actor)
+        assert exc_info.value.status_code == 403
+        # Critical: no DB write, no audit row.  If the assertion fires the leak
+        # has been re-introduced.
+        pool.execute.assert_not_called()
+        audit_mock.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_settings_allows_own_workspace_scope_id(self):
+        """No regression: same-workspace scope_id continues to work."""
+        from src.services.dashboard.v2.workspace import get_settings
+        from tests.conftest import FakePool
+
+        pool = FakePool()
+        pool.fetch = AsyncMock(return_value=[
+            FakeRecord(key="onboarding", value={"completed": True}, locked=False),
+        ])
+        actor = _make_principal(role="owner", workspace_id=42)
+
+        with _pool_ctx(pool):
+            result = await get_settings(scope="workspace", scope_id="42", p=actor)
+        assert len(result["data"]) == 1
+        assert result["data"][0]["key"] == "onboarding"
+
+    @pytest.mark.asyncio
+    async def test_put_settings_allows_own_workspace_scope_id(self):
+        """No regression: same-workspace upsert continues to work."""
+        from src.services.dashboard.v2.workspace import upsert_setting, EntitySettingUpsert
+        from tests.conftest import FakePool
+
+        pool = FakePool()
+        pool.execute = AsyncMock(return_value="INSERT 0 1")
+        body = EntitySettingUpsert(
+            scope="workspace", scope_id="42", key="onboarding",
+            value={"completed": True}, locked=False,
+        )
+        actor = _make_principal(role="owner", workspace_id=42)
+        req = MagicMock()
+
+        with _pool_ctx(pool), patch(f"{_WS_MODULE}.audit", new_callable=AsyncMock):
+            result = await upsert_setting(body=body, request=req, actor=actor)
+        assert result["status"] == "ok"
+        pool.execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "scope,owner_workspace_id",
+        [
+            ("brand", 2),
+            ("series", 2),
+            ("campaign", 2),
+            ("project", 2),
+            ("channel", 2),
+        ],
+        ids=["brand", "series", "campaign", "project", "channel"],
+    )
+    async def test_get_settings_rejects_foreign_owner_for_all_tenant_scopes(
+        self, scope: str, owner_workspace_id: int,
+    ):
+        """For every non-workspace tenant scope, foreign-owned entity → 403.
+
+        The handler resolves the entity's owning workspace_id via JOIN and
+        compares to the caller's workspace.  Caller is in WS 1; entity is
+        owned by WS 2; expected 403.
+        """
+        from src.services.dashboard.v2.workspace import get_settings
+        from tests.conftest import FakePool
+
+        pool = FakePool()
+        # Ownership lookup returns the OTHER workspace's id
+        pool.fetchval = AsyncMock(return_value=owner_workspace_id)
+        actor = _make_principal(role="owner", workspace_id=1)
+        # channel uses TEXT id; others use stringified int — both work.
+        scope_id = "UCfakeChannelId" if scope == "channel" else "777"
+
+        with _pool_ctx(pool):
+            with pytest.raises(HTTPException) as exc_info:
+                await get_settings(scope=scope, scope_id=scope_id, p=actor)
+        assert exc_info.value.status_code == 403
+        # entity_settings SELECT must never run when ownership check fails
+        pool.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_settings_returns_404_for_nonexistent_entity(self):
+        """If the entity doesn't exist at all, 404 (not 403 — distinct contract)."""
+        from src.services.dashboard.v2.workspace import get_settings
+        from tests.conftest import FakePool
+
+        pool = FakePool()
+        pool.fetchval = AsyncMock(return_value=None)  # entity doesn't exist
+        actor = _make_principal(role="owner", workspace_id=1)
+
+        with _pool_ctx(pool):
+            with pytest.raises(HTTPException) as exc_info:
+                await get_settings(scope="brand", scope_id="9999", p=actor)
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_get_settings_invalid_scope_id_for_int_scope_returns_400(self):
+        """Non-numeric scope_id for an int-keyed scope returns 400, not 500."""
+        from src.services.dashboard.v2.workspace import get_settings
+        from tests.conftest import FakePool
+
+        pool = FakePool()
+        actor = _make_principal(role="owner", workspace_id=1)
+
+        with _pool_ctx(pool):
+            with pytest.raises(HTTPException) as exc_info:
+                await get_settings(scope="brand", scope_id="not-an-int", p=actor)
+        assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_system_scope_passes_through_without_tenant_check(self):
+        """``scope='system'`` is platform-wide, not per-tenant — the ownership
+        gate must skip it.  Caller permission is the only authorization layer."""
+        from src.services.dashboard.v2.workspace import get_settings
+        from tests.conftest import FakePool
+
+        pool = FakePool()
+        pool.fetch = AsyncMock(return_value=[])
+        actor = _make_principal(role="owner", workspace_id=1)
+
+        with _pool_ctx(pool):
+            # Should NOT raise: system scope bypasses workspace ownership check.
+            result = await get_settings(scope="system", scope_id="any", p=actor)
+        assert result == {"data": []}
+        # No fetchval (no ownership lookup) for system scope
+        pool.fetchval.assert_not_called()
