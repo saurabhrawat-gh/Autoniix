@@ -904,13 +904,105 @@ async def update_integrations(
 
 # Entity settings
 
+# Tenant-isolation hotfix (AE-276): every entity_settings access must verify
+# that the (scope, scope_id) pair belongs to the caller's workspace.  The
+# previous implementation accepted any scope_id and exposed both READ and
+# WRITE to other workspaces' settings — a tenant-isolation breach.
+
+_SETTINGS_TENANT_SCOPES: frozenset[str] = frozenset(
+    {"workspace", "brand", "channel", "series", "campaign", "project"}
+)
+_SETTINGS_VALID_SCOPES: frozenset[str] = _SETTINGS_TENANT_SCOPES | {"system"}
+
+
+async def _assert_settings_scope_in_workspace(
+    pool: Any, scope: str, scope_id: str, workspace_id: int
+) -> None:
+    """Raise 403 unless ``(scope, scope_id)`` belongs to ``workspace_id``.
+
+    For ``scope='system'`` no per-tenant check applies — system settings are
+    cross-workspace by design (caller permission is the only gate).
+
+    Returns silently on success; raises ``HTTPException`` on:
+      * 400 — scope unrecognised, or scope_id has wrong type for the scope
+      * 403 — entity belongs to a different workspace
+      * 404 — entity does not exist
+    """
+    if scope == "system":
+        return
+    if scope not in _SETTINGS_TENANT_SCOPES:
+        raise HTTPException(
+            400,
+            f"Invalid scope. Must be one of: {', '.join(sorted(_SETTINGS_VALID_SCOPES))}",
+        )
+
+    # Workspace scope: scope_id is the workspace id itself.
+    if scope == "workspace":
+        try:
+            target_ws = int(scope_id)
+        except (TypeError, ValueError):
+            raise HTTPException(400, "Invalid scope_id (expected integer workspace id)")
+        if target_ws != workspace_id:
+            raise HTTPException(403, "Cross-workspace access denied")
+        return
+
+    # Channel scope: channels.channel_id is a TEXT primary key (e.g. 'UC...'),
+    # so we look it up directly.
+    if scope == "channel":
+        owner = await pool.fetchval(
+            "SELECT workspace_id FROM channels WHERE channel_id=$1", scope_id
+        )
+        if owner is None:
+            raise HTTPException(404, "channel not found")
+        if owner != workspace_id:
+            raise HTTPException(403, "Cross-workspace access denied")
+        return
+
+    # Other tenant scopes use BIGINT primary keys; resolve workspace_id via the
+    # appropriate JOIN where the table doesn't carry workspace_id directly.
+    try:
+        sid = int(scope_id)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Invalid scope_id (expected integer)")
+
+    if scope == "brand":
+        sql = "SELECT workspace_id FROM brands WHERE id=$1"
+    elif scope == "series":
+        sql = (
+            "SELECT c.workspace_id FROM series s "
+            "JOIN channels c ON c.channel_id = s.channel_id "
+            "WHERE s.id=$1"
+        )
+    elif scope == "campaign":
+        sql = (
+            "SELECT b.workspace_id FROM campaigns c "
+            "JOIN brands b ON b.id = c.brand_id "
+            "WHERE c.id=$1"
+        )
+    elif scope == "project":
+        sql = (
+            "SELECT ch.workspace_id FROM projects p "
+            "JOIN channels ch ON ch.channel_id = p.channel_id "
+            "WHERE p.id=$1"
+        )
+    else:  # pragma: no cover — guarded by the membership check above
+        raise HTTPException(400, f"Invalid scope: {scope}")
+
+    owner = await pool.fetchval(sql, sid)
+    if owner is None:
+        raise HTTPException(404, f"{scope} not found")
+    if owner != workspace_id:
+        raise HTTPException(403, "Cross-workspace access denied")
+
+
 @router.get("/settings")
 async def get_settings(
     scope: str = Query(...),
     scope_id: str = Query(...),
-    _: Principal = Depends(principal_dep),
+    p: Principal = Depends(principal_dep),
 ):
     pool = await get_pool()
+    await _assert_settings_scope_in_workspace(pool, scope, scope_id, p.workspace_id)
     rows = await pool.fetch(
         "SELECT key, value, locked FROM entity_settings WHERE scope=$1 AND scope_id=$2",
         scope, scope_id,
@@ -925,9 +1017,12 @@ async def upsert_setting(
     actor: Principal = Depends(require_permission("workspace.settings.edit")),
 ):
     pool = await get_pool()
-    VALID_SCOPES = {"system","workspace","brand","channel","series","campaign","project"}
-    if body.scope not in VALID_SCOPES:
-        raise HTTPException(400, f"Invalid scope. Must be one of: {', '.join(sorted(VALID_SCOPES))}")
+    if body.scope not in _SETTINGS_VALID_SCOPES:
+        raise HTTPException(
+            400,
+            f"Invalid scope. Must be one of: {', '.join(sorted(_SETTINGS_VALID_SCOPES))}",
+        )
+    await _assert_settings_scope_in_workspace(pool, body.scope, body.scope_id, actor.workspace_id)
     await pool.execute(
         """INSERT INTO entity_settings (scope, scope_id, key, value, locked)
            VALUES ($1,$2,$3,$4::jsonb,$5)
