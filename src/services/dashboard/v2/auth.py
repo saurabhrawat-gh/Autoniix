@@ -210,12 +210,19 @@ async def register(body: RegisterIn, request: Request):
             raise HTTPException(409, "An account with this email already exists")
         async with conn.transaction():
             verify_token = secrets.token_urlsafe(32)
+            # Bug AE-264 / #308: only the very first user in the system bootstraps
+            # as global owner. Every subsequent self-registrant defaults to viewer
+            # so that random visitors to the public /register form cannot grant
+            # themselves admin permissions. An existing owner must explicitly
+            # promote them via PUT /api/v2/users/{id}/role.
+            user_count = await conn.fetchval("SELECT COUNT(*) FROM users")
+            global_role = "owner" if (user_count or 0) == 0 else "viewer"
             uid = await conn.fetchval(
                 """INSERT INTO users (email, display_name, password_hash, role,
                                       email_verify_token, email_verified)
                    VALUES ($1,$2,$3,$4,$5,TRUE) RETURNING id""",
                 body.email.lower(), body.display_name, _hash_pw(body.password),
-                "owner", verify_token,
+                global_role, verify_token,
             )
             ws_name = body.workspace_name.strip()
             ws_slug = body.workspace_name.strip().lower().replace(" ", "-")[:60]
