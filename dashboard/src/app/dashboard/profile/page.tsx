@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { authApi } from '@/lib/api-v2';
 import { useToast } from '@/lib/toast';
-import { UserCircle, Lock, ShieldCheck, Eye, EyeOff, Check } from '@/lib/components/Icon';
+import { UserCircle, Lock, ShieldCheck, Eye, EyeOff, Check, Trash2 } from '@/lib/components/Icon';
 import { Button, Input, Label } from '@/lib/ui';
 
 interface UserData {
@@ -31,6 +31,11 @@ export default function ProfilePage() {
   const [pwBusy, setPwBusy] = useState(false);
   const [pwErr, setPwErr] = useState<string | null>(null);
 
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
+  const [showDeleteZone, setShowDeleteZone] = useState(false);
+
   useEffect(() => {
     authApi.me().then((res: any) => {
       const d = res?.data ?? res;
@@ -50,6 +55,20 @@ export default function ProfilePage() {
       showToast(e?.message || 'Failed to update name', 'error');
     } finally {
       setNameBusy(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    setDeleteErr(null);
+    if (!deleteConfirm) { setDeleteErr('Enter your password to confirm'); return; }
+    setDeleteBusy(true);
+    try {
+      await authApi.deleteAccount(deleteConfirm);
+      window.location.href = '/login?reason=account_deleted';
+    } catch (e: any) {
+      setDeleteErr(e?.message || 'Failed to delete account');
+    } finally {
+      setDeleteBusy(false);
     }
   }
 
@@ -242,6 +261,53 @@ export default function ProfilePage() {
           </>
         )}
       </section>
+
+      {/* Danger Zone */}
+      {!isLegacy && (
+        <section className="border border-status-error/30 rounded-xl overflow-hidden">
+          <div
+            className="flex items-center justify-between px-5 py-3 bg-status-error/5 cursor-pointer select-none"
+            onClick={() => { setShowDeleteZone(v => !v); setDeleteErr(null); setDeleteConfirm(''); }}
+          >
+            <div className="flex items-center gap-2">
+              <Trash2 size={15} className="text-status-error" />
+              <h2 className="text-sm font-semibold text-status-error">Danger Zone</h2>
+            </div>
+            <span className="text-xs text-content-tertiary">{showDeleteZone ? 'collapse' : 'expand'}</span>
+          </div>
+          {showDeleteZone && (
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-content-secondary">
+                Deleting your account is <strong>permanent and cannot be undone</strong>. Your account will be anonymised, all sessions revoked, and workspace memberships removed. Content you created remains.
+              </p>
+              {deleteErr && (
+                <div className="text-sm text-status-error bg-status-error/10 border border-status-error/20 rounded-lg px-3 py-2">{deleteErr}</div>
+              )}
+              <div className="space-y-1.5">
+                <Label htmlFor="delete-pw">Confirm with your password</Label>
+                <Input
+                  id="delete-pw"
+                  type="password"
+                  value={deleteConfirm}
+                  onChange={e => setDeleteConfirm(e.target.value)}
+                  placeholder="Enter your password"
+                  onKeyDown={e => e.key === 'Enter' && handleDeleteAccount()}
+                />
+              </div>
+              <Button
+                variant="outline"
+                className="text-status-error border-status-error/40 hover:bg-status-error/10"
+                onClick={handleDeleteAccount}
+                disabled={!deleteConfirm}
+                loading={deleteBusy}
+                leftIcon={<Trash2 size={14} />}
+              >
+                Permanently delete my account
+              </Button>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Account meta */}
       <section className="bg-surface-1 border border-border rounded-xl p-5 space-y-3">
