@@ -11,12 +11,14 @@
 --
 -- Related: AE-279 (JWT encodes workspace role not global role)
 
--- ── 1. Backfill existing data ─────────────────────────────────────────────────
+-- ── 1. Drop old CHECK constraint first (backfill would violate it otherwise) ──
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_chk;
+
+-- ── 2. Backfill existing data ─────────────────────────────────────────────────
 UPDATE users SET role = 'superadmin' WHERE role = 'owner';
 UPDATE users SET role = 'user' WHERE role IN ('member', 'viewer');
 
--- ── 2. Replace CHECK constraint on users table ────────────────────────────────
-ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_chk;
+-- ── 3. Add new CHECK constraint ───────────────────────────────────────────────
 ALTER TABLE users ADD CONSTRAINT users_role_chk
     CHECK (role IN ('superadmin', 'user'));
 
