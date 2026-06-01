@@ -12,7 +12,7 @@ const WS_ROLE_BADGE: Record<string, string> = {
   viewer: 'bg-surface-2 text-content-secondary',
 };
 const GLOBAL_BADGE: Record<string, string> = {
-  superadmin: 'bg-rose-500/15 text-rose-600 dark:text-rose-400',
+  superadmin: 'bg-status-error/15 text-status-error',
   user:       'bg-surface-2 text-content-secondary',
 };
 
@@ -75,7 +75,7 @@ export default function Users() {
                   {/* Avatar */}
                   <div className={`size-8 rounded-full text-white text-xs flex items-center justify-center shrink-0
                     ${u.global_role === 'superadmin'
-                      ? 'bg-gradient-to-br from-rose-400 to-orange-400'
+                      ? 'bg-gradient-to-br from-fuchsia-400 to-pink-400'
                       : 'bg-gradient-to-br from-indigo-400 to-fuchsia-400'}`}>
                     {(u.email || '?').slice(0, 1).toUpperCase()}
                   </div>
