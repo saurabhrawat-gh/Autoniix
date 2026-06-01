@@ -223,7 +223,7 @@ export default function Teams() {
                       Invited as {roleLabel(inv.role)} · expires {inv.expires_at ? new Date(inv.expires_at).toLocaleDateString() : '—'}
                     </div>
                   </div>
-                  <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                  <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-status-warning/15 text-status-warning">
                     Pending
                   </span>
                   {isOwner && (
