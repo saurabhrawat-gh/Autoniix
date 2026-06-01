@@ -131,6 +131,7 @@ export {
   BarChart2,
   CheckSquare,
   UserCircle,
+  UserCheck,
   Lock,
   KeyRound,
   Mail,

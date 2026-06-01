@@ -84,6 +84,7 @@ async def _notify_slack(webhook_url: str, message: str) -> None:
 
 class WorkspacePatch(BaseModel):
     name: str | None = None
+    mode: str | None = None
     timezone: str | None = None
     monthly_budget_usd: float | None = None
     logo_url: str | None = None
@@ -202,7 +203,7 @@ class EntitySettingUpsert(BaseModel):
 async def get_workspace(p: Principal = Depends(principal_dep)):
     pool = await get_pool()
     row = await pool.fetchrow(
-        "SELECT id, name, slug, plan, billing_email, monthly_budget_usd, timezone, logo_url, settings, created_at, updated_at "
+        "SELECT id, name, slug, plan, mode, billing_email, monthly_budget_usd, timezone, logo_url, settings, created_at, updated_at "
         "FROM workspaces WHERE id = $1",
         p.workspace_id,
     )
@@ -223,6 +224,8 @@ async def update_workspace(
     updates = body.model_dump(exclude_unset=True)
     if not updates:
         return {"status": "noop"}
+    if "mode" in updates and updates["mode"] not in ("solo", "teams"):
+        raise HTTPException(400, "mode must be 'solo' or 'teams'")
     sets, vals = [], []
     for k, v in updates.items():
         sets.append(f"{k}=${len(vals)+1}" + ("::jsonb" if k == "settings" else ""))
@@ -759,10 +762,15 @@ async def create_invite(
     if body.role not in VALID_INVITE_ROLES:
         raise HTTPException(400, f"Invalid role. Choose from: {', '.join(sorted(VALID_INVITE_ROLES))}")
     pool = await get_pool()
-    # Read plan outside the lock — idempotent, no mutation.
+    # Read plan + mode outside the lock — idempotent, no mutation.
     ws_row = await pool.fetchrow(
-        "SELECT plan FROM workspaces WHERE id=$1", actor.workspace_id
+        "SELECT plan, mode FROM workspaces WHERE id=$1", actor.workspace_id
     )
+    if ws_row and ws_row.get("mode", "teams") == "solo":
+        raise HTTPException(
+            403,
+            "This workspace is in solo mode. Switch to teams mode in Workspace Settings before inviting members.",
+        )
     plan = (ws_row["plan"] if ws_row else "starter") or "starter"
     limit = _PLAN_MEMBER_LIMITS.get(plan)  # None = unlimited
 

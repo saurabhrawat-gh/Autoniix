@@ -27,9 +27,10 @@ class Principal:
     """Authenticated subject. ``user_id`` is None for legacy single-user."""
     user_id: int | None
     email: str | None
-    role: str
-    source: str  # 'legacy' | 'v2_jwt'
-    workspace_id: int = 1  # active workspace; 1 = default / legacy fallback
+    role: str          # workspace-scoped role: owner | member | viewer
+    source: str        # 'legacy' | 'v2_jwt'
+    workspace_id: int = 1          # active workspace; 1 = default / legacy fallback
+    global_role: str = 'user'      # platform-level role: superadmin | user
 
 
 def _jwt_secret() -> str:
@@ -75,6 +76,7 @@ async def principal_dep(
                 user_id=uid,
                 email=claims.get("email"),
                 role=claims.get("role", "viewer"),
+                global_role=claims.get("global_role", "user"),
                 workspace_id=wid,
                 source="v2_jwt",
             )
@@ -94,7 +96,7 @@ async def principal_dep(
         import time as _time
         expiry = _legacy._sessions.get(token)
         if expiry is not None and expiry >= _time.time():
-            return Principal(user_id=None, email=None, role="owner", workspace_id=1, source="legacy")
+            return Principal(user_id=None, email=None, role="owner", global_role="superadmin", workspace_id=1, source="legacy")
     except Exception:
         pass
 
@@ -102,12 +104,34 @@ async def principal_dep(
 
 
 def require_role(*roles: str):
-    """Dependency factory enforcing a role allowlist."""
+    """Dependency factory enforcing a workspace role allowlist."""
     allowed = set(roles)
 
     async def _checker(p: Principal = Depends(principal_dep)) -> Principal:
         if p.role not in allowed and p.role != "owner":
             raise HTTPException(status_code=403, detail=f"Role {p.role!r} not allowed")
+        return p
+
+    return _checker
+
+
+def require_global_role(*roles: str):
+    """Dependency factory enforcing a platform-level global role allowlist.
+
+    Global roles live on ``users.role`` and are encoded in the JWT ``global_role``
+    claim.  Valid values: ``superadmin`` | ``user``.  Legacy sessions are always
+    treated as ``superadmin``.
+    """
+    allowed = set(roles)
+
+    async def _checker(p: Principal = Depends(principal_dep)) -> Principal:
+        if p.source == "legacy":
+            return p  # legacy sessions bypass — always superadmin
+        if p.global_role not in allowed:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Global role {p.global_role!r} is not allowed for this operation",
+            )
         return p
 
     return _checker

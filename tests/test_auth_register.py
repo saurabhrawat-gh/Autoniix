@@ -1,14 +1,17 @@
 """Regression tests for POST /auth/register (Bug AE-264 / #308).
 
 Privilege escalation guard: only the very first user in the system bootstraps
-as global owner. Every subsequent self-registrant must default to ``viewer``
+as global superadmin. Every subsequent self-registrant must default to ``user``
 so that random visitors to the public ``/register`` form cannot grant
 themselves admin permissions.
 
+Global roles (users.role): superadmin | user  (renamed from owner|viewer — AE-284)
+Workspace roles (workspace_members.role): owner | member | viewer  (unchanged)
+
 Test cases:
-- TC-264-01: First user (empty users table) → users.role = 'owner'
-- TC-264-02: Second user (one existing user) → users.role = 'viewer'
-- TC-264-03: Nth user (many existing users) → users.role = 'viewer'
+- TC-264-01: First user (empty users table) → users.role = 'superadmin'
+- TC-264-02: Second user (one existing user) → users.role = 'user'
+- TC-264-03: Nth user (many existing users) → users.role = 'user'
 - TC-264-04: Duplicate email → 409 (no INSERT, no role assignment)
 - TC-264-05: workspace_members.role is always 'owner' for the new workspace
   the registrant just created (independent of global users.role).
@@ -107,8 +110,8 @@ def _workspace_member_role_arg(conn) -> str:
 @pytest.mark.asyncio
 async def test_first_user_registration_assigns_owner_role():
     """When the users table is empty, the first registrant bootstraps as
-    global owner. This is the only path that should ever produce role=owner
-    via the public /register form."""
+    global superadmin. This is the only path that should ever produce
+    role=superadmin via the public /register form."""
     from src.services.dashboard.v2.auth import register, RegisterIn
 
     pool, conn = _build_pool(existing_user_count=0)
@@ -121,8 +124,8 @@ async def test_first_user_registration_assigns_owner_role():
     with _pool_ctx(pool), patch("src.services.dashboard.v2._resend.send_email"):
         result = await register(body=body, request=_make_request())
 
-    assert _insert_role_arg(conn) == "owner", (
-        "First user must be granted global owner role"
+    assert _insert_role_arg(conn) == "superadmin", (
+        "First user must be granted global superadmin role"
     )
     assert result["status"] == "ok"
 
@@ -132,7 +135,7 @@ async def test_first_user_registration_assigns_owner_role():
 @pytest.mark.asyncio
 async def test_second_user_registration_assigns_viewer_role():
     """When at least one user already exists, every subsequent self-registrant
-    must default to viewer. This is the privilege-escalation guard."""
+    must default to user (global role). This is the privilege-escalation guard."""
     from src.services.dashboard.v2.auth import register, RegisterIn
 
     pool, conn = _build_pool(existing_user_count=1)
@@ -146,8 +149,8 @@ async def test_second_user_registration_assigns_viewer_role():
         await register(body=body, request=_make_request())
 
     role = _insert_role_arg(conn)
-    assert role == "viewer", (
-        f"Second registrant must be viewer (got {role!r}). "
+    assert role == "user", (
+        f"Second registrant must have global role 'user' (got {role!r}). "
         "Anything else is a privilege escalation regression."
     )
 
@@ -171,7 +174,7 @@ async def test_nth_user_registration_assigns_viewer_role(existing_count: int):
     with _pool_ctx(pool), patch("src.services.dashboard.v2._resend.send_email"):
         await register(body=body, request=_make_request())
 
-    assert _insert_role_arg(conn) == "viewer"
+    assert _insert_role_arg(conn) == "user"
 
 
 # ── TC-264-04 ──────────────────────────────────────────────────────────────
@@ -221,7 +224,7 @@ async def test_workspace_member_role_is_always_owner_for_own_workspace():
     with _pool_ctx(pool), patch("src.services.dashboard.v2._resend.send_email"):
         await register(body=body, request=_make_request())
 
-    # Global role: viewer (privilege guard)
-    assert _insert_role_arg(conn) == "viewer"
+    # Global role: user (privilege guard — renamed from viewer in AE-284)
+    assert _insert_role_arg(conn) == "user"
     # Workspace-scoped role for the brand-new workspace: owner (unchanged)
     assert _workspace_member_role_arg(conn) == "owner"
