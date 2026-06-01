@@ -212,8 +212,8 @@ class TestAcceptHappyPaths:
 
     @pytest.mark.asyncio
     async def test_ws_acc_04_brand_new_email_creates_user_with_viewer_platform_role(self):
-        """WS-ACC-04 + WS-ACC-19 — Brand-new email → INSERT users (role='viewer'),
-        INSERT workspace_members (role from invite)."""
+        """WS-ACC-04 + WS-ACC-19 — Brand-new email → INSERT users (role='user'),
+        INSERT workspace_members (role from invite). AE-284: viewer→user rename."""
         from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
 
         pool = FakeTxnPool()
@@ -243,16 +243,16 @@ class TestAcceptHappyPaths:
         assert result["role"] == "member"
 
         # Critical AE-264 regression assertion: the INSERT users SQL must hard-code
-        # role='viewer' (NOT use the invite's role).
+        # role='user' (platform role, NOT the invite's workspace role). AE-284: viewer→user.
         insert_user_calls = [
             c for c in pool.conn.fetchval.await_args_list
             if c.args and "INSERT INTO users" in c.args[0]
         ]
         assert len(insert_user_calls) == 1
         sql = insert_user_calls[0].args[0]
-        assert "'viewer'" in sql, (
+        assert "'user'" in sql, (
             "AE-264 regression: new user from accept-invite must be inserted with "
-            f"role='viewer' literal in the SQL. Got SQL:\n{sql}"
+            f"role='user' literal in the SQL. Got SQL:\n{sql}"
         )
         # And it must NOT pass the invite role as a SQL parameter for users.role:
         # the args after the SQL string are: email, display_name, password_hash, workspace_id
@@ -553,14 +553,14 @@ class TestAcceptErrorPaths:
 # ---------------------------------------------------------------------------
 
 class TestPrivilegeEscalationRegression:
-    """The platform-level ``users.role`` must NEVER be set to ``owner`` via
-    the accept-invite path — that's the AE-264 hotfix.  Workspace-level
-    role comes from the invite row; platform role is hard-coded ``viewer``."""
+    """The platform-level ``users.role`` must NEVER be set to ``owner`` or the
+    invite's workspace role via the accept-invite path — AE-264 hotfix.
+    Platform role is hard-coded ``user`` (renamed from viewer in AE-284)."""
 
     @pytest.mark.asyncio
     async def test_ws_acc_19_new_user_platform_role_is_viewer_not_invite_role(self):
-        """WS-ACC-19 — Brand-new user accepting an invite has ``users.role='viewer'``,
-        even when the invite role is ``member`` (or any future elevated role)."""
+        """WS-ACC-19 — Brand-new user accepting an invite has ``users.role='user'``
+        (platform role), even when the invite role is ``member``. AE-284 rename."""
         from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
 
         pool = FakeTxnPool()
@@ -591,8 +591,8 @@ class TestPrivilegeEscalationRegression:
         ]
         assert len(insert_calls) == 1
         sql = insert_calls[0].args[0]
-        # The literal 'viewer' MUST appear in the SQL (hard-coded role)
-        assert "'viewer'" in sql, f"Expected hard-coded 'viewer' in SQL: {sql!r}"
+        # The literal 'user' MUST appear in the SQL (hard-coded platform role, AE-284)
+        assert "'user'" in sql, f"Expected hard-coded 'user' (platform role) in SQL: {sql!r}"
         # The invite's role ('member') MUST NOT appear as a parameter
         # (i.e. the args after the SQL must not contain 'member')
         params = insert_calls[0].args[1:]

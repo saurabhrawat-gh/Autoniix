@@ -177,6 +177,8 @@ export const authApi = {
     request('/api/v2/auth/mfa/verify', { method: 'POST', body: JSON.stringify({ code }) }),
   updateProfile: (data: { display_name?: string; current_password?: string; new_password?: string }) =>
     request<{ status: string; message: string }>('/api/v2/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
+  deleteAccount: (password: string) =>
+    request<{ status: string }>('/api/v2/auth/account', { method: 'DELETE', body: JSON.stringify({ password }) }),
   listWorkspaces: () =>
     request<{ data: Array<{ id: number; name: string; slug: string; plan: string; role: string; active: boolean; onboarding_completed: boolean }> }>('/api/v2/auth/workspaces'),
   switchWorkspace: (workspace_id: number) =>
@@ -618,12 +620,14 @@ export const usersApi = {
     request(`/api/v2/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
   disable: (id: number) => request(`/api/v2/users/${id}/disable`, { method: 'PUT' }),
   enable: (id: number) => request(`/api/v2/users/${id}/enable`, { method: 'PUT' }),
+  delete: (id: number) => request(`/api/v2/users/${id}`, { method: 'DELETE' }),
 };
 
 // Workspace
 export const workspaceApi = {
   get: () => request<{ data: any }>('/api/v2/workspace'),
   update: (body: any) => request('/api/v2/workspace', { method: 'PUT', body: JSON.stringify(body) }),
+  setMode: (mode: 'solo' | 'teams') => request('/api/v2/workspace', { method: 'PUT', body: JSON.stringify({ mode }) }),
   getIntegrations: () =>
     request<{ data: { slack_webhook_url: string | null } }>('/api/v2/workspace/integrations'),
   updateIntegrations: (body: { slack_webhook_url?: string | null }) =>

@@ -26,6 +26,7 @@ import {
   ClipboardCheck,
   FlaskConical,
   Users,
+  UserCheck,
   Bell,
   Cpu,
   Terminal,
@@ -79,7 +80,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/dashboard/fleet', label: 'Fleet Health', icon: Cpu, shortcut: 'g f', permission: 'workspace.settings.edit' },
       { href: '/dashboard/debug', label: 'Debug', icon: Terminal, shortcut: 'g b', permission: 'workspace.settings.edit' },
       { href: '/dashboard/workspace', label: 'Workspace', icon: Boxes, shortcut: 'g w', permission: 'workspace.view' },
-      { href: '/dashboard/users', label: 'Team', icon: Users, shortcut: 'g u', permission: 'workspace.members.view' },
+      { href: '/dashboard/users', label: 'Users', icon: Users, shortcut: 'g u', permission: 'workspace.members.view' },
+      { href: '/dashboard/teams', label: 'Teams', icon: UserCheck, shortcut: 'g t', permission: 'workspace.members.view' },
       { href: '/dashboard/settings', label: 'Settings', icon: Settings, shortcut: 'g s', permission: 'workspace.settings.edit' },
     ],
   },
@@ -169,6 +171,7 @@ export function Sidebar() {
   useHotkeys('f', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/fleet'); } }, [gPressed]);
   useHotkeys('b', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/debug'); } }, [gPressed]);
   useHotkeys('u', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/users'); } }, [gPressed]);
+  useHotkeys('t', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/teams'); } }, [gPressed]);
   useHotkeys('w', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/workspace'); } }, [gPressed]);
   useHotkeys('s', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/settings'); } }, [gPressed]);
 
