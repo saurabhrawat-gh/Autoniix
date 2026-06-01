@@ -1,16 +1,17 @@
 ---
-description: QA Agent — three modes: (C) natural language commands (verified / bug:), (A) pre-dev test plan generation for ready-for-qa stories, (B) post-dev local QA walk-through for in-qa issues that sets qa-verified
+description: QA Agent — four modes: (C) natural language commands (verified / bug: / help me verify), (A) pre-dev test plan generation for ready-for-qa stories, (B) post-dev local QA walk-through for in-qa issues that sets qa-verified
 ---
 
 # QA Agent Workflow
 
-The QA Agent has three modes. It auto-detects which mode to run.
+The QA Agent has four modes. It auto-detects which mode to run.
 
-- **Mode C — Natural Language Commands** *(checked first)*: Handles `verified` and `bug:` commands typed by the product owner. Routes immediately — does not run Modes A or B.
+- **Mode C — Natural Language Commands** *(checked first)*: Handles `verified`, `bug:`, and `help me verify` commands typed by the product owner. Routes immediately — does not run Modes A, B, or D directly.
 - **Mode A — Pre-dev**: Runs after BA Agent. Reads `ready-for-qa` stories, generates a test-case issue, promotes story to `ready-for-dev`.
 - **Mode B — Post-dev**: Runs after Dev Agent. Reads `in-qa` issues, walks you through every test case interactively, sets `qa-verified` when all tests pass.
+- **Mode D — Guided Production Verification**: Triggered by `help me verify [issues]`. Classifies every AC as code/browser/ui, runs code tests automatically, and guides the owner through browser/UI steps only.
 
-Invoke as `/qa-agent` (auto-detect) or `/qa-agent pre-dev` / `/qa-agent post-dev` to force a mode.
+Invoke as `/qa-agent` (auto-detect) or `/qa-agent pre-dev` / `/qa-agent post-dev` / `/qa-agent verify [issues]` to force a mode.
 
 ---
 
@@ -43,7 +44,13 @@ bug: login crashes with special chars, issue #21
 bug: payment webhook not firing in production, issue #67
 ```
 
-### C3. If neither pattern matches
+### C3. `help me verify` / `verify [issues]` command
+
+**Triggers:** input contains `verify`, `help me verify`, or `help verify` followed by one or more issue numbers or ticket keys (e.g. `AE-276, AE-262, AE-277`).
+
+**Run Mode D — Guided Production Verification.** Extract all issue/ticket references from the input and pass them to Mode D.
+
+### C4. If no pattern matches
 
 Fall through to Mode A / Mode B auto-detection below.
 
@@ -184,6 +191,114 @@ For each test case checkbox in the test-case issue:
 
 ### B5. Continue to next in-qa issue
 Process all `in-qa` issues until list is empty or a blocker is found.
+
+---
+
+## Mode D — Guided Production Verification (`help me verify`)
+
+This mode is triggered by `help me verify [issues]`. It walks the product owner through verifying one issue at a time on https://dash.autoniix.com. Code-testable ACs are verified automatically by running tests — the owner is only asked to act for things that require a real browser or dashboard interaction.
+
+---
+
+### D1. Classify every AC before presenting anything
+
+For each issue, read the full body and categorise every acceptance criterion:
+
+| Category | Criteria | Owner action needed? |
+|---|---|---|
+| **code** | Race conditions, concurrent requests, advisory locks, unit-level mock behaviour, DB constraint enforcement | **No** — run pytest |
+| **browser** | REST security checks (cross-tenant 4xx), token/cookie auth flows | **Yes** — DevTools `fetch()` snippet |
+| **ui** | Dashboard clicks — invite flow, role assignment, settings panel, form validation | **Yes** — step-by-step UI instructions |
+| **infra** | Env vars, deploy flags, Redis/DB state | **No** — run command or check logs |
+
+**Rule: never ask the owner to manually test something that can be verified with `pytest` or a one-line command.**
+
+---
+
+### D2. For each issue — announce the plan
+
+Print a table before any testing:
+
+```
+── VERIFICATION PLAN: [TICKET] / #GH ────────────────────────────────
+  Title: {issue title}
+  ACs: {total count}
+
+  Code (auto):  {n} ACs → running pytest now
+  Browser:      {n} ACs → DevTools fetch() steps
+  UI:           {n} ACs → dashboard click steps
+  Skip (N/A):   {n} ACs → not verifiable in prod without test data setup
+──────────────────────────────────────────────────────────────────────
+```
+
+---
+
+### D3. Code ACs — run automatically, do not ask the owner
+
+1. Identify the relevant test files from the issue's "Impacted Files" section.
+2. Run `python -m pytest {relevant_test_files} -v --tb=short -q`.
+3. If any tests fail due to **stale mocks** (e.g. `StopAsyncIteration`, `AttributeError` on mock object):
+   - Fix the mock infrastructure first (update `FakePool`, `FakeConn`, side-effect chains as needed).
+   - Re-run until green.
+   - Commit the mock fix with message `test: fix mock chains for [TICKET] handler refactor`.
+4. Report result: `✅ {n}/{n} code ACs verified by pytest` or list failures.
+
+---
+
+### D4. Browser ACs — provide exact DevTools snippets
+
+For each browser-testable AC:
+- State what to open (URL, which tab)
+- Provide a **copy-paste** `fetch()` snippet with placeholder values clearly marked (e.g. `YOUR_WS_ID`)
+- State the **expected status code and/or response shape**
+- State what the **pre-fix behaviour** would have been (so the owner can recognise a regression)
+
+Example format:
+```
+[AC] Cross-workspace read returns 403
+  Open: https://dash.autoniix.com → DevTools (F12) → Console
+  Run:
+    await fetch('/api/v2/workspace/settings?scope=workspace&scope_id=9999').then(r => r.status)
+  ✅ Expected: 403
+  ❌ Before fix: 200 (data leak)
+```
+
+Wait for the owner to reply with the status code before marking as passed.
+
+---
+
+### D5. UI ACs — provide step-by-step click instructions
+
+For each UI-testable AC:
+- Number every step
+- Name the exact page/section/button
+- State the expected outcome per step
+- Flag the **specific step** that confirms the fix
+
+Example format:
+```
+[AC] Duplicate pending invite returns error
+  1. Go to Members → Invite tab
+  2. Invite qa-test@example.com as Viewer → Submit → expect success
+  3. Invite qa-test@example.com again → Submit
+     ✅ Expected: "A pending invitation already exists" error (409)
+     ❌ Before fix: second invite created silently
+  4. Revoke first invite, re-invite → ✅ Expected: success (clean slate)
+```
+
+Wait for the owner to confirm the result of the key step before marking as passed.
+
+---
+
+### D6. After all ACs confirmed — run `/verified #N`
+
+Once the owner confirms all browser/UI ACs and code tests are green, immediately delegate to the `/verified` workflow to tick checkboxes, transition Jira, and close the issue.
+
+---
+
+### D7. Continue to next issue
+
+Process all issues one by one in the order given. Do not start the next until the previous is confirmed or explicitly skipped by the owner.
 
 ---
 
