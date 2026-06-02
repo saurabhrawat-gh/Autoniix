@@ -6,6 +6,7 @@ import { authApi } from '../api-v2';
 interface PermissionsState {
   permissions: string[];
   role: string;
+  globalRole: string;
   loading: boolean;
   error: boolean;
 }
@@ -26,11 +27,12 @@ async function _load() {
       _cache = {
         permissions: (res.data as any).permissions ?? [],
         role: res.data.role ?? 'viewer',
+        globalRole: (res.data as any).global_role ?? 'user',
         loading: false,
         error: false,
       };
     } catch {
-      _cache = { permissions: [], role: 'viewer', loading: false, error: true };
+      _cache = { permissions: [], role: 'viewer', globalRole: 'user', loading: false, error: true };
     } finally {
       _notify();
     }
@@ -50,7 +52,7 @@ export function hasPermission(permissions: string[], permission: string): boolea
 
 export function usePermissions(): PermissionsState & { hasPermission: (p: string) => boolean } {
   const [state, setState] = useState<PermissionsState>(
-    _cache ?? { permissions: [], role: 'viewer', loading: true, error: false }
+    _cache ?? { permissions: [], role: 'viewer', globalRole: 'user', loading: true, error: false }
   );
 
   const sync = useCallback(() => {

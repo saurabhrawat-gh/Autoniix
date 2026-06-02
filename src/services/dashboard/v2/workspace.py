@@ -654,6 +654,14 @@ async def set_member_role(
     VALID_ROLES = {"owner", "member", "viewer"}
     if body.role not in VALID_ROLES:
         raise HTTPException(400, f"Invalid role. Must be one of: {', '.join(sorted(VALID_ROLES))}")
+    # AE-285: prevent self-role-change. Owners must use POST /transfer-ownership
+    # to hand off (atomic + password-verified). This avoids the lockout where an
+    # owner demotes themselves and then cannot re-promote.
+    if actor.user_id == user_id:
+        raise HTTPException(
+            403,
+            "You cannot change your own workspace role. To hand off ownership, use Transfer Ownership.",
+        )
     if body.role == "owner" and actor.role != "owner":
         raise HTTPException(403, "Only an owner can assign the owner role")
     # Prevent demoting the last owner

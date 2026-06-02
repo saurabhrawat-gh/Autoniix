@@ -3,9 +3,11 @@
 import { useEffect, useState } from 'react';
 import { membersApi, invitesApi, authApi, workspaceApi } from '@/lib/api-v2';
 import { Button, Input, Label, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/lib/ui';
-import { ExternalLink, Plus } from '@/lib/components/Icon';
+import { ExternalLink, Plus, ShieldCheck } from '@/lib/components/Icon';
 
-const ROLES = ['owner', 'member', 'viewer'] as const;
+// AE-285: role dropdown only switches between member/viewer.
+// To assign 'owner', use Transfer Ownership (atomic + password-verified).
+const ROLES = ['member', 'viewer'] as const;
 const INVITE_ROLES = ['member', 'viewer'] as const;
 const roleLabel = (r: string) => r.charAt(0).toUpperCase() + r.slice(1);
 const roleBadge = (r: string) => {
@@ -18,8 +20,13 @@ export default function Teams() {
   const [members, setMembers]     = useState<any[]>([]);
   const [invites, setInvites]     = useState<any[]>([]);
   const [myRole, setMyRole]       = useState<string>('viewer');
+  const [myId, setMyId]           = useState<number | null>(null);
   const [wsMode, setWsMode]       = useState<'solo' | 'teams'>('solo');
   const [loading, setLoading]     = useState(true);
+
+  const [transferTarget, setTransferTarget] = useState<any | null>(null);
+  const [transferPassword, setTransferPassword] = useState('');
+  const [transferring, setTransferring] = useState(false);
 
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole]   = useState('viewer');
@@ -38,6 +45,7 @@ export default function Teams() {
       setMembers(mRes.data || []);
       setInvites((iRes.data || []).filter((i: any) => !i.accepted_at));
       setMyRole(meRes?.data?.role || 'viewer');
+      setMyId(meRes?.data?.user_id ?? null);
       setWsMode((wsRes as any)?.data?.mode ?? 'solo');
     } catch {
       setMembers([]);
@@ -51,6 +59,21 @@ export default function Teams() {
 
   const isOwner  = myRole === 'owner';
   const isTeams  = wsMode === 'teams';
+
+  const doTransferOwnership = async () => {
+    if (!transferTarget || !transferPassword) return;
+    setTransferring(true);
+    try {
+      await membersApi.transferOwnership(transferTarget.user_id, transferPassword);
+      setTransferTarget(null);
+      setTransferPassword('');
+      refresh();
+    } catch (e: any) {
+      alert(e?.message || 'Transfer failed');
+    } finally {
+      setTransferring(false);
+    }
+  };
 
   const sendInvite = async () => {
     if (!inviteEmail.trim()) return;
@@ -71,6 +94,45 @@ export default function Teams() {
   return (
     <main className="flex-1 px-4 sm:px-6 py-6 max-w-[1400px] mx-auto w-full">
       <div className="space-y-6">
+        {/* Transfer ownership dialog */}
+        {transferTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-surface-0 border border-border rounded-xl p-6 max-w-sm w-full space-y-4 shadow-xl">
+              <div className="flex items-center gap-3">
+                <ShieldCheck size={20} className="text-amber-500 shrink-0" />
+                <h2 className="text-base font-semibold">Transfer Workspace Ownership?</h2>
+              </div>
+              <p className="text-sm opacity-75">
+                You are about to make <strong>{transferTarget.email}</strong> the new owner of this workspace.
+                You will be demoted to <strong>member</strong>.
+              </p>
+              <div className="space-y-1.5">
+                <Label htmlFor="transfer-pw">Confirm with your password</Label>
+                <Input
+                  id="transfer-pw"
+                  type="password"
+                  value={transferPassword}
+                  onChange={e => setTransferPassword(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button size="sm" variant="outline" onClick={() => { setTransferTarget(null); setTransferPassword(''); }}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  className="bg-amber-500 hover:bg-amber-500/90 text-white"
+                  onClick={doTransferOwnership}
+                  disabled={transferring || !transferPassword}
+                >
+                  {transferring ? 'Transferring…' : 'Yes, transfer'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div>
           <h1 className="text-2xl font-semibold">Teams</h1>
           <p className="text-sm opacity-70 mt-1">Workspace members and pending invitations.</p>
@@ -101,35 +163,54 @@ export default function Teams() {
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${roleBadge(m.role)}`}>
                   {roleLabel(m.role)}
                 </span>
-                {isOwner && (
+                {isOwner && m.user_id !== myId && (
                   <>
-                    <div className="min-w-[120px]">
-                      <Select
-                        value={m.role}
-                        onValueChange={async (v: string) => {
-                          await membersApi.setRole(m.user_id, v);
-                          refresh();
-                        }}
+                    {/* Transfer ownership — only available on non-owner active members */}
+                    {m.role !== 'owner' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-amber-500 border-amber-500/40 hover:bg-amber-500/10 flex items-center gap-1"
+                        title="Transfer workspace ownership to this member"
+                        onClick={() => setTransferTarget(m)}
                       >
-                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {ROLES.map(r => <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                        <ShieldCheck size={13} />
+                        Make Owner
+                      </Button>
+                    )}
+                    {/* Role dropdown — member ↔ viewer only. Owner is set via Transfer. */}
+                    {m.role !== 'owner' && (
+                      <div className="min-w-[120px]">
+                        <Select
+                          value={m.role}
+                          onValueChange={async (v: string) => {
+                            try { await membersApi.setRole(m.user_id, v); refresh(); }
+                            catch (e: any) { alert(e?.message || 'Failed to update role'); }
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {ROLES.map(r => <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     <Button
                       size="sm"
                       variant="outline"
                       className="text-status-error border-status-error/30 hover:bg-status-error/10"
                       onClick={async () => {
                         if (!confirm(`Remove ${m.email} from this workspace?`)) return;
-                        await membersApi.remove(m.user_id);
-                        refresh();
+                        try { await membersApi.remove(m.user_id); refresh(); }
+                        catch (e: any) { alert(e?.message || 'Failed to remove member'); }
                       }}
                     >
                       Remove
                     </Button>
                   </>
+                )}
+                {isOwner && m.user_id === myId && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">you</span>
                 )}
               </div>
             ))}
