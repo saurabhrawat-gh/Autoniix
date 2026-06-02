@@ -87,7 +87,7 @@ async function rawRequest<T = any>(path: string, opts: RequestInit = {}, _isRetr
           }
         }
       } catch {}
-      window.location.href = '/register?reason=no_workspace';
+      window.location.href = '/login?reason=no_workspace_access';
       throw new Error('workspace_access_revoked');
     }
     throw new Error(body.detail || body.error || `HTTP ${res.status}`);

@@ -26,6 +26,12 @@ export default function LoginPage() {
     authApi.mode()
       .then(m => setMode(!m.v2_enabled && m.legacy_enabled ? 'legacy' : 'v2'))
       .catch(() => setMode('v2'));
+    if (typeof window !== 'undefined') {
+      const r = new URLSearchParams(window.location.search).get('reason');
+      if (r === 'no_workspace_access') {
+        setError('Your workspace access was revoked. Contact your superadmin to be re-invited.');
+      }
+    }
   }, []);
 
   async function handleLegacyLogin(e: React.FormEvent) {
