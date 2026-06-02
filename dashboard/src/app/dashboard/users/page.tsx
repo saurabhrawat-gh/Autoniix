@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { usersApi, authApi } from '@/lib/api-v2';
 import { Button } from '@/lib/ui';
 import { Trash2, ChevronDown, ChevronRight, ShieldCheck } from '@/lib/components/Icon';
+import { usePermissions } from '@/lib/hooks/usePermissions';
 
 const WS_ROLE_BADGE: Record<string, string> = {
   owner:  'bg-accent/15 text-accent',
@@ -22,6 +23,7 @@ export default function Users() {
   const [loading, setLoading]   = useState(true);
   const [transferTarget, setTransferTarget] = useState<any | null>(null);
   const [transferring, setTransferring]     = useState(false);
+  const { globalRole, loading: permsLoading } = usePermissions();
 
   const refresh = async () => {
     setLoading(true);
@@ -55,6 +57,17 @@ export default function Users() {
       setTransferring(false);
     }
   };
+
+  if (!permsLoading && globalRole !== 'superadmin') {
+    return (
+      <main className="flex-1 px-4 sm:px-6 py-6 max-w-[1400px] mx-auto w-full">
+        <div className="rounded-xl border border-border bg-surface-0 p-10 text-center space-y-2">
+          <h1 className="text-xl font-semibold">Not authorized</h1>
+          <p className="text-sm opacity-70">This page is only accessible to the superadmin.</p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="flex-1 px-4 sm:px-6 py-6 max-w-[1400px] mx-auto w-full">
