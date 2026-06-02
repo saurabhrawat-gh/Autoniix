@@ -264,6 +264,27 @@ export const dashboardApi = {
 // Providers
 export const providersApi = {
   categories: () => request<{ data: any[] }>('/api/v2/providers/categories'),
+  // Sections (provider_kinds) + user-editable taxonomy
+  kinds: () => request<{ data: any[] }>('/api/v2/providers/kinds'),
+  createKind: (body: { label: string; kind?: string; icon?: string | null; description?: string | null }) =>
+    request<{ kind: string; label: string }>('/api/v2/providers/kinds', { method: 'POST', body: JSON.stringify(body) }),
+  deleteKind: (kind: string) =>
+    request<{ categories_removed: string[] }>(`/api/v2/providers/kinds/${encodeURIComponent(kind)}`, { method: 'DELETE' }),
+  createCategory: (body: { label: string; kind: string; name?: string; description?: string | null }) =>
+    request<{ name: string; label: string; kind: string }>('/api/v2/providers/categories', { method: 'POST', body: JSON.stringify(body) }),
+  deleteCategory: (name: string) =>
+    request(`/api/v2/providers/categories/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+  createMarketplaceProvider: (body: {
+    display_name: string; kind: string; provider_key?: string; description?: string | null;
+    supported_models?: string[]; has_free_tier?: boolean; cost_unit?: string | null; requires_api_key?: boolean;
+  }) =>
+    request<{ provider_key: string; category: string }>('/api/v2/providers/marketplace', { method: 'POST', body: JSON.stringify(body) }),
+  deleteMarketplaceProvider: (provider_key: string) =>
+    request(`/api/v2/providers/marketplace/${encodeURIComponent(provider_key)}`, { method: 'DELETE' }),
+  catalogForCategory: (category: string) =>
+    request<{ data: any[]; kind: string }>(`/api/v2/providers/catalog-for-category?category=${encodeURIComponent(category)}`),
+  restoreDefaults: () =>
+    request<{ status: string }>('/api/v2/providers/restore-defaults', { method: 'POST' }),
   credentials: (category?: string) =>
     request<{ data: any[] }>(`/api/v2/providers/credentials${category ? `?category=${category}` : ''}`),
   createCredential: (body: any) =>

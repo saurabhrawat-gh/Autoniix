@@ -37,6 +37,22 @@ import {
   Label,
 } from '@/lib/ui';
 
+// Normalise a value that *should* be an array but may arrive as a JSON
+// string (JSONB columns with no asyncpg codec) or null. Prevents a stray
+// `.filter`/`.map` from crashing the whole page via the error boundary.
+function asArray<T = any>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? (parsed as T[]) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 type HealthStatus = 'healthy' | 'failing' | 'untested';
 function getHealth(c: any): HealthStatus {
   if (c.last_health_ok === true) return 'healthy';
@@ -1009,12 +1025,39 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
 
   useEffect(() => {
     setRegisteredLoading(true);
-    providersApi.registeredProviders(category)
-      .then(r => {
-        const deduped = (r.data || []).filter((p: any) => !PROVIDER_ALIASES_TO_HIDE.has(p.provider_name));
-        setRegistered(deduped);
-        if (deduped.length > 0 && !providerName) {
-          setProviderName(deduped[0].provider_name);
+    // Source providers from BOTH the live Python registry (built-ins, with
+    // live model lists) and the marketplace catalog for this section (which
+    // also includes user-added custom providers). Merge by key; registry wins
+    // when both exist so live supported_models are preserved.
+    Promise.all([
+      providersApi.registeredProviders(category).then(r => r.data || []).catch(() => []),
+      providersApi.catalogForCategory(category).then(r => r.data || []).catch(() => []),
+    ])
+      .then(([reg, catalog]) => {
+        const byKey = new Map<string, any>();
+        for (const c of catalog) {
+          byKey.set(c.provider_key, {
+            provider_name: c.provider_key,
+            display_name: c.display_name,
+            logo_url: c.logo_url ?? null,
+            has_free_tier: c.has_free_tier ?? null,
+            default_model: asArray<string>(c.supported_models)[0] ?? null,
+            supported_models: asArray<string>(c.supported_models),
+            config_schema: asArray<SchemaField>(c.config_schema),
+            docs_url: c.docs_url ?? null,
+            pricing_tier: c.pricing_tier ?? null,
+            is_callable: c.is_callable ?? true,
+          });
+        }
+        for (const r of reg) {
+          // Registry entry takes precedence (live models); always callable.
+          byKey.set(r.provider_name, { ...byKey.get(r.provider_name), ...r, is_callable: true });
+        }
+        const merged = Array.from(byKey.values())
+          .filter((p: any) => !PROVIDER_ALIASES_TO_HIDE.has(p.provider_name));
+        setRegistered(merged);
+        if (merged.length > 0 && !providerName) {
+          setProviderName(merged[0].provider_name);
         }
       })
       .catch(() => setRegistered([]))
@@ -1023,14 +1066,16 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
   }, [category]);
 
   const selProvider = (registered as any[]).find((r: any) => r.provider_name === providerName) ?? null;
-  const schema: SchemaField[] = selProvider?.config_schema ?? [];
+  // config_schema / supported_models come from a JSONB column; guard against
+  // the backend ever handing back a non-array so the dialog can't crash the page.
+  const schema: SchemaField[] = asArray<SchemaField>(selProvider?.config_schema);
   const credFields = schema.filter(f => f.name !== 'model' && f.name !== 'model_id');
   const modelField = schema.find(f => f.name === 'model' || f.name === 'model_id') ?? null;
   const noKeyNeeded = NO_KEY_PROVIDERS.has(providerName);
   const hasCredFields = credFields.length > 0;
   const voiceHint = VOICE_HINTS[providerName] || null;
   const modelLabel = voiceHint?.fieldLabel || CATEGORY_MODEL_LABEL[category] || 'Model';
-  const supportedModels: string[] = selProvider?.supported_models ?? [];
+  const supportedModels: string[] = asArray<string>(selProvider?.supported_models);
   const defaultModel: string | null = selProvider?.default_model ?? null;
 
   useEffect(() => {

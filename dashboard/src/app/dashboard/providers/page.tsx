@@ -12,7 +12,7 @@ import {
   ClipboardCheck, Check, X, Clock, Link2, AlertCircle, Tv,
 } from '@/lib/components/Icon';
 import { Button } from '@/lib/ui';
-import { promptDialog } from '@/lib/components/ConfirmDialog';
+import { promptDialog, confirmDialog } from '@/lib/components/ConfirmDialog';
 
 // Categories that are seeded in the DB but have no active provider
 // implementation yet. Hidden from the UI until they ship.
@@ -67,9 +67,15 @@ export default function ProvidersIndex() {
   const { showToast } = useToast();
   const [tab, setTab] = useState<'connected' | 'marketplace' | 'accounts'>('connected');
   const [cats, setCats] = useState<any[]>([]);
+  const [kinds, setKinds] = useState<any[]>([]);
   const [creds, setCreds] = useState<any[]>([]);
   const [market, setMarket] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  // Custom taxonomy editing
+  const [addSectionFor, setAddSectionFor] = useState(false);
+  const [addCategoryFor, setAddCategoryFor] = useState<string | null | false>(false); // kind to prefill | null = any | false = closed
+  const [addProviderFor, setAddProviderFor] = useState<string | false>(false);        // kind | false
+  const [restoring, setRestoring] = useState(false);
   const [probingAll, setProbingAll] = useState(false);
   const [marketFilter, setMarketFilter] = useState<string>('all');
   const [resetting, setResetting] = useState(false);
@@ -78,6 +84,7 @@ export default function ProvidersIndex() {
   const [overdueRotations, setOverdueRotations] = useState<any[]>([]);
   const [showApprovals, setShowApprovals] = useState(false);
   const [approvals, setApprovals] = useState<ChangeRequest[]>([]);
+  const [approvalsCount, setApprovalsCount] = useState(0);
   const [approvalsLoading, setApprovalsLoading] = useState(false);
   const [reviewingId, setReviewingId] = useState<number | null>(null);
   const [reviewNote, setReviewNote] = useState('');
@@ -111,14 +118,90 @@ export default function ProvidersIndex() {
     }
   };
 
+  const restoreDefaults = async () => {
+    setRestoring(true);
+    try {
+      await providersApi.restoreDefaults();
+      showToast('Built-in sections & categories restored', 'success');
+      await refresh();
+    } catch (e: any) {
+      showToast(e?.message || 'Restore failed', 'error');
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  const deleteSection = async (kind: string, label: string, isBuiltIn: boolean) => {
+    const ok = isBuiltIn
+      ? (await promptDialog({
+          title: `Delete built-in section "${label}"?`,
+          description: 'This removes the section and ALL its categories, their credentials, and chains. Built-in sections can be brought back with "Restore defaults". This cannot be undone.',
+          label: 'Type DELETE to confirm', placeholder: 'DELETE', match: 'DELETE',
+          confirmLabel: 'Delete section', destructive: true,
+        })) !== null
+      : await confirmDialog({
+          title: `Delete section "${label}"?`,
+          description: 'This removes the section and all its categories, credentials, and chains. This cannot be undone.',
+          confirmLabel: 'Delete section', destructive: true,
+        });
+    if (!ok) return;
+    try {
+      await providersApi.deleteKind(kind);
+      showToast(`Section "${label}" removed`, 'success');
+      await refresh();
+    } catch (e: any) { showToast(e?.message || 'Delete failed', 'error'); }
+  };
+
+  const deleteCategory = async (name: string, label: string, isBuiltIn: boolean) => {
+    const ok = isBuiltIn
+      ? (await promptDialog({
+          title: `Delete built-in category "${label}"?`,
+          description: 'This removes the category and its credentials and chains. Built-in categories can be brought back with "Restore defaults". This cannot be undone.',
+          label: 'Type DELETE to confirm', placeholder: 'DELETE', match: 'DELETE',
+          confirmLabel: 'Delete category', destructive: true,
+        })) !== null
+      : await confirmDialog({
+          title: `Delete category "${label}"?`,
+          description: 'This removes the category and its credentials and chains. This cannot be undone.',
+          confirmLabel: 'Delete category', destructive: true,
+        });
+    if (!ok) return;
+    try {
+      await providersApi.deleteCategory(name);
+      showToast(`Category "${label}" removed`, 'success');
+      await refresh();
+    } catch (e: any) { showToast(e?.message || 'Delete failed', 'error'); }
+  };
+
+  const deleteProvider = async (providerKey: string, displayName: string) => {
+    const ok = await confirmDialog({
+      title: `Remove "${displayName}" from the marketplace?`,
+      description: 'The provider card is removed. Existing credentials that already use it keep working.',
+      confirmLabel: 'Remove provider', destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await providersApi.deleteMarketplaceProvider(providerKey);
+      showToast(`"${displayName}" removed`, 'success');
+      await refresh();
+    } catch (e: any) { showToast(e?.message || 'Delete failed', 'error'); }
+  };
+
   const refresh = useCallback(() => {
     setLoading(true);
     Promise.all([
       providersApi.categories().then(r => setCats(r.data || [])),
+      providersApi.kinds().then(r => setKinds(r.data || [])).catch(() => {}),
       providersApi.credentials().then(r => setCreds(r.data || [])),
       providersApi.marketplace().then(r => setMarket(r.data || [])).catch(() => {}),
       providersApi.setupChecklist().then(r => setChecklist(r.data || [])).catch(() => {}),
       providersApi.allRotationStatus({ overdue_only: true }).then(r => setOverdueRotations(r.data || [])).catch(() => {}),
+      // Lightweight count so the Approvals button only shows when there is
+      // actually something to review (a solo owner never sees an empty queue).
+      Promise.all([
+        changeRequestsApi.list({ status: 'pending_admin' }).then(r => r.data.length).catch(() => 0),
+        changeRequestsApi.list({ status: 'pending_owner' }).then(r => r.data.length).catch(() => 0),
+      ]).then(([a, o]) => setApprovalsCount(a + o)).catch(() => setApprovalsCount(0)),
     ]).finally(() => setLoading(false));
   }, []);
 
@@ -129,7 +212,9 @@ export default function ProvidersIndex() {
     try {
       const r = await changeRequestsApi.list({ status: 'pending_admin' });
       const r2 = await changeRequestsApi.list({ status: 'pending_owner' });
-      setApprovals([...r.data, ...r2.data]);
+      const all = [...r.data, ...r2.data];
+      setApprovals(all);
+      setApprovalsCount(all.length);
     } catch { setApprovals([]); } finally { setApprovalsLoading(false); }
   };
 
@@ -207,6 +292,22 @@ export default function ProvidersIndex() {
     return acc;
   }, {});
 
+  // Section metadata sourced from the provider_kinds API (icon/label/built-in),
+  // falling back to the hardcoded KIND_META for any kind not yet in the table.
+  const kindsByKey: Record<string, any> = kinds.reduce((acc: any, k: any) => {
+    acc[k.kind] = k; return acc;
+  }, {});
+  const sectionMeta = (kind: string) => {
+    const k = kindsByKey[kind];
+    const fallback = KIND_META[kind] || { icon: '🔌', desc: 'Provider category' };
+    return {
+      icon: k?.icon || fallback.icon,
+      label: k?.label || kind.replace(/_/g, ' '),
+      desc: k?.description || fallback.desc,
+      isBuiltIn: k ? !k.is_user_defined : true,
+    };
+  };
+
   const credsByCategory = (catName: string) => creds.filter(cr => cr.category === catName);
   const countStatus = (catName: string) => {
     const mc = credsByCategory(catName);
@@ -257,14 +358,18 @@ export default function ProvidersIndex() {
           <Button variant="outline" size="icon-sm" onClick={refresh} disabled={loading} aria-label="Refresh">
             <RotateCw size={13} className={cn(loading && 'animate-spin')} />
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={openApprovals}
-            leftIcon={<ClipboardCheck size={12} />}
-          >
-            Approvals
-          </Button>
+          {approvalsCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openApprovals}
+              leftIcon={<ClipboardCheck size={12} />}
+              title="Review provider changes requested by team members who don't have permission to apply them directly. As owner, you approve or reject each one here."
+            >
+              Approvals
+              <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-accent/15 text-accent font-semibold">{approvalsCount}</span>
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -274,6 +379,17 @@ export default function ProvidersIndex() {
             leftIcon={!probingAll ? <Zap size={12} /> : undefined}
           >
             Probe all
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={restoreDefaults}
+            disabled={restoring}
+            loading={restoring}
+            leftIcon={!restoring ? <RotateCw size={12} /> : undefined}
+            title="Recreate the built-in sections & categories if you deleted any by mistake. Does not touch your credentials."
+          >
+            Restore defaults
           </Button>
           <Button
             variant="outline"
@@ -421,14 +537,34 @@ export default function ProvidersIndex() {
                 </div>
               </div>
             )}
+            {/* Taxonomy toolbar */}
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setAddCategoryFor(null)} leftIcon={<Plus size={12} />}>
+                Add category
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setAddSectionFor(true)} leftIcon={<Plus size={12} />}>
+                Add section
+              </Button>
+            </div>
             {Object.entries(grouped).map(([kind, list]: any) => {
-              const meta = KIND_META[kind] || { icon: '🔌', desc: 'Provider category' };
+              const meta = sectionMeta(kind);
               return (
                 <section key={kind}>
-                  <div className="flex items-center gap-2 mb-3">
+                  <div className="flex items-center gap-2 mb-3 group/section">
                     <span className="text-base">{meta.icon}</span>
-                    <h2 className="text-sm font-semibold text-content-primary capitalize">{kind.replace(/_/g, ' ')}</h2>
+                    <h2 className="text-sm font-semibold text-content-primary">{meta.label}</h2>
                     <span className="text-[11px] text-content-tertiary">— {meta.desc}</span>
+                    {!meta.isBuiltIn && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">Custom</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => deleteSection(kind, meta.label, meta.isBuiltIn)}
+                      title={`Delete the "${meta.label}" section and everything under it`}
+                      className="opacity-0 group-hover/section:opacity-100 transition-opacity text-content-tertiary hover:text-status-error p-1 rounded hover:bg-status-error/10"
+                    >
+                      <Trash2 size={12} />
+                    </button>
                     <span className="ml-auto text-[10px] text-content-tertiary">{list.length} categor{list.length !== 1 ? 'ies' : 'y'}</span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -438,7 +574,15 @@ export default function ProvidersIndex() {
                       return (
                         <Link key={cat.name}
                           href={`/dashboard/providers/${encodeURIComponent(cat.name)}`}
-                          className="group rounded-xl border border-border bg-surface-0 p-4 hover:border-accent/40 hover:shadow-card transition-all">
+                          className="group relative rounded-xl border border-border bg-surface-0 p-4 hover:border-accent/40 hover:shadow-card transition-all">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteCategory(cat.name, cat.label, !cat.is_user_defined); }}
+                            title="Delete this category"
+                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-content-tertiary hover:text-status-error p-1 rounded hover:bg-status-error/10 z-10"
+                          >
+                            <Trash2 size={12} />
+                          </button>
                           <div className="flex items-start justify-between mb-2">
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
@@ -456,7 +600,7 @@ export default function ProvidersIndex() {
                           )}
                           {total === 0 ? (
                             <div className="flex items-center gap-1.5 text-xs text-content-tertiary ml-4">
-                              <Plus size={10} /> No credentials — click to add
+                              <Plus size={10} /> No credentials — click to configure
                             </div>
                           ) : (
                             <div className="ml-4 space-y-1">
@@ -481,13 +625,13 @@ export default function ProvidersIndex() {
                         </Link>
                       );
                     })}
-                    <Link href={`/dashboard/providers/${encodeURIComponent(list[0]?.name || kind)}?add=1`}
+                    <button type="button" onClick={() => setAddCategoryFor(kind)}
                       className="group rounded-xl border border-dashed border-border bg-transparent p-4 hover:border-accent/50 hover:bg-surface-0 transition-all flex flex-col items-center justify-center gap-2 min-h-[100px]">
                       <div className="w-7 h-7 rounded-full bg-surface-2 group-hover:bg-accent/10 flex items-center justify-center transition-colors">
                         <Plus size={13} className="text-content-tertiary group-hover:text-accent" />
                       </div>
-                      <span className="text-xs text-content-tertiary group-hover:text-content-secondary">Add credential</span>
-                    </Link>
+                      <span className="text-xs text-content-tertiary group-hover:text-content-secondary">Add category</span>
+                    </button>
                   </div>
                 </section>
               );
@@ -499,22 +643,34 @@ export default function ProvidersIndex() {
       {/* ── Marketplace tab ── */}
       {tab === 'marketplace' && (
         <div className="space-y-4">
-          {/* Category filter */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {(['all', ...marketCategories]).map(c => (
-              <Button
-                key={c}
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setMarketFilter(c)}
-                className={cn('h-7 px-2.5 text-xs',
-                  marketFilter === c
-                    ? 'bg-accent/10 text-accent border border-accent/30 hover:bg-accent/15'
-                    : 'border border-border text-content-tertiary hover:bg-surface-2')}>
-                {c === 'all' ? 'All' : c.replace(/_/g, ' ')}
+          {/* Category filter + taxonomy actions */}
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {(['all', ...marketCategories]).map(c => (
+                <Button
+                  key={c}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setMarketFilter(c)}
+                  className={cn('h-7 px-2.5 text-xs',
+                    marketFilter === c
+                      ? 'bg-accent/10 text-accent border border-accent/30 hover:bg-accent/15'
+                      : 'border border-border text-content-tertiary hover:bg-surface-2')}>
+                  {c === 'all' ? 'All' : c.replace(/_/g, ' ')}
+                </Button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button variant="outline" size="sm"
+                onClick={() => setAddProviderFor(cats.find(c => c.name === marketFilter)?.kind || '')}
+                leftIcon={<Plus size={12} />}>
+                Add provider
               </Button>
-            ))}
+              <Button variant="outline" size="sm" onClick={() => setAddSectionFor(true)} leftIcon={<Plus size={12} />}>
+                Add section
+              </Button>
+            </div>
           </div>
 
           {loading ? (
@@ -533,10 +689,20 @@ export default function ProvidersIndex() {
               {filteredMarket.map((p: any) => (
                 <div key={p.provider_key}
                   className={cn(
-                    'rounded-xl border bg-surface-0 p-4 flex flex-col gap-3 transition-all',
+                    'group relative rounded-xl border bg-surface-0 p-4 flex flex-col gap-3 transition-all',
                     p.connected ? 'border-status-success/30' : 'border-border',
                     p.featured && !p.connected && 'border-accent/30'
                   )}>
+                  {p.is_user_defined && (
+                    <button
+                      type="button"
+                      onClick={() => deleteProvider(p.provider_key, p.display_name)}
+                      title="Remove this custom provider"
+                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-content-tertiary hover:text-status-error p-1 rounded hover:bg-status-error/10 z-10"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -551,6 +717,9 @@ export default function ProvidersIndex() {
                         )}
                         {p.has_free_tier && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-success/10 text-status-success">Free tier</span>
+                        )}
+                        {p.is_callable === false && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-warning/10 text-status-warning" title="You can save a key for this provider, but the pipeline can't call it until an adapter is wired up.">Catalog only</span>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 mt-1">
@@ -824,6 +993,229 @@ export default function ProvidersIndex() {
           </div>
         </div>
       )}
+
+      {/* ── Taxonomy dialogs ── */}
+      {addSectionFor && (
+        <AddSectionDialog
+          onClose={() => setAddSectionFor(false)}
+          onAdded={async () => { setAddSectionFor(false); await refresh(); }}
+        />
+      )}
+      {addCategoryFor !== false && (
+        <AddCategoryDialog
+          prefillKind={addCategoryFor || null}
+          kinds={kinds}
+          onClose={() => setAddCategoryFor(false)}
+          onAdded={async () => { setAddCategoryFor(false); await refresh(); }}
+        />
+      )}
+      {addProviderFor !== false && (
+        <AddProviderDialog
+          prefillKind={addProviderFor || ''}
+          kinds={kinds}
+          onClose={() => setAddProviderFor(false)}
+          onAdded={async () => { setAddProviderFor(false); await refresh(); }}
+        />
+      )}
     </main>
+  );
+}
+
+// ── Shared dialog primitives ──────────────────────────────────────────────────
+function DialogShell({ title, subtitle, onClose, children, footer }: {
+  title: string; subtitle?: string; onClose: () => void;
+  children: React.ReactNode; footer: React.ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="rounded-xl bg-surface-0 max-w-md w-full border border-border shadow-elevated flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border">
+          <div>
+            <h3 className="font-semibold text-content-primary">{title}</h3>
+            {subtitle && <p className="text-[11px] text-content-tertiary mt-0.5">{subtitle}</p>}
+          </div>
+          <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close" className="w-7 h-7 text-content-tertiary">
+            <X size={14} />
+          </Button>
+        </div>
+        <div className="px-5 py-4 space-y-3">{children}</div>
+        <div className="flex items-center justify-end gap-2 px-5 pb-5 pt-1">{footer}</div>
+      </div>
+    </div>
+  );
+}
+
+const fieldCls = 'w-full h-9 px-3 rounded-md border border-border bg-surface-1 text-sm text-content-primary placeholder:text-content-tertiary focus:outline-none focus:ring-1 focus:ring-accent';
+const labelCls = 'block text-[11px] font-medium text-content-secondary mb-1';
+
+function AddSectionDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+  const { showToast } = useToast();
+  const [label, setLabel] = useState('');
+  const [icon, setIcon] = useState('');
+  const [description, setDescription] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (!label.trim()) return;
+    setBusy(true);
+    try {
+      await providersApi.createKind({ label: label.trim(), icon: icon.trim() || null, description: description.trim() || null });
+      showToast(`Section "${label.trim()}" created`, 'success');
+      onAdded();
+    } catch (e: any) { showToast(e?.message || 'Could not create section', 'error'); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <DialogShell
+      title="Add section"
+      subtitle="A top-level group like Avatar Generation, Music, or Translation."
+      onClose={onClose}
+      footer={<>
+        <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+        <Button size="sm" onClick={submit} disabled={!label.trim() || busy} loading={busy}>Create section</Button>
+      </>}
+    >
+      <div>
+        <label className={labelCls}>Section name</label>
+        <input className={fieldCls} value={label} onChange={e => setLabel(e.target.value)} placeholder="e.g. Avatar Generation" autoFocus />
+      </div>
+      <div>
+        <label className={labelCls}>Icon (emoji, optional)</label>
+        <input className={fieldCls} value={icon} onChange={e => setIcon(e.target.value)} placeholder="🧑‍🎤" maxLength={4} />
+      </div>
+      <div>
+        <label className={labelCls}>Description (optional)</label>
+        <input className={fieldCls} value={description} onChange={e => setDescription(e.target.value)} placeholder="What this section is for" />
+      </div>
+    </DialogShell>
+  );
+}
+
+function AddCategoryDialog({ prefillKind, kinds, onClose, onAdded }: {
+  prefillKind: string | null; kinds: any[]; onClose: () => void; onAdded: () => void;
+}) {
+  const { showToast } = useToast();
+  const [label, setLabel] = useState('');
+  const [kind, setKind] = useState(prefillKind || (kinds[0]?.kind ?? ''));
+  const [description, setDescription] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (!label.trim() || !kind) return;
+    setBusy(true);
+    try {
+      await providersApi.createCategory({ label: label.trim(), kind, description: description.trim() || null });
+      showToast(`Category "${label.trim()}" created`, 'success');
+      onAdded();
+    } catch (e: any) { showToast(e?.message || 'Could not create category', 'error'); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <DialogShell
+      title="Add category"
+      subtitle="A use-case slot inside a section — e.g. 'Product demo avatars'."
+      onClose={onClose}
+      footer={<>
+        <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+        <Button size="sm" onClick={submit} disabled={!label.trim() || !kind || busy} loading={busy}>Create category</Button>
+      </>}
+    >
+      <div>
+        <label className={labelCls}>Category name</label>
+        <input className={fieldCls} value={label} onChange={e => setLabel(e.target.value)} placeholder="e.g. Product demo avatars" autoFocus />
+      </div>
+      <div>
+        <label className={labelCls}>Section</label>
+        <select className={fieldCls} value={kind} onChange={e => setKind(e.target.value)}>
+          {kinds.length === 0 && <option value="">No sections — create one first</option>}
+          {kinds.map((k: any) => (
+            <option key={k.kind} value={k.kind}>{k.icon ? `${k.icon} ` : ''}{k.label}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className={labelCls}>Description (optional)</label>
+        <input className={fieldCls} value={description} onChange={e => setDescription(e.target.value)} placeholder="What this category is for" />
+      </div>
+    </DialogShell>
+  );
+}
+
+function AddProviderDialog({ prefillKind, kinds, onClose, onAdded }: {
+  prefillKind: string; kinds: any[]; onClose: () => void; onAdded: () => void;
+}) {
+  const { showToast } = useToast();
+  const [displayName, setDisplayName] = useState('');
+  const [kind, setKind] = useState(prefillKind || (kinds[0]?.kind ?? ''));
+  const [models, setModels] = useState('');
+  const [description, setDescription] = useState('');
+  const [hasFreeTier, setHasFreeTier] = useState(false);
+  const [requiresApiKey, setRequiresApiKey] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (!displayName.trim() || !kind) return;
+    setBusy(true);
+    try {
+      await providersApi.createMarketplaceProvider({
+        display_name: displayName.trim(),
+        kind,
+        description: description.trim() || null,
+        supported_models: models.split(',').map(m => m.trim()).filter(Boolean),
+        has_free_tier: hasFreeTier,
+        requires_api_key: requiresApiKey,
+      });
+      showToast(`"${displayName.trim()}" added to marketplace`, 'success');
+      onAdded();
+    } catch (e: any) { showToast(e?.message || 'Could not add provider', 'error'); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <DialogShell
+      title="Add provider"
+      subtitle="Add a third-party service (e.g. HeyGen) to a section's marketplace."
+      onClose={onClose}
+      footer={<>
+        <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+        <Button size="sm" onClick={submit} disabled={!displayName.trim() || !kind || busy} loading={busy}>Add provider</Button>
+      </>}
+    >
+      <div>
+        <label className={labelCls}>Provider name</label>
+        <input className={fieldCls} value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="e.g. HeyGen" autoFocus />
+      </div>
+      <div>
+        <label className={labelCls}>Section</label>
+        <select className={fieldCls} value={kind} onChange={e => setKind(e.target.value)}>
+          {kinds.length === 0 && <option value="">No sections — create one first</option>}
+          {kinds.map((k: any) => (
+            <option key={k.kind} value={k.kind}>{k.icon ? `${k.icon} ` : ''}{k.label}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className={labelCls}>Models (optional, comma-separated)</label>
+        <input className={fieldCls} value={models} onChange={e => setModels(e.target.value)} placeholder="avatar-v3, avatar-realistic" />
+      </div>
+      <div>
+        <label className={labelCls}>Description (optional)</label>
+        <input className={fieldCls} value={description} onChange={e => setDescription(e.target.value)} placeholder="What this provider does" />
+      </div>
+      <div className="flex items-center gap-4 pt-1">
+        <label className="flex items-center gap-2 text-xs text-content-secondary cursor-pointer">
+          <input type="checkbox" checked={requiresApiKey} onChange={e => setRequiresApiKey(e.target.checked)} /> Needs an API key
+        </label>
+        <label className="flex items-center gap-2 text-xs text-content-secondary cursor-pointer">
+          <input type="checkbox" checked={hasFreeTier} onChange={e => setHasFreeTier(e.target.checked)} /> Has a free tier
+        </label>
+      </div>
+      <p className="text-[11px] text-content-tertiary">
+        Added as <span className="font-medium">catalog-only</span> — you can save a key and bind it to a category now;
+        the pipeline can call it once an adapter is wired up.
+      </p>
+    </DialogShell>
   );
 }
