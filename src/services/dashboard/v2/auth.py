@@ -305,7 +305,12 @@ async def login(request: Request, body: LoginIn, response: Response):
         request.headers.get("user-agent"), expires,
     )
     await pool.execute("UPDATE users SET last_login_at=NOW() WHERE id=$1", user["id"])
-    # Resolve active workspace + workspace-scoped role
+    # Resolve active workspace + workspace-scoped role.
+    # AE-285: heal stale active_workspace_id. If the cached active workspace is
+    # no longer a valid membership (user removed, workspace deleted, etc.) fall
+    # back to any other workspace they are still a member of. If none, leave
+    # wid=None so setup_required=True routes them to /onboarding instead of
+    # bouncing on the dashboard via workspace_access_revoked.
     ws_row = await pool.fetchrow(
         "SELECT active_workspace_id FROM users WHERE id=$1", user["id"]
     )
@@ -313,6 +318,22 @@ async def login(request: Request, body: LoginIn, response: Response):
     wm = await pool.fetchrow(
         "SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2", wid or 0, user["id"]
     ) if wid else None
+    if wid and not wm:
+        # Stale active_workspace_id — find any membership and heal it.
+        fallback = await pool.fetchrow(
+            "SELECT workspace_id, role FROM workspace_members "
+            "WHERE user_id=$1 ORDER BY workspace_id LIMIT 1",
+            user["id"],
+        )
+        if fallback:
+            wid = fallback["workspace_id"]
+            wm = fallback
+            await pool.execute(
+                "UPDATE users SET active_workspace_id=$1 WHERE id=$2",
+                wid, user["id"],
+            )
+        else:
+            wid = None  # no memberships → setup_required path
     ws_role = wm["role"] if wm else "viewer"
     access = _issue_jwt(dict(user), workspace_id=wid or 0, ws_role=ws_role, global_role=user["role"])
     _set_auth_cookies(response, access, raw)
