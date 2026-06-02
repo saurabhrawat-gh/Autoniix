@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { usersApi, authApi } from '@/lib/api-v2';
-import { Button, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/lib/ui';
-import { Trash2, ChevronDown, ChevronRight } from '@/lib/components/Icon';
+import { Button } from '@/lib/ui';
+import { Trash2, ChevronDown, ChevronRight, ShieldCheck } from '@/lib/components/Icon';
 
-const GLOBAL_ROLES = ['superadmin', 'user'] as const;
 const WS_ROLE_BADGE: Record<string, string> = {
   owner:  'bg-accent/15 text-accent',
   member: 'bg-status-success/15 text-status-success',
@@ -17,10 +16,12 @@ const GLOBAL_BADGE: Record<string, string> = {
 };
 
 export default function Users() {
-  const [rows, setRows]     = useState<any[]>([]);
-  const [myId, setMyId]     = useState<number | null>(null);
+  const [rows, setRows]         = useState<any[]>([]);
+  const [myId, setMyId]         = useState<number | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [loading, setLoading]   = useState(true);
+  const [transferTarget, setTransferTarget] = useState<any | null>(null);
+  const [transferring, setTransferring]     = useState(false);
 
   const refresh = async () => {
     setLoading(true);
@@ -36,8 +37,24 @@ export default function Users() {
     authApi.me().then((r: any) => setMyId(r?.data?.user_id ?? null)).catch(() => {});
   }, []);
 
+  const iAmSuperadmin = rows.find(r => r.id === myId)?.global_role === 'superadmin';
+
   const toggle = (id: number) =>
     setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const doTransfer = async () => {
+    if (!transferTarget) return;
+    setTransferring(true);
+    try {
+      await usersApi.transferSuperadmin(transferTarget.id);
+      setTransferTarget(null);
+      refresh();
+    } catch (e: any) {
+      alert(e?.message || 'Transfer failed');
+    } finally {
+      setTransferring(false);
+    }
+  };
 
   return (
     <main className="flex-1 px-4 sm:px-6 py-6 max-w-[1400px] mx-auto w-full">
@@ -50,6 +67,39 @@ export default function Users() {
           </p>
         </div>
 
+        {/* Transfer confirmation dialog */}
+        {transferTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-surface-0 border border-border rounded-xl p-6 max-w-sm w-full space-y-4 shadow-xl">
+              <div className="flex items-center gap-3">
+                <ShieldCheck size={20} className="text-status-error shrink-0" />
+                <h2 className="text-base font-semibold">Transfer Superadmin?</h2>
+              </div>
+              <p className="text-sm opacity-75">
+                You are about to transfer the <strong>superadmin</strong> seat to{' '}
+                <strong>{transferTarget.email}</strong>.
+              </p>
+              <p className="text-sm opacity-75">
+                <strong>You will immediately lose platform admin access.</strong> This action
+                takes effect on your next page load.
+              </p>
+              <div className="flex gap-2 justify-end">
+                <Button size="sm" variant="outline" onClick={() => setTransferTarget(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  className="bg-status-error hover:bg-status-error/90 text-white"
+                  onClick={doTransfer}
+                  disabled={transferring}
+                >
+                  {transferring ? 'Transferring…' : 'Yes, transfer'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="rounded-xl border border-border bg-surface-0 divide-y divide-border">
           {loading && <div className="p-6 text-sm opacity-60 text-center">Loading…</div>}
           {!loading && rows.length === 0 && (
@@ -59,9 +109,12 @@ export default function Users() {
             const workspaces: any[] = u.workspaces ?? [];
             const isExpanded = expanded.has(u.id);
             const isSelf = myId !== null && u.id === myId;
+            const isSuperadmin = u.global_role === 'superadmin';
+            const canTransfer = iAmSuperadmin && !isSelf && !isSuperadmin && !u.disabled;
+            const canDisable  = iAmSuperadmin && !isSelf && !isSuperadmin;
+            const canDelete   = iAmSuperadmin && !isSelf && !isSuperadmin;
             return (
               <div key={u.id} className="divide-y divide-border/50">
-                {/* User row */}
                 <div className={`p-3 flex items-center gap-3 ${u.disabled ? 'opacity-50' : ''}`}>
                   {/* Expand toggle */}
                   <button
@@ -74,7 +127,7 @@ export default function Users() {
 
                   {/* Avatar */}
                   <div className={`size-8 rounded-full text-white text-xs flex items-center justify-center shrink-0
-                    ${u.global_role === 'superadmin'
+                    ${isSuperadmin
                       ? 'bg-gradient-to-br from-fuchsia-400 to-pink-400'
                       : 'bg-gradient-to-br from-indigo-400 to-fuchsia-400'}`}>
                     {(u.email || '?').slice(0, 1).toUpperCase()}
@@ -93,41 +146,46 @@ export default function Users() {
                     </div>
                   </div>
 
-                  {/* Global role badge + selector */}
+                  {/* Global role badge (read-only) */}
                   <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold shrink-0 ${GLOBAL_BADGE[u.global_role] ?? GLOBAL_BADGE.user}`}>
-                    {u.global_role}
+                    {isSuperadmin ? 'superadmin' : 'user'}
                   </span>
-                  <div className="min-w-[110px] shrink-0">
-                    <Select
-                      value={u.global_role}
-                      onValueChange={async (v: string) => { await usersApi.setRole(u.id, v); refresh(); }}
+
+                  {/* Transfer superadmin (superadmin only, on non-self active users) */}
+                  {canTransfer && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-status-error border-status-error/30 hover:bg-status-error/10 shrink-0 flex items-center gap-1"
+                      title="Transfer superadmin to this user"
+                      onClick={() => setTransferTarget(u)}
                     >
-                      <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {GLOBAL_ROLES.map(r => (
-                          <SelectItem key={r} value={r}>
-                            {r === 'superadmin' ? 'Superadmin' : 'User'}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                      <ShieldCheck size={13} />
+                      Transfer
+                    </Button>
+                  )}
 
                   {/* Disable / enable */}
-                  <Button
-                    size="sm"
-                    variant={u.disabled ? 'primary' : 'outline'}
-                    className={u.disabled ? 'bg-status-success hover:bg-status-success/90 text-content-inverse shrink-0' : 'shrink-0'}
-                    onClick={async () => {
-                      if (u.disabled) await usersApi.enable(u.id); else await usersApi.disable(u.id);
-                      refresh();
-                    }}
-                  >
-                    {u.disabled ? 'Enable' : 'Disable'}
-                  </Button>
-
-                  {/* Delete (not self) */}
                   {!isSelf && (
+                    <Button
+                      size="sm"
+                      variant={u.disabled ? 'primary' : 'outline'}
+                      className={u.disabled
+                        ? 'bg-status-success hover:bg-status-success/90 text-content-inverse shrink-0'
+                        : `shrink-0 ${!canDisable ? 'opacity-30 pointer-events-none' : ''}`}
+                      onClick={async () => {
+                        if (!canDisable && !u.disabled) return;
+                        if (u.disabled) { await usersApi.enable(u.id); refresh(); return; }
+                        try { await usersApi.disable(u.id); refresh(); }
+                        catch (e: any) { alert(e?.message || 'Action failed'); }
+                      }}
+                    >
+                      {u.disabled ? 'Enable' : 'Disable'}
+                    </Button>
+                  )}
+
+                  {/* Delete (not self, not superadmin) */}
+                  {canDelete && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -170,8 +228,8 @@ export default function Users() {
         </div>
 
         <p className="text-xs text-content-tertiary">
-          <strong>Global role</strong>: superadmin = platform admin access · user = workspace-only access.<br />
-          <strong>Workspace role</strong>: set per workspace on the Teams page.
+          <strong>Superadmin</strong>: single platform-wide seat · full admin access · use Transfer to hand off ownership.<br />
+          <strong>User</strong>: workspace-only access · role set per workspace on the Teams page.
         </p>
       </div>
     </main>
