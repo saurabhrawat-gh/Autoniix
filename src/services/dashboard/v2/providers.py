@@ -99,9 +99,72 @@ class ChainIn(BaseModel):
     credential_ids: list[int]
 
 
+class KindIn(BaseModel):
+    """Create a custom provider *section* (e.g. 'Avatar Generation')."""
+    label: str
+    kind: str | None = None          # slug; derived from label when omitted
+    icon: str | None = None          # emoji
+    description: str | None = None
+
+
+class CategoryIn(BaseModel):
+    """Create a custom *category* (slot) bound to a section."""
+    label: str
+    kind: str                        # section this category belongs to
+    name: str | None = None          # slug; derived from label when omitted
+    description: str | None = None
+
+
+class MarketplaceProviderIn(BaseModel):
+    """Add a custom provider to the marketplace under a section."""
+    display_name: str
+    kind: str                        # section the provider belongs to
+    provider_key: str | None = None  # slug; derived from display_name when omitted
+    description: str | None = None
+    supported_models: list[str] = Field(default_factory=list)
+    has_free_tier: bool = False
+    cost_unit: str | None = None
+    requires_api_key: bool = True
+
+
 def _vault_path(category: str, provider_name: str, label: str) -> str:
     safe_label = "".join(c for c in label.lower() if c.isalnum() or c == "-") or "default"
     return f"providers/{category}/{provider_name}/{safe_label}"
+
+
+def _as_json(value: Any, default: Any) -> Any:
+    """Decode a JSONB column that asyncpg may return as a raw string.
+
+    No JSONB type codec is registered on the pool (src/db.py), so JSONB
+    columns come back as ``str`` from some drivers/paths and as parsed
+    Python objects from others. The whole codebase assumes parsed objects
+    for provider config; normalise here so callers (and the frontend) never
+    receive a JSON string where they expect a list/dict. Returning a string
+    to the UI is what caused ``config_schema.filter is not a function``.
+    """
+    if value is None:
+        return default
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, ValueError):
+            return default
+    return value
+
+
+def _slugify(text: str, *, sep: str = "_", maxlen: int = 40) -> str:
+    """Lower-case, alnum + ``sep`` slug for category/provider/kind keys."""
+    out: list[str] = []
+    prev_sep = False
+    for ch in text.strip().lower():
+        if ch.isalnum():
+            out.append(ch)
+            prev_sep = False
+        elif not prev_sep:
+            out.append(sep)
+            prev_sep = True
+    slug = "".join(out).strip(sep)
+    return slug[:maxlen] or "custom"
 
 
 # Categories
@@ -109,9 +172,184 @@ def _vault_path(category: str, provider_name: str, label: str) -> str:
 async def list_categories(_: Principal = Depends(principal_dep)):
     pool = await get_pool()
     rows = await pool.fetch(
-        "SELECT name, label, kind, description FROM provider_categories ORDER BY kind, name"
+        "SELECT name, label, kind, description, is_user_defined "
+        "FROM provider_categories ORDER BY kind, name"
     )
     return {"data": [dict(r) for r in rows]}
+
+
+# ── Sections (provider_kinds) ─────────────────────────────────────────────────
+@router.get("/kinds")
+async def list_kinds(_: Principal = Depends(principal_dep)):
+    """List provider *sections* (LLM, Image, Avatar, …) with label + icon.
+
+    Each row carries ``category_count`` so the UI can warn before deleting a
+    section that still owns categories.
+    """
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """SELECT k.kind, k.label, k.icon, k.description, k.is_user_defined, k.sort_order,
+                  (SELECT COUNT(*) FROM provider_categories c WHERE c.kind = k.kind) AS category_count
+             FROM provider_kinds k
+            ORDER BY k.sort_order, k.label"""
+    )
+    return {"data": [dict(r) for r in rows]}
+
+
+@router.post("/kinds")
+async def create_kind(
+    body: KindIn,
+    request: Request,
+    actor: Principal = Depends(_require_cred_actor),
+):
+    """Create a custom section. Also creates a default 'general' category under
+    it so marketplace providers in this section have a category to reference."""
+    pool = await get_pool()
+    label = body.label.strip()
+    if not label:
+        raise HTTPException(422, "Section name is required")
+    kind = _slugify(body.kind or label, maxlen=20)
+    if not kind:
+        raise HTTPException(422, "Could not derive a valid section key")
+    existing = await pool.fetchrow("SELECT kind FROM provider_kinds WHERE kind=$1", kind)
+    if existing:
+        raise HTTPException(409, f"Section {kind!r} already exists")
+
+    max_sort = await pool.fetchval("SELECT COALESCE(MAX(sort_order), 100) FROM provider_kinds")
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                """INSERT INTO provider_kinds (kind, label, icon, description, is_user_defined, sort_order)
+                   VALUES ($1,$2,$3,$4,TRUE,$5)""",
+                kind, label, body.icon, body.description, int(max_sort) + 1,
+            )
+            # Default general category so providers can attach to this section.
+            await conn.execute(
+                """INSERT INTO provider_categories (name, label, kind, description, is_user_defined)
+                   VALUES ($1,$2,$3,$4,TRUE)
+                   ON CONFLICT (name) DO NOTHING""",
+                kind, f"{label} (general)", kind, body.description,
+            )
+    await audit(actor=actor, action="provider.kind.create",
+                target_type="provider_kind", target_id=kind,
+                after={"label": label, "icon": body.icon}, request=request)
+    return {"status": "ok", "kind": kind, "label": label}
+
+
+@router.delete("/kinds/{kind}")
+async def delete_kind(
+    kind: str,
+    request: Request,
+    actor: Principal = Depends(_require_cred_actor),
+):
+    """Delete a section and everything under it (categories, their credentials,
+    chain entries, and catalog providers). Destructive — the UI guards this with
+    a typed confirmation. Built-in sections can be recovered via Restore defaults."""
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT kind FROM provider_kinds WHERE kind=$1", kind)
+    if not row:
+        raise HTTPException(404, "Section not found")
+    cat_names = [r["name"] for r in await pool.fetch(
+        "SELECT name FROM provider_categories WHERE kind=$1", kind)]
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            for cname in cat_names:
+                await _purge_category(conn, cname)
+            await conn.execute(
+                "DELETE FROM provider_marketplace_catalog WHERE provider_key IN ("
+                "  SELECT pmc.provider_key FROM provider_marketplace_catalog pmc "
+                "  LEFT JOIN provider_categories c ON c.name = pmc.category "
+                "  WHERE c.kind = $1 OR pmc.category = $1)",
+                kind,
+            )
+            await conn.execute("DELETE FROM provider_kinds WHERE kind=$1", kind)
+    await audit(actor=actor, action="provider.kind.delete",
+                target_type="provider_kind", target_id=kind,
+                after={"categories_removed": cat_names}, request=request)
+    return {"status": "ok", "categories_removed": cat_names}
+
+
+@router.post("/categories")
+async def create_category(
+    body: CategoryIn,
+    request: Request,
+    actor: Principal = Depends(_require_cred_actor),
+):
+    """Create a custom category (slot) under an existing section."""
+    pool = await get_pool()
+    label = body.label.strip()
+    if not label:
+        raise HTTPException(422, "Category name is required")
+    kind = _slugify(body.kind, maxlen=20)
+    sec = await pool.fetchrow("SELECT kind FROM provider_kinds WHERE kind=$1", kind)
+    if not sec:
+        raise HTTPException(400, f"Unknown section {kind!r}. Create the section first.")
+    name = _slugify(body.name or f"{kind}_{label}", maxlen=40)
+    existing = await pool.fetchrow("SELECT name FROM provider_categories WHERE name=$1", name)
+    if existing:
+        raise HTTPException(409, f"Category {name!r} already exists")
+    await pool.execute(
+        """INSERT INTO provider_categories (name, label, kind, description, is_user_defined)
+           VALUES ($1,$2,$3,$4,TRUE)""",
+        name, label, kind, body.description,
+    )
+    await audit(actor=actor, action="provider.category.create",
+                target_type="provider_category", target_id=name,
+                after={"label": label, "kind": kind}, request=request)
+    return {"status": "ok", "name": name, "label": label, "kind": kind}
+
+
+@router.delete("/categories/{name}")
+async def delete_category(
+    name: str,
+    request: Request,
+    actor: Principal = Depends(_require_cred_actor),
+):
+    """Delete a category and its credentials + chain entries. Destructive."""
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT name FROM provider_categories WHERE name=$1", name)
+    if not row:
+        raise HTTPException(404, "Category not found")
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await _purge_category(conn, name)
+    await audit(actor=actor, action="provider.category.delete",
+                target_type="provider_category", target_id=name, request=request)
+    await publish_invalidate(category=name)
+    return {"status": "ok"}
+
+
+async def _purge_category(conn: Any, name: str) -> None:
+    """Remove a category plus its dependent rows, in FK-safe order.
+
+    Credentials reference the category and are themselves referenced by chains
+    and routes, so dependents are deleted first. The secrets backend has no
+    delete API; vault entries become orphaned references, which are harmless.
+    """
+    await conn.execute("DELETE FROM provider_chains_v2 WHERE category=$1", name)
+    await conn.execute("DELETE FROM provider_priority_chains WHERE category=$1", name)
+    await conn.execute("DELETE FROM provider_routes WHERE category=$1", name)
+    await conn.execute("DELETE FROM provider_credentials WHERE category=$1", name)
+    await conn.execute(
+        "DELETE FROM provider_marketplace_catalog WHERE category=$1 AND is_user_defined=TRUE", name)
+    await conn.execute("DELETE FROM provider_categories WHERE name=$1", name)
+
+
+@router.post("/restore-defaults")
+async def restore_defaults(
+    request: Request,
+    actor: Principal = Depends(_require_cred_actor),
+):
+    """Recreate the built-in sections + categories after accidental deletion.
+
+    Does not restore deleted credentials (secrets are gone) or re-seed every
+    marketplace provider — only the taxonomy needed to keep the pipeline wired.
+    """
+    pool = await get_pool()
+    await pool.execute("SELECT seed_builtin_provider_taxonomy()")
+    await audit(actor=actor, action="provider.taxonomy.restore_defaults",
+                target_type="provider_taxonomy", target_id="builtin", request=request)
+    return {"status": "ok"}
 
 
 # Credentials
@@ -169,13 +407,22 @@ async def create_credential(
         from src.providers.registry import ProviderRegistry
         registered = ProviderRegistry._registries.get(body.category, {})
         if body.provider_name not in registered:
-            available = sorted(registered.keys())
-            raise HTTPException(
-                400,
-                f"Provider {body.provider_name!r} is not registered for "
-                f"category {body.category!r}. Available: {available or '(none)'}. "
-                f"Pick one from the dropdown.",
+            # Not a built-in Python class — accept it only if it exists in the
+            # marketplace catalog (a user-added "catalog-only" provider). Such a
+            # credential is stored and shown as connected, but the runtime can't
+            # call it until an adapter class ships (is_callable=FALSE).
+            in_catalog = await pool.fetchval(
+                "SELECT 1 FROM provider_marketplace_catalog WHERE provider_key=$1",
+                body.provider_name,
             )
+            if not in_catalog:
+                available = sorted(registered.keys())
+                raise HTTPException(
+                    400,
+                    f"Provider {body.provider_name!r} is not registered for "
+                    f"category {body.category!r}. Available: {available or '(none)'}. "
+                    f"Pick one from the dropdown.",
+                )
     except HTTPException:
         raise
     except Exception:
@@ -247,7 +494,7 @@ async def create_credential_from_wizard(
     if not catalog_row:
         raise HTTPException(400, f"Unknown provider_key {body.provider_key!r}")
 
-    schema: list[dict] = catalog_row["config_schema"] or []
+    schema: list[dict] = _as_json(catalog_row["config_schema"], [])
 
     # Validate required fields
     missing = [
@@ -962,7 +1209,7 @@ async def registered_providers_endpoint(
             "has_free_tier": cat_entry.get("has_free_tier"),
             "default_model": default,
             "supported_models": models,
-            "config_schema": cat_entry.get("config_schema") or [],
+            "config_schema": _as_json(cat_entry.get("config_schema"), []),
             "docs_url": cat_entry.get("docs_url"),
             "pricing_tier": cat_entry.get("pricing_tier"),
         })
@@ -1122,8 +1369,136 @@ async def list_marketplace(_: Principal = Depends(principal_dep)):
     for r in catalog:
         d = dict(r)
         d["connected"] = r["provider_key"] in connected
+        d["config_schema"] = _as_json(d.get("config_schema"), [])
+        d["supported_models"] = _as_json(d.get("supported_models"), [])
         result.append(d)
     return {"data": result}
+
+
+def _default_config_schema(requires_api_key: bool) -> list[dict]:
+    """Minimal schema for a user-added provider: optional API key + model.
+
+    Kept deliberately simple so a non-technical creator only sees a key field
+    and a model field. The key is stored in Vault; the model goes to extra_config.
+    """
+    fields: list[dict] = []
+    if requires_api_key:
+        fields.append({
+            "name": "api_key", "type": "password", "label": "API Key",
+            "required": True, "hint": "Paste the API key from your provider's dashboard.",
+        })
+    fields.append({
+        "name": "model", "type": "text", "label": "Model (optional)",
+        "required": False, "placeholder": "e.g. avatar-v3",
+    })
+    return fields
+
+
+@router.post("/marketplace")
+async def create_marketplace_provider(
+    body: MarketplaceProviderIn,
+    request: Request,
+    actor: Principal = Depends(_require_cred_actor),
+):
+    """Add a custom provider card to the marketplace under a section.
+
+    Stored as catalog-only (``is_callable=FALSE``): selectable and connectable,
+    but the runtime can't call it until an adapter class ships. The catalog row
+    references the section's general category so it groups with the section.
+    """
+    pool = await get_pool()
+    display_name = body.display_name.strip()
+    if not display_name:
+        raise HTTPException(422, "Provider name is required")
+    kind = _slugify(body.kind, maxlen=20)
+    sec = await pool.fetchrow("SELECT kind FROM provider_kinds WHERE kind=$1", kind)
+    if not sec:
+        raise HTTPException(400, f"Unknown section {kind!r}. Create the section first.")
+    # Catalog rows reference a category name; use this section's general category
+    # (created alongside the section, name == kind). Fall back to any category in
+    # the section if the general one was renamed/removed.
+    cat = await pool.fetchrow(
+        "SELECT name FROM provider_categories WHERE name=$1", kind
+    ) or await pool.fetchrow(
+        "SELECT name FROM provider_categories WHERE kind=$1 ORDER BY name LIMIT 1", kind
+    )
+    if not cat:
+        raise HTTPException(400, f"Section {kind!r} has no category to attach the provider to.")
+    provider_key = _slugify(body.provider_key or display_name, maxlen=60)
+    existing = await pool.fetchrow(
+        "SELECT provider_key FROM provider_marketplace_catalog WHERE provider_key=$1", provider_key)
+    if existing:
+        raise HTTPException(409, f"Provider {provider_key!r} already exists")
+    await pool.execute(
+        """INSERT INTO provider_marketplace_catalog
+              (provider_key, display_name, category, description, mode, capabilities,
+               cost_unit, has_free_tier, featured, sort_order,
+               config_schema, supported_models, is_platform_seeded, pricing_tier,
+               is_user_defined, is_callable)
+           VALUES ($1,$2,$3,$4,'byok',ARRAY[]::text[],$5,$6,FALSE,90,
+                   $7::jsonb,$8::jsonb,FALSE,$9,TRUE,FALSE)""",
+        provider_key, display_name, cat["name"], body.description,
+        body.cost_unit, body.has_free_tier,
+        json.dumps(_default_config_schema(body.requires_api_key)),
+        json.dumps(body.supported_models or []),
+        "free" if body.has_free_tier else "paid",
+    )
+    await audit(actor=actor, action="provider.marketplace.create",
+                target_type="provider_marketplace", target_id=provider_key,
+                after={"display_name": display_name, "kind": kind}, request=request)
+    return {"status": "ok", "provider_key": provider_key, "category": cat["name"]}
+
+
+@router.delete("/marketplace/{provider_key}")
+async def delete_marketplace_provider(
+    provider_key: str,
+    request: Request,
+    actor: Principal = Depends(_require_cred_actor),
+):
+    """Remove a marketplace provider. Existing credentials that used it are left
+    intact (they still resolve by provider_name) but it disappears from the
+    'add provider' lists."""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT provider_key FROM provider_marketplace_catalog WHERE provider_key=$1", provider_key)
+    if not row:
+        raise HTTPException(404, "Provider not found")
+    await pool.execute(
+        "DELETE FROM provider_marketplace_catalog WHERE provider_key=$1", provider_key)
+    await audit(actor=actor, action="provider.marketplace.delete",
+                target_type="provider_marketplace", target_id=provider_key, request=request)
+    return {"status": "ok"}
+
+
+@router.get("/catalog-for-category")
+async def catalog_for_category(
+    category: str,
+    _: Principal = Depends(principal_dep),
+):
+    """Marketplace providers available to a category — i.e. every catalog entry
+    in the same section (kind). Powers the 'Configure category' picker so a user
+    sees exactly the providers belonging to that section (built-in + custom)."""
+    pool = await get_pool()
+    cat = await pool.fetchrow("SELECT kind FROM provider_categories WHERE name=$1", category)
+    if not cat:
+        raise HTTPException(404, f"Unknown category {category!r}")
+    rows = await pool.fetch(
+        """SELECT pmc.provider_key, pmc.display_name, pmc.description, pmc.logo_url,
+                  pmc.has_free_tier, pmc.cost_unit, pmc.config_schema, pmc.supported_models,
+                  pmc.docs_url, pmc.pricing_tier, pmc.is_user_defined, pmc.is_callable
+             FROM provider_marketplace_catalog pmc
+             JOIN provider_categories pc ON pc.name = pmc.category
+            WHERE pc.kind = $1
+            ORDER BY pmc.is_user_defined, pmc.sort_order, pmc.display_name""",
+        cat["kind"],
+    )
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["config_schema"] = _as_json(d.get("config_schema"), [])
+        d["supported_models"] = _as_json(d.get("supported_models"), [])
+        out.append(d)
+    return {"data": out, "kind": cat["kind"]}
 
 
 @router.get("/setup-checklist")
