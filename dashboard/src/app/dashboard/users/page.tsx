@@ -110,9 +110,12 @@ export default function Users() {
             const isExpanded = expanded.has(u.id);
             const isSelf = myId !== null && u.id === myId;
             const isSuperadmin = u.global_role === 'superadmin';
-            const canTransfer = iAmSuperadmin && !isSelf && !isSuperadmin && !u.disabled;
-            const canDisable  = iAmSuperadmin && !isSelf && !isSuperadmin;
-            const canDelete   = iAmSuperadmin && !isSelf && !isSuperadmin;
+            const isDisabled = !!u.disabled;
+            // Disabled users only show Enable. No other actions allowed until re-enabled.
+            const canTransfer = iAmSuperadmin && !isSelf && !isSuperadmin && !isDisabled;
+            const canDisable  = iAmSuperadmin && !isSelf && !isSuperadmin && !isDisabled;
+            const canDelete   = iAmSuperadmin && !isSelf && !isSuperadmin && !isDisabled;
+            const canEnable   = iAmSuperadmin && !isSelf && !isSuperadmin && isDisabled;
             return (
               <div key={u.id} className="divide-y divide-border/50">
                 <div className={`p-3 flex items-center gap-3 ${u.disabled ? 'opacity-50' : ''}`}>
@@ -151,40 +154,47 @@ export default function Users() {
                     {isSuperadmin ? 'superadmin' : 'user'}
                   </span>
 
-                  {/* Transfer superadmin (superadmin only, on non-self active users) */}
+                  {/* Transfer superadmin — amber accent, clearly NOT delete */}
                   {canTransfer && (
                     <Button
                       size="sm"
                       variant="outline"
-                      className="text-status-error border-status-error/30 hover:bg-status-error/10 shrink-0 flex items-center gap-1"
-                      title="Transfer superadmin to this user"
+                      className="text-amber-500 border-amber-500/40 hover:bg-amber-500/10 shrink-0 flex items-center gap-1"
+                      title="Hand off the superadmin seat to this user"
                       onClick={() => setTransferTarget(u)}
                     >
                       <ShieldCheck size={13} />
-                      Transfer
+                      Make Superadmin
                     </Button>
                   )}
 
-                  {/* Disable / enable */}
-                  {!isSelf && (
+                  {/* Enable (only when disabled) */}
+                  {canEnable && (
                     <Button
                       size="sm"
-                      variant={u.disabled ? 'primary' : 'outline'}
-                      className={u.disabled
-                        ? 'bg-status-success hover:bg-status-success/90 text-content-inverse shrink-0'
-                        : `shrink-0 ${!canDisable ? 'opacity-30 pointer-events-none' : ''}`}
+                      className="bg-status-success hover:bg-status-success/90 text-content-inverse shrink-0"
+                      onClick={async () => { await usersApi.enable(u.id); refresh(); }}
+                    >
+                      Enable
+                    </Button>
+                  )}
+
+                  {/* Disable (only when active) */}
+                  {canDisable && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0"
                       onClick={async () => {
-                        if (!canDisable && !u.disabled) return;
-                        if (u.disabled) { await usersApi.enable(u.id); refresh(); return; }
                         try { await usersApi.disable(u.id); refresh(); }
                         catch (e: any) { alert(e?.message || 'Action failed'); }
                       }}
                     >
-                      {u.disabled ? 'Enable' : 'Disable'}
+                      Disable
                     </Button>
                   )}
 
-                  {/* Delete (not self, not superadmin) */}
+                  {/* Delete — only on active, non-superadmin, non-self users */}
                   {canDelete && (
                     <Button
                       size="sm"

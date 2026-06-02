@@ -31,6 +31,7 @@ async def list_users(_: Principal = Depends(require_global_role("superadmin"))):
              FROM users u
              LEFT JOIN workspace_members wm ON wm.user_id = u.id
              LEFT JOIN workspaces w ON w.id = wm.workspace_id
+            WHERE u.email NOT LIKE 'deleted-%@deleted.local'
             GROUP BY u.id
             ORDER BY u.id"""
     )
