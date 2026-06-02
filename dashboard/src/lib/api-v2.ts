@@ -695,6 +695,11 @@ export const membersApi = {
   setRole: (user_id: number, role: string) =>
     request(`/api/v2/workspace/members/${user_id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
   remove: (user_id: number) => request(`/api/v2/workspace/members/${user_id}`, { method: 'DELETE' }),
+  transferOwnership: (new_owner_user_id: number, current_password: string) =>
+    request('/api/v2/workspace/transfer-ownership', {
+      method: 'POST',
+      body: JSON.stringify({ new_owner_user_id, current_password }),
+    }),
 };
 
 // Invites
