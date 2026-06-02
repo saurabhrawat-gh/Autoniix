@@ -10,12 +10,6 @@ from ._deps import Principal, audit, principal_dep, require_global_role
 
 router = APIRouter()
 
-_GLOBAL_ROLES = ("superadmin", "user")
-
-
-class RoleIn(BaseModel):
-    role: str
-
 
 @router.get("")
 async def list_users(_: Principal = Depends(require_global_role("superadmin"))):
@@ -50,21 +44,31 @@ async def list_users(_: Principal = Depends(require_global_role("superadmin"))):
     return {"data": result}
 
 
-@router.put("/{user_id}/role")
-async def set_role(
-    user_id: int, body: RoleIn, request: Request,
+@router.post("/transfer-superadmin/{target_user_id}")
+async def transfer_superadmin(
+    target_user_id: int, request: Request,
     actor: Principal = Depends(require_global_role("superadmin")),
 ):
-    if body.role not in _GLOBAL_ROLES:
-        raise HTTPException(400, f"role must be one of {_GLOBAL_ROLES}")
+    """Atomically transfer the single superadmin seat to another active user.
+    Caller becomes 'user'; target becomes 'superadmin'. AE-285."""
+    if actor.user_id == target_user_id:
+        raise HTTPException(400, "You are already the superadmin.")
     pool = await get_pool()
-    res = await pool.execute(
-        "UPDATE users SET role=$1 WHERE id=$2", body.role, user_id
+    target = await pool.fetchrow(
+        "SELECT id, role, disabled FROM users WHERE id=$1", target_user_id
     )
-    if res.endswith("0"):
-        raise HTTPException(404, "User not found")
-    await audit(actor=actor, action="user.role.set", target_type="user",
-                target_id=str(user_id), after={"role": body.role}, request=request)
+    if not target:
+        raise HTTPException(404, "Target user not found")
+    if target["disabled"]:
+        raise HTTPException(409, "Cannot transfer superadmin to a disabled account. Enable the account first.")
+    if target["role"] == "superadmin":
+        raise HTTPException(409, "Target is already superadmin.")
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute("UPDATE users SET role='user' WHERE id=$1", actor.user_id)
+            await conn.execute("UPDATE users SET role='superadmin' WHERE id=$1", target_user_id)
+    await audit(actor=actor, action="user.superadmin.transfer", target_type="user",
+                target_id=str(target_user_id), request=request)
     return {"status": "ok"}
 
 
@@ -73,7 +77,17 @@ async def disable_user(
     user_id: int, request: Request,
     actor: Principal = Depends(require_global_role("superadmin")),
 ):
+    if actor.user_id == user_id:
+        raise HTTPException(403, "You cannot disable your own account.")
     pool = await get_pool()
+    target = await pool.fetchrow("SELECT role FROM users WHERE id=$1", user_id)
+    if not target:
+        raise HTTPException(404, "User not found")
+    if target["role"] == "superadmin":
+        raise HTTPException(
+            403,
+            "Cannot disable the superadmin account. Transfer superadmin ownership first.",
+        )
     await pool.execute("UPDATE users SET disabled=TRUE WHERE id=$1", user_id)
     await pool.execute("UPDATE sessions SET revoked_at=NOW() "
                        "WHERE user_id=$1 AND revoked_at IS NULL", user_id)
@@ -106,9 +120,10 @@ async def delete_user(
     if not target:
         raise HTTPException(404, "User not found")
     if target["role"] == "superadmin":
-        owner_count = await pool.fetchval("SELECT COUNT(*) FROM users WHERE role='superadmin' AND disabled=FALSE")
-        if (owner_count or 0) <= 1:
-            raise HTTPException(409, "Cannot delete the last superadmin")
+        raise HTTPException(
+            409,
+            "Cannot delete the superadmin account. Transfer superadmin ownership first.",
+        )
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute(

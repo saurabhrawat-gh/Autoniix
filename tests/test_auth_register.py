@@ -133,9 +133,9 @@ async def test_first_user_registration_assigns_owner_role():
 # ── TC-264-02 ──────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_second_user_registration_assigns_viewer_role():
-    """When at least one user already exists, every subsequent self-registrant
-    must default to user (global role). This is the privilege-escalation guard."""
+async def test_second_user_registration_is_blocked():
+    """AE-285: invite-only registration. Any self-registration after the first
+    user must be rejected with HTTP 403 — no account is created."""
     from src.services.dashboard.v2.auth import register, RegisterIn
 
     pool, conn = _build_pool(existing_user_count=1)
@@ -145,23 +145,26 @@ async def test_second_user_registration_assigns_viewer_role():
         workspace_name="Random Workspace",
     )
 
-    with _pool_ctx(pool), patch("src.services.dashboard.v2._resend.send_email"):
+    with _pool_ctx(pool), pytest.raises(HTTPException) as exc:
         await register(body=body, request=_make_request())
 
-    role = _insert_role_arg(conn)
-    assert role == "user", (
-        f"Second registrant must have global role 'user' (got {role!r}). "
-        "Anything else is a privilege escalation regression."
+    assert exc.value.status_code == 403, (
+        f"Self-registration after first user must return 403 (got {exc.value.status_code}). "
+        "AE-285 invite-only enforcement."
     )
+    insert_user_calls = [
+        c for c in conn.fetchval.await_args_list
+        if c.args and "INSERT INTO users" in c.args[0]
+    ]
+    assert insert_user_calls == [], "No user INSERT must happen when registration is blocked"
 
 
 # ── TC-264-03 ──────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("existing_count", [2, 3, 10, 1_000])
-async def test_nth_user_registration_assigns_viewer_role(existing_count: int):
-    """Sanity: the viewer-default behaviour holds for any non-zero existing
-    user count, not just exactly one."""
+async def test_nth_user_registration_is_blocked(existing_count: int):
+    """AE-285: invite-only. Any non-zero existing user count → 403, no INSERT."""
     from src.services.dashboard.v2.auth import register, RegisterIn
 
     pool, conn = _build_pool(existing_user_count=existing_count)
@@ -171,10 +174,10 @@ async def test_nth_user_registration_assigns_viewer_role(existing_count: int):
         workspace_name=f"Workspace {existing_count}",
     )
 
-    with _pool_ctx(pool), patch("src.services.dashboard.v2._resend.send_email"):
+    with _pool_ctx(pool), pytest.raises(HTTPException) as exc:
         await register(body=body, request=_make_request())
 
-    assert _insert_role_arg(conn) == "user"
+    assert exc.value.status_code == 403
 
 
 # ── TC-264-04 ──────────────────────────────────────────────────────────────
@@ -221,10 +224,7 @@ async def test_workspace_member_role_is_always_owner_for_own_workspace():
         workspace_name="My Space",
     )
 
-    with _pool_ctx(pool), patch("src.services.dashboard.v2._resend.send_email"):
+    with _pool_ctx(pool), pytest.raises(HTTPException) as exc:
         await register(body=body, request=_make_request())
 
-    # Global role: user (privilege guard — renamed from viewer in AE-284)
-    assert _insert_role_arg(conn) == "user"
-    # Workspace-scoped role for the brand-new workspace: owner (unchanged)
-    assert _workspace_member_role_arg(conn) == "owner"
+    assert exc.value.status_code == 403
