@@ -22,7 +22,7 @@ type Rule = { kind: string; value: string };
 type Reference = { kind: string; label?: string; uri?: string };
 
 const STEPS = [
-  { key: 'basics',     title: 'Basics',          hint: 'Name, platform, niche, language' },
+  { key: 'basics',     title: 'Basics',          hint: 'Name, niche, language' },
   { key: 'strategy',   title: 'Strategy',        hint: 'What kind of channel is this?' },
   { key: 'pillars',    title: 'Mission & pillars', hint: 'Mission, vision, content pillars' },
   { key: 'voice',      title: 'Voice & style',   hint: 'TTS voice, tone, narration, music' },
@@ -304,15 +304,11 @@ function BasicsStep({ state, update }: { state: FormState; update: any }) {
         <Input value={state.channel_name}
           onChange={e => update('channel_name', e.target.value)} placeholder="The Curious Engineer" />
       </Field>
-      <Field label="Platform" hint="Primary distribution platform.">
-        <Select value={state.platform} onValueChange={(v: string) => update('platform', v)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {['youtube','tiktok','instagram','facebook','twitter','linkedin','multi'].map(p => (
-              <SelectItem key={p} value={p}>{p}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <Field label="Platform" hint="Autoniix v1 supports YouTube only.">
+        <div className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-surface-2 text-sm font-medium">
+          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#FF0000' }} />
+          YouTube
+        </div>
       </Field>
       <Field label="Handle (optional)" hint="@thecuriousengineer">
         <Input value={state.handle} onChange={e => update('handle', e.target.value)} placeholder="@yourhandle" />

@@ -27,7 +27,7 @@ import secrets
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.db import get_pool
 from ._deps import Principal, audit, principal_dep, require_role
@@ -84,6 +84,13 @@ class ChannelCreate(BaseModel):
     preset: str | None = None
     extra: dict = Field(default_factory=dict)
 
+    @field_validator("platform")
+    @classmethod
+    def platform_must_be_youtube(cls, v: str) -> str:
+        if v != "youtube":
+            raise ValueError("Only 'youtube' platform is supported in v1")
+        return v
+
 
 class ChannelPatch(BaseModel):
     channel_name: str | None = None
@@ -95,7 +102,6 @@ class ChannelPatch(BaseModel):
     human_review_ratio: float | None = None
     review_timeout_hours: int | None = None
     max_daily_api_spend: float | None = None
-    platform: str | None = None
     handle: str | None = None
     description: str | None = None
     primary_language: str | None = None
