@@ -144,10 +144,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     try { localStorage.removeItem(NOTIF_KEY); } catch {}
   }, []);
 
-  // Periodic stats refresh
+  // Periodic stats refresh — pauses when the tab is hidden to avoid ghost requests
   useEffect(() => {
     refresh();
-    const t = setInterval(refresh, 15000);
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') refresh();
+    }, 15000);
     return () => clearInterval(t);
   }, [refresh]);
 
