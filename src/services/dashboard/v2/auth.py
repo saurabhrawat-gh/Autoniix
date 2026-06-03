@@ -212,7 +212,8 @@ async def auth_mode():
 
 
 @router.post("/register")
-async def register(body: RegisterIn, request: Request):
+@limiter.limit("5/minute")
+async def register(request: Request, body: RegisterIn):
     pool = await get_pool()
     async with pool.acquire() as conn:
         existing = await conn.fetchval(
