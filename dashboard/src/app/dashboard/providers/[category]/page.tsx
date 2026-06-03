@@ -1077,6 +1077,9 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
   const modelLabel = voiceHint?.fieldLabel || CATEGORY_MODEL_LABEL[category] || 'Model';
   const supportedModels: string[] = asArray<string>(selProvider?.supported_models);
   const defaultModel: string | null = selProvider?.default_model ?? null;
+  // Catalog-only providers (user-added with no runtime adapter) can store a key
+  // but the pipeline cannot call them yet. Be explicit so the user isn't misled.
+  const notCallable = selProvider?.is_callable === false;
 
   useEffect(() => {
     if (selProvider && !label) setLabel(selProvider.display_name + ' — Primary');
@@ -1225,6 +1228,16 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
                         {selProvider.pricing_tier}
                       </span>
                     )}
+                  </div>
+                )}
+                {notCallable && (
+                  <div className="mt-2 rounded-lg border border-status-warning/40 bg-status-warning/5 px-3 py-2.5 text-[11px] text-content-secondary flex items-start gap-2">
+                    <AlertTriangle size={13} className="text-status-warning shrink-0 mt-0.5" />
+                    <span>
+                      <strong className="text-status-warning">Catalog only.</strong> You can save a key for
+                      this provider now, but the pipeline can&apos;t call it until an adapter is added in
+                      code. It won&apos;t run in production yet.
+                    </span>
                   </div>
                 )}
               </div>
