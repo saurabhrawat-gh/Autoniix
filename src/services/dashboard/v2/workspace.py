@@ -805,12 +805,15 @@ async def create_invite(
                     actor.workspace_id,
                 ) or 0
                 if (member_count + pending_count) >= limit:
-                    raise HTTPException(
-                        402,
+                    msg = (
                         f"Plan limit reached: {plan!r} plan allows {limit} members "
                         f"({member_count} current + {pending_count} pending invites). "
-                        "Upgrade your plan to invite more members.",
                     )
+                    if pending_count > 0:
+                        msg += "Revoke unused pending invites to free slots, or upgrade your plan."
+                    else:
+                        msg += "Upgrade your plan to invite more members."
+                    raise HTTPException(402, msg)
             # Check member doesn't already exist
             existing = await conn.fetchval(
                 """SELECT wm.user_id FROM workspace_members wm
