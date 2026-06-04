@@ -2,8 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sparkles, ChevronLeft, ChevronRight, Check, Save, Wand2, X } from 'lucide-react';
+import { Sparkles, ChevronLeft, ChevronRight, Check, Save, Wand2, X, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { channelsApi } from '@/lib/api-v2';
+import {
+  validateStep,
+  computeAllValidity,
+  type StepKey,
+  type WizardErrors,
+} from './_validation';
 import {
   Button,
   Switch,
@@ -141,10 +147,50 @@ export default function ChannelWizard() {
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setState(s => ({ ...s, [k]: v }));
 
-  const next = () => setStep(s => Math.min(s + 1, STEPS.length - 1));
+  // AE-291 — per-step validation
+  const [touchedSteps, setTouchedSteps] = useState<Set<number>>(new Set([0]));
+  const allValidity = useMemo(() => computeAllValidity(state), [state]);
+  const currentKey = STEPS[step].key as StepKey;
+  const currentResult = useMemo(() => validateStep(currentKey, state), [currentKey, state]);
+  const currentErrors: WizardErrors = currentResult.errors;
+  const currentValid = currentResult.valid;
+  // A step's previous steps must all be valid before it can be jumped-into.
+  const canJumpTo = (idx: number): boolean => {
+    if (idx <= step) return true;
+    for (let i = 0; i < idx; i++) {
+      const k = STEPS[i].key as StepKey;
+      if (!allValidity[k]) return false;
+    }
+    return true;
+  };
+  const invalidSteps = STEPS
+    .map((s, i) => ({ idx: i, key: s.key as StepKey, title: s.title }))
+    .filter(s => s.key !== 'review' && !allValidity[s.key]);
+
+  const next = () => {
+    if (!currentValid) {
+      setTouchedSteps(prev => new Set(prev).add(step));
+      return;
+    }
+    setStep(s => {
+      const n = Math.min(s + 1, STEPS.length - 1);
+      setTouchedSteps(prev => new Set(prev).add(n));
+      return n;
+    });
+  };
   const prev = () => setStep(s => Math.max(s - 1, 0));
+  const jumpTo = (idx: number) => {
+    if (!canJumpTo(idx)) return;
+    setStep(idx);
+    setTouchedSteps(prev => new Set(prev).add(idx));
+  };
 
   const submit = async () => {
+    if (invalidSteps.length > 0) {
+      // Mark every step touched so all errors render.
+      setTouchedSteps(new Set(STEPS.map((_, i) => i)));
+      return;
+    }
     setSubmitting(true); setError(null);
     try {
       const r = await channelsApi.create(state);
@@ -184,55 +230,72 @@ export default function ChannelWizard() {
 
       {/* Step rail */}
       <ol className="grid grid-cols-8 gap-1 mb-6">
-        {STEPS.map((s, i) => (
-          <li key={s.key} className="text-[10px]">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setStep(i)}
-              className={cn(
-                'block w-full text-left h-auto px-2 py-1.5 rounded-md border transition justify-start',
-                i === step
-                  ? 'border-accent bg-accent/10 text-content-primary hover:bg-accent/15'
-                  : i < step
-                    ? 'border-status-success/50 bg-status-success/5 text-content-primary hover:bg-status-success/10'
-                    : 'border-border hover:bg-surface-2/60',
-              )}
-            >
-              <span className="block w-full">
-                <span className="font-medium block">{i + 1}. {s.title}</span>
-                <span className="opacity-60 truncate block">{s.hint}</span>
-              </span>
-            </Button>
-          </li>
-        ))}
+        {STEPS.map((s, i) => {
+          const stepKey = s.key as StepKey;
+          const reachable = canJumpTo(i);
+          const stepValid = allValidity[stepKey];
+          const wasTouched = touchedSteps.has(i);
+          const showError = wasTouched && !stepValid && stepKey !== 'review';
+          const showCheck = wasTouched && stepValid && stepKey !== 'review' && i !== step;
+          return (
+            <li key={s.key} className="text-[10px]">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => jumpTo(i)}
+                disabled={!reachable}
+                aria-current={i === step ? 'step' : undefined}
+                className={cn(
+                  'block w-full text-left h-auto px-2 py-1.5 rounded-md border transition justify-start',
+                  i === step
+                    ? 'border-accent bg-accent/10 text-content-primary hover:bg-accent/15'
+                    : showError
+                      ? 'border-status-error/50 bg-status-error/5 text-content-primary hover:bg-status-error/10'
+                      : showCheck
+                        ? 'border-status-success/50 bg-status-success/5 text-content-primary hover:bg-status-success/10'
+                        : 'border-border hover:bg-surface-2/60',
+                  !reachable && 'opacity-40 cursor-not-allowed',
+                )}
+              >
+                <span className="block w-full">
+                  <span className="font-medium flex items-center gap-1">
+                    {showCheck && <CheckCircle2 size={11} className="text-status-success" />}
+                    {showError && <AlertCircle  size={11} className="text-status-error" />}
+                    <span>{i + 1}. {s.title}</span>
+                  </span>
+                  <span className="opacity-60 truncate block">{s.hint}</span>
+                </span>
+              </Button>
+            </li>
+          );
+        })}
       </ol>
 
       <div className="rounded-xl border border-border bg-surface-0 p-6 min-h-[420px]">
         {STEPS[step].key === 'basics' && (
-          <BasicsStep state={state} update={update} />
+          <BasicsStep state={state} update={update} errors={currentErrors} />
         )}
         {STEPS[step].key === 'strategy' && (
-          <StrategyStep state={state} update={update} presets={presets} />
+          <StrategyStep state={state} update={update} presets={presets} errors={currentErrors} />
         )}
         {STEPS[step].key === 'pillars' && (
-          <PillarsStep state={state} update={update} />
+          <PillarsStep state={state} update={update} errors={currentErrors} />
         )}
         {STEPS[step].key === 'voice' && (
-          <VoiceStep state={state} update={update} />
+          <VoiceStep state={state} update={update} errors={currentErrors} />
         )}
         {STEPS[step].key === 'visual' && (
-          <VisualStep state={state} update={update} />
+          <VisualStep state={state} update={update} errors={currentErrors} />
         )}
         {STEPS[step].key === 'references' && (
-          <ReferencesStep state={state} update={update} />
+          <ReferencesStep state={state} update={update} errors={currentErrors} />
         )}
         {STEPS[step].key === 'automation' && (
-          <AutomationStep state={state} update={update} />
+          <AutomationStep state={state} update={update} errors={currentErrors} />
         )}
         {STEPS[step].key === 'review' && (
-          <ReviewStep state={state} />
+          <ReviewStep state={state} invalidSteps={invalidSteps} onJump={jumpTo} />
         )}
         {error && <div className="mt-4 text-sm text-status-error">{error}</div>}
       </div>
@@ -242,16 +305,22 @@ export default function ChannelWizard() {
           Back
         </Button>
         {step < STEPS.length - 1 ? (
-          <Button onClick={next} rightIcon={<ChevronRight size={14} />}>
+          <Button
+            onClick={next}
+            disabled={!currentValid}
+            rightIcon={<ChevronRight size={14} />}
+            title={!currentValid ? 'Complete all required fields on this step first.' : undefined}
+          >
             Next
           </Button>
         ) : (
           <Button
             onClick={submit}
-            disabled={submitting || !state.channel_name || !state.niche}
+            disabled={submitting || invalidSteps.length > 0}
             loading={submitting}
             leftIcon={<Check size={14} />}
             className="bg-status-success hover:bg-status-success/90 text-content-inverse"
+            title={invalidSteps.length > 0 ? `Fix ${invalidSteps.length} step(s) before creating.` : undefined}
           >
             {submitting ? 'Creating…' : 'Create channel'}
           </Button>
@@ -264,12 +333,21 @@ export default function ChannelWizard() {
 
 // Field primitive
 function Field({
-  label, hint, children, suggest,
-}: { label: string; hint?: string; children: React.ReactNode; suggest?: () => void }) {
+  label, hint, children, suggest, error, required,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+  suggest?: () => void;
+  error?: string;
+  required?: boolean;
+}) {
   return (
-    <label className="block">
+    <label className={cn('block', error && 'wizard-field-error')}>
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-xs font-medium uppercase tracking-wide opacity-70">{label}</span>
+        <span className="text-xs font-medium uppercase tracking-wide opacity-70">
+          {label}{required && <span className="text-status-error ml-0.5">*</span>}
+        </span>
         {suggest && (
           <Button
             type="button"
@@ -283,8 +361,12 @@ function Field({
           </Button>
         )}
       </div>
-      {children}
-      {hint && <div className="text-[11px] opacity-60 mt-1">{hint}</div>}
+      <div className={cn(error && '[&_input]:border-status-error [&_textarea]:border-status-error [&_button]:border-status-error rounded-md')}>
+        {children}
+      </div>
+      {error
+        ? <div className="text-[11px] text-status-error mt-1 inline-flex items-center gap-1"><AlertCircle size={10}/> {error}</div>
+        : hint && <div className="text-[11px] opacity-60 mt-1">{hint}</div>}
     </label>
   );
 }
@@ -297,10 +379,10 @@ async function aiSuggest(field: string, context: any, set: (v: string) => void) 
 }
 
 // Step components
-function BasicsStep({ state, update }: { state: FormState; update: any }) {
+function BasicsStep({ state, update, errors }: { state: FormState; update: any; errors: WizardErrors }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-      <Field label="Channel name" hint="Public-facing name. You can change this later.">
+      <Field label="Channel name" required hint="Public-facing name. You can change this later." error={errors.channel_name}>
         <Input value={state.channel_name}
           onChange={e => update('channel_name', e.target.value)} placeholder="The Curious Engineer" />
       </Field>
@@ -313,13 +395,13 @@ function BasicsStep({ state, update }: { state: FormState; update: any }) {
       <Field label="Handle (optional)" hint="@thecuriousengineer">
         <Input value={state.handle} onChange={e => update('handle', e.target.value)} placeholder="@yourhandle" />
       </Field>
-      <Field label="Niche" hint="The 1-2 word category. Used by research + topic generation.">
+      <Field label="Niche" required hint="The 1-2 word category. Used by research + topic generation." error={errors.niche}>
         <Input value={state.niche} onChange={e => update('niche', e.target.value)} placeholder="science explainer" />
       </Field>
       <Field label="Sub-niche">
         <Input value={state.sub_niche} onChange={e => update('sub_niche', e.target.value)} placeholder="quantum mechanics for hobbyists" />
       </Field>
-      <Field label="Primary language">
+      <Field label="Primary language" required error={errors.primary_language}>
         <Select value={state.primary_language} onValueChange={(v: string) => update('primary_language', v)}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -353,11 +435,11 @@ function BasicsStep({ state, update }: { state: FormState; update: any }) {
   );
 }
 
-function StrategyStep({ state, update, presets }: any) {
+function StrategyStep({ state, update, presets, errors }: any) {
   const tags = ['faceless', 'commentary', 'storytelling', 'documentary', 'kids', 'podcast', 'trend-based', 'evergreen', 'character', 'persona'];
   return (
     <div className="space-y-5">
-      <Field label="Content mode" hint="Shorts, long-form, or both.">
+      <Field label="Content mode" required hint="Shorts, long-form, or both." error={errors?.content_mode}>
         <div className="flex gap-2">
           {(['short','long','mixed'] as const).map(m => (
             <Button
@@ -372,7 +454,7 @@ function StrategyStep({ state, update, presets }: any) {
           ))}
         </div>
       </Field>
-      <Field label="Channel type tags" hint="Select all that apply. Drives prompt presets.">
+      <Field label="Channel type tags" required hint="Select all that apply. Drives prompt presets." error={errors?.content_type_tags}>
         <div className="flex flex-wrap gap-1.5">
           {tags.map(t => {
             const active = state.content_type_tags.includes(t);
@@ -407,7 +489,7 @@ function StrategyStep({ state, update, presets }: any) {
   );
 }
 
-function PillarsStep({ state, update }: any) {
+function PillarsStep({ state, update, errors }: any) {
   const addPillar = () => update('pillars', [...state.pillars, { name: '', description: '', weight: 1 }]);
   const removePillar = (i: number) => update('pillars', state.pillars.filter((_: any, j: number) => j !== i));
   const setPillar = (i: number, k: keyof Pillar, v: any) =>
@@ -421,7 +503,7 @@ function PillarsStep({ state, update }: any) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <Field label="Mission" hint="Why does this channel exist?"
+        <Field label="Mission" required hint="Why does this channel exist?" error={errors?.mission}
           suggest={() => aiSuggest('mission', { niche: state.niche, channel_name: state.channel_name }, v => update('mission', v))}>
           <Textarea className="h-20" value={state.mission} onChange={e => update('mission', e.target.value)} />
         </Field>
@@ -443,29 +525,56 @@ function PillarsStep({ state, update }: any) {
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-medium">Content pillars</h3>
+          <h3 className="text-sm font-medium">
+            Content pillars <span className="text-status-error">*</span>
+          </h3>
           <Button type="button" variant="outline" size="sm" onClick={addPillar}>+ Add pillar</Button>
         </div>
+        {errors?.pillars && (
+          <div className="text-[11px] text-status-error mb-2 inline-flex items-center gap-1">
+            <AlertCircle size={10}/> {errors.pillars}
+          </div>
+        )}
         <div className="space-y-2">
-          {state.pillars.length === 0 && <div className="text-xs opacity-60">No pillars yet. Add 3-5 evergreen themes.</div>}
-          {state.pillars.map((p: Pillar, i: number) => (
-            <div key={i} className="flex gap-2 items-start">
-              <Input className="max-w-xs" placeholder="Pillar name" value={p.name}
-                onChange={e => setPillar(i, 'name', e.target.value)} />
-              <Input className="flex-1" placeholder="One-line description"
-                value={p.description || ''} onChange={e => setPillar(i, 'description', e.target.value)} />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => removePillar(i)}
-                aria-label="Remove pillar"
-                className="text-status-error hover:bg-status-error/10"
-              >
-                <X size={14} />
-              </Button>
-            </div>
-          ))}
+          {state.pillars.length === 0 && <div className="text-xs opacity-60">No pillars yet. Add at least 2 evergreen themes.</div>}
+          {state.pillars.map((p: Pillar, i: number) => {
+            const nameErr = errors?.[`pillars[${i}].name`];
+            const descErr = errors?.[`pillars[${i}].description`];
+            return (
+              <div key={i} className="space-y-1">
+                <div className="flex gap-2 items-start">
+                  <Input
+                    className={cn('max-w-xs', nameErr && 'border-status-error')}
+                    placeholder="Pillar name"
+                    value={p.name}
+                    onChange={e => setPillar(i, 'name', e.target.value)}
+                  />
+                  <Input
+                    className={cn('flex-1', descErr && 'border-status-error')}
+                    placeholder="One-line description (10+ chars)"
+                    value={p.description || ''}
+                    onChange={e => setPillar(i, 'description', e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => removePillar(i)}
+                    aria-label="Remove pillar"
+                    className="text-status-error hover:bg-status-error/10"
+                  >
+                    <X size={14} />
+                  </Button>
+                </div>
+                {(nameErr || descErr) && (
+                  <div className="text-[11px] text-status-error pl-1">
+                    {nameErr && <span className="mr-3">{nameErr}</span>}
+                    {descErr && <span>{descErr}</span>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -521,14 +630,14 @@ function RuleList({ kind, label, hint, rules, onAdd, onRemove, onSet }: any) {
   );
 }
 
-function VoiceStep({ state, update }: any) {
+function VoiceStep({ state, update, errors }: any) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-      <Field label="Narration style"
+      <Field label="Narration style" required error={errors?.narration_style}
         suggest={() => aiSuggest('narration_style', { niche: state.niche, brand_personality: state.brand_personality }, v => update('narration_style', v))}>
         <Input value={state.narration_style} onChange={e => update('narration_style', e.target.value)} placeholder="Calm, authoritative, micro-pauses" />
       </Field>
-      <Field label="Music style"
+      <Field label="Music style" required error={errors?.music_style}
         suggest={() => aiSuggest('music_style', { niche: state.niche }, v => update('music_style', v))}>
         <Input value={state.music_style} onChange={e => update('music_style', e.target.value)} placeholder="Cinematic minimal, soft pads" />
       </Field>
@@ -570,10 +679,10 @@ function VoiceStep({ state, update }: any) {
   );
 }
 
-function VisualStep({ state, update }: any) {
+function VisualStep({ state, update, errors }: any) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-      <Field label="Thumbnail style"
+      <Field label="Thumbnail style" required error={errors?.thumbnail_style}
         suggest={() => aiSuggest('thumbnail_style', { niche: state.niche }, v => update('thumbnail_style', v))}>
         <Input value={state.thumbnail_style} onChange={e => update('thumbnail_style', e.target.value)} placeholder="Bold subject, single contrast color, 3-word headline" />
       </Field>
@@ -581,10 +690,10 @@ function VisualStep({ state, update }: any) {
         suggest={() => aiSuggest('typography_preference', {}, v => update('typography_preference', v))}>
         <Input value={state.typography_preference} onChange={e => update('typography_preference', e.target.value)} placeholder="Inter / Geist; bold weights on emphasis" />
       </Field>
-      <Field label="Primary color">
+      <Field label="Primary color" required error={errors?.primary_color}>
         <input type="color" value={state.primary_color} onChange={e => update('primary_color', e.target.value)} className="h-10 w-20 rounded" />
       </Field>
-      <Field label="Secondary color">
+      <Field label="Secondary color" required error={errors?.secondary_color}>
         <input type="color" value={state.secondary_color} onChange={e => update('secondary_color', e.target.value)} className="h-10 w-20 rounded" />
       </Field>
       <Field label="LUT preference"
@@ -604,7 +713,7 @@ function VisualStep({ state, update }: any) {
   );
 }
 
-function ReferencesStep({ state, update }: any) {
+function ReferencesStep({ state, update, errors }: any) {
   const add = () => update('references', [...state.references, { kind: 'url', label: '', uri: '' }]);
   const set = (i: number, k: keyof Reference, v: string) =>
     update('references', state.references.map((r: Reference, j: number) => j === i ? { ...r, [k]: v } : r));
@@ -647,13 +756,13 @@ function ReferencesStep({ state, update }: any) {
   );
 }
 
-function AutomationStep({ state, update }: any) {
+function AutomationStep({ state, update, errors }: any) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
       <Field label="Auto upload to platform" hint="If off, finished videos wait for manual publish.">
         <Toggle value={state.auto_upload} onChange={(v: boolean) => update('auto_upload', v)} />
       </Field>
-      <Field label="Human review" hint="When should the system pause for review?">
+      <Field label="Human review" required error={errors?.human_review_required} hint="When should the system pause for review?">
         <Select value={state.human_review_required} onValueChange={(v: string) => update('human_review_required', v as any)}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -671,15 +780,15 @@ function AutomationStep({ state, update }: any) {
         <Input type="number" min={1} max={168}
           value={state.review_timeout_hours} onChange={e => update('review_timeout_hours', Number(e.target.value))} />
       </Field>
-      <Field label="Daily API spend cap ($)">
+      <Field label="Daily API spend cap ($)" required error={errors?.max_daily_api_spend}>
         <Input type="number" min={0} step={0.5}
           value={state.max_daily_api_spend} onChange={e => update('max_daily_api_spend', Number(e.target.value))} />
       </Field>
-      <Field label="Videos per week (short)">
+      <Field label="Videos per week (short)" error={errors?.videos_per_week_short}>
         <Input type="number" min={0} max={21}
           value={state.videos_per_week_short} onChange={e => update('videos_per_week_short', Number(e.target.value))} />
       </Field>
-      <Field label="Videos per week (long)">
+      <Field label="Videos per week (long)" error={errors?.videos_per_week_long}>
         <Input type="number" min={0} max={7}
           value={state.videos_per_week_long} onChange={e => update('videos_per_week_long', Number(e.target.value))} />
       </Field>
@@ -699,7 +808,13 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
   return <Switch checked={value} onCheckedChange={onChange} />;
 }
 
-function ReviewStep({ state }: { state: FormState }) {
+function ReviewStep({
+  state, invalidSteps, onJump,
+}: {
+  state: FormState;
+  invalidSteps: Array<{ idx: number; title: string }>;
+  onJump: (idx: number) => void;
+}) {
   const sections: [string, any][] = [
     ['Basics', { name: state.channel_name, niche: state.niche, sub_niche: state.sub_niche, language: state.primary_language, mode: state.content_mode }],
     ['Identity', { mission: state.mission, vision: state.vision, tone: state.tone, brand_personality: state.brand_personality }],
@@ -710,6 +825,27 @@ function ReviewStep({ state }: { state: FormState }) {
   ];
   return (
     <div className="space-y-4">
+      {invalidSteps.length > 0 && (
+        <div className="rounded-lg border border-status-error/40 bg-status-error/5 px-4 py-3 text-sm text-status-error">
+          <div className="font-semibold flex items-center gap-1.5 mb-1">
+            <AlertCircle size={14}/> Please complete:
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {invalidSteps.map(s => (
+              <Button
+                key={s.idx}
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onJump(s.idx)}
+                className="h-auto px-2 py-0.5 text-xs border-status-error/40 text-status-error hover:bg-status-error/10"
+              >
+                Step {s.idx + 1}: {s.title}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="text-sm opacity-70">
         <Sparkles size={14} className="inline mr-1.5" />
         You can revisit any of these from the channel's Settings tab. Press <strong>Create channel</strong> to finalize.
