@@ -106,7 +106,7 @@ export default function ProductPreview() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                 {[
                   { label: 'Videos Published', value: '247', trend: '+12 this week' },
-                  { label: 'Active Profiles', value: '8', trend: '2 platforms' },
+                  { label: 'Active Channels', value: '8', trend: 'Shorts + Long' },
                   { label: 'AI Jobs Running', value: '3', trend: 'real-time' },
                   { label: 'Total Views', value: '1.2M', trend: '+18% this month' },
                 ].map((stat) => (

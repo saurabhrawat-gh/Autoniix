@@ -200,10 +200,10 @@ function ContentQualityVisual({ accent }: { accent: string }) {
 /* ─── Visual: Scale stack ─────────────────────────────────── */
 function ScaleDemoVisual({ accent }: { accent: string }) {
   const tiers = [
-    { label: '1 profile',    videos: 4,   color: '#00D89F' },
-    { label: '10 profiles',  videos: 40,  color: '#7C3AED' },
-    { label: '50 profiles',  videos: 200, color: '#06B6D4' },
-    { label: '100 profiles', videos: 400, color: '#F59E0B' },
+    { label: '1 channel',    videos: 4,   color: '#00D89F' },
+    { label: '10 channels',  videos: 40,  color: '#7C3AED' },
+    { label: '50 channels',  videos: 200, color: '#06B6D4' },
+    { label: '100 channels', videos: 400, color: '#F59E0B' },
   ]
   return (
     <div>
@@ -341,15 +341,15 @@ const SECTIONS = [
   },
   {
     id: 'scale',
-    eyebrow: 'Infinite Scale',
+    eyebrow: 'YouTube at Scale',
     headline: 'One setup.',
-    headline2: 'Every platform.',
-    subtext: 'Go from 1 channel to 100 overnight. Autoniix handles every profile identically — same quality, same speed, same reliability — whether you run 5 or 500 jobs.',
+    headline2: 'Every channel.',
+    subtext: 'Go from 1 YouTube channel to 100 overnight. Autoniix handles every channel identically — same quality, same speed, same reliability — whether you run 5 or 500 jobs.',
     accent: '#0891B2',
     accentDark: '#06B6D4',
     visual: ScaleDemoVisual,
     reverse: false,
-    stat: { value: '400+', label: 'Videos / month / 100 profiles' },
+    stat: { value: '400+', label: 'Videos / month / 100 channels' },
   },
   {
     id: 'control',
