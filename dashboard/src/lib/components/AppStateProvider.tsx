@@ -144,12 +144,19 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     try { localStorage.removeItem(NOTIF_KEY); } catch {}
   }, []);
 
-  // Periodic stats refresh — pauses when the tab is hidden to avoid ghost requests
+  // Periodic stats refresh — pauses when the tab is hidden, and skips when
+  // the WebSocket is already live (WS pushes job_update events; the timer
+  // is only a fallback for offline/connecting states). Bumped 15s → 30s.
+  // Read wsStatus from a ref so changes don't recreate the interval.
+  const wsStatusRef = useRef<WsStatus>('connecting');
+  useEffect(() => { wsStatusRef.current = wsStatus; }, [wsStatus]);
   useEffect(() => {
     refresh();
     const t = setInterval(() => {
-      if (document.visibilityState === 'visible') refresh();
-    }, 15000);
+      if (document.visibilityState !== 'visible') return;
+      if (wsStatusRef.current === 'live') return;
+      refresh();
+    }, 30000);
     return () => clearInterval(t);
   }, [refresh]);
 

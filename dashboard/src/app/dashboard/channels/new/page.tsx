@@ -307,9 +307,11 @@ export default function ChannelWizard() {
         {step < STEPS.length - 1 ? (
           <Button
             onClick={next}
+            variant={currentValid ? 'primary' : 'secondary'}
             disabled={!currentValid}
             rightIcon={<ChevronRight size={14} />}
             title={!currentValid ? 'Complete all required fields on this step first.' : undefined}
+            className={!currentValid ? 'opacity-60' : undefined}
           >
             Next
           </Button>
