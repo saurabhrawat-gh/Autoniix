@@ -49,6 +49,7 @@ type Workspace = {
   name: string;
   slug: string;
   plan: string;
+  mode: 'solo' | 'teams';
   timezone: string;
   monthly_budget_usd: number | null;
   logo_url: string | null;
@@ -122,6 +123,7 @@ export default function WorkspacePage() {
   const [monthlyBudget, setMonthlyBudget] = useState<string>('');
   const [logoUrl, setLogoUrl] = useState('');
   const [savingWs, setSavingWs] = useState(false);
+  const [savingMode, setSavingMode] = useState(false);
 
   // Integrations
   const [slackWebhook, setSlackWebhook] = useState('');
@@ -441,111 +443,87 @@ export default function WorkspacePage() {
         )}
       </Card>
 
-      {/* Invitations */}
-      <Card variant="elevated" padding="lg" className="space-y-4">
-        <div className="flex items-center justify-between">
+      {/* Collaboration Mode + Invitations */}
+      <Card variant="elevated" padding="lg" className="space-y-5">
+        {/* Mode toggle header */}
+        <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-2">
             <Mail size={16} className="text-content-secondary" />
-            <h2 className="text-sm font-semibold text-content-primary">Invite Members</h2>
+            <div>
+              <h2 className="text-sm font-semibold text-content-primary">Team Collaboration</h2>
+              <p className="text-xs text-content-tertiary mt-0.5">
+                {ws?.mode === 'teams'
+                  ? 'Teams mode is active — you can invite members.'
+                  : 'Solo mode — enable Teams mode to invite collaborators.'}
+              </p>
+            </div>
+          </div>
+          {/* Solo / Teams segmented toggle */}
+          <div className="flex shrink-0 rounded-lg border border-border overflow-hidden text-xs font-medium">
+            <button
+              className={`px-3 py-1.5 transition-colors ${
+                (ws?.mode ?? 'solo') === 'solo'
+                  ? 'bg-surface-2 text-content-primary'
+                  : 'text-content-tertiary hover:text-content-secondary'
+              }`}
+              disabled={savingMode}
+              onClick={async () => {
+                if (ws?.mode === 'solo') return;
+                setSavingMode(true);
+                try {
+                  await workspaceApi.setMode('solo');
+                  setWs(w => w ? { ...w, mode: 'solo' } : w);
+                  showToast('Switched to Solo mode', 'success');
+                } catch (e: any) { showToast(e?.message || 'Failed', 'error'); }
+                finally { setSavingMode(false); }
+              }}
+            >
+              Solo
+            </button>
+            <button
+              className={`px-3 py-1.5 transition-colors ${
+                ws?.mode === 'teams'
+                  ? 'bg-accent text-content-inverse'
+                  : 'text-content-tertiary hover:text-content-secondary'
+              }`}
+              disabled={savingMode}
+              onClick={async () => {
+                if (ws?.mode === 'teams') return;
+                setSavingMode(true);
+                try {
+                  await workspaceApi.setMode('teams');
+                  setWs(w => w ? { ...w, mode: 'teams' } : w);
+                  showToast('Switched to Teams mode — you can now invite members!', 'success');
+                } catch (e: any) { showToast(e?.message || 'Failed', 'error'); }
+                finally { setSavingMode(false); }
+              }}
+            >
+              Teams
+            </button>
           </div>
         </div>
 
-        {/* Send invite form */}
-        <div className="flex gap-2 flex-wrap items-end">
-          <div className="flex-1 min-w-[180px] space-y-1.5">
-            <Label htmlFor="inv-email">Email address</Label>
-            <Input
-              id="inv-email"
-              type="email"
-              value={inviteEmail}
-              onChange={e => setInviteEmail(e.target.value)}
-              placeholder="colleague@company.com"
-              onKeyDown={e => e.key === 'Enter' && sendInvite()}
-            />
+        {ws?.mode !== 'teams' ? (
+          /* Solo mode callout */
+          <div className="rounded-lg border border-border bg-surface-1 p-4 text-sm text-content-secondary space-y-1">
+            <p className="font-medium text-content-primary">You&apos;re in Solo mode</p>
+            <p>Switch to <strong>Teams</strong> above to enable collaboration.</p>
           </div>
-          <div className="w-[140px] space-y-1.5">
-            <Label>Role</Label>
-            <Select value={inviteRole} onValueChange={setInviteRole}>
-              <SelectTrigger className="h-9 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {INVITE_ROLES.map(r => (
-                  <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button onClick={sendInvite} loading={inviting} leftIcon={<Plus size={14} />}>
-            Send invite
-          </Button>
-        </div>
-
-        {/* Last invite link (dev mode — no email server) */}
-        {lastInviteUrl && (
-          <div className="flex items-center gap-2 p-2.5 rounded-lg bg-accent/5 border border-accent/20">
-            <Link2 size={14} className="text-accent shrink-0" />
-            <code className="flex-1 text-xs text-accent truncate">{window.location.origin}{lastInviteUrl}</code>
-            <Button size="sm" variant="ghost" onClick={() => copyInviteUrl(lastInviteUrl)}>
-              Copy
-            </Button>
-          </div>
-        )}
-
-        {/* Pending invites list */}
-        {invites.filter(i => !i.accepted_at).length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-content-tertiary uppercase tracking-wider">Pending invitations</p>
-            {invites.filter(i => !i.accepted_at).map(inv => (
-              <div
-                key={inv.id}
-                className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border bg-surface-1"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-content-primary truncate">{inv.email}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <Badge variant="info" size="sm">{inv.role}</Badge>
-                    <span className="text-xs text-content-tertiary flex items-center gap-1">
-                      <Clock size={10} />
-                      Expires {new Date(inv.expires_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => copyInviteUrl(inv.invite_url || `/accept-invite?token=preview`)}
-                  leftIcon={<Link2 size={12} />}
-                >
-                  Copy link
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => revokeInvite(inv)}
-                  leftIcon={<Trash2 size={12} />}
-                >
-                  Revoke
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Accepted invites */}
-        {invites.filter(i => i.accepted_at).length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-content-tertiary uppercase tracking-wider">Accepted</p>
-            {invites.filter(i => i.accepted_at).map(inv => (
-              <div
-                key={inv.id}
-                className="flex items-center gap-3 p-3 rounded-lg border border-border bg-surface-1 opacity-60"
-              >
-                <Check size={14} className="text-status-success shrink-0" />
-                <p className="text-sm text-content-secondary truncate">{inv.email}</p>
-                <Badge variant="secondary" size="sm">{inv.role}</Badge>
-              </div>
-            ))}
+        ) : (
+          /* Teams mode — direct user to the Teams page for invite management */
+          <div className="rounded-lg border border-border bg-surface-1 p-4 flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1 space-y-1">
+              <p className="text-sm font-medium text-content-primary">Teams mode is active</p>
+              <p className="text-sm text-content-secondary">
+                Manage members and invitations on the Teams page.
+              </p>
+            </div>
+            <a
+              href="/dashboard/teams"
+              className="shrink-0 text-xs font-medium text-accent hover:underline flex items-center gap-1"
+            >
+              Go to Teams <ExternalLink size={11} />
+            </a>
           </div>
         )}
       </Card>

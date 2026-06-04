@@ -60,11 +60,11 @@ const FEATURES = [
     id: 'scale',
     number: '06',
     icon: Globe2,
-    title: 'Multi-Platform Scale',
-    subtitle: '1 setup. Infinite reach.',
-    description: 'From 1 to 100+ profiles across YouTube, Instagram, TikTok and beyond — zero extra effort. One pipeline, every platform, simultaneously.',
+    title: 'YouTube at Scale',
+    subtitle: '1 channel or 100. Same zero-effort pipeline.',
+    description: 'Run unlimited YouTube channels — Shorts and long-form — from a single Autoniix setup. Zero extra effort per channel.',
     accent: '#00D89F',
-    tags: ['YouTube', 'Instagram', 'TikTok', 'Infinite Profiles'],
+    tags: ['YouTube', 'Shorts + Long-form', 'Multi-Channel', 'Fully Automated'],
   },
 ]
 
@@ -245,12 +245,12 @@ function AnalyticsVisual({ accent }: { accent: string }) {
 }
 
 function ScaleVisual({ accent }: { accent: string }) {
-  const platforms = ['YouTube', 'Instagram', 'TikTok', 'LinkedIn', 'X', 'Facebook']
+  const channels = ['Curious Engineer', 'Money Decoded', 'Sleep Lab', 'Stoic Daily', 'Cosmos Now', 'Habit Loop']
   return (
     <div>
-      <div className="text-[10px] font-mono text-white/30 uppercase tracking-widest mb-4">Active profiles · 6 platforms</div>
+      <div className="text-[10px] font-mono text-white/30 uppercase tracking-widest mb-4">Active YouTube channels · 6 niches</div>
       <div className="grid grid-cols-3 gap-2">
-        {platforms.map((p, i) => (
+        {channels.map((p, i) => (
           <motion.div
             key={p}
             initial={{ opacity: 0, scale: 0.85 }}
@@ -260,7 +260,7 @@ function ScaleVisual({ accent }: { accent: string }) {
           >
             <div className="w-2 h-2 rounded-full mx-auto mb-1.5" style={{ background: accent, boxShadow: `0 0 6px ${accent}80` }} />
             <p className="text-[10px] text-white/55 font-medium">{p}</p>
-            <p className="text-[8px] text-white/25 font-mono mt-0.5">Active</p>
+            <p className="text-[8px] text-white/25 font-mono mt-0.5">Auto</p>
           </motion.div>
         ))}
       </div>

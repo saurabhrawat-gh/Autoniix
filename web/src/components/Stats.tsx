@@ -6,9 +6,9 @@ import AnimatedCounter from './ui/AnimatedCounter'
 const STATS = [
   { value: 10,   suffix: '+',  label: 'AI models',          description: 'GPT-4o · Claude · Gemini · more',   accent: '#00D89F' },
   { value: 48,   suffix: '+',  label: 'Video components',   description: 'Remotion cinematic building blocks', accent: '#7C3AED' },
-  { value: 100,  suffix: '+',  label: 'Profiles',           description: 'Any platform · any niche · any scale', accent: '#06B6D4' },
+  { value: 100,  suffix: '+',  label: 'YouTube channels',   description: 'Shorts + long-form · any niche · any scale', accent: '#06B6D4' },
   { value: 0,    prefix: '$',  label: 'Manual effort',      description: 'End-to-end autonomous by default',   accent: '#F59E0B' },
-  { value: null,               label: 'Infinite scale',     description: 'No hard cap on profiles or output',  accent: '#00D89F' },
+  { value: null,               label: 'Infinite scale',     description: 'No hard cap on channels or output',  accent: '#00D89F' },
 ]
 
 export default function Stats() {

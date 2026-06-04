@@ -89,13 +89,25 @@ def _verify_pw(pw: str, hashed: str) -> bool:
         return False
 
 
-def _issue_jwt(user: dict[str, Any], workspace_id: int = 1, ws_role: str | None = None, ttl_s: int = 3600) -> str:
+def _issue_jwt(
+    user: dict[str, Any],
+    workspace_id: int = 1,
+    ws_role: str | None = None,
+    global_role: str = "user",
+    ttl_s: int = 3600,
+) -> str:
+    """Issue a signed JWT.
+
+    ``role``        — workspace-scoped role (owner|member|viewer)
+    ``global_role`` — platform-level role  (superadmin|user)
+    """
     import jwt
     return jwt.encode(
         {
             "sub": str(user["id"]),
             "email": user["email"],
-            "role": ws_role or user.get("role", "viewer"),
+            "role": ws_role or "viewer",   # workspace role
+            "global_role": global_role,     # platform role
             "wid": workspace_id,
             "iat": int(time.time()),
             "exp": int(time.time()) + ttl_s,
@@ -200,7 +212,8 @@ async def auth_mode():
 
 
 @router.post("/register")
-async def register(body: RegisterIn, request: Request):
+@limiter.limit("5/minute")
+async def register(request: Request, body: RegisterIn):
     pool = await get_pool()
     async with pool.acquire() as conn:
         existing = await conn.fetchval(
@@ -210,13 +223,16 @@ async def register(body: RegisterIn, request: Request):
             raise HTTPException(409, "An account with this email already exists")
         async with conn.transaction():
             verify_token = secrets.token_urlsafe(32)
-            # Bug AE-264 / #308: only the very first user in the system bootstraps
-            # as global owner. Every subsequent self-registrant defaults to viewer
-            # so that random visitors to the public /register form cannot grant
-            # themselves admin permissions. An existing owner must explicitly
-            # promote them via PUT /api/v2/users/{id}/role.
+            # AE-285: invite-only after first user. Only the very first registrant
+            # bootstraps as superadmin. All subsequent accounts must arrive via
+            # an invitation link — the public /register form is disabled.
             user_count = await conn.fetchval("SELECT COUNT(*) FROM users")
-            global_role = "owner" if (user_count or 0) == 0 else "viewer"
+            if (user_count or 0) > 0:
+                raise HTTPException(
+                    403,
+                    "Registration is closed. Please use your invitation link to join.",
+                )
+            global_role = "superadmin"
             uid = await conn.fetchval(
                 """INSERT INTO users (email, display_name, password_hash, role,
                                       email_verify_token, email_verified)
@@ -236,8 +252,8 @@ async def register(body: RegisterIn, request: Request):
             if suffix:
                 ws_slug = f"{ws_slug}-{suffix}"
             ws_id = await conn.fetchval(
-                """INSERT INTO workspaces (name, slug, plan, owner_user_id, billing_email)
-                   VALUES ($1,$2,'starter',$3,$4) RETURNING id""",
+                """INSERT INTO workspaces (name, slug, plan, mode, owner_user_id, billing_email)
+                   VALUES ($1,$2,'starter','solo',$3,$4) RETURNING id""",
                 ws_name, ws_slug, uid, body.email.lower(),
             )
             await conn.execute(
@@ -290,7 +306,12 @@ async def login(request: Request, body: LoginIn, response: Response):
         request.headers.get("user-agent"), expires,
     )
     await pool.execute("UPDATE users SET last_login_at=NOW() WHERE id=$1", user["id"])
-    # Resolve active workspace + workspace-scoped role
+    # Resolve active workspace + workspace-scoped role.
+    # AE-285: heal stale active_workspace_id. If the cached active workspace is
+    # no longer a valid membership (user removed, workspace deleted, etc.) fall
+    # back to any other workspace they are still a member of. If none, leave
+    # wid=None so setup_required=True routes them to /onboarding instead of
+    # bouncing on the dashboard via workspace_access_revoked.
     ws_row = await pool.fetchrow(
         "SELECT active_workspace_id FROM users WHERE id=$1", user["id"]
     )
@@ -298,8 +319,24 @@ async def login(request: Request, body: LoginIn, response: Response):
     wm = await pool.fetchrow(
         "SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2", wid or 0, user["id"]
     ) if wid else None
-    ws_role = wm["role"] if wm else user["role"]
-    access = _issue_jwt(dict(user), workspace_id=wid or 0, ws_role=ws_role)
+    if wid and not wm:
+        # Stale active_workspace_id — find any membership and heal it.
+        fallback = await pool.fetchrow(
+            "SELECT workspace_id, role FROM workspace_members "
+            "WHERE user_id=$1 ORDER BY workspace_id LIMIT 1",
+            user["id"],
+        )
+        if fallback:
+            wid = fallback["workspace_id"]
+            wm = fallback
+            await pool.execute(
+                "UPDATE users SET active_workspace_id=$1 WHERE id=$2",
+                wid, user["id"],
+            )
+        else:
+            wid = None  # no memberships → setup_required path
+    ws_role = wm["role"] if wm else "viewer"
+    access = _issue_jwt(dict(user), workspace_id=wid or 0, ws_role=ws_role, global_role=user["role"])
     _set_auth_cookies(response, access, raw)
     # Also return token in body as a fallback for environments where the dev
     # proxy (e.g. `next dev` rewrites) does not forward Set-Cookie reliably.
@@ -351,10 +388,10 @@ async def refresh(request: Request, response: Response, body: RefreshIn | None =
     wm = await pool.fetchrow(
         "SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2", wid, row["user_id"]
     ) if wid else None
-    ws_role = wm["role"] if wm else row["role"]
+    ws_role = wm["role"] if wm else "viewer"
     access = _issue_jwt(
-        {"id": row["user_id"], "email": row["email"], "role": ws_role},
-        workspace_id=wid or 0, ws_role=ws_role,
+        {"id": row["user_id"], "email": row["email"]},
+        workspace_id=wid or 0, ws_role=ws_role, global_role=row["role"],
     )
     _set_auth_cookies(response, access, new_raw)
     return {"status": "ok", "access_token": access, "expires_in": 3600}
@@ -405,7 +442,8 @@ async def me(p: Principal = Depends(principal_dep)):
     return {"data": {
         "user_id": p.user_id,
         "email": p.email,
-        "role": p.role,
+        "role": p.role,              # workspace-scoped role
+        "global_role": p.global_role,  # platform-level role
         "source": p.source,
         "display_name": display_name,
         "initials": initials,
@@ -453,6 +491,48 @@ async def update_profile(body: ProfileIn, p: Principal = Depends(principal_dep))
         *params,
     )
     return {"status": "ok", "message": "Profile updated"}
+
+
+class DeleteAccountIn(BaseModel):
+    password: str
+
+
+@router.delete("/account")
+async def delete_account(
+    body: DeleteAccountIn, request: Request, response: Response,
+    p: Principal = Depends(principal_dep),
+):
+    if not p.user_id:
+        raise HTTPException(403, "Cannot delete account on a legacy session — enable v2 auth first")
+    pool = await get_pool()
+    user = await pool.fetchrow(
+        "SELECT id, password_hash, role FROM users WHERE id=$1", p.user_id
+    )
+    if not user:
+        raise HTTPException(404, "User not found")
+    if not _verify_pw(body.password, user["password_hash"] or ""):
+        raise HTTPException(401, "Incorrect password")
+    if user["role"] == "superadmin":
+        owner_count = await pool.fetchval(
+            "SELECT COUNT(*) FROM users WHERE role='superadmin' AND disabled=FALSE"
+        )
+        if (owner_count or 0) <= 1:
+            raise HTTPException(409, "Cannot delete the last superadmin account — promote another user first")
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "UPDATE sessions SET revoked_at=NOW() WHERE user_id=$1 AND revoked_at IS NULL", p.user_id
+            )
+            await conn.execute("DELETE FROM workspace_members WHERE user_id=$1", p.user_id)
+            await conn.execute(
+                """UPDATE users SET
+                   email=$1, password_hash=NULL, display_name='Deleted User',
+                   disabled=TRUE, mfa_enabled=FALSE, mfa_secret=NULL
+                   WHERE id=$2""",
+                f"deleted-{p.user_id}@deleted.local", p.user_id,
+            )
+    _clear_auth_cookies(response)
+    return {"status": "ok"}
 
 
 @router.post("/forgot")
@@ -579,8 +659,8 @@ async def create_workspace_for_existing_user(
         async with pool.acquire() as conn:
             async with conn.transaction():
                 wid = await conn.fetchval(
-                    """INSERT INTO workspaces (name, slug, plan, owner_user_id, billing_email)
-                       VALUES ($1,$2,'starter',$3,$4) RETURNING id""",
+                    """INSERT INTO workspaces (name, slug, plan, mode, owner_user_id, billing_email)
+                       VALUES ($1,$2,'starter','solo',$3,$4) RETURNING id""",
                     ws_name, ws_slug, p.user_id, user["email"],
                 )
                 await conn.execute(
@@ -597,7 +677,7 @@ async def create_workspace_for_existing_user(
     wm = await pool.fetchrow(
         "SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2", wid, p.user_id
     )
-    ws_role = wm["role"] if wm else user_row["role"]
+    ws_role = wm["role"] if wm else "viewer"
     raw, hashed = _refresh_token()
     expires = datetime.now(timezone.utc) + timedelta(days=30)
     await pool.execute(
@@ -607,7 +687,7 @@ async def create_workspace_for_existing_user(
         (request.client.host if request.client else None),
         request.headers.get("user-agent"), expires,
     )
-    access = _issue_jwt(dict(user_row), workspace_id=wid, ws_role=ws_role)
+    access = _issue_jwt(dict(user_row), workspace_id=wid, ws_role=ws_role, global_role=user_row["role"])
     _set_auth_cookies(response, access, raw)
     return {"status": "ok", "workspace_id": wid, "role": ws_role, "access_token": access}
 
@@ -687,7 +767,7 @@ async def switch_workspace(body: SwitchWorkspaceIn, response: Response, p: Princ
            VALUES ($1,$2,$3)""",
         p.user_id, hashed, expires,
     )
-    access = _issue_jwt(dict(user), workspace_id=body.workspace_id, ws_role=member["role"])
+    access = _issue_jwt(dict(user), workspace_id=body.workspace_id, ws_role=member["role"], global_role=user["role"])
     _set_auth_cookies(response, access, raw)
     return {"status": "ok", "workspace_id": body.workspace_id, "role": member["role"]}
 
@@ -753,7 +833,7 @@ async def accept_invite(body: AcceptInviteIn, request: Request, response: Respon
                 uid = await conn.fetchval(
                     """INSERT INTO users (email, display_name, password_hash, role,
                                           email_verified, active_workspace_id)
-                       VALUES ($1,$2,$3,'viewer',TRUE,$4) RETURNING id""",
+                       VALUES ($1,$2,$3,'user',TRUE,$4) RETURNING id""",
                     invite["email"].lower(), body.display_name,
                     _hash_pw(body.password), invite["workspace_id"],
                 )
@@ -787,7 +867,7 @@ async def accept_invite(body: AcceptInviteIn, request: Request, response: Respon
         (request.client.host if request.client else None),
         request.headers.get("user-agent"), expires,
     )
-    access = _issue_jwt(dict(user_row), workspace_id=invite["workspace_id"], ws_role=invite["role"])
+    access = _issue_jwt(dict(user_row), workspace_id=invite["workspace_id"], ws_role=invite["role"], global_role=user_row["role"])
     _set_auth_cookies(response, access, raw)
     return {"status": "ok", "workspace_id": invite["workspace_id"], "role": invite["role"]}
 

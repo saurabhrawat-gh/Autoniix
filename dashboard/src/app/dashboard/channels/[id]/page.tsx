@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { Save } from 'lucide-react';
-import { channelsApi } from '@/lib/api-v2';
+import { useParams, useRouter } from 'next/navigation';
+import { Save, Trash2 } from 'lucide-react';
+import { channelsApi, authApi } from '@/lib/api-v2';
+import { useToast } from '@/lib/toast';
 import { Skeleton } from '@/lib/components/Skeleton';
 import { AlertTriangle, ChevronLeft, RefreshCw } from '@/lib/components/Icon';
 import {
@@ -27,20 +28,33 @@ const TABS = ['Basics', 'Strategy', 'Voice', 'Visual', 'Pillars', 'References', 
 
 export default function ChannelDetail() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const { showToast } = useToast();
   const [tab, setTab] = useState<typeof TABS[number]>('Basics');
   const [data, setData] = useState<any>(null);
   const [draft, setDraft] = useState<any>({});
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // AE-290 — Owner-gated Danger Zone state
+  const [myRole, setMyRole] = useState<string>('viewer');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
 
   const refresh = async () => {
     setLoading(true);
     setError(null);
     try {
-      const r = await channelsApi.get(id);
+      const [r, me] = await Promise.all([
+        channelsApi.get(id),
+        authApi.me().catch(() => null),
+      ]);
       setData(r.data);
       setDraft({});
+      setMyRole((me as any)?.data?.role || 'viewer');
     } catch (e: any) {
       setError(e?.message || 'Failed to load channel');
     } finally {
@@ -48,6 +62,35 @@ export default function ChannelDetail() {
     }
   };
   useEffect(() => { refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [id]);
+
+  const closeDeleteModal = () => {
+    if (deleteBusy) return;
+    setShowDeleteModal(false);
+    setDeleteConfirm('');
+    setDeletePassword('');
+    setDeleteErr(null);
+  };
+
+  const handleDelete = async () => {
+    if (deleteConfirm !== 'delete' || !deletePassword) return;
+    setDeleteBusy(true);
+    setDeleteErr(null);
+    try {
+      await channelsApi.delete(id, { confirmation: 'delete', password: deletePassword });
+      showToast('Channel deleted', 'success');
+      router.push('/dashboard/channels');
+    } catch (e: any) {
+      // Server returns {detail: {code, message?}} for 4xx; api wrapper may surface as e.message
+      const code = e?.detail?.code || e?.code;
+      const msg =
+        code === 'wrong_password'   ? 'Incorrect password.' :
+        code === 'has_videos'       ? (e?.detail?.message || 'Cannot delete a channel that has published videos. Archive instead.') :
+        code === 'channel_not_found'? 'Channel not found in your workspace.' :
+        (e?.message || 'Failed to delete channel');
+      setDeleteErr(msg);
+      setDeleteBusy(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -135,7 +178,14 @@ export default function ChannelDetail() {
             <Inp label="Name"     value={get('channel_name')} onChange={(v: any) => set('channel_name', v)} />
             <Inp label="Niche"    value={get('niche')}        onChange={(v: any) => set('niche', v)} />
             <Inp label="Sub-niche" value={get('sub_niche')}    onChange={(v: any) => set('sub_niche', v)} />
-            <Inp label="Platform" value={get('platform') || ''} onChange={(v: any) => set('platform', v)} />
+            <div className="block">
+              <FieldLabel className="text-xs uppercase tracking-wide opacity-70 mb-1 block">Platform</FieldLabel>
+              <div className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-surface-2 text-sm font-medium">
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#FF0000' }} aria-hidden />
+                YouTube
+              </div>
+              <p className="text-xs opacity-60 mt-1">Autoniix v1 supports YouTube only.</p>
+            </div>
             <Inp label="Handle"   value={get('handle') || ''}  onChange={(v: any) => set('handle', v)} />
             <Inp label="Language" value={get('primary_language') || ''} onChange={(v: any) => set('primary_language', v)} />
             <Inp label="Geography" value={get('geography') || ''} onChange={(v: any) => set('geography', v)} />
@@ -224,7 +274,120 @@ export default function ChannelDetail() {
           </div>
         )}
       </div>
+
+      {/* AE-290 — Danger Zone (owner only) */}
+      {myRole === 'owner' && (
+        <section className="mt-6 border border-status-error/30 rounded-xl overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-3 bg-status-error/5">
+            <Trash2 size={15} className="text-status-error" />
+            <h2 className="text-sm font-semibold text-status-error">Danger Zone</h2>
+          </div>
+          <div className="px-5 py-4 space-y-3">
+            <p className="text-sm text-content-secondary">
+              <strong>Permanently delete this channel.</strong> This removes the channel
+              along with its pillars, references, topic rules, memory entries, projects,
+              series, and unlinks any provider credentials. Published videos are kept and
+              detached. <strong>This action cannot be undone.</strong>
+            </p>
+            <Button
+              variant="outline"
+              className="text-status-error border-status-error/40 hover:bg-status-error/10"
+              onClick={() => setShowDeleteModal(true)}
+              leftIcon={<Trash2 size={14} />}
+            >
+              Delete channel permanently
+            </Button>
+          </div>
+        </section>
+      )}
     </div>
+
+    {/* Delete confirmation modal */}
+    {showDeleteModal && (
+      <div
+        className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center px-4"
+        onClick={closeDeleteModal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-channel-title"
+      >
+        <div
+          className="bg-surface-0 border border-border rounded-xl shadow-elevated max-w-md w-full p-6 space-y-4"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-2">
+            <Trash2 size={18} className="text-status-error" />
+            <h3 id="delete-channel-title" className="text-base font-semibold text-status-error">
+              Delete channel
+            </h3>
+          </div>
+          <div className="text-sm text-content-secondary space-y-2">
+            <p>
+              You are about to <strong>permanently delete</strong>{' '}
+              <span className="font-mono text-content-primary">{data?.channel?.channel_name || id}</span>.
+            </p>
+            <p>The following will be deleted:</p>
+            <ul className="list-disc list-inside text-xs space-y-0.5 pl-1">
+              <li>Channel record + brand profile + pillars + references</li>
+              <li>Topic rules + memory entries</li>
+              <li>Projects + series tied to this channel</li>
+              <li>Provider credential channel scope (set to workspace)</li>
+            </ul>
+            <p className="text-xs">
+              Published videos will <strong>not</strong> be deleted. You must archive videos
+              or migrate them before this delete will succeed.
+            </p>
+          </div>
+          {deleteErr && (
+            <div className="text-sm text-status-error bg-status-error/10 border border-status-error/20 rounded-lg px-3 py-2">
+              {deleteErr}
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <FieldLabel htmlFor="delete-confirm-input" className="text-xs">
+              Type <span className="font-mono font-semibold">delete</span> to confirm
+            </FieldLabel>
+            <Input
+              id="delete-confirm-input"
+              autoComplete="off"
+              value={deleteConfirm}
+              onChange={e => setDeleteConfirm(e.target.value)}
+              placeholder="delete"
+              disabled={deleteBusy}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel htmlFor="delete-pw-input" className="text-xs">
+              Enter your account password
+            </FieldLabel>
+            <Input
+              id="delete-pw-input"
+              type="password"
+              autoComplete="current-password"
+              value={deletePassword}
+              onChange={e => setDeletePassword(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleDelete(); }}
+              disabled={deleteBusy}
+            />
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={closeDeleteModal} disabled={deleteBusy}>
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              className="text-status-error border-status-error/40 hover:bg-status-error/10"
+              onClick={handleDelete}
+              disabled={deleteConfirm !== 'delete' || !deletePassword || deleteBusy}
+              loading={deleteBusy}
+              leftIcon={<Trash2 size={14} />}
+            >
+              {deleteBusy ? 'Deleting…' : 'Delete forever'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
     </main>
   );
 }

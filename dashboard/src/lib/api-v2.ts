@@ -87,7 +87,7 @@ async function rawRequest<T = any>(path: string, opts: RequestInit = {}, _isRetr
           }
         }
       } catch {}
-      window.location.href = '/register?reason=no_workspace';
+      window.location.href = '/login?reason=no_workspace_access';
       throw new Error('workspace_access_revoked');
     }
     throw new Error(body.detail || body.error || `HTTP ${res.status}`);
@@ -177,6 +177,8 @@ export const authApi = {
     request('/api/v2/auth/mfa/verify', { method: 'POST', body: JSON.stringify({ code }) }),
   updateProfile: (data: { display_name?: string; current_password?: string; new_password?: string }) =>
     request<{ status: string; message: string }>('/api/v2/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
+  deleteAccount: (password: string) =>
+    request<{ status: string }>('/api/v2/auth/account', { method: 'DELETE', body: JSON.stringify({ password }) }),
   listWorkspaces: () =>
     request<{ data: Array<{ id: number; name: string; slug: string; plan: string; role: string; active: boolean; onboarding_completed: boolean }> }>('/api/v2/auth/workspaces'),
   switchWorkspace: (workspace_id: number) =>
@@ -227,6 +229,11 @@ export const channelsApi = {
   disable: (id: string) => request(`/api/v2/channels/${id}/disable`, { method: 'PUT' }),
   archive: (id: string) => request(`/api/v2/channels/${id}/archive`, { method: 'PUT' }),
   restore: (id: string) => request(`/api/v2/channels/${id}/restore`, { method: 'PUT' }),
+  // AE-290: hard-delete (owner only, password + confirmation required)
+  delete:  (id: string, body: { confirmation: 'delete'; password: string }) =>
+    request<{ status: string; data: { deleted: boolean; channel_id: string } }>(
+      `/api/v2/channels/${id}`, { method: 'DELETE', body: JSON.stringify(body) }
+    ),
   clone:   (id: string) => request(`/api/v2/channels/${id}/clone`,   { method: 'POST' }),
   export:  (id: string) => request<{ data: any }>(`/api/v2/channels/${id}/export`),
   trigger: (id: string, body: { content_mode?: string; topic_hint?: string; topic_candidates?: string[]; max_cost_usd?: number } = {}) =>
@@ -262,6 +269,27 @@ export const dashboardApi = {
 // Providers
 export const providersApi = {
   categories: () => request<{ data: any[] }>('/api/v2/providers/categories'),
+  // Sections (provider_kinds) + user-editable taxonomy
+  kinds: () => request<{ data: any[] }>('/api/v2/providers/kinds'),
+  createKind: (body: { label: string; kind?: string; icon?: string | null; description?: string | null }) =>
+    request<{ kind: string; label: string }>('/api/v2/providers/kinds', { method: 'POST', body: JSON.stringify(body) }),
+  deleteKind: (kind: string) =>
+    request<{ categories_removed: string[] }>(`/api/v2/providers/kinds/${encodeURIComponent(kind)}`, { method: 'DELETE' }),
+  createCategory: (body: { label: string; kind: string; name?: string; description?: string | null }) =>
+    request<{ name: string; label: string; kind: string }>('/api/v2/providers/categories', { method: 'POST', body: JSON.stringify(body) }),
+  deleteCategory: (name: string) =>
+    request(`/api/v2/providers/categories/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+  createMarketplaceProvider: (body: {
+    display_name: string; kind: string; provider_key?: string; description?: string | null;
+    supported_models?: string[]; has_free_tier?: boolean; cost_unit?: string | null; requires_api_key?: boolean;
+  }) =>
+    request<{ provider_key: string; category: string }>('/api/v2/providers/marketplace', { method: 'POST', body: JSON.stringify(body) }),
+  deleteMarketplaceProvider: (provider_key: string) =>
+    request(`/api/v2/providers/marketplace/${encodeURIComponent(provider_key)}`, { method: 'DELETE' }),
+  catalogForCategory: (category: string) =>
+    request<{ data: any[]; kind: string }>(`/api/v2/providers/catalog-for-category?category=${encodeURIComponent(category)}`),
+  restoreDefaults: () =>
+    request<{ status: string }>('/api/v2/providers/restore-defaults', { method: 'POST' }),
   credentials: (category?: string) =>
     request<{ data: any[] }>(`/api/v2/providers/credentials${category ? `?category=${category}` : ''}`),
   createCredential: (body: any) =>
@@ -614,16 +642,18 @@ export const notifyApi = {
 // Users
 export const usersApi = {
   list: () => request<{ data: any[] }>('/api/v2/users'),
-  setRole: (id: number, role: string) =>
-    request(`/api/v2/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
+  transferSuperadmin: (targetId: number) =>
+    request(`/api/v2/users/transfer-superadmin/${targetId}`, { method: 'POST' }),
   disable: (id: number) => request(`/api/v2/users/${id}/disable`, { method: 'PUT' }),
   enable: (id: number) => request(`/api/v2/users/${id}/enable`, { method: 'PUT' }),
+  delete: (id: number) => request(`/api/v2/users/${id}`, { method: 'DELETE' }),
 };
 
 // Workspace
 export const workspaceApi = {
   get: () => request<{ data: any }>('/api/v2/workspace'),
   update: (body: any) => request('/api/v2/workspace', { method: 'PUT', body: JSON.stringify(body) }),
+  setMode: (mode: 'solo' | 'teams') => request('/api/v2/workspace', { method: 'PUT', body: JSON.stringify({ mode }) }),
   getIntegrations: () =>
     request<{ data: { slack_webhook_url: string | null } }>('/api/v2/workspace/integrations'),
   updateIntegrations: (body: { slack_webhook_url?: string | null }) =>
@@ -691,6 +721,11 @@ export const membersApi = {
   setRole: (user_id: number, role: string) =>
     request(`/api/v2/workspace/members/${user_id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
   remove: (user_id: number) => request(`/api/v2/workspace/members/${user_id}`, { method: 'DELETE' }),
+  transferOwnership: (new_owner_user_id: number, current_password: string) =>
+    request('/api/v2/workspace/transfer-ownership', {
+      method: 'POST',
+      body: JSON.stringify({ new_owner_user_id, current_password }),
+    }),
 };
 
 // Invites

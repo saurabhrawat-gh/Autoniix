@@ -26,6 +26,7 @@ import {
   ClipboardCheck,
   FlaskConical,
   Users,
+  UserCheck,
   Bell,
   Cpu,
   Terminal,
@@ -41,6 +42,7 @@ interface NavItem {
   shortcut?: string;
   badge?: string;
   permission?: string;
+  requireGlobalRole?: 'superadmin';
 }
 
 interface NavGroup {
@@ -79,7 +81,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/dashboard/fleet', label: 'Fleet Health', icon: Cpu, shortcut: 'g f', permission: 'workspace.settings.edit' },
       { href: '/dashboard/debug', label: 'Debug', icon: Terminal, shortcut: 'g b', permission: 'workspace.settings.edit' },
       { href: '/dashboard/workspace', label: 'Workspace', icon: Boxes, shortcut: 'g w', permission: 'workspace.view' },
-      { href: '/dashboard/users', label: 'Team', icon: Users, shortcut: 'g u', permission: 'workspace.members.view' },
+      { href: '/dashboard/users', label: 'Users', icon: Users, shortcut: 'g u', requireGlobalRole: 'superadmin' },
+      { href: '/dashboard/teams', label: 'Teams', icon: UserCheck, shortcut: 'g t', permission: 'workspace.members.view' },
       { href: '/dashboard/settings', label: 'Settings', icon: Settings, shortcut: 'g s', permission: 'workspace.settings.edit' },
     ],
   },
@@ -133,7 +136,7 @@ export function Sidebar() {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [gPressed, setGPressed] = useState(false);
-  const { hasPermission, loading: permsLoading, error: permsError } = usePermissions();
+  const { hasPermission, globalRole, loading: permsLoading, error: permsError } = usePermissions();
 
   useEffect(() => {
     try {
@@ -169,6 +172,7 @@ export function Sidebar() {
   useHotkeys('f', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/fleet'); } }, [gPressed]);
   useHotkeys('b', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/debug'); } }, [gPressed]);
   useHotkeys('u', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/users'); } }, [gPressed]);
+  useHotkeys('t', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/teams'); } }, [gPressed]);
   useHotkeys('w', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/workspace'); } }, [gPressed]);
   useHotkeys('s', () => { if (gPressed) { setGPressed(false); router.push('/dashboard/settings'); } }, [gPressed]);
 
@@ -216,9 +220,11 @@ export function Sidebar() {
           collapsed ? 'px-1.5 space-y-3' : 'px-2 space-y-4'
         )}>
           {NAV_GROUPS.map((group, gIdx) => {
-            const visibleItems = group.items.filter(
-              item => !item.permission || permsLoading || permsError || hasPermission(item.permission)
-            );
+            const visibleItems = group.items.filter(item => {
+              if (item.requireGlobalRole && !permsLoading && !permsError && globalRole !== item.requireGlobalRole) return false;
+              if (item.permission && !permsLoading && !permsError && !hasPermission(item.permission)) return false;
+              return true;
+            });
             if (visibleItems.length === 0) return null;
             return (
               <div key={group.label}>

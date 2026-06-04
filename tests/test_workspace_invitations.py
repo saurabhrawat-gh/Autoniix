@@ -12,18 +12,24 @@ Covers Story AE-268 (parent epic AE-266 / AE-7) — 32 edge cases across:
 
 Direct-call pattern (handler invoked with mocked pool) mirrors
 ``tests/test_workspace_v2.py`` so the FakePool side-effect lists stay
-identical to the production handler's call sequence:
+identical to the production handler's call sequence.
 
-    create_invite() call order against pool:
-      1. fetchrow(plan)
-      2. fetchval(member_count) -- only when limit is not None
-      3. fetchval(pending_count) -- only when limit is not None
-      4. fetchval(existing_member_id)
-      5. fetchval(pending_invitation_id)
-      6. fetchval(inv_id from INSERT)
-      7. fetchrow(ws_info) -- only when _resend.is_configured()
-      8. fetchrow(actor_info) -- only when _resend.is_configured()
-      9. fetchrow(slack_integration)
+AE-277 hotfix restructure: all seat-cap checks + INSERT now run inside
+an advisory-lock transaction on ``conn = pool.acquire()``.  Mock targets:
+
+    create_invite() call order:
+      pool.fetchrow:
+        1. fetchrow(plan)           -- outside transaction
+        2. fetchrow(ws_info)        -- only when _resend.is_configured()
+        3. fetchrow(actor_info)     -- only when _resend.is_configured()
+        4. fetchrow(slack)          -- outside transaction
+
+      pool.conn.fetchval (INSIDE advisory-lock transaction):
+        1. fetchval(member_count)   -- only when limit is not None
+        2. fetchval(pending_count)  -- only when limit is not None
+        3. fetchval(existing_member_id)
+        4. fetchval(pending_invitation_id)
+        5. fetchval(inv_id from INSERT)
 
 If the handler's call sequence changes, these tests will fail loudly —
 that's intentional.
@@ -100,7 +106,7 @@ class TestRoleValidation:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise"), None]  # plan, slack
-        pool.fetchval.side_effect = [None, None, 99]  # no existing, no pending, inv_id
+        pool.conn.fetchval.side_effect = [None, None, 99]  # no existing, no pending, inv_id
 
         with _pool_ctx(pool), _audit_ctx(), _resend_off_ctx():
             result = await create_invite(
@@ -120,7 +126,7 @@ class TestRoleValidation:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise"), None]
-        pool.fetchval.side_effect = [None, None, 100]
+        pool.conn.fetchval.side_effect = [None, None, 100]
 
         with _pool_ctx(pool), _audit_ctx(), _resend_off_ctx():
             result = await create_invite(
@@ -166,7 +172,7 @@ class TestInputValidation:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise"), None]
-        pool.fetchval.side_effect = [None, None, 200]
+        pool.conn.fetchval.side_effect = [None, None, 200]
 
         with _pool_ctx(pool), _audit_ctx(), _resend_off_ctx():
             await create_invite(
@@ -177,7 +183,7 @@ class TestInputValidation:
 
         # Inspect the INSERT call: arg index 1 (after workspace_id) is email
         insert_calls = [
-            c for c in pool.fetchval.await_args_list
+            c for c in pool.conn.fetchval.await_args_list
             if c.args and isinstance(c.args[0], str) and "INSERT INTO workspace_invitations" in c.args[0]
         ]
         assert len(insert_calls) == 1
@@ -201,7 +207,7 @@ class TestDedup:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise")]
-        pool.fetchval.side_effect = [555]  # existing_member id
+        pool.conn.fetchval.side_effect = [555]  # existing_member id
 
         with _pool_ctx(pool):
             with pytest.raises(HTTPException) as exc:
@@ -220,7 +226,7 @@ class TestDedup:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise")]
-        pool.fetchval.side_effect = [None, 777]  # no existing member, pending_inv_id
+        pool.conn.fetchval.side_effect = [None, 777]  # no existing member, pending_inv_id
 
         with _pool_ctx(pool):
             with pytest.raises(HTTPException) as exc:
@@ -243,7 +249,7 @@ class TestDedup:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise"), None]
-        pool.fetchval.side_effect = [None, None, 300]  # no member, no UNEXPIRED pending, new inv_id
+        pool.conn.fetchval.side_effect = [None, None, 300]  # no member, no UNEXPIRED pending, new inv_id
 
         with _pool_ctx(pool), _audit_ctx(), _resend_off_ctx():
             result = await create_invite(
@@ -268,7 +274,7 @@ class TestPlanLimits:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="starter")]
-        pool.fetchval.side_effect = [3, 0]  # member=3, pending=0 → 3 >= 3
+        pool.conn.fetchval.side_effect = [3, 0]  # member=3, pending=0 → 3 >= 3
 
         with _pool_ctx(pool):
             with pytest.raises(HTTPException) as exc:
@@ -288,7 +294,7 @@ class TestPlanLimits:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="starter")]
-        pool.fetchval.side_effect = [2, 1]
+        pool.conn.fetchval.side_effect = [2, 1]
 
         with _pool_ctx(pool):
             with pytest.raises(HTTPException) as exc:
@@ -311,7 +317,7 @@ class TestPlanLimits:
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="starter"), None]
         # member=2, pending=0 (expired excluded), no existing, no pending, inv_id=400
-        pool.fetchval.side_effect = [2, 0, None, None, 400]
+        pool.conn.fetchval.side_effect = [2, 0, None, None, 400]
 
         with _pool_ctx(pool), _audit_ctx(), _resend_off_ctx():
             result = await create_invite(
@@ -328,7 +334,7 @@ class TestPlanLimits:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="growth"), None]
-        pool.fetchval.side_effect = [9, 0, None, None, 500]
+        pool.conn.fetchval.side_effect = [9, 0, None, None, 500]
 
         with _pool_ctx(pool), _audit_ctx(), _resend_off_ctx():
             result = await create_invite(
@@ -345,7 +351,7 @@ class TestPlanLimits:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="growth")]
-        pool.fetchval.side_effect = [10, 0]
+        pool.conn.fetchval.side_effect = [10, 0]
 
         with _pool_ctx(pool):
             with pytest.raises(HTTPException) as exc:
@@ -370,7 +376,7 @@ class TestPlanLimits:
         # When limit is None, NO member_count / pending_count fetchvals run.
         # Only: no existing, no pending, inv_id.
         pool.fetchrow.side_effect = [FakeRecord(plan=plan), None]
-        pool.fetchval.side_effect = [None, None, 600]
+        pool.conn.fetchval.side_effect = [None, None, 600]
 
         with _pool_ctx(pool), _audit_ctx(), _resend_off_ctx():
             result = await create_invite(
@@ -387,7 +393,7 @@ class TestPlanLimits:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan=None)]
-        pool.fetchval.side_effect = [3, 0]  # 3/3 starter → blocked
+        pool.conn.fetchval.side_effect = [3, 0]  # 3/3 starter → blocked
 
         with _pool_ctx(pool):
             with pytest.raises(HTTPException) as exc:
@@ -412,7 +418,7 @@ class TestPlanLimits:
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise_plus_xl"), None]
         # No limit → no member/pending fetchvals → straight to no-existing, no-pending, inv_id
-        pool.fetchval.side_effect = [None, None, 700]
+        pool.conn.fetchval.side_effect = [None, None, 700]
 
         with _pool_ctx(pool), _audit_ctx(), _resend_off_ctx():
             result = await create_invite(
@@ -520,7 +526,7 @@ class TestRaceCondition:
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise")]
         # First call's INSERT already happened on the OTHER actor; this
         # second call sees pending_inv=88, returns 409.
-        pool.fetchval.side_effect = [None, 88]
+        pool.conn.fetchval.side_effect = [None, 88]
 
         with _pool_ctx(pool):
             with pytest.raises(HTTPException) as exc:
@@ -572,7 +578,7 @@ class TestSideEffects:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise"), None]
-        pool.fetchval.side_effect = [None, None, 900]
+        pool.conn.fetchval.side_effect = [None, None, 900]
 
         with _pool_ctx(pool), _audit_ctx(), _resend_off_ctx():
             result = await create_invite(
@@ -593,7 +599,7 @@ class TestSideEffects:
             FakeRecord(plan="enterprise"),
             FakeRecord(slack_webhook_url="https://hooks.slack.com/services/T/B/X"),
         ]
-        pool.fetchval.side_effect = [None, None, 901]
+        pool.conn.fetchval.side_effect = [None, None, 901]
 
         with _pool_ctx(pool), _audit_ctx(), _resend_off_ctx(), \
              patch(f"{_WS}._notify_slack", new_callable=AsyncMock) as mock_slack:
@@ -624,7 +630,7 @@ class TestSideEffects:
             FakeRecord(plan="enterprise"),
             FakeRecord(slack_webhook_url="https://hooks.slack.com/services/T/B/X"),
         ]
-        pool.fetchval.side_effect = [None, None, 902]
+        pool.conn.fetchval.side_effect = [None, None, 902]
 
         async def _bombing_slack(url, msg):
             # Mimic real _notify_slack behaviour: swallow internally and never raise
@@ -655,7 +661,7 @@ class TestSideEffects:
             FakeRecord(display_name="Alice Owner"),
             None,  # no slack integration
         ]
-        pool.fetchval.side_effect = [None, None, 903]
+        pool.conn.fetchval.side_effect = [None, None, 903]
 
         with _pool_ctx(pool), _audit_ctx(), _resend_on_ctx(), \
              patch("src.services.dashboard.v2._resend.send_email") as mock_send:
@@ -687,7 +693,7 @@ class TestSideEffects:
         pool = FakePool()
         # Only: plan + slack (NO ws_info, NO actor_info because resend is off)
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise"), None]
-        pool.fetchval.side_effect = [None, None, 904]
+        pool.conn.fetchval.side_effect = [None, None, 904]
 
         with _pool_ctx(pool), _audit_ctx(), _resend_off_ctx(), \
              patch("src.services.dashboard.v2._resend.send_email") as mock_send:

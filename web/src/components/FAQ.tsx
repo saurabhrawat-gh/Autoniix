@@ -11,7 +11,7 @@ const faqs = [
   },
   {
     q: 'Which platforms are supported?',
-    a: 'YouTube is fully supported today. Instagram, TikTok, and other platforms are on the roadmap. All content profiles are platform-agnostic by design — adding a new platform requires zero reconfiguration.',
+    a: 'Autoniix v1 is built exclusively for YouTube — both Shorts and long-form. We focused on going deep on one platform first: research, scripts, voice, rendering, thumbnails, and uploads are all tuned for YouTube quality and policy. Other platforms may be added in future releases.',
   },
   {
     q: 'Can I review content before it publishes?',

@@ -30,7 +30,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: 'Autoniix — AI Content Automation',
   description:
-    'Autoniix orchestrates AI to research, script, voice, render and publish content — across every platform, at any scale. Your content empire, fully automated.',
+    'Autoniix orchestrates AI to research, script, voice, render and publish YouTube content — Shorts and long-form, at any scale. Your YouTube empire, fully automated.',
   keywords: ['AI content automation', 'YouTube automation', 'content creation AI', 'automated video production'],
   authors: [{ name: 'Autoniix' }],
   creator: 'Autoniix',

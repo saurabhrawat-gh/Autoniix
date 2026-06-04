@@ -365,7 +365,7 @@ export default function Hero() {
           className="text-center t-body-lg max-w-2xl mx-auto mb-10"
           style={{ color: 'var(--text-muted)' }}
         >
-          Research, script, voice, render, publish — across every platform, at any scale.
+          Research, script, voice, render, publish — across every YouTube channel, at any scale.
           <span style={{ color: 'var(--text-faint)' }}> Set it once. Let it run forever.</span>
         </motion.p>
 
@@ -414,7 +414,7 @@ export default function Hero() {
             <span className="w-px h-3" style={{ background: 'var(--border)' }} />
             <span>6 pipelines running</span>
             <span className="w-px h-3" style={{ background: 'var(--border)' }} />
-            <span>3 platforms active</span>
+            <span>YouTube — Shorts + Long-form</span>
           </div>
         </motion.div>
 
