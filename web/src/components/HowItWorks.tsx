@@ -10,9 +10,9 @@ const STEPS = [
     number: '01',
     icon: Settings2,
     title: 'Configure',
-    description: 'Set your niche, tone, brand voice, and target platforms. Takes minutes, drives everything.',
+    description: 'Set your niche, tone, brand voice, and connect your YouTube channel. Takes minutes, drives everything.',
     accent: '#00D89F',
-    detail: 'Pick a niche → Define your voice → Connect platforms → Done.',
+    detail: 'Pick a niche → Define your voice → Connect YouTube → Done.',
   },
   {
     number: '02',
@@ -28,7 +28,7 @@ const STEPS = [
     title: 'Publish',
     description: 'Content ships on schedule. Analytics feed back into the loop. System learns and improves.',
     accent: '#2563EB',
-    detail: 'Auto-schedule → Multi-platform → Analytics loop',
+    detail: 'Auto-schedule → YouTube upload → Analytics loop',
   },
 ]
 
@@ -46,7 +46,7 @@ const TERMINAL_LINES = [
   { text: '✓ Voice rendered — Fish Audio',       type: 'success',    delay: 5400 },
   { text: 'Rendering video — 9,840 frames...',   type: 'processing', delay: 5900 },
   { text: '✓ 1080p exported in 38s',             type: 'success',    delay: 6800 },
-  { text: '✓ Uploaded to YouTube · TikTok',      type: 'success',    delay: 7300 },
+  { text: '✓ Uploaded to YouTube',                type: 'success',    delay: 7300 },
   { text: '✓ Next job queued. Running at 00:00', type: 'success',    delay: 7800 },
 ]
 
