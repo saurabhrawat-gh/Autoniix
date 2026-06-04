@@ -52,7 +52,7 @@ const plans = [
     seats: 15,
     popular: false,
     enterprise: false,
-    features: ['30 content profiles', '750 videos / month', '15 team seats', 'All Pro features', 'Multi-platform publishing', 'Dedicated support', '+$15/seat beyond 15'],
+    features: ['30 content profiles', '750 videos / month', '15 team seats', 'All Pro features', 'Shorts + long-form pipelines', 'Dedicated support', '+$15/seat beyond 15'],
   },
   {
     id: 'enterprise',
