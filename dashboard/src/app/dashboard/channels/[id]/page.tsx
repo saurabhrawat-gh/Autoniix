@@ -135,7 +135,14 @@ export default function ChannelDetail() {
             <Inp label="Name"     value={get('channel_name')} onChange={(v: any) => set('channel_name', v)} />
             <Inp label="Niche"    value={get('niche')}        onChange={(v: any) => set('niche', v)} />
             <Inp label="Sub-niche" value={get('sub_niche')}    onChange={(v: any) => set('sub_niche', v)} />
-            <Inp label="Platform" value={get('platform') || ''} onChange={(v: any) => set('platform', v)} />
+            <div className="block">
+              <FieldLabel className="text-xs uppercase tracking-wide opacity-70 mb-1 block">Platform</FieldLabel>
+              <div className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-surface-2 text-sm font-medium">
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#FF0000' }} aria-hidden />
+                YouTube
+              </div>
+              <p className="text-xs opacity-60 mt-1">Autoniix v1 supports YouTube only.</p>
+            </div>
             <Inp label="Handle"   value={get('handle') || ''}  onChange={(v: any) => set('handle', v)} />
             <Inp label="Language" value={get('primary_language') || ''} onChange={(v: any) => set('primary_language', v)} />
             <Inp label="Geography" value={get('geography') || ''} onChange={(v: any) => set('geography', v)} />
