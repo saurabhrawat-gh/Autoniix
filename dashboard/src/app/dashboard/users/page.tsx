@@ -172,7 +172,7 @@ export default function Users() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="text-amber-500 border-amber-500/40 hover:bg-amber-500/10 shrink-0 flex items-center gap-1"
+                      className="text-status-warning border-status-warning/40 hover:bg-status-warning/10 shrink-0 flex items-center gap-1"
                       title="Hand off the superadmin seat to this user"
                       onClick={() => setTransferTarget(u)}
                     >

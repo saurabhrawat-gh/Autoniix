@@ -99,7 +99,7 @@ export default function Teams() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
             <div className="bg-surface-0 border border-border rounded-xl p-6 max-w-sm w-full space-y-4 shadow-xl">
               <div className="flex items-center gap-3">
-                <ShieldCheck size={20} className="text-amber-500 shrink-0" />
+                <ShieldCheck size={20} className="text-status-warning shrink-0" />
                 <h2 className="text-base font-semibold">Transfer Workspace Ownership?</h2>
               </div>
               <p className="text-sm opacity-75">
@@ -122,7 +122,7 @@ export default function Teams() {
                 </Button>
                 <Button
                   size="sm"
-                  className="bg-amber-500 hover:bg-amber-500/90 text-white"
+                  className="bg-status-warning hover:bg-status-warning/90 text-white"
                   onClick={doTransferOwnership}
                   disabled={transferring || !transferPassword}
                 >
@@ -170,7 +170,7 @@ export default function Teams() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="text-amber-500 border-amber-500/40 hover:bg-amber-500/10 flex items-center gap-1"
+                        className="text-status-warning border-status-warning/40 hover:bg-status-warning/10 flex items-center gap-1"
                         title="Transfer workspace ownership to this member"
                         onClick={() => setTransferTarget(m)}
                       >

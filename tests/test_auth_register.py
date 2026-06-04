@@ -30,6 +30,19 @@ from tests.conftest import FakePool
 _AUTH_MODULE = "src.services.dashboard.v2.auth"
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Reset the shared slowapi limiter between tests so the 5/minute
+    register cap (and 10/minute login cap) does not leak across cases.
+    All tests share IP 127.0.0.1, so without this the parametrized
+    ``test_nth_user_registration_is_blocked`` plus its neighbours trip
+    the bucket and fail with HTTP 429."""
+    from src.services.dashboard._limiter import limiter
+    limiter.reset()
+    yield
+    limiter.reset()
+
+
 def _pool_ctx(pool):
     return patch(f"{_AUTH_MODULE}.get_pool", new_callable=AsyncMock, return_value=pool)
 
