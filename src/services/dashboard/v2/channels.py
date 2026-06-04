@@ -150,6 +150,19 @@ class ReferenceIn(BaseModel):
     parsed_metadata: dict = Field(default_factory=dict)
 
 
+class ChannelDeleteIn(BaseModel):
+    confirmation: str
+    password: str
+
+    @field_validator("confirmation")
+    @classmethod
+    def confirmation_must_match(cls, v: str) -> str:
+        # Case-sensitive — owner must literally type "delete"
+        if v != "delete":
+            raise ValueError("confirmation must be the literal string 'delete'")
+        return v
+
+
 class MemoryIn(BaseModel):
     memory_type: str
     content: dict
@@ -893,6 +906,113 @@ async def restore_channel(
     await audit(actor=actor, action="channel.restore", target_type="channel",
                 target_id=channel_id, request=request)
     return {"status": "ok"}
+
+
+@router.delete("/{channel_id}")
+async def delete_channel(
+    channel_id: str,
+    body: ChannelDeleteIn,
+    request: Request,
+    actor: Principal = Depends(require_role("owner")),
+):
+    """Hard-delete a channel.
+
+    Gated by:
+      * workspace ``owner`` role (enforced at the dependency level)
+      * literal ``confirmation == "delete"`` (validated at schema level)
+      * server-side re-verification of the actor's account password
+      * channel must belong to the actor's workspace
+      * blocked when any ``videos`` row references the channel (FK is NO ACTION)
+
+    On success, FK cascades remove ``channel_*``, ``projects``, ``series``;
+    ``provider_credentials.channel_id`` is set to ``NULL``.  Pre-delete state
+    is captured into the audit log for forensics.
+    """
+    if not actor.user_id:
+        raise HTTPException(403, "No user context")
+
+    pool = await get_pool()
+
+    # Re-verify password against the live user row
+    user = await pool.fetchrow(
+        "SELECT password_hash FROM users WHERE id=$1", actor.user_id
+    )
+    if not user:
+        raise HTTPException(404, detail={"code": "user_not_found"})
+    from .auth import _verify_pw  # local import to avoid circular deps
+    if not _verify_pw(body.password, user["password_hash"] or ""):
+        raise HTTPException(403, detail={"code": "wrong_password"})
+
+    # Channel must exist AND belong to actor's workspace
+    channel = await pool.fetchrow(
+        """SELECT channel_id, channel_name, niche, platform, status,
+                  workspace_id, created_at
+             FROM channels WHERE channel_id=$1""",
+        channel_id,
+    )
+    if not channel or channel["workspace_id"] != actor.workspace_id:
+        # Don't leak existence of channels in other workspaces
+        raise HTTPException(404, detail={"code": "channel_not_found"})
+
+    # Refuse if any videos exist — protects historical content
+    video_count = await pool.fetchval(
+        "SELECT COUNT(*) FROM videos WHERE channel_id=$1", channel_id
+    )
+    if video_count and video_count > 0:
+        raise HTTPException(
+            409,
+            detail={
+                "code": "has_videos",
+                "message": (
+                    f"Cannot delete channel with {video_count} published "
+                    "videos. Archive instead."
+                ),
+                "video_count": video_count,
+            },
+        )
+
+    # Detect existing YouTube linkage so we can emit a separate audit event
+    yt_linked = await pool.fetchval(
+        """SELECT 1 FROM provider_credentials
+            WHERE channel_id=$1 AND category='youtube' LIMIT 1""",
+        channel_id,
+    )
+
+    # Capture forensic snapshot
+    snapshot = {
+        "channel_id": channel["channel_id"],
+        "channel_name": channel["channel_name"],
+        "niche": channel["niche"],
+        "platform": channel["platform"],
+        "status": channel["status"],
+        "workspace_id": channel["workspace_id"],
+        "created_at": channel["created_at"].isoformat()
+            if channel["created_at"] else None,
+    }
+
+    # Delete — DB cascades + SET NULL handle the rest
+    await pool.execute("DELETE FROM channels WHERE channel_id=$1", channel_id)
+
+    await audit(
+        actor=actor,
+        action="channel.delete",
+        target_type="channel",
+        target_id=channel_id,
+        before=snapshot,
+        request=request,
+    )
+
+    if yt_linked:
+        await audit(
+            actor=actor,
+            action="provider.youtube.unlink",
+            target_type="provider_credentials",
+            target_id=channel_id,
+            before={"channel_id": channel_id, "reason": "channel_hard_delete"},
+            request=request,
+        )
+
+    return {"status": "ok", "data": {"deleted": True, "channel_id": channel_id}}
 
 
 @router.post("/{channel_id}/clone")

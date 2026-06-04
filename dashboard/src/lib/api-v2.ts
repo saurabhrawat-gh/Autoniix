@@ -229,6 +229,11 @@ export const channelsApi = {
   disable: (id: string) => request(`/api/v2/channels/${id}/disable`, { method: 'PUT' }),
   archive: (id: string) => request(`/api/v2/channels/${id}/archive`, { method: 'PUT' }),
   restore: (id: string) => request(`/api/v2/channels/${id}/restore`, { method: 'PUT' }),
+  // AE-290: hard-delete (owner only, password + confirmation required)
+  delete:  (id: string, body: { confirmation: 'delete'; password: string }) =>
+    request<{ status: string; data: { deleted: boolean; channel_id: string } }>(
+      `/api/v2/channels/${id}`, { method: 'DELETE', body: JSON.stringify(body) }
+    ),
   clone:   (id: string) => request(`/api/v2/channels/${id}/clone`,   { method: 'POST' }),
   export:  (id: string) => request<{ data: any }>(`/api/v2/channels/${id}/export`),
   trigger: (id: string, body: { content_mode?: string; topic_hint?: string; topic_candidates?: string[]; max_cost_usd?: number } = {}) =>
