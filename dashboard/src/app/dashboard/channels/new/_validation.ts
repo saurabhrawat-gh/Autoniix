@@ -16,7 +16,6 @@ export type StepValidation = {
 
 const HEX_RE = /^#([0-9a-fA-F]{3}){1,2}$/;
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 export function validateBasics(state: any): StepValidation {
   const errors: WizardErrors = {};
   const name: string = (state.channel_name ?? '').trim();
