@@ -343,13 +343,42 @@ export default function ChannelDetail() {
               {deleteErr}
             </div>
           )}
+          {/*
+            AE-290 bug fix — block browser/password-manager autofill on this
+            destructive form. Hidden decoy username+password inputs sit BEFORE
+            the real fields so 1Password/LastPass/Chrome consume them instead
+            of filling the real ones. Real fields use obscure names + ignore
+            attrs + autoComplete=new-password.
+          */}
+          <input
+            type="text"
+            name="username"
+            autoComplete="username"
+            tabIndex={-1}
+            aria-hidden="true"
+            style={{ position: 'absolute', opacity: 0, height: 0, width: 0, pointerEvents: 'none' }}
+            readOnly
+          />
+          <input
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            tabIndex={-1}
+            aria-hidden="true"
+            style={{ position: 'absolute', opacity: 0, height: 0, width: 0, pointerEvents: 'none' }}
+            readOnly
+          />
           <div className="space-y-1.5">
             <FieldLabel htmlFor="delete-confirm-input" className="text-xs">
               Type <span className="font-mono font-semibold">delete</span> to confirm
             </FieldLabel>
             <Input
               id="delete-confirm-input"
+              name="delete-confirmation-phrase"
               autoComplete="off"
+              data-1p-ignore="true"
+              data-lpignore="true"
+              data-form-type="other"
               value={deleteConfirm}
               onChange={e => setDeleteConfirm(e.target.value)}
               placeholder="delete"
@@ -362,8 +391,12 @@ export default function ChannelDetail() {
             </FieldLabel>
             <Input
               id="delete-pw-input"
+              name="delete-channel-verify"
               type="password"
-              autoComplete="current-password"
+              autoComplete="new-password"
+              data-1p-ignore="true"
+              data-lpignore="true"
+              data-form-type="other"
               value={deletePassword}
               onChange={e => setDeletePassword(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleDelete(); }}
