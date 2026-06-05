@@ -90,13 +90,32 @@ async function rawRequest<T = any>(path: string, opts: RequestInit = {}, _isRetr
       window.location.href = '/login?reason=no_workspace_access';
       throw new Error('workspace_access_revoked');
     }
-    throw new Error(body.detail || body.error || `HTTP ${res.status}`);
+    throw _apiError(res.status, body);
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail || body.error || `HTTP ${res.status}`);
+    throw _apiError(res.status, body);
   }
   return res.json();
+}
+
+/**
+ * Build an Error that preserves the server's structured `{detail: {code, message}}`
+ * shape. Without this, callers that do `e.detail.code` see undefined and
+ * `e.message` becomes the literal string "[object Object]". Used by all
+ * non-success branches in `rawRequest`.
+ */
+function _apiError(status: number, body: any): Error & { status: number; detail?: any; code?: string } {
+  const detail = body?.detail;
+  let message: string;
+  if (typeof detail === 'string') message = detail;
+  else if (detail && typeof detail === 'object') message = detail.message || detail.code || body?.error || `HTTP ${status}`;
+  else message = body?.error || `HTTP ${status}`;
+  const err = new Error(message) as Error & { status: number; detail?: any; code?: string };
+  err.status = status;
+  if (detail !== undefined) err.detail = detail;
+  if (detail && typeof detail === 'object' && typeof detail.code === 'string') err.code = detail.code;
+  return err;
 }
 
 /**
