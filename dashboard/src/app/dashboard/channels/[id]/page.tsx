@@ -85,7 +85,7 @@ export default function ChannelDetail() {
       const msg =
         code === 'wrong_password'   ? 'Incorrect password.' :
         code === 'has_videos'       ? (e?.detail?.message || 'Cannot delete a channel that has published videos. Archive instead.') :
-        code === 'channel_not_found'? 'Channel not found in your workspace.' :
+        code === 'channel_not_found'? 'This channel is not in your active workspace, so it cannot be deleted from here. Switch to the workspace that owns it and try again.' :
         (e?.message || 'Failed to delete channel');
       setDeleteErr(msg);
       setDeleteBusy(false);
@@ -306,14 +306,14 @@ export default function ChannelDetail() {
     {showDeleteModal && (
       <div
         className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center px-4"
-        onClick={closeDeleteModal}
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-channel-title"
       >
+        {/* Backdrop intentionally non-dismissible: this is a destructive
+            action; the user must explicitly click Cancel or Delete forever. */}
         <div
           className="bg-surface-0 border border-border rounded-xl shadow-elevated max-w-md w-full p-6 space-y-4"
-          onClick={e => e.stopPropagation()}
         >
           <div className="flex items-center gap-2">
             <Trash2 size={18} className="text-status-error" />
@@ -403,6 +403,17 @@ export default function ChannelDetail() {
               disabled={deleteBusy}
             />
           </div>
+          {(() => {
+            const reasons: string[] = [];
+            if (deleteConfirm !== 'delete') reasons.push(deleteConfirm.length === 0 ? 'type "delete"' : 'confirmation must be exactly "delete" (lowercase)');
+            if (!deletePassword) reasons.push('enter your password');
+            return reasons.length > 0 ? (
+              <p className="text-xs text-content-tertiary">
+                <span className="opacity-70">To enable Delete forever:</span>{' '}
+                {reasons.join(' · ')}.
+              </p>
+            ) : null;
+          })()}
           <div className="flex items-center justify-end gap-2 pt-2">
             <Button variant="ghost" onClick={closeDeleteModal} disabled={deleteBusy}>
               Cancel
