@@ -34,6 +34,7 @@ from src.workers.activities.thumbnail import thumbnail_activity
 from src.workers.activities.direction import direction_activity
 from src.workers.activities.music import music_activity
 from src.workers.activities.assembly import assembly_activity
+from src.services.finishing.activity import finishing_activity
 from src.workers.activities.render import render_activity
 from src.workers.activities.delivery import delivery_activity, compute_metadata_activity
 from src.workers.activities.analytics import analytics_activity
@@ -70,6 +71,7 @@ async def main() -> None:
             direction_activity,
             music_activity,
             assembly_activity,
+            finishing_activity,
             render_activity,
             delivery_activity,
             compute_metadata_activity,

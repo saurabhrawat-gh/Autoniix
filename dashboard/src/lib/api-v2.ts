@@ -186,7 +186,7 @@ export const authApi = {
     clearToken();
     return request('/api/v2/auth/logout', { method: 'POST' });
   },
-  me: () => request<{ data: { user_id: number | null; email: string | null; role: string; source: string; display_name: string | null; initials: string; permissions: string[] } }>('/api/v2/auth/me'),
+  me: () => request<{ data: { user_id: number | null; email: string | null; role: string; workspace_id: number; source: string; display_name: string | null; initials: string; permissions: string[] } }>('/api/v2/auth/me'),
   forgot: (email: string) =>
     request<{ reset_token?: string }>('/api/v2/auth/forgot', { method: 'POST', body: JSON.stringify({ email }) }),
   reset: (token: string, password: string) =>
@@ -922,4 +922,78 @@ export const youtubeOAuthApi = {
     request<{ status: string; data: YouTubeOAuthStatus }>('/api/v2/providers/youtube/status'),
   disconnect: () =>
     request('/api/v2/providers/youtube/disconnect', { method: 'DELETE' }),
+};
+
+export interface FinishingConfig {
+  channel_id: string;
+  require_resolve_finish: boolean;
+  color_grade_preset: string;
+  audio_denoise: boolean;
+  audio_eq: boolean;
+  audio_compress: boolean;
+  audio_music_duck: boolean;
+  audio_loudness_lufs: number;
+  audio_true_peak_dbtps: number;
+  output_prores_archive: boolean;
+  updated_at: string | null;
+}
+
+export type FinishingConfigUpdate = Partial<Omit<FinishingConfig, 'channel_id' | 'updated_at'>>;
+
+export interface FinishingPreset {
+  key: string;
+  display_name: string;
+  description: string;
+  thumbnail_url: string;
+  best_for: string[];
+}
+
+export const finishingApi = {
+  get: (channelId: string) =>
+    request<FinishingConfig>(`/api/v2/channels/${encodeURIComponent(channelId)}/settings/finishing`),
+  update: (channelId: string, body: FinishingConfigUpdate) =>
+    request<FinishingConfig>(`/api/v2/channels/${encodeURIComponent(channelId)}/settings/finishing`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  presets: () => request<{ presets: FinishingPreset[] }>('/api/v2/finishing/presets'),
+};
+
+export type ReviewProfile = 'hands_off' | 'quick' | 'standard' | 'full_control' | 'custom';
+
+export interface ReviewGates {
+  research_data: boolean;
+  brand_alignment_report: boolean;
+  topic_title: boolean;
+  story_script: boolean;
+  script_voice_data: boolean;
+  script_assets_data: boolean;
+  script_direction_data: boolean;
+  voice_track: boolean;
+  scene_images: boolean;
+  remotion_v3_json: boolean;
+  metadata: boolean;
+  thumbnail: boolean;
+  final_video: boolean;
+}
+
+export interface ReviewConfig {
+  channel_id: string;
+  profile: ReviewProfile;
+  gates: ReviewGates;
+}
+
+export interface ReviewConfigUpdate {
+  profile: ReviewProfile;
+  gates?: Partial<ReviewGates>;
+}
+
+export const reviewConfigApi = {
+  get: (channelId: string) =>
+    request<ReviewConfig>(`/api/v2/channels/${encodeURIComponent(channelId)}/settings/review`),
+  update: (channelId: string, body: ReviewConfigUpdate) =>
+    request<ReviewConfig>(`/api/v2/channels/${encodeURIComponent(channelId)}/settings/review`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
 };

@@ -444,6 +444,7 @@ async def me(p: Principal = Depends(principal_dep)):
         "email": p.email,
         "role": p.role,              # workspace-scoped role
         "global_role": p.global_role,  # platform-level role
+        "workspace_id": p.workspace_id,
         "source": p.source,
         "display_name": display_name,
         "initials": initials,

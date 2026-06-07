@@ -20,12 +20,14 @@ from . import (
     youtube_oauth as _youtube_oauth,
     content as _content,
     experiments as _experiments,
+    finishing as _finishing,
     flags as _flags,
     jobs as _jobs,
     library as _library,
     notifications as _notifications,
     providers as _providers,
     review as _review,
+    review_config as _review_config,
     system as _system,
     users as _users,
     workspace as _workspace,
@@ -47,3 +49,5 @@ router.include_router(_notifications.router, prefix="/notifications", tags=["v2.
 router.include_router(_library.router,       prefix="/library",       tags=["v2.library"])
 router.include_router(_experiments.router,   prefix="/experiments",   tags=["v2.experiments"])
 router.include_router(_workspace.router,     prefix="/workspace",     tags=["v2.workspace"])
+router.include_router(_finishing.router,     prefix="",               tags=["v2.finishing"])
+router.include_router(_review_config.router, prefix="",               tags=["v2.review-config"])
