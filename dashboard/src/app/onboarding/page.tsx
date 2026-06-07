@@ -15,7 +15,11 @@ const STEPS = [
   { id: 4, label: "You're all set",  icon: Rocket },
 ];
 
-const ROLES = ['member', 'viewer'];
+const ROLE_OPTIONS = [
+  { value: 'owner',  label: 'Owner — assign via Transfer Ownership', disabled: true  },
+  { value: 'member', label: 'Member — create and manage content',    disabled: false },
+  { value: 'viewer', label: 'Viewer — read-only access',             disabled: false },
+];
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -200,7 +204,9 @@ export default function OnboardingPage() {
                     value={inviteRole} onChange={e => setInviteRole(e.target.value)}
                     className="w-full rounded-md border border-border bg-surface-1 px-3 py-2 text-sm text-content-primary focus:outline-none focus:ring-2 focus:ring-accent/40"
                   >
-                    {ROLES.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
+                    {ROLE_OPTIONS.map(o => (
+                      <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>
+                    ))}
                   </select>
                 </div>
                 <Button type="submit" variant="secondary" className="w-full" loading={inviting} disabled={!inviteEmail}>
