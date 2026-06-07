@@ -5,10 +5,15 @@ import { membersApi, invitesApi, authApi, workspaceApi } from '@/lib/api-v2';
 import { Button, Input, Label, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/lib/ui';
 import { ExternalLink, Plus, ShieldCheck } from '@/lib/components/Icon';
 
-// AE-285: role dropdown only switches between member/viewer.
-// To assign 'owner', use Transfer Ownership (atomic + password-verified).
-const ROLES = ['member', 'viewer'] as const;
-const INVITE_ROLES = ['member', 'viewer'] as const;
+// AE-237: all surfaces show exactly 3 options; Owner is always disabled
+// (assign only via Transfer Ownership — atomic + password-verified, AE-285).
+const ROLE_OPTIONS = [
+  { value: 'owner',  label: 'Owner',  desc: 'Full control — assign via Transfer Ownership', disabled: true  },
+  { value: 'member', label: 'Member', desc: 'Create and manage content',                    disabled: false },
+  { value: 'viewer', label: 'Viewer', desc: 'Read-only access',                             disabled: false },
+] as const;
+const ROLES = ROLE_OPTIONS.filter(o => !o.disabled).map(o => o.value);
+const INVITE_ROLES = ROLE_OPTIONS.filter(o => !o.disabled).map(o => o.value);
 const roleLabel = (r: string) => r.charAt(0).toUpperCase() + r.slice(1);
 const roleBadge = (r: string) => {
   if (r === 'owner') return 'bg-accent/15 text-accent';
@@ -190,7 +195,14 @@ export default function Teams() {
                         >
                           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {ROLES.map(r => <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>)}
+                            {ROLE_OPTIONS.map(o => (
+                              <SelectItem key={o.value} value={o.value} disabled={o.disabled}>
+                                <div>
+                                  <div className="font-medium">{o.label}</div>
+                                  <div className="text-[10px] opacity-60 mt-0.5">{o.desc}</div>
+                                </div>
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -255,8 +267,13 @@ export default function Teams() {
                     <Select value={inviteRole} onValueChange={setInviteRole}>
                       <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {INVITE_ROLES.map(r => (
-                          <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>
+                        {ROLE_OPTIONS.map(o => (
+                          <SelectItem key={o.value} value={o.value} disabled={o.disabled}>
+                            <div>
+                              <div className="font-medium">{o.label}</div>
+                              <div className="text-[10px] opacity-60 mt-0.5">{o.desc}</div>
+                            </div>
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
