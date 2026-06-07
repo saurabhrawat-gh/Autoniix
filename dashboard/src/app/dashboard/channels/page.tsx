@@ -86,6 +86,14 @@ export default function ChannelsPage() {
     'bg-violet-500','bg-blue-500','bg-emerald-500','bg-amber-500',
     'bg-pink-500','bg-teal-500','bg-orange-500','bg-cyan-500',
   ];
+  function platformLabel(platform: string | undefined) {
+    const map: Record<string, string> = {
+      youtube: 'YouTube', instagram: 'Instagram', tiktok: 'TikTok',
+      x: 'X', linkedin: 'LinkedIn',
+    };
+    return map[platform || 'youtube'] ?? 'YouTube';
+  }
+
   function avatarColor(id: string) {
     let hash = 0;
     for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
@@ -297,7 +305,7 @@ export default function ChannelsPage() {
             <h1 className="text-xl font-semibold text-content-primary flex items-center gap-2">
               <Tv size={18} className="text-accent" /> Channels
             </h1>
-            <p className="text-xs text-content-tertiary mt-0.5">Manage and trigger your YouTube automation channels.</p>
+            <p className="text-xs text-content-tertiary mt-0.5">Manage and trigger your automation channels.</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Button variant="outline" size="icon-sm" onClick={() => loadData()} aria-label="Refresh">
@@ -417,7 +425,7 @@ export default function ChannelsPage() {
             ) : tab === 'archived' ? (
               <EmptyState title="No archived channels" body="Channels you archive will appear here." />
             ) : (
-              <EmptyState icon={Plus} title="No channels yet" body="Create your first YouTube channel to start producing videos automatically."
+              <EmptyState icon={Plus} title="No channels yet" body="Create your first channel to start producing videos automatically."
                 cta={{ label: 'Add your first channel', href: '/dashboard/channels/new' }} />
             )}
           </div>
@@ -461,6 +469,7 @@ export default function ChannelsPage() {
                           </span>
                         ))}
                         {ch.auto_upload && <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent">Auto</span>}
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 font-medium">{platformLabel(ch.platform)}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -657,6 +666,7 @@ export default function ChannelsPage() {
                             </span>
                           ))}
                           {ch.auto_upload && <span className="text-[10px] px-1 py-0.5 rounded bg-accent/10 text-accent">Auto</span>}
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 font-medium">{platformLabel(ch.platform)}</span>
                           {isArchived && <span className="text-[10px] px-1 py-0.5 rounded bg-surface-3 text-content-tertiary">Archived</span>}
                         </div>
                         <div className="text-[10px] text-content-tertiary mt-0.5 font-mono truncate">{ch.channel_id}</div>

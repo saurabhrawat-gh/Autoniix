@@ -380,6 +380,15 @@ async function aiSuggest(field: string, context: any, set: (v: string) => void) 
   } catch {/* ignore */}
 }
 
+// AE-240: platform registry — youtube is the only shipped platform
+const PLATFORM_OPTIONS = [
+  { value: 'youtube',   label: 'YouTube',     enabled: true  },
+  { value: 'instagram', label: 'Instagram',   enabled: false },
+  { value: 'tiktok',    label: 'TikTok',      enabled: false },
+  { value: 'x',         label: 'X (Twitter)', enabled: false },
+  { value: 'linkedin',  label: 'LinkedIn',    enabled: false },
+];
+
 // Step components
 function BasicsStep({ state, update, errors }: { state: FormState; update: any; errors: WizardErrors }) {
   return (
@@ -388,11 +397,20 @@ function BasicsStep({ state, update, errors }: { state: FormState; update: any; 
         <Input value={state.channel_name}
           onChange={e => update('channel_name', e.target.value)} placeholder="The Curious Engineer" />
       </Field>
-      <Field label="Platform" hint="Autoniix v1 supports YouTube only.">
-        <div className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-surface-2 text-sm font-medium">
-          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#FF0000' }} />
-          YouTube
-        </div>
+      <Field label="Platform" hint="More platforms coming soon.">
+        <Select value={state.platform} onValueChange={(v: string) => update('platform', v)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {PLATFORM_OPTIONS.map(p => (
+              <SelectItem key={p.value} value={p.value} disabled={!p.enabled}>
+                <div className="flex items-center justify-between gap-4">
+                  <span>{p.label}</span>
+                  {!p.enabled && <span className="text-[10px] opacity-50">Coming soon</span>}
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </Field>
       <Field label="Handle (optional)" hint="@thecuriousengineer">
         <Input value={state.handle} onChange={e => update('handle', e.target.value)} placeholder="@yourhandle" />
