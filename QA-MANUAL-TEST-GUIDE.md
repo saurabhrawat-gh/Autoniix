@@ -1,6 +1,6 @@
 # QA Manual Test Guide — Autoniix Production
 
-> **Single reference for testing every ticket currently In-Prod.** 58 test sections cover all In-Prod stories, tasks, and bugs; the **Complete In-Prod Coverage Map** at the bottom lists every AE-key and the section that tests it.
+> **Single reference for testing every ticket currently In-Prod.** 62 test sections cover all In-Prod stories, tasks, and bugs; the **Complete In-Prod Coverage Map** at the bottom lists every AE-key and the section that tests it.
 > URL: https://dash.autoniix.com  
 > Open DevTools (F12) → Network tab for any API-level checks.  
 > Each test is written in plain English. Mark ✅ PASS or ❌ FAIL as you go.
@@ -889,6 +889,85 @@ Example: `bug: provider health badge not showing, issue #353`
 
 ---
 
+## 59. Finishing Pipeline — LUT Colour Grade + Audio Mastering (AE-294 / AE-296)
+
+**What was built:** Every produced video passes through a `finishing_activity` Temporal stage between assembly and delivery. It applies a per-channel LUT colour grade (one of 7 cinematic presets) plus a full audio mastering chain (denoise → EQ → compress → music duck → loudnorm -14 LUFS → true peak -1.5 dBTP).
+
+**Test steps:**
+1. Open a channel → click the **Finishing** tab in channel settings.
+2. Confirm the `channel_finishing_config` row was seeded for this channel — the tab should load with a default preset (`cinematic`) and all audio toggles on.
+3. Select a different preset (e.g. `warm_gold`) and save.
+4. Trigger a production run. Watch the job progress — after Assembly you should see a **Finishing** stage appear.
+5. On the completed job detail page, look for a **finishing badge** (e.g. `🎨 warm_gold`) — confirms the finishing stage ran.
+6. If the finishing stage was skipped (service unavailable), an amber **`⚠ Colour grade skipped`** warning badge should appear instead.
+7. Check audio quality: narration track should be consistent and clean — no sudden volume spikes or overly quiet segments.
+
+**Pass if:** Finishing stage appears in the job timeline, badge shows the correct preset, skipped finishing shows the amber warning, audio sounds broadcast-level.
+
+---
+
+## 60. Finishing Settings UI — Colour Grade Preset Picker + Audio Controls (AE-297)
+
+**What was built:** A new **Finishing** tab in channel settings for configuring per-channel colour grade preset and audio mastering options.
+
+**Test steps:**
+1. Go to https://dash.autoniix.com/dashboard/channels → open any channel → click the **Finishing** tab.
+2. Confirm a grid of **7 colour grade preset cards** renders: Cinematic, Clean & Bright, Warm Gold, Cool Blue, Vintage, Documentary, Neon Dark. Each card shows name + description.
+3. Click a different preset card — it should show a highlighted ring + checkmark.
+4. Click **Save** → success toast appears. Reload the page — the selected preset should persist.
+5. Under **Audio Mastering**, confirm 4 toggle switches exist: Denoise, EQ, Compress, Music Duck.
+6. Confirm 2 numeric inputs: **Loudness Target** and **True Peak Ceiling**.
+7. Turn off one toggle, save, reload — the toggle should remain off.
+8. Enter an out-of-range loudness value (e.g. `-50` or `0`) — the Save button should disable with a red inline validation error.
+9. Log in as a **Viewer** and open the same Finishing tab — controls should be read-only (no Save button or save is disabled).
+
+**Pass if:** All 7 preset cards render, selection persists on save, toggles + numerics work, invalid loudness shows inline error, Viewer cannot edit.
+
+---
+
+## 61. Review Gate Config — Per-Channel Review Settings (AE-229 / AE-241 / AE-242 / AE-243)
+
+**What was built:** Channels now have a `review_config` JSONB column storing which pipeline artifacts need human approval before proceeding. Five built-in profiles exist (Hands Off, Quick, Standard, Full Control, Custom). A new **Review** tab in channel settings lets you manage this.
+
+**Test steps:**
+1. Go to a channel → look for a **Review** tab — click it.
+2. Confirm a **profile selector** shows at least: Hands Off, Quick, Standard, Full Control, Custom.
+3. Select **Standard** → 5 gate toggles should auto-enable (e.g. script, voice, thumbnail, assembly, final video).
+4. Select **Hands Off** → all gate toggles should turn off (pipeline runs fully automated).
+5. Select **Full Control** → all gates should enable.
+6. With **Standard** selected, manually toggle off one gate — the profile label should automatically switch to **Custom**.
+7. Click **Save** → success toast. Reload — the correct profile and gate states persist.
+8. Log in as a **Viewer** → open the Review tab → controls should be read-only; no Save button visible or it's disabled.
+9. **API check (optional):** In DevTools Console:
+   ```js
+   fetch('/api/v2/channels/YOUR_CHANNEL_ID/settings/review', {credentials:'include'}).then(r=>r.json()).then(console.log)
+   ```
+   Should return `{"profile":"...", "gates":{...}}`.
+
+**Pass if:** Profile selector correctly populates gate toggles, manual override sets profile to Custom, settings persist on reload, Viewer is blocked, API returns correct JSON.
+
+---
+
+## 62. resolve-finisher Service — Health Check (AE-295)
+
+**What was built:** A new `resolve-finisher` Docker service (Phase 1B scaffold) wired into the compose stack on port 8014. Currently a stub — it accepts job submissions and marks them complete immediately. The full DaVinci Resolve integration ships in Phase 1B.
+
+**Test steps (ops-level — requires VPS/server access):**
+1. Run: `docker compose ps resolve-finisher` — should be listed as **Up (healthy)**.
+2. Run: `curl http://localhost:8014/health` — should return `{"status": "ok", "resolve_connected": false}` (false = stub mode, DaVinci not installed yet).
+3. Submit a stub job:
+   ```sh
+   curl -s -X POST http://localhost:8014/finish \
+     -H "Content-Type: application/json" \
+     -d '{"job_id":"qa-test-1","input_path":"/tmp/test.mp4","preset":"cinematic"}'
+   ```
+   Should return a `job_id` and status `queued` or `completed`.
+4. Check the Fleet Health page (`#51`) — `resolve-finisher` should appear in the service list as healthy.
+
+**Pass if:** Service is running healthy in Docker, `/health` returns `ok`, stub job submission is accepted without error. `resolve_connected: false` is **expected** until Phase 1B lands.
+
+---
+
 ## COMPLETE IN-PROD COVERAGE MAP
 
 Every ticket currently in **In Prod** status maps to a test section above. Duplicate engineering/test-task mirrors point to the same section as their feature.
@@ -935,6 +1014,23 @@ Every ticket currently in **In Prod** status maps to a test section above. Dupli
 | AE-289 | Approvals drawer clarity | #35 |
 | AE-208/AE-262 | Duplicate pending invites blocked | #36 |
 | AE-209 | Pending invites & plan slots | #37 |
+
+### Finishing pipeline
+| Ticket | Feature | Section |
+|--------|---------|------|
+| AE-293 | Finishing pipeline epic | (epic — no test needed) |
+| AE-294 | Phase 1A ffmpeg finishing activity | #59 |
+| AE-296 | Channel Finishing Settings API + DB | #59 |
+| AE-297 | Dashboard Finishing Settings UI | #60 |
+| AE-295 | Phase 1B resolve-finisher scaffold | #62 |
+
+### Review gate config
+| Ticket | Feature | Section |
+|--------|---------|------|
+| AE-229 | `channels.review_config` JSONB + API CRUD | #61 |
+| AE-241 | review_config migration subtask | #61 |
+| AE-242 | review-config API endpoints subtask | #61 |
+| AE-243 | review_config unit + API tests subtask | #61 |
 
 ### Channels & video pipeline
 | Ticket | Feature | Section |
