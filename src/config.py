@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     # Storage
     storage_provider: str = "minio"
 
+    # Finishing pipeline (AE-293). Phase 1A uses ffmpeg in-process; the URL is
+    # consumed by Phase 1B (DaVinci Resolve headless service) and is unused in 1A.
+    finishing_service_url: str = "http://resolve-finisher:8014"
+
     # LLM Routing
     llm_openai_model: str = "gpt-4o-mini"
     llm_claude_model: str = "claude-sonnet-4-20250514"

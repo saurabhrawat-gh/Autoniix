@@ -6,10 +6,13 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+import src.db
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -74,8 +77,29 @@ class FakePool:
 @pytest.fixture
 def mock_pool():
     pool = FakePool()
-    with patch("src.db.get_pool", new_callable=AsyncMock, return_value=pool):
+    original = src.db.get_pool
+    targets = ["src.db.get_pool"]
+    for _name, _mod in list(sys.modules.items()):
+        if _mod is None or _name == "src.db":
+            continue
+        if getattr(_mod, "get_pool", None) is original:
+            targets.append(f"{_name}.get_pool")
+    started = []
+    for _t in targets:
+        _p = patch(_t, new_callable=AsyncMock, return_value=pool)
+        try:
+            _p.start()
+            started.append(_p)
+        except (AttributeError, ModuleNotFoundError):
+            pass
+    try:
         yield pool
+    finally:
+        for _p in started:
+            try:
+                _p.stop()
+            except RuntimeError:
+                pass
 
 
 @pytest.fixture

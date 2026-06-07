@@ -23,8 +23,10 @@ import {
 import { cn } from '@/lib/utils';
 
 import ProvidersTab from './ProvidersTab';
+import FinishingTab from './FinishingTab';
+import ReviewTab from './ReviewTab';
 
-const TABS = ['Basics', 'Strategy', 'Voice', 'Visual', 'Pillars', 'References', 'Providers', 'Automation', 'Memory'] as const;
+const TABS = ['Basics', 'Strategy', 'Voice', 'Visual', 'Pillars', 'References', 'Providers', 'Finishing', 'Review', 'Automation', 'Memory'] as const;
 
 export default function ChannelDetail() {
   const { id } = useParams<{ id: string }>();
@@ -235,6 +237,12 @@ export default function ChannelDetail() {
         )}
         {tab === 'Providers' && (
           <ProvidersTab channelId={id} />
+        )}
+        {tab === 'Finishing' && (
+          <FinishingTab channelId={id} />
+        )}
+        {tab === 'Review' && (
+          <ReviewTab channelId={id} />
         )}
         {tab === 'Automation' && (
           <Grid>

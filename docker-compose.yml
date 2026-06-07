@@ -379,6 +379,27 @@ services:
     restart: unless-stopped
     deploy: { resources: { limits: { memory: 256M } } }
 
+  # Finishing pipeline — Phase 1B DaVinci Resolve headless service (AE-295).
+  # Stub implementation: accepts jobs via POST /jobs and returns them as completed.
+  # Replace _run_job in services/resolve-finisher/app.py with real Resolve CLI
+  # when hardware is available. Set FINISHING_SERVICE_URL=http://resolve-finisher:8014
+  # in .env to route finishing traffic here (requires require_resolve_finish=true per channel).
+  resolve-finisher:
+    build: { context: ./services/resolve-finisher }
+    environment:
+      - PORT=8014
+    ports:
+      - "8014:8014"
+    networks: [autoniix-net]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8014/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 256M } } }
+
   # Remotion Renderer
   remotion-api:
     build: { context: ./services/remotion, dockerfile: Dockerfile }

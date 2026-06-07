@@ -23,6 +23,16 @@ RETRY_RENDER = RetryPolicy(
     maximum_interval=timedelta(minutes=5),
 )
 
+# Finishing (AE-294). 3 attempts with exponential backoff. The activity itself
+# handles the skip-on-failure fallback when require_resolve_finish is False; this
+# policy mainly governs the require_resolve_finish=True (must-finish) path.
+RETRY_FINISH = RetryPolicy(
+    maximum_attempts=3,
+    initial_interval=timedelta(seconds=30),
+    backoff_coefficient=2.0,
+    maximum_interval=timedelta(minutes=5),
+)
+
 
 WORKFLOW_PHASES = [
     "researching",
@@ -33,6 +43,7 @@ WORKFLOW_PHASES = [
     "directing",
     "post_production",
     "rendering",
+    "finishing",
     "delivering",
     "analytics",
 ]
@@ -291,6 +302,8 @@ class VideoProductionWorkflow:
                         assembly_data = saved.get("assembly_data", {})
                         video_url = saved.get("video_url", "")
                         quality_scores["production_score"] = saved.get("prod_score", 7.0)
+                    elif prev_phase == "finishing":
+                        video_url = saved.get("video_url", video_url)
                     workflow.logger.info(f"Restored checkpoint: {prev_phase}")
 
             # Phase 1: Research
@@ -749,6 +762,48 @@ class VideoProductionWorkflow:
                     "video_url": video_url,
                     "prod_score": prod_score,
                 })
+
+            await self._check_pause()
+
+            # Phase 6B: Finishing (ffmpeg LUT colour grade + audio mastering) — AE-294
+            if _should_skip("finishing", resume_from):
+                workflow.logger.info("Skipping finishing (already completed)")
+            elif video_url:
+                await self._set_phase(content_id, "finishing", ch)
+
+                finishing_result = await workflow.execute_activity(
+                    "finishing_activity",
+                    args=[{
+                        "content_id": content_id,
+                        "channel_id": params.channel_id,
+                        "video_url": video_url,
+                    }],
+                    start_to_close_timeout=timedelta(minutes=10),
+                    heartbeat_timeout=timedelta(minutes=3),
+                    retry_policy=RETRY_FINISH,
+                )
+
+                fin_data = finishing_result.get("data", {})
+                finished_url = fin_data.get("finished_url", "")
+                if finished_url and not fin_data.get("skipped"):
+                    video_url = finished_url
+                    workflow.logger.info(
+                        f"Finishing applied: {video_url[:80]} "
+                        f"(preset {fin_data.get('preset_used')})")
+                else:
+                    workflow.logger.info("Finishing skipped — delivering raw render")
+
+                await self._complete_phase(
+                    content_id, ch, "finishing",
+                    detail={"skipped": bool(fin_data.get("skipped")),
+                            "preset": fin_data.get("preset_used")})
+
+                await self._save_phase_data(content_id, "finishing", {
+                    "video_url": video_url,
+                    "finishing": fin_data,
+                })
+            else:
+                workflow.logger.info("Finishing skipped — no rendered video_url")
 
             # Phase 7: Compute Composite & Human Review Gate ─
             score_values = [v for v in quality_scores.values() if isinstance(v, (int, float))]
