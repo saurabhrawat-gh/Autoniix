@@ -125,12 +125,36 @@ async def synthesize(req: VoiceRequest):
         if not channel:
             raise HTTPException(status_code=404, detail=f"Channel {req.channel_id} not found")
 
-        voice_id = req.voice_id or channel.get("voice_id", "")
-        if not voice_id or voice_id.startswith("REPLACE_"):
-            voice_id = ""  # provider will use its own default
-
-        tts = ProviderRegistry.get("tts")
+        # Resolve TTS provider — passes channel_id + content_mode so the DB
+        # chain activates (per-channel provider, per-content-mode routing,
+        # automatic fallback to next credential on error).
+        tts = ProviderRegistry.get(
+            "tts",
+            channel_id=req.channel_id,
+            content_mode=req.content_mode,
+        )
         storage = ProviderRegistry.get("storage")
+
+        # Resolve voice_id: prefer per-provider map stored in brand_config
+        # so each provider in a fallback chain uses its own correct voice ID.
+        # Priority: explicit request override → per-provider map → legacy single field.
+        brand_config = channel.get("brand_config") or {}
+        if isinstance(brand_config, str):
+            import json as _json
+            try:
+                brand_config = _json.loads(brand_config)
+            except Exception:
+                brand_config = {}
+        voice_ids_map: dict = brand_config.get("voice_ids", {})
+        _provider_name = getattr(tts, "provider_name", lambda: "") ()
+        voice_id = (
+            req.voice_id
+            or voice_ids_map.get(_provider_name, "")
+            or (voice_ids_map.get("short", "") if req.content_mode == "short" else "")
+            or channel.get("voice_id", "")
+        )
+        if not voice_id or voice_id.startswith("REPLACE_"):
+            voice_id = ""  # provider will use its own default_voice from credentials
 
         # Step 1: Split into sentences per segment
         all_sentences = []
