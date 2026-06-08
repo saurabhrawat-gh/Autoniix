@@ -144,16 +144,16 @@ class _Breaker:
 # Default ladder per category. Env overrides via ``LLM_<CATEGORY>_LADDER``
 # (uppercased, dots → underscores), e.g. ``LLM_SCRIPT_LADDER=claude,openai``.
 _DEFAULT_LADDERS: dict[str, list[str]] = {
-    "llm":           ["openai", "claude", "gemini"],
-    "llm.research":  ["gemini", "openai", "claude"],
-    "llm.script":    ["claude", "openai", "gemini"],
-    "llm.factcheck": ["openai", "gemini", "claude"],
-    "llm.qc":        ["gemini", "openai", "claude"],
+    "llm":           ["deepseek", "openai", "claude", "gemini"],
+    "llm.research":  ["gemini", "deepseek", "openai", "claude"],
+    "llm.script":    ["claude", "deepseek", "openai", "gemini"],
+    "llm.factcheck": ["openai", "deepseek", "gemini", "claude"],
+    "llm.qc":        ["gemini", "deepseek", "openai", "claude"],
     "llm.vision":    ["openai", "gemini"],
-    "llm.ideation":  ["gemini", "openai", "claude"],
-    "llm.hook":      ["claude", "openai"],
-    "llm.direction": ["claude", "openai"],
-    "llm.emotion":   ["gemini", "openai"],
+    "llm.ideation":  ["gemini", "deepseek", "openai", "claude"],
+    "llm.hook":      ["deepseek", "claude", "openai"],
+    "llm.direction": ["deepseek", "claude", "openai"],
+    "llm.emotion":   ["gemini", "deepseek", "openai"],
 }
 
 

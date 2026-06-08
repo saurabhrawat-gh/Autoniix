@@ -26,12 +26,16 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     anthropic_api_key: str = ""
     google_ai_api_key: str = ""
+    deepseek_api_key: str = ""
 
     # TTS
     fish_audio_api_key: str = ""
     elevenlabs_api_key: str = ""
     elevenlabs_model_id: str = "eleven_multilingual_v2"
-    tts_provider: str = "fishaudio"
+    inworld_api_key: str = ""
+    inworld_tts_model: str = "inworld-tts-2"           # inworld-tts-2 ($0.025/1K) | inworld-tts-1 ($0.015/1K)
+    inworld_voice_id: str = ""                         # set to your cloned/designed voice ID
+    tts_provider: str = "inworld"
 
     # Search
     serpapi_key: str = ""
@@ -42,9 +46,12 @@ class Settings(BaseSettings):
     pixabay_api_key: str = ""
     pexels_api_key: str = ""
     freesound_api_key: str = ""
+    falai_api_key: str = ""
+    falai_flux_model: str = "fal-ai/flux/schnell"      # quality="standard" → b-roll
+    falai_flux_hd_model: str = "fal-ai/flux/dev"        # quality="hd" → thumbnails
     # Motion Array assets are managed via the local library (no API).
     # Use scripts/import_local_assets.py to ingest manually downloaded assets.
-    image_provider: str = "dalle"
+    image_provider: str = "fal_flux"
 
     # Storage
     storage_provider: str = "minio"
@@ -57,16 +64,17 @@ class Settings(BaseSettings):
     llm_openai_model: str = "gpt-4o-mini"
     llm_claude_model: str = "claude-sonnet-4-20250514"
     llm_gemini_model: str = "gemini-2.5-flash"
-    llm_provider: str = "openai"
+    llm_deepseek_model: str = "deepseek-chat"
+    llm_provider: str = "deepseek"
     llm_research_provider: str = "gemini"
     llm_script_provider: str = "claude"
     llm_factcheck_provider: str = "openai"
     llm_qc_provider: str = "gemini"
     llm_vision_provider: str = "openai"
-    llm_ideation_provider: str = "openai"
-    llm_hook_provider: str = "openai"
-    llm_direction_provider: str = "openai"
-    llm_emotion_provider: str = "openai"
+    llm_ideation_provider: str = "gemini"
+    llm_hook_provider: str = "deepseek"
+    llm_direction_provider: str = "deepseek"
+    llm_emotion_provider: str = "gemini"
 
     # Temporal
     temporal_host: str = "temporal:7233"

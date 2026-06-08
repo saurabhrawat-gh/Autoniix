@@ -38,6 +38,27 @@ The pre-squash files were:
 202605160001_multitenant_activate
 ```
 
+## Provider Feature Flags
+
+These flags live in the `feature_flags` table (seeded by `202605170003_provider_admin_flag.sql`):
+
+| Key | Default | Purpose |
+|-----|---------|---------|
+| `providers.db_chain.enabled` | `FALSE` | When `TRUE`, `src/providers/chain.py` resolves the priority chain from `provider_chains_v2` (DB-driven). When `FALSE`, the resolver falls back to environment-variable resolution only. **Flip to `TRUE` after the first credential and chain have been inserted.** |
+| `providers.admin_credentials.enabled` | `FALSE` | Allow Admin role (not just Owner) to create/update/delete/rotate credentials. |
+| `providers.credentials.rotate.enabled` | `TRUE` | Allow credential secret rotation via the dashboard. Set to `FALSE` to lock secrets in place (e.g. during an incident). |
+
+## Provider Backend Selection
+
+Set `PROVIDERS_SECRET_BACKEND` in your `.env`:
+
+| Value | Behaviour |
+|-------|-----------|
+| `env` | Secrets read from environment variables (default, no DB writes). |
+| `db` | Secrets stored Fernet-encrypted in `provider_credentials.secret_blob`. Requires `PROVIDERS_FERNET_KEY` to be set. |
+| `vault` | Secrets stored in HashiCorp Vault at `vault_path`. |
+| `infisical` | Secrets stored in Infisical at `vault_path`. |
+
 ## Adding a new migration
 
 Create a new file `2026MMDDXXXX_<short_name>.sql` after the init file.
