@@ -101,6 +101,7 @@ export default function ProviderCategoryPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [testingId, setTestingId] = useState<number | null>(null);
   const [testResults, setTestResults] = useState<Record<number, any>>({});
+  const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
   // Wave 2 — routing policy
   const [route, setRoute] = useState<any | null>(null);
   const [savingRoute, setSavingRoute] = useState(false);
@@ -280,11 +281,12 @@ export default function ProviderCategoryPage() {
 
   const toggleCredentialEnabled = async (cred: any) => {
     const next = !cred.enabled;
+    setCreds(prev => prev.map(c => c.id === cred.id ? { ...c, enabled: next } : c));
     try {
       await providersApi.setCredentialEnabled(cred.id, next);
       showToast(next ? `${cred.label} enabled` : `${cred.label} disabled`, 'success');
-      refresh();
     } catch (e: any) {
+      setCreds(prev => prev.map(c => c.id === cred.id ? { ...c, enabled: !next } : c));
       showToast(e?.message || 'Failed to toggle credential', 'error');
     }
   };
@@ -344,11 +346,18 @@ export default function ProviderCategoryPage() {
       confirmLabel: 'Delete',
     });
     if (!ok) return;
+    setDeletingIds(prev => { const s = new Set(prev); s.add(id); return s; });
     try {
       await providersApi.deleteCredential(id);
       showToast('Credential deleted', 'success');
-      refresh();
-    } catch (e: any) { showToast(e?.message || 'Delete failed', 'error'); }
+      setTimeout(() => {
+        setCreds(prev => prev.filter(c => c.id !== id));
+        setDeletingIds(prev => { const s = new Set(prev); s.delete(id); return s; });
+      }, 300);
+    } catch (e: any) {
+      setDeletingIds(prev => { const s = new Set(prev); s.delete(id); return s; });
+      showToast(e?.message || 'Delete failed', 'error');
+    }
   };
 
   const loadHealthHistory = async (credId: number) => {
@@ -598,7 +607,7 @@ export default function ProviderCategoryPage() {
                     const testResult = testResults[c.id];
                     const isTesting = testingId === c.id;
                     return (
-                      <div key={c.id} className={cn('px-4 py-3', !c.enabled && 'opacity-60')}>
+                      <div key={c.id} className={cn('px-4 py-3 transition-opacity duration-300', !c.enabled && 'opacity-60', deletingIds.has(c.id) && 'opacity-0 pointer-events-none')}>
                         <div className="flex items-center gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -1022,6 +1031,8 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
   const [err, setErr] = useState<string | null>(null);
   const [registered, setRegistered] = useState<(ReturnType<typeof providersApi.registeredProviders> extends Promise<{ data: (infer T)[] }> ? T : any)[]>([]);
   const [registeredLoading, setRegisteredLoading] = useState(true);
+  const [lazyModels, setLazyModels] = useState<string[] | null>(null);
+  const [lazyModelsLoading, setLazyModelsLoading] = useState(false);
 
   useEffect(() => {
     setRegisteredLoading(true);
@@ -1070,6 +1081,9 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
   // the backend ever handing back a non-array so the dialog can't crash the page.
   const schema: SchemaField[] = asArray<SchemaField>(selProvider?.config_schema);
   const credFields = schema.filter(f => f.name !== 'model' && f.name !== 'model_id');
+  // Use lazy-fetched live model list (GET /models) when available; fall back to
+  // registered catalog's supported_models for providers that have no live endpoint.
+  const effectiveModels: string[] = lazyModels !== null ? lazyModels : asArray<string>(selProvider?.supported_models);
   const modelField = schema.find(f => f.name === 'model' || f.name === 'model_id') ?? null;
   const noKeyNeeded = NO_KEY_PROVIDERS.has(providerName);
   const hasCredFields = credFields.length > 0;
@@ -1088,6 +1102,16 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
     setErr(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providerName]);
+
+  useEffect(() => {
+    if (!providerName) { setLazyModels(null); return; }
+    setLazyModelsLoading(true);
+    setLazyModels(null);
+    providersApi.supportedModels(category, providerName)
+      .then(r => setLazyModels(r.data || []))
+      .catch(() => setLazyModels(null))
+      .finally(() => setLazyModelsLoading(false));
+  }, [category, providerName]);
 
   const setField = (name: string, val: string | boolean) =>
     setFieldValues(prev => ({ ...prev, [name]: val }));
@@ -1359,13 +1383,17 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
                       {modelField.options.map((m: string) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                ) : supportedModels.length > 0 ? (
+                ) : lazyModelsLoading ? (
+                  <div className="px-3 py-2 rounded-lg bg-surface-1 border border-border text-xs text-content-tertiary flex items-center gap-2">
+                    <Loader2 size={11} className="animate-spin" /> Loading models…
+                  </div>
+                ) : effectiveModels.length > 0 ? (
                   <Select value={model || '__default__'}
                     onValueChange={(v: string) => setModel(v === '__default__' ? '' : v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__default__">Use provider default ({defaultModel || 'auto'})</SelectItem>
-                      {supportedModels.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                      {effectiveModels.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 ) : (
