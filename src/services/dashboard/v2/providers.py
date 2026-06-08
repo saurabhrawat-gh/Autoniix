@@ -358,11 +358,16 @@ async def list_credentials(
     category: str | None = None,
     channel_id: str | None = Query(None),
     content_mode: str | None = Query(None),
-    _: Principal = Depends(principal_dep),
+    actor: Principal = Depends(principal_dep),
 ):
     pool = await get_pool()
     filters = []
     args: list[Any] = []
+    # Scope: show credentials belonging to this workspace OR system defaults (NULL).
+    # Superadmin/legacy sessions see all credentials across all workspaces.
+    if actor.global_role != "superadmin" and actor.source != "legacy":
+        args.append(actor.workspace_id)
+        filters.append(f"(workspace_id=${len(args)} OR workspace_id IS NULL)")
     if category:
         args.append(category)
         filters.append(f"category=${len(args)}")
@@ -376,7 +381,7 @@ async def list_credentials(
     rows = await pool.fetch(
         f"""SELECT id, category, provider_name, label, vault_path, extra_config,
                   model, is_default_fallback, channel_id, content_mode, scope_priority,
-                  enabled, last_health_ok, last_health_at, last_latency_ms,
+                  workspace_id, enabled, last_health_ok, last_health_at, last_latency_ms,
                   rotated_at, created_at
              FROM provider_credentials {where}
             ORDER BY category, scope_priority DESC, id""",
@@ -455,11 +460,12 @@ async def create_credential(
     cid = await pool.fetchval(
         """INSERT INTO provider_credentials
             (category, provider_name, label, vault_path, extra_config, model,
-             channel_id, content_mode, scope_priority, enabled, created_by)
-           VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,TRUE,$10) RETURNING id""",
+             channel_id, content_mode, scope_priority, enabled, created_by, workspace_id)
+           VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,TRUE,$10,$11) RETURNING id""",
         body.category, body.provider_name, body.label, path,
         json.dumps(body.extra_config), body.model,
         body.channel_id, body.content_mode, scope_priority, actor.user_id,
+        actor.workspace_id,
     )
     await audit(actor=actor, action="provider.credential.create",
                 target_type="provider_credential", target_id=str(cid),
@@ -551,14 +557,23 @@ async def update_credential(
     if not updates:
         return {"status": "noop"}
 
+    # Workspace ownership check — fetch existing credential first so we can
+    # verify it belongs to this workspace before patching.
+    _ws_check = await pool.fetchrow(
+        "SELECT category, provider_name, workspace_id FROM provider_credentials WHERE id=$1",
+        credential_id,
+    )
+    if not _ws_check:
+        raise HTTPException(404, "Credential not found")
+    if (
+        actor.global_role != "superadmin" and actor.source != "legacy"
+        and _ws_check["workspace_id"] is not None
+        and _ws_check["workspace_id"] != actor.workspace_id
+    ):
+        raise HTTPException(403, "Credential belongs to a different workspace")
+
     if "model" in updates and updates["model"]:
-        cred = await pool.fetchrow(
-            "SELECT category, provider_name FROM provider_credentials WHERE id=$1",
-            credential_id,
-        )
-        if not cred:
-            raise HTTPException(404, "Credential not found")
-        _validate_model(cred["category"], cred["provider_name"], updates["model"])
+        _validate_model(_ws_check["category"], _ws_check["provider_name"], updates["model"])
 
     sets = []
     values: list[Any] = []
@@ -592,8 +607,16 @@ async def delete_credential(
 ):
     pool = await get_pool()
     cat_row = await pool.fetchrow(
-        "SELECT category FROM provider_credentials WHERE id=$1", credential_id,
+        "SELECT category, workspace_id FROM provider_credentials WHERE id=$1", credential_id,
     )
+    if not cat_row:
+        raise HTTPException(404, "Credential not found")
+    if (
+        actor.global_role != "superadmin" and actor.source != "legacy"
+        and cat_row["workspace_id"] is not None
+        and cat_row["workspace_id"] != actor.workspace_id
+    ):
+        raise HTTPException(403, "Credential belongs to a different workspace")
     res = await pool.execute(
         "DELETE FROM provider_credentials WHERE id=$1", credential_id
     )
@@ -615,12 +638,18 @@ async def test_credential(
 ):
     pool = await get_pool()
     row = await pool.fetchrow(
-        "SELECT category, provider_name, vault_path, extra_config "
+        "SELECT category, provider_name, vault_path, extra_config, workspace_id "
         "FROM provider_credentials WHERE id=$1",
         credential_id,
     )
     if not row:
         raise HTTPException(404, "Credential not found")
+    if (
+        actor.global_role != "superadmin" and actor.source != "legacy"
+        and row["workspace_id"] is not None
+        and row["workspace_id"] != actor.workspace_id
+    ):
+        raise HTTPException(403, "Credential belongs to a different workspace")
 
     secret = get_secret_at(row["vault_path"], "api_key")
     started = time.perf_counter()
@@ -1898,10 +1927,16 @@ async def set_credential_enabled(
     by the resolver across every scope/mode."""
     pool = await get_pool()
     cred = await pool.fetchrow(
-        "SELECT category FROM provider_credentials WHERE id=$1", credential_id,
+        "SELECT category, workspace_id FROM provider_credentials WHERE id=$1", credential_id,
     )
     if not cred:
         raise HTTPException(404, "Credential not found")
+    if (
+        actor.global_role != "superadmin" and actor.source != "legacy"
+        and cred["workspace_id"] is not None
+        and cred["workspace_id"] != actor.workspace_id
+    ):
+        raise HTTPException(403, "Credential belongs to a different workspace")
     await pool.execute(
         "UPDATE provider_credentials SET enabled=$1, updated_at=NOW() WHERE id=$2",
         body.enabled, credential_id,

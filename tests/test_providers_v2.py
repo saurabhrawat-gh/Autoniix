@@ -6,6 +6,9 @@ Covers:
 - _require_cred_actor: admin allowed when feature flag ON
 - _require_cred_actor: viewer always blocked
 - create_credential: channel_id + content_mode + scope_priority stored
+- create_credential: workspace_id stored from actor (AE-300)
+- list_credentials: workspace_id filter applied for non-superadmin (AE-300)
+- delete_credential: cross-workspace delete blocked with 403 (AE-300)
 - rotate_credential: blocked when feature flag OFF / allowed when ON
 """
 from __future__ import annotations
@@ -197,3 +200,88 @@ class TestRotateCredential:
              patch(f"{_PROV_MODULE}.audit", new_callable=AsyncMock):
             result = await rotate_credential(credential_id=1, body=body, request=req, actor=actor)
         assert result["status"] == "ok"
+
+
+# ---------------------------------------------------------------------------
+# AE-300: Workspace scoping (no cross-workspace data leak)
+# ---------------------------------------------------------------------------
+
+class TestWorkspaceScoping:
+    @pytest.mark.asyncio
+    async def test_create_credential_stores_workspace_id(self):
+        """workspace_id from actor is persisted in the INSERT."""
+        from src.services.dashboard.v2.providers import CredentialIn, create_credential
+
+        pool = FakePool()
+        pool.fetchrow.return_value = FakeRecord(name="llm")
+        pool.fetchval.return_value = 42
+
+        actor = _make_principal(role="owner", workspace_id=7)
+        body = CredentialIn(category="llm", provider_name="openai",
+                            label="ws-test", secret_value="sk-x")
+        req = MagicMock()
+
+        with _pool_ctx(pool), \
+             patch(f"{_PROV_MODULE}.put_secret_at", return_value="env"), \
+             patch(f"{_PROV_MODULE}.publish_invalidate", new_callable=AsyncMock), \
+             patch(f"{_PROV_MODULE}.audit", new_callable=AsyncMock), \
+             patch("src.providers.registry.ProviderRegistry._registries",
+                   {"llm": {"openai": MagicMock()}}):
+            result = await create_credential(body=body, request=req, actor=actor)
+
+        assert result["status"] == "ok"
+        insert_args = pool.fetchval.call_args[0]
+        assert 7 in insert_args, "workspace_id=7 must be in INSERT args"
+
+    @pytest.mark.asyncio
+    async def test_delete_cross_workspace_blocked(self):
+        """DELETE /credentials/{id} returns 403 when credential belongs to another workspace."""
+        from src.services.dashboard.v2.providers import delete_credential
+
+        pool = FakePool()
+        pool.fetchrow.return_value = FakeRecord(category="llm", workspace_id=99)
+
+        actor = _make_principal(role="owner", workspace_id=1)
+        req = MagicMock()
+
+        with _pool_ctx(pool), \
+             patch(f"{_PROV_MODULE}.audit", new_callable=AsyncMock):
+            with pytest.raises(HTTPException) as exc_info:
+                await delete_credential(credential_id=5, request=req, actor=actor)
+        assert exc_info.value.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_delete_same_workspace_allowed(self):
+        """DELETE /credentials/{id} succeeds when credential belongs to same workspace."""
+        from src.services.dashboard.v2.providers import delete_credential
+
+        pool = FakePool()
+        pool.fetchrow.return_value = FakeRecord(category="llm", workspace_id=1)
+        pool.execute = AsyncMock(return_value="DELETE 1")
+
+        actor = _make_principal(role="owner", workspace_id=1)
+        req = MagicMock()
+
+        with _pool_ctx(pool), \
+             patch(f"{_PROV_MODULE}.audit", new_callable=AsyncMock), \
+             patch(f"{_PROV_MODULE}.publish_invalidate", new_callable=AsyncMock):
+            result = await delete_credential(credential_id=5, request=req, actor=actor)
+        assert result["status"] == "ok"
+
+    @pytest.mark.asyncio
+    async def test_list_credentials_adds_workspace_filter_for_regular_user(self):
+        """GET /credentials applies workspace_id filter for non-superadmin."""
+        from src.services.dashboard.v2.providers import list_credentials
+
+        pool = FakePool()
+        pool.fetch.return_value = []
+
+        actor = _make_principal(role="owner", workspace_id=3)
+
+        with _pool_ctx(pool):
+            await list_credentials(actor=actor)
+
+        call_args = pool.fetch.call_args
+        sql = call_args[0][0] if call_args[0] else str(call_args)
+        positional_args = call_args[0][1:] if call_args[0] else call_args[1].get("args", [])
+        assert 3 in positional_args, "workspace_id=3 must be bound in query args"
