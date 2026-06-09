@@ -84,22 +84,25 @@ export function ConfirmDialog(props: {
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onCancel(); }}>
       <DialogContent className="max-w-sm" hideClose>
-        <div className="flex items-start gap-3">
+        <div className="flex flex-col items-center text-center gap-3 pt-1">
           <div
             className={[
-              'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
-              destructive ? 'bg-status-danger/10 text-status-danger' : 'bg-accent/10 text-accent',
+              'w-12 h-12 rounded-full flex items-center justify-center shrink-0',
+              destructive ? 'bg-status-error/10 text-status-error' : 'bg-accent/10 text-accent',
             ].join(' ')}
           >
-            {destructive ? <AlertTriangle size={18} /> : <Info size={18} />}
+            {destructive ? <AlertTriangle size={22} /> : <Info size={22} />}
           </div>
-          <DialogHeader className="flex-1">
-            <DialogTitle>{title}</DialogTitle>
-            {description && <DialogDescription>{description}</DialogDescription>}
+          <DialogHeader className="w-full space-y-1.5">
+            <DialogTitle className="text-center">{title}</DialogTitle>
+            <div className="h-px w-full bg-border" />
+            {description && (
+              <DialogDescription className="text-center">{description}</DialogDescription>
+            )}
           </DialogHeader>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="mt-1">
           {!alertOnly && (
             <Button variant="outline" onClick={onCancel} disabled={loading}>
               {cancelLabel}
@@ -156,18 +159,21 @@ export function PromptDialog(props: {
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onCancel(); }}>
       <DialogContent className="max-w-md" hideClose>
-        <div className="flex items-start gap-3">
+        <div className="flex flex-col items-center text-center gap-3 pt-1">
           <div
             className={[
-              'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
-              destructive ? 'bg-status-danger/10 text-status-danger' : 'bg-accent/10 text-accent',
+              'w-12 h-12 rounded-full flex items-center justify-center shrink-0',
+              destructive ? 'bg-status-error/10 text-status-error' : 'bg-accent/10 text-accent',
             ].join(' ')}
           >
-            {destructive ? <AlertTriangle size={18} /> : <Info size={18} />}
+            {destructive ? <AlertTriangle size={22} /> : <Info size={22} />}
           </div>
-          <DialogHeader className="flex-1">
-            <DialogTitle>{title}</DialogTitle>
-            {description && <DialogDescription>{description}</DialogDescription>}
+          <DialogHeader className="w-full space-y-1.5">
+            <DialogTitle className="text-center">{title}</DialogTitle>
+            <div className="h-px w-full bg-border" />
+            {description && (
+              <DialogDescription className="text-center">{description}</DialogDescription>
+            )}
           </DialogHeader>
         </div>
 
@@ -185,7 +191,7 @@ export function PromptDialog(props: {
           />
         </form>
 
-        <DialogFooter>
+        <DialogFooter className="mt-1">
           <Button variant="outline" onClick={onCancel} disabled={loading}>
             {cancelLabel}
           </Button>

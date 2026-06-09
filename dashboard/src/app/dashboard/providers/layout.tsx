@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { providersApi } from '@/lib/api-v2';
 import { cn } from '@/lib/utils';
 import { usePermissions } from '@/lib/hooks/usePermissions';
-import { confirmDialog, promptDialog } from '@/lib/components/ConfirmDialog';
+import { confirmDialog, promptDialog } from '@/lib/components/ConfirmDialog'; // promptDialog kept for handleWipe (bulk-wipe only)
 import { Input } from '@/lib/ui';
 import { useToast } from '@/lib/toast';
 import { Plug, Loader2, Trash2, Plus, ChevronRight, Edit2, Check, X } from '@/lib/components/Icon';
@@ -91,23 +91,13 @@ export default function ProvidersLayout({ children }: { children: ReactNode }) {
   };
 
   const handleDeleteCategory = async (name: string, label: string, isBuiltIn: boolean) => {
-    const ok = isBuiltIn
-      ? (await promptDialog({
-          title: `Delete "${label}"?`,
-          description:
-            'This removes the category and all its credentials. Built-in categories can be restored via "Restore defaults".',
-          label: 'Type \'delete\' to confirm',
-          placeholder: 'delete',
-          match: 'delete',
-          confirmLabel: 'Delete category',
-          destructive: true,
-        })) !== null
-      : await confirmDialog({
-          title: `Delete "${label}"?`,
-          description: 'Removes the category and its credentials. This cannot be undone.',
-          confirmLabel: 'Delete',
-          destructive: true,
-        });
+    const hint = isBuiltIn ? ' Restore defaults can bring it back.' : ' This cannot be undone.';
+    const ok = await confirmDialog({
+      title: `Delete "${label}"?`,
+      description: `Removes the category and all its credentials.${hint}`,
+      confirmLabel: 'Delete category',
+      destructive: true,
+    });
     if (!ok) return;
     setDeletingCat(name);
     try {
