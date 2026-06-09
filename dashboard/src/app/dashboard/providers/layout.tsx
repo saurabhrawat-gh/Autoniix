@@ -1,14 +1,15 @@
 'use client';
 
-import { useEffect, useState, useCallback, type ReactNode } from 'react';
+import { useEffect, useState, useCallback, useRef, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { providersApi } from '@/lib/api-v2';
 import { cn } from '@/lib/utils';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { confirmDialog, promptDialog } from '@/lib/components/ConfirmDialog';
+import { Input } from '@/lib/ui';
 import { useToast } from '@/lib/toast';
-import { Plug, Loader2, Trash2, Plus, ChevronRight } from '@/lib/components/Icon';
+import { Plug, Loader2, Trash2, Plus, ChevronRight, Edit2, Check, X } from '@/lib/components/Icon';
 
 const STUB_KINDS = new Set(['lut', 'sfx', 'music']);
 
@@ -24,6 +25,9 @@ export default function ProvidersLayout({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [wiping, setWiping] = useState(false);
   const [deletingCat, setDeletingCat] = useState<string | null>(null);
+  const [renamingCat, setRenamingCat] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(() => {
     setLoading(true);
@@ -67,22 +71,41 @@ export default function ProvidersLayout({ children }: { children: ReactNode }) {
     }
   };
 
+  const startRename = (name: string, currentLabel: string) => {
+    setRenamingCat(name);
+    setRenameValue(currentLabel);
+    setTimeout(() => renameInputRef.current?.select(), 30);
+  };
+
+  const commitRename = async (name: string) => {
+    const trimmed = renameValue.trim();
+    const currentLabel = cats.find(c => c.name === name)?.label || name;
+    setRenamingCat(null);
+    if (!trimmed || trimmed === currentLabel) return;
+    try {
+      await providersApi.updateCategory(name, trimmed);
+      refresh();
+    } catch (e: any) {
+      showToast(e?.message || 'Rename failed', 'error');
+    }
+  };
+
   const handleDeleteCategory = async (name: string, label: string, isBuiltIn: boolean) => {
     const ok = isBuiltIn
       ? (await promptDialog({
-          title: `Delete built-in category "${label}"?`,
+          title: `Delete "${label}"?`,
           description:
-            'This removes the category and its credentials. Built-in categories can be restored with "Restore defaults". This cannot be undone.',
-          label: 'Type DELETE to confirm',
-          placeholder: 'DELETE',
-          match: 'DELETE',
+            'This removes the category and all its credentials. Built-in categories can be restored via "Restore defaults".',
+          label: 'Type \'delete\' to confirm',
+          placeholder: 'delete',
+          match: 'delete',
           confirmLabel: 'Delete category',
           destructive: true,
         })) !== null
       : await confirmDialog({
-          title: `Delete category "${label}"?`,
-          description: 'This removes the category and its credentials. This cannot be undone.',
-          confirmLabel: 'Delete category',
+          title: `Delete "${label}"?`,
+          description: 'Removes the category and its credentials. This cannot be undone.',
+          confirmLabel: 'Delete',
           destructive: true,
         });
     if (!ok) return;
@@ -128,12 +151,12 @@ export default function ProvidersLayout({ children }: { children: ReactNode }) {
       {/* ── Category sidebar ── */}
       <aside
         aria-label="Provider categories"
-        className="hidden lg:flex flex-col w-64 xl:w-72 border-r border-border bg-surface-0 shrink-0 h-full overflow-hidden"
+        className="hidden lg:flex flex-col w-[220px] border-r border-border bg-surface-0 shrink-0 h-full overflow-hidden"
       >
         {/* Sidebar header */}
-        <div className="px-3 py-3 flex items-center gap-2 border-b border-border shrink-0">
+        <div className="h-12 px-3 flex items-center gap-2 border-b border-border shrink-0">
           <Plug size={14} className="text-accent shrink-0" />
-          <span className="text-xs font-semibold text-content-primary tracking-tight">
+          <span className="text-sm font-semibold text-content-primary">
             Providers
           </span>
         </div>
@@ -157,7 +180,7 @@ export default function ProvidersLayout({ children }: { children: ReactNode }) {
               <Link
                 href="/dashboard/providers"
                 className={cn(
-                  'mx-2 mb-2 flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-xs transition-colors',
+                  'mx-2 mb-2 flex items-center justify-between gap-2 px-2.5 py-2 rounded-md text-sm transition-colors',
                   !activeCategory
                     ? 'bg-accent/10 text-accent font-semibold'
                     : 'text-content-secondary hover:bg-surface-1 hover:text-content-primary',
@@ -194,40 +217,75 @@ export default function ProvidersLayout({ children }: { children: ReactNode }) {
                       const count = connectedCount(cat.name);
                       const isActive = activeCategory === cat.name;
                       return (
-                        <div key={cat.name} className="group/cat mx-2 mb-0.5 flex items-center gap-0.5">
-                          <Link
-                            href={`/dashboard/providers/${encodeURIComponent(cat.name)}`}
-                            aria-current={isActive ? 'page' : undefined}
-                            className={cn(
-                              'flex-1 flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-xs transition-colors min-w-0',
-                              isActive
-                                ? 'bg-accent/10 text-accent font-semibold'
-                                : 'text-content-secondary hover:bg-surface-1 hover:text-content-primary',
-                            )}
-                          >
-                            <span className="truncate leading-tight">{cat.label}</span>
-                            {count > 0 && (
-                              <span className={cn(
-                                'text-[10px] px-1.5 py-0.5 rounded-full shrink-0 tabular-nums',
-                                isActive
-                                  ? 'bg-accent/20 text-accent'
-                                  : 'bg-surface-2 text-content-tertiary',
-                              )}>
-                                {count}
-                              </span>
-                            )}
-                          </Link>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCategory(cat.name, cat.label, !cat.is_user_defined)}
-                            disabled={deletingCat === cat.name}
-                            title={`Delete ${cat.label}`}
-                            className="opacity-0 group-hover/cat:opacity-100 transition-opacity shrink-0 p-1 rounded text-content-tertiary hover:text-status-error hover:bg-status-error/10 disabled:opacity-50"
-                          >
-                            {deletingCat === cat.name
-                              ? <Loader2 size={10} className="animate-spin" />
-                              : <Trash2 size={10} />}
-                          </button>
+                        <div key={cat.name} className="group/cat mx-2 mb-0.5">
+                          {renamingCat === cat.name ? (
+                            <div className="flex items-center gap-1 px-1">
+                              <Input
+                                ref={renameInputRef}
+                                value={renameValue}
+                                onChange={e => setRenameValue(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') commitRename(cat.name);
+                                  if (e.key === 'Escape') setRenamingCat(null);
+                                }}
+                                onBlur={() => commitRename(cat.name)}
+                                className="h-7 text-sm flex-1 min-w-0"
+                                autoFocus
+                              />
+                              <button type="button" onMouseDown={e => { e.preventDefault(); commitRename(cat.name); }}
+                                className="p-1 rounded text-status-success hover:bg-status-success/10">
+                                <Check size={11} />
+                              </button>
+                              <button type="button" onMouseDown={e => { e.preventDefault(); setRenamingCat(null); }}
+                                className="p-1 rounded text-content-tertiary hover:bg-surface-1">
+                                <X size={11} />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-0.5">
+                              <Link
+                                href={`/dashboard/providers/${encodeURIComponent(cat.name)}`}
+                                aria-current={isActive ? 'page' : undefined}
+                                className={cn(
+                                  'flex-1 flex items-center justify-between gap-2 px-2.5 py-2 rounded-md text-sm transition-colors min-w-0',
+                                  isActive
+                                    ? 'bg-accent/10 text-accent font-semibold'
+                                    : 'text-content-secondary hover:bg-surface-1 hover:text-content-primary',
+                                )}
+                              >
+                                <span className="truncate leading-tight">{cat.label}</span>
+                                {count > 0 && (
+                                  <span className={cn(
+                                    'text-[10px] px-1.5 py-0.5 rounded-full shrink-0 tabular-nums',
+                                    isActive
+                                      ? 'bg-accent/20 text-accent'
+                                      : 'bg-surface-2 text-content-tertiary',
+                                  )}>
+                                    {count}
+                                  </span>
+                                )}
+                              </Link>
+                              <button
+                                type="button"
+                                onClick={() => startRename(cat.name, cat.label)}
+                                title={`Rename ${cat.label}`}
+                                className="opacity-0 group-hover/cat:opacity-100 transition-opacity shrink-0 p-1 rounded text-content-tertiary hover:text-accent hover:bg-accent/10"
+                              >
+                                <Edit2 size={10} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteCategory(cat.name, cat.label, !cat.is_user_defined)}
+                                disabled={deletingCat === cat.name}
+                                title={`Delete ${cat.label}`}
+                                className="opacity-0 group-hover/cat:opacity-100 transition-opacity shrink-0 p-1 rounded text-content-tertiary hover:text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                              >
+                                {deletingCat === cat.name
+                                  ? <Loader2 size={10} className="animate-spin" />
+                                  : <Trash2 size={10} />}
+                              </button>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
