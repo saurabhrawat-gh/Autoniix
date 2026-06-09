@@ -7,7 +7,7 @@ import { providersApi, changeRequestsApi, youtubeOAuthApi, type ChangeRequest, t
 import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import {
-  Plug, ChevronRight, AlertTriangle, HelpCircle, Cpu,
+  Plug, ChevronRight, ChevronDown, AlertTriangle, HelpCircle, Cpu,
   Activity, RotateCw, Plus, Loader2, ShieldCheck,
   Gauge, Network, Store, CheckCircle2, ExternalLink, Zap, Trash2,
   ClipboardCheck, Check, X, Clock, Link2, AlertCircle, Tv,
@@ -79,6 +79,7 @@ export default function ProvidersIndex() {
   const [restoring, setRestoring] = useState(false);
   const [probingAll, setProbingAll] = useState(false);
   const [marketFilter, setMarketFilter] = useState<string>('all');
+  const [expandedKind, setExpandedKind] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   // AE-72 — rotation overdue
   const [overdueRotations, setOverdueRotations] = useState<any[]>([]);
@@ -503,6 +504,7 @@ export default function ProvidersIndex() {
                   const kindCreds = creds.filter((c: any) => cats.find((cc: any) => cc.name === c.category)?.kind === s.kind);
                   return {
                     ...s,
+                    catsForKind,
                     exists: catsForKind.length > 0,
                     target: firstCat ? `/dashboard/providers/${encodeURIComponent(firstCat)}?add=1` : '/dashboard/providers',
                     configured: kindCreds.length > 0,
@@ -532,36 +534,92 @@ export default function ProvidersIndex() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  {steps.map((step, i) => (
-                    <a key={step.kind} href={step.target}
-                      className={cn('flex items-center gap-3 rounded-lg border px-4 py-3 hover:border-accent/40 hover:bg-surface-1 transition-all group',
+                  {steps.map((step, i) => {
+                    const isExpanded = expandedKind === step.kind;
+                    return (
+                      <div key={step.kind} className={cn('rounded-lg border transition-all',
                         step.configured ? 'border-status-success/30 bg-status-success/5' : 'border-border bg-surface-0')}>
-                      <div className={cn('w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold',
-                        step.configured ? 'bg-status-success text-white' : 'bg-surface-2 text-content-tertiary group-hover:bg-accent/15 group-hover:text-accent')}>
-                        {step.configured ? '✓' : i + 1}
+                        <button
+                          type="button"
+                          onClick={() => setExpandedKind(isExpanded ? null : step.kind)}
+                          className="flex items-center gap-3 w-full px-4 py-3 hover:bg-surface-1/50 transition-colors rounded-lg group text-left"
+                        >
+                          <div className={cn('w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold',
+                            step.configured ? 'bg-status-success text-white' : 'bg-surface-2 text-content-tertiary group-hover:bg-accent/15 group-hover:text-accent')}>
+                            {step.configured ? '✓' : i + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={cn('text-sm font-medium transition-colors',
+                                step.configured ? 'text-content-secondary' : 'text-content-primary group-hover:text-accent')}>
+                                {step.label}
+                              </span>
+                              {step.urgent && !step.configured && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-error/10 text-status-error font-medium">Required</span>
+                              )}
+                              {step.configured && step.healthy && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-success/10 text-status-success font-medium">Healthy</span>
+                              )}
+                              {step.configured && (
+                                <span className="text-[10px] text-content-tertiary">
+                                  {step.catsForKind.filter((c: any) => countStatus(c.name).total > 0).length}/{step.catsForKind.length} categories
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-content-tertiary mt-0.5">{step.why}</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {!step.configured && (
+                              <span className="text-[11px] text-accent font-medium flex items-center gap-0.5">
+                                <Plus size={11} /> Connect
+                              </span>
+                            )}
+                            <ChevronDown size={13} className={cn('text-content-tertiary transition-transform duration-200', isExpanded && 'rotate-180')} />
+                          </div>
+                        </button>
+                        {isExpanded && (
+                          <div className="px-4 pb-3 border-t border-border/40">
+                            <p className="text-[10px] uppercase tracking-wide text-content-tertiary pt-2.5 pb-1.5">Categories in this section</p>
+                            <div className="space-y-1.5">
+                              {step.catsForKind.map((cat: any) => {
+                                const st = countStatus(cat.name);
+                                const catConfigured = st.total > 0;
+                                const catHealthy = st.healthy > 0;
+                                return (
+                                  <div key={cat.name} className="flex items-center gap-3 rounded-md border border-border/60 bg-surface-0/80 px-3 py-2">
+                                    <span className={cn('w-1.5 h-1.5 rounded-full shrink-0',
+                                      catConfigured ? (catHealthy ? 'bg-status-success' : 'bg-status-warning') : 'bg-surface-3')} />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-[12px] font-medium text-content-primary">{cat.label}</span>
+                                        <span className="text-[10px] font-mono text-content-tertiary">{cat.name}</span>
+                                      </div>
+                                      {st.total > 0 && (
+                                        <p className="text-[10px] text-content-tertiary mt-0.5">
+                                          {st.total} credential{st.total !== 1 ? 's' : ''}{st.healthy > 0 ? ` · ${st.healthy} healthy` : ''}{st.failing > 0 ? ` · ${st.failing} failing` : ''}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Link
+                                      href={catConfigured
+                                        ? `/dashboard/providers/${encodeURIComponent(cat.name)}`
+                                        : `/dashboard/providers/${encodeURIComponent(cat.name)}?add=1`}
+                                      className={cn('shrink-0 flex items-center gap-1 text-[11px] h-7 px-2.5 rounded-md border transition-colors',
+                                        catConfigured
+                                          ? 'border-border text-content-secondary hover:bg-surface-2'
+                                          : 'border-accent/40 text-accent bg-accent/5 hover:bg-accent/10')}
+                                    >
+                                      {catConfigured ? <><ChevronRight size={11} /> Manage</> : <><Plus size={11} /> Connect</>}
+                                    </Link>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={cn('text-sm font-medium transition-colors',
-                            step.configured ? 'text-content-secondary' : 'text-content-primary group-hover:text-accent')}>
-                            {step.label}
-                          </span>
-                          {step.urgent && !step.configured && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-error/10 text-status-error font-medium">Required</span>
-                          )}
-                          {step.configured && step.healthy && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-success/10 text-status-success font-medium">Healthy</span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-content-tertiary mt-0.5">{step.why}</p>
-                      </div>
-                      {!step.configured && (
-                        <span className="text-[11px] text-accent font-medium shrink-0 flex items-center gap-0.5">
-                          <Plus size={11} /> Connect
-                        </span>
-                      )}
-                    </a>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
               );
@@ -648,8 +706,12 @@ export default function ProvidersIndex() {
                         {p.has_free_tier && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-success/10 text-status-success">Free tier</span>
                         )}
-                        {p.is_callable === false && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-warning/10 text-status-warning" title="You can save a key for this provider, but the pipeline can't call it until an adapter is wired up.">Catalog only</span>
+                        {p.is_callable === false ? (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-warning/10 text-status-warning" title="You can save a key but the pipeline adapter isn't wired yet.">Catalog only</span>
+                        ) : p.is_user_defined ? (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-info/10 text-status-info">Custom</span>
+                        ) : (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-success/10 text-status-success">Full support</span>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 mt-1">

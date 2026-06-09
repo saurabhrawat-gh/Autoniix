@@ -505,6 +505,15 @@ export default function ProviderCategoryPage() {
                   Resolution order — the first healthy provider handles the call. On error it falls through to the next.
                   {chain.length === 0 && ' Add credentials below, then drag them into the chain.'}
                 </p>
+                <div className="mt-2 rounded-md border border-border/50 bg-surface-1/50 px-3 py-2 text-[11px] text-content-tertiary flex items-start gap-2">
+                  <HelpCircle size={12} className="shrink-0 mt-px text-content-tertiary/60" />
+                  <span>
+                    <span className="font-medium text-content-secondary">Chain vs. Policy — </span>
+                    The <em>chain</em> is your ordered fallback list (drag to reorder; top = highest priority).
+                    The <em>routing policy</em> below controls how the runtime picks a provider when multiple are healthy —
+                    e.g. &ldquo;Cheapest&rdquo; picks by cost, &ldquo;Balanced&rdquo; blends cost&thinsp;+&thinsp;quality.
+                  </span>
+                </div>
               </div>
               {/* Content-mode segmented control */}
               <div className="flex items-center gap-0.5 bg-surface-1 rounded-md p-0.5">
