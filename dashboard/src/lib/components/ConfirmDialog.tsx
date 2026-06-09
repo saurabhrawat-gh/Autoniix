@@ -93,16 +93,16 @@ export function ConfirmDialog(props: {
           >
             {destructive ? <AlertTriangle size={22} /> : <Info size={22} />}
           </div>
-          <DialogHeader className="w-full space-y-1.5">
-            <DialogTitle className="text-center">{title}</DialogTitle>
+          <div className="w-full space-y-1.5 text-center">
+            <DialogTitle>{title}</DialogTitle>
             <div className="h-px w-full bg-border" />
             {description && (
-              <DialogDescription className="text-center">{description}</DialogDescription>
+              <DialogDescription>{description}</DialogDescription>
             )}
-          </DialogHeader>
+          </div>
         </div>
 
-        <DialogFooter className="mt-1">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-center gap-2 mt-1">
           {!alertOnly && (
             <Button variant="outline" onClick={onCancel} disabled={loading}>
               {cancelLabel}
@@ -115,7 +115,7 @@ export function ConfirmDialog(props: {
           >
             {confirmLabel}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -168,13 +168,13 @@ export function PromptDialog(props: {
           >
             {destructive ? <AlertTriangle size={22} /> : <Info size={22} />}
           </div>
-          <DialogHeader className="w-full space-y-1.5">
-            <DialogTitle className="text-center">{title}</DialogTitle>
+          <div className="w-full space-y-1.5 text-center">
+            <DialogTitle>{title}</DialogTitle>
             <div className="h-px w-full bg-border" />
             {description && (
-              <DialogDescription className="text-center">{description}</DialogDescription>
+              <DialogDescription>{description}</DialogDescription>
             )}
-          </DialogHeader>
+          </div>
         </div>
 
         <form
@@ -191,7 +191,7 @@ export function PromptDialog(props: {
           />
         </form>
 
-        <DialogFooter className="mt-1">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-center gap-2 mt-1">
           <Button variant="outline" onClick={onCancel} disabled={loading}>
             {cancelLabel}
           </Button>
@@ -203,7 +203,7 @@ export function PromptDialog(props: {
           >
             {confirmLabel}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

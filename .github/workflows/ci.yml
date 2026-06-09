@@ -174,7 +174,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install smoke deps
-        run: pip install httpx pytest
+        run: pip install httpx pytest asyncpg structlog pydantic-settings
 
       - name: Install ffmpeg for QC checks
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
