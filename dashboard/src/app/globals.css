@@ -95,7 +95,7 @@
            inline-block align-middle relative;
     width: 15px; height: 15px; padding: 0;
   }
-  input[type="checkbox"] { @apply rounded-sm; }
+  input[type="checkbox"] { border-radius: 3px; }
   input[type="radio"] { @apply rounded-full; }
   input[type="checkbox"]:checked, input[type="radio"]:checked {
     @apply bg-accent border-accent;

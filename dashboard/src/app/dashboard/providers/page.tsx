@@ -569,11 +569,6 @@ export default function ProvidersIndex() {
                             <p className="text-[11px] text-content-tertiary mt-0.5">{step.why}</p>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            {!step.configured && (
-                              <span className="text-[11px] text-accent font-medium flex items-center gap-0.5">
-                                <Plus size={11} /> Connect
-                              </span>
-                            )}
                             <ChevronDown size={13} className={cn('text-content-tertiary transition-transform duration-200', isExpanded && 'rotate-180')} />
                           </div>
                         </button>
@@ -744,7 +739,7 @@ export default function ProvidersIndex() {
                         <ChevronRight size={11} /> Manage
                       </Link>
                     ) : (
-                      <Link prefetch={false} href={`/dashboard/providers/${encodeURIComponent(p.category)}?add=1`}
+                      <Link prefetch={false} href={`/dashboard/providers/${encodeURIComponent(p.category)}?add=1&provider=${encodeURIComponent(p.provider_key)}`}
                         className="flex items-center gap-1 h-7 px-2.5 rounded-md bg-accent text-white text-xs font-medium hover:opacity-90 transition-opacity">
                         <Plus size={11} /> Connect
                       </Link>

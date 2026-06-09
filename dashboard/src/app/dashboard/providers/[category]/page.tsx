@@ -939,6 +939,7 @@ export default function ProviderCategoryPage() {
       {showAdd && (
         <AddCredentialDialog
           category={decoded}
+          initialProvider={searchParams.get('provider') ?? undefined}
           onClose={() => setShowAdd(false)}
           onAdded={(newCredId?: number) => {
             setShowAdd(false);
@@ -1029,10 +1030,141 @@ type SchemaField = {
   hint?: string; placeholder?: string; options?: string[];
 };
 
-function AddCredentialDialog({ category, onClose, onAdded }: any) {
+function CategoryMultiSelect({ allCats, selKind, selectedCats, setSelectedCats, pinnedCategory, loading }: {
+  allCats: any[]; selKind: string | null;
+  selectedCats: Set<string>; setSelectedCats: (s: Set<string>) => void;
+  pinnedCategory: string; loading: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const cats = allCats.filter((c: any) => c.kind === selKind);
+  const filtered = cats.filter((c: any) =>
+    !search ||
+    c.name.toLowerCase().includes(search.toLowerCase()) ||
+    (c.label || '').toLowerCase().includes(search.toLowerCase())
+  );
+  const selected = Array.from(selectedCats).filter(name => cats.some((c: any) => c.name === name));
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1.5">Apply to categories</div>
+      <div
+        onClick={() => !loading && setOpen(v => !v)}
+        className={cn(
+          'min-h-9 px-2.5 py-1.5 rounded-lg border bg-surface-0 cursor-pointer flex flex-wrap gap-1.5 items-center transition-colors',
+          open ? 'border-accent ring-2 ring-accent/10' : 'border-border hover:border-accent/50'
+        )}
+      >
+        {loading ? (
+          <span className="text-xs text-content-tertiary flex items-center gap-1.5">
+            <Loader2 size={11} className="animate-spin" /> Loading…
+          </span>
+        ) : selected.length === 0 ? (
+          <span className="text-xs text-content-tertiary">Select categories…</span>
+        ) : (
+          selected.map(name => {
+            const cat = cats.find((c: any) => c.name === name);
+            const isPinned = name === pinnedCategory;
+            return (
+              <span key={name} className={cn(
+                'inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded font-medium',
+                isPinned ? 'bg-accent/15 text-accent' : 'bg-surface-2 text-content-secondary'
+              )}>
+                {cat?.label || name}
+                {!isPinned && (
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation();
+                      const next = new Set(selectedCats);
+                      next.delete(name);
+                      setSelectedCats(next);
+                    }}
+                    className="hover:text-status-error ml-0.5"
+                  >
+                    <X size={9} />
+                  </button>
+                )}
+              </span>
+            );
+          })
+        )}
+        <ChevronDown size={12} className={cn('ml-auto shrink-0 text-content-tertiary transition-transform', open && 'rotate-180')} />
+      </div>
+
+      {open && !loading && (
+        <div className="absolute z-20 mt-1 w-full rounded-lg border border-border bg-surface-0 shadow-elevated">
+          <div className="px-2.5 pt-2 pb-1.5 border-b border-border">
+            <input
+              autoFocus
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Filter categories…"
+              onClick={e => e.stopPropagation()}
+              className="w-full h-7 px-2 text-xs rounded-md border border-border bg-surface-1 text-content-primary placeholder:text-content-tertiary focus:outline-none focus:border-accent"
+            />
+          </div>
+          <div className="max-h-44 overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-content-tertiary">No categories found</div>
+            ) : (
+              filtered.map((c: any) => {
+                const isPinned = c.name === pinnedCategory;
+                const isChecked = selectedCats.has(c.name);
+                return (
+                  <label key={c.name} className={cn(
+                    'flex items-center gap-2.5 px-3 py-1.5 text-xs cursor-pointer hover:bg-surface-1 transition-colors select-none',
+                    isPinned && 'opacity-60 cursor-default'
+                  )}>
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      disabled={isPinned}
+                      onChange={e => {
+                        const next = new Set(selectedCats);
+                        if (e.target.checked) next.add(c.name); else next.delete(c.name);
+                        next.add(pinnedCategory);
+                        setSelectedCats(next);
+                      }}
+                    />
+                    <span className="flex-1 min-w-0">
+                      <span className="font-medium text-content-primary">{c.label || c.name}</span>
+                      <span className="text-content-tertiary font-mono ml-1.5 text-[10px]">{c.name}</span>
+                    </span>
+                    {isPinned && <span className="text-[10px] text-accent font-medium">current</span>}
+                  </label>
+                );
+              })
+            )}
+          </div>
+          <div className="px-3 py-1.5 border-t border-border text-[10px] text-content-tertiary">
+            {selectedCats.size} selected · Same credentials saved for all
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
+  category: string; initialProvider?: string;
+  onClose: () => void; onAdded: (id?: number) => void;
+}) {
   const { showToast } = useToast();
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [providerName, setProviderName] = useState('');
+  const [providerName, setProviderName] = useState(initialProvider ?? '');
   const [label, setLabel] = useState('');
   const [fieldValues, setFieldValues] = useState<Record<string, string | boolean>>({});
   const [model, setModel] = useState('');
@@ -1042,13 +1174,17 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
   const [registeredLoading, setRegisteredLoading] = useState(true);
   const [lazyModels, setLazyModels] = useState<string[] | null>(null);
   const [lazyModelsLoading, setLazyModelsLoading] = useState(false);
-  // Multi-category support (within same section)
-  const [multi, setMulti] = useState(false);
+  // Multi-category: always-visible combobox (no toggle)
   const [allCats, setAllCats] = useState<any[]>([]);
   const [catsLoading, setCatsLoading] = useState(false);
   const [selKind, setSelKind] = useState<string | null>(null);
   const [selectedCats, setSelectedCats] = useState<Set<string>>(() => new Set([category]));
   const [perCatModel, setPerCatModel] = useState<Record<string, string>>({});
+  // Validation
+  const [step1Attempted, setStep1Attempted] = useState(false);
+  const [touchedLabel, setTouchedLabel] = useState(false);
+  const [touched2, setTouched2] = useState<Record<string, boolean>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setRegisteredLoading(true);
@@ -1083,9 +1219,6 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
         const merged = Array.from(byKey.values())
           .filter((p: any) => !PROVIDER_ALIASES_TO_HIDE.has(p.provider_name));
         setRegistered(merged);
-        if (merged.length > 0 && !providerName) {
-          setProviderName(merged[0].provider_name);
-        }
       })
       .catch(() => setRegistered([]))
       .finally(() => setRegisteredLoading(false));
@@ -1124,13 +1257,56 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
   // Catalog-only providers (user-added with no runtime adapter) can store a key
   // but the pipeline cannot call them yet. Be explicit so the user isn't misled.
   const notCallable = selProvider?.is_callable === false;
+  // Derived: multi-category when more than one category is selected
+  const isMulti = selectedCats.size > 1;
+
+  // ── Validation ──────────────────────────────────────────────────────────────
+  const validateField2 = (field: SchemaField, val: string | boolean): string => {
+    if (field.required && !val) return 'This field is required';
+    if (typeof val === 'string' && val && field.hint) {
+      const prefixMatch = field.hint.match(/^starts with ([^\s·]+)/i);
+      if (prefixMatch && !val.startsWith(prefixMatch[1]))
+        return `Expected format: starts with ${prefixMatch[1]}`;
+    }
+    if (typeof val === 'string' && val &&
+        (field.name.toLowerCase().includes('url') || field.type === 'url')) {
+      try { new URL(val); } catch { return 'Enter a valid URL'; }
+    }
+    return '';
+  };
+
+  const handleNextStep1 = () => {
+    setStep1Attempted(true);
+    if (!providerName || !label.trim()) return;
+    noKeyNeeded && !hasCredFields ? setStep(3) : setStep(2);
+  };
+
+  const handleNextStep2 = () => {
+    const newErrors: Record<string, string> = {};
+    const newTouched: Record<string, boolean> = {};
+    for (const field of credFields) {
+      newTouched[field.name] = true;
+      newErrors[field.name] = validateField2(field, fieldValues[field.name] ?? '');
+    }
+    setTouched2(newTouched);
+    setFieldErrors(newErrors);
+    if (credFields.some(f => f.required && !fieldValues[f.name])) return;
+    setStep(3);
+  };
+
+  const handleBlurField2 = (field: SchemaField) => {
+    const val = fieldValues[field.name] ?? '';
+    setTouched2(prev => ({ ...prev, [field.name]: true }));
+    setFieldErrors(prev => ({ ...prev, [field.name]: validateField2(field, val) }));
+  };
 
   useEffect(() => {
-    if (selProvider && !label) setLabel(selProvider.display_name + ' — Primary');
     setFieldValues({});
     setModel('');
     setPerCatModel({});
     setErr(null);
+    setTouched2({});
+    setFieldErrors({});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providerName]);
 
@@ -1153,7 +1329,7 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
     setBusy(true); setErr(null);
     try {
       // Determine target categories
-      const targets = multi && selKind
+      const targets = isMulti && selKind
         ? Array.from(selectedCats).filter(n => {
             const c = allCats.find((x: any) => x.name === n);
             return c && c.kind === selKind;
@@ -1264,19 +1440,21 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
                     Check <span className="font-mono">src/providers/boot.py</span>.
                   </div>
                 ) : (
-                  <Select value={providerName} onValueChange={setProviderName}>
-                    <SelectTrigger><SelectValue placeholder="Select a provider…" /></SelectTrigger>
+                  <Select value={providerName} onValueChange={v => { setProviderName(v); setStep1Attempted(false); }}>
+                    <SelectTrigger className={step1Attempted && !providerName ? 'border-status-error ring-1 ring-status-error/30' : ''}>
+                      <SelectValue placeholder="Select a provider…" />
+                    </SelectTrigger>
                     <SelectContent>
                       {(registered as any[]).map((r: any) => (
                         <SelectItem key={r.provider_name} value={r.provider_name}>
                           {r.display_name}
-                          {r.has_free_tier ? ' — Free' : ''}
-                          {NO_KEY_PROVIDERS.has(r.provider_name) ? ' — No key needed' : ''}
-                          {r.pricing_tier === 'paid' ? ' — Paid' : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                )}
+                {step1Attempted && !providerName && !registeredLoading && registered.length > 0 && (
+                  <p className="text-[11px] text-status-error mt-1">Please select a provider</p>
                 )}
                 {selProvider && (
                   <div className="mt-1.5 flex items-center gap-3 flex-wrap">
@@ -1315,66 +1493,38 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
               </div>
 
               <div>
-                <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1.5">Give it a nickname</div>
+                <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1.5">
+                  Give it a nickname <span className="text-status-error">*</span>
+                </div>
                 <Input
                   type="text"
                   value={label}
                   onChange={e => setLabel(e.target.value)}
+                  onBlur={() => setTouchedLabel(true)}
                   placeholder={selProvider ? `${selProvider.display_name} — Primary` : 'e.g. My OpenAI Key'}
+                  className={(touchedLabel || step1Attempted) && !label.trim() ? 'border-status-error ring-1 ring-status-error/30' : ''}
                 />
+                {(touchedLabel || step1Attempted) && !label.trim() && (
+                  <p className="text-[11px] text-status-error mt-1">A nickname is required</p>
+                )}
                 <p className="text-[11px] text-content-tertiary mt-1.5">
                   A friendly name to tell your credentials apart. Only you see this.
                 </p>
               </div>
 
-              {/* Multi-category targeting within this section */}
-              <div className="rounded-lg border border-border bg-surface-1 px-3 py-2.5">
-                <label className="flex items-center gap-2 text-xs text-content-primary cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={multi}
-                    onChange={e => setMulti(e.target.checked)}
-                  />
-                  Apply to multiple categories in this section
-                </label>
-                {multi && (
-                  <div className="mt-2 space-y-1">
-                    {catsLoading ? (
-                      <div className="text-[11px] text-content-tertiary flex items-center gap-2">
-                        <Loader2 size={12} className="animate-spin" /> Loading categories…
-                      </div>
-                    ) : (
-                      allCats
-                        .filter((c: any) => c.kind === selKind)
-                        .map((c: any) => (
-                          <label key={c.name} className="flex items-center gap-2 text-xs text-content-secondary">
-                            <input
-                              type="checkbox"
-                              checked={selectedCats.has(c.name)}
-                              onChange={e => {
-                                const next = new Set(selectedCats);
-                                if (e.target.checked) next.add(c.name); else next.delete(c.name);
-                                // Always keep the current category selected
-                                next.add(category);
-                                setSelectedCats(next);
-                              }}
-                            />
-                            <span className="font-mono text-[11px] text-content-tertiary">{c.name}</span>
-                            <span className="text-[11px]">{c.label}</span>
-                          </label>
-                        ))
-                    )}
-                    <p className="text-[10px] text-content-tertiary mt-1">
-                      The same credentials will be saved for each selected category. You can pick a different model per category on the next step.
-                    </p>
-                  </div>
-                )}
-              </div>
+              {/* Multi-category: always-visible combobox */}
+              <CategoryMultiSelect
+                allCats={allCats}
+                selKind={selKind}
+                selectedCats={selectedCats}
+                setSelectedCats={setSelectedCats}
+                pinnedCategory={category}
+                loading={catsLoading}
+              />
 
               <div className="flex justify-end gap-2 pt-1">
                 <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-                <Button type="button" size="sm"
-                  onClick={() => noKeyNeeded && !hasCredFields ? setStep(3) : setStep(2)}
+                <Button type="button" size="sm" onClick={handleNextStep1}
                   disabled={!providerName || !label.trim()}>
                   {noKeyNeeded && !hasCredFields ? 'Skip to model →' : 'Next: Credentials →'}
                 </Button>
@@ -1405,7 +1555,9 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
                   key={field.name}
                   field={field}
                   value={fieldValues[field.name] ?? ''}
-                  onChange={val => setField(field.name, val)}
+                  onChange={val => { setField(field.name, val); if (touched2[field.name]) setFieldErrors(prev => ({ ...prev, [field.name]: validateField2(field, val) })); }}
+                  onBlur={() => handleBlurField2(field)}
+                  error={touched2[field.name] ? fieldErrors[field.name] : undefined}
                 />
               ))}
 
@@ -1421,7 +1573,7 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
 
               <div className="flex justify-between gap-2 pt-1">
                 <Button type="button" variant="outline" size="sm" onClick={() => setStep(1)}>← Back</Button>
-                <Button type="button" size="sm" onClick={() => setStep(3)} disabled={!step2Ready}>
+                <Button type="button" size="sm" onClick={handleNextStep2} disabled={!step2Ready}>
                   Next: Model & save →
                 </Button>
               </div>
@@ -1499,8 +1651,8 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
                 )}
               </div>
 
-              {/* Per-category model overrides when multi is enabled */}
-              {multi && (
+              {/* Per-category model overrides when multiple categories are selected */}
+              {isMulti && (
                 <div className="space-y-2">
                   <div className="text-[10px] uppercase tracking-wide text-content-tertiary">Per-category {modelLabel.toLowerCase()} (override)</div>
                   {Array.from(selectedCats)
@@ -1558,12 +1710,16 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
   );
 }
 
-function SchemaFieldInput({ field, value, onChange }: {
+function SchemaFieldInput({ field, value, onChange, onBlur, error }: {
   field: SchemaField;
   value: string | boolean;
   onChange: (v: string | boolean) => void;
+  onBlur?: () => void;
+  error?: string;
 }) {
   const [show, setShow] = useState(false);
+  const hasError = !!error;
+  const errorCls = hasError ? 'border-status-error ring-1 ring-status-error/30' : '';
   if (field.type === 'boolean') {
     return (
       <div className="flex items-center justify-between">
@@ -1581,14 +1737,16 @@ function SchemaFieldInput({ field, value, onChange }: {
         <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1.5">
           {field.label}{field.required && <span className="text-status-error ml-0.5">*</span>}
         </div>
-        <Select value={String(value || '')} onValueChange={onChange}>
-          <SelectTrigger><SelectValue placeholder={field.placeholder || 'Select…'} /></SelectTrigger>
+        <Select value={String(value || '')} onValueChange={v => { onChange(v); onBlur?.(); }}>
+          <SelectTrigger className={errorCls}><SelectValue placeholder={field.placeholder || 'Select…'} /></SelectTrigger>
           <SelectContent>
             {!field.required && <SelectItem value="">None (use provider default)</SelectItem>}
             {field.options.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
           </SelectContent>
         </Select>
-        {field.hint && <div className="text-[11px] text-content-tertiary mt-1">{field.hint}</div>}
+        {hasError
+          ? <p className="text-[11px] text-status-error mt-1">{error}</p>
+          : field.hint && <div className="text-[11px] text-content-tertiary mt-1">{field.hint}</div>}
       </div>
     );
   }
@@ -1601,14 +1759,17 @@ function SchemaFieldInput({ field, value, onChange }: {
         <div className="flex items-center gap-2">
           <Input type={show ? 'text' : 'password'} value={String(value || '')}
             onChange={e => onChange(e.target.value)}
+            onBlur={onBlur}
             placeholder={field.placeholder || 'Paste here…'}
-            className="flex-1 font-mono" />
+            className={cn('flex-1 font-mono', errorCls)} />
           <Button type="button" variant="outline" size="icon" onClick={() => setShow(v => !v)}
             aria-label={show ? 'Hide' : 'Show'} className="shrink-0 w-9 h-9">
             {show ? <EyeOff size={14} /> : <Eye size={14} />}
           </Button>
         </div>
-        {field.hint && <div className="text-[11px] text-content-tertiary mt-1">{field.hint}</div>}
+        {hasError
+          ? <p className="text-[11px] text-status-error mt-1">{error}</p>
+          : field.hint && <div className="text-[11px] text-content-tertiary mt-1">{field.hint}</div>}
       </div>
     );
   }
@@ -1618,8 +1779,10 @@ function SchemaFieldInput({ field, value, onChange }: {
         {field.label}{field.required && <span className="text-status-error ml-0.5">*</span>}
       </div>
       <Input type="text" value={String(value || '')} onChange={e => onChange(e.target.value)}
-        placeholder={field.placeholder || ''} />
-      {field.hint && <div className="text-[11px] text-content-tertiary mt-1">{field.hint}</div>}
+        onBlur={onBlur} placeholder={field.placeholder || ''} className={errorCls} />
+      {hasError
+        ? <p className="text-[11px] text-status-error mt-1">{error}</p>
+        : field.hint && <div className="text-[11px] text-content-tertiary mt-1">{field.hint}</div>}
     </div>
   );
 }
