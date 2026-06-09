@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { providersApi, changeRequestsApi, youtubeOAuthApi, type ChangeRequest, type YouTubeOAuthStatus } from '@/lib/api-v2';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
@@ -91,6 +92,16 @@ export default function ProvidersIndex() {
   const [ytLoading, setYtLoading] = useState(false);
   const [ytConnecting, setYtConnecting] = useState(false);
   const [ytDisconnecting, setYtDisconnecting] = useState(false);
+
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (searchParams.get('addCategory') === '1') {
+      setAddCategoryFor(null);
+      router.replace('/dashboard/providers');
+    }
+  }, [searchParams, router]);
 
   const cleanSlate = async () => {
     const phrase = await promptDialog({
@@ -200,7 +211,10 @@ export default function ProvidersIndex() {
         changeRequestsApi.list({ status: 'pending_admin' }).then(r => r.data.length).catch(() => 0),
         changeRequestsApi.list({ status: 'pending_owner' }).then(r => r.data.length).catch(() => 0),
       ]).then(([a, o]) => setApprovalsCount(a + o)).catch(() => setApprovalsCount(0)),
-    ]).finally(() => setLoading(false));
+    ]).finally(() => {
+      setLoading(false);
+      window.dispatchEvent(new CustomEvent('providers:refresh'));
+    });
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -477,8 +491,8 @@ export default function ProvidersIndex() {
                 </div>
               </div>
             )}
-            {/* ── Zero-credential onboarding guide ── */}
-            {totalCreds === 0 && (() => {
+            {/* ── Setup guide ── */}
+            {(() => {
               // Curated essential steps with live state computed from the
               // categories/credentials already loaded. Only show a step when
               // its section actually exists in the taxonomy.
@@ -552,99 +566,6 @@ export default function ProvidersIndex() {
               </div>
               );
             })()}
-            {/* Taxonomy toolbar — sections are created in the Marketplace tab */}
-            <div className="flex items-center justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setAddCategoryFor(null)} leftIcon={<Plus size={12} />}>
-                Add category
-              </Button>
-            </div>
-            {Object.entries(grouped).map(([kind, list]: any) => {
-              const meta = sectionMeta(kind);
-              return (
-                <section key={kind}>
-                  <div className="flex items-center gap-2 mb-3 group/section">
-                    <span className="text-base">{meta.icon}</span>
-                    <h2 className="text-sm font-semibold text-content-primary">{meta.label}</h2>
-                    <span className="text-[11px] text-content-tertiary">— {meta.desc}</span>
-                    {!meta.isBuiltIn && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">Custom</span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => deleteSection(kind, meta.label, meta.isBuiltIn)}
-                      title={`Delete the "${meta.label}" section and everything under it`}
-                      className="opacity-0 group-hover/section:opacity-100 transition-opacity text-content-tertiary hover:text-status-error p-1 rounded hover:bg-status-error/10"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                    <span className="ml-auto text-[10px] text-content-tertiary">{list.length} categor{list.length !== 1 ? 'ies' : 'y'}</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {list.map((cat: any) => {
-                      const { total, healthy, failing } = countStatus(cat.name);
-                      const health = getCategoryHealth(healthy, failing, total);
-                      return (
-                        <Link key={cat.name}
-                          href={`/dashboard/providers/${encodeURIComponent(cat.name)}`}
-                          className="group relative rounded-xl border border-border bg-surface-0 p-4 hover:border-accent/40 hover:shadow-card transition-all">
-                          <button
-                            type="button"
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteCategory(cat.name, cat.label, !cat.is_user_defined); }}
-                            title="Delete this category"
-                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-content-tertiary hover:text-status-error p-1 rounded hover:bg-status-error/10 z-10"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                          <div className="mb-2 pr-6">
-                            <div className="flex items-center gap-2">
-                              <span className={cn('w-2 h-2 rounded-full shrink-0', HEALTH_DOT[health])} />
-                              <span className="text-sm font-semibold text-content-primary group-hover:text-accent transition-colors truncate">
-                                {cat.label}
-                              </span>
-                            </div>
-                            <div className="text-[10px] text-content-tertiary font-mono mt-0.5 ml-4">{cat.name}</div>
-                          </div>
-                          {cat.description && (
-                            <p className="text-[11px] text-content-tertiary mb-2 line-clamp-1 ml-4">{cat.description}</p>
-                          )}
-                          {total === 0 ? (
-                            <div className="flex items-center gap-1.5 text-xs text-content-tertiary ml-4">
-                              <Plus size={10} /> No credentials — click to configure
-                            </div>
-                          ) : (
-                            <div className="ml-4 space-y-1">
-                              <div className="h-1 rounded-full bg-surface-2 overflow-hidden">
-                                <div className={cn('h-full rounded-full transition-all',
-                                  health === 'healthy' ? 'bg-status-success' :
-                                  health === 'failing' ? 'bg-status-error' :
-                                  health === 'partial' ? 'bg-status-warning' : 'bg-surface-3')}
-                                  style={{ width: `${total > 0 ? (healthy / total) * 100 : 0}%` }} />
-                              </div>
-                              <div className="flex items-center justify-between text-[10px]">
-                                <span className={cn('font-medium',
-                                  health === 'healthy' ? 'text-status-success' :
-                                  health === 'failing' ? 'text-status-error' :
-                                  health === 'partial' ? 'text-status-warning' : 'text-content-tertiary')}>
-                                  {HEALTH_LABEL[health]}
-                                </span>
-                                <span className="text-content-tertiary">{healthy}/{total} healthy</span>
-                              </div>
-                            </div>
-                          )}
-                        </Link>
-                      );
-                    })}
-                    <button type="button" onClick={() => setAddCategoryFor(kind)}
-                      className="group rounded-xl border border-dashed border-border bg-transparent p-4 hover:border-accent/50 hover:bg-surface-0 transition-all flex flex-col items-center justify-center gap-2 min-h-[100px]">
-                      <div className="w-7 h-7 rounded-full bg-surface-2 group-hover:bg-accent/10 flex items-center justify-center transition-colors">
-                        <Plus size={13} className="text-content-tertiary group-hover:text-accent" />
-                      </div>
-                      <span className="text-xs text-content-tertiary group-hover:text-content-secondary">Add category</span>
-                    </button>
-                  </div>
-                </section>
-              );
-            })}
           </div>
         )
       )}

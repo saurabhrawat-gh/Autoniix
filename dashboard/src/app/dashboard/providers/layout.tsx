@@ -2,27 +2,19 @@
 
 import { useEffect, useState, useCallback, type ReactNode } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { providersApi } from '@/lib/api-v2';
 import { cn } from '@/lib/utils';
 import { usePermissions } from '@/lib/hooks/usePermissions';
-import { promptDialog } from '@/lib/components/ConfirmDialog';
+import { confirmDialog, promptDialog } from '@/lib/components/ConfirmDialog';
 import { useToast } from '@/lib/toast';
-import { Plug, Loader2, Trash2 } from '@/lib/components/Icon';
-
-const KIND_ICON: Record<string, string> = {
-  llm: '🧠',
-  tts: '🎙️',
-  image: '🖼️',
-  search: '🔍',
-  storage: '💾',
-  stock_footage: '🎬',
-};
+import { Plug, Loader2, Trash2, Plus, ChevronRight } from '@/lib/components/Icon';
 
 const STUB_KINDS = new Set(['lut', 'sfx', 'music']);
 
 export default function ProvidersLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { showToast } = useToast();
   const { role } = usePermissions();
 
@@ -31,6 +23,7 @@ export default function ProvidersLayout({ children }: { children: ReactNode }) {
   const [creds, setCreds] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [wiping, setWiping] = useState(false);
+  const [deletingCat, setDeletingCat] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     setLoading(true);
@@ -42,6 +35,12 @@ export default function ProvidersLayout({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  useEffect(() => {
+    const handler = () => refresh();
+    window.addEventListener('providers:refresh', handler);
+    return () => window.removeEventListener('providers:refresh', handler);
+  }, [refresh]);
 
   const handleWipe = async () => {
     const phrase = await promptDialog({
@@ -68,6 +67,40 @@ export default function ProvidersLayout({ children }: { children: ReactNode }) {
     }
   };
 
+  const handleDeleteCategory = async (name: string, label: string, isBuiltIn: boolean) => {
+    const ok = isBuiltIn
+      ? (await promptDialog({
+          title: `Delete built-in category "${label}"?`,
+          description:
+            'This removes the category and its credentials. Built-in categories can be restored with "Restore defaults". This cannot be undone.',
+          label: 'Type DELETE to confirm',
+          placeholder: 'DELETE',
+          match: 'DELETE',
+          confirmLabel: 'Delete category',
+          destructive: true,
+        })) !== null
+      : await confirmDialog({
+          title: `Delete category "${label}"?`,
+          description: 'This removes the category and its credentials. This cannot be undone.',
+          confirmLabel: 'Delete category',
+          destructive: true,
+        });
+    if (!ok) return;
+    setDeletingCat(name);
+    try {
+      await providersApi.deleteCategory(name);
+      showToast(`Category "${label}" removed`, 'success');
+      if (pathname.includes(encodeURIComponent(name))) {
+        router.push('/dashboard/providers');
+      }
+      refresh();
+    } catch (e: any) {
+      showToast(e?.message || 'Delete failed', 'error');
+    } finally {
+      setDeletingCat(null);
+    }
+  };
+
   const grouped: Record<string, any[]> = cats.reduce((acc, c) => {
     if (STUB_KINDS.has(c.kind)) return acc;
     (acc[c.kind] ||= []).push(c);
@@ -86,12 +119,16 @@ export default function ProvidersLayout({ children }: { children: ReactNode }) {
     ? decodeURIComponent(pathname.replace('/dashboard/providers/', '').split('?')[0])
     : null;
 
+  const activeCategoryLabel = activeCategory
+    ? (cats.find(c => c.name === activeCategory)?.label || activeCategory)
+    : null;
+
   return (
-    <div className="flex flex-1 min-h-0">
-      {/* ── Category sidebar — hidden on mobile / tablet ── */}
+    <div className="flex flex-1 min-h-0 overflow-hidden">
+      {/* ── Category sidebar ── */}
       <aside
         aria-label="Provider categories"
-        className="hidden lg:flex flex-col w-52 xl:w-60 border-r border-border bg-surface-0 shrink-0"
+        className="hidden lg:flex flex-col w-64 xl:w-72 border-r border-border bg-surface-0 shrink-0 h-full overflow-hidden"
       >
         {/* Sidebar header */}
         <div className="px-3 py-3 flex items-center gap-2 border-b border-border shrink-0">
@@ -101,10 +138,9 @@ export default function ProvidersLayout({ children }: { children: ReactNode }) {
           </span>
         </div>
 
-        {/* Nav content */}
+        {/* Nav content — scrolls independently */}
         <div className="flex-1 py-2 overflow-y-auto">
           {loading ? (
-            /* Loading skeleton */
             <div className="px-3 space-y-4 mt-1" aria-busy="true" aria-label="Loading categories">
               {Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="space-y-1.5">
@@ -140,49 +176,59 @@ export default function ProvidersLayout({ children }: { children: ReactNode }) {
                 )}
               </Link>
 
-              {/* Category groups */}
+              {/* Category groups — no emoji icons */}
               {Object.entries(grouped).map(([kind, categories]) => {
                 const meta = kindsByKey[kind];
-                const icon = meta?.icon || KIND_ICON[kind] || '🔌';
                 const label = meta?.label || kind.replace(/_/g, ' ');
                 return (
                   <div key={kind} className="mb-3">
-                    {/* Section header */}
-                    <div className="mx-3 mb-0.5 flex items-center gap-1.5 select-none">
-                      <span className="text-[10px]" aria-hidden="true">{icon}</span>
+                    {/* Section header — text only */}
+                    <div className="mx-3 mb-0.5 select-none">
                       <span className="text-[10px] uppercase tracking-wider text-content-tertiary font-semibold">
                         {label}
                       </span>
                     </div>
 
-                    {/* Category links */}
+                    {/* Category links with hover-reveal delete */}
                     {categories.map(cat => {
                       const count = connectedCount(cat.name);
                       const isActive = activeCategory === cat.name;
                       return (
-                        <Link
-                          key={cat.name}
-                          href={`/dashboard/providers/${encodeURIComponent(cat.name)}`}
-                          aria-current={isActive ? 'page' : undefined}
-                          className={cn(
-                            'mx-2 mb-0.5 flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-xs transition-colors',
-                            isActive
-                              ? 'bg-accent/10 text-accent font-semibold'
-                              : 'text-content-secondary hover:bg-surface-1 hover:text-content-primary',
-                          )}
-                        >
-                          <span className="truncate leading-tight">{cat.label}</span>
-                          {count > 0 && (
-                            <span className={cn(
-                              'text-[10px] px-1.5 py-0.5 rounded-full shrink-0 tabular-nums',
+                        <div key={cat.name} className="group/cat mx-2 mb-0.5 flex items-center gap-0.5">
+                          <Link
+                            href={`/dashboard/providers/${encodeURIComponent(cat.name)}`}
+                            aria-current={isActive ? 'page' : undefined}
+                            className={cn(
+                              'flex-1 flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-xs transition-colors min-w-0',
                               isActive
-                                ? 'bg-accent/20 text-accent'
-                                : 'bg-surface-2 text-content-tertiary',
-                            )}>
-                              {count}
-                            </span>
-                          )}
-                        </Link>
+                                ? 'bg-accent/10 text-accent font-semibold'
+                                : 'text-content-secondary hover:bg-surface-1 hover:text-content-primary',
+                            )}
+                          >
+                            <span className="truncate leading-tight">{cat.label}</span>
+                            {count > 0 && (
+                              <span className={cn(
+                                'text-[10px] px-1.5 py-0.5 rounded-full shrink-0 tabular-nums',
+                                isActive
+                                  ? 'bg-accent/20 text-accent'
+                                  : 'bg-surface-2 text-content-tertiary',
+                              )}>
+                                {count}
+                              </span>
+                            )}
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCategory(cat.name, cat.label, !cat.is_user_defined)}
+                            disabled={deletingCat === cat.name}
+                            title={`Delete ${cat.label}`}
+                            className="opacity-0 group-hover/cat:opacity-100 transition-opacity shrink-0 p-1 rounded text-content-tertiary hover:text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                          >
+                            {deletingCat === cat.name
+                              ? <Loader2 size={10} className="animate-spin" />
+                              : <Trash2 size={10} />}
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -192,9 +238,16 @@ export default function ProvidersLayout({ children }: { children: ReactNode }) {
           )}
         </div>
 
-        {/* Wipe all — owner role only */}
-        {role === 'owner' && !loading && (
-          <div className="shrink-0 p-3 border-t border-border">
+        {/* Footer — Add category + Wipe all (always visible, never scrolls away) */}
+        <div className="shrink-0 p-3 border-t border-border space-y-2">
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard/providers?addCategory=1')}
+            className="w-full flex items-center justify-center gap-1.5 h-7 px-2 rounded-md text-[11px] text-content-secondary hover:bg-surface-1 hover:text-content-primary border border-border transition-colors"
+          >
+            <Plus size={11} /> Add category
+          </button>
+          {role === 'owner' && !loading && (
             <button
               type="button"
               onClick={handleWipe}
@@ -206,12 +259,29 @@ export default function ProvidersLayout({ children }: { children: ReactNode }) {
                 : <Trash2 size={11} />}
               {wiping ? 'Wiping…' : 'Wipe all'}
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </aside>
 
-      {/* ── Main content ── */}
-      <div className="flex-1 min-w-0">
+      {/* ── Main content — scrolls independently from sidebar ── */}
+      <div className="flex-1 min-w-0 overflow-y-auto flex flex-col">
+        {/* Breadcrumb — only shown on category detail pages */}
+        {activeCategory && (
+          <nav className="px-4 sm:px-6 pt-4 pb-0 shrink-0" aria-label="Breadcrumb">
+            <ol className="flex items-center gap-1.5 text-xs text-content-tertiary">
+              <li>
+                <Link
+                  href="/dashboard/providers"
+                  className="hover:text-content-primary transition-colors"
+                >
+                  Providers
+                </Link>
+              </li>
+              <li aria-hidden="true"><ChevronRight size={10} /></li>
+              <li className="text-content-primary font-medium truncate">{activeCategoryLabel}</li>
+            </ol>
+          </nav>
+        )}
         {children}
       </div>
     </div>
