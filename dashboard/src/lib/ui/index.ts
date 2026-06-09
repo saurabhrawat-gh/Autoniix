@@ -7,6 +7,7 @@ export { cn } from './cn';
 
 export { Button, buttonVariants, type ButtonProps } from './button';
 export { Input, type InputProps } from './input';
+export { FloatingInput, type FloatingInputProps } from './floating-input';
 export { Textarea, type TextareaProps } from './textarea';
 export { Label } from './label';
 export { Checkbox } from './checkbox';

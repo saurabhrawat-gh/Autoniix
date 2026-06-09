@@ -164,18 +164,13 @@ export default function ProvidersIndex() {
   };
 
   const deleteCategory = async (name: string, label: string, isBuiltIn: boolean) => {
-    const ok = isBuiltIn
-      ? (await promptDialog({
-          title: `Delete built-in category "${label}"?`,
-          description: 'This removes the category and its credentials and chains. Built-in categories can be brought back with "Restore defaults". This cannot be undone.',
-          label: 'Type DELETE to confirm', placeholder: 'DELETE', match: 'DELETE',
-          confirmLabel: 'Delete category', destructive: true,
-        })) !== null
-      : await confirmDialog({
-          title: `Delete category "${label}"?`,
-          description: 'This removes the category and its credentials and chains. This cannot be undone.',
-          confirmLabel: 'Delete category', destructive: true,
-        });
+    const hint = isBuiltIn ? ' Use "Restore defaults" to bring it back.' : '';
+    const ok = await confirmDialog({
+      title: `Delete category "${label}"?`,
+      description: `Removes the category and all its credentials and chains.${hint}`,
+      confirmLabel: 'Delete category',
+      destructive: true,
+    });
     if (!ok) return;
     try {
       await providersApi.deleteCategory(name);

@@ -429,37 +429,29 @@ export default function ProviderCategoryPage() {
                 Default (all channels)
               </button>
 
-              {/* Channels */}
-              <div className="my-1 border-t border-border" />
-              <div className="px-3 py-1 text-[10px] uppercase tracking-widest font-semibold text-content-tertiary">Channels</div>
-              {channels.length === 0 ? (
-                <div className="px-3 py-1.5 text-content-tertiary italic">No channels yet</div>
-              ) : (
-                channels.map((ch: any) => {
-                  const isActive = scopeType === 'channel' && scopeId === String(ch.id);
-                  return (
-                    <button
-                      key={ch.id}
-                      type="button"
-                      className={cn('flex w-full items-center gap-2 px-3 py-1.5 hover:bg-surface-1 transition-colors',
-                        isActive ? 'text-accent font-semibold' : 'text-content-primary')}
-                      onClick={() => { setScopeType('channel'); setScopeId(String(ch.id)); setScopeDropdownOpen(false); }}>
-                      {isActive
-                        ? <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
-                        : <span className="w-1.5 h-1.5 rounded-full border border-border shrink-0" />}
-                      {ch.name}
-                    </button>
-                  );
-                })
+              {/* Channels — only shown when at least one channel exists */}
+              {channels.length > 0 && (
+                <>
+                  <div className="my-1 border-t border-border" />
+                  <div className="px-3 py-1 text-[10px] uppercase tracking-widest font-semibold text-content-tertiary">Channels</div>
+                  {channels.map((ch: any) => {
+                    const isActive = scopeType === 'channel' && scopeId === String(ch.id);
+                    return (
+                      <button
+                        key={ch.id}
+                        type="button"
+                        className={cn('flex w-full items-center gap-2 px-3 py-1.5 hover:bg-surface-1 transition-colors',
+                          isActive ? 'text-accent font-semibold' : 'text-content-primary')}
+                        onClick={() => { setScopeType('channel'); setScopeId(String(ch.id)); setScopeDropdownOpen(false); }}>
+                        {isActive
+                          ? <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
+                          : <span className="w-1.5 h-1.5 rounded-full border border-border shrink-0" />}
+                        {ch.name}
+                      </button>
+                    );
+                  })}
+                </>
               )}
-              <div className="my-1 border-t border-border" />
-              <Link
-                href="/dashboard/channels/new"
-                className="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-surface-1 transition-colors text-content-tertiary hover:text-accent"
-                onClick={() => setScopeDropdownOpen(false)}>
-                <Plus size={11} />
-                {channels.length > 0 ? 'Add a channel' : 'Create a channel'}
-              </Link>
             </div>
           )}
         </div>
@@ -1070,12 +1062,16 @@ function CategoryMultiSelect({ allCats, selKind, selectedCats, setSelectedCats, 
           </span>
         ) : selected.length === 0 ? (
           <span className="text-xs text-content-tertiary">Select categories…</span>
+        ) : selected.length === 1 ? (
+          <span className="text-xs text-content-primary">
+            {cats.find((c: any) => c.name === selected[0])?.label || selected[0]}
+          </span>
         ) : (
           selected.map(name => {
             const cat = cats.find((c: any) => c.name === name);
             const isPinned = name === pinnedCategory;
             return (
-              <span key={name} className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded font-medium bg-accent/15 text-accent">
+              <span key={name} className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-sm font-medium bg-accent/15 text-accent">
                 {cat?.label || name}
                 {!isPinned && (
                   <button
@@ -1208,8 +1204,11 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
           });
         }
         for (const r of reg) {
-          // Registry entry takes precedence (live models); always callable.
-          byKey.set(r.provider_name, { ...byKey.get(r.provider_name), ...r, is_callable: true });
+          // Only enrich catalog entries with live registry data (models, callable).
+          // Registry-only providers not in the catalog are excluded (strict catalog filter).
+          if (byKey.has(r.provider_name)) {
+            byKey.set(r.provider_name, { ...byKey.get(r.provider_name), ...r, is_callable: true });
+          }
         }
         const merged = Array.from(byKey.values())
           .filter((p: any) => !PROVIDER_ALIASES_TO_HIDE.has(p.provider_name));

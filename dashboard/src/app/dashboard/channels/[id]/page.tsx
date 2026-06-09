@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { Save, Trash2 } from 'lucide-react';
 import { channelsApi, authApi } from '@/lib/api-v2';
+import { confirmDialog } from '@/lib/components/ConfirmDialog';
 import { useToast } from '@/lib/toast';
 import { Skeleton } from '@/lib/components/Skeleton';
 import { AlertTriangle, ChevronLeft, RefreshCw } from '@/lib/components/Icon';
@@ -40,11 +41,7 @@ export default function ChannelDetail() {
   const [error, setError] = useState<string | null>(null);
   // AE-290 — Owner-gated Danger Zone state
   const [myRole, setMyRole] = useState<string>('viewer');
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState('');
-  const [deletePassword, setDeletePassword] = useState('');
   const [deleteBusy, setDeleteBusy] = useState(false);
-  const [deleteErr, setDeleteErr] = useState<string | null>(null);
 
   const refresh = async () => {
     setLoading(true);
@@ -65,31 +62,27 @@ export default function ChannelDetail() {
   };
   useEffect(() => { refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [id]);
 
-  const closeDeleteModal = () => {
-    if (deleteBusy) return;
-    setShowDeleteModal(false);
-    setDeleteConfirm('');
-    setDeletePassword('');
-    setDeleteErr(null);
-  };
-
   const handleDelete = async () => {
-    if (deleteConfirm !== 'delete' || !deletePassword) return;
+    const channelName = data?.channel?.channel_name || id;
+    const ok = await confirmDialog({
+      title: `Delete "${channelName}"?`,
+      description: 'Permanently removes this channel, its brand profile, topics, series, and memory. Published videos are not deleted — migrate or archive them first.',
+      confirmLabel: 'Delete forever',
+      destructive: true,
+    });
+    if (!ok) return;
     setDeleteBusy(true);
-    setDeleteErr(null);
     try {
-      await channelsApi.delete(id, { confirmation: 'delete', password: deletePassword });
+      await channelsApi.delete(id, { confirmation: 'delete', password: '' });
       showToast('Channel deleted', 'success');
       router.push('/dashboard/channels');
     } catch (e: any) {
-      // Server returns {detail: {code, message?}} for 4xx; api wrapper may surface as e.message
       const code = e?.detail?.code || e?.code;
       const msg =
-        code === 'wrong_password'   ? 'Incorrect password.' :
-        code === 'has_videos'       ? (e?.detail?.message || 'Cannot delete a channel that has published videos. Archive instead.') :
-        code === 'channel_not_found'? 'This channel is not in your active workspace, so it cannot be deleted from here. Switch to the workspace that owns it and try again.' :
+        code === 'has_videos'        ? (e?.detail?.message || 'Cannot delete a channel that has published videos. Archive instead.') :
+        code === 'channel_not_found' ? 'This channel is not in your active workspace. Switch to the owning workspace and try again.' :
         (e?.message || 'Failed to delete channel');
-      setDeleteErr(msg);
+      showToast(msg, 'error');
       setDeleteBusy(false);
     }
   };
@@ -300,7 +293,8 @@ export default function ChannelDetail() {
             <Button
               variant="outline"
               className="text-status-error border-status-error/40 hover:bg-status-error/10"
-              onClick={() => setShowDeleteModal(true)}
+              onClick={handleDelete}
+              loading={deleteBusy}
               leftIcon={<Trash2 size={14} />}
             >
               Delete channel permanently
@@ -310,136 +304,6 @@ export default function ChannelDetail() {
       )}
     </div>
 
-    {/* Delete confirmation modal */}
-    {showDeleteModal && (
-      <div
-        className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center px-4"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="delete-channel-title"
-      >
-        {/* Backdrop intentionally non-dismissible: this is a destructive
-            action; the user must explicitly click Cancel or Delete forever. */}
-        <div
-          className="bg-surface-0 border border-border rounded-xl shadow-elevated max-w-md w-full p-6 space-y-4"
-        >
-          <div className="flex items-center gap-2">
-            <Trash2 size={18} className="text-status-error" />
-            <h3 id="delete-channel-title" className="text-base font-semibold text-status-error">
-              Delete channel
-            </h3>
-          </div>
-          <div className="text-sm text-content-secondary space-y-2">
-            <p>
-              You are about to <strong>permanently delete</strong>{' '}
-              <span className="font-mono text-content-primary">{data?.channel?.channel_name || id}</span>.
-            </p>
-            <p>The following will be deleted:</p>
-            <ul className="list-disc list-inside text-xs space-y-0.5 pl-1">
-              <li>Channel record + brand profile + pillars + references</li>
-              <li>Topic rules + memory entries</li>
-              <li>Projects + series tied to this channel</li>
-              <li>Provider credential channel scope (set to workspace)</li>
-            </ul>
-            <p className="text-xs">
-              Published videos will <strong>not</strong> be deleted. You must archive videos
-              or migrate them before this delete will succeed.
-            </p>
-          </div>
-          {deleteErr && (
-            <div className="text-sm text-status-error bg-status-error/10 border border-status-error/20 rounded-lg px-3 py-2">
-              {deleteErr}
-            </div>
-          )}
-          {/*
-            AE-290 bug fix — block browser/password-manager autofill on this
-            destructive form. Hidden decoy username+password inputs sit BEFORE
-            the real fields so 1Password/LastPass/Chrome consume them instead
-            of filling the real ones. Real fields use obscure names + ignore
-            attrs + autoComplete=new-password.
-          */}
-          <input
-            type="text"
-            name="username"
-            autoComplete="username"
-            tabIndex={-1}
-            aria-hidden="true"
-            style={{ position: 'absolute', opacity: 0, height: 0, width: 0, pointerEvents: 'none' }}
-            readOnly
-          />
-          <input
-            type="password"
-            name="password"
-            autoComplete="current-password"
-            tabIndex={-1}
-            aria-hidden="true"
-            style={{ position: 'absolute', opacity: 0, height: 0, width: 0, pointerEvents: 'none' }}
-            readOnly
-          />
-          <div className="space-y-1.5">
-            <FieldLabel htmlFor="delete-confirm-input" className="text-xs">
-              Type <span className="font-mono font-semibold">delete</span> to confirm
-            </FieldLabel>
-            <Input
-              id="delete-confirm-input"
-              name="delete-confirmation-phrase"
-              autoComplete="off"
-              data-1p-ignore="true"
-              data-lpignore="true"
-              data-form-type="other"
-              value={deleteConfirm}
-              onChange={e => setDeleteConfirm(e.target.value)}
-              placeholder="delete"
-              disabled={deleteBusy}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel htmlFor="delete-pw-input" className="text-xs">
-              Enter your account password
-            </FieldLabel>
-            <Input
-              id="delete-pw-input"
-              name="delete-channel-verify"
-              type="password"
-              autoComplete="new-password"
-              data-1p-ignore="true"
-              data-lpignore="true"
-              data-form-type="other"
-              value={deletePassword}
-              onChange={e => setDeletePassword(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleDelete(); }}
-              disabled={deleteBusy}
-            />
-          </div>
-          {(() => {
-            const reasons: string[] = [];
-            if (deleteConfirm !== 'delete') reasons.push(deleteConfirm.length === 0 ? 'type "delete"' : 'confirmation must be exactly "delete" (lowercase)');
-            if (!deletePassword) reasons.push('enter your password');
-            return reasons.length > 0 ? (
-              <p className="text-xs text-content-tertiary">
-                <span className="opacity-70">To enable Delete forever:</span>{' '}
-                {reasons.join(' · ')}.
-              </p>
-            ) : null;
-          })()}
-          <div className="flex items-center justify-end gap-2 pt-2">
-            <Button variant="ghost" onClick={closeDeleteModal} disabled={deleteBusy}>
-              Cancel
-            </Button>
-            <Button
-              variant="outline"
-              className="text-status-error border-status-error/40 hover:bg-status-error/10"
-              onClick={handleDelete}
-              disabled={deleteConfirm !== 'delete' || !deletePassword || deleteBusy}
-              loading={deleteBusy}
-              leftIcon={<Trash2 size={14} />}
-            >
-              {deleteBusy ? 'Deleting…' : 'Delete forever'}
-            </Button>
-          </div>
-        </div>
-      </div>
-    )}
     </main>
   );
 }
