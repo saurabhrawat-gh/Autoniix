@@ -298,6 +298,8 @@ export const providersApi = {
     request<{ name: string; label: string; kind: string }>('/api/v2/providers/categories', { method: 'POST', body: JSON.stringify(body) }),
   deleteCategory: (name: string) =>
     request(`/api/v2/providers/categories/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+  updateCategory: (name: string, label: string) =>
+    request(`/api/v2/providers/categories/${encodeURIComponent(name)}`, { method: 'PATCH', body: JSON.stringify({ label }) }),
   createMarketplaceProvider: (body: {
     display_name: string; kind: string; provider_key?: string; description?: string | null;
     supported_models?: string[]; has_free_tier?: boolean; cost_unit?: string | null; requires_api_key?: boolean;

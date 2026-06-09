@@ -740,7 +740,7 @@ export default function ProvidersIndex() {
                       </Link>
                     ) : (
                       <Link prefetch={false} href={`/dashboard/providers/${encodeURIComponent(p.category)}?add=1&provider=${encodeURIComponent(p.provider_key)}`}
-                        className="flex items-center gap-1 h-7 px-2.5 rounded-md bg-accent text-white text-xs font-medium hover:opacity-90 transition-opacity">
+                        className="flex items-center gap-1 h-7 px-2.5 rounded-md bg-accent text-black text-xs font-semibold hover:opacity-90 transition-opacity">
                         <Plus size={11} /> Connect
                       </Link>
                     )}

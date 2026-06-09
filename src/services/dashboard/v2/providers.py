@@ -299,6 +299,30 @@ async def create_category(
     return {"status": "ok", "name": name, "label": label, "kind": kind}
 
 
+@router.patch("/categories/{name}")
+async def rename_category(
+    name: str,
+    body: dict,
+    request: Request,
+    actor: Principal = Depends(_require_cred_actor),
+):
+    """Rename a category's display label. The internal name (slug) is immutable."""
+    pool = await get_pool()
+    label = (body.get("label") or "").strip()
+    if not label:
+        raise HTTPException(422, "label is required")
+    row = await pool.fetchrow("SELECT name FROM provider_categories WHERE name=$1", name)
+    if not row:
+        raise HTTPException(404, "Category not found")
+    await pool.execute(
+        "UPDATE provider_categories SET label=$1 WHERE name=$2", label, name
+    )
+    await audit(actor=actor, action="provider.category.rename",
+                target_type="provider_category", target_id=name,
+                after={"label": label}, request=request)
+    return {"status": "ok", "name": name, "label": label}
+
+
 @router.delete("/categories/{name}")
 async def delete_category(
     name: str,

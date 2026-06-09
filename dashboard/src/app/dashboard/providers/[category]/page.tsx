@@ -8,7 +8,7 @@ import { useToast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/lib/components/ConfirmDialog';
 import {
-  Plus, Activity, Trash2, ArrowUp, ArrowDown, X, Check, ChevronLeft,
+  Plus, Activity, Trash2, ArrowUp, ArrowDown, X, Check,
   ShieldCheck, AlertTriangle, HelpCircle, Loader2, Eye, EyeOff, RotateCw,
   Terminal, SlidersHorizontal, Play, Star, ExternalLink, GripVertical, ChevronDown,
 } from '@/lib/components/Icon';
@@ -399,15 +399,6 @@ export default function ProviderCategoryPage() {
 
   return (
     <main className="flex-1 px-4 sm:px-6 py-6 max-w-[1400px] mx-auto w-full">
-      {/* Breadcrumb + header */}
-      <div className="flex items-center gap-2 text-xs text-content-tertiary mb-4">
-        <Link href="/dashboard/providers" className="hover:text-content-primary transition-colors flex items-center gap-1">
-          <ChevronLeft size={13} /> Providers
-        </Link>
-        <span>/</span>
-        <span className="text-content-primary font-medium">{decoded}</span>
-      </div>
-
       <div className="flex items-center gap-3 mb-5 flex-wrap">
         <h1 className="text-xl font-semibold text-content-primary">{decoded}</h1>
         {/* AE-73 Context Switcher */}
@@ -424,43 +415,50 @@ export default function ProviderCategoryPage() {
             <ChevronDown size={11} className={cn('text-content-tertiary transition-transform', scopeDropdownOpen && 'rotate-180')} />
           </button>
           {scopeDropdownOpen && (
-            <div className="absolute left-0 top-full mt-1 w-56 rounded-lg border border-border bg-surface-0 shadow-modal z-30 py-1 text-xs">
+            <div className="absolute left-0 top-full mt-1 w-60 rounded-lg border border-border bg-surface-0 shadow-modal z-30 py-1.5 text-xs">
+              {/* Workspace */}
+              <div className="px-3 py-1 text-[10px] uppercase tracking-widest font-semibold text-content-tertiary">Workspace</div>
               <button
                 type="button"
-                className={cn('flex w-full items-center gap-2 px-3 py-2 hover:bg-surface-1 transition-colors',
-                  scopeType === 'workspace' ? 'text-accent font-medium' : 'text-content-primary')}
+                className={cn('flex w-full items-center gap-2 px-3 py-1.5 hover:bg-surface-1 transition-colors',
+                  scopeType === 'workspace' ? 'text-accent font-semibold' : 'text-content-primary')}
                 onClick={() => { setScopeType('workspace'); setScopeId(null); setScopeDropdownOpen(false); }}>
-                <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
-                Workspace (default)
+                {scopeType === 'workspace'
+                  ? <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
+                  : <span className="w-1.5 h-1.5 rounded-full border border-border shrink-0" />}
+                Default (all channels)
               </button>
-              {channels.length > 0 && (
-                <>
-                  <div className="my-1 border-t border-border" />
-                  {channels.map((ch: any) => (
+
+              {/* Channels */}
+              <div className="my-1 border-t border-border" />
+              <div className="px-3 py-1 text-[10px] uppercase tracking-widest font-semibold text-content-tertiary">Channels</div>
+              {channels.length === 0 ? (
+                <div className="px-3 py-1.5 text-content-tertiary italic">No channels yet</div>
+              ) : (
+                channels.map((ch: any) => {
+                  const isActive = scopeType === 'channel' && scopeId === String(ch.id);
+                  return (
                     <button
                       key={ch.id}
                       type="button"
-                      className={cn('flex w-full items-center gap-2 px-3 py-2 hover:bg-surface-1 transition-colors',
-                        scopeType === 'channel' && scopeId === String(ch.id) ? 'text-accent font-medium' : 'text-content-primary')}
+                      className={cn('flex w-full items-center gap-2 px-3 py-1.5 hover:bg-surface-1 transition-colors',
+                        isActive ? 'text-accent font-semibold' : 'text-content-primary')}
                       onClick={() => { setScopeType('channel'); setScopeId(String(ch.id)); setScopeDropdownOpen(false); }}>
-                      <span className="w-1.5 h-1.5 rounded-full bg-surface-2 shrink-0" />
+                      {isActive
+                        ? <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
+                        : <span className="w-1.5 h-1.5 rounded-full border border-border shrink-0" />}
                       {ch.name}
                     </button>
-                  ))}
-                </>
+                  );
+                })
               )}
               <div className="my-1 border-t border-border" />
               <Link
                 href="/dashboard/channels/new"
-                className="flex w-full flex-col items-start gap-0.5 px-3 py-2 hover:bg-surface-1 transition-colors text-content-tertiary"
+                className="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-surface-1 transition-colors text-content-tertiary hover:text-accent"
                 onClick={() => setScopeDropdownOpen(false)}>
-                <span className="flex items-center gap-2">
-                  <Plus size={11} />
-                  {channels.length > 0 ? 'Add another channel' : 'Create a channel'}
-                </span>
-                <span className="pl-[19px] text-[10px] text-content-tertiary/70">
-                  to scope credentials per-channel
-                </span>
+                <Plus size={11} />
+                {channels.length > 0 ? 'Add a channel' : 'Create a channel'}
               </Link>
             </div>
           )}
@@ -1077,10 +1075,7 @@ function CategoryMultiSelect({ allCats, selKind, selectedCats, setSelectedCats, 
             const cat = cats.find((c: any) => c.name === name);
             const isPinned = name === pinnedCategory;
             return (
-              <span key={name} className={cn(
-                'inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded font-medium',
-                isPinned ? 'bg-accent/15 text-accent' : 'bg-surface-2 text-content-secondary'
-              )}>
+              <span key={name} className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded font-medium bg-accent/15 text-accent">
                 {cat?.label || name}
                 {!isPinned && (
                   <button
@@ -1619,11 +1614,11 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
                       placeholder={voiceHint.placeholder} />
                   </div>
                 ) : modelField?.options?.length ? (
-                  <Select value={model || '__default__'}
-                    onValueChange={(v: string) => setModel(v === '__default__' ? '' : v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Select value={model} onValueChange={setModel}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={`Use provider default${defaultModel ? ` (${defaultModel})` : ''}`} />
+                    </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__default__">Use provider default ({defaultModel || 'auto'})</SelectItem>
                       {modelField.options.map((m: string) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -1632,11 +1627,11 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
                     <Loader2 size={11} className="animate-spin" /> Loading models…
                   </div>
                 ) : effectiveModels.length > 0 ? (
-                  <Select value={model || '__default__'}
-                    onValueChange={(v: string) => setModel(v === '__default__' ? '' : v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Select value={model} onValueChange={setModel}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={`Use provider default${defaultModel ? ` (${defaultModel})` : ''}`} />
+                    </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__default__">Use provider default ({defaultModel || 'auto'})</SelectItem>
                       {effectiveModels.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -1667,10 +1662,11 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
                             <Input type="text" value={val} onChange={e => setPerCatModel(prev => ({ ...prev, [catName]: e.target.value }))}
                               placeholder={voiceHint.placeholder || 'Use default'} className="flex-1" />
                           ) : (effectiveModels.length > 0 ? (
-                            <Select value={val || '__default__'} onValueChange={(v: string) => setPerCatModel(prev => ({ ...prev, [catName]: v === '__default__' ? '' : v }))}>
-                              <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
+                            <Select value={val} onValueChange={(v: string) => setPerCatModel(prev => ({ ...prev, [catName]: v }))}>
+                              <SelectTrigger className="flex-1">
+                                <SelectValue placeholder={`Use provider default${defaultModel ? ` (${defaultModel})` : ''}`} />
+                              </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="__default__">Use provider default ({defaultModel || 'auto'})</SelectItem>
                                 {effectiveModels.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                               </SelectContent>
                             </Select>
