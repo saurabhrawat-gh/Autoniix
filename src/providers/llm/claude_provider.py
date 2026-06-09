@@ -12,9 +12,17 @@ from src.providers.registry import ProviderRegistry
 logger = structlog.get_logger()
 
 PRICING: dict[str, dict[str, float]] = {
-    "claude-sonnet-4-20250514": {"input": 3.00 / 1_000_000, "output": 15.00 / 1_000_000},
+    # Claude 3.5 Sonnet family (current flagship)
     "claude-3-5-sonnet-20241022": {"input": 3.00 / 1_000_000, "output": 15.00 / 1_000_000},
+    "claude-3-5-sonnet-20240620": {"input": 3.00 / 1_000_000, "output": 15.00 / 1_000_000},
+    # Claude 3.5 Haiku family (fast, budget)
     "claude-3-5-haiku-20241022": {"input": 0.80 / 1_000_000, "output": 4.00 / 1_000_000},
+    # Claude 3 Opus family (previous top model)
+    "claude-3-opus-20240229": {"input": 15.00 / 1_000_000, "output": 75.00 / 1_000_000},
+    # Claude 3 Sonnet family (balanced)
+    "claude-3-sonnet-20240229": {"input": 3.00 / 1_000_000, "output": 15.00 / 1_000_000},
+    # Claude 3 Haiku family (fast, budget)
+    "claude-3-haiku-20240307": {"input": 0.25 / 1_000_000, "output": 1.25 / 1_000_000},
 }
 
 
