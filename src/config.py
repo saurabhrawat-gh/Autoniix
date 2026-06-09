@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     inworld_api_key: str = ""
     inworld_tts_model: str = "inworld-tts-2"           # inworld-tts-2 ($0.025/1K) | inworld-tts-1 ($0.015/1K)
     inworld_voice_id: str = ""                         # set to your cloned/designed voice ID
+    cartesia_api_key: str = ""
     tts_provider: str = "inworld"
 
     # Search
@@ -45,13 +46,11 @@ class Settings(BaseSettings):
     # Image / Stock Footage
     pixabay_api_key: str = ""
     pexels_api_key: str = ""
+    unsplash_api_key: str = ""
+    kling_api_key: str = ""
     freesound_api_key: str = ""
-    falai_api_key: str = ""
-    falai_flux_model: str = "fal-ai/flux/schnell"      # quality="standard" → b-roll
-    falai_flux_hd_model: str = "fal-ai/flux/dev"        # quality="hd" → thumbnails
-    # Motion Array assets are managed via the local library (no API).
-    # Use scripts/import_local_assets.py to ingest manually downloaded assets.
-    image_provider: str = "fal_flux"
+    stability_api_key: str = ""
+    image_provider: str = "openai_dalle"
 
     # Storage
     storage_provider: str = "minio"
@@ -62,7 +61,7 @@ class Settings(BaseSettings):
 
     # LLM Routing
     llm_openai_model: str = "gpt-4o-mini"
-    llm_claude_model: str = "claude-sonnet-4-20250514"
+    llm_claude_model: str = "claude-3-5-sonnet-20241022"
     llm_gemini_model: str = "gemini-2.5-flash"
     llm_deepseek_model: str = "deepseek-chat"
     llm_provider: str = "deepseek"
