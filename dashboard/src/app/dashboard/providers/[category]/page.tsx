@@ -1033,6 +1033,13 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
   const [registeredLoading, setRegisteredLoading] = useState(true);
   const [lazyModels, setLazyModels] = useState<string[] | null>(null);
   const [lazyModelsLoading, setLazyModelsLoading] = useState(false);
+  // Multi-category support (within same section)
+  const [multi, setMulti] = useState(false);
+  const [allCats, setAllCats] = useState<any[]>([]);
+  const [catsLoading, setCatsLoading] = useState(false);
+  const [selKind, setSelKind] = useState<string | null>(null);
+  const [selectedCats, setSelectedCats] = useState<Set<string>>(() => new Set([category]));
+  const [perCatModel, setPerCatModel] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setRegisteredLoading(true);
@@ -1076,6 +1083,20 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category]);
 
+  // Load categories to enable multi-select targeting in this section
+  useEffect(() => {
+    setCatsLoading(true);
+    providersApi.categories()
+      .then(r => {
+        const list = r.data || [];
+        setAllCats(list);
+        const curr = list.find((c: any) => c.name === category);
+        setSelKind(curr?.kind || null);
+      })
+      .catch(() => { setAllCats([]); setSelKind(null); })
+      .finally(() => setCatsLoading(false));
+  }, [category]);
+
   const selProvider = (registered as any[]).find((r: any) => r.provider_name === providerName) ?? null;
   // config_schema / supported_models come from a JSONB column; guard against
   // the backend ever handing back a non-array so the dialog can't crash the page.
@@ -1099,6 +1120,7 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
     if (selProvider && !label) setLabel(selProvider.display_name + ' — Primary');
     setFieldValues({});
     setModel('');
+    setPerCatModel({});
     setErr(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providerName]);
@@ -1121,28 +1143,45 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
   const submit = async () => {
     setBusy(true); setErr(null);
     try {
-      let result: any;
-      if (schema.length > 0) {
-        const wf: Record<string, string | boolean> = { ...fieldValues };
-        if (modelField && model) wf[modelField.name] = model;
-        result = await providersApi.createCredentialFromWizard({
-          category,
-          provider_key: providerName,
-          label,
-          wizard_fields: wf,
-          model: model || null,
-        });
-      } else {
-        const secretField = fieldValues['api_key'] as string || '';
-        const effectiveSecret = noKeyNeeded ? 'NO_KEY_REQUIRED' : secretField;
-        result = await providersApi.createCredential({
-          category, provider_name: providerName, label,
-          secret_value: effectiveSecret, secret_key: 'api_key',
-          model: model || null,
-          extra_config: {},
-        });
-      }
-      onAdded(result?.id ?? result?.data?.id);
+      // Determine target categories
+      const targets = multi && selKind
+        ? Array.from(selectedCats).filter(n => {
+            const c = allCats.find((x: any) => x.name === n);
+            return c && c.kind === selKind;
+          })
+        : [category];
+
+      const createOne = async (catName: string) => {
+        const catModel = perCatModel[catName] ?? model;
+        if (schema.length > 0) {
+          const wf: Record<string, string | boolean> = { ...fieldValues };
+          if (modelField && catModel) wf[modelField.name] = catModel;
+          return providersApi.createCredentialFromWizard({
+            category: catName,
+            provider_key: providerName,
+            label,
+            wizard_fields: wf,
+            model: catModel || null,
+          });
+        } else {
+          const secretField = fieldValues['api_key'] as string || '';
+          const effectiveSecret = noKeyNeeded ? 'NO_KEY_REQUIRED' : secretField;
+          return providersApi.createCredential({
+            category: catName,
+            provider_name: providerName,
+            label,
+            secret_value: effectiveSecret,
+            secret_key: 'api_key',
+            model: catModel || null,
+            extra_config: {},
+          });
+        }
+      };
+
+      const results = await Promise.all(targets.map(createOne));
+      const last = results[results.length - 1] as any;
+      const newId = last?.id ?? last?.data?.id;
+      onAdded(newId);
     } catch (e: any) {
       setErr(e?.message || 'Failed to save. Check your credentials and try again.');
     } finally {
@@ -1201,7 +1240,7 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
         {/* ── Step body ── */}
         <div className="p-5 space-y-4 overflow-y-auto flex-1">
 
-          {/* Step 1 — Choose provider + nickname */}
+          {/* Step 1 — Choose provider + nickname + (optional) multi-category */}
           {step === 1 && (
             <div className="space-y-4">
               <div>
@@ -1279,6 +1318,50 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
                 </p>
               </div>
 
+              {/* Multi-category targeting within this section */}
+              <div className="rounded-lg border border-border bg-surface-1 px-3 py-2.5">
+                <label className="flex items-center gap-2 text-xs text-content-primary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={multi}
+                    onChange={e => setMulti(e.target.checked)}
+                  />
+                  Apply to multiple categories in this section
+                </label>
+                {multi && (
+                  <div className="mt-2 space-y-1">
+                    {catsLoading ? (
+                      <div className="text-[11px] text-content-tertiary flex items-center gap-2">
+                        <Loader2 size={12} className="animate-spin" /> Loading categories…
+                      </div>
+                    ) : (
+                      allCats
+                        .filter((c: any) => c.kind === selKind)
+                        .map((c: any) => (
+                          <label key={c.name} className="flex items-center gap-2 text-xs text-content-secondary">
+                            <input
+                              type="checkbox"
+                              checked={selectedCats.has(c.name)}
+                              onChange={e => {
+                                const next = new Set(selectedCats);
+                                if (e.target.checked) next.add(c.name); else next.delete(c.name);
+                                // Always keep the current category selected
+                                next.add(category);
+                                setSelectedCats(next);
+                              }}
+                            />
+                            <span className="font-mono text-[11px] text-content-tertiary">{c.name}</span>
+                            <span className="text-[11px]">{c.label}</span>
+                          </label>
+                        ))
+                    )}
+                    <p className="text-[10px] text-content-tertiary mt-1">
+                      The same credentials will be saved for each selected category. You can pick a different model per category on the next step.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-end gap-2 pt-1">
                 <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
                 <Button type="button" size="sm"
@@ -1336,7 +1419,7 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
             </div>
           )}
 
-          {/* Step 3 — Model/voice + final save */}
+          {/* Step 3 — Model/voice + per-category overrides + final save */}
           {step === 3 && (
             <div className="space-y-4">
               <div>
@@ -1406,6 +1489,40 @@ function AddCredentialDialog({ category, onClose, onAdded }: any) {
                   </div>
                 )}
               </div>
+
+              {/* Per-category model overrides when multi is enabled */}
+              {multi && (
+                <div className="space-y-2">
+                  <div className="text-[10px] uppercase tracking-wide text-content-tertiary">Per-category {modelLabel.toLowerCase()} (override)</div>
+                  {Array.from(selectedCats)
+                    .filter(n => allCats.find((c: any) => c.name === n && c.kind === selKind))
+                    .map(catName => {
+                      const cat = allCats.find((c: any) => c.name === catName)!;
+                      const val = perCatModel[catName] ?? '';
+                      return (
+                        <div key={catName} className="flex items-center gap-2">
+                          <span className="min-w-[140px] text-[12px] text-content-secondary truncate">{cat.label}</span>
+                          {voiceHint?.suggestions ? (
+                            <Input type="text" value={val} onChange={e => setPerCatModel(prev => ({ ...prev, [catName]: e.target.value }))}
+                              placeholder={voiceHint.placeholder || 'Use default'} className="flex-1" />
+                          ) : (effectiveModels.length > 0 ? (
+                            <Select value={val || '__default__'} onValueChange={(v: string) => setPerCatModel(prev => ({ ...prev, [catName]: v === '__default__' ? '' : v }))}>
+                              <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__default__">Use provider default ({defaultModel || 'auto'})</SelectItem>
+                                {effectiveModels.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input type="text" value={val} onChange={e => setPerCatModel(prev => ({ ...prev, [catName]: e.target.value }))}
+                              placeholder={defaultModel || 'Use default'} className="flex-1" />
+                          ))}
+                        </div>
+                      );
+                    })}
+                  <p className="text-[10px] text-content-tertiary">If left blank, each category uses the selection above or the provider default.</p>
+                </div>
+              )}
 
               {err && (
                 <div className="rounded-lg border border-status-error/40 bg-status-error/5 px-3 py-2.5 text-sm text-status-error">
