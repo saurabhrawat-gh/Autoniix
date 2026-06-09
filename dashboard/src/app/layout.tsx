@@ -1,17 +1,15 @@
 import type { Metadata } from 'next';
-import localFont from 'next/font/local';
-import { JetBrains_Mono } from 'next/font/google';
+import { Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
 import { ThemeProvider } from '@/lib/theme';
 import { ToastProvider } from '@/lib/toast';
 import { AppStateProvider } from '@/lib/components/AppStateProvider';
 import { MotionProvider } from '@/lib/components/MotionProvider';
 import './globals.css';
 
-// Match the marketing site (web/) exactly — one font system across the product.
-const googleSansFlex = localFont({
-  src: '../../public/fonts/GoogleSansFlex.ttf',
-  variable: '--font-google-sans',
-  weight: '100 900',
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  variable: '--font-jakarta',
+  weight: ['300', '400', '500', '600', '700', '800'],
   display: 'swap',
 });
 
@@ -29,7 +27,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${googleSansFlex.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${plusJakartaSans.variable} ${jetbrainsMono.variable}`}>
       <body className="min-h-screen font-sans">
         <MotionProvider>
           <ThemeProvider>

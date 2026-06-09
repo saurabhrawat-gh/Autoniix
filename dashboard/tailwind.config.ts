@@ -10,8 +10,8 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['var(--font-google-sans)', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
-        display: ['var(--font-google-sans)', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-jakarta)', 'Plus Jakarta Sans', 'system-ui', '-apple-system', 'sans-serif'],
+        display: ['var(--font-jakarta)', 'Plus Jakarta Sans', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'JetBrains Mono', 'SF Mono', 'Menlo', 'monospace'],
       },
       colors: {
@@ -51,17 +51,18 @@ const config: Config = {
       },
       borderRadius: {
         none: '0px',
-        sm: '6px',
-        DEFAULT: '8px',
-        md: '8px',
+        sm: '4px',
+        DEFAULT: '6px',
+        md: '6px',
         lg: '10px',
         xl: '12px',
-        '2xl': '14px',
+        '2xl': '16px',
         full: '9999px',
       },
       boxShadow: {
         card: 'var(--shadow-card)',
         elevated: 'var(--shadow-elevated)',
+        modal: 'var(--shadow-elevated)',
         focus: '0 0 0 2px rgb(var(--accent-light)), 0 0 0 4px rgb(var(--accent))',
         glow: 'var(--shadow-glow)',
       },
