@@ -27,6 +27,7 @@ import src.providers.llm.gemini_provider        # noqa: F401
 import src.providers.llm.deepseek_provider      # noqa: F401
 import src.providers.llm.glm_provider           # noqa: F401
 import src.providers.llm.kimi_provider          # noqa: F401
+import src.providers.llm.mock_provider          # noqa: F401  (test mode)
 
 # TTS Providers
 import src.providers.tts.inworld_tts_provider   # noqa: F401
