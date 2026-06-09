@@ -116,5 +116,5 @@ WHERE provider_key = 'stability';
 
 UPDATE provider_marketplace_catalog
    SET is_callable = FALSE
- WHERE provider_key IN ('kimi', 'glm', 'groq', 'ollama', 'perplexity', 'serper', 'tavily',
-                         'fal_ai', 'envato', 'custom_openai_compat');
+ WHERE provider_key IN ('groq', 'ollama', 'perplexity', 'serper', 'tavily',
+                         'envato', 'custom_openai_compat');

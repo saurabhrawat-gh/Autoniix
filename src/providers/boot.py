@@ -25,6 +25,8 @@ import src.providers.llm.openai_vision_provider # noqa: F401
 import src.providers.llm.claude_provider        # noqa: F401
 import src.providers.llm.gemini_provider        # noqa: F401
 import src.providers.llm.deepseek_provider      # noqa: F401
+import src.providers.llm.glm_provider           # noqa: F401
+import src.providers.llm.kimi_provider          # noqa: F401
 
 # TTS Providers
 import src.providers.tts.inworld_tts_provider   # noqa: F401
@@ -36,6 +38,7 @@ import src.providers.tts.edge_tts_provider      # noqa: F401  (free fallback)
 # Image Providers
 import src.providers.image.dalle_provider       # noqa: F401
 import src.providers.image.stability_provider  # noqa: F401
+import src.providers.image.fal_flux_provider    # noqa: F401
 
 # Search Providers
 import src.providers.search.serpapi_provider    # noqa: F401
