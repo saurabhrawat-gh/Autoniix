@@ -24,26 +24,28 @@ import src.providers.llm.openai_provider       # noqa: F401
 import src.providers.llm.openai_vision_provider # noqa: F401
 import src.providers.llm.claude_provider        # noqa: F401
 import src.providers.llm.gemini_provider        # noqa: F401
-import src.providers.llm.glm_provider           # noqa: F401  (Zhipu GLM, OpenAI-compatible)
-import src.providers.llm.kimi_provider          # noqa: F401  (Moonshot Kimi, OpenAI-compatible)
-import src.providers.llm.mock_provider          # noqa: F401  (test mode)
-import src.providers.llm.custom_openai_compat_provider  # noqa: F401  (user-defined OpenAI-compat endpoints)
-import src.providers.llm.deepseek_provider              # noqa: F401  (DeepSeek V3 / R1 — cheapest general-purpose)
+import src.providers.llm.deepseek_provider      # noqa: F401
 
 # TTS Providers
-import src.providers.tts.inworld_tts_provider   # noqa: F401  (default — $0.025/1K chars, ElevenLabs quality)
-import src.providers.tts.fish_audio             # noqa: F401  (fallback — $0.015/1K chars)
-import src.providers.tts.elevenlabs_provider    # noqa: F401  (optional premium)
-import src.providers.tts.edge_tts_provider      # noqa: F401  (test mode, free)
+import src.providers.tts.inworld_tts_provider   # noqa: F401
+import src.providers.tts.fish_audio             # noqa: F401
+import src.providers.tts.elevenlabs_provider    # noqa: F401
+import src.providers.tts.cartesia_provider      # noqa: F401
+import src.providers.tts.edge_tts_provider      # noqa: F401  (free fallback)
 
 # Image Providers
 import src.providers.image.dalle_provider       # noqa: F401
-import src.providers.image.fal_flux_provider    # noqa: F401  (Flux.1 Schnell — $0.003/image default)
-import src.providers.image.placeholder_provider # noqa: F401  (test mode)
+import src.providers.image.stability_provider  # noqa: F401
 
 # Search Providers
 import src.providers.search.serpapi_provider    # noqa: F401
 import src.providers.search.mock_search_provider # noqa: F401  (test mode)
+
+# Stock Providers
+import src.providers.stock.pexels_provider      # noqa: F401
+import src.providers.stock.pixabay_provider     # noqa: F401
+import src.providers.stock.unsplash_provider     # noqa: F401
+import src.providers.stock.kling_provider       # noqa: F401
 
 # Storage Providers
 import src.providers.storage.minio_provider     # noqa: F401
