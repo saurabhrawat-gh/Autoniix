@@ -391,7 +391,7 @@ async def list_credentials(
     # Superadmin/legacy sessions see all credentials across all workspaces.
     if actor.global_role != "superadmin" and actor.source != "legacy":
         args.append(actor.workspace_id)
-        filters.append(f"(workspace_id=${len(args)} OR workspace_id IS NULL)")
+        filters.append(f"workspace_id=${len(args)}")  # AE-324: strict — NULL rows backfilled to ws 1
     if category:
         args.append(category)
         filters.append(f"category=${len(args)}")
@@ -422,7 +422,7 @@ async def create_credential(
 ):
     pool = await get_pool()
     cat = await pool.fetchrow(
-        "SELECT name FROM provider_categories WHERE name=$1", body.category
+        "SELECT name, kind FROM provider_categories WHERE name=$1", body.category
     )
     if not cat:
         raise HTTPException(400, f"Unknown category {body.category!r}")
@@ -440,8 +440,12 @@ async def create_credential(
             # marketplace catalog (a user-added "catalog-only" provider). Such a
             # credential is stored and shown as connected, but the runtime can't
             # call it until an adapter class ships (is_callable=FALSE).
-            in_catalog = await pool.fetchval(
-                "SELECT 1 FROM provider_marketplace_catalog WHERE provider_key=$1",
+            in_catalog = await pool.fetchrow(
+                """SELECT pmc.provider_key,
+                          (SELECT kind FROM provider_categories WHERE name = pmc.category)
+                              AS provider_kind
+                     FROM provider_marketplace_catalog pmc
+                    WHERE pmc.provider_key = $1""",
                 body.provider_name,
             )
             if not in_catalog:
@@ -451,6 +455,15 @@ async def create_credential(
                     f"Provider {body.provider_name!r} is not registered for "
                     f"category {body.category!r}. Available: {available or '(none)'}. "
                     f"Pick one from the dropdown.",
+                )
+            # AE-319: Reject cross-kind credential adds.
+            provider_kind = in_catalog["provider_kind"]
+            if provider_kind and provider_kind != cat["kind"]:
+                raise HTTPException(
+                    400,
+                    f"Provider {body.provider_name!r} belongs to kind "
+                    f"{provider_kind!r} but category {body.category!r} is "
+                    f"kind {cat['kind']!r}. Choose a {cat['kind']!r} provider.",
                 )
     except HTTPException:
         raise
@@ -888,20 +901,25 @@ def _rotation_status_dict(row: Any) -> dict:
 
 # Chains (legacy URL — proxies to v2 workspace+mode-agnostic)
 @router.get("/chains/{category}")
-async def get_chain(category: str, _: Principal = Depends(principal_dep)):
+async def get_chain(category: str, actor: Principal = Depends(principal_dep)):
     """Legacy endpoint. Returns the workspace + mode-agnostic chain for the category."""
     pool = await get_pool()
     rows = await pool.fetch(
         """SELECT c.id, c.position, c.fallback_strategy,
                   COALESCE(c.is_enabled, TRUE) AS is_enabled,
                   pc.id AS credential_id, pc.label, pc.provider_name, pc.model,
-                  pc.enabled, pc.last_health_ok, pc.last_health_at
+                  pc.enabled, pc.last_health_ok, pc.last_health_at,
+                  (SELECT kind FROM provider_categories WHERE name = c.category)
+                      AS chain_category_kind,
+                  (SELECT kind FROM provider_categories WHERE name = pc.category)
+                      AS credential_kind
              FROM provider_chains_v2 c
              JOIN provider_credentials pc ON pc.id = c.credential_id
             WHERE c.scope = 'workspace' AND c.scope_id IS NULL
               AND c.content_mode IS NULL AND c.category = $1
+              AND c.workspace_id = $2
             ORDER BY c.position""",
-        category,
+        category, actor.workspace_id,
     )
     return {"data": [dict(r) for r in rows]}
 
@@ -917,7 +935,7 @@ async def set_chain(
     await _upsert_chain_v2(
         scope="workspace", scope_id=None, content_mode=None,
         category=category, credential_ids=body.credential_ids,
-        actor_user_id=actor.user_id,
+        actor_user_id=actor.user_id, workspace_id=actor.workspace_id,
     )
     await audit(actor=actor, action="provider.chain.set",
                 target_type="provider_chain", target_id=category,
@@ -944,7 +962,7 @@ async def list_chain_v2(
     content_mode: str | None = None,
     pipeline_mode: str = "production",
     category: str | None = None,
-    _: Principal = Depends(principal_dep),
+    actor: Principal = Depends(principal_dep),
 ):
     """List chain rows for a given (scope, scope_id, content_mode, pipeline_mode, [category])."""
     pool = await get_pool()
@@ -952,16 +970,21 @@ async def list_chain_v2(
                     c.position, c.fallback_strategy,
                     COALESCE(c.is_enabled, TRUE) AS is_enabled,
                     pc.id AS credential_id, pc.label, pc.provider_name, pc.model,
-                    pc.enabled, pc.last_health_ok, pc.last_health_at
+                    pc.enabled, pc.last_health_ok, pc.last_health_at,
+                    (SELECT kind FROM provider_categories WHERE name = c.category)
+                        AS chain_category_kind,
+                    (SELECT kind FROM provider_categories WHERE name = pc.category)
+                        AS credential_kind
                FROM provider_chains_v2 c
                JOIN provider_credentials pc ON pc.id = c.credential_id
               WHERE c.scope = $1
                 AND ($2::text IS NULL AND c.scope_id IS NULL OR c.scope_id = $2)
                 AND ($3::text IS NULL AND c.content_mode IS NULL OR c.content_mode = $3)
-                AND COALESCE(c.pipeline_mode, 'production') = $4"""
-    args: list[Any] = [scope, scope_id, content_mode, pipeline_mode]
+                AND COALESCE(c.pipeline_mode, 'production') = $4
+                AND c.workspace_id = $5"""
+    args: list[Any] = [scope, scope_id, content_mode, pipeline_mode, actor.workspace_id]
     if category:
-        sql += " AND c.category = $5"
+        sql += " AND c.category = $6"
         args.append(category)
     sql += " ORDER BY c.category, c.position"
     rows = await pool.fetch(sql, *args)
@@ -975,10 +998,34 @@ async def upsert_chain_v2(
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Replace the chain at (scope, scope_id, content_mode, pipeline_mode, category)."""
+    # AE-319: Reject chain entries whose provider kind differs from the
+    # chain's category kind (e.g. adding an LLM credential to a TTS chain).
+    if body.credential_ids:
+        pool = await get_pool()
+        cat_kind = await pool.fetchval(
+            "SELECT kind FROM provider_categories WHERE name=$1", body.category
+        )
+        if cat_kind:
+            wrong = await pool.fetchrow(
+                """SELECT c.id, pc.kind AS cred_kind
+                     FROM provider_credentials c
+                     JOIN provider_categories pc ON pc.name = c.category
+                    WHERE c.id = ANY($1::bigint[])
+                      AND pc.kind != $2
+                    LIMIT 1""",
+                body.credential_ids, cat_kind,
+            )
+            if wrong:
+                raise HTTPException(
+                    400,
+                    f"Credential {wrong['id']} is kind {wrong['cred_kind']!r} but "
+                    f"chain category {body.category!r} expects kind {cat_kind!r}.",
+                )
     await _upsert_chain_v2(
         scope=body.scope, scope_id=body.scope_id, content_mode=body.content_mode,
         pipeline_mode=body.pipeline_mode, category=body.category,
         credential_ids=body.credential_ids, actor_user_id=actor.user_id,
+        workspace_id=actor.workspace_id,
     )
     await audit(actor=actor, action="provider.chain_v2.set",
                 target_type="provider_chain_v2",
@@ -1034,6 +1081,7 @@ async def _upsert_chain_v2(
     category: str,
     credential_ids: list[int],
     actor_user_id: int | None,
+    workspace_id: int = 1,
 ) -> None:
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -1044,16 +1092,18 @@ async def _upsert_chain_v2(
                       AND ($2::text IS NULL AND scope_id IS NULL OR scope_id = $2)
                       AND ($3::text IS NULL AND content_mode IS NULL OR content_mode = $3)
                       AND COALESCE(pipeline_mode, 'production') = $4
-                      AND category = $5""",
-                scope, scope_id, content_mode, pipeline_mode, category,
+                      AND category = $5
+                      AND workspace_id = $6""",
+                scope, scope_id, content_mode, pipeline_mode, category, workspace_id,
             )
             for pos, cid in enumerate(credential_ids):
                 await conn.execute(
                     """INSERT INTO provider_chains_v2
                             (scope, scope_id, content_mode, pipeline_mode, category, position,
-                             credential_id, created_by)
-                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)""",
+                             credential_id, created_by, workspace_id)
+                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)""",
                     scope, scope_id, content_mode, pipeline_mode, category, pos, cid, actor_user_id,
+                    workspace_id,
                 )
 
 

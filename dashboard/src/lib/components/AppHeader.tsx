@@ -12,9 +12,7 @@ import { CommandPalette } from './CommandPalette';
 import { NotificationBell } from './NotificationBell';
 import { WsStatusPill } from './WsStatusPill';
 import { MobileDrawer } from './MobileDrawer';
-import { EnvProductionDialog } from './EnvProductionDialog';
 import { ThemeToggle } from '../theme';
-import { cn } from '../utils';
 import {
   Video,
   Activity,
@@ -32,8 +30,6 @@ import {
   Archive,
   Zap,
   LogOut,
-  Beaker,
-  Rocket,
   UserCircle,
   Boxes,
   ChevronDown,
@@ -50,11 +46,10 @@ type Workspace = { id: number; name: string; slug: string; plan: string; role: s
 export function AppHeader() {
   const pathname = usePathname() || '';
   const router = useRouter();
-  const { systemStopped, setPaletteOpen, envMode, envSwitching, switchEnv } = useAppState();
+  const { systemStopped, setPaletteOpen } = useAppState();
   const { showToast } = useToast();
   const [helpOpen, setHelpOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [envConfirmOpen, setEnvConfirmOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [switchingWs, setSwitchingWs] = useState(false);
 
@@ -80,29 +75,6 @@ export function AppHeader() {
     clearToken();
     try { await authApi.logout(); } catch { /* ignore — redirect regardless */ }
     router.push('/login');
-  }
-
-  async function handleEnvToggle() {
-    if (envMode === 'test') {
-      setEnvConfirmOpen(true);
-      return;
-    }
-    try {
-      await switchEnv('test');
-      showToast('Switched to TEST mode', 'success');
-    } catch (e: any) {
-      showToast(e?.message || 'Failed to switch mode', 'error');
-    }
-  }
-
-  async function confirmProduction() {
-    try {
-      await switchEnv('production', true);
-      setEnvConfirmOpen(false);
-      showToast('Switched to PRODUCTION mode', 'success');
-    } catch (e: any) {
-      showToast(e?.message || 'Failed to switch mode', 'error');
-    }
   }
 
   async function handleSwitchWorkspace(id: number) {
@@ -145,27 +117,6 @@ export function AppHeader() {
 
         {/* Spacer */}
         <div className="flex-1" />
-
-        {/* ENV mode pill */}
-        <Tip text={envMode === 'test' ? 'TEST mode — click to switch to Production' : 'PRODUCTION mode — click to switch to Test'} pos="bottom">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleEnvToggle}
-            disabled={envSwitching}
-            className={cn(
-              'h-7 px-2.5 text-[11px] font-semibold tracking-wider',
-              envMode === 'test'
-                ? 'border-status-warning/30 bg-status-warning/10 text-status-warning hover:bg-status-warning/15'
-                : 'border-status-success/30 bg-status-success/10 text-status-success hover:bg-status-success/15',
-              envSwitching && 'cursor-wait'
-            )}
-          >
-            {envMode === 'test' ? <Beaker size={12} /> : <Rocket size={12} />}
-            <span className="hidden sm:inline">{envMode === 'test' ? 'TEST' : 'LIVE'}</span>
-          </Button>
-        </Tip>
 
         {/* WS status */}
         <WsStatusPill />
@@ -308,13 +259,6 @@ export function AppHeader() {
           </Tip>
         )}
       </header>
-
-      <EnvProductionDialog
-        open={envConfirmOpen}
-        switching={envSwitching}
-        onCancel={() => setEnvConfirmOpen(false)}
-        onConfirm={confirmProduction}
-      />
 
       <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
       <CommandPalette />

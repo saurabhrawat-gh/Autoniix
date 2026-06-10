@@ -6,7 +6,7 @@ import { Tip } from './Tooltip';
 import { cn } from '../utils';
 
 const LABEL: Record<string, string> = {
-  live: 'Live',
+  live: 'Connected',
   connecting: 'Connecting',
   offline: 'Offline',
 };

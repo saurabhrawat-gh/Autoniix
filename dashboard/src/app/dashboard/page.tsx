@@ -33,7 +33,6 @@ export default function DashboardPage() {
   const { showToast } = useToast();
   const [stats, setStats] = useState<any>(null);
   const [jobs, setJobs] = useState<any[]>([]);
-  const [envMode, setEnvMode] = useState<string>('test');
   const [systemStopped, setSystemStopped] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -47,7 +46,6 @@ export default function DashboardPage() {
       const d = s.data;
       setStats(d);
       setSystemStopped(!!d.emergency_stop);
-      setEnvMode(d.environment_mode || 'test');
       const items = j ? (j.data.groups ?? []).flatMap((g: any) => g.items ?? []) : [];
       setJobs(items);
     } catch (e: any) {
@@ -163,14 +161,7 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-      {!systemStopped && envMode === 'test' && (
-        <div className="p-2.5 rounded-md bg-status-warning/5 border border-status-warning/15 flex items-center gap-2 text-xs text-status-warning">
-          <span className="w-1.5 h-1.5 rounded-full bg-status-warning shrink-0" />
-          <span className="font-medium">Test Mode</span>
-          <span className="text-content-tertiary">— Mock providers. No real YouTube uploads.</span>
-        </div>
-      )}
-      {!systemStopped && envMode === 'production' && (
+      {!systemStopped && (
         <div className="p-2.5 rounded-md bg-status-success/5 border border-status-success/15 flex items-center gap-2 text-xs text-status-success">
           <span className="w-1.5 h-1.5 rounded-full bg-status-success shrink-0" />
           <span className="font-medium">Production Mode</span>
