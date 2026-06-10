@@ -422,7 +422,7 @@ async def create_credential(
 ):
     pool = await get_pool()
     cat = await pool.fetchrow(
-        "SELECT name FROM provider_categories WHERE name=$1", body.category
+        "SELECT name, kind FROM provider_categories WHERE name=$1", body.category
     )
     if not cat:
         raise HTTPException(400, f"Unknown category {body.category!r}")
@@ -440,8 +440,12 @@ async def create_credential(
             # marketplace catalog (a user-added "catalog-only" provider). Such a
             # credential is stored and shown as connected, but the runtime can't
             # call it until an adapter class ships (is_callable=FALSE).
-            in_catalog = await pool.fetchval(
-                "SELECT 1 FROM provider_marketplace_catalog WHERE provider_key=$1",
+            in_catalog = await pool.fetchrow(
+                """SELECT pmc.provider_key,
+                          (SELECT kind FROM provider_categories WHERE name = pmc.category)
+                              AS provider_kind
+                     FROM provider_marketplace_catalog pmc
+                    WHERE pmc.provider_key = $1""",
                 body.provider_name,
             )
             if not in_catalog:
@@ -451,6 +455,15 @@ async def create_credential(
                     f"Provider {body.provider_name!r} is not registered for "
                     f"category {body.category!r}. Available: {available or '(none)'}. "
                     f"Pick one from the dropdown.",
+                )
+            # AE-319: Reject cross-kind credential adds.
+            provider_kind = in_catalog["provider_kind"]
+            if provider_kind and provider_kind != cat["kind"]:
+                raise HTTPException(
+                    400,
+                    f"Provider {body.provider_name!r} belongs to kind "
+                    f"{provider_kind!r} but category {body.category!r} is "
+                    f"kind {cat['kind']!r}. Choose a {cat['kind']!r} provider.",
                 )
     except HTTPException:
         raise
@@ -895,7 +908,11 @@ async def get_chain(category: str, _: Principal = Depends(principal_dep)):
         """SELECT c.id, c.position, c.fallback_strategy,
                   COALESCE(c.is_enabled, TRUE) AS is_enabled,
                   pc.id AS credential_id, pc.label, pc.provider_name, pc.model,
-                  pc.enabled, pc.last_health_ok, pc.last_health_at
+                  pc.enabled, pc.last_health_ok, pc.last_health_at,
+                  (SELECT kind FROM provider_categories WHERE name = c.category)
+                      AS chain_category_kind,
+                  (SELECT kind FROM provider_categories WHERE name = pc.category)
+                      AS credential_kind
              FROM provider_chains_v2 c
              JOIN provider_credentials pc ON pc.id = c.credential_id
             WHERE c.scope = 'workspace' AND c.scope_id IS NULL
@@ -952,7 +969,11 @@ async def list_chain_v2(
                     c.position, c.fallback_strategy,
                     COALESCE(c.is_enabled, TRUE) AS is_enabled,
                     pc.id AS credential_id, pc.label, pc.provider_name, pc.model,
-                    pc.enabled, pc.last_health_ok, pc.last_health_at
+                    pc.enabled, pc.last_health_ok, pc.last_health_at,
+                    (SELECT kind FROM provider_categories WHERE name = c.category)
+                        AS chain_category_kind,
+                    (SELECT kind FROM provider_categories WHERE name = pc.category)
+                        AS credential_kind
                FROM provider_chains_v2 c
                JOIN provider_credentials pc ON pc.id = c.credential_id
               WHERE c.scope = $1
@@ -975,6 +996,29 @@ async def upsert_chain_v2(
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Replace the chain at (scope, scope_id, content_mode, pipeline_mode, category)."""
+    # AE-319: Reject chain entries whose provider kind differs from the
+    # chain's category kind (e.g. adding an LLM credential to a TTS chain).
+    if body.credential_ids:
+        pool = await get_pool()
+        cat_kind = await pool.fetchval(
+            "SELECT kind FROM provider_categories WHERE name=$1", body.category
+        )
+        if cat_kind:
+            wrong = await pool.fetchrow(
+                """SELECT c.id, pc.kind AS cred_kind
+                     FROM provider_credentials c
+                     JOIN provider_categories pc ON pc.name = c.category
+                    WHERE c.id = ANY($1::bigint[])
+                      AND pc.kind != $2
+                    LIMIT 1""",
+                body.credential_ids, cat_kind,
+            )
+            if wrong:
+                raise HTTPException(
+                    400,
+                    f"Credential {wrong['id']} is kind {wrong['cred_kind']!r} but "
+                    f"chain category {body.category!r} expects kind {cat_kind!r}.",
+                )
     await _upsert_chain_v2(
         scope=body.scope, scope_id=body.scope_id, content_mode=body.content_mode,
         pipeline_mode=body.pipeline_mode, category=body.category,
