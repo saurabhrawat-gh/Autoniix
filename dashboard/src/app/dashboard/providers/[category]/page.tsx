@@ -1984,6 +1984,16 @@ function SortableChainItem({
           {!entryEnabled && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">disabled</span>
           )}
+          {entry.chain_category_kind && entry.credential_kind &&
+            entry.chain_category_kind !== entry.credential_kind && (
+            <span
+              title={`Kind mismatch: credential is ${entry.credential_kind}, chain expects ${entry.chain_category_kind}`}
+              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-amber-500/15 text-amber-600 border border-amber-500/30 font-medium"
+            >
+              <AlertTriangle size={10} />
+              <span>wrong kind</span>
+            </span>
+          )}
         </div>
         <div className="text-[11px] text-content-tertiary">{entry.provider_name}</div>
       </div>
