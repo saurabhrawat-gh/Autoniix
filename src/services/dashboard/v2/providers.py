@@ -391,7 +391,7 @@ async def list_credentials(
     # Superadmin/legacy sessions see all credentials across all workspaces.
     if actor.global_role != "superadmin" and actor.source != "legacy":
         args.append(actor.workspace_id)
-        filters.append(f"(workspace_id=${len(args)} OR workspace_id IS NULL)")
+        filters.append(f"workspace_id=${len(args)}")  # AE-324: strict — NULL rows backfilled to ws 1
     if category:
         args.append(category)
         filters.append(f"category=${len(args)}")
@@ -901,7 +901,7 @@ def _rotation_status_dict(row: Any) -> dict:
 
 # Chains (legacy URL — proxies to v2 workspace+mode-agnostic)
 @router.get("/chains/{category}")
-async def get_chain(category: str, _: Principal = Depends(principal_dep)):
+async def get_chain(category: str, actor: Principal = Depends(principal_dep)):
     """Legacy endpoint. Returns the workspace + mode-agnostic chain for the category."""
     pool = await get_pool()
     rows = await pool.fetch(
@@ -917,8 +917,9 @@ async def get_chain(category: str, _: Principal = Depends(principal_dep)):
              JOIN provider_credentials pc ON pc.id = c.credential_id
             WHERE c.scope = 'workspace' AND c.scope_id IS NULL
               AND c.content_mode IS NULL AND c.category = $1
+              AND c.workspace_id = $2
             ORDER BY c.position""",
-        category,
+        category, actor.workspace_id,
     )
     return {"data": [dict(r) for r in rows]}
 
@@ -934,7 +935,7 @@ async def set_chain(
     await _upsert_chain_v2(
         scope="workspace", scope_id=None, content_mode=None,
         category=category, credential_ids=body.credential_ids,
-        actor_user_id=actor.user_id,
+        actor_user_id=actor.user_id, workspace_id=actor.workspace_id,
     )
     await audit(actor=actor, action="provider.chain.set",
                 target_type="provider_chain", target_id=category,
@@ -961,7 +962,7 @@ async def list_chain_v2(
     content_mode: str | None = None,
     pipeline_mode: str = "production",
     category: str | None = None,
-    _: Principal = Depends(principal_dep),
+    actor: Principal = Depends(principal_dep),
 ):
     """List chain rows for a given (scope, scope_id, content_mode, pipeline_mode, [category])."""
     pool = await get_pool()
@@ -979,10 +980,11 @@ async def list_chain_v2(
               WHERE c.scope = $1
                 AND ($2::text IS NULL AND c.scope_id IS NULL OR c.scope_id = $2)
                 AND ($3::text IS NULL AND c.content_mode IS NULL OR c.content_mode = $3)
-                AND COALESCE(c.pipeline_mode, 'production') = $4"""
-    args: list[Any] = [scope, scope_id, content_mode, pipeline_mode]
+                AND COALESCE(c.pipeline_mode, 'production') = $4
+                AND c.workspace_id = $5"""
+    args: list[Any] = [scope, scope_id, content_mode, pipeline_mode, actor.workspace_id]
     if category:
-        sql += " AND c.category = $5"
+        sql += " AND c.category = $6"
         args.append(category)
     sql += " ORDER BY c.category, c.position"
     rows = await pool.fetch(sql, *args)
@@ -1023,6 +1025,7 @@ async def upsert_chain_v2(
         scope=body.scope, scope_id=body.scope_id, content_mode=body.content_mode,
         pipeline_mode=body.pipeline_mode, category=body.category,
         credential_ids=body.credential_ids, actor_user_id=actor.user_id,
+        workspace_id=actor.workspace_id,
     )
     await audit(actor=actor, action="provider.chain_v2.set",
                 target_type="provider_chain_v2",
@@ -1078,6 +1081,7 @@ async def _upsert_chain_v2(
     category: str,
     credential_ids: list[int],
     actor_user_id: int | None,
+    workspace_id: int = 1,
 ) -> None:
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -1088,16 +1092,18 @@ async def _upsert_chain_v2(
                       AND ($2::text IS NULL AND scope_id IS NULL OR scope_id = $2)
                       AND ($3::text IS NULL AND content_mode IS NULL OR content_mode = $3)
                       AND COALESCE(pipeline_mode, 'production') = $4
-                      AND category = $5""",
-                scope, scope_id, content_mode, pipeline_mode, category,
+                      AND category = $5
+                      AND workspace_id = $6""",
+                scope, scope_id, content_mode, pipeline_mode, category, workspace_id,
             )
             for pos, cid in enumerate(credential_ids):
                 await conn.execute(
                     """INSERT INTO provider_chains_v2
                             (scope, scope_id, content_mode, pipeline_mode, category, position,
-                             credential_id, created_by)
-                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)""",
+                             credential_id, created_by, workspace_id)
+                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)""",
                     scope, scope_id, content_mode, pipeline_mode, category, pos, cid, actor_user_id,
+                    workspace_id,
                 )
 
 
