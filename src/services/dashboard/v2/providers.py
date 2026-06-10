@@ -355,7 +355,7 @@ async def _purge_category(conn: Any, name: str) -> None:
     await conn.execute("DELETE FROM provider_routes WHERE category=$1", name)
     await conn.execute("DELETE FROM provider_credentials WHERE category=$1", name)
     await conn.execute(
-        "DELETE FROM provider_marketplace_catalog WHERE category=$1 AND is_user_defined=TRUE", name)
+        "DELETE FROM provider_marketplace_catalog WHERE category=$1", name)
     await conn.execute("DELETE FROM provider_categories WHERE name=$1", name)
 
 
