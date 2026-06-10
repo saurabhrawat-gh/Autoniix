@@ -328,13 +328,14 @@ async def create_channel(
 async def list_channels(
     include_archived: bool = False,
     enrich: bool = True,
-    _: Principal = Depends(principal_dep),
+    actor: Principal = Depends(principal_dep),
 ):
     pool = await get_pool()
-    conditions = []
+    args: list[Any] = [actor.workspace_id]
+    conditions = ["c.workspace_id = $1"]
     if not include_archived:
         conditions.append("c.status != 'archived'")
-    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    where = "WHERE " + " AND ".join(conditions)
     rows = await pool.fetch(
         f"""
         SELECT c.channel_id, c.channel_name, c.niche, c.sub_niche, c.content_mode,
@@ -353,7 +354,8 @@ async def list_channels(
           LEFT JOIN channel_profiles cp ON cp.channel_id = c.channel_id
           {where}
           ORDER BY c.created_at DESC, c.channel_id
-        """
+        """,
+        *args,
     )
     data = [dict(r) for r in rows]
     if enrich and data:
@@ -377,11 +379,12 @@ async def dashboard_stats_early(_: Principal = Depends(principal_dep)):
 
 
 @router.get("/{channel_id}")
-async def get_channel(channel_id: str, _: Principal = Depends(principal_dep)):
+async def get_channel(channel_id: str, actor: Principal = Depends(principal_dep)):
     pool = await get_pool()
     async with pool.acquire() as conn:
         ch = await conn.fetchrow(
-            "SELECT * FROM channels WHERE channel_id=$1", channel_id
+            "SELECT * FROM channels WHERE channel_id=$1 AND workspace_id=$2",
+            channel_id, actor.workspace_id,
         )
         if not ch:
             raise HTTPException(404, "Channel not found")
