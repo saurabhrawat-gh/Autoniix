@@ -285,3 +285,42 @@ class TestWorkspaceScoping:
         sql = call_args[0][0] if call_args[0] else str(call_args)
         positional_args = call_args[0][1:] if call_args[0] else call_args[1].get("args", [])
         assert 3 in positional_args, "workspace_id=3 must be bound in query args"
+
+
+# ---------------------------------------------------------------------------
+# AE-318: delete_kind — FK-safe purge of marketplace catalog entries
+# ---------------------------------------------------------------------------
+
+class TestDeleteKind:
+    @pytest.mark.asyncio
+    async def test_delete_kind_purges_all_catalog_entries(self):
+        """_purge_category must DELETE FROM provider_marketplace_catalog WHERE category=$1
+        without filtering on is_user_defined, otherwise the FK constraint
+        (marketplace_catalog.category → provider_categories.name, no CASCADE)
+        raises an error when built-in catalog rows remain → HTTP 500.
+        Regression test for AE-318."""
+        from src.services.dashboard.v2.providers import delete_kind
+        from tests.conftest import FakePool, FakeRecord
+
+        pool = FakePool()
+        pool.fetchrow.return_value = FakeRecord(kind="storage")
+        pool.fetch.return_value = [FakeRecord(name="storage")]
+
+        actor = _make_principal(role="owner")
+        req = MagicMock()
+
+        with _pool_ctx(pool), \
+             patch(f"{_PROV_MODULE}.audit", new_callable=AsyncMock):
+            result = await delete_kind(kind="storage", request=req, actor=actor)
+
+        assert result["status"] == "ok"
+        assert result["categories_removed"] == ["storage"]
+
+        executed_sqls = [call[0][0] for call in pool.conn.execute.call_args_list]
+        catalog_deletes = [s for s in executed_sqls if "provider_marketplace_catalog" in s]
+        assert catalog_deletes, "expected at least one DELETE on provider_marketplace_catalog"
+        for sql in catalog_deletes:
+            assert "is_user_defined" not in sql, (
+                "FK-safe purge must not filter on is_user_defined — "
+                "built-in catalog rows would remain and violate the FK constraint"
+            )
