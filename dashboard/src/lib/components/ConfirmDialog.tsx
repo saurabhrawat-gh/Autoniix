@@ -83,7 +83,7 @@ export function ConfirmDialog(props: {
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onCancel(); }}>
-      <DialogContent className="max-w-sm" hideClose>
+      <DialogContent className="max-w-lg" hideClose>
         <div className="flex flex-col items-center text-center gap-3 pt-1">
           <div
             className={[
@@ -95,14 +95,13 @@ export function ConfirmDialog(props: {
           </div>
           <div className="w-full space-y-1.5 text-center">
             <DialogTitle>{title}</DialogTitle>
-            <div className="h-px w-full bg-border" />
             {description && (
               <DialogDescription>{description}</DialogDescription>
             )}
           </div>
         </div>
 
-        <div className="flex flex-col-reverse sm:flex-row sm:justify-center gap-2 mt-1">
+        <div className="flex flex-row justify-end gap-2 mt-2">
           {!alertOnly && (
             <Button variant="outline" onClick={onCancel} disabled={loading}>
               {cancelLabel}
@@ -158,7 +157,7 @@ export function PromptDialog(props: {
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onCancel(); }}>
-      <DialogContent className="max-w-md" hideClose>
+      <DialogContent className="max-w-lg" hideClose>
         <div className="flex flex-col items-center text-center gap-3 pt-1">
           <div
             className={[
@@ -170,7 +169,6 @@ export function PromptDialog(props: {
           </div>
           <div className="w-full space-y-1.5 text-center">
             <DialogTitle>{title}</DialogTitle>
-            <div className="h-px w-full bg-border" />
             {description && (
               <DialogDescription>{description}</DialogDescription>
             )}
@@ -191,7 +189,7 @@ export function PromptDialog(props: {
           />
         </form>
 
-        <div className="flex flex-col-reverse sm:flex-row sm:justify-center gap-2 mt-1">
+        <div className="flex flex-row justify-end gap-2 mt-2">
           <Button variant="outline" onClick={onCancel} disabled={loading}>
             {cancelLabel}
           </Button>
