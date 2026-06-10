@@ -618,6 +618,15 @@ async def reset(body: ResetIn):
     return {"status": "ok"}
 
 
+# Plan → maximum number of workspaces a user may own simultaneously
+_WORKSPACE_LIMITS: dict[str, int] = {
+    "starter":    1,
+    "pro":        3,
+    "business":   5,
+    "enterprise": 20,
+}
+
+
 class CreateWorkspaceIn(BaseModel):
     workspace_name: str = Field(min_length=2, max_length=60)
 
@@ -629,48 +638,56 @@ async def create_workspace_for_existing_user(
     response: Response,
     p: Principal = Depends(principal_dep),
 ):
-    """Create a workspace for an authenticated user who has none (e.g. seeded accounts).
+    """Create an additional workspace for the authenticated owner.
 
-    Idempotent: if the user already has a workspace, returns the existing one unchanged.
-    Issues a fresh JWT with the correct ``wid`` claim.
+    Enforces the per-plan workspace limit. Issues a fresh JWT switching the
+    session to the newly created workspace.
     """
     if not p.user_id:
         raise HTTPException(403, "Legacy session — cannot create workspace")
     pool = await get_pool()
-    # Check if user already has a workspace
-    existing = await pool.fetchrow(
-        "SELECT workspace_id FROM workspace_members WHERE user_id=$1 LIMIT 1", p.user_id
-    )
-    if existing:
-        wid = existing["workspace_id"]
-    else:
-        ws_name = body.workspace_name.strip()
-        ws_slug = ws_name.lower().replace(" ", "-")[:60]
-        suffix = 0
-        while await pool.fetchval(
-            "SELECT id FROM workspaces WHERE slug=$1",
-            ws_slug if suffix == 0 else f"{ws_slug}-{suffix}",
-        ):
-            suffix += 1
-        if suffix:
-            ws_slug = f"{ws_slug}-{suffix}"
-        user = await pool.fetchrow(
-            "SELECT id, email, role FROM users WHERE id=$1", p.user_id
+    # Enforce per-plan workspace limit
+    owned_count: int = await pool.fetchval(
+        "SELECT COUNT(*) FROM workspaces WHERE owner_user_id=$1", p.user_id
+    ) or 0
+    active_plan: str = await pool.fetchval(
+        "SELECT plan FROM workspaces WHERE owner_user_id=$1 ORDER BY created_at DESC LIMIT 1",
+        p.user_id,
+    ) or "starter"
+    limit = _WORKSPACE_LIMITS.get(str(active_plan), 1)
+    if owned_count >= limit:
+        raise HTTPException(
+            403,
+            f"Your {active_plan!r} plan allows up to {limit} workspace(s). "
+            "Upgrade your plan to create more.",
         )
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                wid = await conn.fetchval(
-                    """INSERT INTO workspaces (name, slug, plan, mode, owner_user_id, billing_email)
-                       VALUES ($1,$2,'starter','solo',$3,$4) RETURNING id""",
-                    ws_name, ws_slug, p.user_id, user["email"],
-                )
-                await conn.execute(
-                    "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1,$2,'owner')",
-                    wid, p.user_id,
-                )
-                await conn.execute(
-                    "UPDATE users SET active_workspace_id=$1 WHERE id=$2", wid, p.user_id
-                )
+    ws_name = body.workspace_name.strip()
+    ws_slug = ws_name.lower().replace(" ", "-")[:60]
+    suffix = 0
+    while await pool.fetchval(
+        "SELECT id FROM workspaces WHERE slug=$1",
+        ws_slug if suffix == 0 else f"{ws_slug}-{suffix}",
+    ):
+        suffix += 1
+    if suffix:
+        ws_slug = f"{ws_slug}-{suffix}"
+    user = await pool.fetchrow(
+        "SELECT id, email, role FROM users WHERE id=$1", p.user_id
+    )
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            wid = await conn.fetchval(
+                """INSERT INTO workspaces (name, slug, plan, mode, owner_user_id, billing_email)
+                   VALUES ($1,$2,$3,'solo',$4,$5) RETURNING id""",
+                ws_name, ws_slug, active_plan, p.user_id, user["email"],
+            )
+            await conn.execute(
+                "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1,$2,'owner')",
+                wid, p.user_id,
+            )
+            await conn.execute(
+                "UPDATE users SET active_workspace_id=$1 WHERE id=$2", wid, p.user_id
+            )
     # Issue fresh token pair with the correct workspace
     user_row = await pool.fetchrow(
         "SELECT id, email, role, mfa_enabled, disabled FROM users WHERE id=$1", p.user_id
