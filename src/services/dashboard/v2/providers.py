@@ -1451,7 +1451,7 @@ async def credential_health(
 # Marketplace
 
 @router.get("/marketplace")
-async def list_marketplace(_: Principal = Depends(principal_dep)):
+async def list_marketplace(actor: Principal = Depends(principal_dep)):
     """Return full provider catalog with `connected` flag for each entry."""
     pool = await get_pool()
     catalog = await pool.fetch(
@@ -1463,10 +1463,17 @@ async def list_marketplace(_: Principal = Depends(principal_dep)):
              FROM provider_marketplace_catalog
             ORDER BY category, sort_order, display_name"""
     )
-    # Which provider_names are already connected?
-    connected_rows = await pool.fetch(
-        "SELECT DISTINCT provider_name FROM provider_credentials WHERE enabled=TRUE"
-    )
+    # AE-324: which provider_names are connected in THIS workspace only?
+    if actor.global_role != "superadmin" and actor.source != "legacy":
+        connected_rows = await pool.fetch(
+            "SELECT DISTINCT provider_name FROM provider_credentials "
+            "WHERE enabled=TRUE AND workspace_id=$1",
+            actor.workspace_id,
+        )
+    else:
+        connected_rows = await pool.fetch(
+            "SELECT DISTINCT provider_name FROM provider_credentials WHERE enabled=TRUE"
+        )
     connected = {r["provider_name"] for r in connected_rows}
     result = []
     for r in catalog:

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useHotkeys } from 'react-hotkeys-hook';
 import type { LucideIcon } from 'lucide-react';
@@ -174,33 +174,81 @@ function ExpandableGroup({
   group,
   isAnyChildActive,
   collapsed,
+  items = [],
+  isActiveItem,
   children,
 }: {
   group: NavGroup;
   isAnyChildActive: boolean;
   collapsed: boolean;
+  items?: NavItem[];
+  isActiveItem?: (href: string) => boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(group.defaultExpanded ?? false);
+  const [floatTop, setFloatTop] = useState<number | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
   const Icon = group.icon;
+
+  useEffect(() => { if (!collapsed) setFloatTop(null); }, [collapsed]);
 
   if (collapsed) {
     return (
-      <Tip text={group.label} pos="right">
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className={cn(
-            'w-10 h-10 flex items-center justify-center mx-auto rounded-full transition-colors',
-            isAnyChildActive
-              ? 'bg-surface-1 text-accent'
-              : 'text-content-secondary hover:text-content-primary hover:bg-surface-1'
-          )}
-          aria-label={group.label}
-        >
-          <Icon size={17} className="shrink-0" />
-        </button>
-      </Tip>
+      <div>
+        <Tip text={group.label} pos="right">
+          <button
+            ref={btnRef}
+            type="button"
+            onClick={() => {
+              if (floatTop !== null) { setFloatTop(null); return; }
+              const rect = btnRef.current?.getBoundingClientRect();
+              if (rect) setFloatTop(rect.top);
+            }}
+            className={cn(
+              'w-10 h-10 flex items-center justify-center mx-auto rounded-full transition-colors',
+              isAnyChildActive
+                ? 'bg-surface-1 text-accent'
+                : 'text-content-secondary hover:text-content-primary hover:bg-surface-1'
+            )}
+            aria-label={group.label}
+          >
+            <Icon size={17} className="shrink-0" />
+          </button>
+        </Tip>
+        {floatTop !== null && items.length > 0 && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setFloatTop(null)} />
+            <div
+              className="fixed left-[60px] z-50 w-52 bg-surface-0 border border-border rounded-xl shadow-elevated py-1 overflow-hidden"
+              style={{ top: floatTop }}
+            >
+              <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-content-tertiary border-b border-border mb-1">
+                {group.label}
+              </div>
+              {items.map((item) => {
+                const active = isActiveItem?.(item.href) ?? false;
+                const ItemIcon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setFloatTop(null)}
+                    className={cn(
+                      'flex items-center gap-2.5 px-3 py-2 text-sm font-medium transition-colors',
+                      active
+                        ? 'text-accent bg-surface-1'
+                        : 'text-content-secondary hover:text-content-primary hover:bg-surface-1'
+                    )}
+                  >
+                    <ItemIcon size={14} className="shrink-0" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
     );
   }
 
@@ -332,7 +380,7 @@ export function Sidebar() {
       if (visibleItems.length === 0) return null;
       const anyActive = visibleItems.some((item) => isActive(item.href));
       return (
-        <ExpandableGroup key={group.id} group={group} isAnyChildActive={anyActive} collapsed={collapsed}>
+        <ExpandableGroup key={group.id} group={group} isAnyChildActive={anyActive} collapsed={collapsed} items={visibleItems} isActiveItem={isActive}>
           {visibleItems.map((item) => (
             <NavLeaf key={item.href} item={item} active={isActive(item.href)} collapsed={collapsed} indent />
           ))}
