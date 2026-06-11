@@ -1084,6 +1084,16 @@ async def _upsert_chain_v2(
     workspace_id: int = 1,
 ) -> None:
     pool = await get_pool()
+    # AE-321: deduplicate while preserving order — guards against frontend races
+    # sending the same id twice which would create duplicate chain positions.
+    seen: set[int] = set()
+    deduped: list[int] = []
+    for cid in credential_ids:
+        if cid not in seen:
+            seen.add(cid)
+            deduped.append(cid)
+    credential_ids = deduped
+
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute(

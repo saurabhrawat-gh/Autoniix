@@ -487,25 +487,16 @@ export default function ProviderCategoryPage() {
           {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-14 rounded-md bg-surface-2 animate-pulse" />)}
         </div>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-7">
           {/* ── Priority chain ──────────────────────────── */}
           <section>
             <div className="mb-2 flex items-start justify-between gap-3 flex-wrap">
               <div>
-                <h2 className="text-sm font-semibold text-content-primary">Priority chain</h2>
+                <h2 className="text-base font-semibold text-content-primary">Priority chain</h2>
                 <p className="text-xs text-content-tertiary mt-0.5">
-                  Resolution order — the first healthy provider handles the call. On error it falls through to the next.
-                  {chain.length === 0 && ' Add credentials below, then drag them into the chain.'}
+                  Ordered fallback list — first healthy provider wins; drag to reorder.
+                  {chain.length === 0 && ' Add credentials below to get started.'}
                 </p>
-                <div className="mt-2 rounded-md border border-border/50 bg-surface-1/50 px-3 py-2 text-[11px] text-content-tertiary flex items-start gap-2">
-                  <HelpCircle size={12} className="shrink-0 mt-px text-content-tertiary/60" />
-                  <span>
-                    <span className="font-medium text-content-secondary">Chain vs. Policy — </span>
-                    The <em>chain</em> is your ordered fallback list (drag to reorder; top = highest priority).
-                    The <em>routing policy</em> below controls how the runtime picks a provider when multiple are healthy —
-                    e.g. &ldquo;Cheapest&rdquo; picks by cost, &ldquo;Balanced&rdquo; blends cost&thinsp;+&thinsp;quality.
-                  </span>
-                </div>
               </div>
               {/* Content-mode segmented control */}
               <div className="flex items-center gap-0.5 bg-surface-1 rounded-md p-0.5">
@@ -589,8 +580,8 @@ export default function ProviderCategoryPage() {
           <section>
             <div className="flex items-center justify-between mb-2">
               <div>
-                <h2 className="text-sm font-semibold text-content-primary">Credentials</h2>
-                <p className="text-xs text-content-tertiary mt-0.5">Secrets are stored in Vault. Never written to your repo or database.</p>
+                <h2 className="text-base font-semibold text-content-primary">Credentials</h2>
+                <p className="text-xs text-content-tertiary mt-0.5">Vault-stored secrets — never in your repo or DB.</p>
               </div>
               <span className="text-xs text-content-tertiary">{creds.length} credential{creds.length !== 1 ? 's' : ''}</span>
             </div>
@@ -765,11 +756,11 @@ export default function ProviderCategoryPage() {
           <section>
             <div className="flex items-center justify-between mb-2">
               <div>
-                <h2 className="text-sm font-semibold text-content-primary flex items-center gap-1.5">
+                <h2 className="text-base font-semibold text-content-primary flex items-center gap-1.5">
                   <SlidersHorizontal size={13} className="text-accent" /> Routing policy
                 </h2>
                 <p className="text-xs text-content-tertiary mt-0.5">
-                  How the runtime resolves which credential to use for this category.
+                  Selects which healthy credential to use — overrides chain order when multiple are available.
                 </p>
               </div>
             </div>
@@ -830,11 +821,11 @@ export default function ProviderCategoryPage() {
           {creds.length > 0 && (
             <section>
               <div className="mb-2">
-                <h2 className="text-sm font-semibold text-content-primary flex items-center gap-1.5">
+                <h2 className="text-base font-semibold text-content-primary flex items-center gap-1.5">
                   <Terminal size={13} className="text-accent" /> Sandbox runner
                 </h2>
                 <p className="text-xs text-content-tertiary mt-0.5">
-                  Run a live test inference against a credential. Results are logged but never stored in production.
+                  Live inference test against any credential — logged, never stored.
                 </p>
               </div>
               <div className="rounded-md border border-border bg-surface-0 p-4 space-y-3">
@@ -1047,6 +1038,19 @@ function CategoryMultiSelect({ allCats, selKind, selectedCats, setSelectedCats, 
     (c.label || '').toLowerCase().includes(search.toLowerCase())
   );
   const selected = Array.from(selectedCats).filter(name => cats.some((c: any) => c.name === name));
+
+  // AE-317: only 1 option → plain text, no dropdown
+  if (cats.length <= 1) {
+    const onlyCat = cats[0];
+    return (
+      <div>
+        <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1.5">Apply to categories</div>
+        <div className="min-h-9 px-2.5 py-1.5 rounded-lg border border-border bg-surface-0 flex items-center">
+          <span className="text-xs text-content-primary">{onlyCat?.label || pinnedCategory}</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div ref={ref} className="relative">
@@ -1334,13 +1338,17 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
 
       const createOne = async (catName: string) => {
         const catModel = perCatModel[catName] ?? model;
+        // AE-321 Bug B: source keeps the user's label; each other target gets the
+        // category's own display name so the source nickname doesn't leak.
+        const catInfo = allCats.find((c: any) => c.name === catName);
+        const effectiveLabel = catName === category ? label : (catInfo?.label || catName);
         if (schema.length > 0) {
           const wf: Record<string, string | boolean> = { ...fieldValues };
           if (modelField && catModel) wf[modelField.name] = catModel;
           return providersApi.createCredentialFromWizard({
             category: catName,
             provider_key: providerName,
-            label,
+            label: effectiveLabel,
             wizard_fields: wf,
             model: catModel || null,
           });
@@ -1350,7 +1358,7 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
           return providersApi.createCredential({
             category: catName,
             provider_name: providerName,
-            label,
+            label: effectiveLabel,
             secret_value: effectiveSecret,
             secret_key: 'api_key',
             model: catModel || null,
@@ -1360,8 +1368,12 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
       };
 
       const results = await Promise.all(targets.map(createOne));
-      const last = results[results.length - 1] as any;
-      const newId = last?.id ?? last?.data?.id;
+      // AE-321 Bug A: addToChain must receive the SOURCE category's credential id,
+      // not the last target's — otherwise a foreign-category credential ends up in
+      // the source chain, causing duplicate/wrong entries.
+      const sourceIdx = targets.indexOf(category);
+      const sourceResult = (sourceIdx >= 0 ? results[sourceIdx] : results[0]) as any;
+      const newId = sourceResult?.id ?? sourceResult?.data?.id;
       onAdded(newId);
     } catch (e: any) {
       setErr(e?.message || 'Failed to save. Check your credentials and try again.');
