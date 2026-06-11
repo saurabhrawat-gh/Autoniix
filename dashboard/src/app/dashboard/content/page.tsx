@@ -19,8 +19,10 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
-  DialogTitle,
+  DialogBody,
   DialogFooter,
+  DialogCloseButton,
+  DialogTitle,
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
@@ -1016,59 +1018,66 @@ export default function ContentPage() {
 
       {/* ── Trigger Modal ── */}
       <Dialog open={triggerOpen} onOpenChange={setTriggerOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Zap size={15} className="text-accent" /> Generate Video</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
             <div>
-              <FieldLabel className="text-xs font-medium text-content-secondary mb-1.5 block">Channel</FieldLabel>
-              <Select value={trigChannel} onValueChange={setTrigChannel}>
-                <SelectTrigger><SelectValue placeholder="Select a channel" /></SelectTrigger>
-                <SelectContent>
-                  {channels.map(c => (
-                    <SelectItem key={c.channel_id} value={c.channel_id}>{c.channel_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <DialogTitle className="flex items-center gap-2">
+                <Zap size={14} className="text-accent" /> Generate Video
+              </DialogTitle>
             </div>
-            <div>
-              <FieldLabel className="text-xs font-medium text-content-secondary mb-1.5 block">Content Mode</FieldLabel>
-              <div className="flex gap-2">
-                {[['long_form','Long form'],['short','Short']].map(([k, l]) => (
-                  <Button
-                    key={k}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setTrigMode(k)}
-                    className={cn('flex-1 h-9 text-xs',
-                      trigMode === k ? 'border-accent/40 bg-accent/5 text-accent' : 'border-border text-content-tertiary hover:bg-surface-1')}
-                  >
-                    {l}
-                  </Button>
-                ))}
+            <DialogCloseButton onClick={() => setTriggerOpen(false)} />
+          </DialogHeader>
+          <DialogBody>
+            <div className="space-y-4">
+              <div>
+                <FieldLabel className="text-xs font-medium text-content-secondary mb-1.5 block">Channel</FieldLabel>
+                <Select value={trigChannel} onValueChange={setTrigChannel}>
+                  <SelectTrigger><SelectValue placeholder="Select a channel" /></SelectTrigger>
+                  <SelectContent>
+                    {channels.map(c => (
+                      <SelectItem key={c.channel_id} value={c.channel_id}>{c.channel_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <FieldLabel className="text-xs font-medium text-content-secondary mb-1.5 block">Content Mode</FieldLabel>
+                <div className="flex gap-2">
+                  {[['long_form','Long form'],['short','Short']].map(([k, l]) => (
+                    <Button
+                      key={k}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setTrigMode(k)}
+                      className={cn('flex-1 h-9 text-xs',
+                        trigMode === k ? 'border-accent/40 bg-accent/5 text-accent' : 'border-border text-content-tertiary hover:bg-surface-1')}
+                    >
+                      {l}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <FieldLabel className="text-xs font-medium text-content-secondary mb-1.5 block">Topic hint <span className="text-content-tertiary font-normal">(optional)</span></FieldLabel>
+                <Input value={trigTopic} onChange={e => setTrigTopic(e.target.value)}
+                  placeholder="e.g. Top 5 Python tricks for beginners"
+                  className="h-9" />
               </div>
             </div>
-            <div>
-              <FieldLabel className="text-xs font-medium text-content-secondary mb-1.5 block">Topic hint <span className="text-content-tertiary font-normal">(optional)</span></FieldLabel>
-              <Input value={trigTopic} onChange={e => setTrigTopic(e.target.value)}
-                placeholder="e.g. Top 5 Python tricks for beginners"
-                className="h-9" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" size="sm" onClick={() => setTriggerOpen(false)}>Cancel</Button>
-            <Button
-              size="sm"
-              onClick={handleTrigger}
-              disabled={triggering || !trigChannel}
-              loading={triggering}
-              leftIcon={!triggering ? <Zap size={12} /> : undefined}
-            >
-              {triggering ? 'Starting…' : 'Generate'}
-            </Button>
-          </DialogFooter>
+            <DialogFooter>
+              <Button variant="ghost" size="sm" onClick={() => setTriggerOpen(false)}>Cancel</Button>
+              <Button
+                size="sm"
+                onClick={handleTrigger}
+                disabled={triggering || !trigChannel}
+                loading={triggering}
+                leftIcon={!triggering ? <Zap size={12} /> : undefined}
+              >
+                {triggering ? 'Starting…' : 'Generate'}
+              </Button>
+            </DialogFooter>
+          </DialogBody>
         </DialogContent>
       </Dialog>
 

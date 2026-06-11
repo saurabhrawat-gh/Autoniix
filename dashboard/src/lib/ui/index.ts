@@ -51,7 +51,9 @@ export {
   DialogPortal,
   DialogClose,
   DialogHeader,
+  DialogBody,
   DialogFooter,
+  DialogCloseButton,
   DialogTitle,
   DialogDescription,
 } from './dialog';

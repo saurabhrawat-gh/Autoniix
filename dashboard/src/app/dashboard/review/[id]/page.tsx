@@ -17,9 +17,11 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogCloseButton,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
   Label as FieldLabel,
   Select,
   SelectTrigger,
@@ -256,17 +258,9 @@ export default function ReviewDetail() {
 
       {/* Decision Modal */}
       <Dialog open={decisionModal.open} onOpenChange={(o) => { if (!o) setDecisionModal({open: false, decision: ''}); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent size="sm">
           <DialogHeader>
-            <div className="flex items-center gap-3">
-              <div className={cn('w-9 h-9 rounded-md flex items-center justify-center shrink-0',
-                decisionModal.decision === 'approved' ? 'bg-status-success/10 text-status-success' :
-                decisionModal.decision === 'rejected' ? 'bg-status-error/10 text-status-error' :
-                'bg-status-warning/10 text-status-warning'
-              )}>
-                {decisionModal.decision === 'approved' ? <Check size={16} /> :
-                 decisionModal.decision === 'rejected' ? <X size={16} /> : <RotateCw size={16} />}
-              </div>
+            <div>
               <DialogTitle>
                 {decisionModal.decision === 'approved' ? 'Approve content?' :
                  decisionModal.decision === 'needs_edits' ? 'Request edits' : 'Reject content'}
@@ -276,29 +270,32 @@ export default function ReviewDetail() {
                  decisionModal.decision === 'needs_edits' ? 'Add a note describing what needs to be changed.' : 'This content will be marked as rejected and archived.'}
               </DialogDescription>
             </div>
+            <DialogCloseButton onClick={() => setDecisionModal({open: false, decision: ''})} />
           </DialogHeader>
-          <Textarea
-            value={decisionNote}
-            onChange={e => setDecisionNote(e.target.value)}
-            placeholder={decisionModal.decision === 'needs_edits' ? 'What needs to change?' : 'Optional note…'}
-            className="min-h-[96px]"
-          />
-          <DialogFooter>
-            <Button variant="ghost" size="sm" onClick={() => setDecisionModal({open: false, decision: ''})}>Cancel</Button>
-            <Button
-              size="sm"
-              onClick={confirmDecision}
-              disabled={savingDecision}
-              loading={savingDecision}
-              className={cn('text-content-inverse',
-                decisionModal.decision === 'approved' ? 'bg-status-success hover:bg-status-success/90' :
-                decisionModal.decision === 'rejected' ? 'bg-status-error hover:bg-status-error/90' :
-                'bg-status-warning hover:bg-status-warning/90'
-              )}
-            >
-              {savingDecision ? 'Saving…' : 'Confirm'}
-            </Button>
-          </DialogFooter>
+          <DialogBody>
+            <Textarea
+              value={decisionNote}
+              onChange={e => setDecisionNote(e.target.value)}
+              placeholder={decisionModal.decision === 'needs_edits' ? 'What needs to change?' : 'Optional note…'}
+              className="min-h-[96px]"
+            />
+            <DialogFooter>
+              <Button variant="ghost" size="sm" onClick={() => setDecisionModal({open: false, decision: ''})}>Cancel</Button>
+              <Button
+                size="sm"
+                onClick={confirmDecision}
+                disabled={savingDecision}
+                loading={savingDecision}
+                className={cn('text-content-inverse',
+                  decisionModal.decision === 'approved' ? 'bg-status-success hover:bg-status-success/90' :
+                  decisionModal.decision === 'rejected' ? 'bg-status-error hover:bg-status-error/90' :
+                  'bg-status-warning hover:bg-status-warning/90'
+                )}
+              >
+                {savingDecision ? 'Saving…' : 'Confirm'}
+              </Button>
+            </DialogFooter>
+          </DialogBody>
         </DialogContent>
       </Dialog>
     </main>

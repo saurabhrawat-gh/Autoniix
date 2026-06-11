@@ -65,7 +65,7 @@ Dark (`.dark`) — base `#10100e`:
 - `accent` #fcffe1  • `accent-hover` #edf2c8  • `accent-light` #2c2e26  • `accent-muted` #a0a38a
   — _(Cream replaces moss green; same brand base as light mode surface-bg — 15.1:1 contrast on #10100e. `accent-green` retired.)_
 - `status-success` #5a8c3a  • `status-warning` #c48a2a  • `status-error` #dc5a3a  • `status-info` #5a7acc
-- `border` #252824  • `border-hover` #32352e
+- `border` #20231e  • `border-hover` #2c2f2a  _(dimmed 2026-06-12 — blends into surface, prevents hard card outlines)_
 
 Additional surface palette (available, placement TBD by visual review):
 - `#212922` Charcoal Brown · `#282b28` Graphite — warm olive-toned darks for targeted use

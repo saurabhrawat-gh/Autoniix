@@ -31,9 +31,11 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogCloseButton,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
   Button,
   Input,
   Label,
@@ -83,38 +85,36 @@ export function ConfirmDialog(props: {
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onCancel(); }}>
-      <DialogContent className="max-w-xl" hideClose>
-        <div className="flex flex-col items-center text-center gap-3 pt-1">
-          <div
-            className={[
-              'w-12 h-12 rounded-full flex items-center justify-center shrink-0',
-              destructive ? 'bg-status-error/10 text-status-error' : 'bg-accent/10 text-accent',
-            ].join(' ')}
-          >
-            {destructive ? <AlertTriangle size={22} /> : <Info size={22} />}
+      <DialogContent size="sm">
+        <DialogHeader>
+          <div>
+            <DialogTitle className="flex items-center gap-2">
+              {destructive
+                ? <AlertTriangle size={14} className="text-status-error shrink-0" />
+                : <Info size={14} className="text-accent shrink-0" />}
+              {title}
+            </DialogTitle>
+            {description && <DialogDescription>{description}</DialogDescription>}
           </div>
-          <div className="w-full space-y-1.5 text-center">
-            <DialogTitle>{title}</DialogTitle>
-            {description && (
-              <DialogDescription>{description}</DialogDescription>
+          <DialogCloseButton onClick={onCancel} />
+        </DialogHeader>
+        <DialogBody>
+          <DialogFooter>
+            {!alertOnly && (
+              <Button variant="outline" size="sm" onClick={onCancel} disabled={loading}>
+                {cancelLabel}
+              </Button>
             )}
-          </div>
-        </div>
-
-        <div className="flex flex-row justify-end gap-2 mt-2">
-          {!alertOnly && (
-            <Button variant="outline" onClick={onCancel} disabled={loading}>
-              {cancelLabel}
+            <Button
+              variant={destructive ? 'destructive' : 'primary'}
+              size="sm"
+              onClick={onConfirm}
+              loading={loading}
+            >
+              {confirmLabel}
             </Button>
-          )}
-          <Button
-            variant={destructive ? 'destructive' : 'primary'}
-            onClick={onConfirm}
-            loading={loading}
-          >
-            {confirmLabel}
-          </Button>
-        </div>
+          </DialogFooter>
+        </DialogBody>
       </DialogContent>
     </Dialog>
   );
@@ -157,51 +157,48 @@ export function PromptDialog(props: {
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onCancel(); }}>
-      <DialogContent className="max-w-xl" hideClose>
-        <div className="flex flex-col items-center text-center gap-3 pt-1">
-          <div
-            className={[
-              'w-12 h-12 rounded-full flex items-center justify-center shrink-0',
-              destructive ? 'bg-status-error/10 text-status-error' : 'bg-accent/10 text-accent',
-            ].join(' ')}
-          >
-            {destructive ? <AlertTriangle size={22} /> : <Info size={22} />}
+      <DialogContent size="sm">
+        <DialogHeader>
+          <div>
+            <DialogTitle className="flex items-center gap-2">
+              {destructive
+                ? <AlertTriangle size={14} className="text-status-error shrink-0" />
+                : <Info size={14} className="text-accent shrink-0" />}
+              {title}
+            </DialogTitle>
+            {description && <DialogDescription>{description}</DialogDescription>}
           </div>
-          <div className="w-full space-y-1.5 text-center">
-            <DialogTitle>{title}</DialogTitle>
-            {description && (
-              <DialogDescription>{description}</DialogDescription>
-            )}
-          </div>
-        </div>
-
-        <form
-          onSubmit={e => { e.preventDefault(); if (isValid) onConfirm(value); }}
-          className="space-y-2"
-        >
-          {label && <Label>{label}</Label>}
-          <Input
-            type={inputType}
-            value={value}
-            onChange={e => setValue(e.target.value)}
-            placeholder={placeholder}
-            autoFocus
-          />
-        </form>
-
-        <div className="flex flex-row justify-end gap-2 mt-2">
-          <Button variant="outline" onClick={onCancel} disabled={loading}>
-            {cancelLabel}
-          </Button>
-          <Button
-            variant={destructive ? 'destructive' : 'primary'}
-            onClick={() => isValid && onConfirm(value)}
-            disabled={!isValid}
-            loading={loading}
+          <DialogCloseButton onClick={onCancel} />
+        </DialogHeader>
+        <DialogBody>
+          <form
+            onSubmit={e => { e.preventDefault(); if (isValid) onConfirm(value); }}
+            className="space-y-2"
           >
-            {confirmLabel}
-          </Button>
-        </div>
+            {label && <Label className="text-[11px] text-content-secondary">{label}</Label>}
+            <Input
+              type={inputType}
+              value={value}
+              onChange={e => setValue(e.target.value)}
+              placeholder={placeholder}
+              autoFocus
+            />
+          </form>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={onCancel} disabled={loading}>
+              {cancelLabel}
+            </Button>
+            <Button
+              variant={destructive ? 'destructive' : 'primary'}
+              size="sm"
+              onClick={() => isValid && onConfirm(value)}
+              disabled={!isValid}
+              loading={loading}
+            >
+              {confirmLabel}
+            </Button>
+          </DialogFooter>
+        </DialogBody>
       </DialogContent>
     </Dialog>
   );

@@ -21,9 +21,11 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogCloseButton,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
@@ -823,24 +825,29 @@ export default function ChannelsPage() {
 
       {/* ── Archive confirm modal ── */}
       <Dialog open={!!confirmArchive} onOpenChange={(o) => { if (!o) setConfirmArchive(null); }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader>
-            <DialogTitle>Archive channel?</DialogTitle>
-            <DialogDescription>
-              <span className="font-medium text-content-secondary">{confirmArchive}</span> will be hidden from the active list.
-              All configuration and history is preserved and can be restored.
-            </DialogDescription>
+            <div>
+              <DialogTitle>Archive channel?</DialogTitle>
+              <DialogDescription>
+                <span className="font-medium text-content-secondary">{confirmArchive}</span> will be hidden from the active list.
+                All configuration and history is preserved and can be restored.
+              </DialogDescription>
+            </div>
+            <DialogCloseButton onClick={() => setConfirmArchive(null)} />
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="secondary" size="sm" onClick={() => setConfirmArchive(null)}>Cancel</Button>
-            <Button
-              size="sm"
-              onClick={() => confirmArchive && archiveChannel(confirmArchive)}
-              className="bg-status-warning hover:bg-status-warning/90 text-content-inverse"
-            >
-              Archive
-            </Button>
-          </DialogFooter>
+          <DialogBody>
+            <DialogFooter>
+              <Button variant="ghost" size="sm" onClick={() => setConfirmArchive(null)}>Cancel</Button>
+              <Button
+                size="sm"
+                onClick={() => confirmArchive && archiveChannel(confirmArchive)}
+                className="bg-status-warning hover:bg-status-warning/90 text-content-inverse"
+              >
+                Archive
+              </Button>
+            </DialogFooter>
+          </DialogBody>
         </DialogContent>
       </Dialog>
     </div>

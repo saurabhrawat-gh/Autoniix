@@ -777,7 +777,7 @@ export default function ProviderCategoryPage() {
                         ? 'border-accent/50 bg-accent/5 text-content-primary hover:bg-accent/10'
                         : 'border-border text-content-tertiary hover:border-border hover:bg-surface-1')}>
                     <div className="text-xs font-semibold">{opt.label}</div>
-                    <div className="text-[10px] text-content-tertiary mt-0.5">{opt.desc}</div>
+                    <div className="text-[11px] text-content-tertiary mt-0.5">{opt.desc}</div>
                   </Button>
                 ))}
               </div>

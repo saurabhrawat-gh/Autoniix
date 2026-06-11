@@ -58,9 +58,9 @@ const HEALTH_LABEL: Record<HealthStatus, string> = {
 };
 
 const MODE_CHIP: Record<string, string> = {
-  byok:        'bg-accent/10 text-accent',
-  system:      'bg-status-success/10 text-status-success',
-  marketplace: 'bg-status-info/10 text-status-info',
+  byok:        'bg-surface-2 text-content-tertiary',
+  system:      'bg-surface-2 text-content-tertiary',
+  marketplace: 'bg-surface-2 text-content-tertiary',
   internal:    'bg-status-warning/10 text-status-warning',
 };
 
@@ -511,7 +511,7 @@ export default function ProvidersIndex() {
               const requiredSteps = steps.filter(s => s.urgent);
               const requiredDone = requiredSteps.filter(s => s.configured).length;
               return (
-              <div className="rounded-xl border border-accent/30 bg-accent/5 p-5">
+              <div className="rounded-xl border border-border bg-surface-0 p-5">
                 <div className="flex items-start gap-3 mb-4">
                   <div className="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center shrink-0 mt-0.5">
                     <Plug size={14} className="text-accent" />
@@ -532,8 +532,7 @@ export default function ProvidersIndex() {
                   {steps.map((step, i) => {
                     const isExpanded = expandedKind === step.kind;
                     return (
-                      <div key={step.kind} className={cn('rounded-lg border transition-all',
-                        step.configured ? 'border-status-success/30 bg-status-success/5' : 'border-border bg-surface-0')}>
+                      <div key={step.kind} className={cn('rounded-lg border border-border bg-surface-0 transition-all')}>
                         <button
                           type="button"
                           onClick={() => setExpandedKind(isExpanded ? null : step.kind)}
@@ -666,11 +665,7 @@ export default function ProvidersIndex() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {filteredMarket.map((p: any) => (
                 <div key={p.provider_key}
-                  className={cn(
-                    'group relative rounded-xl border bg-surface-0 p-4 flex flex-col gap-3 transition-all',
-                    p.connected ? 'border-status-success/30' : 'border-border',
-                    p.featured && !p.connected && 'border-accent/30'
-                  )}>
+                  className="group relative rounded-xl border border-border bg-surface-0 p-4 flex flex-col gap-3 transition-all">
                   {p.is_user_defined && (
                     <button
                       type="button"
@@ -694,14 +689,13 @@ export default function ProvidersIndex() {
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">Featured</span>
                         )}
                         {p.has_free_tier && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-success/10 text-status-success">Free tier</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">Free tier</span>
                         )}
-                        {p.is_callable === false ? (
+                        {p.is_callable === false && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-warning/10 text-status-warning" title="You can save a key but the pipeline adapter isn't wired yet.">Catalog only</span>
-                        ) : p.is_user_defined ? (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-info/10 text-status-info">Custom</span>
-                        ) : (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-success/10 text-status-success">Full support</span>
+                        )}
+                        {p.is_user_defined && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">Custom</span>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 mt-1">
@@ -713,15 +707,11 @@ export default function ProvidersIndex() {
                     </div>
                   </div>
 
-                  {p.description && (
-                    <p className="text-[11px] text-content-tertiary line-clamp-2">{p.description}</p>
-                  )}
-
                   {/* Capabilities */}
                   {p.capabilities?.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {p.capabilities.slice(0, 4).map((cap: string) => (
-                        <span key={cap} className="text-[9px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary font-mono">{cap}</span>
+                        <span key={cap} className="text-[9px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">{cap}</span>
                       ))}
                     </div>
                   )}
@@ -844,12 +834,9 @@ export default function ProvidersIndex() {
             { icon: <ShieldCheck size={14} className="text-status-success" />, title: 'Vault-Backed Secrets', desc: 'API keys written to env/Vault — never stored in DB or repo.' },
             { icon: <Gauge size={14} className="text-status-warning" />, title: 'Live Health Probes', desc: 'Use "Probe all" for a fan-out health check across every enabled credential.' },
           ].map(t => (
-            <div key={t.title} className="rounded-xl border border-border bg-surface-0 px-4 py-3 flex items-start gap-3">
-              <div className="mt-0.5 shrink-0">{t.icon}</div>
-              <div>
-                <div className="text-xs font-semibold text-content-primary mb-0.5">{t.title}</div>
-                <div className="text-[11px] text-content-tertiary leading-relaxed">{t.desc}</div>
-              </div>
+            <div key={t.title} className="rounded-xl border border-border bg-surface-0 px-4 py-3 flex items-center gap-3">
+              <div className="shrink-0">{t.icon}</div>
+              <div className="text-xs font-medium text-content-secondary">{t.title}</div>
             </div>
           ))}
         </div>
