@@ -232,15 +232,18 @@ export default function ProvidersLayout({ children }: { children: ReactNode }) {
                               </button>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-0.5">
+                            <div className={cn(
+                              'flex items-center gap-0.5 rounded-md transition-colors',
+                              isActive ? 'bg-accent/10' : 'hover:bg-surface-1',
+                            )}>
                               <Link
                                 href={`/dashboard/providers/${encodeURIComponent(cat.name)}`}
                                 aria-current={isActive ? 'page' : undefined}
                                 className={cn(
-                                  'flex-1 flex items-center justify-between gap-2 px-2.5 py-2 rounded-md text-sm transition-colors min-w-0',
+                                  'flex-1 flex items-center justify-between gap-2 px-2.5 py-2 text-sm transition-colors min-w-0',
                                   isActive
-                                    ? 'bg-accent/10 text-accent font-semibold'
-                                    : 'text-content-secondary hover:bg-surface-1 hover:text-content-primary',
+                                    ? 'text-accent font-semibold'
+                                    : 'text-content-secondary hover:text-content-primary',
                                 )}
                               >
                                 <span className="truncate leading-tight">{cat.label}</span>

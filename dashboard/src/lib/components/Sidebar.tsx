@@ -369,7 +369,7 @@ export function Sidebar() {
               transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
               className="text-sm font-semibold text-content-primary truncate"
             >
-              autoniix
+              Autoniix
             </motion.span>
           )}
         </AnimatePresence>

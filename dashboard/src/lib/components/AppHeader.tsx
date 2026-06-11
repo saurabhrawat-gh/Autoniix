@@ -112,7 +112,7 @@ export function AppHeader() {
           <div className="w-7 h-7 rounded-md bg-accent/10 flex items-center justify-center">
             <Video size={14} className="text-accent" />
           </div>
-          <span className="text-sm font-semibold text-content-primary">YT Automation</span>
+          <span className="text-sm font-semibold text-content-primary">Autoniix</span>
         </Link>
 
         {/* Spacer */}
