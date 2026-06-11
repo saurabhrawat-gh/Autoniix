@@ -142,6 +142,10 @@
     transition: background-color 0.2s ease, color 0.2s ease;
   }
 
+  .dark ::placeholder {
+    opacity: 0.65;
+  }
+
   h1 {
     font-size: var(--type-h1-size);
     font-weight: var(--type-h1-weight);
