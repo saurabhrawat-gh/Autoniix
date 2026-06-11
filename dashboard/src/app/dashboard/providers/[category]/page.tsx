@@ -1048,6 +1048,19 @@ function CategoryMultiSelect({ allCats, selKind, selectedCats, setSelectedCats, 
   );
   const selected = Array.from(selectedCats).filter(name => cats.some((c: any) => c.name === name));
 
+  // AE-317: only 1 option → plain text, no dropdown
+  if (cats.length <= 1) {
+    const onlyCat = cats[0];
+    return (
+      <div>
+        <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1.5">Apply to categories</div>
+        <div className="min-h-9 px-2.5 py-1.5 rounded-lg border border-border bg-surface-0 flex items-center">
+          <span className="text-xs text-content-primary">{onlyCat?.label || pinnedCategory}</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div ref={ref} className="relative">
       <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1.5">Apply to categories</div>
@@ -1334,13 +1347,17 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
 
       const createOne = async (catName: string) => {
         const catModel = perCatModel[catName] ?? model;
+        // AE-321 Bug B: source keeps the user's label; each other target gets the
+        // category's own display name so the source nickname doesn't leak.
+        const catInfo = allCats.find((c: any) => c.name === catName);
+        const effectiveLabel = catName === category ? label : (catInfo?.label || catName);
         if (schema.length > 0) {
           const wf: Record<string, string | boolean> = { ...fieldValues };
           if (modelField && catModel) wf[modelField.name] = catModel;
           return providersApi.createCredentialFromWizard({
             category: catName,
             provider_key: providerName,
-            label,
+            label: effectiveLabel,
             wizard_fields: wf,
             model: catModel || null,
           });
@@ -1350,7 +1367,7 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
           return providersApi.createCredential({
             category: catName,
             provider_name: providerName,
-            label,
+            label: effectiveLabel,
             secret_value: effectiveSecret,
             secret_key: 'api_key',
             model: catModel || null,
@@ -1360,8 +1377,12 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
       };
 
       const results = await Promise.all(targets.map(createOne));
-      const last = results[results.length - 1] as any;
-      const newId = last?.id ?? last?.data?.id;
+      // AE-321 Bug A: addToChain must receive the SOURCE category's credential id,
+      // not the last target's — otherwise a foreign-category credential ends up in
+      // the source chain, causing duplicate/wrong entries.
+      const sourceIdx = targets.indexOf(category);
+      const sourceResult = (sourceIdx >= 0 ? results[sourceIdx] : results[0]) as any;
+      const newId = sourceResult?.id ?? sourceResult?.data?.id;
       onAdded(newId);
     } catch (e: any) {
       setErr(e?.message || 'Failed to save. Check your credentials and try again.');
