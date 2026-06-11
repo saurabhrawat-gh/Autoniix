@@ -33,6 +33,7 @@ import {
   BarChart2,
   ListChecks,
   ChevronDown,
+  UserCheck,
 } from './Icon';
 
 const COLLAPSED_KEY = 'sidebar_collapsed_v1';
@@ -104,6 +105,13 @@ const NAV_STRUCTURE: NavGroup[] = [
     shortcut: 'g a',
   } as NavGroup & { shortcut: string },
   {
+    id: 'notifications',
+    label: 'Notifications',
+    icon: Bell,
+    href: '/dashboard/notifications',
+    shortcut: 'g n',
+  } as NavGroup & { shortcut: string },
+  {
     id: 'settings',
     label: 'Settings',
     icon: Settings,
@@ -111,9 +119,12 @@ const NAV_STRUCTURE: NavGroup[] = [
     defaultExpanded: false,
     pinBottom: true,
     items: [
-      { href: '/dashboard/providers', label: 'Providers', icon: Plug, shortcut: 'g i', permission: 'credentials.view.labels' },
-      { href: '/dashboard/users',     label: 'Users',     icon: Users, shortcut: 'g u', requireGlobalRole: 'superadmin' },
-      { href: '/dashboard/settings',  label: 'General',   icon: Settings, shortcut: 'g s', permission: 'workspace.settings.edit' },
+      { href: '/dashboard/workspace',  label: 'Workspace', icon: Boxes,      shortcut: 'g w', permission: 'workspace.view' },
+      { href: '/dashboard/teams',      label: 'Teams',     icon: UserCheck,  shortcut: 'g t', permission: 'workspace.members.view' },
+      { href: '/dashboard/users',      label: 'Users',     icon: Users,      shortcut: 'g u', requireGlobalRole: 'superadmin' },
+      { href: '/dashboard/providers',  label: 'Providers', icon: Plug,       shortcut: 'g i', permission: 'credentials.view.labels' },
+      { href: '/dashboard/settings',   label: 'General',   icon: Settings,   shortcut: 'g s', permission: 'workspace.settings.edit' },
+      { href: '/dashboard/debug',      label: 'Debug',     icon: Terminal,   shortcut: 'g b', permission: 'workspace.settings.edit' },
     ],
   },
 ];
@@ -275,7 +286,8 @@ export function Sidebar() {
     r: '/dashboard/review', l: '/dashboard/library', q: '/dashboard/queue',
     e: '/dashboard/experiments', i: '/dashboard/providers', a: '/dashboard/analytics',
     k: '/dashboard/content/calendar', f: '/dashboard/fleet',
-    u: '/dashboard/users', s: '/dashboard/settings',
+    u: '/dashboard/users', s: '/dashboard/settings', n: '/dashboard/notifications',
+    w: '/dashboard/workspace', t: '/dashboard/teams', b: '/dashboard/debug',
   };
   Object.entries(shortcuts).forEach(([key, path]) => {
     // eslint-disable-next-line react-hooks/rules-of-hooks
