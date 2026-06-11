@@ -31,7 +31,7 @@ services:
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./scripts/seed-data.sql:/docker-entrypoint-initdb.d/02-seed.sql
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     networks: [autoniix-net]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-app} -d ${DB_NAME:-autoniix}"]
@@ -49,7 +49,7 @@ services:
     volumes:
       - pg_temporal_data:/var/lib/postgresql/data
     ports:
-      - "5434:5432"
+      - "127.0.0.1:5434:5432"
     networks: [autoniix-net]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U temporal -d temporal"]
@@ -60,14 +60,14 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    command: sh -c "redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru $${REDIS_PASSWORD:+--requirepass $$REDIS_PASSWORD}"
     volumes:
       - redis_data:/data
     ports:
-      - "6380:6379"
+      - "127.0.0.1:6380:6379"
     networks: [autoniix-net]
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli ${REDIS_PASSWORD:+-a $REDIS_PASSWORD} ping"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -82,8 +82,8 @@ services:
     volumes:
       - minio_data:/data
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     networks: [autoniix-net]
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || exit 1"]
@@ -131,14 +131,14 @@ services:
     image: infisical/infisical:latest-postgres
     profiles: ["secrets"]
     environment:
-      ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY:-6c1fe4e407b8911c104518103505b218}
-      AUTH_SECRET: ${INFISICAL_AUTH_SECRET:-5lrMXKKWCVocS/uerPsl7V+TX/aaUaI7iizgsSC0Lw0=}
+      ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
+      AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
       DB_CONNECTION_URI: postgres://${DB_USER:-app}:${DB_PASSWORD:-change_me_strong_random_64}@postgres-app:5432/infisical?sslmode=disable
       REDIS_URL: redis://redis:6379/3
       SITE_URL: http://localhost:8222
       TELEMETRY_ENABLED: "false"
     ports:
-      - "8222:8080"
+      - "127.0.0.1:8222:8080"
     networks: [autoniix-net]
     depends_on:
       postgres-app:
@@ -164,7 +164,7 @@ services:
     volumes:
       - ./config/dynamicconfig:/etc/temporal/config/dynamicconfig
     ports:
-      - "7233:7233"
+      - "127.0.0.1:7233:7233"
     networks: [autoniix-net]
     depends_on:
       postgres-temporal:
@@ -177,7 +177,7 @@ services:
       - TEMPORAL_ADDRESS=temporal:7233
       - TEMPORAL_CORS_ORIGINS=http://localhost:8080,https://${TEMPORAL_DOMAIN:-temporal.localhost}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.temporal.rule=Host(`${TEMPORAL_DOMAIN:-temporal.localhost}`)"
@@ -199,7 +199,7 @@ services:
       - PORT=8001
       - SENTENCE_TRANSFORMERS_HOME=/app/.cache/sentence_transformers
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
     networks: [autoniix-net]
     depends_on:
       postgres-app: { condition: service_healthy }
@@ -214,7 +214,7 @@ services:
     environment:
       - PORT=8002
     ports:
-      - "8002:8002"
+      - "127.0.0.1:8002:8002"
     networks: [autoniix-net]
     depends_on:
       postgres-app: { condition: service_healthy }
@@ -229,7 +229,7 @@ services:
     environment:
       - PORT=8003
     ports:
-      - "8003:8003"
+      - "127.0.0.1:8003:8003"
     networks: [autoniix-net]
     depends_on:
       postgres-app: { condition: service_healthy }
@@ -244,7 +244,7 @@ services:
     environment:
       - PORT=8004
     ports:
-      - "8004:8004"
+      - "127.0.0.1:8004:8004"
     networks: [autoniix-net]
     depends_on:
       postgres-app: { condition: service_healthy }
@@ -259,7 +259,7 @@ services:
     environment:
       - PORT=8005
     ports:
-      - "8005:8005"
+      - "127.0.0.1:8005:8005"
     networks: [autoniix-net]
     depends_on:
       postgres-app: { condition: service_healthy }
@@ -274,7 +274,7 @@ services:
     environment:
       - PORT=8006
     ports:
-      - "8006:8006"
+      - "127.0.0.1:8006:8006"
     networks: [autoniix-net]
     depends_on:
       postgres-app: { condition: service_healthy }
@@ -288,7 +288,7 @@ services:
     environment:
       - PORT=8007
     ports:
-      - "8007:8007"
+      - "127.0.0.1:8007:8007"
     networks: [autoniix-net]
     depends_on:
       postgres-app: { condition: service_healthy }
@@ -302,7 +302,7 @@ services:
     environment:
       - PORT=8008
     ports:
-      - "8008:8008"
+      - "127.0.0.1:8008:8008"
     networks: [autoniix-net]
     depends_on:
       postgres-app: { condition: service_healthy }
@@ -316,7 +316,7 @@ services:
     environment:
       - PORT=8009
     ports:
-      - "8009:8009"
+      - "127.0.0.1:8009:8009"
     networks: [autoniix-net]
     depends_on:
       postgres-app: { condition: service_healthy }
@@ -330,7 +330,7 @@ services:
     environment:
       - PORT=8010
     ports:
-      - "8010:8010"
+      - "127.0.0.1:8010:8010"
     networks: [autoniix-net]
     depends_on:
       postgres-app: { condition: service_healthy }
@@ -344,7 +344,7 @@ services:
     environment:
       - PORT=8012
     ports:
-      - "8012:8012"
+      - "127.0.0.1:8012:8012"
     networks: [autoniix-net]
     depends_on:
       postgres-app: { condition: service_healthy }
@@ -358,7 +358,7 @@ services:
     environment:
       - PORT=8013
     ports:
-      - "8013:8013"
+      - "127.0.0.1:8013:8013"
     networks: [autoniix-net]
     depends_on:
       postgres-app: { condition: service_healthy }
@@ -372,7 +372,7 @@ services:
     environment:
       - PORT=8011
     ports:
-      - "8011:8011"
+      - "127.0.0.1:8011:8011"
     networks: [autoniix-net]
     depends_on:
       postgres-app: { condition: service_healthy }
@@ -389,7 +389,7 @@ services:
     environment:
       - PORT=8014
     ports:
-      - "8014:8014"
+      - "127.0.0.1:8014:8014"
     networks: [autoniix-net]
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8014/health || exit 1"]
@@ -421,7 +421,7 @@ services:
       - S3_FORCE_PATH_STYLE=true
       - S3_KEY_PREFIX=prod
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
     networks: [autoniix-net]
     depends_on:
       redis:
@@ -578,7 +578,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     ports:
-      - "4100:4100"
+      - "127.0.0.1:4100:4100"
     networks: [autoniix-net]
     depends_on:
       redis: { condition: service_healthy }
@@ -634,7 +634,7 @@ services:
     command: uvicorn src.services.dashboard.main:app --host 0.0.0.0 --port 8020
     env_file: .env
     ports:
-      - "8020:8020"
+      - "127.0.0.1:8020:8020"
     labels:
       - "traefik.enable=true"
       # API router — api.<domain>. Split-host layout: dash + api on
@@ -660,7 +660,7 @@ services:
   dashboard-ui:
     build: ./dashboard
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     labels:
       - "traefik.enable=true"
       # Dashboard UI — dash.<domain>  (or root <domain> when DASH_DOMAIN unset)
@@ -693,7 +693,7 @@ services:
   landing-ui:
     build: ./web
     ports:
-      - "3002:3002"
+      - "127.0.0.1:3002:3002"
     environment:
       - HOSTNAME=0.0.0.0
       - PORT=3002
@@ -726,7 +726,7 @@ services:
       - --storage.tsdb.retention.time=15d
       - --web.enable-lifecycle
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.prometheus.rule=Host(`${PROMETHEUS_DOMAIN:-prometheus.localhost}`)"
@@ -754,7 +754,7 @@ services:
     environment:
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
     ports:
-      - "9093:9093"
+      - "127.0.0.1:9093:9093"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.alertmanager.rule=Host(`${ALERTS_DOMAIN:-alerts.localhost}`)"
@@ -882,7 +882,7 @@ services:
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards-json:ro
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     labels:
       - "traefik.enable=true"
       # Grafana has its own auth — we skip basic-auth here to avoid double prompts.
