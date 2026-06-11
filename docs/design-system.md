@@ -62,7 +62,8 @@ Dark (`.dark`) — base `#10100e`:
 - `surface-bg` #10100e  • `surface-sidebar` #161614  • `surface-0` #212922  • `surface-1` #282b28  • `surface-2` #2c2c28
 - `content-primary` #edefd8  • `content-secondary` #bec2ac  • `content-muted` #8c9080  • `content-disabled` #4c5046
 - `accent-primary-bg` #fcffe1  • `accent-primary-text` #10100e  (inverted — primary button fill)
-- `accent-green` #6b8c4a  • `accent-green-hover` #597a3a
+- `accent` #fcffe1  • `accent-hover` #edf2c8  • `accent-light` #2c2e26  • `accent-muted` #a0a38a
+  — _(Cream replaces moss green; same brand base as light mode surface-bg — 15.1:1 contrast on #10100e. `accent-green` retired.)_
 - `status-success` #5a8c3a  • `status-warning` #c48a2a  • `status-error` #dc5a3a  • `status-info` #5a7acc
 - `border` #2a2a26  • `border-hover` #3a3a34
 
