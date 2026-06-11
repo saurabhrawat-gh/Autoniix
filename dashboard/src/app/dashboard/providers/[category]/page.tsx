@@ -487,25 +487,16 @@ export default function ProviderCategoryPage() {
           {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-14 rounded-md bg-surface-2 animate-pulse" />)}
         </div>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-7">
           {/* ── Priority chain ──────────────────────────── */}
           <section>
             <div className="mb-2 flex items-start justify-between gap-3 flex-wrap">
               <div>
-                <h2 className="text-sm font-semibold text-content-primary">Priority chain</h2>
+                <h2 className="text-base font-semibold text-content-primary">Priority chain</h2>
                 <p className="text-xs text-content-tertiary mt-0.5">
-                  Resolution order — the first healthy provider handles the call. On error it falls through to the next.
-                  {chain.length === 0 && ' Add credentials below, then drag them into the chain.'}
+                  Ordered fallback list — first healthy provider wins; drag to reorder.
+                  {chain.length === 0 && ' Add credentials below to get started.'}
                 </p>
-                <div className="mt-2 rounded-md border border-border/50 bg-surface-1/50 px-3 py-2 text-[11px] text-content-tertiary flex items-start gap-2">
-                  <HelpCircle size={12} className="shrink-0 mt-px text-content-tertiary/60" />
-                  <span>
-                    <span className="font-medium text-content-secondary">Chain vs. Policy — </span>
-                    The <em>chain</em> is your ordered fallback list (drag to reorder; top = highest priority).
-                    The <em>routing policy</em> below controls how the runtime picks a provider when multiple are healthy —
-                    e.g. &ldquo;Cheapest&rdquo; picks by cost, &ldquo;Balanced&rdquo; blends cost&thinsp;+&thinsp;quality.
-                  </span>
-                </div>
               </div>
               {/* Content-mode segmented control */}
               <div className="flex items-center gap-0.5 bg-surface-1 rounded-md p-0.5">
@@ -589,8 +580,8 @@ export default function ProviderCategoryPage() {
           <section>
             <div className="flex items-center justify-between mb-2">
               <div>
-                <h2 className="text-sm font-semibold text-content-primary">Credentials</h2>
-                <p className="text-xs text-content-tertiary mt-0.5">Secrets are stored in Vault. Never written to your repo or database.</p>
+                <h2 className="text-base font-semibold text-content-primary">Credentials</h2>
+                <p className="text-xs text-content-tertiary mt-0.5">Vault-stored secrets — never in your repo or DB.</p>
               </div>
               <span className="text-xs text-content-tertiary">{creds.length} credential{creds.length !== 1 ? 's' : ''}</span>
             </div>
@@ -765,11 +756,11 @@ export default function ProviderCategoryPage() {
           <section>
             <div className="flex items-center justify-between mb-2">
               <div>
-                <h2 className="text-sm font-semibold text-content-primary flex items-center gap-1.5">
+                <h2 className="text-base font-semibold text-content-primary flex items-center gap-1.5">
                   <SlidersHorizontal size={13} className="text-accent" /> Routing policy
                 </h2>
                 <p className="text-xs text-content-tertiary mt-0.5">
-                  How the runtime resolves which credential to use for this category.
+                  Selects which healthy credential to use — overrides chain order when multiple are available.
                 </p>
               </div>
             </div>
@@ -830,11 +821,11 @@ export default function ProviderCategoryPage() {
           {creds.length > 0 && (
             <section>
               <div className="mb-2">
-                <h2 className="text-sm font-semibold text-content-primary flex items-center gap-1.5">
+                <h2 className="text-base font-semibold text-content-primary flex items-center gap-1.5">
                   <Terminal size={13} className="text-accent" /> Sandbox runner
                 </h2>
                 <p className="text-xs text-content-tertiary mt-0.5">
-                  Run a live test inference against a credential. Results are logged but never stored in production.
+                  Live inference test against any credential — logged, never stored.
                 </p>
               </div>
               <div className="rounded-md border border-border bg-surface-0 p-4 space-y-3">
