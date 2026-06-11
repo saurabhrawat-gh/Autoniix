@@ -49,7 +49,8 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
     setCreateBusy(true);
     setCreateErr(null);
     try {
-      await authApi.createWorkspace(trimmed);
+      const res = await authApi.createWorkspace(trimmed);
+      await authApi.switchWorkspace(res.workspace_id);
       window.location.href = '/dashboard';
     } catch (err: any) {
       setCreateErr(err?.message ?? 'Failed to create workspace');

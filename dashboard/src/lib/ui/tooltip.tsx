@@ -17,8 +17,8 @@ export const TooltipContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        'z-[60] overflow-hidden rounded-lg px-2.5 py-1.5 text-[11px] font-medium',
-        'bg-surface-0 border border-border shadow-elevated text-content-primary',
+        'z-[60] overflow-hidden rounded-[8px] px-2.5 py-1.5 text-[11px] font-medium',
+        'bg-surface-1 shadow-elevated text-content-primary border border-border',
         'origin-[--radix-tooltip-content-transform-origin]',
         'data-[state=delayed-open]:animate-[tooltip-in_120ms_cubic-bezier(0.12,0,0.1,1)_forwards]',
         'data-[state=closed]:animate-[tooltip-out_120ms_cubic-bezier(0.33,0,0.2,1)_forwards]',
@@ -43,7 +43,7 @@ export function SimpleTooltip({
   content,
   children,
   side = 'top',
-  delayDuration = 250,
+  delayDuration = 300,
   asChild = true,
 }: SimpleTooltipProps) {
   return (

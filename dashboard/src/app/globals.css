@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Fonts loaded via next/font in layout.tsx (Plus Jakarta Sans + JetBrains Mono).
+/* Fonts loaded via next/font in layout.tsx (Satoshi Variable + JetBrains Mono).
    Do not re-import via @import url(). */
 
 /* ── Typography scale (design-system §3 — LOCKED 2026-06-10) ─────────────────
@@ -45,67 +45,94 @@
   --type-caption-weight: 400;
   --type-caption-leading: 1.4;
   --type-caption-tracking: 0em;
+
+  --type-display-xl-size: 3.5rem;  /* 56px — landing / hero */
+  --type-display-xl-weight: 700;
+  --type-display-xl-leading: 1.14;
+  --type-display-xl-tracking: -0.025em;
+
+  --type-display-l-size: 3rem;     /* 48px */
+  --type-display-l-weight: 700;
+  --type-display-l-leading: 1.17;
+  --type-display-l-tracking: -0.022em;
+
+  --type-metric-size: 2.75rem;     /* 44px — KPI numbers */
+  --type-metric-weight: 700;
+  --type-metric-leading: 1;
+  --type-metric-tracking: -0.030em;
 }
 
 /* ── Light theme (default) ─────────────────────── */
-/* Warm off-white palette — eye-soothing, Apple/Notion/Linear inspired.
-   Key principle: no pure white (#fff), warm grays, soft shadows. */
+/* Reference: design-system.md §2 — LOCKED 2026-06-11 */
 :root {
-  --surface-0: 252 252 250;       /* warm off-white (main cards, dialogs) */
-  --surface-1: 246 246 243;       /* page background */
-  --surface-2: 238 238 234;       /* hover states, input backgrounds */
-  --surface-3: 226 226 222;       /* dividers, subtle separators */
-  --accent: 0 142 104;            /* slightly desaturated green — easier on eyes */
-  --accent-hover: 0 110 80;
-  --accent-light: 224 246 238;    /* very soft tint for accent backgrounds */
-  --accent-muted: 72 210 168;
+  --surface-bg: 252 255 225;      /* #fcffe1 — warm cream page background */
+  --surface-sidebar: 238 241 204; /* #eef1cc — sidebar */
+  --surface-0: 255 255 255;       /* #ffffff — cards, dialogs */
+  --surface-1: 245 248 216;       /* #f5f8d8 — elevated surface */
+  --surface-2: 238 236 202;       /* #eeecca — hover states, input backgrounds */
+  --surface-3: 226 228 196;       /* subtle separators */
+  --accent-primary-bg: 16 16 14;  /* #10100e — inverted primary button bg */
+  --accent-primary-text: 252 255 225; /* #fcffe1 — inverted primary button text */
+  --accent: 61 92 26;             /* #3d5c1a — moss green (focus, active, highlights) */
+  --accent-hover: 44 69 20;       /* #2c4514 */
+  --accent-light: 220 235 190;    /* #dcebbe — moss green tint */
+  --accent-muted: 107 140 74;     /* #6b8c4a */
   --secondary: 68 46 132;
   --secondary-light: 237 234 249;
-  --content-primary: 24 25 30;    /* near-black, slightly warm */
-  --content-secondary: 62 63 68;
-  --content-tertiary: 112 113 118;
-  --content-inverse: 252 252 250;
-  --border: 224 224 220;          /* warm light gray */
-  --border-hover: 204 204 200;
-  --status-success: 0 112 44;
-  --status-warning: 152 76 3;
-  --status-error: 154 20 20;
-  --status-info: 10 96 168;
+  --content-primary: 16 16 14;    /* #10100e */
+  --content-secondary: 58 62 48;  /* #3a3e30 */
+  --content-tertiary: 106 110 96; /* #6a6e60 */
+  --content-muted: 106 110 96;    /* #6a6e60 — alias */
+  --content-disabled: 171 174 176; /* #abaeb0 */
+  --content-inverse: 252 255 225; /* #fcffe1 */
+  --border: 216 220 168;          /* #d8dca8 */
+  --border-hover: 196 200 144;    /* #c4c890 */
+  --status-success: 90 140 58;    /* #5a8c3a — warm moss */
+  --status-warning: 196 138 42;   /* #c48a2a — warm amber */
+  --status-error: 220 90 58;      /* #dc5a3a — warm terracotta */
+  --status-info: 90 122 204;      /* #5a7acc — warm slate blue */
   --shadow-card: 0 1px 4px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
   --shadow-elevated: 0 8px 24px -4px rgba(0,0,0,0.08), 0 4px 8px -3px rgba(0,0,0,0.04);
-  --shadow-glow: 0 0 20px rgba(0,142,104,0.12);
+  --shadow-glow: 0 0 20px rgba(61,92,26,0.15);
 }
 
 /* ── Dark theme ────────────────────────────────── */
+/* Reference: design-system.md §2 — LOCKED 2026-06-11 */
 .dark {
-  --surface-0: 30 32 38;
-  --surface-1: 37 39 45;
-  --surface-2: 48 49 55;
-  --surface-3: 58 59 64;
-  --accent: 0 216 159;
-  --accent-hover: 77 228 188;
-  --accent-light: 0 71 81;
-  --accent-muted: 0 151 111;
+  --surface-bg: 16 16 14;         /* #10100e — warm near-black */
+  --surface-sidebar: 22 22 20;    /* #161614 */
+  --surface-0: 33 41 34;          /* #212922 — charcoal brown */
+  --surface-1: 40 43 40;          /* #282b28 — graphite */
+  --surface-2: 44 44 40;          /* #2c2c28 */
+  --surface-3: 50 50 46;
+  --accent-primary-bg: 252 255 225; /* #fcffe1 — inverted primary button bg */
+  --accent-primary-text: 16 16 14;  /* #10100e — inverted primary button text */
+  --accent: 107 140 74;           /* #6b8c4a — moss green */
+  --accent-hover: 89 122 58;      /* #597a3a */
+  --accent-light: 40 55 32;       /* #283820 — dark moss green tint */
+  --accent-muted: 61 92 26;       /* #3d5c1a */
   --secondary: 102 69 193;
   --secondary-light: 31 21 58;
-  --content-primary: 255 255 255;
-  --content-secondary: 210 210 212;
-  --content-tertiary: 156 157 160;
-  --content-inverse: 30 32 38;
-  --border: 58 59 64;
-  --border-hover: 67 68 73;
-  --status-success: 77 197 123;
-  --status-warning: 252 193 95;
-  --status-error: 239 99 99;
-  --status-info: 16 148 255;
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
-  --shadow-elevated: 0 10px 25px -5px rgba(0,0,0,0.5), 0 8px 10px -6px rgba(0,0,0,0.3);
-  --shadow-glow: 0 0 20px rgba(0,216,159,0.2);
+  --content-primary: 237 239 216; /* #edefd8 */
+  --content-secondary: 154 158 138; /* #9a9e8a */
+  --content-tertiary: 90 94 80;   /* #5a5e50 */
+  --content-muted: 90 94 80;      /* #5a5e50 — alias */
+  --content-disabled: 58 62 52;   /* #3a3e34 */
+  --content-inverse: 16 16 14;    /* #10100e */
+  --border: 42 42 38;             /* #2a2a26 */
+  --border-hover: 58 58 52;       /* #3a3a34 */
+  --status-success: 90 140 58;    /* #5a8c3a */
+  --status-warning: 196 138 42;   /* #c48a2a */
+  --status-error: 220 90 58;      /* #dc5a3a */
+  --status-info: 90 122 204;      /* #5a7acc */
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-elevated: 0 10px 25px -5px rgba(0,0,0,0.6), 0 8px 10px -6px rgba(0,0,0,0.4);
+  --shadow-glow: 0 0 20px rgba(107,140,74,0.35);
 }
 
 @layer base {
   body {
-    @apply bg-surface-1 text-content-primary font-sans antialiased;
+    @apply bg-surface-bg text-content-primary font-sans antialiased;
     font-size: var(--type-body-md-size);
     font-weight: var(--type-body-md-weight);
     line-height: var(--type-body-md-leading);
@@ -270,12 +297,21 @@
     border-color: rgb(var(--accent) / 0.35);
   }
 
-  /* ── Skeleton shimmer ─────────────────────────────── */
+  /* ── Skeleton shimmer (legacy) ────────────────────── */
   @keyframes shimmer {
     100% { transform: translateX(100%); }
   }
   .animate-shimmer {
     animation: shimmer 1.6s infinite;
+  }
+
+  /* ── Skeleton pulse (v1 spec — opacity fade) ────── */
+  @keyframes skeleton-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .animate-skeleton-pulse {
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
   }
 
   @media (prefers-reduced-motion: reduce) {

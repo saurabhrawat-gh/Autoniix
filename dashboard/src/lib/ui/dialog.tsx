@@ -37,16 +37,25 @@ export const DialogOverlay = React.forwardRef<
       initial="hidden"
       animate="visible"
       exit="exit"
-      className={cn('fixed inset-0 z-50 bg-black/50 backdrop-blur-sm', className)}
+      className={cn('fixed inset-0 z-50 bg-black/50', className)}
     />
   </DialogPrimitive.Overlay>
 ));
 DialogOverlay.displayName = 'DialogOverlay';
 
+const sizeClasses = {
+  sm: 'max-w-[360px]',
+  md: 'max-w-[480px]',
+  lg: 'max-w-[720px]',
+};
+
 export const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { hideClose?: boolean }
->(({ className, children, hideClose, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    hideClose?: boolean;
+    size?: 'sm' | 'md' | 'lg';
+  }
+>(({ className, children, hideClose, size = 'md', ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content ref={ref} asChild {...props}>
@@ -56,9 +65,10 @@ export const DialogContent = React.forwardRef<
         animate="visible"
         exit="exit"
         className={cn(
-          'fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4',
+          'fixed left-1/2 top-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4',
           'bg-surface-0 border border-border rounded-xl shadow-elevated p-6',
           'focus:outline-none',
+          sizeClasses[size],
           className
         )}
       >
@@ -66,13 +76,13 @@ export const DialogContent = React.forwardRef<
         {!hideClose && (
           <DialogPrimitive.Close
             className={cn(
-              'absolute right-4 top-4 rounded-md p-1',
+              'absolute right-4 top-4 rounded-full p-1.5',
               'text-content-tertiary hover:text-content-primary hover:bg-surface-2',
               'transition-colors duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)] focus:outline-none focus:ring-2 focus:ring-accent/40',
               'disabled:pointer-events-none'
             )}
           >
-            <X size={16} />
+            <X size={15} />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
         )}

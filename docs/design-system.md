@@ -18,6 +18,20 @@ Status tags: `LOCKED`, `EXPERIMENTAL`, `DEPRECATED`.
 ---
 
 ## 1. Principles `LOCKED`
+
+### Design Brand Attributes
+Calm · Precise · Intelligent · Premium · Operational · High Trust.
+Avoid flashy gradients, excessive glassmorphism, and gaming aesthetics.
+References: Linear, Stripe, Vercel, Mercury, Arc Browser, Notion.
+
+### Brand Principles
+1. **Typography before decoration.**
+2. **Hierarchy before color.**
+3. **Information before chrome.**
+4. **Motion communicates state.**
+5. **One focal point per screen.**
+
+### Product Principles
 1. **Trust over delight.** Safe, predictable, honest before charming.
 2. **Show the cost.** Costs visible before and after actions.
 3. **Status is sacred.** Pipeline state is always accurate, never optimistic.
@@ -27,34 +41,99 @@ Status tags: `LOCKED`, `EXPERIMENTAL`, `DEPRECATED`.
 
 ---
 
-## 2. Color Tokens `TBD`
-Naming:
-- Surfaces: `bg-surface-{0|1|2|3}`
-- Foregrounds: `text-fg-{default|muted|emphasis|inverse}`
-- Status: `bg-status-{success|warning|danger|info}`, `text-status-*`, `border-status-*`
-- Brand: `bg-brand-{primary|accent}`, `text-brand-*`
-- Channel-scoped: `bg-channel-accent`
-Raw values: TBD.
+## 2. Color Tokens `LOCKED`
+Token names map 1:1 to Tailwind utilities via `tailwind.config.ts` and to CSS vars in `dashboard/src/app/globals.css`.
+
+- Surfaces: `surface-{0|1|2|3}` (as `bg-surface-*`)
+- Foregrounds: `content-{primary|secondary|tertiary|muted|inverse}` (as `text-content-*`)
+- Status: `status-{success|warning|error|info}` (as `text/bg/border-status-*`)
+- Brand: `accent{,hover,light,muted}` and `secondary{,light}`
+- Borders: `border{,hover}`
+
+Light (default) — base `#fcffe1`:
+- `surface-bg` #fcffe1  • `surface-sidebar` #eef1cc  • `surface-0` #ffffff  • `surface-1` #f5f8d8  • `surface-2` #eeecca
+- `content-primary` #10100e  • `content-secondary` #3a3e30  • `content-muted` #6a6e60  • `content-disabled` #abaeb0
+- `accent-primary-bg` #10100e  • `accent-primary-text` #fcffe1  (inverted — primary button fill)
+- `accent-green` #3d5c1a  • `accent-green-hover` #2c4514
+- `status-success` #5a8c3a  • `status-warning` #c48a2a  • `status-error` #dc5a3a  • `status-info` #5a7acc
+- `border` #d8dca8  • `border-hover` #c4c890
+
+Dark (`.dark`) — base `#10100e`:
+- `surface-bg` #10100e  • `surface-sidebar` #161614  • `surface-0` #212922  • `surface-1` #282b28  • `surface-2` #2c2c28
+- `content-primary` #edefd8  • `content-secondary` #9a9e8a  • `content-muted` #5a5e50  • `content-disabled` #3a3e34
+- `accent-primary-bg` #fcffe1  • `accent-primary-text` #10100e  (inverted — primary button fill)
+- `accent-green` #6b8c4a  • `accent-green-hover` #597a3a
+- `status-success` #5a8c3a  • `status-warning` #c48a2a  • `status-error` #dc5a3a  • `status-info` #5a7acc
+- `border` #2a2a26  • `border-hover` #3a3a34
+
+Additional surface palette (available, placement TBD by visual review):
+- `#212922` Charcoal Brown · `#282b28` Graphite — warm olive-toned darks for targeted use
+
+Semantic color scales (50–900 per color, to be expanded in globals.css):
+- success, warning, error, info, neutral — every token must have a full 9-step scale.
+
+Rules:
+- 90% neutrals, 10% accent usage. Accent reserved for primary CTAs, active nav, and live status only.
+- Never use raw hex in components; use token utilities only (enforced by `dashboard/scripts/check-ui-tokens.mjs`).
 
 ---
 
-## 3. Typography `TBD`
-- Display: `text-display-{xl|lg|md}`
-- Heading: `text-h-{1|2|3|4}`
-- Body: `text-body-{lg|md|sm|xs}`
-- Mono: `text-mono-{md|sm}`
-Stack: TBD.
+## 3. Typography `LOCKED`
+Stack:
+- **Primary:** Satoshi Variable (`var(--font-sans)`), system fallbacks — all UI text
+- **Secondary:** Inter (`var(--font-secondary)`), fallback for body copy
+- **Mono:** JetBrains Mono (`var(--font-mono)`), SF Mono / Menlo fallbacks — code/IDs
+
+> **Migration note:** Codebase currently loads Plus Jakarta Sans. Swap to Satoshi Variable when font assets land.
+
+Scale (CSS vars in `globals.css`; components must reference tokens, not raw values):
+- `display-xl` 56px/64 · 700 · tracking -0.025em
+- `display-l` 48px/56 · 700 · tracking -0.022em
+- `h1` 40px/48 · 700 · tracking -0.022em
+- `h2` 32px/40 · 600 · tracking -0.018em
+- `h3` 24px/32 · 600 · tracking -0.015em
+- `body` 16px/24 · 400 · tracking -0.011em
+- `body-sm` 14px/20 · 400 · tracking -0.008em
+- `caption` 12px/16 · 400 · tracking 0em
+- `metric` 48–64px · 700 · tracking -0.030em — KPI numbers only
+
+Rules:
+- Display sizes reserved for hero/landing surfaces only.
+- Metric scale used exclusively for KPI card numbers.
+- No raw font sizes in components; use token utilities only.
 
 ---
 
-## 4. Spacing & Radius `TBD`
-- Spacing: `space-{0|1|2|3|4|5|6|8|10|12|16|20|24}` on 4px base
-- Radius: `radius-{none|sm|md|lg|xl|full}`
+## 4. Spacing & Radius `LOCKED`
+- Spacing (4px base): `1=4px, 2=8px, 3=12px, 4=16px, 6=24px, 8=32px, 10=40px, 12=48px, 16=64px, 24=96px, 32=128px`
+- Never use arbitrary spacing values. Stick to the scale above.
+- Radius (Tailwind overrides in code):
+  - `none` 0
+  - `sm` 4px
+  - `md` 6px (default input/badge)
+  - `lg` 10px (cards)
+  - `xl` 12px
+  - `2xl` 16px (modals/sheets)
+  - `full` 9999px (pills)
+
+Rules:
+- Prefer elevation/tint over heavy borders for grouping.
+- Editorial spacing: generous whitespace between sections, compact within components.
+- Premium feel = more vertical rhythm, not more decoration.
 
 ---
 
-## 5. Elevation & Shadow `TBD`
-- Shadows: `shadow-{none|sm|md|lg|xl}` for cards, popovers, modals, palette.
+## 5. Elevation & Shadow `LOCKED`
+Levels:
+- **Level 0 — Flat:** no shadow; `surface-bg` or `surface-sidebar` backgrounds
+- **Level 1 — Cards:** `shadow-card` — base card surfaces (subtle 1–3px)
+- **Level 2 — Dropdowns/Popovers:** `shadow-elevated` — 8–24px stack
+- **Level 3 — Modals/Drawers:** `shadow-elevated` + backdrop blur
+
+Rules:
+- Never stack ad-hoc shadows; use one of the 4 levels only.
+- Focus uses a ring, not elevation. Hover uses `shadow-card` + tint, active reduces scale 1–2%.
+- `shadow-glow` — accent glow for emphasis states only; sparingly.
 
 ---
 
@@ -314,7 +393,69 @@ Reference tokens from sections 6–7. Apply to all surfaces. Reduce motion per u
 
 ---
 
-## 8. Components `TBD`
+## 8. Layout Architecture `LOCKED`
+
+### Shell Grid
+- **Sidebar:** 240px fixed, collapsible to 56px (icon-only mode)
+- **Topbar:** 56px fixed, full width minus sidebar
+- **Content area:** max-width 1600px, centered, 12-column responsive grid
+- **Content padding:** 32px horizontal, 32px vertical (top of page header)
+
+### Page Structure (every page follows this order)
+1. **Page Header** — title (h1/40px), subtitle, page-level actions
+2. **Hero KPI** — one dominant metric card (metric scale 48–64px)
+3. **Supporting KPIs** — max 3, visually secondary to hero
+4. **Operational Metrics** — charts, sparklines, throughput panels
+5. **Activity Feed** — real-time chronological event stream
+6. **Detailed Data** — tables, queues, lists with inline actions
+
+### Chart Rules
+- Minimal grid lines (3 horizontal lines max)
+- One primary accent color per chart
+- Use sparklines heavily for supporting KPIs
+- Line, Area, Bar, Sparkline types only
+
+---
+
+## 9. Navigation `LOCKED`
+
+### Primary Nav — full grouped tree (sidebar, top-to-bottom)
+
+```
+1. Home                          /dashboard
+2. Studio ▾ (expandable group)   /dashboard/studio
+   ├─ Content                    /dashboard/content
+   ├─ Review                     /dashboard/review
+   ├─ Library                    /dashboard/library
+   ├─ Queue / Jobs               /dashboard/queue
+   ├─ Fleet                      /dashboard/fleet
+   └─ Experiments                /dashboard/experiments
+3. Channels                      /dashboard/channels
+4. Schedule                      /dashboard/content/calendar
+5. Analytics                     /dashboard/analytics
+─── (divider) ───────────────────
+6. Settings ▾ (expandable group) /dashboard/settings
+   ├─ Providers                  /dashboard/providers
+   ├─ Users                      /dashboard/users
+   └─ Profile                    /dashboard/profile
+```
+
+### Nav Rules
+- Active item: filled pill background (`surface-1`) + accent-green text + accent-green icon
+- Hover: subtle tint (`surface-1`), no heavy border
+- Collapsed (icon-only): groups collapse to icon + tooltip on hover reveals label
+- Group expand/collapse: chevron rotates 90°; children indent 8px with a 1px left-border connector
+- Group dividers: 1px hairline `border` token between logical groups (above Settings)
+- Settings group always sits at bottom of sidebar, pinned above user avatar
+
+### Command Palette
+- Universal navigation and actions: `⌘K`
+- Opens with scale 98→100% + fade (`fast`, `enter`)
+- Searches all nav items, recent pages, actions, channels
+
+---
+
+## 10. Components `EXPERIMENTAL`
 
 Component entries use this template:
 ```
@@ -329,14 +470,347 @@ A11y: <focus, aria, keyboard>
 First used in: <issue>
 ```
 
+### Component: Button
+Status: LOCKED
+Anatomy: [icon?] + label + [trailing-icon?]
+Variants: `primary`, `secondary`, `ghost`, `destructive`
+Sizes: `sm` 32px h · `md` 40px h · `lg` 48px h
+Radius: `9999px` (full pill) — all variants and sizes
+States: default / hover / focus / active / disabled / loading
+- **primary:** accent-primary-bg fill + accent-primary-text; inverted (cream on dark, charcoal on light)
+- **secondary:** surface-1 bg + border + content-primary text; hover surface-2
+- **ghost:** transparent bg + border + content-secondary text; hover surface-1
+- **destructive:** status-error bg at 15% opacity + status-error text; hover status-error full bg + white text
+A11y: `role=button`, `aria-disabled`, loading → `aria-busy` + spinner, `aria-label` for icon-only
+
+### Component: KPI Card
+Status: EXPERIMENTAL
+Anatomy: label + metric-value + delta + sparkline
+Variants: `hero` (one per page), `supporting` (max 3)
+Sizes: hero — unconstrained width; supporting — 1/3 column
+States: loading (skeleton), error (inline icon + retry)
+- Hero: metric in `metric` scale (48–64px/700), label in `caption`, delta with status color
+- Supporting: metric in `h1` scale (40px/700), rest same
+Rules: one hero KPI per page. Supporting KPIs visually secondary via size + weight only.
+
+### Component: Input / Form Control
+Status: LOCKED
+Anatomy: label + [left-icon] + control + [right-slot] + helper/error
+Variants: `form` (default), `search`
+Sizes:
+- `form`: height 44px, radius 8px — used in all forms and settings
+- `search`: height 36px, radius 9999px (pill) — used in toolbars and header search
+States: default / hover / focus / error / disabled
+- **form:** 1px border `border` token; focus: 2px ring `accent-green`; hover: `border-hover`
+- **search:** magnifier icon left; clears on ESC; pill radius
+- Left icon slot: optional, 16px icon, `content-muted` color
+- Right slot: optional (copy, clear, show-password, unit label)
+- Error: ring `status-error` + icon + helper text below
+- Disabled: opacity 56%, `not-allowed` cursor
+- Label: always above field, `caption` scale, `content-secondary` color, never placeholder-only
+- Helper text: below field, `caption` scale, `content-muted`
+A11y: `aria-invalid`, `aria-describedby` for helper, label always visible
+
+### Component: MultiSelect Tags Input
+Status: EXPERIMENTAL
+Anatomy: label + [tag-pill…] + text-cursor + dropdown
+Variants: `default`, `with-search`
+Sizes: min-height 48px, grows vertically as tags are added
+States: default / focused / open / error / disabled
+- **Tag pill:** `body-sm`, `surface-1` bg, `border` border, `content-primary` text, `×` dismiss icon right
+- **Focused:** outer 2px ring `accent`; dropdown opens below with full shadow-elevated
+- **Dropdown:**
+  - Search field at top (`search` input variant, 40px h)
+  - Checkbox list below; checked items highlighted with `accent-light` bg
+  - Already-selected items show check; keyboard-navigable
+  - Selected tags appear inside the input field as pills
+- **Tag dismiss:** `×` on each pill removes it; backspace on empty cursor removes last tag
+- Max visible rows in dropdown: 6; scroll after
+A11y: `role=combobox`, `aria-multiselectable=true`, tags have `role=option aria-selected=true`, `aria-label` on dismiss button
+
+### Component: URL Input (with Prefix)
+Status: EXPERIMENTAL
+Anatomy: prefix-badge + input
+Sizes: height 48px
+States: default / focus / error
+- Prefix badge: `surface-2` bg, `content-muted` text, left-attached, 1px right border `border`
+- Input right section: editable slug value only
+- Focus ring wraps entire control (prefix + input together)
+- Error: ring `status-error` on input section only
+Used in: workspace creation onboarding
+
+### Component: Toggle / Switch
+Status: LOCKED
+Anatomy: track + thumb + [label + description]
+Sizes: track 44×24px, thumb 20×20px
+Variants: `inline` (widget only), `row` (full-width: label+desc left, toggle right — like iOS Settings)
+States: off / on / disabled
+- Off: `surface-2` track, `content-primary` thumb
+- On: `accent-green` track, white thumb; thumb slides right 200ms `standard`
+- Focus: 2px ring around track
+- Label: `body-sm` right of control (inline) or left (row)
+- Row variant: description text `caption` `content-muted` below label
+A11y: `role=switch`, `aria-checked`
+
+### Component: Table
+Status: EXPERIMENTAL
+Anatomy: sticky-header + rows + pagination
+Variants: `default`, `dense`, `with-bulk-actions`
+States: row-hover (tint), row-selected (accent tint + checkbox), loading (skeleton rows)
+- Sticky header with `surface-0` + `shadow-card`
+- Inline row actions appear on hover (slide/fade 140ms)
+- Bulk action bar slides in from bottom on selection
+- Column personalization: hidden/shown per user preference
+A11y: `role=grid`, column headers `scope=col`, keyboard navigation
+
+### Component: Badge / Status Chip
+Status: EXPERIMENTAL
+Anatomy: dot? + label
+Variants: `success`, `warning`, `error`, `info`, `neutral`, `accent`
+Sizes: `sm` (12px text) · `md` (13px text)
+- Background: status color at 10% opacity; text: status color (full)
+- Live/pulsing: animated dot for real-time states
+
+### Component: Card
+Status: EXPERIMENTAL
+Anatomy: header + body + footer?
+Variants: `flat`, `elevated`, `interactive`
+Sizes: unconstrained; uses container width
+States: default / hover (interactive only) / loading
+- `flat`: no shadow, `surface-0` bg
+- `elevated`: `shadow-card`, `surface-0` bg
+- `interactive`: `shadow-card` + hover tint + cursor-pointer
+
+### Component: Dialog / Modal
+Status: LOCKED
+Anatomy: overlay + panel [header + body + footer]
+Variants: `default`, `destructive`
+Sizes:
+- `sm` 360px centered — destructive confirmations, short alerts
+- `md` 480px centered — standard forms, settings panels
+- `lg` 720px centered — complex forms, multi-step
+- `xl` drawer — 560px wide, full viewport height, slides from right
+States: open / closed / loading
+- Backdrop: `rgba(0,0,0,0.5)` — no blur (performance)
+- sm/md/lg: translate 12px + fade (`base`, `enter`); centered both axes
+- Drawer: slides from right edge (`slow`, `standard`)
+- Radius: 12px (sm/md/lg panel); 0 (drawer)
+- Enter: translate 12px + fade (`base`, `enter`)
+- Exit: reverse
+A11y: focus trap, `role=dialog`, `aria-labelledby`, ESC closes
+
+### Component: Delete Dialog
+Status: LOCKED
+Anatomy: icon (status-error tinted box) + title + description + [Cancel ghost] + [Delete destructive]
+Size: `sm` (360px)
+- Icon: trash/warning in a 40×40px rounded box with status-error at 15% opacity
+- Title: bold, `h3` scale, `content-primary`
+- Description: `body-sm`, `content-muted`
+- Buttons: right-aligned, Cancel ghost + Delete destructive
+
+### Component: Toast / Notification
+Status: LOCKED
+Anatomy: icon + message + [action] + close
+Variants: `success`, `error`, `warning`, `info`
+Sizes: fixed width 360px, pill radius
+Placement: bottom-right corner, 16px from edge
+- Slides up on enter (`base`, `enter`); fade on exit
+- Auto-dismiss after 4s; manual close × button
+- Stack max 3; oldest dismissed first; 8px gap between toasts
+A11y: `role=alert` or `role=status`; `aria-live`
+
+### Component: Skeleton Loader
+Status: LOCKED
+Anatomy: shaped placeholder matching content layout
+Variants: `text`, `card`, `table-row`, `kpi`
+Animation: **pulse** (opacity fade in/out between `surface-1` and `surface-0`; no shimmer)
+- `@keyframes pulse` — opacity 1 → 0.4 → 1, 1.5s infinite
+- Always show for data regions; spinner only for <800ms micro waits
+- Radius matches the target element's radius
+
+### Component: Avatar
+Status: LOCKED
+Anatomy: circular image + initials fallback
+Sizes: `sm` 24px · `md` 32px · `lg` 40px
+- Image: circular crop
+- Fallback: `surface-1` bg + `content-secondary` text — first 1–2 initials of display name
+A11y: `alt` text with user display name
+
+### Component: Badge
+Status: LOCKED
+Anatomy: [dot?] + label
+Variants: `success`, `warning`, `error`, `info`, `neutral`
+Sizes: 20–24px height, pill radius, `caption` (12px) text
+- Fill: status color at 15% opacity; text: status color (full)
+- Dot variant: 6px circle dot left of label
+
+### Component: Checkbox
+Status: LOCKED
+Anatomy: control + label
+Sizes: 20×20px control, 4px radius
+- Unchecked: `surface-1` bg + 1px border `border`
+- Checked: `accent-green` fill + white checkmark SVG
+- Focus: 2px ring `accent-green`
+- Disabled: opacity 56%
+A11y: `role=checkbox`, `aria-checked`
+
+### Component: Select
+Status: LOCKED
+Anatomy: label + trigger + dropdown panel
+Sizes: 44px trigger height, 8px radius
+States: default / hover / open / disabled
+- Trigger: same styling as form input + chevron icon right
+- Dropdown panel: `surface-0` bg, 12px radius, 1px border, `surface-1` hover rows
+- Max visible rows: 6; scroll after
+A11y: `role=combobox`, keyboard navigable
+
+### Component: Tabs
+Status: LOCKED
+Anatomy: tab list + tab panels
+Variants: single (pill/filled active)
+- Active tab: `surface-1` bg fill, `content-primary` text
+- Inactive tab: transparent, `content-secondary` text; hover `surface-1`
+- Tab list container: `surface-0` bg, 8px radius, p-1 padding
+- Tab item: pill shape, height 32px, px-12px
+A11y: `role=tablist`, `role=tab`, `aria-selected`, keyboard left/right navigation
+
+### Component: Tooltip
+Status: LOCKED
+Anatomy: trigger + floating content
+Sizes: 8px radius, max-width 200px
+- Delay: 300ms on hover entry; instant on exit
+- `surface-2` bg, `content-primary` text, `caption` scale
+- Auto-positions above/below/left/right based on available space
+- Arrow pointing to trigger element
+A11y: `role=tooltip`, `aria-describedby` on trigger
+
+### Component: KPI Card
+Status: LOCKED
+Anatomy: icon-box + metric-value + label + delta-badge
+Variants: `hero` (one per page), `supporting` (max 3)
+- Icon box: 36×36px, 8px radius, `surface-1` bg, `accent-green` icon
+- Metric: `metric` scale (48–64px for hero; 32–40px for supporting), `content-primary`
+- Label: `caption`, `content-secondary`
+- Delta badge: `↑ 12%` or `↓ 3%` — `status-success` or `status-error` filled pill badge
+- Card: `surface-0` bg, 12px radius, 1px border `border`
+States: loading (skeleton), error (inline icon + retry)
+
+### Component: Table Row
+Status: LOCKED
+Anatomy: cells + [checkbox] + inline-actions
+Sizes: 48px height per row
+- Default: `surface-0` bg, 1px `border` bottom separator
+- Hover: `surface-1` bg
+- Inline actions: appear on row hover (slide/fade 140ms), positioned right
+
+### Component: Empty State
+Status: LOCKED
+Anatomy: [icon/illustration] + heading + description + [CTA button]
+- Centered in content area (both axes)
+- Icon: 48×48px, `content-muted` color; or custom SVG illustration per context
+- Heading: `h3` scale, `content-primary`
+- Description: `body-sm`, `content-muted`
+- CTA: primary button
+
 ---
 
-## 9. Patterns `TBD`
-Patterns (recipes) will document multi-component solutions like destructive confirmation, inline cost preview, channel switcher, render progress strip.
+## 11. Patterns `EXPERIMENTAL`
+Patterns document multi-component solutions.
+
+### Pattern: Destructive Confirmation
+- Trigger button: `destructive` variant
+- Dialog: `destructive` variant with red accent header
+- Confirm input: type resource name to enable confirm button
+- Cancel: `ghost`; Confirm: `destructive primary`
+
+### Pattern: Inline Cost Preview
+- Show estimated cost before action (e.g. "~\$0.012 per render")
+- Use `caption` scale + `content-muted` color
+- After action: show actual cost diff
+
+### Pattern: KPI Hero + Supporting Grid
+```
+┌──────────────────────────────────────────────────────┐
+│  HERO KPI (full width or 60% col)                    │
+│  48px metric  +delta  sparkline                      │
+├──────────────┬───────────────┬───────────────────────┤
+│ Supporting 1 │ Supporting 2  │ Supporting 3           │
+│ 32px metric  │ 32px metric   │ 32px metric            │
+└──────────────┴───────────────┴───────────────────────┘
+```
+
+### Pattern: Provider Health Row
+- Provider logo + name + status badge + latency sparkline + cost/1k tokens + fallback order pill
+- Inline actions: test, configure, disable
+
+### Pattern: Activity Feed Row
+- Timestamp (caption/muted) + event icon (status-colored) + message (body-sm) + resource link
+- Real-time: new rows slide in from top
+- Empty: dotted accent + "No recent activity" + CTA
+
+### Pattern: Empty State
+- Always show: illustration/icon + title (h3) + helper copy (body-sm) + primary CTA
+- Never show a blank screen
+- Recommended next action must be obvious
+
+### Pattern: AI Workflow Components
+- **Pipeline Builder:** drag-drop chain of provider → prompt → validation → output blocks
+- **Agent Chain:** visual node graph; each node shows status + cost
+- **Provider Routing:** priority-ordered list with fallback indicators
+- **Prompt Blocks:** code-font editor with syntax highlight + token counter
+- **Validation Steps:** checklist with pass/fail indicators
+
+### Pattern: Workspace Onboarding (Welcome Flow)
+
+**URL Routing:**
+```
+Primary:   dash.autoniix.com/[workspace_slug]/welcome
+```
+- `workspace_slug` = lowercase, hyphenated workspace name (e.g. `my-brand`)
+- Route is workspace-scoped; redirects to `/[workspace_slug]/overview` after completion
+- Each workspace has its own `/welcome` — revisitable for setup completion
+
+**Step sequence — 4 steps (AI Provider step removed):**
+```
+Step 1 — Workspace  (no back, no skip)
+  └ Workspace name (form input, 44px)
+  └ URL slug (URL prefix input, prefix: "dash.autoniix.com/")
+  └ [Create workspace] primary button (full-width, lg=48px, pill)
+
+Step 2 — Profile  (← Back top-left, Skip top-right)
+  └ Avatar upload circle (80×80px click area)
+  └ Display name (form input, pre-filled)
+  └ Title/Role (form input, placeholder "Content strategist…")
+  └ [Skip] ghost + [Continue →] primary
+
+Step 3 — Channel  (← Back top-left, Skip top-right)
+  └ YouTube OAuth connect card (platform icon + name + [Connect] button)
+  └ [Skip for now] ghost + [Connect →] primary
+
+Step 4 — Done  (no back, no skip)
+  └ Checklist of completed steps (✓ Workspace, ✓ Profile, ✓ Channel)
+  └ [Go to dashboard →] primary CTA (full-width)
+```
+
+**Progress indicator:**
+- Labelled step tabs: `Workspace / Profile / Channel / Done`
+- Active tab = current step (filled pill active state)
+- Completed tabs visually marked
+
+**Layout rules:**
+- Pure `surface-bg` background (no sidebar/topbar)
+- Centered card: 480px wide, `surface-0` bg, 12px radius, 1px border `border`; no shadow
+- ← Back top-left on steps 2–3; Skip top-right on steps 2–3
+- Fonts: heading `h2` (32px/600), body `body-sm` (14px)
+
+**Motion:**
+- Step transition: slide + fade from right (`base`, `enter`); back = reverse
+- Card entrance: scale 96→100% + fade (`base`, `enter`)
+- Step tab: fill transition on advance
 
 ---
 
-## 10. Voice & Tone `LOCKED`
+## 12. Voice & Tone `LOCKED`
 - Plain English (Grade ~8 unless technical audience).
 - Direct verbs in CTAs.
 - Honest about state and cost.
@@ -346,17 +820,17 @@ Patterns (recipes) will document multi-component solutions like destructive conf
 
 ---
 
-## 11. Brand Identity `TBD`
+## 13. Brand Identity `TBD`
 - Logo, logomark, brand colors, channel branding system: TBD.
 
 ---
 
-## 12. Video Output Visual Language `TBD`
+## 14. Video Output Visual Language `TBD`
 Source: `docs/remotion-vision/cinematic-os/`. Will include scene composition, title typography, transitions, music envelope, safe areas, captions, thumbnail relationship.
 
 ---
 
-## 13. Accessibility Floor `LOCKED`
+## 15. Accessibility Floor `LOCKED`
 - WCAG AA contrast; focus visible; screenreader labels on icon-only controls.
 - 44×44px touch targets on mobile.
 - `prefers-reduced-motion` honored.
@@ -364,7 +838,7 @@ Source: `docs/remotion-vision/cinematic-os/`. Will include scene composition, ti
 
 ---
 
-## 14. Deprecations
+## 16. Deprecations
 | Token / Component | Replaced by | Sunset by | Notes |
 |---|---|---|---|
 | (empty) | | | |
@@ -375,3 +849,5 @@ Source: `docs/remotion-vision/cinematic-os/`. Will include scene composition, ti
 | Date | Change | Author | Issue |
 |---|---|---|---|
 | 2026-05-24 | Initial seed + micro-interactions | Designer Agent | — |
+| 2026-06-10 | Reference docs ingested: typography→Satoshi Variable, color tokens aligned to vision, brand principles locked, layout/nav/components/patterns seeded | Designer Agent | AE-17 |
+| 2026-06-11 | Full Designer Agent session — v1 spec locked: bg #10100e/#fcffe1, warm-tinted status colors, moss green accent, inverted primary button, pill buttons, all component specs agreed, 4-step onboarding | Designer Agent | AE-326 |

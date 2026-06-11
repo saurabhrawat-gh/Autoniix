@@ -1,15 +1,19 @@
 import type { Metadata } from 'next';
-import { Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
+import { JetBrains_Mono } from 'next/font/google';
 import { ThemeProvider } from '@/lib/theme';
 import { ToastProvider } from '@/lib/toast';
 import { AppStateProvider } from '@/lib/components/AppStateProvider';
 import { MotionProvider } from '@/lib/components/MotionProvider';
 import './globals.css';
 
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ['latin'],
-  variable: '--font-jakarta',
-  weight: ['300', '400', '500', '600', '700', '800'],
+const satoshi = localFont({
+  src: [
+    { path: '../../public/fonts/Satoshi-Variable.woff2', style: 'normal' },
+    { path: '../../public/fonts/Satoshi-VariableItalic.woff2', style: 'italic' },
+  ],
+  variable: '--font-sans',
+  weight: '300 900',
   display: 'swap',
 });
 
@@ -27,7 +31,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${plusJakartaSans.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${satoshi.variable} ${jetbrainsMono.variable}`}>
       <body className="min-h-screen font-sans">
         <MotionProvider>
           <ThemeProvider>
