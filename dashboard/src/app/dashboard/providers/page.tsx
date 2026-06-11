@@ -729,10 +729,9 @@ export default function ProvidersIndex() {
                   <div className="flex items-center justify-between mt-auto pt-1">
                     <span className="text-xs text-content-tertiary font-mono">{p.cost_unit || '—'}</span>
                     {p.connected ? (
-                      <Link prefetch={false} href={`/dashboard/providers/${encodeURIComponent(p.category)}`}
-                        className="flex items-center gap-1 h-7 px-2.5 rounded-full border border-border text-xs text-content-secondary hover:bg-surface-2 transition-colors">
-                        <ChevronRight size={11} /> Manage
-                      </Link>
+                      <span className="flex items-center gap-1 h-6 px-2 rounded-full bg-status-success/10 text-status-success text-[10px] font-semibold border border-status-success/20">
+                        <Check size={10} /> Connected
+                      </span>
                     ) : (
                       <Link prefetch={false} href={`/dashboard/providers/${encodeURIComponent(p.category)}?add=1&provider=${encodeURIComponent(p.provider_key)}`}
                         className="flex items-center gap-1 h-7 px-2.5 rounded-full bg-accent/10 text-accent text-xs font-semibold border border-accent/20 hover:bg-accent/20 transition-colors">

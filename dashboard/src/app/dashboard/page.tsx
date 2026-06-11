@@ -104,12 +104,12 @@ export default function DashboardPage() {
 
   const quickActions = [
     { label: 'Channels',    href: '/dashboard/channels',    icon: <Tv size={14} />,           color: 'text-accent' },
-    { label: 'Content',     href: '/dashboard/content',     icon: <Film size={14} />,          color: 'text-blue-500' },
-    { label: 'Review',      href: '/dashboard/review',      icon: <ClipboardCheck size={14} />, color: 'text-amber-500', badge: pendingReview.length || undefined },
-    { label: 'Library',     href: '/dashboard/library',     icon: <Archive size={14} />,       color: 'text-violet-500' },
-    { label: 'Experiments', href: '/dashboard/experiments', icon: <FlaskConical size={14} />,  color: 'text-pink-500' },
-    { label: 'Queue',       href: '/dashboard/queue',       icon: <Activity size={14} />,      color: 'text-emerald-500', badge: runningJobs.length || undefined },
-    { label: 'Team',        href: '/dashboard/users',       icon: <Users size={14} />,         color: 'text-teal-500' },
+    { label: 'Content',     href: '/dashboard/content',     icon: <Film size={14} />,          color: 'text-status-info' },
+    { label: 'Review',      href: '/dashboard/review',      icon: <ClipboardCheck size={14} />, color: 'text-status-warning', badge: pendingReview.length || undefined },
+    { label: 'Library',     href: '/dashboard/library',     icon: <Archive size={14} />,       color: 'text-accent' },
+    { label: 'Experiments', href: '/dashboard/experiments', icon: <FlaskConical size={14} />,  color: 'text-status-info' },
+    { label: 'Queue',       href: '/dashboard/queue',       icon: <Activity size={14} />,      color: 'text-status-success', badge: runningJobs.length || undefined },
+    { label: 'Team',        href: '/dashboard/users',       icon: <Users size={14} />,         color: 'text-content-secondary' },
     { label: 'Settings',    href: '/dashboard/settings',    icon: <Settings size={14} />,      color: 'text-content-tertiary' },
   ];
 
