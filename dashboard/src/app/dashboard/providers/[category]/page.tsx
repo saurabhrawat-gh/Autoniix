@@ -2002,7 +2002,7 @@ function SortableChainItem({
             entry.chain_category_kind !== entry.credential_kind && (
             <span
               title={`Kind mismatch: credential is ${entry.credential_kind}, chain expects ${entry.chain_category_kind}`}
-              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-amber-500/15 text-amber-600 border border-amber-500/30 font-medium"
+              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-status-warning/15 text-status-warning border border-status-warning/30 font-medium"
             >
               <AlertTriangle size={10} />
               <span>wrong kind</span>
