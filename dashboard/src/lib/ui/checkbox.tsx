@@ -12,7 +12,7 @@ export const Checkbox = React.forwardRef<
   <CheckboxPrimitive.Root
     ref={ref}
     className={cn(
-      'peer h-[15px] w-[15px] shrink-0 rounded-sm border border-border-hover bg-surface-0',
+      'peer h-5 w-5 shrink-0 rounded-sm border border-border-hover bg-surface-0',
       'transition-colors hover:border-accent',
       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/20',
       'disabled:cursor-not-allowed disabled:opacity-40',
@@ -22,7 +22,7 @@ export const Checkbox = React.forwardRef<
     {...props}
   >
     <CheckboxPrimitive.Indicator className="flex items-center justify-center text-current">
-      <Check size={11} strokeWidth={3} />
+      <Check size={13} strokeWidth={2.5} />
     </CheckboxPrimitive.Indicator>
   </CheckboxPrimitive.Root>
 ));

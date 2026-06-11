@@ -285,6 +285,7 @@ export default function ProviderCategoryPage() {
     try {
       await providersApi.setCredentialEnabled(cred.id, next);
       showToast(next ? `${cred.label} enabled` : `${cred.label} disabled`, 'success');
+      refresh();
     } catch (e: any) {
       setCreds(prev => prev.map(c => c.id === cred.id ? { ...c, enabled: !next } : c));
       showToast(e?.message || 'Failed to toggle credential', 'error');
@@ -353,6 +354,7 @@ export default function ProviderCategoryPage() {
       setTimeout(() => {
         setCreds(prev => prev.filter(c => c.id !== id));
         setDeletingIds(prev => { const s = new Set(prev); s.delete(id); return s; });
+        refresh();
       }, 300);
     } catch (e: any) {
       setDeletingIds(prev => { const s = new Set(prev); s.delete(id); return s; });
