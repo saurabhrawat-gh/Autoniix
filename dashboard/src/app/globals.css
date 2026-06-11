@@ -100,11 +100,11 @@
 /* Reference: design-system.md §2 — LOCKED 2026-06-11 */
 .dark {
   --surface-bg: 16 16 14;         /* #10100e — warm near-black */
-  --surface-sidebar: 22 22 20;    /* #161614 */
-  --surface-0: 33 41 34;          /* #212922 — charcoal brown */
-  --surface-1: 40 43 40;          /* #282b28 — graphite */
-  --surface-2: 44 44 40;          /* #2c2c28 */
-  --surface-3: 50 50 46;
+  --surface-sidebar: 20 21 18;    /* #141512 — approved Option A */
+  --surface-0: 30 33 32;          /* #1e2120 — approved Option A */
+  --surface-1: 37 40 36;          /* #252824 — approved Option A */
+  --surface-2: 42 45 40;          /* #2a2d28 — approved Option A */
+  --surface-3: 46 49 44;          /* #2e312c — approved Option A */
   --accent-primary-bg: 252 255 225; /* #fcffe1 — inverted primary button bg */
   --accent-primary-text: 16 16 14;  /* #10100e — inverted primary button text */
   --accent: 252 255 225;          /* #fcffe1 — cream (brand base as dark-mode accent) */
@@ -119,8 +119,8 @@
   --content-muted: 140 144 128;    /* #8c9080 — alias */
   --content-disabled: 76 80 70;    /* #4c5046 — still clearly disabled */
   --content-inverse: 16 16 14;    /* #10100e */
-  --border: 42 42 38;             /* #2a2a26 */
-  --border-hover: 58 58 52;       /* #3a3a34 */
+  --border: 37 40 36;             /* #252824 — approved Option A (matches surface-1) */
+  --border-hover: 50 53 46;       /* #32352e — approved Option A */
   --status-success: 90 140 58;    /* #5a8c3a */
   --status-warning: 196 138 42;   /* #c48a2a */
   --status-error: 220 90 58;      /* #dc5a3a */
