@@ -32,17 +32,17 @@
   --type-h4-tracking: -0.010em;
 
   --type-body-md-size: 0.875rem;  /* 14px */
-  --type-body-md-weight: 400;
+  --type-body-md-weight: 450;
   --type-body-md-leading: 1.6;
   --type-body-md-tracking: -0.011em;
 
   --type-body-sm-size: 0.8125rem; /* 13px */
-  --type-body-sm-weight: 400;
+  --type-body-sm-weight: 450;
   --type-body-sm-leading: 1.5;
   --type-body-sm-tracking: -0.008em;
 
   --type-caption-size: 0.75rem;   /* 12px */
-  --type-caption-weight: 400;
+  --type-caption-weight: 430;
   --type-caption-leading: 1.4;
   --type-caption-tracking: 0em;
 
@@ -67,7 +67,7 @@
 :root {
   --surface-bg: 252 255 225;      /* #fcffe1 — warm cream page background */
   --surface-sidebar: 238 241 204; /* #eef1cc — sidebar */
-  --surface-0: 255 255 255;       /* #ffffff — cards, dialogs */
+  --surface-0: 250 252 240;       /* #fafcf0 — warm cream-white cards/dialogs */
   --surface-1: 245 248 216;       /* #f5f8d8 — elevated surface */
   --surface-2: 238 236 202;       /* #eeecca — hover states, input backgrounds */
   --surface-3: 226 228 196;       /* subtle separators */
@@ -114,10 +114,10 @@
   --secondary: 102 69 193;
   --secondary-light: 31 21 58;
   --content-primary: 237 239 216; /* #edefd8 */
-  --content-secondary: 154 158 138; /* #9a9e8a */
-  --content-tertiary: 90 94 80;   /* #5a5e50 */
-  --content-muted: 90 94 80;      /* #5a5e50 — alias */
-  --content-disabled: 58 62 52;   /* #3a3e34 */
+  --content-secondary: 190 194 172; /* #bec2ac — AA-contrast on dark surfaces */
+  --content-tertiary: 140 144 128; /* #8c9080 — lifted from near-invisible */
+  --content-muted: 140 144 128;    /* #8c9080 — alias */
+  --content-disabled: 76 80 70;    /* #4c5046 — still clearly disabled */
   --content-inverse: 16 16 14;    /* #10100e */
   --border: 42 42 38;             /* #2a2a26 */
   --border-hover: 58 58 52;       /* #3a3a34 */

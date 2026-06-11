@@ -594,7 +594,7 @@ export default function ProvidersIndex() {
                                       href={catConfigured
                                         ? `/dashboard/providers/${encodeURIComponent(cat.name)}`
                                         : `/dashboard/providers/${encodeURIComponent(cat.name)}?add=1`}
-                                      className={cn('shrink-0 flex items-center gap-1 text-[11px] h-7 px-2.5 rounded-md border transition-colors',
+                                      className={cn('shrink-0 flex items-center gap-1 text-[11px] h-7 px-2.5 rounded-full border transition-colors',
                                         catConfigured
                                           ? 'border-border text-content-secondary hover:bg-surface-2'
                                           : 'border-accent/40 text-accent bg-accent/5 hover:bg-accent/10')}
@@ -730,12 +730,12 @@ export default function ProvidersIndex() {
                     <span className="text-xs text-content-tertiary font-mono">{p.cost_unit || '—'}</span>
                     {p.connected ? (
                       <Link prefetch={false} href={`/dashboard/providers/${encodeURIComponent(p.category)}`}
-                        className="flex items-center gap-1 h-7 px-2.5 rounded-md border border-border text-xs text-content-secondary hover:bg-surface-2 transition-colors">
+                        className="flex items-center gap-1 h-7 px-2.5 rounded-full border border-border text-xs text-content-secondary hover:bg-surface-2 transition-colors">
                         <ChevronRight size={11} /> Manage
                       </Link>
                     ) : (
                       <Link prefetch={false} href={`/dashboard/providers/${encodeURIComponent(p.category)}?add=1&provider=${encodeURIComponent(p.provider_key)}`}
-                        className="flex items-center gap-1 h-7 px-2.5 rounded-md bg-accent text-black text-xs font-semibold hover:opacity-90 transition-opacity">
+                        className="flex items-center gap-1 h-7 px-2.5 rounded-full bg-accent/10 text-accent text-xs font-semibold border border-accent/20 hover:bg-accent/20 transition-colors">
                         <Plus size={11} /> Connect
                       </Link>
                     )}

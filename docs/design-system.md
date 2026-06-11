@@ -51,7 +51,7 @@ Token names map 1:1 to Tailwind utilities via `tailwind.config.ts` and to CSS va
 - Borders: `border{,hover}`
 
 Light (default) — base `#fcffe1`:
-- `surface-bg` #fcffe1  • `surface-sidebar` #eef1cc  • `surface-0` #ffffff  • `surface-1` #f5f8d8  • `surface-2` #eeecca
+- `surface-bg` #fcffe1  • `surface-sidebar` #eef1cc  • `surface-0` #fafcf0  • `surface-1` #f5f8d8  • `surface-2` #eeecca
 - `content-primary` #10100e  • `content-secondary` #3a3e30  • `content-muted` #6a6e60  • `content-disabled` #abaeb0
 - `accent-primary-bg` #10100e  • `accent-primary-text` #fcffe1  (inverted — primary button fill)
 - `accent-green` #3d5c1a  • `accent-green-hover` #2c4514
@@ -60,7 +60,7 @@ Light (default) — base `#fcffe1`:
 
 Dark (`.dark`) — base `#10100e`:
 - `surface-bg` #10100e  • `surface-sidebar` #161614  • `surface-0` #212922  • `surface-1` #282b28  • `surface-2` #2c2c28
-- `content-primary` #edefd8  • `content-secondary` #9a9e8a  • `content-muted` #5a5e50  • `content-disabled` #3a3e34
+- `content-primary` #edefd8  • `content-secondary` #bec2ac  • `content-muted` #8c9080  • `content-disabled` #4c5046
 - `accent-primary-bg` #fcffe1  • `accent-primary-text` #10100e  (inverted — primary button fill)
 - `accent-green` #6b8c4a  • `accent-green-hover` #597a3a
 - `status-success` #5a8c3a  • `status-warning` #c48a2a  • `status-error` #dc5a3a  • `status-info` #5a7acc
