@@ -52,6 +52,14 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  icons: {
+    icon: [
+      { url: '/favicon-dark.png', media: '(prefers-color-scheme: dark)', type: 'image/png', sizes: '64x64' },
+      { url: '/favicon-light.png', media: '(prefers-color-scheme: light)', type: 'image/png', sizes: '64x64' },
+    ],
+    shortcut: '/favicon-dark.png',
+    apple: '/favicon-dark.png',
+  },
 }
 
 export const viewport: Viewport = {

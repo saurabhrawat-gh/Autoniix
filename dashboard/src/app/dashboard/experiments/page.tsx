@@ -20,8 +20,10 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
-  DialogTitle,
+  DialogBody,
   DialogFooter,
+  DialogCloseButton,
+  DialogTitle,
   Label as FieldLabel,
 } from '@/lib/ui';
 
@@ -456,43 +458,48 @@ function NewExperimentDialog({ onClose, onCreated, template }: any) {
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-lg">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>New experiment</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <Field label="Name">
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. script-v2-vs-v1" />
-          </Field>
-          <Field label="Description" hint="What are you testing? Keep it brief.">
-            <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Comparing GPT-4o vs Claude for hooks" />
-          </Field>
-          <Field label="Variants (JSON)" hint='Each variant must have a "name" field. Add any extra config keys your workflow uses.'>
-            <Textarea value={variantsRaw} onChange={e => setVariantsRaw(e.target.value)} className="h-28 font-mono text-xs" />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Traffic split %" hint="% of eligible jobs that enter this experiment">
-              <Input type="number" min={1} max={100} value={traffic} onChange={e => setTraffic(Number(e.target.value))} />
-            </Field>
-            <Field label="Target metric" hint="Metric to compare between variants">
-              <Select value={metric} onValueChange={setMetric}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {['views','ctr','retention','likes','comments','authenticity_score'].map(m => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
+          <div>
+            <DialogTitle>New experiment</DialogTitle>
           </div>
-          {err && <div className="text-sm text-status-error">{err}</div>}
-        </div>
-        <DialogFooter>
-          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
-          <Button size="sm" onClick={submit} disabled={busy || !name} loading={busy}>
-            {busy ? 'Creating…' : 'Create experiment'}
-          </Button>
-        </DialogFooter>
+          <DialogCloseButton onClick={onClose} />
+        </DialogHeader>
+        <DialogBody>
+          <div className="space-y-3">
+            <Field label="Name">
+              <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. script-v2-vs-v1" />
+            </Field>
+            <Field label="Description" hint="What are you testing? Keep it brief.">
+              <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Comparing GPT-4o vs Claude for hooks" />
+            </Field>
+            <Field label="Variants (JSON)" hint='Each variant must have a "name" field. Add any extra config keys your workflow uses.'>
+              <Textarea value={variantsRaw} onChange={e => setVariantsRaw(e.target.value)} className="h-28 font-mono text-xs" />
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Traffic split %" hint="% of eligible jobs that enter this experiment">
+                <Input type="number" min={1} max={100} value={traffic} onChange={e => setTraffic(Number(e.target.value))} />
+              </Field>
+              <Field label="Target metric" hint="Metric to compare between variants">
+                <Select value={metric} onValueChange={setMetric}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {['views','ctr','retention','likes','comments','authenticity_score'].map(m => (
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+            {err && <div className="text-sm text-status-error">{err}</div>}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+            <Button size="sm" onClick={submit} disabled={busy || !name} loading={busy}>
+              {busy ? 'Creating…' : 'Create experiment'}
+            </Button>
+          </DialogFooter>
+        </DialogBody>
       </DialogContent>
     </Dialog>
   );

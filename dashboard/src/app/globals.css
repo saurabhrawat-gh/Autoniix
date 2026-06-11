@@ -119,8 +119,8 @@
   --content-muted: 140 144 128;    /* #8c9080 — alias */
   --content-disabled: 76 80 70;    /* #4c5046 — still clearly disabled */
   --content-inverse: 16 16 14;    /* #10100e */
-  --border: 37 40 36;             /* #252824 — approved Option A (matches surface-1) */
-  --border-hover: 50 53 46;       /* #32352e — approved Option A */
+  --border: 32 35 30;             /* #20231e — dimmed, blends into surface */
+  --border-hover: 44 47 42;       /* #2c2f2a — dimmed hover */
   --status-success: 90 140 58;    /* #5a8c3a */
   --status-warning: 196 138 42;   /* #c48a2a */
   --status-error: 220 90 58;      /* #dc5a3a */

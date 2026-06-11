@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { membersApi, invitesApi, authApi, workspaceApi } from '@/lib/api-v2';
-import { Button, Input, Label, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/lib/ui';
+import {
+  Button, Input, Label, Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogCloseButton, DialogTitle, DialogDescription,
+} from '@/lib/ui';
 import { ExternalLink, Plus, ShieldCheck } from '@/lib/components/Icon';
 
 // AE-237: all surfaces show exactly 3 options; Owner is always disabled
@@ -100,19 +103,24 @@ export default function Teams() {
     <main className="flex-1 px-4 sm:px-6 py-6 max-w-[1400px] mx-auto w-full">
       <div className="space-y-6">
         {/* Transfer ownership dialog */}
-        {transferTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="bg-surface-0 border border-border rounded-xl p-6 max-w-sm w-full space-y-4 shadow-xl">
-              <div className="flex items-center gap-3">
-                <ShieldCheck size={20} className="text-status-warning shrink-0" />
-                <h2 className="text-base font-semibold">Transfer Workspace Ownership?</h2>
+        <Dialog open={!!transferTarget} onOpenChange={(o) => { if (!o) { setTransferTarget(null); setTransferPassword(''); } }}>
+          <DialogContent size="sm">
+            <DialogHeader>
+              <div>
+                <DialogTitle className="flex items-center gap-2">
+                  <ShieldCheck size={14} className="text-status-warning shrink-0" />
+                  Transfer Workspace Ownership?
+                </DialogTitle>
+                <DialogDescription>
+                  You are about to make <strong>{transferTarget?.email}</strong> the new owner.
+                  You will be demoted to <strong>member</strong>.
+                </DialogDescription>
               </div>
-              <p className="text-sm opacity-75">
-                You are about to make <strong>{transferTarget.email}</strong> the new owner of this workspace.
-                You will be demoted to <strong>member</strong>.
-              </p>
+              <DialogCloseButton onClick={() => { setTransferTarget(null); setTransferPassword(''); }} />
+            </DialogHeader>
+            <DialogBody>
               <div className="space-y-1.5">
-                <Label htmlFor="transfer-pw">Confirm with your password</Label>
+                <Label htmlFor="transfer-pw" className="text-xs text-content-secondary">Confirm with your password</Label>
                 <Input
                   id="transfer-pw"
                   type="password"
@@ -121,8 +129,8 @@ export default function Teams() {
                   autoFocus
                 />
               </div>
-              <div className="flex gap-2 justify-end">
-                <Button size="sm" variant="outline" onClick={() => { setTransferTarget(null); setTransferPassword(''); }}>
+              <DialogFooter>
+                <Button size="sm" variant="ghost" onClick={() => { setTransferTarget(null); setTransferPassword(''); }}>
                   Cancel
                 </Button>
                 <Button
@@ -133,10 +141,10 @@ export default function Teams() {
                 >
                   {transferring ? 'Transferring…' : 'Yes, transfer'}
                 </Button>
-              </div>
-            </div>
-          </div>
-        )}
+              </DialogFooter>
+            </DialogBody>
+          </DialogContent>
+        </Dialog>
 
         <div>
           <h1 className="text-2xl font-semibold">Teams</h1>

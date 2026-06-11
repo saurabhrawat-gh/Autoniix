@@ -21,9 +21,11 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogCloseButton,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from '@/lib/ui';
 
 const FRIENDLY_LABELS: Record<string, string> = {
@@ -389,69 +391,72 @@ export default function SettingsPage() {
         open={cleanSlateOpen}
         onOpenChange={(o) => { if (!o && !cleanSlateRunning) { setCleanSlateOpen(false); setCleanSlateInput(''); } }}
       >
-        <DialogContent className="max-w-md border-status-error/30">
+        <DialogContent className="border-status-error/30">
           <DialogHeader>
-            <div className="flex items-start gap-3">
-              <div className="shrink-0 w-10 h-10 rounded-full bg-status-error/10 flex items-center justify-center text-status-error text-lg font-bold">!</div>
+            <div>
+              <DialogTitle>This will delete ALL job history</DialogTitle>
+              <DialogDescription>This action cannot be undone.</DialogDescription>
+            </div>
+            <DialogCloseButton
+              onClick={() => { if (!cleanSlateRunning) { setCleanSlateOpen(false); setCleanSlateInput(''); } }}
+              disabled={cleanSlateRunning}
+            />
+          </DialogHeader>
+          <DialogBody>
+            <div className="space-y-3 text-xs">
               <div>
-                <DialogTitle>This will delete ALL job history</DialogTitle>
-                <DialogDescription>This action cannot be undone.</DialogDescription>
+                <div className="font-medium text-status-error mb-1">Will be wiped:</div>
+                <ul className="list-disc pl-5 text-content-secondary space-y-0.5">
+                  <li>All videos, job events, and analytics records</li>
+                  <li>All feedback and experiment data</li>
+                  <li>All MinIO blobs (renders, checkpoints, assets)</li>
+                  <li>All running Temporal workflows (terminated)</li>
+                  <li>All Redis channel locks</li>
+                </ul>
+              </div>
+              <div>
+                <div className="font-medium text-status-success mb-1">Will be preserved:</div>
+                <ul className="list-disc pl-5 text-content-secondary space-y-0.5">
+                  <li>Channel configurations and brand profiles</li>
+                  <li>System config, prompt registry, ML models</li>
+                </ul>
               </div>
             </div>
-          </DialogHeader>
-          <div className="space-y-3 text-xs">
             <div>
-              <div className="font-medium text-status-error mb-1">Will be wiped:</div>
-              <ul className="list-disc pl-5 text-content-secondary space-y-0.5">
-                <li>All videos, job events, and analytics records</li>
-                <li>All feedback and experiment data</li>
-                <li>All MinIO blobs (renders, checkpoints, assets)</li>
-                <li>All running Temporal workflows (terminated)</li>
-                <li>All Redis channel locks</li>
-              </ul>
+              <Label htmlFor="reset-confirm" className="text-xs text-content-secondary mb-1.5 block">
+                Type <span className="font-mono font-semibold text-status-error">RESET</span> to confirm:
+              </Label>
+              <Input
+                id="reset-confirm"
+                type="text"
+                value={cleanSlateInput}
+                onChange={e => setCleanSlateInput(e.target.value)}
+                disabled={cleanSlateRunning}
+                placeholder="RESET"
+                className="font-mono"
+                autoFocus
+              />
             </div>
-            <div>
-              <div className="font-medium text-status-success mb-1">Will be preserved:</div>
-              <ul className="list-disc pl-5 text-content-secondary space-y-0.5">
-                <li>Channel configurations and brand profiles</li>
-                <li>System config, prompt registry, ML models</li>
-              </ul>
-            </div>
-          </div>
-          <div>
-            <Label htmlFor="reset-confirm" className="text-xs text-content-secondary mb-1.5 block">
-              Type <span className="font-mono font-semibold text-status-error">RESET</span> to confirm:
-            </Label>
-            <Input
-              id="reset-confirm"
-              type="text"
-              value={cleanSlateInput}
-              onChange={e => setCleanSlateInput(e.target.value)}
-              disabled={cleanSlateRunning}
-              placeholder="RESET"
-              className="font-mono"
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => { setCleanSlateOpen(false); setCleanSlateInput(''); }}
-              disabled={cleanSlateRunning}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleCleanSlate}
-              disabled={cleanSlateInput !== 'RESET' || cleanSlateRunning}
-              loading={cleanSlateRunning}
-            >
-              {cleanSlateRunning ? 'Wiping…' : 'Clean Slate'}
-            </Button>
-          </DialogFooter>
+            <DialogFooter>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setCleanSlateOpen(false); setCleanSlateInput(''); }}
+                disabled={cleanSlateRunning}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleCleanSlate}
+                disabled={cleanSlateInput !== 'RESET' || cleanSlateRunning}
+                loading={cleanSlateRunning}
+              >
+                {cleanSlateRunning ? 'Wiping…' : 'Clean Slate'}
+              </Button>
+            </DialogFooter>
+          </DialogBody>
         </DialogContent>
       </Dialog>
     </div>

@@ -14,7 +14,7 @@ import { EmptyState } from '@/lib/components/EmptyState';
 import { PhaseStepper } from '@/lib/components/PhaseStepper';
 import { AnimatedNumber } from '@/lib/components/AnimatedNumber';
 import { ChevronDown, Inbox, RotateCcw } from '@/lib/components/Icon';
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/lib/ui';
+import { Button, Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogCloseButton, DialogTitle, DialogDescription } from '@/lib/ui';
 
 /* ── Phase descriptions for the expanded timeline ─────── */
 const PHASE_DESC: Record<string, string> = {
@@ -658,7 +658,7 @@ export default function ProgressPage() {
       </main>
 
       <Dialog open={!!retryConfirm} onOpenChange={(o) => { if (!o) setRetryConfirm(null); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent size="sm">
           {(() => {
             if (!retryConfirm) return null;
             const job = jobs.find(j => j.content_id === retryConfirm);
@@ -668,35 +668,36 @@ export default function ProgressPage() {
             return (
               <>
                 <DialogHeader>
-                  <div className="flex items-start gap-3">
-                    <div className="shrink-0 w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent">
-                      <RotateCcw size={18} />
-                    </div>
-                    <div>
-                      <DialogTitle>Start Fresh?</DialogTitle>
-                      <DialogDescription>A brand new job will begin from the very first step.</DialogDescription>
-                    </div>
+                  <div>
+                    <DialogTitle className="flex items-center gap-2">
+                      <RotateCcw size={14} className="text-accent shrink-0" />
+                      Start Fresh?
+                    </DialogTitle>
+                    <DialogDescription>A brand new job will begin from the very first step.</DialogDescription>
                   </div>
+                  <DialogCloseButton onClick={() => setRetryConfirm(null)} />
                 </DialogHeader>
-                <div className="text-sm text-content-secondary leading-relaxed">
-                  All the steps will start again from scratch.
-                  {checkpointLabel ? (
-                    <> If you only want to redo the later phases, open the timeline and hit <span className="text-status-success font-medium">Restart from {checkpointLabel}</span> instead.</>
-                  ) : (
-                    <> If you only want to redo the later phases, open the timeline and hit <span className="text-status-success font-medium">Restart from checkpoint</span> instead.</>
-                  )}
-                </div>
-                <DialogFooter>
-                  <Button variant="secondary" size="sm" onClick={() => setRetryConfirm(null)} disabled={running}>Cancel</Button>
-                  <Button
-                    size="sm"
-                    onClick={async () => { await handleRetry(retryConfirm); setRetryConfirm(null); }}
-                    disabled={running}
-                    loading={running}
-                  >
-                    {running ? 'Starting…' : 'Yes, Retry Fresh'}
-                  </Button>
-                </DialogFooter>
+                <DialogBody>
+                  <p className="text-sm text-content-secondary leading-relaxed">
+                    All the steps will start again from scratch.
+                    {checkpointLabel ? (
+                      <> If you only want to redo the later phases, open the timeline and hit <span className="text-status-success font-medium">Restart from {checkpointLabel}</span> instead.</>
+                    ) : (
+                      <> If you only want to redo the later phases, open the timeline and hit <span className="text-status-success font-medium">Restart from checkpoint</span> instead.</>
+                    )}
+                  </p>
+                  <DialogFooter>
+                    <Button variant="ghost" size="sm" onClick={() => setRetryConfirm(null)} disabled={running}>Cancel</Button>
+                    <Button
+                      size="sm"
+                      onClick={async () => { await handleRetry(retryConfirm); setRetryConfirm(null); }}
+                      disabled={running}
+                      loading={running}
+                    >
+                      {running ? 'Starting…' : 'Yes, Retry Fresh'}
+                    </Button>
+                  </DialogFooter>
+                </DialogBody>
               </>
             );
           })()}
