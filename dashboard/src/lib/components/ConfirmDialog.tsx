@@ -157,7 +157,7 @@ export function PromptDialog(props: {
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onCancel(); }}>
-      <DialogContent className="max-w-lg" hideClose>
+      <DialogContent className="max-w-xl" hideClose>
         <div className="flex flex-col items-center text-center gap-3 pt-1">
           <div
             className={[
