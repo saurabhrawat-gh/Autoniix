@@ -34,6 +34,7 @@ from pydantic import BaseModel, Field
 
 from src.db import get_pool
 from src.providers.invalidation import publish_invalidate
+from src.providers.llm.base import LLMRequest
 from src.providers.secrets import get_secret_at, put_secret_at
 
 from ._deps import Principal, audit, flag_enabled, principal_dep, require_role
@@ -387,11 +388,13 @@ async def list_credentials(
     pool = await get_pool()
     filters = []
     args: list[Any] = []
-    # Scope: show credentials belonging to this workspace OR system defaults (NULL).
-    # Superadmin/legacy sessions see all credentials across all workspaces.
-    if actor.global_role != "superadmin" and actor.source != "legacy":
+    # Scope: show only credentials belonging to this workspace.
+    # Superadmin sessions see all credentials across all workspaces.
+    # Legacy sessions default to workspace_id=1 (see _deps.py), so filtering
+    # by workspace_id still produces the correct view for legacy sessions.
+    if actor.global_role != "superadmin":
         args.append(actor.workspace_id)
-        filters.append(f"workspace_id=${len(args)}")  # AE-324: strict — NULL rows backfilled to ws 1
+        filters.append(f"workspace_id=${len(args)}")  # AE-324: strict — NULL rows backfilled by migration
     if category:
         args.append(category)
         filters.append(f"category=${len(args)}")
@@ -1072,6 +1075,50 @@ async def delete_chain_v2(
     return {"status": "ok"}
 
 
+class ReorderItem(BaseModel):
+    id: int
+    position: int
+
+
+class ReorderIn(BaseModel):
+    items: list[ReorderItem]
+
+
+@router.patch("/chains/reorder")
+async def reorder_chain_entries(
+    body: ReorderIn,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "member")),
+):
+    """Atomic bulk reorder — update position for a list of {id, position} pairs.
+
+    Unlike PUT /chains which replaces the whole chain, this only repositions
+    existing entries, preserving enabled/disabled state and all other columns.
+    """
+    if not body.items:
+        return {"status": "ok"}
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            for item in body.items:
+                await conn.execute(
+                    "UPDATE provider_chains_v2 SET position=$1 WHERE id=$2",
+                    item.position, item.id,
+                )
+    entry_ids = [item.id for item in body.items]
+    rows = await pool.fetch(
+        "SELECT DISTINCT category FROM provider_chains_v2 WHERE id = ANY($1::bigint[])",
+        entry_ids,
+    )
+    for row in rows:
+        await publish_invalidate(category=row["category"])
+    await audit(actor=actor, action="provider.chain.reorder",
+                target_type="provider_chain_v2",
+                target_id=",".join(str(i) for i in entry_ids),
+                after={"count": len(entry_ids)}, request=request)
+    return {"status": "ok"}
+
+
 async def _upsert_chain_v2(
     *,
     scope: str,
@@ -1440,6 +1487,77 @@ async def resolved_chain(
     }
 
 
+@router.get("/audit-log")
+async def list_audit_log(
+    category: str | None = None,
+    credential_id: int | None = None,
+    limit: int = 100,
+    actor: Principal = Depends(principal_dep),
+):
+    """Return provider audit log entries for this workspace.
+
+    Filters by ``action LIKE 'provider.%'``. Optionally narrow to a specific
+    credential (``credential_id``) or category (joins via provider_credentials).
+    """
+    pool = await get_pool()
+    args: list[Any] = []
+
+    if credential_id is not None:
+        args += [credential_id, min(limit, 500)]
+        rows = await pool.fetch(
+            """SELECT a.id, a.actor_label, a.action, a.target_type, a.target_id,
+                      a.before, a.after, a.created_at
+                 FROM audit_log_v2 a
+                WHERE a.action LIKE 'provider.%'
+                  AND a.target_type = 'provider_credential'
+                  AND a.target_id = $1::text
+                ORDER BY a.created_at DESC
+                LIMIT $2""",
+            *args,
+        )
+    elif category is not None:
+        args += [category, min(limit, 500)]
+        rows = await pool.fetch(
+            """SELECT DISTINCT ON (a.id)
+                      a.id, a.actor_label, a.action, a.target_type, a.target_id,
+                      a.before, a.after, a.created_at
+                 FROM audit_log_v2 a
+                 JOIN provider_credentials pc
+                   ON pc.id::text = a.target_id
+                  AND pc.category = $1
+                WHERE a.action LIKE 'provider.%'
+                ORDER BY a.id DESC, a.created_at DESC
+                LIMIT $2""",
+            *args,
+        )
+    else:
+        args += [min(limit, 500)]
+        rows = await pool.fetch(
+            """SELECT a.id, a.actor_label, a.action, a.target_type, a.target_id,
+                      a.before, a.after, a.created_at
+                 FROM audit_log_v2 a
+                WHERE a.action LIKE 'provider.%'
+                ORDER BY a.created_at DESC
+                LIMIT $1""",
+            *args,
+        )
+
+    def _row(r: dict) -> dict:
+        d = dict(r)
+        for k in ("before", "after"):
+            if isinstance(d.get(k), str):
+                import json as _j
+                try:
+                    d[k] = _j.loads(d[k])
+                except Exception:
+                    pass
+        if d.get("created_at"):
+            d["created_at"] = d["created_at"].isoformat()
+        return d
+
+    return {"data": [_row(dict(r)) for r in rows]}
+
+
 @router.get("/health/{credential_id}")
 async def credential_health(
     credential_id: int, limit: int = 50,
@@ -1473,22 +1591,25 @@ async def list_marketplace(actor: Principal = Depends(principal_dep)):
              FROM provider_marketplace_catalog
             ORDER BY category, sort_order, display_name"""
     )
-    # AE-324: which provider_names are connected in THIS workspace only?
-    if actor.global_role != "superadmin" and actor.source != "legacy":
-        connected_rows = await pool.fetch(
-            "SELECT DISTINCT provider_name FROM provider_credentials "
-            "WHERE enabled=TRUE AND workspace_id=$1",
+    # AE-334: count per-workspace credentials per provider_name (not just boolean)
+    if actor.global_role != "superadmin":
+        count_rows = await pool.fetch(
+            "SELECT provider_name, COUNT(*) AS cnt FROM provider_credentials "
+            "WHERE workspace_id=$1 GROUP BY provider_name",
             actor.workspace_id,
         )
     else:
-        connected_rows = await pool.fetch(
-            "SELECT DISTINCT provider_name FROM provider_credentials WHERE enabled=TRUE"
+        count_rows = await pool.fetch(
+            "SELECT provider_name, COUNT(*) AS cnt FROM provider_credentials "
+            "GROUP BY provider_name"
         )
-    connected = {r["provider_name"] for r in connected_rows}
+    cred_counts: dict[str, int] = {r["provider_name"]: int(r["cnt"]) for r in count_rows}
     result = []
     for r in catalog:
         d = dict(r)
-        d["connected"] = r["provider_key"] in connected
+        cnt = cred_counts.get(r["provider_key"], 0)
+        d["credential_count"] = cnt
+        d["connected"] = cnt > 0
         d["config_schema"] = _as_json(d.get("config_schema"), [])
         d["supported_models"] = _as_json(d.get("supported_models"), [])
         result.append(d)
@@ -1864,6 +1985,25 @@ async def update_quota(
     return {"status": "ok"}
 
 
+@router.delete("/quotas/{quota_id}")
+async def delete_quota(
+    quota_id: int,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "member")),
+):
+    """Remove a quota cap from a credential."""
+    pool = await get_pool()
+    res = await pool.execute(
+        "DELETE FROM provider_quotas WHERE id=$1", quota_id
+    )
+    if res.endswith("0"):
+        raise HTTPException(404, "Quota not found")
+    await audit(actor=actor, action="provider.quota.delete",
+                target_type="provider_quota", target_id=str(quota_id),
+                request=request)
+    return {"status": "ok"}
+
+
 # Sandbox runner
 
 class SandboxRunIn(BaseModel):
@@ -1884,11 +2024,17 @@ async def sandbox_run(
     """Run a test inference against a specific credential and return the output."""
     pool = await get_pool()
     cred = await pool.fetchrow(
-        "SELECT category, provider_name, vault_path, extra_config FROM provider_credentials WHERE id=$1",
+        "SELECT category, provider_name, vault_path, extra_config, workspace_id FROM provider_credentials WHERE id=$1",
         body.credential_id,
     )
     if not cred:
         raise HTTPException(404, "Credential not found")
+    if (
+        actor.global_role != "superadmin"
+        and cred["workspace_id"] is not None
+        and cred["workspace_id"] != actor.workspace_id
+    ):
+        raise HTTPException(403, "Credential belongs to a different workspace")
 
     secret = get_secret_at(cred["vault_path"], "api_key")
     if not secret:
@@ -1909,16 +2055,16 @@ async def sandbox_run(
 
         if body.capability == "text-gen":
             prompt = body.prompt or body.input_payload.get("prompt", "Say hello in one sentence.")
-            messages = [{"role": "user", "content": prompt}]
+            req = LLMRequest(messages=[{"role": "user", "content": prompt}], max_tokens=200)
             fn = getattr(inst, "complete", None) or getattr(inst, "generate", None)
             if fn is None:
                 raise ValueError("Provider has no complete() method")
-            result = fn(messages=messages, max_tokens=200)
-            if hasattr(result, "__await__"):
-                import asyncio; result = await result
-            text_out = result.get("content", str(result)) if isinstance(result, dict) else str(result)
+            result = fn(req)
+            if asyncio.iscoroutine(result):
+                result = await result
+            text_out = result.content if hasattr(result, "content") else str(result)
             output = {"text": text_out}
-            cost_usd = float(result.get("cost_usd", 0)) if isinstance(result, dict) else None
+            cost_usd = float(result.cost_usd) if hasattr(result, "cost_usd") else None
             ok = True
 
         elif body.capability in ("tts-standard", "tts-emotion"):

@@ -11,6 +11,7 @@ import {
   Plus, Activity, Trash2, ArrowUp, ArrowDown, X, Check,
   ShieldCheck, AlertTriangle, HelpCircle, Loader2, Eye, EyeOff, RotateCw,
   Terminal, SlidersHorizontal, Play, Star, ExternalLink, GripVertical, ChevronDown,
+  ClipboardList, DollarSign, Ban,
 } from '@/lib/components/Icon';
 import {
   DndContext, closestCenter,
@@ -103,7 +104,8 @@ export default function ProviderCategoryPage() {
   const [testResults, setTestResults] = useState<Record<number, any>>({});
   const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
   // Wave 2 — routing policy
-  const [route, setRoute] = useState<any | null>(null);
+  const [wsRoute, setWsRoute] = useState<any | null>(null);       // workspace-level
+  const [route, setRoute] = useState<any | null>(null);            // effective (channel or workspace)
   const [savingRoute, setSavingRoute] = useState(false);
   const [selectedPolicy, setSelectedPolicy] = useState('balanced');
   const [primaryCredId, setPrimaryCredId] = useState<number | null>(null);
@@ -115,6 +117,11 @@ export default function ProviderCategoryPage() {
   const [sandboxResult, setSandboxResult] = useState<any | null>(null);
   // Wave 2 — health sparklines (last 20 per cred)
   const [healthHistory, setHealthHistory] = useState<Record<number, any[]>>({});
+  // AE-339 — quotas
+  const [quotas, setQuotas] = useState<any[]>([]);
+  // AE-338 — audit log
+  const [auditLog, setAuditLog] = useState<any[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   // Wave 4 — content-mode aware chain editing
   // selectedMode === null means "All modes" (NULL row in DB)
@@ -163,14 +170,31 @@ export default function ProviderCategoryPage() {
         })
         .catch(() => {}),
       providersApi.routes('workspace').then(r => {
-        const found = (r.data || []).find((rt: any) => rt.category === decoded);
-        if (found) {
-          setRoute(found);
-          setSelectedPolicy(found.policy || 'balanced');
-          setPrimaryCredId(found.primary_credential_id || null);
+        const ws = (r.data || []).find((rt: any) => rt.category === decoded) ?? null;
+        setWsRoute(ws);
+        if (scopeType === 'workspace') {
+          setRoute(ws);
+          setSelectedPolicy(ws?.policy || 'balanced');
+          setPrimaryCredId(ws?.primary_credential_id || null);
         }
       }).catch(() => {}),
+      ...(scopeType === 'channel' && scopeId ? [
+        providersApi.routes('channel', scopeId).then(r => {
+          const ch = (r.data || []).find((rt: any) => rt.category === decoded) ?? null;
+          setRoute(ch);
+          setSelectedPolicy(ch?.policy || wsRoute?.policy || 'balanced');
+          setPrimaryCredId(ch?.primary_credential_id ?? wsRoute?.primary_credential_id ?? null);
+        }).catch(() => {}),
+      ] : []),
+      providersApi.quotas('workspace').then(r => {
+        setQuotas((r.data || []).filter((q: any) => !decoded || q.category === decoded));
+      }).catch(() => {}),
     ]).finally(() => setLoading(false));
+    setAuditLoading(true);
+    providersApi.auditLog({ category: decoded, limit: 50 })
+      .then(r => setAuditLog(r.data || []))
+      .catch(() => {})
+      .finally(() => setAuditLoading(false));
   }, [decoded, selectedMode, scopeType, scopeId]);
 
   // Load the content-mode catalog once.
@@ -374,6 +398,7 @@ export default function ProviderCategoryPage() {
     try {
       await providersApi.upsertRoute(decoded, {
         policy: selectedPolicy, primary_credential_id: primaryCredId,
+        scope: scopeType, scope_id: scopeType === 'channel' ? (scopeId ?? undefined) : undefined,
       });
       showToast('Routing policy saved', 'success');
       refresh();
@@ -808,12 +833,52 @@ export default function ProviderCategoryPage() {
                 >
                   Save policy
                 </Button>
+                {wsRoute && scopeType === 'channel' && !route && (
+                  <span className="text-[11px] text-content-tertiary flex items-center gap-1">
+                    <span className="text-[10px] px-1 py-0.5 rounded bg-surface-2">↑ workspace</span>
+                    Inheriting <span className="text-content-secondary font-medium">{wsRoute.policy}</span>
+                  </span>
+                )}
                 {route && (
                   <span className="text-[11px] text-content-tertiary">
-                    Current: <span className="text-content-secondary font-medium">{route.policy}</span>
+                    {scopeType === 'channel' ? 'Channel override: ' : 'Current: '}
+                    <span className="text-content-secondary font-medium">{route.policy}</span>
                   </span>
                 )}
               </div>
+              {/* AE-339 — Quota panel */}
+              {quotas.length > 0 && (
+                <div className="border-t border-border pt-3">
+                  <div className="text-[10px] uppercase text-content-tertiary mb-2 flex items-center gap-1">
+                    <DollarSign size={10} /> Quota caps
+                  </div>
+                  <div className="space-y-1.5">
+                    {quotas.map((q: any) => {
+                      const used = q.used_usd ?? 0;
+                      const cap = q.monthly_cap_usd ?? 0;
+                      const pct = cap > 0 ? Math.min(100, (used / cap) * 100) : 0;
+                      const approaching = pct >= (q.alert_pct ?? 80);
+                      const cred = creds.find((c: any) => c.id === q.credential_id);
+                      return (
+                        <div key={q.id} className="flex items-center gap-2">
+                          <span className="text-[11px] text-content-secondary truncate flex-1 min-w-0">
+                            {cred?.label ?? `Cred #${q.credential_id}`}
+                          </span>
+                          <div className="w-24 h-1.5 rounded-full bg-surface-2 overflow-hidden shrink-0">
+                            <div className={cn('h-full rounded-full transition-all',
+                              approaching ? 'bg-status-warning' : 'bg-accent')}
+                              style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className={cn('text-[10px] font-mono shrink-0',
+                            approaching ? 'text-status-warning' : 'text-content-tertiary')}>
+                            ${used.toFixed(2)} / ${cap}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </section>
 
@@ -916,6 +981,48 @@ export default function ProviderCategoryPage() {
               </div>
             </section>
           )}
+
+          {/* ── Audit log ───────────────────────────────── */}
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-base font-semibold text-content-primary flex items-center gap-1.5">
+                <ClipboardList size={13} className="text-accent" /> Audit log
+              </h2>
+              <span className="text-[10px] text-content-tertiary">Last 50 events for this category</span>
+            </div>
+            <div className="rounded-md border border-border bg-surface-0 overflow-hidden">
+              {auditLoading ? (
+                <div className="py-6 text-center"><Loader2 size={16} className="animate-spin mx-auto text-content-tertiary" /></div>
+              ) : auditLog.length === 0 ? (
+                <div className="py-6 text-center text-xs text-content-tertiary">No events yet.</div>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border bg-surface-1">
+                      <th className="text-left px-3 py-2 text-[10px] uppercase text-content-tertiary font-medium">When</th>
+                      <th className="text-left px-3 py-2 text-[10px] uppercase text-content-tertiary font-medium">Action</th>
+                      <th className="text-left px-3 py-2 text-[10px] uppercase text-content-tertiary font-medium">Target</th>
+                      <th className="text-left px-3 py-2 text-[10px] uppercase text-content-tertiary font-medium">By</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {auditLog.map((ev: any) => (
+                      <tr key={ev.id} className="hover:bg-surface-1 transition-colors">
+                        <td className="px-3 py-2 text-content-tertiary font-mono whitespace-nowrap">
+                          {ev.created_at ? new Date(ev.created_at).toLocaleString() : '—'}
+                        </td>
+                        <td className="px-3 py-2 font-mono">
+                          <span className="text-content-secondary">{ev.action}</span>
+                        </td>
+                        <td className="px-3 py-2 text-content-tertiary">{ev.target_id ?? '—'}</td>
+                        <td className="px-3 py-2 text-content-tertiary">{ev.actor_label ?? 'system'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </section>
         </div>
       )}
 
@@ -1955,6 +2062,7 @@ function SortableChainItem({
   };
   const health = getHealth(entry);
   const entryEnabled = entry.is_enabled ?? true;
+  const credVaultEnabled = entry.enabled !== false;
 
   return (
     <div
@@ -1962,7 +2070,7 @@ function SortableChainItem({
       style={style}
       className={cn(
         'flex items-center gap-3 px-4 py-3 bg-surface-0',
-        !entryEnabled && 'opacity-60',
+        (!entryEnabled || !credVaultEnabled) && 'opacity-60',
         isDragging && 'shadow-lg bg-surface-1',
         inherited && 'bg-surface-1/50',
       )}>
@@ -1996,7 +2104,13 @@ function SortableChainItem({
             </span>
           )}
           {!entryEnabled && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">disabled</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">chain off</span>
+          )}
+          {!credVaultEnabled && (
+            <span title="Credential is disabled at vault level — skipped in fallback"
+              className="text-[10px] px-1.5 py-0.5 rounded bg-status-warning/10 text-status-warning border border-status-warning/20 flex items-center gap-0.5">
+              <Ban size={8} /> vault off
+            </span>
           )}
           {entry.chain_category_kind && entry.credential_kind &&
             entry.chain_category_kind !== entry.credential_kind && (
