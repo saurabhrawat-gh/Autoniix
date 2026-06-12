@@ -28,6 +28,7 @@ import src.providers.llm.deepseek_provider      # noqa: F401
 import src.providers.llm.glm_provider           # noqa: F401
 import src.providers.llm.kimi_provider          # noqa: F401
 import src.providers.llm.mock_provider          # noqa: F401  (test mode)
+import src.providers.llm.custom_openai_compat_provider  # noqa: F401
 
 # TTS Providers
 import src.providers.tts.inworld_tts_provider   # noqa: F401
