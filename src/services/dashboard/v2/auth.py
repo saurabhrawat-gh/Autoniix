@@ -910,6 +910,80 @@ async def mfa_setup(p: Principal = Depends(principal_dep)):
     return {"data": {"otpauth_url": uri, "secret": secret}}
 
 
+@router.delete("/workspaces/{workspace_id}")
+async def delete_workspace(
+    workspace_id: int,
+    request: Request,
+    response: Response,
+    p: Principal = Depends(principal_dep),
+):
+    """Delete a workspace and all its data.
+
+    Rules:
+      - Only the workspace owner (or superadmin) may delete.
+      - Cannot delete if it is the caller's only workspace.
+      - All sessions for every member of the workspace are revoked.
+      - Members' active_workspace_id is healed to any remaining workspace they belong to.
+    """
+    if not p.user_id and p.global_role != "superadmin":
+        raise HTTPException(403, "Cannot delete workspace on a legacy session")
+    pool = await get_pool()
+
+    # Ownership check
+    ws = await pool.fetchrow(
+        "SELECT id, name, owner_user_id FROM workspaces WHERE id=$1", workspace_id
+    )
+    if not ws:
+        raise HTTPException(404, "Workspace not found")
+    if p.global_role != "superadmin" and ws["owner_user_id"] != p.user_id:
+        raise HTTPException(403, "Only the workspace owner may delete it")
+
+    # Prevent deleting last workspace
+    other_count = await pool.fetchval(
+        """SELECT COUNT(*) FROM workspace_members
+            WHERE user_id=$1 AND workspace_id != $2""",
+        p.user_id, workspace_id,
+    )
+    if not other_count:
+        raise HTTPException(
+            400,
+            "Cannot delete your only workspace. Create another workspace first.",
+        )
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # Revoke all active sessions for every member
+            member_ids = await conn.fetch(
+                "SELECT user_id FROM workspace_members WHERE workspace_id=$1", workspace_id
+            )
+            if member_ids:
+                uid_list = [r["user_id"] for r in member_ids]
+                await conn.execute(
+                    "UPDATE sessions SET revoked_at=NOW() "
+                    "WHERE user_id = ANY($1::bigint[]) AND revoked_at IS NULL",
+                    uid_list,
+                )
+            # Heal active_workspace_id for affected users
+            for row in member_ids:
+                uid = row["user_id"]
+                fallback = await conn.fetchval(
+                    """SELECT workspace_id FROM workspace_members
+                        WHERE user_id=$1 AND workspace_id != $2
+                        LIMIT 1""",
+                    uid, workspace_id,
+                )
+                await conn.execute(
+                    "UPDATE users SET active_workspace_id=$1 WHERE id=$2 AND active_workspace_id=$3",
+                    fallback, uid, workspace_id,
+                )
+            # Delete workspace — FK cascades handle members, credentials, chains, settings
+            await conn.execute("DELETE FROM workspaces WHERE id=$1", workspace_id)
+
+    # Clear the caller's auth cookies since their active workspace is now gone
+    _clear_auth_cookies(response)
+    return {"status": "ok", "deleted_workspace_id": workspace_id}
+
+
 @router.post("/mfa/verify")
 async def mfa_verify(body: MfaVerifyIn, p: Principal = Depends(principal_dep)):
     if not p.user_id:

@@ -1075,6 +1075,50 @@ async def delete_chain_v2(
     return {"status": "ok"}
 
 
+class ReorderItem(BaseModel):
+    id: int
+    position: int
+
+
+class ReorderIn(BaseModel):
+    items: list[ReorderItem]
+
+
+@router.patch("/chains/reorder")
+async def reorder_chain_entries(
+    body: ReorderIn,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "member")),
+):
+    """Atomic bulk reorder — update position for a list of {id, position} pairs.
+
+    Unlike PUT /chains which replaces the whole chain, this only repositions
+    existing entries, preserving enabled/disabled state and all other columns.
+    """
+    if not body.items:
+        return {"status": "ok"}
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            for item in body.items:
+                await conn.execute(
+                    "UPDATE provider_chains_v2 SET position=$1 WHERE id=$2",
+                    item.position, item.id,
+                )
+    entry_ids = [item.id for item in body.items]
+    rows = await pool.fetch(
+        "SELECT DISTINCT category FROM provider_chains_v2 WHERE id = ANY($1::bigint[])",
+        entry_ids,
+    )
+    for row in rows:
+        await publish_invalidate(category=row["category"])
+    await audit(actor=actor, action="provider.chain.reorder",
+                target_type="provider_chain_v2",
+                target_id=",".join(str(i) for i in entry_ids),
+                after={"count": len(entry_ids)}, request=request)
+    return {"status": "ok"}
+
+
 async def _upsert_chain_v2(
     *,
     scope: str,
@@ -1864,6 +1908,25 @@ async def update_quota(
     await audit(actor=actor, action="provider.quota.update",
                 target_type="provider_quota", target_id=str(quota_id),
                 after=body.model_dump(), request=request)
+    return {"status": "ok"}
+
+
+@router.delete("/quotas/{quota_id}")
+async def delete_quota(
+    quota_id: int,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "member")),
+):
+    """Remove a quota cap from a credential."""
+    pool = await get_pool()
+    res = await pool.execute(
+        "DELETE FROM provider_quotas WHERE id=$1", quota_id
+    )
+    if res.endswith("0"):
+        raise HTTPException(404, "Quota not found")
+    await audit(actor=actor, action="provider.quota.delete",
+                target_type="provider_quota", target_id=str(quota_id),
+                request=request)
     return {"status": "ok"}
 
 
