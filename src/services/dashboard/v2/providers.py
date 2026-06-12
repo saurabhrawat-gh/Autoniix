@@ -1487,6 +1487,77 @@ async def resolved_chain(
     }
 
 
+@router.get("/audit-log")
+async def list_audit_log(
+    category: str | None = None,
+    credential_id: int | None = None,
+    limit: int = 100,
+    actor: Principal = Depends(principal_dep),
+):
+    """Return provider audit log entries for this workspace.
+
+    Filters by ``action LIKE 'provider.%'``. Optionally narrow to a specific
+    credential (``credential_id``) or category (joins via provider_credentials).
+    """
+    pool = await get_pool()
+    args: list[Any] = []
+
+    if credential_id is not None:
+        args += [credential_id, min(limit, 500)]
+        rows = await pool.fetch(
+            """SELECT a.id, a.actor_label, a.action, a.target_type, a.target_id,
+                      a.before, a.after, a.created_at
+                 FROM audit_log_v2 a
+                WHERE a.action LIKE 'provider.%'
+                  AND a.target_type = 'provider_credential'
+                  AND a.target_id = $1::text
+                ORDER BY a.created_at DESC
+                LIMIT $2""",
+            *args,
+        )
+    elif category is not None:
+        args += [category, min(limit, 500)]
+        rows = await pool.fetch(
+            """SELECT DISTINCT ON (a.id)
+                      a.id, a.actor_label, a.action, a.target_type, a.target_id,
+                      a.before, a.after, a.created_at
+                 FROM audit_log_v2 a
+                 JOIN provider_credentials pc
+                   ON pc.id::text = a.target_id
+                  AND pc.category = $1
+                WHERE a.action LIKE 'provider.%'
+                ORDER BY a.id DESC, a.created_at DESC
+                LIMIT $2""",
+            *args,
+        )
+    else:
+        args += [min(limit, 500)]
+        rows = await pool.fetch(
+            """SELECT a.id, a.actor_label, a.action, a.target_type, a.target_id,
+                      a.before, a.after, a.created_at
+                 FROM audit_log_v2 a
+                WHERE a.action LIKE 'provider.%'
+                ORDER BY a.created_at DESC
+                LIMIT $1""",
+            *args,
+        )
+
+    def _row(r: dict) -> dict:
+        d = dict(r)
+        for k in ("before", "after"):
+            if isinstance(d.get(k), str):
+                import json as _j
+                try:
+                    d[k] = _j.loads(d[k])
+                except Exception:
+                    pass
+        if d.get("created_at"):
+            d["created_at"] = d["created_at"].isoformat()
+        return d
+
+    return {"data": [_row(dict(r)) for r in rows]}
+
+
 @router.get("/health/{credential_id}")
 async def credential_health(
     credential_id: int, limit: int = 50,
@@ -1520,22 +1591,25 @@ async def list_marketplace(actor: Principal = Depends(principal_dep)):
              FROM provider_marketplace_catalog
             ORDER BY category, sort_order, display_name"""
     )
-    # AE-324: which provider_names are connected in THIS workspace only?
-    if actor.global_role != "superadmin" and actor.source != "legacy":
-        connected_rows = await pool.fetch(
-            "SELECT DISTINCT provider_name FROM provider_credentials "
-            "WHERE enabled=TRUE AND workspace_id=$1",
+    # AE-334: count per-workspace credentials per provider_name (not just boolean)
+    if actor.global_role != "superadmin":
+        count_rows = await pool.fetch(
+            "SELECT provider_name, COUNT(*) AS cnt FROM provider_credentials "
+            "WHERE workspace_id=$1 GROUP BY provider_name",
             actor.workspace_id,
         )
     else:
-        connected_rows = await pool.fetch(
-            "SELECT DISTINCT provider_name FROM provider_credentials WHERE enabled=TRUE"
+        count_rows = await pool.fetch(
+            "SELECT provider_name, COUNT(*) AS cnt FROM provider_credentials "
+            "GROUP BY provider_name"
         )
-    connected = {r["provider_name"] for r in connected_rows}
+    cred_counts: dict[str, int] = {r["provider_name"]: int(r["cnt"]) for r in count_rows}
     result = []
     for r in catalog:
         d = dict(r)
-        d["connected"] = r["provider_key"] in connected
+        cnt = cred_counts.get(r["provider_key"], 0)
+        d["credential_count"] = cnt
+        d["connected"] = cnt > 0
         d["config_schema"] = _as_json(d.get("config_schema"), [])
         d["supported_models"] = _as_json(d.get("supported_models"), [])
         result.append(d)

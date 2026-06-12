@@ -135,4 +135,6 @@ export {
   Lock,
   KeyRound,
   Mail,
+  ClipboardList,
+  DollarSign,
 } from 'lucide-react';
