@@ -34,6 +34,7 @@ from pydantic import BaseModel, Field
 
 from src.db import get_pool
 from src.providers.invalidation import publish_invalidate
+from src.providers.llm.base import LLMRequest
 from src.providers.secrets import get_secret_at, put_secret_at
 
 from ._deps import Principal, audit, flag_enabled, principal_dep, require_role
@@ -1909,16 +1910,16 @@ async def sandbox_run(
 
         if body.capability == "text-gen":
             prompt = body.prompt or body.input_payload.get("prompt", "Say hello in one sentence.")
-            messages = [{"role": "user", "content": prompt}]
+            req = LLMRequest(messages=[{"role": "user", "content": prompt}], max_tokens=200)
             fn = getattr(inst, "complete", None) or getattr(inst, "generate", None)
             if fn is None:
                 raise ValueError("Provider has no complete() method")
-            result = fn(messages=messages, max_tokens=200)
-            if hasattr(result, "__await__"):
-                import asyncio; result = await result
-            text_out = result.get("content", str(result)) if isinstance(result, dict) else str(result)
+            result = fn(req)
+            if asyncio.iscoroutine(result):
+                result = await result
+            text_out = result.content if hasattr(result, "content") else str(result)
             output = {"text": text_out}
-            cost_usd = float(result.get("cost_usd", 0)) if isinstance(result, dict) else None
+            cost_usd = float(result.cost_usd) if hasattr(result, "cost_usd") else None
             ok = True
 
         elif body.capability in ("tts-standard", "tts-emotion"):
