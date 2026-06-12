@@ -389,12 +389,11 @@ async def list_credentials(
     filters = []
     args: list[Any] = []
     # Scope: show only credentials belonging to this workspace.
-    # Superadmin sessions see all credentials across all workspaces.
-    # Legacy sessions default to workspace_id=1 (see _deps.py), so filtering
-    # by workspace_id still produces the correct view for legacy sessions.
-    if actor.global_role != "superadmin":
-        args.append(actor.workspace_id)
-        filters.append(f"workspace_id=${len(args)}")  # AE-324: strict — NULL rows backfilled by migration
+    # Always filter by actor.workspace_id — superadmins are scoped to their
+    # current workspace when browsing; they retain cross-workspace write access
+    # only for ownership-check paths (see lines below).
+    args.append(actor.workspace_id)
+    filters.append(f"workspace_id=${len(args)}")  # AE-324: always scope to current workspace, even for superadmins
     if category:
         args.append(category)
         filters.append(f"category=${len(args)}")
@@ -1592,16 +1591,11 @@ async def list_marketplace(actor: Principal = Depends(principal_dep)):
             ORDER BY category, sort_order, display_name"""
     )
     # AE-334: count per-workspace credentials per provider_name (not just boolean)
-    if actor.global_role != "superadmin":
-        count_rows = await pool.fetch(
-            "SELECT provider_name, COUNT(*) AS cnt FROM provider_credentials "
-            "WHERE workspace_id=$1 GROUP BY provider_name",
-            actor.workspace_id,
-        )
-    else:
-        count_rows = await pool.fetch(
-            "SELECT provider_name, COUNT(*) AS cnt FROM provider_credentials "
-            "GROUP BY provider_name"
+    # AE-324: always scope to current workspace_id, even for superadmins
+    count_rows = await pool.fetch(
+        "SELECT provider_name, COUNT(*) AS cnt FROM provider_credentials "
+        "WHERE workspace_id=$1 GROUP BY provider_name",
+        actor.workspace_id,
         )
     cred_counts: dict[str, int] = {r["provider_name"]: int(r["cnt"]) for r in count_rows}
     result = []
