@@ -115,10 +115,14 @@ export default function ProviderCategoryPage() {
   const [sandboxPrompt, setSandboxPrompt] = useState('');
   const [sandboxRunning, setSandboxRunning] = useState(false);
   const [sandboxResult, setSandboxResult] = useState<any | null>(null);
+  const [sandboxRecentRuns, setSandboxRecentRuns] = useState<any[]>([]);
   // Wave 2 — health sparklines (last 20 per cred)
   const [healthHistory, setHealthHistory] = useState<Record<number, any[]>>({});
-  // AE-339 — quotas
+  // AE-314/339 — quotas
   const [quotas, setQuotas] = useState<any[]>([]);
+  const [quotaForm, setQuotaForm] = useState<{ credId: number | null; cap: string; alert: string }>({ credId: null, cap: '', alert: '80' });
+  const [quotaFormOpen, setQuotaFormOpen] = useState(false);
+  const [savingQuota, setSavingQuota] = useState(false);
   // AE-338 — audit log
   const [auditLog, setAuditLog] = useState<any[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
@@ -195,6 +199,9 @@ export default function ProviderCategoryPage() {
       .then(r => setAuditLog(r.data || []))
       .catch(() => {})
       .finally(() => setAuditLoading(false));
+    providersApi.sandboxRuns(undefined, 5)
+      .then(r => setSandboxRecentRuns(r.data || []))
+      .catch(() => {});
   }, [decoded, selectedMode, scopeType, scopeId]);
 
   // Load the content-mode catalog once.
@@ -203,6 +210,16 @@ export default function ProviderCategoryPage() {
       .then(r => setContentModes(r.data || []))
       .catch(() => setContentModes([]));
   }, []);
+
+  // AE-313 — audit log auto-refresh every 30s
+  useEffect(() => {
+    const id = setInterval(() => {
+      providersApi.auditLog({ category: decoded, limit: 50 })
+        .then(r => setAuditLog(r.data || []))
+        .catch(() => {});
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [decoded]);
 
   // AE-73 — load channels list for context switcher
   useEffect(() => {
@@ -274,11 +291,8 @@ export default function ProviderCategoryPage() {
     if (oldIdx === -1 || newIdx === -1) return;
     const reordered = arrayMove(chain, oldIdx, newIdx);
     setChain(reordered); // optimistic
-    providersApi.upsertChainV2({
-      scope: scopeType, scope_id: scopeId,
-      content_mode: selectedMode, category: decoded,
-      credential_ids: reordered.map(c => c.credential_id),
-    }).then(refresh).catch(() => {
+    const items = reordered.map((c, i) => ({ id: c.id, position: i + 1 }));
+    providersApi.reorderChain(items).then(refresh).catch(() => {
       refresh();
       showToast('Reorder failed — reverted', 'error');
     });
@@ -422,6 +436,7 @@ export default function ProviderCategoryPage() {
       setSandboxResult({ ok: false, error: e?.message || 'Run failed', latency_ms: 0, output: {} });
     }
     setSandboxRunning(false);
+    providersApi.sandboxRuns(undefined, 5).then(r => setSandboxRecentRuns(r.data || [])).catch(() => {});
   };
 
   return (
@@ -846,39 +861,115 @@ export default function ProviderCategoryPage() {
                   </span>
                 )}
               </div>
-              {/* AE-339 — Quota panel */}
-              {quotas.length > 0 && (
-                <div className="border-t border-border pt-3">
-                  <div className="text-[10px] uppercase text-content-tertiary mb-2 flex items-center gap-1">
+              {/* AE-314 — Quota management */}
+              <div className="border-t border-border pt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-[10px] uppercase text-content-tertiary flex items-center gap-1">
                     <DollarSign size={10} /> Quota caps
                   </div>
+                  <Button type="button" size="sm" variant="ghost"
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() => setQuotaFormOpen(v => !v)}
+                    leftIcon={<Plus size={10} />}>
+                    Set quota
+                  </Button>
+                </div>
+                {quotaFormOpen && (
+                  <div className="mb-3 p-3 rounded-md border border-border bg-surface-1 space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="col-span-1">
+                        <div className="text-[10px] text-content-tertiary mb-1">Credential</div>
+                        <Select value={quotaForm.credId == null ? '' : String(quotaForm.credId)}
+                          onValueChange={v => setQuotaForm(f => ({ ...f, credId: v ? Number(v) : null }))}>
+                          <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Select…" /></SelectTrigger>
+                          <SelectContent>
+                            {creds.map((c: any) => (
+                              <SelectItem key={c.id} value={String(c.id)}>{c.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-content-tertiary mb-1">Monthly cap ($)</div>
+                        <Input className="h-7 text-xs" type="number" min="1" step="1"
+                          value={quotaForm.cap}
+                          onChange={e => setQuotaForm(f => ({ ...f, cap: e.target.value }))} />
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-content-tertiary mb-1">Alert at (%)</div>
+                        <Input className="h-7 text-xs" type="number" min="1" max="100"
+                          value={quotaForm.alert}
+                          onChange={e => setQuotaForm(f => ({ ...f, alert: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="button" size="sm" loading={savingQuota}
+                        disabled={!quotaForm.credId || !quotaForm.cap || savingQuota}
+                        onClick={async () => {
+                          if (!quotaForm.credId || !quotaForm.cap) return;
+                          setSavingQuota(true);
+                          try {
+                            await providersApi.createQuota({
+                              monthly_cap_usd: Number(quotaForm.cap),
+                              alert_pct: Number(quotaForm.alert),
+                              category: decoded,
+                            });
+                            setQuotaFormOpen(false);
+                            setQuotaForm({ credId: null, cap: '', alert: '80' });
+                            providersApi.quotas('workspace').then(r =>
+                              setQuotas((r.data || []).filter((q: any) => q.category === decoded))
+                            ).catch(() => {});
+                            showToast('Quota saved', 'success');
+                          } catch (e: any) { showToast(e?.message || 'Save failed', 'error'); }
+                          setSavingQuota(false);
+                        }}>Save</Button>
+                      <Button type="button" size="sm" variant="ghost"
+                        onClick={() => setQuotaFormOpen(false)}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
+                {quotas.length === 0 ? (
+                  <div className="text-[11px] text-content-tertiary italic">No quotas set — unlimited.</div>
+                ) : (
                   <div className="space-y-1.5">
                     {quotas.map((q: any) => {
                       const used = q.used_usd ?? 0;
                       const cap = q.monthly_cap_usd ?? 0;
                       const pct = cap > 0 ? Math.min(100, (used / cap) * 100) : 0;
-                      const approaching = pct >= (q.alert_pct ?? 80);
+                      const crit = pct >= 90; const warn = !crit && pct >= 70;
                       const cred = creds.find((c: any) => c.id === q.credential_id);
                       return (
                         <div key={q.id} className="flex items-center gap-2">
                           <span className="text-[11px] text-content-secondary truncate flex-1 min-w-0">
                             {cred?.label ?? `Cred #${q.credential_id}`}
                           </span>
-                          <div className="w-24 h-1.5 rounded-full bg-surface-2 overflow-hidden shrink-0">
+                          <div className="w-20 h-1.5 rounded-full bg-surface-2 overflow-hidden shrink-0">
                             <div className={cn('h-full rounded-full transition-all',
-                              approaching ? 'bg-status-warning' : 'bg-accent')}
+                              crit ? 'bg-status-error' : warn ? 'bg-status-warning' : 'bg-accent')}
                               style={{ width: `${pct}%` }} />
                           </div>
                           <span className={cn('text-[10px] font-mono shrink-0',
-                            approaching ? 'text-status-warning' : 'text-content-tertiary')}>
+                            crit ? 'text-status-error' : warn ? 'text-status-warning' : 'text-content-tertiary')}>
                             ${used.toFixed(2)} / ${cap}
                           </span>
+                          <button type="button" title="Remove quota"
+                            className="text-content-tertiary hover:text-status-error transition-colors shrink-0"
+                            onClick={async () => {
+                              if (!await confirmDialog({ title: 'Remove quota cap?', description: 'This cannot be undone.', destructive: true })) return;
+                              try {
+                                await providersApi.deleteQuota(q.id);
+                                setQuotas(prev => prev.filter(x => x.id !== q.id));
+                                showToast('Quota removed', 'success');
+                              } catch (e: any) { showToast(e?.message || 'Delete failed', 'error'); }
+                            }}>
+                            <Trash2 size={11} />
+                          </button>
                         </div>
                       );
                     })}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </section>
 
@@ -976,6 +1067,38 @@ export default function ProviderCategoryPage() {
                     {sandboxResult.output?.note && (
                       <div className="text-content-tertiary text-[11px]">{sandboxResult.output.note}</div>
                     )}
+                  </div>
+                )}
+                {/* AE-312 — Recent runs table */}
+                {sandboxRecentRuns.length > 0 && (
+                  <div className="border-t border-border pt-3">
+                    <div className="text-[10px] uppercase text-content-tertiary mb-2">Recent runs</div>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-border">
+                          <th className="text-left pb-1 text-[10px] font-medium text-content-tertiary">When</th>
+                          <th className="text-left pb-1 text-[10px] font-medium text-content-tertiary">Cap</th>
+                          <th className="text-left pb-1 text-[10px] font-medium text-content-tertiary">Latency</th>
+                          <th className="text-left pb-1 text-[10px] font-medium text-content-tertiary">Cost</th>
+                          <th className="text-left pb-1 text-[10px] font-medium text-content-tertiary">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {sandboxRecentRuns.map((run: any) => (
+                          <tr key={run.run_id ?? run.id} className="hover:bg-surface-1">
+                            <td className="py-1.5 text-content-tertiary font-mono">{run.created_at ? new Date(run.created_at).toLocaleTimeString() : '—'}</td>
+                            <td className="py-1.5 text-content-secondary">{run.capability ?? '—'}</td>
+                            <td className="py-1.5 text-content-tertiary font-mono">{run.latency_ms != null ? `${run.latency_ms}ms` : '—'}</td>
+                            <td className="py-1.5 text-content-tertiary font-mono">{run.cost_usd != null ? `$${run.cost_usd.toFixed(5)}` : '—'}</td>
+                            <td className="py-1.5">
+                              {run.ok
+                                ? <span className="text-status-success font-semibold">✓</span>
+                                : <span className="text-status-error font-semibold">✗</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
