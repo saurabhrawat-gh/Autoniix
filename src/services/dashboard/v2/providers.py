@@ -388,11 +388,13 @@ async def list_credentials(
     pool = await get_pool()
     filters = []
     args: list[Any] = []
-    # Scope: show credentials belonging to this workspace OR system defaults (NULL).
-    # Superadmin/legacy sessions see all credentials across all workspaces.
-    if actor.global_role != "superadmin" and actor.source != "legacy":
+    # Scope: show only credentials belonging to this workspace.
+    # Superadmin sessions see all credentials across all workspaces.
+    # Legacy sessions default to workspace_id=1 (see _deps.py), so filtering
+    # by workspace_id still produces the correct view for legacy sessions.
+    if actor.global_role != "superadmin":
         args.append(actor.workspace_id)
-        filters.append(f"workspace_id=${len(args)}")  # AE-324: strict — NULL rows backfilled to ws 1
+        filters.append(f"workspace_id=${len(args)}")  # AE-324: strict — NULL rows backfilled by migration
     if category:
         args.append(category)
         filters.append(f"category=${len(args)}")
@@ -1885,11 +1887,17 @@ async def sandbox_run(
     """Run a test inference against a specific credential and return the output."""
     pool = await get_pool()
     cred = await pool.fetchrow(
-        "SELECT category, provider_name, vault_path, extra_config FROM provider_credentials WHERE id=$1",
+        "SELECT category, provider_name, vault_path, extra_config, workspace_id FROM provider_credentials WHERE id=$1",
         body.credential_id,
     )
     if not cred:
         raise HTTPException(404, "Credential not found")
+    if (
+        actor.global_role != "superadmin"
+        and cred["workspace_id"] is not None
+        and cred["workspace_id"] != actor.workspace_id
+    ):
+        raise HTTPException(403, "Credential belongs to a different workspace")
 
     secret = get_secret_at(cred["vault_path"], "api_key")
     if not secret:
