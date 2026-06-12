@@ -478,6 +478,19 @@ export const providersApi = {
     request<{ id: number }>('/api/v2/providers/quotas', { method: 'POST', body: JSON.stringify(body) }),
   updateQuota: (id: number, body: { monthly_cap_usd: number; alert_pct?: number; hard_limit?: boolean }) =>
     request(`/api/v2/providers/quotas/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteQuota: (id: number) =>
+    request(`/api/v2/providers/quotas/${id}`, { method: 'DELETE' }),
+  auditLog: (params?: { category?: string; credential_id?: number; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.category) q.set('category', params.category);
+    if (params?.credential_id) q.set('credential_id', String(params.credential_id));
+    if (params?.limit) q.set('limit', String(params.limit));
+    return request<{ data: any[] }>(`/api/v2/providers/audit-log?${q}`);
+  },
+  reorderChain: (items: { id: number; position: number }[]) =>
+    request('/api/v2/providers/chains/reorder', { method: 'PATCH', body: JSON.stringify({ items }) }),
+  deleteWorkspace: (workspace_id: number) =>
+    request(`/api/v2/auth/workspaces/${workspace_id}`, { method: 'DELETE' }),
   sandboxRun: (body: {
     credential_id: number; capability: string;
     prompt?: string; text?: string; input_payload?: object;
