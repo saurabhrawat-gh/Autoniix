@@ -622,7 +622,9 @@ async def reset(body: ResetIn):
 _WORKSPACE_LIMITS: dict[str, int] = {
     "starter":    1,
     "pro":        3,
+    "growth":     3,
     "business":   5,
+    "scale":      10,
     "enterprise": 20,
 }
 
