@@ -80,7 +80,7 @@ class ClaudeLLM(LLMProvider):
         usage = data.get("usage", {})
         tokens_in = usage.get("input_tokens", 0)
         tokens_out = usage.get("output_tokens", 0)
-        pricing = PRICING.get(model, PRICING["claude-sonnet-4-20250514"])
+        pricing = PRICING.get(model, PRICING["claude-3-5-sonnet-20241022"])
         cost = tokens_in * pricing["input"] + tokens_out * pricing["output"]
         latency = int((time.monotonic() - start) * 1000)
 
@@ -106,7 +106,7 @@ class ClaudeLLM(LLMProvider):
 
     def estimate_cost(self, tokens_in: int, tokens_out: int, model: str | None = None) -> float:
         model = model or self.default_model()
-        pricing = PRICING.get(model, PRICING["claude-sonnet-4-20250514"])
+        pricing = PRICING.get(model, PRICING["claude-3-5-sonnet-20241022"])
         return tokens_in * pricing["input"] + tokens_out * pricing["output"]
 
     async def health_check(self) -> bool:
@@ -135,4 +135,6 @@ class ClaudeLLM(LLMProvider):
 
 
 ProviderRegistry.register("llm", "claude", ClaudeLLM)
+ProviderRegistry.register("llm", "anthropic", ClaudeLLM)
 ProviderRegistry.register("llm.script", "claude", ClaudeLLM)
+ProviderRegistry.register("llm.script", "anthropic", ClaudeLLM)
