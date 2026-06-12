@@ -23,6 +23,32 @@ Pass a mode when invoking:
 
 ### MODE: `plan` — Sprint Planning
 
+0. **Create a named sprint on Jira (mandatory, do this first)**
+   - Determine the sprint number by calling:
+     ```
+     curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+       "https://api.atlassian.com/ex/jira/73672c49-7089-4f35-adde-e3fa0d1e438f/rest/agile/1.0/board?projectKeyOrId=AE" \
+       | python3 -c "import sys,json; boards=json.load(sys.stdin)['values']; print(boards[0]['id'])"
+     ```
+     Store the board ID. Then list existing sprints to determine the next sprint number:
+     ```
+     curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+       "https://api.atlassian.com/ex/jira/73672c49-7089-4f35-adde-e3fa0d1e438f/rest/agile/1.0/board/{BOARD_ID}/sprint?state=active,closed" \
+       | python3 -c "import sys,json; sprints=json.load(sys.stdin).get('values',[]); print(len(sprints)+1)"
+     ```
+   - Derive the sprint theme from the dominant epic/label of issues being pulled in (e.g. "Providers Rebuild", "Pipeline Quality", "Dashboard UX")
+   - Sprint name format: `Sprint {N} — {Theme} — {YYYY-MM-DD}` (e.g. `Sprint 3 — Providers Rebuild — 2026-06-12`)
+   - Create the sprint:
+     ```
+     curl -s -X POST -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+       -H "Content-Type: application/json" \
+       "https://api.atlassian.com/ex/jira/73672c49-7089-4f35-adde-e3fa0d1e438f/rest/agile/1.0/sprint" \
+       -d '{"name": "Sprint {N} — {Theme} — {YYYY-MM-DD}", "originBoardId": {BOARD_ID}, "startDate": "{now}", "endDate": "{now+14days}"}'
+     ```
+   - Note: `JIRA_EMAIL` and `JIRA_API_TOKEN` must be set in the shell environment (from `.env`)
+   - If sprint creation fails (e.g. board doesn't support sprints), note the error and proceed — do NOT block the rest of planning
+   - Print: `🗓️ Created Jira sprint: Sprint {N} — {Theme} — {YYYY-MM-DD} (Board ID: {BOARD_ID})`
+
 1. **Check for production bugs first (mandatory)**
    - Call `mcp0_list_issues` with label `bug:production` AND state `open`
    - If ANY exist: stop all other planning. Print:
@@ -149,6 +175,9 @@ Pass a mode when invoking:
 
 ## Rules
 
+- **Sprint creation is mandatory at the start of every `plan` run** — always create a new named sprint on Jira before planning
+- Sprint name format: `Sprint {N} — {Theme} — {YYYY-MM-DD}` — theme must reflect the dominant epic focus of the recommended issues
+- Sprint duration: 2 weeks (14 days) from the planning date
 - Never move issues between labels — read-only in both modes
 - In `plan` mode, only add a sprint-focus comment — do NOT change lifecycle labels
 - Lifecycle transitions are handled by Dev Agent, QA Agent, and GitHub Actions — not this workflow
