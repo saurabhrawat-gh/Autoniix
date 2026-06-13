@@ -5,9 +5,15 @@ from datetime import timedelta
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
+from temporalio.exceptions import ApplicationError
 
 with workflow.unsafe.imports_passed_through():
     from src.schemas.common import VideoParams, VideoResult
+
+# Brain directive helpers (AE-511 / P0). Importing the activity by name keeps
+# the workflow module deterministic and avoids pulling DB code into the
+# workflow sandbox.
+_BRAIN_HALTING_ACTIONS: frozenset[str] = frozenset({"HALT", "HOLD"})
 
 RETRY_STANDARD = RetryPolicy(
     maximum_attempts=3,
@@ -77,6 +83,10 @@ class VideoProductionWorkflow:
         self._channel_id: str = ""
         self._title: str = ""
         self._content_mode: str = ""
+        # Mid-flight Brain directive, set by `receive_brain_directive` signal
+        # and consumed at the next phase boundary by `_check_brain_directive`.
+        # Default None = no directive pending. (AE-511 / P0)
+        self._brain_directive: dict | None = None
 
     # Signals
 
@@ -96,6 +106,20 @@ class VideoProductionWorkflow:
     @workflow.signal
     async def resume_workflow(self) -> None:
         self._paused = False
+
+    @workflow.signal
+    async def receive_brain_directive(self, directive: dict) -> None:
+        """Mid-flight Brain interruption (AE-511 / P0).
+
+        The directive shape matches what `brain_directive_check_activity`
+        returns. The workflow consumes it at the next phase boundary via
+        :py:meth:`_check_brain_directive`; signals must be O(1) so this
+        method only stores the value.
+
+        Sending an empty dict (or one without a halting action) is a no-op
+        — useful for clearing a stale directive without restarting.
+        """
+        self._brain_directive = directive or None
 
     # Queries
 
@@ -158,6 +182,38 @@ class VideoProductionWorkflow:
                 workflow.logger.warning("Auto-cancelling workflow after 24h pause timeout")
         if self._cancelled:
             raise RuntimeError("Workflow cancelled by user")
+
+    def _check_brain_directive(self) -> None:
+        """Halt the workflow if Brain has signalled a HALT or HOLD (AE-511 / P0).
+
+        Consumes the in-memory directive populated by
+        :py:meth:`receive_brain_directive`. Does NOT touch the DB on every
+        phase boundary — the activity-based check happens once at the very
+        start of `run()`, and signals carry mid-flight changes from there.
+
+        * Non-halting directives (ADVISE / NUDGE / RESUME / empty) → no-op.
+        * HALT → :class:`ApplicationError` with ``non_retryable=True`` so the
+          workflow fails permanently (Brain has decided this video must not ship).
+        * HOLD → :class:`ApplicationError` with ``non_retryable=False`` so a
+          future retry can resume once the directive is resolved.
+        """
+        directive = self._brain_directive
+        if not directive:
+            return
+        action = str(directive.get("action", "")).upper()
+        if action not in _BRAIN_HALTING_ACTIONS:
+            return
+        reasoning = directive.get("reasoning") or "no reason provided"
+        decision_id = directive.get("decision_id")
+        workflow.logger.warning(
+            f"BrainHalt at phase={self._current_phase} action={action} "
+            f"decision_id={decision_id} reasoning={reasoning!r}"
+        )
+        raise ApplicationError(
+            f"BrainHalt({action}): {reasoning}",
+            type="BrainHaltException",
+            non_retryable=(action == "HALT"),
+        )
 
     def _check_budget(self, budget: dict) -> None:
         if budget["accrued_cost_usd"] > budget["max_cost_usd"]:
@@ -229,6 +285,30 @@ class VideoProductionWorkflow:
             self._channel_id = ch
             self._content_mode = params.content_mode
             resume_from = getattr(params, "resume_from", None)
+
+            # AE-511 / P0: ask Brain once at workflow start whether we should
+            # halt or hold this video before any phase runs. The activity
+            # short-circuits to {} when `brain.advisory_mode` is TRUE (the
+            # default), so this is a no-op in production until the Brain has
+            # been hardened. Failures inside the activity also return {} so
+            # workflow availability is independent of Brain availability.
+            try:
+                initial_directive = await workflow.execute_activity(
+                    "brain_directive_check_activity",
+                    args=[ch, content_id],
+                    start_to_close_timeout=timedelta(seconds=10),
+                    retry_policy=RetryPolicy(maximum_attempts=2),
+                )
+            except Exception:
+                # Activity-level failure (timeout / worker shortage) must not
+                # cascade into a workflow failure. Treat as "no directive".
+                workflow.logger.warning(
+                    "brain_directive_check_activity_failed — proceeding without Brain input"
+                )
+                initial_directive = {}
+            if initial_directive:
+                self._brain_directive = initial_directive
+            self._check_brain_directive()
 
             # Initialize variables that phases produce (will be restored from checkpoint if resuming)
             research_data: dict = {}
@@ -358,6 +438,7 @@ class VideoProductionWorkflow:
                 })
 
             await self._check_pause()
+            self._check_brain_directive()
 
             # Phase 1B: Brand Identity
             if _should_skip("brand_check", resume_from):
@@ -388,6 +469,7 @@ class VideoProductionWorkflow:
                 })
 
             await self._check_pause()
+            self._check_brain_directive()
 
             # Phase 2: Script
             if _should_skip("scripting", resume_from):
@@ -452,6 +534,7 @@ class VideoProductionWorkflow:
                 })
 
             await self._check_pause()
+            self._check_brain_directive()
 
             # Phase 3: Voice
             if _should_skip("generating_voice", resume_from):
@@ -513,6 +596,7 @@ class VideoProductionWorkflow:
                 })
 
             await self._check_pause()
+            self._check_brain_directive()
 
             # Phase 4: Assets + Thumbnail + Music (parallel) ─
             if _should_skip("generating_assets", resume_from):
@@ -636,6 +720,7 @@ class VideoProductionWorkflow:
                 })
 
             await self._check_pause()
+            self._check_brain_directive()
 
             # Phase 5: Direction
             if _should_skip("directing", resume_from):
@@ -684,6 +769,7 @@ class VideoProductionWorkflow:
                 })
 
             await self._check_pause()
+            self._check_brain_directive()
 
             # Phase 5B: Editor / Post-Production
             if _should_skip("post_production", resume_from):
@@ -725,6 +811,7 @@ class VideoProductionWorkflow:
                 })
 
             await self._check_pause()
+            self._check_brain_directive()
 
             # Phase 6: Assembly (Remotion render)
             if _should_skip("rendering", resume_from):
@@ -764,6 +851,7 @@ class VideoProductionWorkflow:
                 })
 
             await self._check_pause()
+            self._check_brain_directive()
 
             # Phase 6B: Finishing (ffmpeg LUT colour grade + audio mastering) — AE-294
             if _should_skip("finishing", resume_from):
@@ -861,6 +949,7 @@ class VideoProductionWorkflow:
                     )
 
             await self._check_pause()
+            self._check_brain_directive()
 
             # Phase 8: Delivery
             packaging = script_data.get("packaging", {})

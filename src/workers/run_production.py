@@ -40,6 +40,7 @@ from src.workers.activities.delivery import delivery_activity, compute_metadata_
 from src.workers.activities.analytics import analytics_activity
 from src.workers.activities.brand import brand_activity
 from src.workers.activities.editor import editor_activity
+from src.temporal_workflows.brain_activities import brain_directive_check_activity
 
 logger = structlog.get_logger()
 
@@ -78,6 +79,8 @@ async def main() -> None:
             analytics_activity,
             brand_activity,
             editor_activity,
+            # Agentic foundation (AE-511 / P0)
+            brain_directive_check_activity,
             # Infrastructure activities
             update_video_status,
             emit_job_event,
