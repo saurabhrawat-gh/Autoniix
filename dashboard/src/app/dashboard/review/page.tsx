@@ -75,10 +75,16 @@ export default function ReviewQueuePage() {
   const channelName = (v: any) =>
     channels.find(c => c.channel_id === v.channel_id)?.channel_name || v.channel_id || '—';
 
-  const quickDecide = async (v: any, decision: string) => {
+  // AE-368 fix: backend expects review_state values ('approved' | 'rejected'),
+  // not the action verbs ('approve' | 'reject'). Previously we sent the verbs
+  // and the backend returned 400, but the success toast still fired — every
+  // quick-approve silently failed. Send the state directly and surface
+  // errors via the existing catch path.
+  const quickDecide = async (v: any, decision: 'approved' | 'rejected') => {
     try {
       await reviewApi.decide(v.content_id, decision);
-      showToast(`${decision === 'approve' ? 'Approved' : 'Rejected'}: ${v.title || v.content_id}`, 'success');
+      const label = decision === 'approved' ? 'Approved' : 'Rejected';
+      showToast(`${label}: ${v.title || v.content_id}`, 'success');
       load(tab);
     } catch (e: any) { showToast(e?.message || 'Failed', 'error'); }
   };
@@ -233,8 +239,8 @@ export default function ReviewQueuePage() {
                 v={v}
                 channelName={channelName(v)}
                 tab={tab}
-                onApprove={() => quickDecide(v, 'approve')}
-                onReject={() => quickDecide(v, 'reject')}
+                onApprove={() => quickDecide(v, 'approved')}
+                onReject={() => quickDecide(v, 'rejected')}
               />
             ))
           )}

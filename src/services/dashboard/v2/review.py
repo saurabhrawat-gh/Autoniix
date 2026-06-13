@@ -144,8 +144,15 @@ async def decide(
     video_id: str, body: DecisionIn, request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
-    if body.decision not in ("approved", "needs_edits", "rejected", "regenerating"):
-        raise HTTPException(400, "Invalid decision")
+    # AE-368: explicit allow-list + clear error message so a UI sending the
+    # action verb ('approve'/'reject') instead of the state value gets a
+    # 400 that actually tells the engineer what to send.
+    _VALID_DECISIONS = ("approved", "needs_edits", "rejected", "regenerating")
+    if body.decision not in _VALID_DECISIONS:
+        raise HTTPException(
+            400,
+            f"Invalid decision={body.decision!r}; expected one of {list(_VALID_DECISIONS)}",
+        )
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
