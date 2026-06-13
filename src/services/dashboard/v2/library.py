@@ -201,6 +201,12 @@ class SearchIn(BaseModel):
     kind: str | None = None
     tags: list[str] | None = None
     limit: int = 40
+    # AE-356: search mode.
+    #   hybrid    — semantic if a query embedding succeeds; FTS otherwise.
+    #               Results are union-merged with score fusion (RRF-style).
+    #   semantic  — semantic only; empty result if embeddings unavailable.
+    #   fts       — legacy full-text + ILIKE match (the historical behaviour).
+    mode: str = "hybrid"
 
 
 # GET /library/dam/assets
@@ -542,39 +548,137 @@ async def dam_update_brand_kit(
 
 # POST /library/dam/search
 
-@router.post("/dam/search")
-async def dam_search(
-    body: SearchIn,
-    _: Principal = Depends(principal_dep),
-):
-    """Hybrid search: full-text on display_name + tag match."""
-    pool = await get_pool()
+
+_SELECT_COLS = (
+    "id, scope, scope_id, kind, display_name, mime_type, bytes, "
+    "thumbnail_key, storage_key, origin, tags, metadata, created_at"
+)
+
+
+def _common_filters(body: "SearchIn") -> tuple[list[str], list[Any]]:
+    """Build the WHERE clause shared between FTS and semantic paths."""
     where = ["deleted_at IS NULL", "scope = $1"]
     args: list[Any] = [body.scope]
-
     if body.scope_id:
-        args.append(body.scope_id); where.append(f"scope_id = ${len(args)}")
+        args.append(body.scope_id)
+        where.append(f"scope_id = ${len(args)}")
     if body.kind:
-        args.append(body.kind); where.append(f"kind = ${len(args)}")
+        args.append(body.kind)
+        where.append(f"kind = ${len(args)}")
     if body.tags:
         for t in body.tags:
-            args.append(t); where.append(f"${len(args)} = ANY(tags)")
+            args.append(t)
+            where.append(f"${len(args)} = ANY(tags)")
+    return where, args
 
+
+async def _fts_search(body: "SearchIn") -> list[dict]:
+    pool = await get_pool()
+    where, args = _common_filters(body)
     if body.q:
         args.append(body.q)
         where.append(
             f"(to_tsvector('english', display_name) @@ plainto_tsquery('english', ${len(args)})"
             f" OR display_name ILIKE '%' || ${len(args)} || '%')"
         )
-
     args.append(body.limit)
     rows = await pool.fetch(
-        f"""SELECT id, scope, scope_id, kind, display_name, mime_type, bytes,
-                   thumbnail_key, storage_key, origin, tags, metadata, created_at
+        f"""SELECT {_SELECT_COLS}, NULL::float8 AS cosine_sim
               FROM dam_assets
              WHERE {" AND ".join(where)}
              ORDER BY created_at DESC
              LIMIT ${len(args)}""",
         *args,
     )
-    return {"data": [dict(r) for r in rows], "count": len(rows)}
+    return [dict(r) for r in rows]
+
+
+async def _semantic_search(body: "SearchIn") -> list[dict] | None:
+    """Return semantic-ranked rows, or None if embeddings are unavailable.
+
+    Returns ``None`` (not ``[]``) when the embedding call fails so the caller
+    can fall back to FTS; an empty list means "we ran semantic search and
+    nothing matched."
+    """
+    if not body.q:
+        return None
+    # Lazy import — semantic search depends on src/llm/embeddings (P0).
+    from src.llm.embeddings import EmbeddingConfigError, EmbeddingError, embed_text
+
+    try:
+        vector = await embed_text(body.q)
+    except (EmbeddingConfigError, EmbeddingError):
+        return None
+
+    literal = "[" + ",".join(f"{v:.6f}" for v in vector) + "]"
+    pool = await get_pool()
+    where, args = _common_filters(body)
+    args.append(literal)
+    vec_param = f"${len(args)}::vector"
+    args.append(body.limit)
+    rows = await pool.fetch(
+        f"""
+        SELECT {_SELECT_COLS},
+               1 - (e.embedding <=> {vec_param}) AS cosine_sim
+          FROM dam_assets
+          JOIN dam_text_embeddings e ON e.asset_id = dam_assets.id
+         WHERE {" AND ".join(where)}
+         ORDER BY e.embedding <=> {vec_param}
+         LIMIT ${len(args)}
+        """,
+        *args,
+    )
+    return [dict(r) for r in rows]
+
+
+def _fuse(semantic: list[dict], lexical: list[dict], limit: int) -> list[dict]:
+    """Reciprocal-rank fusion of two ranked lists.
+
+    score(asset) = sum( 1 / (k + rank_i) ) over lists where the asset appears.
+    Standard RRF with k=60. Robust to score scales and missing scores.
+    """
+    K = 60.0
+    fused: dict[int, dict] = {}
+    for rank, row in enumerate(semantic, start=1):
+        entry = fused.setdefault(row["id"], dict(row, _score=0.0))
+        entry["_score"] += 1.0 / (K + rank)
+    for rank, row in enumerate(lexical, start=1):
+        entry = fused.setdefault(row["id"], dict(row, _score=0.0))
+        entry["_score"] += 1.0 / (K + rank)
+    ranked = sorted(fused.values(), key=lambda r: r["_score"], reverse=True)
+    for r in ranked:
+        r.pop("_score", None)
+    return ranked[:limit]
+
+
+@router.post("/dam/search")
+async def dam_search(
+    body: SearchIn,
+    _: Principal = Depends(principal_dep),
+):
+    """Library search (AE-356).
+
+    Modes:
+      * ``hybrid``   — semantic + FTS, fused with reciprocal-rank fusion.
+                       Falls back to FTS only when the embedding call fails.
+      * ``semantic`` — vector search only; empty list if embeddings unavailable.
+      * ``fts``      — legacy behaviour: full-text + ILIKE.
+    """
+    mode = (body.mode or "hybrid").lower()
+    if mode == "fts":
+        rows = await _fts_search(body)
+        return {"data": rows, "count": len(rows), "mode": "fts"}
+
+    if mode == "semantic":
+        semantic = await _semantic_search(body)
+        if semantic is None:
+            return {"data": [], "count": 0, "mode": "semantic", "note": "embeddings unavailable"}
+        return {"data": semantic, "count": len(semantic), "mode": "semantic"}
+
+    # hybrid (default)
+    semantic = await _semantic_search(body)
+    lexical = await _fts_search(body)
+    if semantic is None:
+        return {"data": lexical, "count": len(lexical), "mode": "fts_fallback"}
+    fused = _fuse(semantic, lexical, body.limit)
+    return {"data": fused, "count": len(fused), "mode": "hybrid"}
