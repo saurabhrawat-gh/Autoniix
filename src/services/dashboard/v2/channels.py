@@ -1193,3 +1193,51 @@ def _heuristic_suggest(field: str, ctx: dict) -> str:
         "typography_preference": "Inter / Geist; bold weights on emphasis words.",
     }
     return table.get(field, f"Suggested value for {field} on {name or niche}")
+
+
+# AE-357: Brand Kit binding
+
+
+class BrandKitBindIn(BaseModel):
+    """Body for binding a brand kit to a channel. Pass null to unbind."""
+
+    brand_kit_id: int | None = None
+
+
+@router.get("/{channel_id}/brand-kit")
+async def get_channel_brand_kit(
+    channel_id: str,
+    _: Principal = Depends(principal_dep),
+):
+    """Return the resolved brand kit for ``channel_id`` (AE-357)."""
+    from src.services.brand.brand_kit_resolver import resolve_brand_kit_for_channel
+
+    data = await resolve_brand_kit_for_channel(channel_id)
+    return {"data": data, "bound": bool(data)}
+
+
+@router.put("/{channel_id}/brand-kit")
+async def put_channel_brand_kit(
+    channel_id: str,
+    body: BrandKitBindIn,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "member")),
+):
+    """Bind or unbind a brand kit on a channel (AE-357)."""
+    from src.services.brand.brand_kit_resolver import bind_channel_brand_kit
+
+    try:
+        updated = await bind_channel_brand_kit(channel_id, body.brand_kit_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    if not updated:
+        raise HTTPException(404, f"channel {channel_id} not found")
+    await audit(
+        actor=actor,
+        action="channel.brand_kit.bind",
+        target_type="channel",
+        target_id=channel_id,
+        after={"brand_kit_id": body.brand_kit_id},
+        request=request,
+    )
+    return {"status": "ok", "brand_kit_id": body.brand_kit_id}
