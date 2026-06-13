@@ -615,6 +615,25 @@ services:
     restart: unless-stopped
     deploy: { resources: { limits: { memory: 256M } } }
 
+  # media_jobs worker (AE-355 / Library Sprint) — pulls pending rows from the
+  # media_jobs table and runs probe / embed / autotag handlers. ffmpeg-based
+  # handlers (transcode_hls, waveform, transcribe, poster-from-video) are
+  # registered as skipped until ffmpeg is added to the worker image.
+  worker-media-jobs:
+    build: .
+    command: python -m src.workers.media_jobs.runner
+    env_file: .env
+    environment:
+      MEDIA_JOBS_CONCURRENCY: "${MEDIA_JOBS_CONCURRENCY:-2}"
+    networks: [autoniix-net]
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres-app: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 384M } } }
+
   # Sentry Agent — monitors #alerts-critical and #alerts-warnings Slack channels,
   # triages Sentry errors into Jira bugs, and attempts LLM-powered auto-fixes via PR.
   sentry-agent:
