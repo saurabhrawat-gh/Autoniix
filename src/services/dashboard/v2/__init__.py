@@ -24,6 +24,8 @@ from . import (
     flags as _flags,
     jobs as _jobs,
     library as _library,
+    library_licenses as _library_licenses,
+    library_quotas as _library_quotas,
     notifications as _notifications,
     providers as _providers,
     review as _review,
@@ -46,7 +48,9 @@ router.include_router(_content.router,       prefix="/content",       tags=["v2.
 router.include_router(_system.router,        prefix="/system",        tags=["v2.system"])
 router.include_router(_review.router,        prefix="/review",        tags=["v2.review"])
 router.include_router(_notifications.router, prefix="/notifications", tags=["v2.notifications"])
-router.include_router(_library.router,       prefix="/library",       tags=["v2.library"])
+router.include_router(_library.router,           prefix="/library", tags=["v2.library"])
+router.include_router(_library_licenses.router,  prefix="/library", tags=["v2.library.licenses"])
+router.include_router(_library_quotas.router,    prefix="/library", tags=["v2.library.quotas"])
 router.include_router(_experiments.router,   prefix="/experiments",   tags=["v2.experiments"])
 router.include_router(_workspace.router,     prefix="/workspace",     tags=["v2.workspace"])
 router.include_router(_finishing.router,     prefix="",               tags=["v2.finishing"])

@@ -287,6 +287,28 @@ async def dam_upload(
 ):
     pool = await get_pool()
     results = []
+
+    # AE-364: pre-check quota once per upload call so a 50-file batch fails
+    # fast instead of writing half then aborting mid-loop. We sum the
+    # non-deduped bytes below as we go and abort the batch if it would
+    # cross the scope's quota.
+    from src.services.dashboard.v2.library_quotas import check_quota_before_upload
+
+    incoming_total = 0
+    for f in files:
+        # ``UploadFile.size`` is set by Starlette when the client sends a
+        # Content-Length; falling back to 0 means "we'll discover the size
+        # when we read the stream" — the per-file check below still catches
+        # over-quota uploads, just one file later.
+        incoming_total += int(getattr(f, "size", None) or 0)
+    quota = await check_quota_before_upload(scope, scope_id, incoming_total)
+    if not quota["ok"]:
+        raise HTTPException(
+            413,
+            f"upload would exceed quota: requested {incoming_total} bytes, "
+            f"{quota['remaining_bytes']} remaining of {quota['quota_bytes']}",
+        )
+
     for f in files:
         data = await f.read()
         sha = hashlib.sha256(data).hexdigest()
@@ -487,6 +509,23 @@ async def dam_delete_collection(
     pool = await get_pool()
     await pool.execute("DELETE FROM dam_collections WHERE id=$1", col_id)
     return {"ok": True}
+
+
+# AE-359: Smart Collection resolution — returns the live asset list for a
+# collection (manual collections return their explicit member list; smart
+# collections re-execute the stored query JSONB on every fetch).
+@router.get("/dam/collections/{col_id}/assets")
+async def dam_resolve_collection_assets(
+    col_id: int,
+    limit: int = Query(200, ge=1, le=1000),
+    _: Principal = Depends(principal_dep),
+):
+    from src.services.dashboard.v2.library_smart_collections import (
+        resolve_smart_collection,
+    )
+
+    rows = await resolve_smart_collection(col_id, limit=limit)
+    return {"data": rows, "count": len(rows)}
 
 
 # Brand kits CRUD
