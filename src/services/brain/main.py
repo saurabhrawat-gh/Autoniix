@@ -33,6 +33,7 @@ from src.agents.registry import AgentRegistry
 from src.db import close_pool, get_pool
 from src.services.brain.agent import BrainAgent
 from src.services.brain.consumer import run_consumer
+from src.services.brain.reflector import run_reflector_loop
 from src.services.brain.resolver import run_resolver_loop
 
 # Register BrainAgent with the agentic framework at import time so any
@@ -148,6 +149,13 @@ async def _run_all() -> None:
     async def _run_resolver():
         await run_resolver_loop(interval_s=_RESOLVER_INTERVAL_S, stop_event=stop_event)
 
+    async def _run_reflector():
+        # Interval is read from the ``brain.reflector.interval_hours``
+        # flag each loop so operators can speed up tuning without
+        # restarting the service. The reflector itself no-ops when
+        # ``brain.reflector.enabled`` is FALSE (default).
+        await run_reflector_loop(stop_event=stop_event)
+
     async def _shutdown_health():
         await stop_event.wait()
         server.should_exit = True
@@ -156,6 +164,7 @@ async def _run_all() -> None:
         _run_health(),
         _run_consumer(),
         _run_resolver(),
+        _run_reflector(),
         _shutdown_health(),
         return_exceptions=True,
     )
