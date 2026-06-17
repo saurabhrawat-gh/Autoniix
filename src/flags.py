@@ -27,6 +27,7 @@ This module is part of AE-510 / P0 — Agentic Foundation.
 from __future__ import annotations
 
 import asyncio
+import json as _json
 import time
 from typing import Any
 
@@ -58,10 +59,18 @@ def _extract_value(row: dict | None) -> Any | None:
       flags such as integer intervals).
     * Otherwise return ``enabled`` (the boolean case).
     * For a missing row, the caller's ``default`` is used (handled upstream).
+
+    Note: asyncpg returns JSONB columns as Python strings, not dicts. This
+    function handles both representations so callers don't need to care.
     """
     if row is None:
         return None
     payload = row.get("payload") or {}
+    if isinstance(payload, str):
+        try:
+            payload = _json.loads(payload) or {}
+        except (ValueError, TypeError):
+            payload = {}
     if isinstance(payload, dict) and "value" in payload:
         return payload["value"]
     return bool(row.get("enabled", False))

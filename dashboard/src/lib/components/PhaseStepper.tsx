@@ -1,10 +1,47 @@
 'use client';
 
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Check, X, Pause as PauseIcon } from './Icon';
 import { cn } from '../utils';
 import { PHASE_ORDER, PHASE_LABELS } from '../utils';
 import { ease, dur } from '../motion';
+
+function ScrambleText({ text, active }: { text: string; active: boolean }) {
+  const reduce = useReducedMotion();
+  const [display, setDisplay] = useState(text);
+  const prevActiveRef = useRef(false);
+
+  useEffect(() => {
+    if (!active) {
+      prevActiveRef.current = false;
+      setDisplay(text);
+      return;
+    }
+    if (prevActiveRef.current) return;
+    prevActiveRef.current = true;
+
+    if (reduce) { setDisplay(text); return; }
+
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789·-';
+    let frame = 0;
+    const total = 8;
+    const id = setInterval(() => {
+      frame++;
+      if (frame >= total) { setDisplay(text); clearInterval(id); return; }
+      setDisplay(
+        text.split('').map((c, i) =>
+          i < Math.floor((frame / total) * text.length)
+            ? c
+            : chars[Math.floor(Math.random() * chars.length)]
+        ).join(''),
+      );
+    }, 35);
+    return () => clearInterval(id);
+  }, [active, text, reduce]);
+
+  return <>{display}</>;
+}
 
 interface PhaseStepperProps {
   currentPhase: string | null;
@@ -70,6 +107,13 @@ export function PhaseStepper({
 
           return (
             <div key={phase} className="flex-1 flex flex-col items-center">
+              <div className="relative flex items-center justify-center">
+                {isCurrent && !isPhaseFailed && !isPhasePaused && (
+                  <>
+                    <span className="radar-ring-1 absolute w-4 h-4 rounded-full bg-accent pointer-events-none" />
+                    <span className="radar-ring-2 absolute w-4 h-4 rounded-full bg-accent pointer-events-none" />
+                  </>
+                )}
               <motion.div
                 layoutId={isCurrent ? `phase-active-${jobId}` : undefined}
                 className={cn(
@@ -111,6 +155,7 @@ export function PhaseStepper({
                   ) : null}
                 </AnimatePresence>
               </motion.div>
+              </div>
               <span
                 aria-current={isCurrent ? 'step' : undefined}
                 aria-live={isCurrent ? 'polite' : undefined}
@@ -127,7 +172,7 @@ export function PhaseStepper({
                     : 'text-content-tertiary/50',
                 )}
               >
-                {PHASE_LABELS[phase]}
+                <ScrambleText text={PHASE_LABELS[phase]} active={isCurrent} />
               </span>
             </div>
           );

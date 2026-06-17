@@ -1419,9 +1419,11 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
     // live model lists) and the marketplace catalog for this section (which
     // also includes user-added custom providers). Merge by key; registry wins
     // when both exist so live supported_models are preserved.
+    const safeOrEmpty = (p: Promise<any>) =>
+      p.catch((e: any) => { if (e?.message === 'Unauthorized') throw e; return []; });
     Promise.all([
-      providersApi.registeredProviders(category).then(r => r.data || []).catch(() => []),
-      providersApi.catalogForCategory(category).then(r => r.data || []).catch(() => []),
+      safeOrEmpty(providersApi.registeredProviders(category).then(r => r.data || [])),
+      safeOrEmpty(providersApi.catalogForCategory(category).then(r => r.data || [])),
     ])
       .then(([reg, catalog]) => {
         const byKey = new Map<string, any>();

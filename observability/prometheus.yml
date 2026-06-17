@@ -76,6 +76,11 @@ scrape_configs:
     static_configs:
       - targets: ['brand:8012']
         labels: { service: brand }
+  - job_name: brain
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['brain:8015']
+        labels: { service: brain }
   - job_name: editor
     metrics_path: /metrics
     static_configs:

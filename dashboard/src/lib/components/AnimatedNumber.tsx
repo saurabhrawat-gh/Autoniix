@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useMotionValue, useTransform, animate, motion, useReducedMotion } from 'framer-motion';
+import { useMotionValue, useTransform, useSpring, motion, useReducedMotion } from 'framer-motion';
 
 interface AnimatedNumberProps {
   value: number;
@@ -17,21 +17,20 @@ export function AnimatedNumber({
   decimals = 2,
   prefix = '',
   suffix = '',
-  duration = 0.15,
+  duration = 0.15, // kept for API compat; spring physics are used instead
   className,
 }: AnimatedNumberProps) {
   const reduce = useReducedMotion();
   const mv = useMotionValue(value);
-  const display = useTransform(mv, (n) => `${prefix}${n.toFixed(decimals)}${suffix}`);
+  const springMv = useSpring(mv, { stiffness: 80, damping: 20 });
+  const display = useTransform(
+    reduce ? mv : springMv,
+    (n) => `${prefix}${n.toFixed(decimals)}${suffix}`,
+  );
 
   useEffect(() => {
-    if (reduce) {
-      mv.set(value);
-      return;
-    }
-    const controls = animate(mv, value, { duration, ease: [0.2, 0, 0, 1] });
-    return () => controls.stop();
-  }, [value, duration, reduce, mv]);
+    mv.set(value);
+  }, [value, mv]);
 
   return <motion.span className={className}>{display}</motion.span>;
 }
