@@ -35,6 +35,7 @@ from src.services.brain.agent import BrainAgent
 from src.services.brain.consumer import run_consumer
 from src.services.brain.reflector import run_reflector_loop
 from src.services.brain.resolver import run_resolver_loop
+from src.services.brain.scorer import run_scorer_loop
 
 # Register BrainAgent with the agentic framework at import time so any
 # component that asks ``AgentRegistry.get("brain")`` gets a working instance.
@@ -156,6 +157,12 @@ async def _run_all() -> None:
         # ``brain.reflector.enabled`` is FALSE (default).
         await run_reflector_loop(stop_event=stop_event)
 
+    async def _run_scorer():
+        # OutcomeScorer back-fills brain_decisions.outcome_score so the
+        # Reflector has data to mine. No-op when
+        # ``brain.scorer.enabled`` is FALSE (default).
+        await run_scorer_loop(stop_event=stop_event)
+
     async def _shutdown_health():
         await stop_event.wait()
         server.should_exit = True
@@ -165,6 +172,7 @@ async def _run_all() -> None:
         _run_consumer(),
         _run_resolver(),
         _run_reflector(),
+        _run_scorer(),
         _shutdown_health(),
         return_exceptions=True,
     )
