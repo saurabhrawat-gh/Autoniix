@@ -52,7 +52,7 @@ from jsonschema import Draft7Validator
 from jsonschema.exceptions import ValidationError as JsonSchemaError
 
 from src.events.topics import Topic
-from src.redis_client import get_redis
+from src.redis_client import get_pubsub_redis, get_redis
 
 logger = structlog.get_logger()
 
@@ -159,50 +159,77 @@ async def subscribe(
       a poisoned producer cannot crash a worker loop.
     * Handler exceptions are logged + counted but do not break the loop —
       one bad message must not stop the stream.
+    * If the connection drops, the loop reconnects automatically with
+      exponential back-off (1s → 2s → 4s … capped at 60s).
     * ``stop_event`` is the cooperative shutdown signal; the loop exits at
       the next message boundary when set.
     """
-    redis = await get_redis()
-    pubsub = redis.pubsub()
     topic_values = [_topic_value(t) for t in topics]
     if not topic_values:
         raise ValueError("subscribe requires at least one topic")
-    await pubsub.subscribe(*topic_values)
-    logger.info("events.subscribed", topics=topic_values)
 
-    try:
-        async for message in pubsub.listen():
-            if stop_event is not None and stop_event.is_set():
-                break
-            if message.get("type") != "message":
-                continue
-            topic_value = message.get("channel", "")
-            try:
-                envelope = json.loads(message["data"])
-                validate_envelope(envelope)
-            except (json.JSONDecodeError, EnvelopeError) as exc:
-                logger.warning(
-                    "events.invalid_message",
-                    topic=topic_value,
-                    error=str(exc),
-                )
-                if EVENTS_INVALID_TOTAL is not None:
-                    EVENTS_INVALID_TOTAL.labels(
-                        topic=topic_value, direction="subscribe"
-                    ).inc()
-                continue
-            try:
-                await handler(envelope)
-            except Exception as exc:  # noqa: BLE001 — handler isolation
-                logger.warning(
-                    "events.handler_failed",
-                    topic=topic_value,
-                    event_id=envelope.get("event_id"),
-                    error=str(exc),
-                )
-    finally:
+    _RECONNECT_BASE = 1.0
+    _RECONNECT_CAP = 60.0
+    reconnect_delay = _RECONNECT_BASE
+
+    while True:
+        if stop_event is not None and stop_event.is_set():
+            return
+
+        pubsub = None
         try:
-            await pubsub.unsubscribe(*topic_values)
-            await pubsub.close()
-        except Exception:  # pragma: no cover — defensive cleanup
-            pass
+            redis = await get_pubsub_redis()
+            pubsub = redis.pubsub()
+            await pubsub.subscribe(*topic_values)
+            logger.info("events.subscribed", topics=topic_values)
+            reconnect_delay = _RECONNECT_BASE  # reset on successful connect
+
+            async for message in pubsub.listen():
+                if stop_event is not None and stop_event.is_set():
+                    return
+                if message.get("type") != "message":
+                    continue
+                topic_value = message.get("channel", "")
+                try:
+                    envelope = json.loads(message["data"])
+                    validate_envelope(envelope)
+                except (json.JSONDecodeError, EnvelopeError) as exc:
+                    logger.warning(
+                        "events.invalid_message",
+                        topic=topic_value,
+                        error=str(exc),
+                    )
+                    if EVENTS_INVALID_TOTAL is not None:
+                        EVENTS_INVALID_TOTAL.labels(
+                            topic=topic_value, direction="subscribe"
+                        ).inc()
+                    continue
+                try:
+                    await handler(envelope)
+                except Exception as exc:  # noqa: BLE001 — handler isolation
+                    logger.warning(
+                        "events.handler_failed",
+                        topic=topic_value,
+                        event_id=envelope.get("event_id"),
+                        error=str(exc),
+                    )
+
+        except Exception as exc:  # noqa: BLE001 — reconnect on any connection error
+            if stop_event is not None and stop_event.is_set():
+                return
+            logger.warning(
+                "events.subscriber_disconnected",
+                topics=topic_values,
+                error=str(exc),
+                reconnect_in=reconnect_delay,
+            )
+            await asyncio.sleep(reconnect_delay)
+            reconnect_delay = min(reconnect_delay * 2, _RECONNECT_CAP)
+
+        finally:
+            if pubsub is not None:
+                try:
+                    await pubsub.unsubscribe(*topic_values)
+                    await pubsub.aclose()
+                except Exception:  # pragma: no cover — defensive cleanup
+                    pass

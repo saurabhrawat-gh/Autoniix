@@ -12,6 +12,7 @@ import { PageHeader } from '@/lib/components/PageHeader';
 import { SkeletonCard } from '@/lib/components/Skeleton';
 import { EmptyState } from '@/lib/components/EmptyState';
 import { PhaseStepper } from '@/lib/components/PhaseStepper';
+import { BorderBeam } from '@/lib/components/BorderBeam';
 import { AnimatedNumber } from '@/lib/components/AnimatedNumber';
 import { ChevronDown, Inbox, RotateCcw } from '@/lib/components/Icon';
 import { Button, Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogCloseButton, DialogTitle, DialogDescription } from '@/lib/ui';
@@ -307,13 +308,15 @@ export default function ProgressPage() {
 
                       return (
                         <div key={job.content_id} className={cn(
-                          'card overflow-hidden',
+                          'card overflow-hidden relative',
                           isFailed && 'border-status-error/30 bg-status-error/5',
                           isStopped && 'border-status-warning/30 bg-status-warning/5',
                           isPaused && !isFailed && !isStopped && 'border-status-warning/30',
-                          !isFailed && !isStopped && !isPaused && !systemStopped && 'card-in-progress',
                           systemStopped && !isFailed && !isStopped && 'lockdown-frost'
                         )}>
+                          {!isFailed && !isStopped && !isPaused && !systemStopped && (
+                            <BorderBeam duration={3} size={55} />
+                          )}
                           {/* ── Job Card Header ──────────────── */}
                           <div className="p-5">
                             <div className="flex items-center justify-between">

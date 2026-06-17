@@ -23,6 +23,27 @@ try:
     from prometheus_client import Counter, Histogram
     from prometheus_fastapi_instrumentator import Instrumentator, metrics
     _HAS_INSTRUMENTATOR = True
+
+    # --- Compatibility shim for prometheus_fastapi_instrumentator 8.x ---
+    # v8 crashes with AttributeError on _IncludedRouter objects (routers added
+    # via app.include_router()) because it calls route.path on them directly.
+    # Patch the private helper to skip non-Route objects gracefully.
+    try:
+        import prometheus_fastapi_instrumentator.routing as _pfi_routing
+
+        _orig_get_route_name = _pfi_routing.get_route_name
+
+        def _safe_get_route_name(request: Any) -> str:  # type: ignore[override]
+            try:
+                return _orig_get_route_name(request)
+            except AttributeError:
+                return "unknown"
+
+        _pfi_routing.get_route_name = _safe_get_route_name  # type: ignore[assignment]
+    except Exception:
+        pass
+    # --- End shim ---
+
 except Exception:  # pragma: no cover - optional dep, must not crash app
     _HAS_INSTRUMENTATOR = False
     Counter = Histogram = None  # type: ignore
