@@ -31,6 +31,7 @@ Part of AE-P1 / Agentic Foundation.
 """
 from __future__ import annotations
 
+import asyncio
 from abc import ABC
 from dataclasses import dataclass, field
 from typing import Any, ClassVar
@@ -38,6 +39,29 @@ from typing import Any, ClassVar
 import structlog
 
 logger = structlog.get_logger()
+
+#: Current wire-format version for :class:`AgentDecision`. Bump when you
+#: add a non-backwards-compatible field. Consumers SHOULD check this
+#: before relying on optional fields.
+AGENT_DECISION_SCHEMA_VERSION = 1
+
+#: Default per-phase timeouts (seconds). Conservative — observe + recall
+#: are cheap reads; decide can be an LLM call so it gets more headroom;
+#: act publishes events + writes DB; remember is best-effort embedding.
+DEFAULT_PHASE_TIMEOUTS_S: dict[str, float] = {
+    "observe": 10.0,
+    "recall": 8.0,
+    "reason": 5.0,
+    "decide": 30.0,
+    "act": 15.0,
+    "remember": 30.0,
+}
+
+#: Default retry policy for :meth:`BaseAgent.act` — act() has side-effects
+#: (DB writes, event publishes) so we retry with jitter, then dead-letter.
+DEFAULT_ACT_MAX_ATTEMPTS = 3
+DEFAULT_ACT_INITIAL_DELAY_S = 0.5
+DEFAULT_ACT_MAX_DELAY_S = 4.0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -63,6 +87,9 @@ class AgentDecision:
 
     The shape matches what gets written to ``<decision_table>`` and what
     gets published on the event bus, so ``act()`` is a trivial mapping.
+
+    ``schema_version`` lets downstream consumers detect new optional
+    fields (e.g. ``reasoning_steps`` once Critic / LLM-decide land).
     """
     decision_type: str
     scope: str
@@ -75,6 +102,9 @@ class AgentDecision:
     context_summary: str = ""
     # Optional: subclass-specific extras carried into act() / remember().
     extras: dict[str, Any] = field(default_factory=dict)
+    # Wire-format version. Defaults to the package-level constant so a
+    # subclass never forgets to bump it explicitly.
+    schema_version: int = AGENT_DECISION_SCHEMA_VERSION
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -104,12 +134,21 @@ class BaseAgent(ABC):
     #: reads should start with this prefix to make per-agent tuning easy.
     flag_prefix: ClassVar[str] = ""
 
+    #: Per-phase timeout overrides (seconds). Subclasses may override
+    #: any subset; defaults come from :data:`DEFAULT_PHASE_TIMEOUTS_S`.
+    phase_timeouts_s: ClassVar[dict[str, float]] = {}
+
     def __init__(self) -> None:
         if not self.name or not self.decision_table or not self.flag_prefix:
             raise TypeError(
                 f"{type(self).__name__} must define name, decision_table, "
                 "and flag_prefix class attributes."
             )
+
+    def _timeout_for(self, phase: str) -> float:
+        return float(
+            self.phase_timeouts_s.get(phase, DEFAULT_PHASE_TIMEOUTS_S[phase])
+        )
 
     # ── Lifecycle ────────────────────────────────────────────────────────
 
@@ -211,20 +250,35 @@ class BaseAgent(ABC):
     async def run(self, context: dict[str, Any]) -> AgentDecision | None:
         """Run the full lifecycle for one input context.
 
-        Each phase is isolated: a failure in ``recall`` or ``remember``
-        does not block ``decide`` / ``act``. Only ``decide`` and ``act``
-        propagate exceptions (the caller decides what to do).
+        Each phase is:
+
+        * **time-bounded** — wrapped in :func:`asyncio.wait_for` so a
+          hung phase can't block the consumer indefinitely.
+        * **isolated** — observe / recall / reason / remember failures
+          are logged and don't kill the loop. decide / act failures
+          propagate so the caller can apply its own policy.
+        * **retried with backoff** — only ``act()``, because it's the
+          one phase with externally-visible side-effects.
         """
-        observation = await self.observe(context)
+        # observe — None or timeout short-circuits the rest of the loop
+        observation = await self._run_phase(
+            "observe", lambda: self.observe(context), default=None
+        )
         if observation is None:
             logger.debug("agent.observe_returned_none", agent=self.name)
             return None
 
-        memories = await self.recall(observation)
+        memories = await self._run_phase(
+            "recall", lambda: self.recall(observation), default=[]
+        )
 
-        state = await self.reason(observation, memories)
+        state = await self._run_phase(
+            "reason",
+            lambda: self.reason(observation, memories),
+            default={"observation": observation, "memories": memories},
+        )
 
-        decision = await self.decide(state)
+        decision = await self._run_decide(state, observation)
         if decision is None:
             logger.debug(
                 "agent.no_decision",
@@ -233,11 +287,18 @@ class BaseAgent(ABC):
             )
             return None
 
-        acted = await self.act(decision)
+        acted = await self._run_act_with_retry(decision)
+        if acted is None:
+            # All retries exhausted — dead-letter the decision.
+            await self._dead_letter(decision)
+            return None
 
-        # remember() is fire-and-forget at the loop level — failures are
-        # already swallowed inside.
-        await self.remember(decision, acted)
+        # remember() runs as a background task so embedding latency
+        # never holds up the consumer loop. Failures are logged inside.
+        asyncio.create_task(
+            self._run_remember_bg(decision, acted),
+            name=f"agent-remember-{self.name}",
+        )
 
         logger.info(
             "agent.decision_complete",
@@ -248,3 +309,118 @@ class BaseAgent(ABC):
             memories_recalled=len(memories),
         )
         return decision
+
+    # ── Phase guards ─────────────────────────────────────────────────────
+
+    async def _run_phase(self, name: str, coro_fn, *, default):
+        """Run ``coro_fn`` with a per-phase timeout, swallowing failures.
+
+        Used for phases where partial / default results are acceptable:
+        observe (None → skip), recall ([] → no precedent), reason
+        (fallback state).
+        """
+        timeout = self._timeout_for(name)
+        try:
+            return await asyncio.wait_for(coro_fn(), timeout=timeout)
+        except asyncio.TimeoutError:
+            logger.warning(
+                "agent.phase_timeout", agent=self.name, phase=name,
+                timeout_s=timeout,
+            )
+            return default
+        except Exception as exc:
+            logger.warning(
+                "agent.phase_failed", agent=self.name, phase=name,
+                error=str(exc),
+            )
+            return default
+
+    async def _run_decide(self, state, observation):
+        timeout = self._timeout_for("decide")
+        try:
+            return await asyncio.wait_for(self.decide(state), timeout=timeout)
+        except asyncio.TimeoutError:
+            logger.error(
+                "agent.phase_timeout", agent=self.name, phase="decide",
+                timeout_s=timeout, scope_id=observation.scope_id,
+            )
+            return None
+
+    async def _run_act_with_retry(
+        self, decision: AgentDecision
+    ) -> dict[str, Any] | None:
+        """Run ``act()`` with exponential backoff + jitter.
+
+        Returns the acted-row dict on success, or ``None`` after all
+        attempts fail (caller dead-letters).
+        """
+        import random
+        timeout = self._timeout_for("act")
+        delay = DEFAULT_ACT_INITIAL_DELAY_S
+        last_error: str | None = None
+        for attempt in range(1, DEFAULT_ACT_MAX_ATTEMPTS + 1):
+            try:
+                return await asyncio.wait_for(
+                    self.act(decision), timeout=timeout
+                )
+            except asyncio.TimeoutError:
+                last_error = f"timeout after {timeout}s"
+            except Exception as exc:
+                last_error = str(exc)
+            logger.warning(
+                "agent.act_attempt_failed", agent=self.name,
+                attempt=attempt, max_attempts=DEFAULT_ACT_MAX_ATTEMPTS,
+                error=last_error, decision_type=decision.decision_type,
+            )
+            if attempt < DEFAULT_ACT_MAX_ATTEMPTS:
+                await asyncio.sleep(
+                    random.uniform(0, min(delay, DEFAULT_ACT_MAX_DELAY_S))
+                )
+                delay *= 2
+        logger.error(
+            "agent.act_exhausted", agent=self.name,
+            decision_type=decision.decision_type, last_error=last_error,
+        )
+        return None
+
+    async def _run_remember_bg(
+        self, decision: AgentDecision, acted_row: dict[str, Any]
+    ) -> None:
+        """Background task entry-point for :meth:`remember`.
+
+        Wraps :meth:`remember` in a timeout + try/except so a stuck
+        embedding call can never leak a runaway task.
+        """
+        timeout = self._timeout_for("remember")
+        try:
+            await asyncio.wait_for(
+                self.remember(decision, acted_row), timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "agent.remember_timeout", agent=self.name,
+                timeout_s=timeout,
+                decision_id=acted_row.get("id"),
+            )
+        except Exception as exc:
+            logger.warning(
+                "agent.remember_bg_failed", agent=self.name,
+                decision_id=acted_row.get("id"),
+                error=str(exc),
+            )
+
+    async def _dead_letter(self, decision: AgentDecision) -> None:
+        """Record a decision whose ``act()`` failed past all retries.
+
+        Default writes a structured log entry. Subclasses can override to
+        push to a DLQ table or alerting channel.
+        """
+        logger.error(
+            "agent.decision_dead_lettered",
+            agent=self.name,
+            decision_type=decision.decision_type,
+            scope=decision.scope,
+            scope_id=decision.scope_id,
+            reasoning=decision.reasoning[:200],
+            confidence=decision.confidence,
+        )
