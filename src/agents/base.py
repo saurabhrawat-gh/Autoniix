@@ -53,6 +53,7 @@ DEFAULT_PHASE_TIMEOUTS_S: dict[str, float] = {
     "recall": 8.0,
     "reason": 5.0,
     "decide": 30.0,
+    "critique": 30.0,
     "act": 15.0,
     "remember": 30.0,
 }
@@ -105,6 +106,33 @@ class AgentDecision:
     # Wire-format version. Defaults to the package-level constant so a
     # subclass never forgets to bump it explicitly.
     schema_version: int = AGENT_DECISION_SCHEMA_VERSION
+
+
+#: Allowed verdict values from a Critic agent reviewing another agent's
+#: proposed decision. Stored in ``critic_decisions.verdict``.
+CRITIC_VERDICTS = ("APPROVE", "VETO", "MODIFY")
+
+
+@dataclass
+class CriticVerdict:
+    """Output of a Critic reviewing a peer agent's :class:`AgentDecision`.
+
+    * ``APPROVE`` \u2192 original decision proceeds unchanged.
+    * ``VETO``    \u2192 decision is dropped (logged as dead-letter).
+    * ``MODIFY``  \u2192 caller substitutes ``modified_decision`` (which is
+      a fresh AgentDecision) for the original. ``modified_decision`` MUST
+      be set when verdict is ``MODIFY``.
+
+    The Critic's reasoning is always recorded so the audit trail is
+    complete \u2014 even on APPROVE.
+    """
+    verdict: str  # one of CRITIC_VERDICTS
+    reasoning: str
+    confidence: float
+    reviewed_decision_type: str = ""
+    reviewed_scope_id: str = ""
+    modified_decision: "AgentDecision | None" = None
+    extras: dict[str, Any] = field(default_factory=dict)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -287,6 +315,13 @@ class BaseAgent(ABC):
             )
             return None
 
+        # Optional critique pass — flag-gated, off by default. A Critic
+        # peer can VETO (drop + dead-letter) or MODIFY (substitute a new
+        # decision) before any side-effects happen.
+        decision = await self._run_critique(decision, observation)
+        if decision is None:
+            return None
+
         acted = await self._run_act_with_retry(decision)
         if acted is None:
             # All retries exhausted — dead-letter the decision.
@@ -382,6 +417,126 @@ class BaseAgent(ABC):
             decision_type=decision.decision_type, last_error=last_error,
         )
         return None
+
+    async def _run_critique(
+        self,
+        decision: AgentDecision,
+        observation: AgentObservation,
+    ) -> AgentDecision | None:
+        """Optionally run a Critic peer over ``decision`` before act().
+
+        Two flags must both be TRUE for critique to fire:
+
+        * ``critic.enabled`` — global kill switch
+        * ``<flag_prefix>critic_review.enabled`` — per-agent opt-in
+
+        On VETO the decision is dead-lettered and ``None`` is returned.
+        On MODIFY the substituted decision is returned. On APPROVE (or
+        any failure / disabled state) the original decision passes through
+        unchanged. The Critic itself is never critiqued (no recursion).
+        """
+        # Avoid recursion: a critic must never critique another critic.
+        if self.name == "critic":
+            return decision
+
+        try:
+            from src.flags import get_flag
+            global_on = await get_flag("critic.enabled", default=False)
+            if not global_on:
+                return decision
+            agent_on = await get_flag(
+                f"{self.flag_prefix}critic_review.enabled", default=False
+            )
+            if not agent_on:
+                return decision
+        except Exception as exc:
+            logger.warning(
+                "agent.critique_flag_read_failed",
+                agent=self.name, error=str(exc),
+            )
+            return decision
+
+        try:
+            from src.agents.registry import AgentRegistry
+            critic = AgentRegistry.get("critic")
+        except Exception:
+            critic = None
+        if critic is None:
+            logger.warning(
+                "agent.critique_skipped_no_critic", agent=self.name,
+            )
+            return decision
+
+        review = getattr(critic, "review", None)
+        if review is None:
+            logger.warning(
+                "agent.critique_skipped_no_review_method", agent=self.name,
+            )
+            return decision
+
+        timeout = self._timeout_for("critique")
+        try:
+            verdict: CriticVerdict = await asyncio.wait_for(
+                review(
+                    decision=decision,
+                    observation=observation,
+                    peer_agent_name=self.name,
+                ),
+                timeout=timeout,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "agent.critique_timeout", agent=self.name,
+                timeout_s=timeout, scope_id=observation.scope_id,
+            )
+            return decision  # fail-open
+        except Exception as exc:
+            logger.warning(
+                "agent.critique_failed", agent=self.name,
+                error=str(exc), scope_id=observation.scope_id,
+            )
+            return decision  # fail-open
+
+        verdict_str = getattr(verdict, "verdict", None)
+        if verdict_str == "VETO":
+            logger.info(
+                "agent.critique_vetoed",
+                agent=self.name,
+                decision_type=decision.decision_type,
+                scope_id=observation.scope_id,
+                critic_reasoning=getattr(verdict, "reasoning", "")[:200],
+                critic_confidence=getattr(verdict, "confidence", None),
+            )
+            await self._dead_letter(decision)
+            return None
+        if verdict_str == "MODIFY":
+            modified = getattr(verdict, "modified_decision", None)
+            if modified is None:
+                logger.warning(
+                    "agent.critique_modify_without_decision",
+                    agent=self.name,
+                )
+                return decision
+            logger.info(
+                "agent.critique_modified",
+                agent=self.name,
+                original_type=decision.decision_type,
+                modified_type=modified.decision_type,
+                scope_id=observation.scope_id,
+                critic_reasoning=getattr(verdict, "reasoning", "")[:200],
+            )
+            return modified
+        if verdict_str == "APPROVE":
+            logger.debug(
+                "agent.critique_approved", agent=self.name,
+                scope_id=observation.scope_id,
+            )
+        else:
+            logger.warning(
+                "agent.critique_unknown_verdict",
+                agent=self.name, verdict=verdict_str,
+            )
+        return decision
 
     async def _run_remember_bg(
         self, decision: AgentDecision, acted_row: dict[str, Any]

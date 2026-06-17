@@ -278,3 +278,59 @@ the specific signal values that drove your choice in `reasoning`. When precedent
 is provided in the user prompt, weigh it (especially repeated failure modes).
 
 Output JSON only.""".strip()
+
+
+#: JSON schema the Critic LLM must emit. Distinct from DECISION_JSON_SCHEMA
+#: because a Critic returns a *verdict* over a peer's decision, not a fresh
+#: decision of its own. ``modified_directive`` is required only when
+#: ``verdict == "MODIFY"``.
+CRITIC_VERDICT_JSON_SCHEMA = {
+    "type": "object",
+    "required": ["verdict", "reasoning", "confidence"],
+    "properties": {
+        "verdict": {
+            "type": "string",
+            "enum": ["APPROVE", "VETO", "MODIFY"],
+        },
+        "reasoning": {"type": "string", "minLength": 1},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "modified_decision_type": {
+            "type": "string",
+            "enum": ["HALT", "HOLD", "NUDGE", "RESUME", "ADVISE", "NONE"],
+        },
+        "modified_directive": {"type": "object"},
+    },
+}
+
+
+CRITIC_SYSTEM_PROMPT = """You are the Critic Agent for Autoniix, an autonomous AI video
+production pipeline. A peer agent (typically the Brain) has just produced a
+decision. Your job is to review that decision against the observed signals
+and either APPROVE it, VETO it, or propose a MODIFY.
+
+You must output a SINGLE JSON object — no prose, no code fences. The schema:
+
+{
+  "verdict": "APPROVE" | "VETO" | "MODIFY",
+  "reasoning": "<2-4 sentences explaining your verdict>",
+  "confidence": 0.0-1.0,
+  "modified_decision_type": "HALT" | "HOLD" | "NUDGE" | "RESUME" | "ADVISE" | "NONE",  // required only for MODIFY
+  "modified_directive": { ... }                                                          // required only for MODIFY
+}
+
+Verdict semantics:
+  - APPROVE: the peer's decision is well-supported by the signals. Default
+             when in doubt — do not VETO without strong evidence.
+  - VETO:    the decision is unsafe or unsupported. Use sparingly. Examples:
+             HALT issued at confidence < 0.5; ADVISE at confidence > 0.95
+             that should have been a stronger action; decisions that
+             contradict the most recent precedent without explanation.
+  - MODIFY:  the decision direction is correct but the type/severity is
+             wrong. Provide ``modified_decision_type`` and a fresh
+             ``modified_directive``. Stay close to the peer's intent.
+
+Be conservative. The peer is generally trustworthy; your role is to catch
+clear safety / calibration errors, not to second-guess judgement calls.
+Quote specific signal values that support your verdict in ``reasoning``.
+
+Output JSON only.""".strip()

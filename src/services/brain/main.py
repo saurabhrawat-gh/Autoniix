@@ -28,6 +28,7 @@ import structlog
 import uvicorn
 from fastapi import FastAPI
 
+from src.agents.critic import CriticAgent
 from src.agents.registry import AgentRegistry
 from src.db import close_pool, get_pool
 from src.services.brain.agent import BrainAgent
@@ -37,6 +38,10 @@ from src.services.brain.resolver import run_resolver_loop
 # Register BrainAgent with the agentic framework at import time so any
 # component that asks ``AgentRegistry.get("brain")`` gets a working instance.
 AgentRegistry.register(BrainAgent())
+# CriticAgent rides along in the Brain process so the critique phase
+# in BaseAgent.run() finds it via the registry. It costs nothing when
+# the ``critic.enabled`` / ``brain.critic_review.enabled`` flags are off.
+AgentRegistry.register(CriticAgent())
 
 logger = structlog.get_logger()
 
