@@ -28,9 +28,15 @@ import structlog
 import uvicorn
 from fastapi import FastAPI
 
+from src.agents.registry import AgentRegistry
 from src.db import close_pool, get_pool
+from src.services.brain.agent import BrainAgent
 from src.services.brain.consumer import run_consumer
 from src.services.brain.resolver import run_resolver_loop
+
+# Register BrainAgent with the agentic framework at import time so any
+# component that asks ``AgentRegistry.get("brain")`` gets a working instance.
+AgentRegistry.register(BrainAgent())
 
 logger = structlog.get_logger()
 

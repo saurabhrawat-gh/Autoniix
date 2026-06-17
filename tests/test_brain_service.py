@@ -230,11 +230,18 @@ class TestDecisionEngine:
 class TestConsumer:
     @pytest.fixture(autouse=True)
     def patch_deps(self):
+        async def _flag(key, default=None):
+            # Force the legacy (non-agent) consumer path for these tests.
+            if key == "brain.memory_recall.enabled":
+                return False
+            # advisory_mode TRUE keeps Temporal signalling disabled.
+            return True
+
         with (
             patch("src.services.brain.consumer.analyse_channel", new=AsyncMock()),
             patch("src.services.brain.consumer.evaluate", new=AsyncMock(return_value=None)),
             patch("src.services.brain.consumer.publish", new=AsyncMock()),
-            patch("src.services.brain.consumer.get_flag", new=AsyncMock(return_value=True)),
+            patch("src.services.brain.consumer.get_flag", side_effect=_flag),
         ):
             yield
 

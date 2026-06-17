@@ -36,7 +36,13 @@ _SOURCE = "brain-service"
 
 
 async def handle_pipeline_event(envelope: dict) -> None:
-    """Dispatch handler for both video.complete and video.failed topics."""
+    """Dispatch handler for both video.complete and video.failed topics.
+
+    When ``brain.memory_recall.enabled`` is TRUE we route through
+    :class:`BrainAgent.run` so RAG recall over past ``brain_decisions``
+    enriches the reasoning field. When FALSE we keep the legacy
+    analyse → evaluate sequence — bit-for-bit identical behaviour.
+    """
     payload = envelope.get("payload", {})
     channel_id = envelope.get("scope_id") or payload.get("channel_id", "")
     content_id = payload.get("content_id")
@@ -52,6 +58,16 @@ async def handle_pipeline_event(envelope: dict) -> None:
         channel_id=channel_id,
         content_id=content_id,
     )
+
+    use_agent = await get_flag("brain.memory_recall.enabled", default=False)
+    if use_agent:
+        # Agent path: framework owns observe→recall→reason→decide→act.
+        # The agent publishes the directive itself, so we return early.
+        from src.services.brain.agent import BrainAgent
+        await BrainAgent().run(
+            {"channel_id": channel_id, "content_id": content_id}
+        )
+        return
 
     signals = await analyse_channel(channel_id)
     decision = await evaluate(signals, content_id=content_id)
