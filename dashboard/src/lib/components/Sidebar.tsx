@@ -2,43 +2,41 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { useHotkeys } from 'react-hotkeys-hook';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../utils';
 import { Tip } from './Tooltip';
-import { Button } from '../ui';
 import { usePermissions } from '../hooks/usePermissions';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
+import { AppBrand } from './AppBrand';
 import {
   Home,
+  Bell,
   Tv,
+  Clapperboard,
   Archive,
+  CalendarDays,
+  ListChecks,
   Activity,
+  ClipboardCheck,
+  Cpu,
+  BarChart2,
+  FlaskConical,
+  Boxes,
+  UserCheck,
+  Users,
   Plug,
   Settings,
-  ChevronLeft,
-  ChevronRight,
-  Video,
-  Clapperboard,
-  ClipboardCheck,
-  FlaskConical,
-  Users,
-  Bell,
-  Cpu,
   Terminal,
-  Boxes,
-  CalendarDays,
-  BarChart2,
-  ListChecks,
+  ChevronLeft,
   ChevronDown,
-  UserCheck,
 } from './Icon';
 
 const COLLAPSED_KEY = 'sidebar_collapsed_v1';
 
-interface NavItem {
+interface Leaf {
   href: string;
   label: string;
   icon: LucideIcon;
@@ -47,251 +45,111 @@ interface NavItem {
   requireGlobalRole?: 'superadmin';
 }
 
-interface NavGroup {
+interface Pillar {
   id: string;
   label: string;
-  icon: LucideIcon;
-  href?: string;
-  expandable?: boolean;
-  defaultExpanded?: boolean;
-  items?: NavItem[];
-  permission?: string;
-  requireGlobalRole?: 'superadmin';
-  pinBottom?: boolean;
+  items: Leaf[];
 }
 
-const NAV_STRUCTURE: NavGroup[] = [
+// Top leaves — meta-navigation that sits above all pillars, no group label.
+const TOP_LEAVES: Leaf[] = [
+  { href: '/dashboard',               label: 'Home',          icon: Home, shortcut: 'g d' },
+  { href: '/dashboard/notifications', label: 'Notifications', icon: Bell, shortcut: 'g n' },
+];
+
+// Pillars — four flat groups of work surfaces (Create / Operate / Measure / Configure).
+// Per §9.4, pillars are NEVER expandable — every leaf is always visible.
+const PILLARS: Pillar[] = [
   {
-    id: 'home',
-    label: 'Home',
-    icon: Home,
-    href: '/dashboard',
-    shortcut: 'g d',
-  } as NavGroup & { shortcut: string },
-  {
-    id: 'studio',
-    label: 'Studio',
-    icon: Clapperboard,
-    expandable: true,
-    defaultExpanded: true,
+    id: 'create',
+    label: 'Create',
     items: [
-      { href: '/dashboard/content',     label: 'Content',   icon: Clapperboard, shortcut: 'g v' },
-      { href: '/dashboard/review',      label: 'Review',    icon: ClipboardCheck, shortcut: 'g r' },
-      { href: '/dashboard/library',     label: 'Library',   icon: Archive, shortcut: 'g l', permission: 'project.view' },
-      { href: '/dashboard/queue',       label: 'Queue',     icon: ListChecks, shortcut: 'g q' },
-      { href: '/dashboard/fleet',       label: 'Fleet',     icon: Cpu, shortcut: 'g f', permission: 'workspace.settings.edit' },
+      { href: '/dashboard/channels',         label: 'Channels', icon: Tv,           shortcut: 'g c' },
+      { href: '/dashboard/content',          label: 'Content',  icon: Clapperboard, shortcut: 'g v' },
+      { href: '/dashboard/library',          label: 'Library',  icon: Archive,      shortcut: 'g l', permission: 'project.view' },
+      { href: '/dashboard/content/calendar', label: 'Schedule', icon: CalendarDays, shortcut: 'g k' },
+    ],
+  },
+  {
+    id: 'operate',
+    label: 'Operate',
+    items: [
+      { href: '/dashboard/queue',    label: 'Queue',    icon: ListChecks,     shortcut: 'g q' },
+      { href: '/dashboard/progress', label: 'Progress', icon: Activity,       shortcut: 'g p' },
+      { href: '/dashboard/review',   label: 'Review',   icon: ClipboardCheck, shortcut: 'g r' },
+      { href: '/dashboard/fleet',    label: 'Fleet',    icon: Cpu,            shortcut: 'g f', permission: 'workspace.settings.edit' },
+    ],
+  },
+  {
+    id: 'measure',
+    label: 'Measure',
+    items: [
+      { href: '/dashboard/analytics',   label: 'Analytics',   icon: BarChart2,    shortcut: 'g a' },
       { href: '/dashboard/experiments', label: 'Experiments', icon: FlaskConical, shortcut: 'g e', permission: 'workspace.settings.edit' },
     ],
   },
   {
-    id: 'channels',
-    label: 'Channels',
-    icon: Tv,
-    href: '/dashboard/channels',
-    shortcut: 'g c',
-  } as NavGroup & { shortcut: string },
-  {
-    id: 'schedule',
-    label: 'Schedule',
-    icon: CalendarDays,
-    href: '/dashboard/content/calendar',
-    shortcut: 'g k',
-  } as NavGroup & { shortcut: string },
-  {
-    id: 'analytics',
-    label: 'Analytics',
-    icon: BarChart2,
-    href: '/dashboard/analytics',
-    shortcut: 'g a',
-  } as NavGroup & { shortcut: string },
-  {
-    id: 'notifications',
-    label: 'Notifications',
-    icon: Bell,
-    href: '/dashboard/notifications',
-    shortcut: 'g n',
-  } as NavGroup & { shortcut: string },
-  {
-    id: 'settings',
-    label: 'Settings',
-    icon: Settings,
-    expandable: true,
-    defaultExpanded: false,
-    pinBottom: true,
+    id: 'configure',
+    label: 'Configure',
     items: [
-      { href: '/dashboard/workspace',  label: 'Workspace', icon: Boxes,      shortcut: 'g w', permission: 'workspace.view' },
-      { href: '/dashboard/teams',      label: 'Teams',     icon: UserCheck,  shortcut: 'g t', permission: 'workspace.members.view' },
-      { href: '/dashboard/users',      label: 'Users',     icon: Users,      shortcut: 'g u', requireGlobalRole: 'superadmin' },
-      { href: '/dashboard/providers',  label: 'Providers', icon: Plug,       shortcut: 'g i', permission: 'credentials.view.labels' },
-      { href: '/dashboard/settings',   label: 'General',   icon: Settings,   shortcut: 'g s', permission: 'workspace.settings.edit' },
-      { href: '/dashboard/debug',      label: 'Debug',     icon: Terminal,   shortcut: 'g b', permission: 'workspace.settings.edit' },
+      { href: '/dashboard/workspace', label: 'Workspace', icon: Boxes,     shortcut: 'g w', permission: 'workspace.view' },
+      { href: '/dashboard/teams',     label: 'Teams',     icon: UserCheck, shortcut: 'g t', permission: 'workspace.members.view' },
+      { href: '/dashboard/users',     label: 'Users',     icon: Users,     shortcut: 'g u', requireGlobalRole: 'superadmin' },
+      { href: '/dashboard/providers', label: 'Providers', icon: Plug,      shortcut: 'g i', permission: 'credentials.view.labels' },
+      { href: '/dashboard/settings',  label: 'Settings',  icon: Settings,  shortcut: 'g s', permission: 'workspace.settings.edit' },
+      { href: '/dashboard/debug',     label: 'Debug',     icon: Terminal,  shortcut: 'g b', permission: 'workspace.settings.edit' },
     ],
   },
 ];
 
-function NavLeaf({
-  item,
+function LeafLink({
+  leaf,
   active,
   collapsed,
-  indent = false,
 }: {
-  item: NavItem;
+  leaf: Leaf;
   active: boolean;
   collapsed: boolean;
-  indent?: boolean;
 }) {
-  const Icon = item.icon;
+  const Icon = leaf.icon;
   const link = (
     <Link
-      href={item.href}
+      href={leaf.href}
       className={cn(
-        'relative flex items-center text-sm font-medium transition-colors',
+        'group relative flex items-center rounded-md transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40',
         active
-          ? 'bg-surface-1 text-accent rounded-full'
-          : 'text-content-secondary hover:text-content-primary hover:bg-surface-1 rounded-full',
+          ? 'bg-surface-2 text-content-primary font-medium'
+          : 'text-content-secondary hover:bg-surface-1 hover:text-content-primary font-normal',
         collapsed
-          ? 'w-10 h-10 justify-center mx-auto'
-          : cn('gap-2.5 px-3 py-2 w-full', indent && 'pl-8')
+          ? 'w-9 h-9 justify-center mx-auto'
+          : 'gap-2.5 px-2.5 py-1 w-full text-[13px]'
       )}
     >
-      <Icon size={collapsed ? 17 : 15} className="shrink-0" />
-      {!collapsed && <span className="truncate">{item.label}</span>}
+      <Icon
+        size={collapsed ? 16 : 15}
+        className={cn('shrink-0', active ? 'text-accent' : 'opacity-80')}
+      />
+      {!collapsed && (
+        <>
+          <span className="truncate flex-1">{leaf.label}</span>
+          {leaf.shortcut && (
+            <span className="font-mono text-[10px] text-content-tertiary opacity-0 group-hover:opacity-100 transition-opacity">
+              {leaf.shortcut}
+            </span>
+          )}
+        </>
+      )}
     </Link>
   );
-
   if (collapsed) {
     return (
-      <Tip text={`${item.label}${(item as any).shortcut ? ` · ${(item as any).shortcut}` : ''}`} pos="right">
+      <Tip text={`${leaf.label}${leaf.shortcut ? ` · ${leaf.shortcut}` : ''}`} pos="right">
         {link}
       </Tip>
     );
   }
   return link;
-}
-
-function ExpandableGroup({
-  group,
-  isAnyChildActive,
-  collapsed,
-  items = [],
-  isActiveItem,
-  children,
-}: {
-  group: NavGroup;
-  isAnyChildActive: boolean;
-  collapsed: boolean;
-  items?: NavItem[];
-  isActiveItem?: (href: string) => boolean;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(group.defaultExpanded ?? false);
-  const [floatTop, setFloatTop] = useState<number | null>(null);
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const Icon = group.icon;
-
-  useEffect(() => { if (!collapsed) setFloatTop(null); }, [collapsed]);
-
-  if (collapsed) {
-    return (
-      <div>
-        <Tip text={group.label} pos="right">
-          <button
-            ref={btnRef}
-            type="button"
-            onClick={() => {
-              if (floatTop !== null) { setFloatTop(null); return; }
-              const rect = btnRef.current?.getBoundingClientRect();
-              if (rect) setFloatTop(rect.top);
-            }}
-            className={cn(
-              'w-10 h-10 flex items-center justify-center mx-auto rounded-full transition-colors',
-              isAnyChildActive
-                ? 'bg-surface-1 text-accent'
-                : 'text-content-secondary hover:text-content-primary hover:bg-surface-1'
-            )}
-            aria-label={group.label}
-          >
-            <Icon size={17} className="shrink-0" />
-          </button>
-        </Tip>
-        {floatTop !== null && items.length > 0 && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setFloatTop(null)} />
-            <div
-              className="fixed left-[60px] z-50 w-52 bg-surface-0 border border-border rounded-xl shadow-elevated py-1 overflow-hidden"
-              style={{ top: floatTop }}
-            >
-              <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-content-tertiary border-b border-border mb-1">
-                {group.label}
-              </div>
-              {items.map((item) => {
-                const active = isActiveItem?.(item.href) ?? false;
-                const ItemIcon = item.icon;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setFloatTop(null)}
-                    className={cn(
-                      'flex items-center gap-2.5 px-3 py-2 text-sm font-medium transition-colors',
-                      active
-                        ? 'text-accent bg-surface-1'
-                        : 'text-content-secondary hover:text-content-primary hover:bg-surface-1'
-                    )}
-                  >
-                    <ItemIcon size={14} className="shrink-0" />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          'flex items-center gap-2.5 px-3 py-2 w-full rounded-full text-sm font-medium transition-colors',
-          isAnyChildActive
-            ? 'text-accent'
-            : 'text-content-secondary hover:text-content-primary hover:bg-surface-1'
-        )}
-      >
-        <Icon size={15} className="shrink-0" />
-        <span className="flex-1 truncate text-left">{group.label}</span>
-        <motion.span
-          animate={{ rotate: open ? 180 : 0 }}
-          transition={{ duration: 0.15, ease: [0.2, 0, 0, 1] }}
-          style={{ display: 'inline-flex' }}
-        >
-          <ChevronDown size={13} className="text-content-tertiary" />
-        </motion.span>
-      </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            key="children"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
-            className="overflow-hidden"
-          >
-            <div className="pl-2 mt-0.5 space-y-0.5 border-l border-border ml-4">
-              {children}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
 }
 
 export function Sidebar() {
@@ -327,162 +185,119 @@ export function Sidebar() {
     return true;
   };
 
-  // Keyboard shortcuts
+  // Keyboard sequence shortcuts (`g <letter>`)
   useHotkeys('g', () => { setGPressed(true); setTimeout(() => setGPressed(false), 1200); }, []);
   const shortcuts: Record<string, string> = {
-    d: '/dashboard', c: '/dashboard/channels', v: '/dashboard/content',
-    r: '/dashboard/review', l: '/dashboard/library', q: '/dashboard/queue',
-    e: '/dashboard/experiments', i: '/dashboard/providers', a: '/dashboard/analytics',
-    k: '/dashboard/content/calendar', f: '/dashboard/fleet',
-    u: '/dashboard/users', s: '/dashboard/settings', n: '/dashboard/notifications',
-    w: '/dashboard/workspace', t: '/dashboard/teams', b: '/dashboard/debug',
+    d: '/dashboard',
+    n: '/dashboard/notifications',
+    c: '/dashboard/channels',
+    v: '/dashboard/content',
+    l: '/dashboard/library',
+    k: '/dashboard/content/calendar',
+    q: '/dashboard/queue',
+    p: '/dashboard/progress',
+    r: '/dashboard/review',
+    f: '/dashboard/fleet',
+    a: '/dashboard/analytics',
+    e: '/dashboard/experiments',
+    w: '/dashboard/workspace',
+    t: '/dashboard/teams',
+    u: '/dashboard/users',
+    i: '/dashboard/providers',
+    s: '/dashboard/settings',
+    b: '/dashboard/debug',
   };
   Object.entries(shortcuts).forEach(([key, path]) => {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     useHotkeys(key, () => { if (gPressed) { setGPressed(false); router.push(path); } }, [gPressed]);
   });
 
-  const topGroups = NAV_STRUCTURE.filter((g) => !g.pinBottom);
-  const bottomGroups = NAV_STRUCTURE.filter((g) => g.pinBottom);
-
-  function renderGroup(group: NavGroup) {
-    if (group.href) {
-      const active = isActive(group.href);
-      const Icon = group.icon;
-      const link = (
-        <Link
-          href={group.href}
-          className={cn(
-            'flex items-center text-sm font-medium transition-colors rounded-full',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40',
-            active
-              ? 'bg-surface-1 text-accent'
-              : 'text-content-secondary hover:text-content-primary hover:bg-surface-1',
-            collapsed
-              ? 'w-10 h-10 justify-center mx-auto'
-              : 'gap-2.5 px-3 py-2 w-full'
-          )}
-        >
-          <Icon size={collapsed ? 17 : 15} className="shrink-0" />
-          {!collapsed && <span className="truncate">{group.label}</span>}
-        </Link>
-      );
-      if (collapsed) {
-        return (
-          <Tip key={group.id} text={group.label} pos="right">{link}</Tip>
-        );
-      }
-      return <div key={group.id}>{link}</div>;
-    }
-
-    if (group.expandable && group.items) {
-      const visibleItems = group.items.filter(isItemVisible);
-      if (visibleItems.length === 0) return null;
-      const anyActive = visibleItems.some((item) => isActive(item.href));
-      return (
-        <ExpandableGroup key={group.id} group={group} isAnyChildActive={anyActive} collapsed={collapsed} items={visibleItems} isActiveItem={isActive}>
-          {visibleItems.map((item) => (
-            <NavLeaf key={item.href} item={item} active={isActive(item.href)} collapsed={collapsed} indent />
-          ))}
-        </ExpandableGroup>
-      );
-    }
-
-    return null;
-  }
-
   return (
     <motion.aside
-      className="hidden md:flex flex-col shrink-0 h-full bg-surface-sidebar border-r border-border overflow-hidden"
-      animate={{ width: collapsed ? 56 : 240 }}
-      transition={{ duration: 0.26, ease: [0.2, 0, 0, 1] }}
+      className="hidden md:flex flex-col shrink-0 h-full bg-transparent overflow-hidden"
+      animate={{ width: collapsed ? 56 : 232 }}
+      transition={{ duration: 0.22, ease: [0.2, 0.7, 0.3, 1] }}
     >
-      {/* Logo */}
-      <div className={cn(
-        'flex items-center h-topbar px-3 border-b border-border shrink-0',
-        collapsed ? 'justify-center' : 'gap-2.5'
-      )}>
-        <Link href="/dashboard" aria-label="Home">
-          <div className="w-7 h-7 rounded-md bg-accent/10 flex items-center justify-center">
-            <Video size={14} className="text-accent" />
-          </div>
-        </Link>
-        <AnimatePresence initial={false}>
-          {!collapsed && (
-            <motion.span
-              key="brand"
-              initial={{ opacity: 0, x: -6 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -6 }}
-              transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
-              className="text-sm font-semibold text-content-primary truncate"
-            >
-              Autoniix
-            </motion.span>
-          )}
-        </AnimatePresence>
+      {/* Persistent Autoniix brand — always visible. Visibly separated from
+          the workspace switcher below so the two reads as distinct groups. */}
+      <div className={cn('shrink-0', collapsed ? 'px-1.5 pt-0' : 'px-2 pt-0')}>
+        <AppBrand collapsed={collapsed} />
       </div>
 
-      {/* Workspace switcher */}
-      <div className={cn('border-b border-border shrink-0', collapsed ? 'px-1.5 py-2' : 'px-2 py-2')}>
+      {/* Workspace switcher — secondary identity. Small gap above. */}
+      <div className={cn('shrink-0', collapsed ? 'px-1.5 pt-1.5' : 'px-2 pt-1.5')}>
         <WorkspaceSwitcher collapsed={collapsed} />
       </div>
 
-      {/* Top nav */}
-      <nav className={cn(
-        'flex-1 overflow-y-auto overflow-x-hidden py-3',
-        collapsed ? 'px-1.5 space-y-1' : 'px-2 space-y-0.5'
-      )}>
-        {topGroups.map(renderGroup)}
+      {/* Top leaves — Home, Notifications. Visible gap above so it's a
+          separate group from the identity rows. */}
+      <div className={cn('shrink-0 space-y-px', collapsed ? 'px-1.5 pt-3' : 'px-2 pt-3')}>
+        {TOP_LEAVES.filter(isItemVisible).map(item => (
+          <LeafLink key={item.href} leaf={item} active={isActive(item.href)} collapsed={collapsed} />
+        ))}
+      </div>
+
+      {/* Pillars (Create / Operate / Measure / Configure) — flat, never expandable.
+          Tight vertical rhythm so the full IA fits without a scrollbar at common
+          viewport heights (≥ 720px). */}
+      <nav className={cn('flex-1 overflow-y-auto overflow-x-hidden pt-2 pb-1', collapsed ? 'px-1.5' : 'px-2')}>
+        {PILLARS.map(pillar => {
+          const items = pillar.items.filter(isItemVisible);
+          if (items.length === 0) return null;
+          return (
+            <div
+              key={pillar.id}
+              className={cn(
+                'pt-2.5 first:pt-1.5',
+                collapsed && 'mt-2 pt-2 border-t border-border/70 first:border-t-0 first:mt-1 first:pt-0'
+              )}
+            >
+              {!collapsed && (
+                /* Linear-style section header — tiny uppercase, faded grey,
+                   trailed by a chevron so it reads as a "collapsible group"
+                   (visual cue only at the moment). */
+                <div className="flex items-center gap-1 px-2.5 pb-1 text-[10px] font-medium text-content-tertiary/80 uppercase tracking-wider">
+                  <span>{pillar.label}</span>
+                  <ChevronDown size={9} className="opacity-60" aria-hidden />
+                </div>
+              )}
+              <div className="space-y-px">
+                {items.map(item => (
+                  <LeafLink key={item.href} leaf={item} active={isActive(item.href)} collapsed={collapsed} />
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </nav>
 
-      {/* Bottom groups (Settings) */}
-      {bottomGroups.length > 0 && (
-        <div className={cn(
-          'border-t border-border shrink-0 pt-2',
-          collapsed ? 'px-1.5 pb-2 space-y-1' : 'px-2 pb-2 space-y-0.5'
-        )}>
-          {bottomGroups.map(renderGroup)}
-        </div>
-      )}
-
-      {/* Collapse toggle */}
-      <div className={cn(
-        'border-t border-border shrink-0',
-        collapsed ? 'py-2 px-1.5' : 'py-3 px-2'
-      )}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={toggleCollapsed}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className={cn(
-            'text-xs text-content-tertiary hover:text-content-primary hover:bg-surface-2',
-            collapsed ? 'w-10 h-8 justify-center mx-auto' : 'w-full justify-start gap-2 px-2.5 py-1.5 h-auto'
-          )}
-        >
-          <motion.span
-            animate={{ rotate: collapsed ? 0 : 180 }}
-            transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
-            style={{ display: 'inline-flex' }}
+      {/* Bottom utility row — Collapse only. Help (?) and User menu live in
+          the chrome top-right cluster so they remain reachable in collapsed
+          mode without crowding the 56px-wide sidebar. */}
+      <div className={cn('shrink-0 pt-1 pb-1.5', collapsed ? 'px-1.5' : 'px-2')}>
+        {collapsed ? (
+          <Tip text="Expand sidebar · [" pos="right">
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              className="w-9 h-9 flex items-center justify-center mx-auto rounded-md text-content-tertiary hover:text-content-primary hover:bg-surface-2 transition-colors"
+              aria-label="Expand sidebar"
+            >
+              <ChevronLeft size={14} className="rotate-180 opacity-80" />
+            </button>
+          </Tip>
+        ) : (
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className="group flex items-center gap-2.5 px-2.5 py-1 w-full text-[13px] font-normal text-content-tertiary hover:bg-surface-2 hover:text-content-primary rounded-md transition-colors"
+            aria-label="Collapse sidebar"
           >
-            <ChevronRight size={14} />
-          </motion.span>
-          <AnimatePresence initial={false}>
-            {!collapsed && (
-              <motion.span
-                key="collapse-label"
-                initial={{ opacity: 0, x: -4 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -4 }}
-                transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
-              >
-                Collapse
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </Button>
+            <ChevronLeft size={14} className="shrink-0 opacity-80" />
+            <span className="truncate flex-1 text-left">Collapse</span>
+            <span className="font-mono text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">[</span>
+          </button>
+        )}
       </div>
     </motion.aside>
   );

@@ -49,7 +49,7 @@ export function NotificationBell() {
         <SimpleTooltip content="Notifications" side="bottom">
           <PopoverTrigger
             aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ''}`}
-            className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-surface-2 hover:bg-surface-3 text-content-secondary hover:text-content-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            className="relative w-7 h-7 inline-flex items-center justify-center rounded-md text-content-tertiary hover:bg-surface-2 hover:text-content-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
           >
             <Bell size={14} />
             {unread > 0 && (

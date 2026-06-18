@@ -22,10 +22,11 @@ export function WsStatusPill() {
     wsStatus === 'live' ? 'bg-status-success'
       : wsStatus === 'connecting' ? 'bg-status-warning'
       : 'bg-status-error';
+  // Dot-only indicator. Tooltip carries the verbose label.
   return (
-    <Tip text={TIP[wsStatus]} pos="bottom">
+    <Tip text={`${LABEL[wsStatus]} — ${TIP[wsStatus]}`} pos="bottom">
       <span
-        className="inline-flex items-center gap-1.5 h-7 px-2 rounded-full bg-surface-1 border border-border text-[10px] font-medium text-content-secondary"
+        className="inline-flex items-center justify-center w-7 h-7"
         aria-live="polite"
         aria-label={`Realtime status: ${LABEL[wsStatus]}`}
       >
@@ -39,7 +40,6 @@ export function WsStatusPill() {
           )}
           <span className={cn('relative inline-flex rounded-full h-2 w-2', color)} />
         </span>
-        <span className="hidden md:inline">{LABEL[wsStatus]}</span>
       </span>
     </Tip>
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ChevronsUpDown, Check, Building2, Plus, ArrowLeft, Loader2 } from 'lucide-react';
+import { ChevronDown, Check, Plus, ArrowLeft, Loader2 } from 'lucide-react';
 import { cn } from '../utils';
 import { authApi } from '../api-v2';
 
@@ -14,9 +14,51 @@ type Workspace = {
   active: boolean;
 };
 
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/);
-  return (parts[0][0] + (parts[1]?.[0] ?? '')).toUpperCase();
+// ── Deterministic hash-gradient avatar ────────────────────────────────────────
+// Each workspace name maps to a fixed gradient drawn from the §3.1 Spectrum
+// Palette, so every workspace has a unique, memorable visual identity.
+
+const GRADIENT_PAIRS: Array<[string, string]> = [
+  ['#6EE7B7', '#7DD3FC'], // mint → sky
+  ['#A78BFA', '#F472B6'], // violet → pink
+  ['#7DD3FC', '#A78BFA'], // sky → violet
+  ['#F472B6', '#FBBF24'], // pink → amber
+  ['#FBBF24', '#6EE7B7'], // amber → mint
+  ['#6EE7B7', '#A78BFA'], // mint → violet
+  ['#F472B6', '#7DD3FC'], // pink → sky
+  ['#FBBF24', '#F472B6'], // amber → pink
+];
+
+function hashName(name: string): number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = ((h * 31) + name.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? '?';
+  const second = parts[1]?.[0] ?? '';
+  return (first + second).toUpperCase();
+}
+
+export function WorkspaceAvatar({ name, size = 20 }: { name: string; size?: number }) {
+  const [from, to] = GRADIENT_PAIRS[hashName(name) % GRADIENT_PAIRS.length];
+  return (
+    <span
+      className="rounded-md shrink-0 grid place-items-center font-bold text-white"
+      style={{
+        width: size,
+        height: size,
+        background: `linear-gradient(135deg, ${from}, ${to})`,
+        fontSize: Math.max(9, Math.round(size * 0.48)),
+        letterSpacing: '0.02em',
+      }}
+      aria-hidden="true"
+    >
+      {initials(name)}
+    </span>
+  );
 }
 
 export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
@@ -93,21 +135,18 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
         aria-expanded={open}
         aria-haspopup="listbox"
         className={cn(
-          'flex items-center gap-2 w-full rounded-md px-2 py-1.5',
-          'text-sm font-medium text-content-primary',
-          'hover:bg-surface-2 transition-colors',
+          'flex items-center gap-2 w-full rounded-md px-2 py-1',
+          'text-[12.5px] font-medium text-content-secondary',
+          'hover:bg-surface-2 hover:text-content-primary transition-colors',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40',
           collapsed && 'justify-center px-0'
         )}
       >
-        {/* Avatar */}
-        <span className="w-6 h-6 rounded shrink-0 bg-accent/20 text-accent flex items-center justify-center text-[10px] font-bold">
-          {initials(active.name)}
-        </span>
+        <WorkspaceAvatar name={active.name} size={collapsed ? 20 : 16} />
         {!collapsed && (
           <>
-            <span className="flex-1 text-left truncate text-xs">{active.name}</span>
-            <ChevronsUpDown size={12} className="shrink-0 text-content-tertiary" />
+            <span className="flex-1 text-left truncate">{active.name}</span>
+            <ChevronDown size={10} className="shrink-0 text-content-tertiary" />
           </>
         )}
       </button>
@@ -140,16 +179,14 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
                     onClick={() => switchTo(ws)}
                     disabled={switching}
                     className={cn(
-                      'flex items-center gap-2.5 w-full px-2 py-1.5 text-sm',
+                      'flex items-center gap-2.5 w-full px-2 py-1.5',
                       'hover:bg-surface-2 transition-colors text-left',
                       ws.active ? 'text-content-primary' : 'text-content-secondary'
                     )}
                   >
-                    <span className="w-5 h-5 rounded shrink-0 bg-accent/20 text-accent flex items-center justify-center text-[9px] font-bold">
-                      {initials(ws.name)}
-                    </span>
+                    <WorkspaceAvatar name={ws.name} size={20} />
                     <div className="flex-1 min-w-0">
-                      <div className="truncate text-xs font-medium">{ws.name}</div>
+                      <div className="truncate text-[13px] font-medium">{ws.name}</div>
                       <div className="text-[10px] text-content-tertiary capitalize">{ws.role}</div>
                     </div>
                     {ws.active && <Check size={12} className="text-accent shrink-0" />}
