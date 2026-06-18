@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react';
 import { api, wsEvents, isLoggedIn } from '../api';
+import { jobsApi } from '../api-v2';
 
 type EnvMode = 'test' | 'production';
 export type WsStatus = 'connecting' | 'live' | 'offline';
@@ -23,6 +24,7 @@ interface AppState {
   systemStopped: boolean;
   channelCount: number;
   wsStatus: WsStatus;
+  activeJobs: any[];
   density: Density;
   setDensity: (d: Density) => void;
   notifications: NotificationItem[];
@@ -43,6 +45,7 @@ const Ctx = createContext<AppState>({
   systemStopped: false,
   channelCount: 0,
   wsStatus: 'connecting',
+  activeJobs: [],
   density: 'comfortable',
   setDensity: noop,
   notifications: [],
@@ -66,6 +69,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [systemStopped, setSystemStopped] = useState(false);
   const [channelCount, setChannelCount] = useState(0);
   const [wsStatus, setWsStatus] = useState<WsStatus>('connecting');
+  const [activeJobs, setActiveJobs] = useState<any[]>([]);
   const [density, setDensityState] = useState<Density>('comfortable');
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -85,6 +89,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         setSystemStopped(!!s.emergency_stop);
         setChannelCount(s?.channels?.total ?? 0);
       }
+      try {
+        const jr = await jobsApi.active();
+        setActiveJobs(jr.data || []);
+      } catch { /* best-effort */ }
     } catch {
       // best-effort
     }
@@ -198,6 +206,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           try {
             const msg = JSON.parse(ev.data);
             // Surface job lifecycle events as notifications
+            if (msg.type === 'job_update') {
+              jobsApi.active().then((r) => setActiveJobs(r.data || [])).catch(() => {});
+            }
             if (msg.type === 'job_update' && msg.data) {
               const { status, title, content_id } = msg.data;
               if (status === 'failed') {
@@ -234,7 +245,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   return (
     <Ctx.Provider value={{
-      envMode, envSwitching, systemStopped, channelCount, wsStatus,
+      envMode, envSwitching, systemStopped, channelCount, wsStatus, activeJobs,
       density, setDensity,
       notifications, pushNotification, markAllNotificationsRead, clearNotifications,
       paletteOpen, setPaletteOpen,

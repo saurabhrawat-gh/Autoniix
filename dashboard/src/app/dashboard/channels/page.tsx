@@ -35,6 +35,7 @@ import {
   TooltipProvider,
 } from '@/lib/ui';
 import { useUrlState } from '@/lib/hooks/useUrlState';
+import { motion, useMotionValue, useSpring, useReducedMotion, AnimatePresence } from 'framer-motion';
 
 type Tab = 'all' | 'active' | 'disabled' | 'archived';
 type SortKey = 'name' | 'delivered' | 'status' | 'created';
@@ -522,21 +523,12 @@ export default function ChannelsPage() {
                           const atLimit = isModeAtLimit(ch, m);
                           const canTrigger = !isDisabled && !systemStopped && !atLimit && mState === 'idle';
                           if (mState === 'idle') return (
-                            <Button
+                            <MagneticTriggerButton
                               key={m}
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => canTrigger && triggerChannel(ch.channel_id, m)}
+                              label={atLimit ? 'Limit' : m === 'short' ? 'Short' : 'Long'}
                               disabled={!canTrigger}
-                              leftIcon={<Play size={9} />}
-                              className={cn('flex-1 h-7 text-[11px]',
-                                canTrigger
-                                  ? 'text-accent border-accent/30 bg-accent/5 hover:bg-accent/10'
-                                  : 'text-content-tertiary border-border bg-surface-2')}
-                            >
-                              {atLimit ? 'Limit' : m === 'short' ? 'Short' : 'Long'}
-                            </Button>
+                              onClick={() => canTrigger && triggerChannel(ch.channel_id, m)}
+                            />
                           );
                           if (mState === 'pending_review' && mJob) return (
                             <Link key={m} href={`/dashboard/jobs/${mJob.content_id}`}
@@ -734,21 +726,13 @@ export default function ChannelsPage() {
                                   if (mState === 'idle') {
                                     const canTrigger = !isDisabled && !systemStopped && !atLimit;
                                     return (
-                                      <Button
+                                      <MagneticTriggerButton
                                         key={m}
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => triggerChannel(ch.channel_id, m)}
+                                        label={atLimit ? `${mLabel} Limit` : m === 'short' ? 'Short' : 'Long'}
                                         disabled={!canTrigger}
-                                        leftIcon={<Play size={9} />}
-                                        className={cn('h-7 px-2.5 text-[11px]',
-                                          canTrigger
-                                            ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
-                                            : 'text-content-tertiary bg-surface-2 border-border')}
-                                      >
-                                        {atLimit ? `${mLabel} Limit` : m === 'short' ? 'Short' : 'Long'}
-                                      </Button>
+                                        onClick={() => triggerChannel(ch.channel_id, m)}
+                                        compact
+                                      />
                                     );
                                   }
                                   if (mState === 'pending_review' && mJob) return (
@@ -876,5 +860,79 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
       disabled={disabled}
       aria-label="Toggle channel"
     />
+  );
+}
+
+function MagneticTriggerButton({
+  label,
+  disabled,
+  onClick,
+  compact = false,
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+  compact?: boolean;
+}) {
+  const reduce = useReducedMotion();
+  const btnRef = useRef<HTMLDivElement>(null);
+  const mx = useSpring(useMotionValue(0), { stiffness: 500, damping: 30 });
+  const my = useSpring(useMotionValue(0), { stiffness: 500, damping: 30 });
+  const [ripple, setRipple] = useState<{ x: number; y: number; id: number } | null>(null);
+
+  const onMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (reduce || disabled || !btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    mx.set((e.clientX - (r.left + r.width / 2)) * 0.25);
+    my.set((e.clientY - (r.top + r.height / 2)) * 0.25);
+  };
+  const onMouseLeave = () => { mx.set(0); my.set(0); };
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+    if (!reduce) {
+      const r = e.currentTarget.getBoundingClientRect();
+      setRipple({ x: e.clientX - r.left, y: e.clientY - r.top, id: Date.now() });
+      setTimeout(() => setRipple(null), 500);
+    }
+    onClick();
+  };
+
+  return (
+    <motion.div
+      ref={btnRef}
+      className="flex-1"
+      style={reduce ? undefined : { x: mx, y: my }}
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
+    >
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={disabled}
+        className={cn(
+          'relative overflow-hidden w-full h-7 text-[11px] font-medium rounded-md border px-2 flex items-center justify-center gap-1 transition-all select-none',
+          disabled
+            ? 'text-content-tertiary border-border bg-surface-2 cursor-not-allowed'
+            : 'text-accent border-accent/30 bg-accent/5 hover:bg-accent/10 cursor-pointer',
+        )}
+      >
+        <Play size={9} />
+        {label}
+        <AnimatePresence>
+          {ripple && (
+            <motion.span
+              key={ripple.id}
+              className="absolute rounded-full bg-accent/30 pointer-events-none"
+              style={{ left: ripple.x, top: ripple.y, x: '-50%', y: '-50%', width: 8, height: 8 }}
+              initial={{ scale: 0, opacity: 0.5 }}
+              animate={{ scale: 12, opacity: 0 }}
+              exit={{}}
+              transition={{ duration: 0.45, ease: 'easeOut' }}
+            />
+          )}
+        </AnimatePresence>
+      </button>
+    </motion.div>
   );
 }

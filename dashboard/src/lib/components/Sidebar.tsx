@@ -11,6 +11,9 @@ import { Tip } from './Tooltip';
 import { Button } from '../ui';
 import { usePermissions } from '../hooks/usePermissions';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
+import { useAppState } from './AppStateProvider';
+import { AiOrb } from './AiOrb';
+import { PipelineBarVisualizer } from './PipelineBarVisualizer';
 import {
   Home,
   Tv,
@@ -148,15 +151,29 @@ function NavLeaf({
         'relative flex items-center text-sm font-medium transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40',
         active
-          ? 'bg-surface-1 text-accent rounded-full'
-          : 'text-content-secondary hover:text-content-primary hover:bg-surface-1 rounded-full',
+          ? 'text-accent rounded-full'
+          : 'text-content-secondary hover:text-content-primary rounded-full',
         collapsed
           ? 'w-10 h-10 justify-center mx-auto'
           : cn('gap-2.5 px-3 py-2 w-full', indent && 'pl-8')
       )}
     >
-      <Icon size={collapsed ? 17 : 15} className="shrink-0" />
-      {!collapsed && <span className="truncate">{item.label}</span>}
+      {active && (
+        <motion.div
+          layoutId="active-nav-indicator"
+          className="absolute inset-0 rounded-full bg-surface-1"
+          transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+        />
+      )}
+      <motion.span
+        whileHover={{ rotate: 8, scale: 1.12 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+        style={{ display: 'inline-flex', position: 'relative', zIndex: 1 }}
+        className="shrink-0"
+      >
+        <Icon size={collapsed ? 17 : 15} />
+      </motion.span>
+      {!collapsed && <span className="truncate relative z-[1]">{item.label}</span>}
     </Link>
   );
 
@@ -446,6 +463,9 @@ export function Sidebar() {
         </div>
       )}
 
+      {/* AI Orb + Pipeline Bar */}
+      <OrbSection collapsed={collapsed} />
+
       {/* Collapse toggle */}
       <div className={cn(
         'border-t border-border shrink-0',
@@ -485,5 +505,21 @@ export function Sidebar() {
         </Button>
       </div>
     </motion.aside>
+  );
+}
+
+function OrbSection({ collapsed }: { collapsed: boolean }) {
+  const { activeJobs, systemStopped } = useAppState();
+  if (collapsed) return null;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+      className="shrink-0 border-t border-border px-4 pt-3 pb-2 flex flex-col items-center gap-2"
+    >
+      <AiOrb jobs={activeJobs} systemStopped={systemStopped} />
+      <PipelineBarVisualizer jobs={activeJobs} className="w-20" />
+    </motion.div>
   );
 }

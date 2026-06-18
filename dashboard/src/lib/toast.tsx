@@ -1,8 +1,10 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, XCircle, Info, X } from './components/Icon';
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+import { motion, AnimatePresence, useAnimate, useReducedMotion } from 'framer-motion';
+import { XCircle, Info, X } from './components/Icon';
+import { AnimatedCheckmark } from './components/AnimatedCheckmark';
+import { CountdownRing } from './components/CountdownRing';
 import { cn } from './utils';
 import { Button } from './ui';
 
@@ -25,6 +27,7 @@ interface Toast {
   id: number;
   message: string;
   variant: ToastVariant;
+  duration: number;
   action?: ToastAction;
 }
 
@@ -41,6 +44,79 @@ export function useToast() {
 
 let _nextId = 0;
 
+function ToastItem({ t, onDismiss }: { t: Toast; onDismiss: (id: number) => void }) {
+  const reduce = useReducedMotion();
+  const [scope, animate] = useAnimate();
+
+  useEffect(() => {
+    if (t.variant === 'error' && !reduce) {
+      animate(scope.current, { x: [0, 8, -8, 4, -4, 0] }, { duration: 0.28 });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <motion.div
+      ref={scope}
+      layout
+      role={t.variant === 'error' ? 'alert' : 'status'}
+      aria-live={t.variant === 'error' ? 'assertive' : 'polite'}
+      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 20, scale: 0.96 }}
+      animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+      exit={reduce ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.96, transition: { duration: 0.15, ease: [0.4, 0, 1, 1] } }}
+      transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+      className={cn(
+        'pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg shadow-elevated border text-sm font-medium',
+        t.variant === 'error'   && 'bg-status-error/10 border-status-error/30 text-status-error',
+        t.variant === 'success' && 'bg-status-success/10 border-status-success/30 text-status-success',
+        t.variant === 'warning' && 'bg-status-warning/10 border-status-warning/30 text-status-warning',
+        t.variant === 'info'    && 'bg-surface-0 border-border text-content-primary',
+      )}
+    >
+      <span className="relative shrink-0 flex items-center justify-center">
+        {t.variant === 'success' ? (
+          <AnimatedCheckmark size={16} />
+        ) : t.variant === 'error' ? (
+          <XCircle size={16} />
+        ) : (
+          <Info size={16} />
+        )}
+        {t.duration > 0 && (
+          <CountdownRing
+            duration={t.duration}
+            size={22}
+            className="absolute -inset-[3px]"
+          />
+        )}
+      </span>
+      <span className="flex-1" onClick={() => !t.action && onDismiss(t.id)}>{t.message}</span>
+      {t.action && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={async () => {
+            try { await t.action!.onAct(); } finally { onDismiss(t.id); }
+          }}
+          className="shrink-0 h-auto px-2 py-1 text-xs font-semibold bg-current/10 hover:bg-current/20 uppercase tracking-wide"
+        >
+          {t.action.label}
+        </Button>
+      )}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        onClick={() => onDismiss(t.id)}
+        aria-label="Dismiss"
+        className="shrink-0 w-6 h-6 text-content-tertiary hover:text-content-primary"
+      >
+        <X size={14} />
+      </Button>
+    </motion.div>
+  );
+}
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -51,7 +127,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       : variantOrOptions;
     const variant: ToastVariant = opts.variant ?? 'info';
     const duration = opts.duration ?? 4000;
-    setToasts(prev => [...prev, { id, message, variant, action: opts.action }]);
+    setToasts(prev => [...prev, { id, message, variant, duration, action: opts.action }]);
     if (duration > 0) {
       setTimeout(() => {
         setToasts(prev => prev.filter(t => t.id !== id));
@@ -73,51 +149,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       >
         <AnimatePresence initial={false}>
           {toasts.map(t => (
-            <motion.div
-              key={t.id}
-              layout
-              role={t.variant === 'error' ? 'alert' : 'status'}
-              aria-live={t.variant === 'error' ? 'assertive' : 'polite'}
-              initial={{ opacity: 0, x: 40, scale: 0.96 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 40, scale: 0.96 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              className={cn(
-                'pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg shadow-elevated border text-sm font-medium',
-                t.variant === 'error' && 'bg-status-error/10 border-status-error/30 text-status-error',
-                t.variant === 'success' && 'bg-status-success/10 border-status-success/30 text-status-success',
-                t.variant === 'warning' && 'bg-status-warning/10 border-status-warning/30 text-status-warning',
-                t.variant === 'info' && 'bg-surface-0 border-border text-content-primary',
-              )}
-            >
-              <span className="shrink-0">
-                {t.variant === 'error' ? <XCircle size={16} /> : t.variant === 'success' ? <CheckCircle2 size={16} /> : <Info size={16} />}
-              </span>
-              <span className="flex-1" onClick={() => !t.action && dismiss(t.id)}>{t.message}</span>
-              {t.action && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={async () => {
-                    try { await t.action!.onAct(); } finally { dismiss(t.id); }
-                  }}
-                  className="shrink-0 h-auto px-2 py-1 text-xs font-semibold bg-current/10 hover:bg-current/20 uppercase tracking-wide"
-                >
-                  {t.action.label}
-                </Button>
-              )}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => dismiss(t.id)}
-                aria-label="Dismiss"
-                className="shrink-0 w-6 h-6 text-content-tertiary hover:text-content-primary"
-              >
-                <X size={14} />
-              </Button>
-            </motion.div>
+            <ToastItem key={t.id} t={t} onDismiss={dismiss} />
           ))}
         </AnimatePresence>
       </div>

@@ -14,6 +14,7 @@ import {
 } from '@/lib/components/Icon';
 import { Button } from '@/lib/ui';
 import { promptDialog, confirmDialog } from '@/lib/components/ConfirmDialog';
+import { useUrlState } from '@/lib/hooks/useUrlState';
 
 // Categories that are seeded in the DB but have no active provider
 // implementation yet. Hidden from the UI until they ship.
@@ -66,7 +67,12 @@ const MODE_CHIP: Record<string, string> = {
 
 export default function ProvidersIndex() {
   const { showToast } = useToast();
-  const [tab, setTab] = useState<'connected' | 'marketplace' | 'accounts'>('connected');
+  const PROVIDER_TABS = ['connected', 'marketplace', 'accounts'] as const;
+  type ProvidersTab = typeof PROVIDER_TABS[number];
+  const [tab, setTab] = useUrlState<ProvidersTab>('tab', {
+    defaultValue: 'connected',
+    deserialize: (raw) => (PROVIDER_TABS.includes(raw as ProvidersTab) ? (raw as ProvidersTab) : 'connected'),
+  });
   const [cats, setCats] = useState<any[]>([]);
   const [kinds, setKinds] = useState<any[]>([]);
   const [creds, setCreds] = useState<any[]>([]);
@@ -100,7 +106,9 @@ export default function ProvidersIndex() {
   useEffect(() => {
     if (searchParams.get('addCategory') === '1') {
       setAddCategoryFor(null);
-      router.replace('/dashboard/providers');
+      const currentTab = searchParams.get('tab');
+      const preserved = currentTab && currentTab !== 'connected' ? `?tab=${currentTab}` : '';
+      router.replace(`/dashboard/providers${preserved}`);
     }
   }, [searchParams, router]);
 

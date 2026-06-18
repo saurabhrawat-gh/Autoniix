@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
+import { motion, useMotionValue, useSpring, useReducedMotion, useAnimate } from 'framer-motion';
+import confetti from 'canvas-confetti';
 import { reviewApi, channelsApi } from '@/lib/api-v2';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
@@ -271,8 +273,72 @@ function ReviewRow({
   const stateInfo = PRIORITY_MAP[v.review_state] || PRIORITY_MAP[tab];
   const score = v.authenticity_score != null ? Number(v.authenticity_score).toFixed(2) : null;
 
+  const reduce = useReducedMotion();
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [approveScope, animateApprove] = useAnimate();
+  const [rejectScope, animateReject] = useAnimate();
+  const [bloom, setBloom] = useState(false);
+  const [spotX, setSpotX] = useState('50%');
+  const [spotY, setSpotY] = useState('50%');
+
+  const rotX = useSpring(0, { stiffness: 400, damping: 30 });
+  const rotY = useSpring(0, { stiffness: 400, damping: 30 });
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (reduce || !cardRef.current) return;
+    const r = cardRef.current.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width;
+    const y = (e.clientY - r.top) / r.height;
+    rotX.set((0.5 - y) * 20);
+    rotY.set((x - 0.5) * 20);
+    setSpotX(`${x * 100}%`);
+    setSpotY(`${y * 100}%`);
+  };
+  const handleMouseLeave = () => { rotX.set(0); rotY.set(0); };
+
+  const handleApprove = async () => {
+    if (!reduce && approveScope.current) {
+      await animateApprove(approveScope.current, { scale: [1, 0.95, 1.08, 1] }, { duration: 0.3 });
+    }
+    setBloom(true);
+    setTimeout(() => setBloom(false), 450);
+    if (!reduce) {
+      confetti({
+        particleCount: 60,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#3d5c1a', '#fcffe1', '#5a8c3a', '#a3c97a'],
+        disableForReducedMotion: true,
+      });
+    }
+    onApprove();
+  };
+
+  const handleReject = async () => {
+    if (!reduce && rejectScope.current) {
+      await animateReject(rejectScope.current, { x: [0, 6, -6, 4, -4, 0] }, { duration: 0.32 });
+    }
+    onReject();
+  };
+
   return (
-    <div className="grid grid-cols-[1fr_140px_90px_80px_120px] items-center px-4 py-3 hover:bg-surface-1/60 transition-colors group">
+    <motion.div
+      ref={cardRef}
+      style={{ rotateX: rotX, rotateY: rotY, transformPerspective: 800, position: 'relative' }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      className="grid grid-cols-[1fr_140px_90px_80px_120px] items-center px-4 py-3 hover:bg-surface-1/60 transition-colors group"
+    >
+      {/* Spotlight */}
+      {!reduce && (
+        <span
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background: `radial-gradient(circle 180px at ${spotX} ${spotY}, rgb(255 255 255 / 0.04), transparent)`,
+          }}
+        />
+      )}
+
       {/* Title + channel */}
       <div className="min-w-0 pr-3">
         <Link href={`/dashboard/review/${v.content_id}`}
@@ -331,31 +397,43 @@ function ReviewRow({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center justify-end gap-1 pr-1">
+      <div className="flex items-center justify-end gap-1 pr-1 relative">
+        {bloom && (
+          <motion.span
+            className="absolute inset-0 rounded-full bg-status-success/30 pointer-events-none"
+            initial={{ scale: 1, opacity: 0.6 }}
+            animate={{ scale: 3, opacity: 0 }}
+            transition={{ duration: 0.4 }}
+          />
+        )}
         {isPending && (
           <>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={onApprove}
-              title="Quick approve"
-              aria-label="Quick approve"
-              className="w-7 h-7 text-content-tertiary hover:text-status-success hover:bg-status-success/10"
-            >
-              <ThumbsUp size={13} />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={onReject}
-              title="Quick reject"
-              aria-label="Quick reject"
-              className="w-7 h-7 text-content-tertiary hover:text-status-error hover:bg-status-error/10"
-            >
-              <ThumbsDown size={13} />
-            </Button>
+            <div ref={approveScope}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleApprove}
+                title="Quick approve"
+                aria-label="Quick approve"
+                className="w-7 h-7 text-content-tertiary hover:text-status-success hover:bg-status-success/10"
+              >
+                <ThumbsUp size={13} />
+              </Button>
+            </div>
+            <div ref={rejectScope}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleReject}
+                title="Quick reject"
+                aria-label="Quick reject"
+                className="w-7 h-7 text-content-tertiary hover:text-status-error hover:bg-status-error/10"
+              >
+                <ThumbsDown size={13} />
+              </Button>
+            </div>
           </>
         )}
         <Link href={`/dashboard/review/${v.content_id}`} title="Open review"
@@ -363,6 +441,6 @@ function ReviewRow({
           <ChevronRight size={14} />
         </Link>
       </div>
-    </div>
+    </motion.div>
   );
 }
