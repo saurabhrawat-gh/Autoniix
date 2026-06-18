@@ -76,7 +76,16 @@ bff: ## Start Dashboard BFF locally (port 8020)
 	DB_HOST=localhost DB_PORT=5433 \
 	REDIS_URL=redis://localhost:6380 \
 	TEMPORAL_HOST=localhost:7233 \
+	S3_ENDPOINT=http://localhost:9000 \
 	uvicorn src.services.dashboard.main:app --host 0.0.0.0 --port 8020 --reload
+
+# Brain Service (AE-P1)
+brain: ## Start Brain Service locally (port 8015)
+	DB_HOST=localhost DB_PORT=5433 \
+	REDIS_URL=redis://localhost:6380 \
+	TEMPORAL_HOST=localhost:7233 \
+	BRAIN_PORT=8015 \
+	PYTHONPATH=. .venv/bin/python -m src.services.brain.main
 
 # Dashboard Frontend (Next.js)
 ui: ## Start Dashboard UI locally (port 3000)
@@ -224,11 +233,11 @@ env-status: ## Show which environment is currently active
 # v2 Revamp shortcuts
 migrate: ## Apply all pending DB migrations
 	DB_HOST=$${DB_HOST_HOST:-localhost} DB_PORT=$${DB_PORT_HOST:-5433} \
-		python -m scripts.run_migrations
+		PYTHONPATH=. .venv/bin/python scripts/run_migrations.py
 
 migrate-status: ## Show pending migrations
 	DB_HOST=$${DB_HOST_HOST:-localhost} DB_PORT=$${DB_PORT_HOST:-5433} \
-		python -m scripts.run_migrations --status
+		PYTHONPATH=. .venv/bin/python scripts/run_migrations.py --status
 
 backfill: ## Backfill channel_profiles for existing channels (idempotent)
 	python -m scripts.backfill_channel_profiles

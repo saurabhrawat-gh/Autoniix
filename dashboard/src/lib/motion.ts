@@ -22,6 +22,16 @@ export const dur = {
   deliberate: 0.32,
 } as const;
 
+/** Spring physics presets for AI-native animations. */
+export const spring = {
+  /** KPI number count-up — smooth, weighty */
+  kpi:    { stiffness: 80,  damping: 20 },
+  /** Icon hover / badge pop — snappy, tight */
+  snappy: { stiffness: 400, damping: 30 },
+  /** Card entrance / drawer open — soft landing */
+  soft:   { stiffness: 120, damping: 18 },
+} as const;
+
 /** Shorthand transition objects for the most common patterns. */
 export const transition = {
   /** Hover/focus/active micro-states: fast + standard easing */
