@@ -63,14 +63,16 @@
 }
 
 /* ── Light theme (default) ─────────────────────── */
-/* Reference: design-system.md §2 — LOCKED 2026-06-11 */
+/* V5 Spotlight Hybrid — LOCKED 2026-06-18 (replaces warm cream palette).
+ * Reference: docs/mood-boards/appshell.html §V5 tokens. */
 :root {
-  --surface-bg: 252 255 225;      /* #fcffe1 — warm cream page background */
-  --surface-sidebar: 238 241 204; /* #eef1cc — sidebar */
-  --surface-0: 250 252 240;       /* #fafcf0 — warm cream-white cards/dialogs */
-  --surface-1: 245 248 216;       /* #f5f8d8 — elevated surface */
-  --surface-2: 238 236 202;       /* #eeecca — hover states, input backgrounds */
-  --surface-3: 226 228 196;       /* subtle separators */
+  --surface-bg: 245 245 245;      /* #F5F5F5 — page bg behind everything */
+  --surface-sidebar: 236 236 239; /* #ECECEF — sidebar a touch darker than page bg
+                                     for clear separation vs the white content card */
+  --surface-0: 255 255 255;       /* #FFFFFF — floating main canvas card */
+  --surface-1: 242 242 245;       /* #F2F2F5 — cards on canvas */
+  --surface-2: 230 230 234;       /* #E6E6EA — hover on cards */
+  --surface-3: 218 218 224;       /* #DADAE0 — selected / pressed */
   --accent-primary-bg: 16 16 14;  /* #10100e — inverted primary button bg */
   --accent-primary-text: 252 255 225; /* #fcffe1 — inverted primary button text */
   --accent: 61 92 26;             /* #3d5c1a — moss green (focus, active, highlights) */
@@ -85,8 +87,8 @@
   --content-muted: 106 110 96;    /* #6a6e60 — alias */
   --content-disabled: 171 174 176; /* #abaeb0 */
   --content-inverse: 252 255 225; /* #fcffe1 */
-  --border: 216 220 168;          /* #d8dca8 */
-  --border-hover: 196 200 144;    /* #c4c890 */
+  --border: 224 224 228;          /* #E0E0E4 — V5 hairline (very low contrast) */
+  --border-hover: 200 200 208;    /* #C8C8D0 */
   --status-success: 90 140 58;    /* #5a8c3a — warm moss */
   --status-warning: 196 138 42;   /* #c48a2a — warm amber */
   --status-error: 220 90 58;      /* #dc5a3a — warm terracotta */
@@ -97,14 +99,15 @@
 }
 
 /* ── Dark theme ────────────────────────────────── */
-/* Reference: design-system.md §2 — LOCKED 2026-06-11 */
+/* V5 Spotlight Hybrid — LOCKED 2026-06-18 (replaces warm near-black palette).
+ * Reference: docs/mood-boards/appshell.html §V5 tokens. */
 .dark {
-  --surface-bg: 16 16 14;         /* #10100e — warm near-black */
-  --surface-sidebar: 20 21 18;    /* #141512 — approved Option A */
-  --surface-0: 30 33 32;          /* #1e2120 — approved Option A */
-  --surface-1: 37 40 36;          /* #252824 — approved Option A */
-  --surface-2: 42 45 40;          /* #2a2d28 — approved Option A */
-  --surface-3: 46 49 44;          /* #2e312c — approved Option A */
+  --surface-bg: 10 10 13;         /* #0A0A0D — page bg, same as sidebar */
+  --surface-sidebar: 10 10 13;    /* #0A0A0D — V5 sidebar/chrome */
+  --surface-0: 19 19 24;          /* #131318 — floating main canvas card */
+  --surface-1: 27 27 34;          /* #1B1B22 — cards on canvas */
+  --surface-2: 38 38 46;          /* #26262E — hover on cards */
+  --surface-3: 48 48 56;          /* #303038 — selected / pressed */
   --accent-primary-bg: 252 255 225; /* #fcffe1 — inverted primary button bg */
   --accent-primary-text: 16 16 14;  /* #10100e — inverted primary button text */
   --accent: 252 255 225;          /* #fcffe1 — cream (brand base as dark-mode accent) */
@@ -119,8 +122,8 @@
   --content-muted: 140 144 128;    /* #8c9080 — alias */
   --content-disabled: 76 80 70;    /* #4c5046 — still clearly disabled */
   --content-inverse: 16 16 14;    /* #10100e */
-  --border: 32 35 30;             /* #20231e — dimmed, blends into surface */
-  --border-hover: 44 47 42;       /* #2c2f2a — dimmed hover */
+  --border: 36 36 42;             /* #24242A — V5 hairline (very low contrast) */
+  --border-hover: 52 52 60;       /* #34343C */
   --status-success: 90 140 58;    /* #5a8c3a */
   --status-warning: 196 138 42;   /* #c48a2a */
   --status-error: 220 90 58;      /* #dc5a3a */
@@ -128,6 +131,22 @@
   --shadow-card: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
   --shadow-elevated: 0 10px 25px -5px rgba(0,0,0,0.6), 0 8px 10px -6px rgba(0,0,0,0.4);
   --shadow-glow: 0 0 20px rgba(252,255,225,0.15);
+}
+
+/* ── AppShell outer page background ───────────────────────
+ * Subtle radial spotlight pair painted on top of --surface-bg.
+ * Used by DashboardLayout's outer wrapper. Very low intensity so
+ * it reads as "premium ambient light" rather than decoration. */
+.app-shell-bg {
+  background-color: rgb(var(--surface-bg));
+  background-image:
+    radial-gradient(72% 56% at 14% -4%, rgba(146, 108, 255, 0.05), transparent 62%),
+    radial-gradient(60% 48% at 92% 104%, rgba(255, 122, 178, 0.045), transparent 62%);
+}
+.dark .app-shell-bg {
+  background-image:
+    radial-gradient(72% 56% at 14% -4%, rgba(132, 96, 255, 0.16), transparent 62%),
+    radial-gradient(60% 48% at 92% 104%, rgba(255, 96, 170, 0.10), transparent 62%);
 }
 
 @layer base {
