@@ -29,6 +29,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from src.agents.critic import CriticAgent
+from src.agents.preventor import PreventorAgent
 from src.agents.registry import AgentRegistry
 from src.db import close_pool, get_pool
 from src.services.brain.agent import BrainAgent
@@ -44,6 +45,11 @@ AgentRegistry.register(BrainAgent())
 # in BaseAgent.run() finds it via the registry. It costs nothing when
 # the ``critic.enabled`` / ``brain.critic_review.enabled`` flags are off.
 AgentRegistry.register(CriticAgent())
+# PreventorAgent — pre-execution risk gate. No-op while
+# ``preventor.enabled`` is FALSE (default), so cohabiting in the
+# Brain process is free; a future P2 split-out can move it to its own
+# service without touching callers (registry lookup is unchanged).
+AgentRegistry.register(PreventorAgent())
 
 logger = structlog.get_logger()
 
