@@ -33,6 +33,8 @@ interface AppState {
   clearNotifications: () => void;
   paletteOpen: boolean;
   setPaletteOpen: (v: boolean) => void;
+  helpOpen: boolean;
+  setHelpOpen: (v: boolean) => void;
   refresh: () => Promise<void>;
   switchEnv: (mode: EnvMode, confirm?: boolean) => Promise<void>;
   setSystemStopped: (v: boolean) => void;
@@ -54,6 +56,8 @@ const Ctx = createContext<AppState>({
   clearNotifications: noop,
   paletteOpen: false,
   setPaletteOpen: noop,
+  helpOpen: false,
+  setHelpOpen: noop,
   refresh: async () => {},
   switchEnv: async () => {},
   setSystemStopped: noop,
@@ -73,6 +77,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [density, setDensityState] = useState<Density>('comfortable');
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     if (typeof window === 'undefined') return;
@@ -249,6 +254,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       density, setDensity,
       notifications, pushNotification, markAllNotificationsRead, clearNotifications,
       paletteOpen, setPaletteOpen,
+      helpOpen, setHelpOpen,
       refresh, switchEnv, setSystemStopped,
     }}>
       {children}
