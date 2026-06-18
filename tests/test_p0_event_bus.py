@@ -157,7 +157,8 @@ async def test_subscribe_drops_invalid_messages_and_dispatches_valid_ones():
         # Stop the loop after the first valid message.
         raise StopIteration
 
-    with patch("src.events.bus.get_redis", AsyncMock(return_value=fake_redis)):
+    with patch("src.events.bus.get_redis", AsyncMock(return_value=fake_redis)), \
+         patch("src.events.bus.get_pubsub_redis", AsyncMock(return_value=fake_redis)):
         # The handler StopIteration is caught by subscribe (handler isolation)
         # so we need a different exit. Use a stop_event triggered by handler.
         import asyncio
