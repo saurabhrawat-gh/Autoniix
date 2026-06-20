@@ -17,14 +17,14 @@ impl PasswordManager {
             .map(|hash| hash.to_string())
             .map_err(|e| {
                 tracing::error!("Password hashing failed: {:?}", e);
-                ApiError::Internal
+                ApiError::Internal("Password hashing failed".to_string())
             })
     }
     
     pub fn verify_password(password: &str, hash: &str) -> ApiResult<bool> {
         let parsed_hash = PasswordHash::new(hash).map_err(|e| {
             tracing::error!("Failed to parse password hash: {:?}", e);
-            ApiError::Internal
+            ApiError::Internal("Failed to parse password hash".to_string())
         })?;
         
         let argon2 = Argon2::default();

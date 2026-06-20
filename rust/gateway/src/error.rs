@@ -23,8 +23,8 @@ pub enum ApiError {
     #[error("Validation error: {0}")]
     Validation(String),
     
-    #[error("Internal server error")]
-    Internal,
+    #[error("Internal server error: {0}")]
+    Internal(String),
     
     #[error("Service unavailable: {0}")]
     ServiceUnavailable(String),
@@ -49,7 +49,7 @@ impl IntoResponse for ApiError {
             ApiError::Validation(_) => {
                 (StatusCode::BAD_REQUEST, "VALIDATION_ERROR", self.to_string())
             }
-            ApiError::Internal => {
+            ApiError::Internal(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", self.to_string())
             }
             ApiError::ServiceUnavailable(_) => {

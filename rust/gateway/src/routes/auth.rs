@@ -68,6 +68,10 @@ pub fn routes(auth_service: AuthServiceImpl) -> Router {
         .route("/api/v2/auth/verify", post(verify_token))
         .route("/api/v2/auth/logout", post(logout))
         .route("/api/v2/auth/profile", put(update_profile))
+        .route("/api/v2/auth/forgot", post(forgot_password))
+        .route("/api/v2/auth/reset", post(reset_password))
+        .route("/api/v2/auth/mfa/setup", post(mfa_setup))
+        .route("/api/v2/auth/mfa/verify", post(mfa_verify))
         .with_state(auth_service)
 }
 
@@ -125,6 +129,99 @@ async fn update_profile(
         status: "ok".to_string(),
         message: "Profile updated".to_string(),
     }))
+}
+
+// ── Forgot / Reset ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct ForgotRequest {
+    email: String,
+}
+
+#[derive(Debug, Serialize)]
+struct StatusResponse {
+    status: String,
+}
+
+/// POST /api/v2/auth/forgot — public; never leaks whether email exists.
+async fn forgot_password(
+    State(auth_service): State<AuthServiceImpl>,
+    Json(req): Json<ForgotRequest>,
+) -> Result<Json<StatusResponse>, ApiError> {
+    auth_service.forgot_password(&req.email).await?;
+    Ok(Json(StatusResponse { status: "ok".to_string() }))
+}
+
+#[derive(Debug, Deserialize)]
+struct ResetRequest {
+    token: String,
+    password: String,
+}
+
+/// POST /api/v2/auth/reset — public; validates the reset token and sets a new
+/// password.
+async fn reset_password(
+    State(auth_service): State<AuthServiceImpl>,
+    Json(req): Json<ResetRequest>,
+) -> Result<Json<StatusResponse>, ApiError> {
+    if req.password.len() < 8 {
+        return Err(ApiError::Validation(
+            "Password must be at least 8 characters".to_string(),
+        ));
+    }
+    auth_service.reset_password(&req.token, &req.password).await?;
+    Ok(Json(StatusResponse { status: "ok".to_string() }))
+}
+
+// ── MFA ─────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+struct MfaSetupResponse {
+    data: MfaSetupData,
+}
+
+#[derive(Debug, Serialize)]
+struct MfaSetupData {
+    otpauth_url: String,
+    secret: String,
+}
+
+/// POST /api/v2/auth/mfa/setup — requires auth; generates a TOTP secret and
+/// returns the otpauth URI.
+async fn mfa_setup(
+    State(auth_service): State<AuthServiceImpl>,
+    AuthUser(principal): AuthUser,
+) -> Result<Json<MfaSetupResponse>, ApiError> {
+    let user_id: i64 = principal
+        .user_id
+        .parse()
+        .map_err(|_| ApiError::Unauthorized)?;
+    let (otpauth_url, secret) = auth_service
+        .mfa_setup(user_id, &principal.email)
+        .await?;
+    Ok(Json(MfaSetupResponse {
+        data: MfaSetupData { otpauth_url, secret },
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+struct MfaVerifyRequest {
+    code: String,
+}
+
+/// POST /api/v2/auth/mfa/verify — requires auth; verifies the TOTP code and
+/// enables MFA.
+async fn mfa_verify(
+    State(auth_service): State<AuthServiceImpl>,
+    AuthUser(principal): AuthUser,
+    Json(req): Json<MfaVerifyRequest>,
+) -> Result<Json<StatusResponse>, ApiError> {
+    let user_id: i64 = principal
+        .user_id
+        .parse()
+        .map_err(|_| ApiError::Unauthorized)?;
+    auth_service.mfa_verify(user_id, &req.code).await?;
+    Ok(Json(StatusResponse { status: "ok".to_string() }))
 }
 
 #[derive(Debug, Deserialize)]
@@ -302,6 +399,9 @@ async fn refresh_token(
     Ok((StatusCode::OK, auth_cookies(&access_token, &new_refresh_token), Json(response)))
 }
 
+/// POST /api/v2/auth/verify — Rust-only extension (no Python equivalent).
+/// Lightweight token introspection for SDK clients. Returns `valid: false`
+/// instead of 401 when the token is expired or malformed.
 async fn verify_token(
     State(auth_service): State<AuthServiceImpl>,
     Json(req): Json<VerifyTokenRequest>,
