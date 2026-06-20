@@ -2,7 +2,7 @@ use axum::{
     extract::State,
     http::{header::SET_COOKIE, HeaderName, StatusCode},
     response::{AppendHeaders, IntoResponse},
-    routing::{get, post},
+    routing::{get, post, put},
     Json, Router,
 };
 use axum_extra::{headers::Cookie, TypedHeader};
@@ -67,6 +67,7 @@ pub fn routes(auth_service: AuthServiceImpl) -> Router {
         .route("/api/v2/auth/refresh", post(refresh_token))
         .route("/api/v2/auth/verify", post(verify_token))
         .route("/api/v2/auth/logout", post(logout))
+        .route("/api/v2/auth/profile", put(update_profile))
         .with_state(auth_service)
 }
 
@@ -84,6 +85,46 @@ async fn auth_mode(State(auth_service): State<AuthServiceImpl>) -> impl IntoResp
         v2_enabled,
         legacy_enabled,
     })
+}
+
+#[derive(Debug, Deserialize)]
+struct UpdateProfileRequest {
+    display_name: Option<String>,
+    current_password: Option<String>,
+    new_password: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct UpdateProfileResponse {
+    status: String,
+    message: String,
+}
+
+/// PUT /api/v2/auth/profile — update display_name and/or password.
+/// Mirrors Python `PUT /auth/profile`.
+async fn update_profile(
+    State(auth_service): State<AuthServiceImpl>,
+    AuthUser(principal): AuthUser,
+    Json(req): Json<UpdateProfileRequest>,
+) -> ApiResult<impl IntoResponse> {
+    let user_id: i64 = principal
+        .user_id
+        .parse()
+        .map_err(|_| ApiError::Unauthorized)?;
+
+    auth_service
+        .update_profile(
+            user_id,
+            req.display_name.as_deref(),
+            req.current_password.as_deref(),
+            req.new_password.as_deref(),
+        )
+        .await?;
+
+    Ok(Json(UpdateProfileResponse {
+        status: "ok".to_string(),
+        message: "Profile updated".to_string(),
+    }))
 }
 
 #[derive(Debug, Deserialize)]

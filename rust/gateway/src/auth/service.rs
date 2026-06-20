@@ -53,6 +53,70 @@ impl AuthServiceImpl {
         (v2_enabled, legacy_enabled)
     }
     
+    /// Update the current user's profile (display_name and/or password).
+    /// Mirrors Python `PUT /auth/profile`: a password change requires the
+    /// correct current password and revokes the user's other sessions. The
+    /// whole update is transactional.
+    pub async fn update_profile(
+        &self,
+        user_id: i64,
+        display_name: Option<&str>,
+        current_password: Option<&str>,
+        new_password: Option<&str>,
+    ) -> ApiResult<()> {
+        let user = User::find_by_id(&self.pool, user_id)
+            .await
+            .map_err(ApiError::Database)?
+            .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
+        
+        if display_name.is_none() && new_password.is_none() {
+            return Err(ApiError::Validation(
+                "Nothing to update — provide display_name or new_password".to_string(),
+            ));
+        }
+        
+        let mut tx = self.pool.begin().await.map_err(ApiError::Database)?;
+        
+        if let Some(name) = display_name {
+            sqlx::query("UPDATE users SET display_name = $1, updated_at = NOW() WHERE id = $2")
+                .bind(name)
+                .bind(user_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(ApiError::Database)?;
+        }
+        
+        if let Some(new_pw) = new_password {
+            let current = current_password.ok_or_else(|| {
+                ApiError::Validation(
+                    "current_password is required to change your password".to_string(),
+                )
+            })?;
+            let hash = user.password_hash.as_deref().unwrap_or("");
+            if !PasswordManager::verify_password(current, hash)? {
+                return Err(ApiError::Unauthorized);
+            }
+            let new_hash = PasswordManager::hash_password(new_pw)?;
+            sqlx::query("UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2")
+                .bind(&new_hash)
+                .bind(user_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(ApiError::Database)?;
+            // Revoke all other sessions when the password changes.
+            sqlx::query(
+                "UPDATE sessions SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL",
+            )
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(ApiError::Database)?;
+        }
+        
+        tx.commit().await.map_err(ApiError::Database)?;
+        Ok(())
+    }
+    
     pub async fn sign_in(
         &self,
         email: &str,
