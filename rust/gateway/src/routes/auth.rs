@@ -78,9 +78,22 @@ struct SignInRequest {
 
 #[derive(Debug, Serialize)]
 struct SignInResponse {
+    status: String,
     access_token: String,
     expires_in: i64,
-    user: UserResponse,
+    user: SignInUser,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    setup_required: Option<bool>,
+}
+
+/// Signin user object, matching Python `/auth/login` (workspace-scoped `role`,
+/// `workspace_id`).
+#[derive(Debug, Serialize)]
+struct SignInUser {
+    id: i64,
+    email: String,
+    role: String,
+    workspace_id: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -107,6 +120,7 @@ struct RefreshTokenRequest {
 
 #[derive(Debug, Serialize)]
 struct RefreshTokenResponse {
+    status: String,
     access_token: String,
     expires_in: i64,
 }
@@ -147,20 +161,22 @@ async fn sign_in(
     State(auth_service): State<AuthServiceImpl>,
     Json(req): Json<SignInRequest>,
 ) -> ApiResult<impl IntoResponse> {
-    let (access_token, refresh_token, user) = auth_service
+    let (access_token, refresh_token, user, ws_role, wid) = auth_service
         .sign_in(&req.email, &req.password, req.workspace_id, None, None)
         .await?;
     
+    let workspace_id = if wid > 0 { Some(wid) } else { None };
     let response = SignInResponse {
+        status: "ok".to_string(),
         access_token: access_token.clone(),
         expires_in: 3600,
-        user: UserResponse {
+        user: SignInUser {
             id: user.id,
             email: user.email,
-            display_name: user.display_name,
-            active_workspace_id: user.active_workspace_id,
-            role: user.role,
+            role: ws_role,
+            workspace_id,
         },
+        setup_required: if workspace_id.is_none() { Some(true) } else { None },
     };
     
     Ok((StatusCode::OK, auth_cookies(&access_token, &refresh_token), Json(response)))
@@ -220,6 +236,7 @@ async fn refresh_token(
     let (access_token, new_refresh_token) = auth_service.refresh_token(&token).await?;
     
     let response = RefreshTokenResponse {
+        status: "ok".to_string(),
         access_token: access_token.clone(),
         expires_in: 3600,
     };

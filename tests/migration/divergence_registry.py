@@ -68,26 +68,8 @@ INTENTIONAL_DIVERGENCES: dict[str, list[Divergence]] = {
             approved_by="migration-lead",
             approved_date="2026-06-20",
         ),
-        Divergence(
-            field="status",
-            python_behavior="response includes status='ok' and user.workspace_id",
-            rust_behavior="no status field; uses user.active_workspace_id",
-            reason="PENDING-ALIGNMENT — tracked in #646 (align login/signin response shape)",
-            approved_by="UNRESOLVED",
-            approved_date="2026-06-20",
-        ),
-        # Refresh-token cookie alignment resolved by #644 (cookie-only on both sides).
-    ],
-    "POST /auth/refresh": [
-        # Refresh-token cookie alignment resolved by #644 (cookie-only on both sides).
-        Divergence(
-            field="status",
-            python_behavior="response includes status='ok'",
-            rust_behavior="no status field",
-            reason="PENDING-ALIGNMENT — tracked in #646 (align response shape: status field)",
-            approved_by="UNRESOLVED",
-            approved_date="2026-06-20",
-        ),
+        # status field + workspace_id naming aligned by #646; refresh-token cookie
+        # alignment resolved by #644 (cookie-only on both sides).
     ],
 }
 
