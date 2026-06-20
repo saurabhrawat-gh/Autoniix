@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use chrono::{Duration, Utc};
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
@@ -10,7 +11,7 @@ fn generate_refresh_token() -> (String, String) {
     use rand::Rng;
     let mut rng = rand::thread_rng();
     let random_bytes: Vec<u8> = (0..48).map(|_| rng.gen()).collect();
-    let raw = base64::encode_config(&random_bytes, base64::URL_SAFE_NO_PAD);
+    let raw = URL_SAFE_NO_PAD.encode(&random_bytes);
     let mut hasher = Sha256::new();
     hasher.update(raw.as_bytes());
     let hashed = format!("{:x}", hasher.finalize());

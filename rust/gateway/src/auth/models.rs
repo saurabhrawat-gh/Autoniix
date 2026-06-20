@@ -67,13 +67,16 @@ impl User {
         .await
     }
     
-    pub async fn create(
-        pool: &sqlx::PgPool,
+    pub async fn create<'e, E>(
+        executor: E,
         email: &str,
         password_hash: &str,
         display_name: Option<&str>,
         role: &str,
-    ) -> sqlx::Result<Self> {
+    ) -> sqlx::Result<Self>
+    where
+        E: sqlx::PgExecutor<'e>,
+    {
         sqlx::query_as::<_, Self>(
             "INSERT INTO users (email, password_hash, display_name, role, disabled, email_verified)
              VALUES (lower($1), $2, $3, $4, false, true)
@@ -84,19 +87,22 @@ impl User {
         .bind(password_hash)
         .bind(display_name)
         .bind(role)
-        .fetch_one(pool)
+        .fetch_one(executor)
         .await
     }
 
-    pub async fn update_active_workspace(
-        pool: &sqlx::PgPool,
+    pub async fn update_active_workspace<'e, E>(
+        executor: E,
         user_id: i64,
         workspace_id: i64,
-    ) -> sqlx::Result<()> {
+    ) -> sqlx::Result<()>
+    where
+        E: sqlx::PgExecutor<'e>,
+    {
         sqlx::query("UPDATE users SET active_workspace_id = $1 WHERE id = $2")
             .bind(workspace_id)
             .bind(user_id)
-            .execute(pool)
+            .execute(executor)
             .await?;
         Ok(())
     }
@@ -136,13 +142,16 @@ impl Workspace {
         .await
     }
     
-    pub async fn create(
-        pool: &sqlx::PgPool,
+    pub async fn create<'e, E>(
+        executor: E,
         name: &str,
         slug: &str,
         plan: &str,
         owner_user_id: i64,
-    ) -> sqlx::Result<Self> {
+    ) -> sqlx::Result<Self>
+    where
+        E: sqlx::PgExecutor<'e>,
+    {
         sqlx::query_as::<_, Self>(
             "INSERT INTO workspaces (name, slug, plan, mode, owner_user_id)
              VALUES ($1, $2, $3, 'solo', $4)
@@ -152,25 +161,28 @@ impl Workspace {
         .bind(slug)
         .bind(plan)
         .bind(owner_user_id)
-        .fetch_one(pool)
+        .fetch_one(executor)
         .await
     }
 }
 
 impl WorkspaceMember {
-    pub async fn create(
-        pool: &sqlx::PgPool,
+    pub async fn create<'e, E>(
+        executor: E,
         workspace_id: i64,
         user_id: i64,
         role: &str,
-    ) -> sqlx::Result<()> {
+    ) -> sqlx::Result<()>
+    where
+        E: sqlx::PgExecutor<'e>,
+    {
         sqlx::query(
             "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, $3)"
         )
         .bind(workspace_id)
         .bind(user_id)
         .bind(role)
-        .execute(pool)
+        .execute(executor)
         .await?;
         Ok(())
     }

@@ -43,7 +43,7 @@ async fn test_sign_up_and_sign_in() {
     
     assert_eq!(response.status(), StatusCode::CREATED);
     
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let signup_response: Value = serde_json::from_slice(&body).unwrap();
     
     assert!(signup_response["access_token"].is_string());
