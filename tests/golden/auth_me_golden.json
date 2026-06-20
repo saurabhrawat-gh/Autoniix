@@ -1,14 +1,15 @@
 {
   "expected_response": {
-    "user": {
-      "id": "<integer>",
+    "data": {
+      "user_id": "<integer>",
       "email": "<string>",
       "role": "<string>",
-      "global_role": "<string>"
-    },
-    "workspace": {
-      "id": "<integer>",
-      "name": "<string>"
+      "global_role": "<string>",
+      "workspace_id": "<integer>",
+      "source": "<string>",
+      "display_name": "<string|null>",
+      "initials": "<string>",
+      "permissions": []
     }
   }
 }

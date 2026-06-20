@@ -107,10 +107,11 @@ async fn test_me_returns_current_user() {
     let token = h.signup_and_get_token(&email, "Password123!").await;
     let me = h.me(&token).await;
 
-    assert_eq!(me["user"]["email"], email);
-    assert!(me["user"]["id"].as_i64().is_some(), "user.id must be i64");
-    assert!(me["user"]["role"].as_str().is_some(), "user must have role");
-    assert!(me["workspace"]["id"].as_i64().is_some(), "workspace.id must be i64");
+    assert_eq!(me["data"]["email"], email);
+    assert!(me["data"]["user_id"].as_i64().is_some(), "data.user_id must be i64");
+    assert!(me["data"]["role"].as_str().is_some(), "data must have role");
+    assert!(me["data"]["workspace_id"].as_i64().is_some(), "data.workspace_id must be i64");
+    assert!(me["data"]["permissions"].is_array(), "data.permissions must be an array");
 
     h.cleanup().await;
 }

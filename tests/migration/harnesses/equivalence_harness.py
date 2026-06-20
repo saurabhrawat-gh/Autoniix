@@ -266,10 +266,12 @@ class EquivalenceHarness:
         python_resp = self.client.get(f"{self.python_url}/auth/me", headers=headers)
         rust_resp = self.client.get(f"{self.rust_url}/api/v2/me", headers=headers)
 
+        # Both services wrap the payload in a top-level `data` object; comparing
+        # `data` triggers the nested key-set comparison in `_compare`.
         return self._compare(
             python_resp,
             rust_resp,
-            ["email", "role", "workspace_id"],
+            ["data"],
             endpoint="me",
         )
 
