@@ -1,16 +1,63 @@
 use axum::{
     extract::State,
-    http::StatusCode,
-    response::IntoResponse,
+    http::{header::SET_COOKIE, HeaderName, StatusCode},
+    response::{AppendHeaders, IntoResponse},
     routing::post,
     Json, Router,
 };
+use axum_extra::{headers::Cookie, TypedHeader};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     auth::AuthServiceImpl,
-    error::ApiResult,
+    error::{ApiError, ApiResult},
+    extractors::AuthUser,
 };
+
+// Cookie lifetimes (seconds): access token 1h, refresh token 30d.
+const ACCESS_MAX_AGE: i64 = 3600;
+const REFRESH_MAX_AGE: i64 = 2_592_000;
+
+/// Build a single `Set-Cookie` header value with the standard secure attributes.
+/// Values handled here (JWTs, the literal "1") contain only cookie-safe chars.
+fn build_cookie(name: &str, value: &str, max_age: i64, http_only: bool) -> String {
+    let mut c = format!("{name}={value}; Path=/; Max-Age={max_age}; SameSite=Lax; Secure");
+    if http_only {
+        c.push_str("; HttpOnly");
+    }
+    c
+}
+
+/// Set-Cookie headers issued on successful auth: HttpOnly access + refresh
+/// tokens, plus a JS-readable `auth_status` flag for the frontend.
+fn auth_cookies(access: &str, refresh: &str) -> AppendHeaders<[(HeaderName, String); 3]> {
+    AppendHeaders([
+        (SET_COOKIE, build_cookie("access_token", access, ACCESS_MAX_AGE, true)),
+        (SET_COOKIE, build_cookie("refresh_token", refresh, REFRESH_MAX_AGE, true)),
+        (SET_COOKIE, build_cookie("auth_status", "1", ACCESS_MAX_AGE, false)),
+    ])
+}
+
+/// Set-Cookie headers that clear all auth cookies (Max-Age=0).
+fn clear_auth_cookies() -> AppendHeaders<[(HeaderName, String); 3]> {
+    AppendHeaders([
+        (SET_COOKIE, build_cookie("access_token", "", 0, true)),
+        (SET_COOKIE, build_cookie("refresh_token", "", 0, true)),
+        (SET_COOKIE, build_cookie("auth_status", "", 0, false)),
+    ])
+}
+
+/// Resolve a refresh token from the `refresh_token` cookie first, falling back
+/// to the JSON body (mirrors Python `v2/auth.py`).
+fn resolve_refresh_token(
+    cookie: &Option<TypedHeader<Cookie>>,
+    body_token: Option<String>,
+) -> Option<String> {
+    cookie
+        .as_ref()
+        .and_then(|TypedHeader(c)| c.get("refresh_token").map(|s| s.to_string()))
+        .or(body_token)
+}
 
 pub fn routes(auth_service: AuthServiceImpl) -> Router {
     Router::new()
@@ -32,7 +79,6 @@ struct SignInRequest {
 #[derive(Debug, Serialize)]
 struct SignInResponse {
     access_token: String,
-    refresh_token: String,
     expires_in: i64,
     user: UserResponse,
 }
@@ -56,13 +102,12 @@ struct SignUpResponse {
 
 #[derive(Debug, Deserialize)]
 struct RefreshTokenRequest {
-    refresh_token: String,
+    refresh_token: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
 struct RefreshTokenResponse {
     access_token: String,
-    refresh_token: String,
     expires_in: i64,
 }
 
@@ -107,8 +152,7 @@ async fn sign_in(
         .await?;
     
     let response = SignInResponse {
-        access_token,
-        refresh_token,
+        access_token: access_token.clone(),
         expires_in: 3600,
         user: UserResponse {
             id: user.id,
@@ -119,7 +163,7 @@ async fn sign_in(
         },
     };
     
-    Ok((StatusCode::OK, Json(response)))
+    Ok((StatusCode::OK, auth_cookies(&access_token, &refresh_token), Json(response)))
 }
 
 async fn sign_up(
@@ -167,17 +211,20 @@ async fn sign_up(
 
 async fn refresh_token(
     State(auth_service): State<AuthServiceImpl>,
-    Json(req): Json<RefreshTokenRequest>,
+    cookie: Option<TypedHeader<Cookie>>,
+    body: Option<Json<RefreshTokenRequest>>,
 ) -> ApiResult<impl IntoResponse> {
-    let (access_token, new_refresh_token) = auth_service.refresh_token(&req.refresh_token).await?;
+    let token = resolve_refresh_token(&cookie, body.and_then(|Json(b)| b.refresh_token))
+        .ok_or(ApiError::Unauthorized)?;
+    
+    let (access_token, new_refresh_token) = auth_service.refresh_token(&token).await?;
     
     let response = RefreshTokenResponse {
-        access_token,
-        refresh_token: new_refresh_token,
+        access_token: access_token.clone(),
         expires_in: 3600,
     };
     
-    Ok(Json(response))
+    Ok((StatusCode::OK, auth_cookies(&access_token, &new_refresh_token), Json(response)))
 }
 
 async fn verify_token(
@@ -212,7 +259,7 @@ async fn verify_token(
 
 #[derive(Debug, Deserialize)]
 struct LogoutRequest {
-    refresh_token: String,
+    refresh_token: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -221,14 +268,20 @@ struct LogoutResponse {
 }
 
 async fn logout(
+    _user: AuthUser,
     State(auth_service): State<AuthServiceImpl>,
-    Json(req): Json<LogoutRequest>,
+    cookie: Option<TypedHeader<Cookie>>,
+    body: Option<Json<LogoutRequest>>,
 ) -> ApiResult<impl IntoResponse> {
-    auth_service.logout(&req.refresh_token).await?;
+    // Authentication is required (AuthUser). Revoke the session identified by the
+    // refresh token from the cookie or body, then clear all auth cookies.
+    if let Some(token) = resolve_refresh_token(&cookie, body.and_then(|Json(b)| b.refresh_token)) {
+        auth_service.logout(&token).await?;
+    }
     
     let response = LogoutResponse {
         status: "ok".to_string(),
     };
     
-    Ok(Json(response))
+    Ok((StatusCode::OK, clear_auth_cookies(), Json(response)))
 }

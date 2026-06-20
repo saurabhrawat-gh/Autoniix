@@ -76,21 +76,15 @@ INTENTIONAL_DIVERGENCES: dict[str, list[Divergence]] = {
             approved_by="UNRESOLVED",
             approved_date="2026-06-20",
         ),
-        Divergence(
-            field="refresh_token",
-            python_behavior="refresh token set as HttpOnly cookie only",
-            rust_behavior="refresh token returned in response body, no cookies",
-            reason="PENDING-ALIGNMENT — tracked in #644 (cookie-based auth)",
-            approved_by="UNRESOLVED",
-            approved_date="2026-06-20",
-        ),
+        # Refresh-token cookie alignment resolved by #644 (cookie-only on both sides).
     ],
     "POST /auth/refresh": [
+        # Refresh-token cookie alignment resolved by #644 (cookie-only on both sides).
         Divergence(
-            field="refresh_token",
-            python_behavior="rotates refresh token into cookie; body returns only access_token + status",
-            rust_behavior="returns new refresh_token in body; no status; no cookies",
-            reason="PENDING-ALIGNMENT — tracked in #644 (cookie-based auth)",
+            field="status",
+            python_behavior="response includes status='ok'",
+            rust_behavior="no status field",
+            reason="PENDING-ALIGNMENT — tracked in #646 (align response shape: status field)",
             approved_by="UNRESOLVED",
             approved_date="2026-06-20",
         ),
