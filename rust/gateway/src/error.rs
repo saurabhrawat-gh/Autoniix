@@ -25,6 +25,9 @@ pub enum ApiError {
     
     #[error("Internal server error")]
     Internal,
+    
+    #[error("Service unavailable: {0}")]
+    ServiceUnavailable(String),
 }
 
 impl IntoResponse for ApiError {
@@ -48,6 +51,9 @@ impl IntoResponse for ApiError {
             }
             ApiError::Internal => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", self.to_string())
+            }
+            ApiError::ServiceUnavailable(_) => {
+                (StatusCode::SERVICE_UNAVAILABLE, "SERVICE_UNAVAILABLE", self.to_string())
             }
         };
         

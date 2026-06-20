@@ -175,11 +175,12 @@ def test_me_response_matches_golden(client: httpx.Client):
     expected = golden.get("expected_response", {})
     assert_keys_match(body, expected)
 
-    # /me returns a nested { user: {...}, workspace: {...} } shape
-    assert isinstance(body.get("user"), dict), "/me must return a user object"
-    assert body["user"].get("email") == email, "/me must return same email"
-    assert "id" in body["user"], "/me must return user id"
-    assert isinstance(body.get("workspace"), dict), "/me must return a workspace object"
+    # /me returns a { data: {...} } envelope matching Python's contract
+    assert isinstance(body.get("data"), dict), "/me must return a data object"
+    data = body["data"]
+    assert data.get("email") == email, "/me must return same email"
+    assert "user_id" in data, "/me must return user_id"
+    assert isinstance(data.get("permissions"), list), "/me must return a permissions list"
 
 
 # ── Golden file: DB state after signup ──────────────────────────────────────

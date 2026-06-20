@@ -95,16 +95,6 @@ INTENTIONAL_DIVERGENCES: dict[str, list[Divergence]] = {
             approved_date="2026-06-20",
         ),
     ],
-    "GET /auth/me": [
-        Divergence(
-            field="data",
-            python_behavior="{ data: { user_id, email, role, global_role, workspace_id, source, display_name, initials, permissions[] } }",
-            rust_behavior="{ user: {id,email,display_name,role,global_role}, workspace: {id,name} } — no data wrapper, no permissions",
-            reason="PENDING-ALIGNMENT — tracked in #643 (align /me + permissions). Frontend depends on data.permissions.",
-            approved_by="UNRESOLVED",
-            approved_date="2026-06-20",
-        ),
-    ],
 }
 
 
