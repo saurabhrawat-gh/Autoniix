@@ -117,6 +117,224 @@ impl AuthServiceImpl {
         Ok(())
     }
     
+    /// Initiate a password reset. Generates a random token, stores its SHA-256
+    /// hash in `password_resets` (1-hour expiry), and best-effort sends a reset
+    /// email via the Resend API. Mirrors Python `POST /auth/forgot` — never
+    /// leaks whether the email exists.
+    pub async fn forgot_password(&self, email: &str) -> ApiResult<()> {
+        let user = User::find_by_email(&self.pool, email)
+            .await
+            .map_err(ApiError::Database)?;
+        
+        // Don't leak whether the email exists.
+        let Some(user) = user else { return Ok(()) };
+        
+        // Generate a random token (URL-safe base64, 32 bytes).
+        let token_bytes: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
+        let raw_token = URL_SAFE_NO_PAD.encode(&token_bytes);
+        
+        // SHA-256 hash of the token for storage.
+        let mut hasher = Sha256::new();
+        hasher.update(raw_token.as_bytes());
+        let token_hash = format!("{:x}", hasher.finalize());
+        
+        let expires_at = Utc::now() + Duration::hours(1);
+        
+        sqlx::query(
+            "INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",
+        )
+        .bind(user.id)
+        .bind(&token_hash)
+        .bind(expires_at)
+        .execute(&self.pool)
+        .await
+        .map_err(ApiError::Database)?;
+        
+        // Best-effort email send via Resend API (no-op when RESEND_API_KEY unset).
+        let frontend_url = std::env::var("FRONTEND_URL")
+            .unwrap_or_else(|_| "http://localhost:3000".to_string());
+        let reset_link = format!("{}/reset-password?token={}", frontend_url, raw_token);
+        
+        let api_key = std::env::var("RESEND_API_KEY").ok();
+        if let Some(api_key) = api_key {
+            let subject_prefix = std::env::var("MAIL_SUBJECT_PREFIX")
+                .unwrap_or_default()
+                .trim()
+                .to_string();
+            let subject = if subject_prefix.is_empty() {
+                "Reset your Autoniix password".to_string()
+            } else {
+                format!("{} Reset your Autoniix password", subject_prefix)
+            };
+            
+            let text_body = format!(
+                "To reset your password, open this link (expires in 1 hour):\n\n{}\n",
+                reset_link
+            );
+            let html_body = format!(
+                r#"<p>To reset your password, click the link below (expires in 1 hour):</p><p><a href="{}">{}</a></p>"#,
+                reset_link, reset_link
+            );
+            
+            // Fire-and-forget — never bubble up email failures.
+            let email_addr = email.to_string();
+            tokio::spawn(async move {
+                let client = reqwest::Client::new();
+                let _ = client
+                    .post("https://api.resend.com/emails")
+                    .bearer_auth(&api_key)
+                    .json(&serde_json::json!({
+                        "from": "noreply@autoniix.com",
+                        "to": email_addr,
+                        "subject": subject,
+                        "text": text_body,
+                        "html": html_body,
+                    }))
+                    .send()
+                    .await;
+            });
+        }
+        
+        Ok(())
+    }
+    
+    /// Reset a password using a token from `forgot`. Validates the token hash,
+    /// checks expiry/used, updates the password, marks the token used, and
+    /// revokes all sessions. Transactional. Mirrors Python `POST /auth/reset`.
+    pub async fn reset_password(&self, token: &str, new_password: &str) -> ApiResult<()> {
+        let mut hasher = Sha256::new();
+        hasher.update(token.as_bytes());
+        let token_hash = format!("{:x}", hasher.finalize());
+        
+        let row: Option<(i64, i64, chrono::DateTime<Utc>, Option<chrono::DateTime<Utc>>)> =
+            sqlx::query_as(
+                "SELECT id, user_id, expires_at, used_at FROM password_resets WHERE token_hash = $1",
+            )
+            .bind(&token_hash)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(ApiError::Database)?;
+        
+        let Some((reset_id, user_id, expires_at, used_at)) = row else {
+            return Err(ApiError::Validation("Invalid or expired token".to_string()));
+        };
+        
+        if used_at.is_some() || expires_at < Utc::now() {
+            return Err(ApiError::Validation("Invalid or expired token".to_string()));
+        }
+        
+        let new_hash = PasswordManager::hash_password(new_password)?;
+        
+        let mut tx = self.pool.begin().await.map_err(ApiError::Database)?;
+        
+        sqlx::query("UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2")
+            .bind(&new_hash)
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(ApiError::Database)?;
+        
+        sqlx::query("UPDATE password_resets SET used_at = NOW() WHERE id = $1")
+            .bind(reset_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(ApiError::Database)?;
+        
+        sqlx::query(
+            "UPDATE sessions SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL",
+        )
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(ApiError::Database)?;
+        
+        tx.commit().await.map_err(ApiError::Database)?;
+        Ok(())
+    }
+    
+    /// Set up MFA for the current user: generate a TOTP secret, store it, and
+    /// return the otpauth URI + secret. Mirrors Python `POST /auth/mfa/setup`.
+    pub async fn mfa_setup(&self, user_id: i64, email: &str) -> ApiResult<(String, String)> {
+        use totp_rs::{Algorithm, Secret, TOTP};
+        
+        let secret = Secret::generate_secret();
+        let secret_bytes = secret.to_bytes()
+            .map_err(|_| ApiError::Internal("Failed to decode secret".to_string()))?;
+        let secret_b32 = secret.to_encoded().to_string();
+        
+        let totp = TOTP::new(
+            Algorithm::SHA1,
+            6,
+            1,
+            30,
+            secret_bytes,
+            Some("yt-automation".to_string()),
+            email.to_string(),
+        )
+        .map_err(|_| ApiError::Internal("Failed to generate TOTP".to_string()))?;
+        
+        let uri = totp.get_url();
+        
+        sqlx::query("UPDATE users SET mfa_secret = $1 WHERE id = $2")
+            .bind(&secret_b32)
+            .bind(user_id)
+            .execute(&self.pool)
+            .await
+            .map_err(ApiError::Database)?;
+        
+        Ok((uri, secret_b32))
+    }
+    
+    /// Verify a TOTP code and enable MFA if valid. Mirrors Python
+    /// `POST /auth/mfa/verify`.
+    pub async fn mfa_verify(&self, user_id: i64, code: &str) -> ApiResult<()> {
+        use totp_rs::{Algorithm, Secret, TOTP};
+        
+        let secret_b32: Option<String> = sqlx::query_scalar(
+            "SELECT mfa_secret FROM users WHERE id = $1",
+        )
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(ApiError::Database)?;
+        
+        let secret_b32 = secret_b32
+            .ok_or_else(|| ApiError::Validation("MFA not initialized".to_string()))?;
+        
+        let secret_bytes = Secret::Encoded(secret_b32)
+            .to_bytes()
+            .map_err(|_| ApiError::Validation("MFA not initialized".to_string()))?;
+        
+        let totp = TOTP::new(
+            Algorithm::SHA1,
+            6,
+            1,
+            30,
+            secret_bytes,
+            None,
+            String::new(),
+        )
+        .map_err(|_| ApiError::Internal("Failed to parse TOTP secret".to_string()))?;
+        
+        // valid_window=1 allows ±30s clock drift, matching pyotp's default.
+        let now = Utc::now();
+        let timestamp = now.timestamp() as u64;
+        let valid = (-1i64..=1).any(|offset| {
+            totp.generate(timestamp + (offset as u64 * 30)) == code
+        });
+        if !valid {
+            return Err(ApiError::Unauthorized);
+        }
+        
+        sqlx::query("UPDATE users SET mfa_enabled = TRUE WHERE id = $1")
+            .bind(user_id)
+            .execute(&self.pool)
+            .await
+            .map_err(ApiError::Database)?;
+        
+        Ok(())
+    }
+    
     pub async fn sign_in(
         &self,
         email: &str,

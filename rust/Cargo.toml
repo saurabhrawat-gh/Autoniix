@@ -42,6 +42,9 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 sha2 = "0.10"
 rand = "0.8"
 base64 = "0.21"
+totp-rs = { version = "5.5", features = ["qr", "gen_secret"] }
+sha1 = "0.10"
+hmac = "0.12"
 
 # Observability
 tracing = "0.1"

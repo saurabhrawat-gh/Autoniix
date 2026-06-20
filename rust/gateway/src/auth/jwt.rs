@@ -55,7 +55,7 @@ impl JwtManager {
         encode(&Header::default(), &claims, &self.encoding_key)
             .map_err(|e| {
                 tracing::error!("Failed to encode JWT: {:?}", e);
-                ApiError::Internal
+                ApiError::Internal("Failed to encode JWT".to_string())
             })
     }
     

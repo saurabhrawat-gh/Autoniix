@@ -111,3 +111,105 @@ async fn test_sign_in_invalid_credentials() {
     
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
+
+#[tokio::test]
+async fn test_forgot_password_is_public() {
+    let app = gateway::create_test_app().await;
+    
+    let body = json!({"email": "nonexistent@example.com"});
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v2/auth/forgot")
+                .method("POST")
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    
+    // Always returns 200 — never leaks whether email exists.
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let data: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(data["status"], "ok");
+}
+
+#[tokio::test]
+async fn test_reset_password_rejects_invalid_token() {
+    let app = gateway::create_test_app().await;
+    
+    let body = json!({"token": "invalid-token", "password": "newpassword123"});
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v2/auth/reset")
+                .method("POST")
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_reset_password_validates_min_length() {
+    let app = gateway::create_test_app().await;
+    
+    let body = json!({"token": "some-token", "password": "short"});
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v2/auth/reset")
+                .method("POST")
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_mfa_setup_requires_auth() {
+    let app = gateway::create_test_app().await;
+    
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v2/auth/mfa/setup")
+                .method("POST")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_mfa_verify_requires_auth() {
+    let app = gateway::create_test_app().await;
+    
+    let body = json!({"code": "123456"});
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v2/auth/mfa/verify")
+                .method("POST")
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
