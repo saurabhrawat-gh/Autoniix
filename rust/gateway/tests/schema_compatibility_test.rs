@@ -25,7 +25,7 @@ async fn get_test_pool() -> PgPool {
 }
 
 fn skip_if_no_db(pool: &PgPool) -> bool {
-    pool.acquire().is_ok() == false
+    pool.try_acquire().is_none()
 }
 
 // ── Schema structure validation (no live service needed) ───────────────────
