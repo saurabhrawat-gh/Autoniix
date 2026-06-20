@@ -59,6 +59,10 @@ from src.providers.registry import ProviderRegistry
 
 logger = structlog.get_logger()
 
+# Compression tier — resolved once at import time from env, then
+# overridable per-call via the feature-flag system.
+_DEFAULT_COMPRESSION_TIER: str = os.getenv("LLM_COMPRESSION", "off")
+
 
 # Public exceptions
 
@@ -312,6 +316,7 @@ class Router:
         content_mode: str | None = None,
         ladder: Iterable[str] | None = None,
         record_usage: bool = True,
+        compression_tier: str | None = None,
     ) -> LLMResult:
         # 1. Budget check (DB-authoritative).
         cap = await _cap_for(channel_id)
@@ -346,6 +351,13 @@ class Router:
             else:
                 candidates = [(p, None, None) for p in _ladder_for(category)]
 
+        # 3.5. Compress the request before sending to providers.
+        #       This is transparent — agents don't need to know about it.
+        call_request, compression_stats = await self._compress(
+            request, compression_tier=compression_tier,
+            category=category, model=request.model or "",
+        )
+
         attempts: list[tuple[str, str]] = []
         for prov_name, db_member, pinned_model in candidates:
             br = self._breaker(prov_name)
@@ -371,10 +383,9 @@ class Router:
 
             # Honor the credential's pinned model when the caller didn't
             # explicitly set one. Per-call request.model still wins.
-            call_request = request
             effective_model = pinned_model or getattr(provider, "_pinned_model", None)
-            if effective_model and not request.model:
-                call_request = replace(request, model=effective_model)
+            if effective_model and not call_request.model:
+                call_request = replace(call_request, model=effective_model)
 
             t0 = time.monotonic()
             try:
@@ -413,9 +424,47 @@ class Router:
                     content_id=content_id, channel_id=channel_id,
                     category=category, result=result,
                 )
+            # Attach compression stats so callers can log savings.
+            result.compression = compression_stats
             return result
 
         raise LadderExhausted(category, attempts)
+
+    async def _compress(
+        self,
+        request: LLMRequest,
+        compression_tier: str | None = None,
+        category: str = "",
+        model: str = "",
+    ) -> tuple[LLMRequest, Any]:
+        """Compress the request if compression is enabled.
+
+        Resolves the effective tier from:
+        1. Explicit ``compression_tier`` kwarg (per-call override).
+        2. ``LLM_COMPRESSION`` env var.
+        3. Feature flag ``llm.compression.tier`` (DB-backed, 30s cache).
+
+        Returns ``(compressed_request, stats)`` where stats is a
+        :class:`CompressionStats` or ``None`` if compression is off.
+        """
+        tier = compression_tier or _DEFAULT_COMPRESSION_TIER
+        try:
+            from src.flags import get_flag
+            flag_tier = await get_flag("llm.compression.tier", default=None)
+            if flag_tier and isinstance(flag_tier, str):
+                tier = flag_tier
+        except Exception:
+            pass
+
+        if tier == "off":
+            return request, None
+
+        try:
+            from src.llm.compressor import compress_request
+            return await compress_request(request, tier=tier, category=category)
+        except Exception as exc:
+            logger.warning("router.compress_failed", error=str(exc))
+            return request, None
 
 
 # Process-wide singleton.
@@ -438,6 +487,7 @@ async def route(
     content_mode: str | None = None,
     ladder: Iterable[str] | None = None,
     record_usage: bool = True,
+    compression_tier: str | None = None,
 ) -> LLMResult:
     """Module-level convenience wrapper around :class:`Router.route`."""
     return await get_router().route(
@@ -445,4 +495,5 @@ async def route(
         channel_id=channel_id, content_id=content_id,
         content_mode=content_mode,
         ladder=ladder, record_usage=record_usage,
+        compression_tier=compression_tier,
     )

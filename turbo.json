@@ -1,0 +1,62 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [
+    "proto/**/*.proto",
+    "proto/buf.yaml",
+    "proto/buf.gen.yaml"
+  ],
+  "pipeline": {
+    "proto:lint": {
+      "cache": true,
+      "inputs": ["proto/**/*.proto", "proto/buf.yaml"]
+    },
+    "proto:generate": {
+      "cache": true,
+      "inputs": ["proto/**/*.proto", "proto/buf.yaml", "proto/buf.gen.yaml"],
+      "outputs": [
+        "gen/go/**",
+        "gen/rust/**",
+        "gen/python/**",
+        "dashboard/src/generated/**"
+      ]
+    },
+    "proto:breaking": {
+      "cache": true,
+      "inputs": ["proto/**/*.proto"]
+    },
+    "rust:build": {
+      "dependsOn": ["proto:generate"],
+      "cache": true,
+      "inputs": ["rust/**/*.rs", "rust/**/Cargo.toml", "rust/**/Cargo.lock"],
+      "outputs": ["rust/target/release/**"]
+    },
+    "rust:test": {
+      "dependsOn": ["rust:build"],
+      "cache": true
+    },
+    "build": {
+      "dependsOn": ["^build", "proto:generate"],
+      "outputs": [
+        "dist/**",
+        "build/**",
+        "target/release/**",
+        ".next/**"
+      ]
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "cache": true
+    },
+    "lint": {
+      "cache": true,
+      "outputs": []
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "clean": {
+      "cache": false
+    }
+  }
+}

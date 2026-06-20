@@ -33,3 +33,17 @@ lib/
 !web/src/lib/**
 !sdk/python/yt_engine/
 !sdk/python/yt_engine/**backups/
+
+# Generated proto code
+gen/
+dashboard/src/generated/
+*.pb.go
+*_pb2.py
+*_pb2.pyi
+*.rs.gen
+
+# Rust
+rust/target/
+rust/**/target/
+Cargo.lock
+*.pdb

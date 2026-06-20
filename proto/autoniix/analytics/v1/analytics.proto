@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package autoniix.analytics.v1;
+
+import "autoniix/common/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+service AnalyticsService {
+  rpc GetDashboardStats(GetDashboardStatsRequest) returns (GetDashboardStatsResponse);
+  rpc GetChannelMetrics(GetChannelMetricsRequest) returns (GetChannelMetricsResponse);
+  rpc GetVideoPerformance(GetVideoPerformanceRequest) returns (GetVideoPerformanceResponse);
+  rpc GetCostAnalysis(GetCostAnalysisRequest) returns (GetCostAnalysisResponse);
+}
+
+message GetDashboardStatsRequest {
+  string workspace_id = 1;
+  common.v1.TimeRange time_range = 2;
+}
+
+message GetDashboardStatsResponse {
+  int32 total_videos = 1;
+  int32 pending_review = 2;
+  int32 published_videos = 3;
+  double total_views = 4;
+  double total_revenue = 5;
+  double total_cost = 6;
+  repeated DailyStat daily_stats = 7;
+}
+
+message GetChannelMetricsRequest {
+  string channel_id = 1;
+  common.v1.TimeRange time_range = 2;
+}
+
+message GetChannelMetricsResponse {
+  int64 total_views = 1;
+  int64 total_subscribers = 2;
+  double avg_view_duration = 3;
+  double engagement_rate = 4;
+  repeated MetricTimeSeries time_series = 5;
+}
+
+message GetVideoPerformanceRequest {
+  string video_id = 1;
+}
+
+message GetVideoPerformanceResponse {
+  VideoMetrics metrics = 1;
+  repeated PerformanceInsight insights = 2;
+}
+
+message GetCostAnalysisRequest {
+  string workspace_id = 1;
+  common.v1.TimeRange time_range = 2;
+}
+
+message GetCostAnalysisResponse {
+  double total_cost = 1;
+  CostBreakdown breakdown = 2;
+  repeated CostTrend trends = 3;
+}
+
+message DailyStat {
+  google.protobuf.Timestamp date = 1;
+  int32 videos_created = 2;
+  int64 views = 3;
+  double cost = 4;
+  double revenue = 5;
+}
+
+message MetricTimeSeries {
+  string metric_name = 1;
+  repeated DataPoint points = 2;
+}
+
+message DataPoint {
+  google.protobuf.Timestamp timestamp = 1;
+  double value = 2;
+}
+
+message VideoMetrics {
+  string video_id = 1;
+  int64 views = 2;
+  int64 likes = 3;
+  int64 comments = 4;
+  double avg_view_percentage = 5;
+  double click_through_rate = 6;
+  double engagement_rate = 7;
+}
+
+message PerformanceInsight {
+  string type = 1;
+  string message = 2;
+  string severity = 3;
+  double impact_score = 4;
+}
+
+message CostBreakdown {
+  double llm_cost = 1;
+  double voice_cost = 2;
+  double asset_cost = 3;
+  double infrastructure_cost = 4;
+  double other_cost = 5;
+}
+
+message CostTrend {
+  google.protobuf.Timestamp date = 1;
+  string category = 2;
+  double amount = 3;
+}

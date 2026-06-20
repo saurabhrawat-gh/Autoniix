@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package autoniix.brain.v1;
+
+import "autoniix/common/v1/common.proto";
+
+service BrainService {
+  rpc MakeDecision(MakeDecisionRequest) returns (MakeDecisionResponse);
+  rpc EvaluateQuality(EvaluateQualityRequest) returns (EvaluateQualityResponse);
+  rpc UpdateThresholds(UpdateThresholdsRequest) returns (common.v1.Empty);
+  rpc GetThresholds(GetThresholdsRequest) returns (GetThresholdsResponse);
+}
+
+message MakeDecisionRequest {
+  string content_id = 1;
+  map<string, MetricValue> metrics = 2;
+  string channel_id = 3;
+  string decision_type = 4;
+}
+
+message MakeDecisionResponse {
+  string decision = 1;
+  double confidence = 2;
+  repeated Rule fired_rules = 3;
+  string reasoning = 4;
+}
+
+message EvaluateQualityRequest {
+  string content_id = 1;
+  string channel_id = 2;
+  QualityMetrics metrics = 3;
+}
+
+message EvaluateQualityResponse {
+  bool passed = 1;
+  double quality_score = 2;
+  repeated QualityGate gates = 3;
+  string recommendation = 4;
+}
+
+message UpdateThresholdsRequest {
+  string channel_id = 1;
+  map<string, double> thresholds = 2;
+}
+
+message GetThresholdsRequest {
+  string channel_id = 1;
+}
+
+message GetThresholdsResponse {
+  map<string, double> thresholds = 1;
+}
+
+message MetricValue {
+  oneof value {
+    double numeric = 1;
+    string text = 2;
+    bool boolean = 3;
+  }
+}
+
+message Rule {
+  string id = 1;
+  string name = 2;
+  string condition = 3;
+  string action = 4;
+  int32 priority = 5;
+}
+
+message QualityMetrics {
+  double script_coherence = 1;
+  double voice_quality = 2;
+  double visual_quality = 3;
+  double engagement_predicted = 4;
+  double brand_alignment = 5;
+}
+
+message QualityGate {
+  string name = 1;
+  bool passed = 2;
+  double threshold = 3;
+  double actual_value = 4;
+  string severity = 5;
+}

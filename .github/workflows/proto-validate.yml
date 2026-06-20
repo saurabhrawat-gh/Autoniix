@@ -1,0 +1,85 @@
+name: Proto Validation
+
+on:
+  pull_request:
+    paths:
+      - 'proto/**/*.proto'
+      - 'proto/buf.yaml'
+      - 'proto/buf.gen.yaml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'proto/**/*.proto'
+      - 'proto/buf.yaml'
+      - 'proto/buf.gen.yaml'
+
+jobs:
+  lint:
+    name: Buf Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Lint proto files
+        working-directory: proto
+        run: buf lint
+      
+      - name: Format check
+        working-directory: proto
+        run: |
+          buf format -d --exit-code
+
+  breaking:
+    name: Breaking Change Detection
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Check for breaking changes
+        working-directory: proto
+        run: |
+          buf breaking --against "https://github.com/${{ github.repository }}.git#branch=${{ github.base_ref }}"
+
+  generate:
+    name: Test Code Generation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Generate code
+        working-directory: proto
+        run: buf generate
+      
+      - name: Verify generated files
+        run: |
+          if [ -z "$(ls -A gen/go)" ]; then
+            echo "Error: No Go files generated"
+            exit 1
+          fi
+          if [ -z "$(ls -A gen/rust)" ]; then
+            echo "Error: No Rust files generated"
+            exit 1
+          fi
+          if [ -z "$(ls -A gen/python)" ]; then
+            echo "Error: No Python files generated"
+            exit 1
+          fi
+          if [ -z "$(ls -A dashboard/src/generated)" ]; then
+            echo "Error: No TypeScript files generated"
+            exit 1
+          fi
+          echo "✅ All code generation successful"

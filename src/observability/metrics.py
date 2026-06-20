@@ -127,6 +127,18 @@ if _HAS_INSTRUMENTATOR:
         labelnames=("provider_name",),
         buckets=(10, 50, 100, 250, 500, 1000, 2000, 5000, 10000),
     )
+
+    # AE-520 — Token compression metrics
+    LLM_COMPRESSION_SAVINGS = Counter(
+        "llm_compression_tokens_saved_total",
+        "Total tokens saved by the compression layer.",
+        labelnames=("tier", "engine"),
+    )
+    LLM_COMPRESSION_PASSES = Counter(
+        "llm_compression_passes_total",
+        "Total compression passes applied.",
+        labelnames=("tier", "engine"),
+    )
 else:  # pragma: no cover
     class _Noop:
         def labels(self, *_a: Any, **_kw: Any) -> "_Noop": return self
@@ -145,6 +157,8 @@ else:  # pragma: no cover
     YT_QC_FAILED = _Noop()  # type: ignore
     PROVIDER_HEALTH_UNHEALTHY = _Noop()  # type: ignore
     PROVIDER_HEALTH_CHECK_DURATION = _Noop()  # type: ignore
+    LLM_COMPRESSION_SAVINGS = _Noop()  # type: ignore
+    LLM_COMPRESSION_PASSES = _Noop()  # type: ignore
 
 
 def instrument_app(app: Any, *, service_name: str) -> None:
