@@ -151,10 +151,12 @@ impl GatewayHarness {
         resp.json().await.expect("refresh response is not JSON")
     }
 
-    /// Logout (revoke session).
-    pub async fn logout(&self, refresh_token: &str) {
+    /// Logout (revoke session). Requires authentication (Bearer access token);
+    /// the refresh token to revoke is sent in the body (or read from a cookie).
+    pub async fn logout(&self, access_token: &str, refresh_token: &str) {
         self.client
             .post(format!("{}/api/v2/auth/logout", self.base_url))
+            .bearer_auth(access_token)
             .json(&json!({ "refresh_token": refresh_token }))
             .send()
             .await
