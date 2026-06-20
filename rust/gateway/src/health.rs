@@ -23,7 +23,7 @@ async fn health_check(State(pool): State<PgPool>) -> impl IntoResponse {
         Ok(_) => "healthy",
         Err(_) => "unhealthy",
     };
-    
+
     Json(json!({
         "status": if db_status == "healthy" { "healthy" } else { "degraded" },
         "service": "autoniix-gateway",
@@ -40,7 +40,7 @@ async fn liveness() -> StatusCode {
 
 async fn readiness(State(pool): State<PgPool>) -> impl IntoResponse {
     let db_healthy = db::health_check(&pool).await.is_ok();
-    
+
     if db_healthy {
         (
             StatusCode::OK,

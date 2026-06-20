@@ -11,9 +11,9 @@ pub async fn create_pool(database_url: &str) -> Result<PgPool> {
         .max_lifetime(Duration::from_secs(1800))
         .connect(database_url)
         .await?;
-    
+
     tracing::info!("Database connection pool created");
-    
+
     Ok(pool)
 }
 

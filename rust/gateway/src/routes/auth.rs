@@ -319,7 +319,7 @@ async fn sign_in(
     let (access_token, refresh_token, user, ws_role, wid) = auth_service
         .sign_in(&req.email, &req.password, req.workspace_id, None, None)
         .await?;
-    
+
     let workspace_id = if wid > 0 { Some(wid) } else { None };
     let response = SignInResponse {
         status: "ok".to_string(),
@@ -333,7 +333,7 @@ async fn sign_in(
         },
         setup_required: if workspace_id.is_none() { Some(true) } else { None },
     };
-    
+
     Ok((StatusCode::OK, auth_cookies(&access_token, &refresh_token), Json(response)))
 }
 
@@ -346,7 +346,7 @@ async fn sign_up(
             "Password must be at least 8 characters".to_string(),
         ));
     }
-    
+
     let (access_token, refresh_token, user, workspace) = auth_service
         .sign_up(
             &req.email,
@@ -357,7 +357,7 @@ async fn sign_up(
             None,
         )
         .await?;
-    
+
     let response = SignUpResponse {
         access_token,
         refresh_token,
@@ -376,7 +376,7 @@ async fn sign_up(
             owner_user_id: workspace.owner_user_id,
         },
     };
-    
+
     Ok((StatusCode::CREATED, Json(response)))
 }
 
@@ -387,15 +387,15 @@ async fn refresh_token(
 ) -> ApiResult<impl IntoResponse> {
     let token = resolve_refresh_token(&cookie, body.and_then(|Json(b)| b.refresh_token))
         .ok_or(ApiError::Unauthorized)?;
-    
+
     let (access_token, new_refresh_token) = auth_service.refresh_token(&token).await?;
-    
+
     let response = RefreshTokenResponse {
         status: "ok".to_string(),
         access_token: access_token.clone(),
         expires_in: 3600,
     };
-    
+
     Ok((StatusCode::OK, auth_cookies(&access_token, &new_refresh_token), Json(response)))
 }
 
@@ -453,10 +453,10 @@ async fn logout(
     if let Some(token) = resolve_refresh_token(&cookie, body.and_then(|Json(b)| b.refresh_token)) {
         auth_service.logout(&token).await?;
     }
-    
+
     let response = LogoutResponse {
         status: "ok".to_string(),
     };
-    
+
     Ok((StatusCode::OK, clear_auth_cookies(), Json(response)))
 }

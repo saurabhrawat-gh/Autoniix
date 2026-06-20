@@ -47,7 +47,7 @@ pub struct Session {
 impl User {
     pub async fn find_by_email(pool: &sqlx::PgPool, email: &str) -> sqlx::Result<Option<Self>> {
         sqlx::query_as::<_, Self>(
-            "SELECT id, email, password_hash, display_name, role, active_workspace_id, 
+            "SELECT id, email, password_hash, display_name, role, active_workspace_id,
                     disabled, mfa_enabled, email_verified
              FROM users WHERE lower(email) = lower($1)"
         )
@@ -55,10 +55,10 @@ impl User {
         .fetch_optional(pool)
         .await
     }
-    
+
     pub async fn find_by_id(pool: &sqlx::PgPool, id: i64) -> sqlx::Result<Option<Self>> {
         sqlx::query_as::<_, Self>(
-            "SELECT id, email, password_hash, display_name, role, active_workspace_id, 
+            "SELECT id, email, password_hash, display_name, role, active_workspace_id,
                     disabled, mfa_enabled, email_verified
              FROM users WHERE id = $1"
         )
@@ -66,7 +66,7 @@ impl User {
         .fetch_optional(pool)
         .await
     }
-    
+
     pub async fn create<'e, E>(
         executor: E,
         email: &str,
@@ -80,7 +80,7 @@ impl User {
         sqlx::query_as::<_, Self>(
             "INSERT INTO users (email, password_hash, display_name, role, disabled, email_verified)
              VALUES (lower($1), $2, $3, $4, false, true)
-             RETURNING id, email, password_hash, display_name, role, active_workspace_id, 
+             RETURNING id, email, password_hash, display_name, role, active_workspace_id,
                        disabled, mfa_enabled, email_verified"
         )
         .bind(email)
@@ -114,7 +114,7 @@ impl User {
             .await?;
         Ok(())
     }
-    
+
     pub async fn get_workspace_role(
         pool: &sqlx::PgPool,
         user_id: i64,
@@ -127,7 +127,7 @@ impl User {
         .bind(user_id)
         .fetch_optional(pool)
         .await?;
-        
+
         Ok(row.map(|(role,)| role))
     }
 }
@@ -141,7 +141,7 @@ impl Workspace {
         .fetch_optional(pool)
         .await
     }
-    
+
     pub async fn create<'e, E>(
         executor: E,
         name: &str,
@@ -232,12 +232,12 @@ impl Session {
         expires_at: DateTime<Utc>,
     ) -> sqlx::Result<Self> {
         let mut tx = pool.begin().await?;
-        
+
         sqlx::query("UPDATE sessions SET rotated_at = NOW() WHERE id = $1")
             .bind(old_session_id)
             .execute(&mut *tx)
             .await?;
-        
+
         let new_session = sqlx::query_as::<_, Self>(
             "INSERT INTO sessions (user_id, refresh_token_hash, expires_at)
              VALUES ($1, $2, $3)
@@ -248,7 +248,7 @@ impl Session {
         .bind(expires_at)
         .fetch_one(&mut *tx)
         .await?;
-        
+
         tx.commit().await?;
         Ok(new_session)
     }
@@ -262,8 +262,8 @@ impl Session {
     }
 
     pub fn is_valid(&self) -> bool {
-        self.revoked_at.is_none() 
-            && self.rotated_at.is_none() 
+        self.revoked_at.is_none()
+            && self.rotated_at.is_none()
             && self.expires_at > Utc::now()
     }
 }

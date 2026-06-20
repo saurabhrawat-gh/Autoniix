@@ -9,6 +9,6 @@ pub fn init_tracing() -> Result<()> {
         )
         .with(tracing_subscriber::fmt::layer().json())
         .init();
-    
+
     Ok(())
 }

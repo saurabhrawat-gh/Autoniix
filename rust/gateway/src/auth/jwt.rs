@@ -25,7 +25,7 @@ impl Claims {
         expires_in_secs: i64,
     ) -> Self {
         let now = Utc::now().timestamp();
-        
+
         Self {
             sub: user_id,
             email,
@@ -50,7 +50,7 @@ impl JwtManager {
             decoding_key: DecodingKey::from_secret(secret.as_bytes()),
         }
     }
-    
+
     pub fn create_token(&self, claims: Claims) -> ApiResult<String> {
         encode(&Header::default(), &claims, &self.encoding_key)
             .map_err(|e| {
@@ -58,10 +58,10 @@ impl JwtManager {
                 ApiError::Internal("Failed to encode JWT".to_string())
             })
     }
-    
+
     pub fn verify_token(&self, token: &str) -> ApiResult<Claims> {
         let validation = Validation::default();
-        
+
         decode::<Claims>(token, &self.decoding_key, &validation)
             .map(|data| data.claims)
             .map_err(|e| {
@@ -69,7 +69,7 @@ impl JwtManager {
                 ApiError::Unauthorized
             })
     }
-    
+
     pub fn create_access_token(
         &self,
         user_id: String,
@@ -81,7 +81,7 @@ impl JwtManager {
         let claims = Claims::new(user_id, wid, email, role, global_role, 3600);
         self.create_token(claims)
     }
-    
+
     pub fn create_refresh_token(
         &self,
         user_id: String,
@@ -98,11 +98,11 @@ impl JwtManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_jwt_roundtrip() {
         let manager = JwtManager::new("test-secret-key");
-        
+
         let token = manager.create_access_token(
             "123".to_string(),
             456,
@@ -110,16 +110,16 @@ mod tests {
             "owner".to_string(),
             "superadmin".to_string(),
         ).unwrap();
-        
+
         let claims = manager.verify_token(&token).unwrap();
-        
+
         assert_eq!(claims.sub, "123");
         assert_eq!(claims.wid, 456);
         assert_eq!(claims.email, "test@example.com");
         assert_eq!(claims.role, "owner");
         assert_eq!(claims.global_role, "superadmin");
     }
-    
+
     #[test]
     fn test_decodes_python_shaped_token() {
         let manager = JwtManager::new("shared-secret");
@@ -140,12 +140,12 @@ mod tests {
         assert_eq!(decoded.role, "viewer");
         assert_eq!(decoded.global_role, "user");
     }
-    
+
     #[test]
     fn test_invalid_token() {
         let manager = JwtManager::new("test-secret-key");
         let result = manager.verify_token("invalid.token.here");
-        
+
         assert!(result.is_err());
     }
 }

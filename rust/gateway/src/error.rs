@@ -10,22 +10,22 @@ use thiserror::Error;
 pub enum ApiError {
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
-    
+
     #[error("Authentication failed")]
     Unauthorized,
-    
+
     #[error("Forbidden")]
     Forbidden,
-    
+
     #[error("Not found: {0}")]
     NotFound(String),
-    
+
     #[error("Validation error: {0}")]
     Validation(String),
-    
+
     #[error("Internal server error: {0}")]
     Internal(String),
-    
+
     #[error("Service unavailable: {0}")]
     ServiceUnavailable(String),
 }
@@ -56,14 +56,14 @@ impl IntoResponse for ApiError {
                 (StatusCode::SERVICE_UNAVAILABLE, "SERVICE_UNAVAILABLE", self.to_string())
             }
         };
-        
+
         let body = Json(json!({
             "error": {
                 "code": code,
                 "message": message,
             }
         }));
-        
+
         (status, body).into_response()
     }
 }

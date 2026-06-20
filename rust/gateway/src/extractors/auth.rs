@@ -14,7 +14,7 @@ where
     S: Send + Sync,
 {
     type Rejection = StatusCode;
-    
+
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         parts
             .extensions
@@ -33,18 +33,18 @@ where
     S: Send + Sync,
 {
     type Rejection = StatusCode;
-    
+
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         let principal = parts
             .extensions
             .get::<Principal>()
             .cloned()
             .ok_or(StatusCode::UNAUTHORIZED)?;
-        
+
         if !principal.has_role("owner") && !principal.has_role("admin") {
             return Err(StatusCode::FORBIDDEN);
         }
-        
+
         Ok(RequireOwner(principal))
     }
 }
@@ -57,18 +57,18 @@ where
     S: Send + Sync,
 {
     type Rejection = StatusCode;
-    
+
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         let principal = parts
             .extensions
             .get::<Principal>()
             .cloned()
             .ok_or(StatusCode::UNAUTHORIZED)?;
-        
+
         if !principal.has_role("admin") {
             return Err(StatusCode::FORBIDDEN);
         }
-        
+
         Ok(RequireAdmin(principal))
     }
 }
