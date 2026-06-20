@@ -29,6 +29,30 @@ impl AuthServiceImpl {
         Self { pool, jwt_manager }
     }
     
+    /// Return which auth backends are active, read from the `feature_flags`
+    /// table. Mirrors Python `/auth/mode`: defaults to v2 enabled / legacy
+    /// disabled, and degrades gracefully (same defaults) on any DB error.
+    pub async fn auth_mode(&self) -> (bool, bool) {
+        let rows: Vec<(String, bool)> = sqlx::query_as(
+            "SELECT key, enabled FROM feature_flags \
+             WHERE key IN ('auth.v2.enabled', 'auth.legacy.enabled')",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .unwrap_or_default();
+        
+        let mut v2_enabled = true;
+        let mut legacy_enabled = false;
+        for (key, enabled) in rows {
+            match key.as_str() {
+                "auth.v2.enabled" => v2_enabled = enabled,
+                "auth.legacy.enabled" => legacy_enabled = enabled,
+                _ => {}
+            }
+        }
+        (v2_enabled, legacy_enabled)
+    }
+    
     pub async fn sign_in(
         &self,
         email: &str,

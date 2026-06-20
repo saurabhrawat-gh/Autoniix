@@ -2,7 +2,7 @@ use axum::{
     extract::State,
     http::{header::SET_COOKIE, HeaderName, StatusCode},
     response::{AppendHeaders, IntoResponse},
-    routing::post,
+    routing::{get, post},
     Json, Router,
 };
 use axum_extra::{headers::Cookie, TypedHeader};
@@ -61,12 +61,29 @@ fn resolve_refresh_token(
 
 pub fn routes(auth_service: AuthServiceImpl) -> Router {
     Router::new()
+        .route("/api/v2/auth/mode", get(auth_mode))
         .route("/api/v2/auth/signin", post(sign_in))
         .route("/api/v2/auth/signup", post(sign_up))
         .route("/api/v2/auth/refresh", post(refresh_token))
         .route("/api/v2/auth/verify", post(verify_token))
         .route("/api/v2/auth/logout", post(logout))
         .with_state(auth_service)
+}
+
+#[derive(Debug, Serialize)]
+struct AuthModeResponse {
+    v2_enabled: bool,
+    legacy_enabled: bool,
+}
+
+/// Public endpoint: which auth backends are active. The login UI calls this on
+/// mount. Mirrors Python `GET /auth/mode`.
+async fn auth_mode(State(auth_service): State<AuthServiceImpl>) -> impl IntoResponse {
+    let (v2_enabled, legacy_enabled) = auth_service.auth_mode().await;
+    Json(AuthModeResponse {
+        v2_enabled,
+        legacy_enabled,
+    })
 }
 
 #[derive(Debug, Deserialize)]
