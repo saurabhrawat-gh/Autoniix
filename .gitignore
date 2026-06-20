@@ -37,6 +37,7 @@ lib/
 # Generated proto code
 gen/
 dashboard/src/generated/
+rust/gateway/src/generated/
 *.pb.go
 *_pb2.py
 *_pb2.pyi

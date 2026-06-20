@@ -41,7 +41,7 @@ pub async fn create_app(pool: sqlx::PgPool, jwt_secret: String) -> Router {
         .layer(CorsLayer::permissive())
 }
 
-#[cfg(test)]
+#[doc(hidden)]
 pub async fn create_test_app() -> Router {
     use sqlx::postgres::PgPoolOptions;
     

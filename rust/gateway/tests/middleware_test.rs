@@ -41,7 +41,7 @@ async fn test_me_endpoint_with_valid_token() {
         .await
         .unwrap();
     
-    let body = hyper::body::to_bytes(signup_response.into_body()).await.unwrap();
+    let body = axum::body::to_bytes(signup_response.into_body(), usize::MAX).await.unwrap();
     let signup_data: Value = serde_json::from_slice(&body).unwrap();
     let access_token = signup_data["access_token"].as_str().unwrap();
     
@@ -58,14 +58,14 @@ async fn test_me_endpoint_with_valid_token() {
     
     assert_eq!(me_response.status(), StatusCode::OK);
     
-    let me_body = hyper::body::to_bytes(me_response.into_body()).await.unwrap();
+    let me_body = axum::body::to_bytes(me_response.into_body(), usize::MAX).await.unwrap();
     let me_data: Value = serde_json::from_slice(&me_body).unwrap();
     
-    assert_eq!(me_data["user"]["email"], "alice@example.com");
-    assert_eq!(me_data["user"]["display_name"], "Alice Smith");
-    assert_eq!(me_data["workspace"]["name"], "Alice Workspace");
-    assert_eq!(me_data["user"]["role"], "owner");
-    assert_eq!(me_data["user"]["global_role"], "superadmin");
+    assert_eq!(me_data["data"]["email"], "alice@example.com");
+    assert_eq!(me_data["data"]["display_name"], "Alice Smith");
+    assert_eq!(me_data["data"]["role"], "owner");
+    assert_eq!(me_data["data"]["global_role"], "superadmin");
+    assert!(me_data["data"]["permissions"].is_array(), "data.permissions must be an array");
 }
 
 #[tokio::test]
