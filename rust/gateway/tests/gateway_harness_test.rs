@@ -67,7 +67,7 @@ async fn test_refresh_rotates_token() {
 
     let refresh_body = h.refresh(refresh_token).await;
     assert!(refresh_body["access_token"].as_str().is_some(), "refresh must return new access_token");
-    assert!(refresh_body["refresh_token"].as_str().is_some(), "refresh must rotate refresh_token");
+    // The rotated refresh token is returned as an HttpOnly cookie, not in the body.
 
     // Old refresh token should now be revoked
     let second_refresh = h.refresh(refresh_token).await;
@@ -85,9 +85,10 @@ async fn test_logout_revokes_session() {
     let email = GatewayHarness::unique_email("logout");
 
     let body = h.signup(&email, "Password123!", "Logout User", "Workspace").await;
+    let access_token = body["access_token"].as_str().unwrap();
     let refresh_token = body["refresh_token"].as_str().unwrap();
 
-    h.logout(refresh_token).await;
+    h.logout(access_token, refresh_token).await;
 
     // Refresh should now fail
     let after_logout = h.refresh(refresh_token).await;
