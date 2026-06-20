@@ -18,6 +18,24 @@ async fn test_health_check() {
 }
 
 #[tokio::test]
+async fn test_auth_mode_is_public() {
+    let app = gateway::create_test_app().await;
+    
+    let response = app
+        .oneshot(Request::builder().uri("/api/v2/auth/mode").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    
+    // Public endpoint — no auth required.
+    assert_eq!(response.status(), StatusCode::OK);
+    
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let data: Value = serde_json::from_slice(&body).unwrap();
+    assert!(data["v2_enabled"].is_boolean(), "v2_enabled must be a bool");
+    assert!(data["legacy_enabled"].is_boolean(), "legacy_enabled must be a bool");
+}
+
+#[tokio::test]
 async fn test_sign_up_and_sign_in() {
     let app = gateway::create_test_app().await;
     
