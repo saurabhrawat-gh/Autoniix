@@ -152,7 +152,8 @@ def test_rust_token_accepted_by_python(client: httpx.Client):
 
     if me_resp.status_code == 200:
         body = me_resp.json()
-        assert body.get("email") == email, "Python /me must return same email as Rust token"
+        # /me wraps its payload in a top-level `data` object
+        assert body.get("data", {}).get("email") == email, "Python /me must return same email as Rust token"
         print("✓ Rust-issued JWT accepted by Python")
     else:
         pytest.fail(
@@ -182,7 +183,8 @@ def test_python_token_accepted_by_rust(client: httpx.Client):
 
     if me_resp.status_code == 200:
         body = me_resp.json()
-        assert body.get("email") == email, "Rust /me must return same email as Python token"
+        # /me wraps its payload in a top-level `data` object
+        assert body.get("data", {}).get("email") == email, "Rust /me must return same email as Python token"
         print("✓ Python-issued JWT accepted by Rust")
     else:
         pytest.fail(
