@@ -36,7 +36,7 @@ impl AuthServiceImpl {
         workspace_id: Option<i64>,
         ip: Option<&str>,
         user_agent: Option<&str>,
-    ) -> ApiResult<(String, String, User)> {
+    ) -> ApiResult<(String, String, User, String, i64)> {
         let user = User::find_by_email(&self.pool, email)
             .await
             .map_err(|e| {
@@ -79,7 +79,7 @@ impl AuthServiceImpl {
             user.id.to_string(),
             wid,
             user.email.clone(),
-            ws_role,
+            ws_role.clone(),
             user.role.clone(),
         )?;
         
@@ -93,7 +93,9 @@ impl AuthServiceImpl {
                 ApiError::Database(e)
             })?;
         
-        Ok((access_token, refresh_raw, user))
+        // Return the workspace-scoped role and active workspace id so the route
+        // can build a Python-matching signin response (#646).
+        Ok((access_token, refresh_raw, user, ws_role, wid))
     }
     
     pub async fn sign_up(
