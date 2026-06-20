@@ -1,0 +1,72 @@
+groups:
+  - name: rust_gateway
+    interval: 30s
+    rules:
+      - alert: RustGatewayHighErrorRate
+        expr: |
+          rate(http_requests_total{service="rust-gateway",status=~"5.."}[5m])
+          / rate(http_requests_total{service="rust-gateway"}[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+          service: rust-gateway
+        annotations:
+          summary: "Rust gateway error rate > 1%"
+          description: "Rust gateway 5xx error rate is {{ $value | humanizePercentage }} for the last 5 minutes."
+
+      - alert: RustGatewaySlowResponses
+        expr: |
+          histogram_quantile(0.95,
+            rate(http_request_duration_seconds_bucket{service="rust-gateway"}[5m])
+          ) > 0.2
+        for: 10m
+        labels:
+          severity: warning
+          service: rust-gateway
+        annotations:
+          summary: "Rust gateway p95 latency > 200ms"
+          description: "p95 latency is {{ $value }}s on {{ $labels.endpoint }}."
+
+      - alert: RustGatewayDown
+        expr: up{job="rust-gateway"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: rust-gateway
+        annotations:
+          summary: "Rust gateway is down"
+          description: "Rust gateway has been unreachable for 2 minutes."
+
+      - alert: RustGatewayHighAuthFailureRate
+        expr: |
+          rate(auth_failed_total{service="rust-gateway"}[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: rust-gateway
+        annotations:
+          summary: "Rust gateway auth failure rate high"
+          description: "Auth failures exceeding 1/sec for 5 minutes — possible brute force attack."
+
+      - alert: RustGatewayDbPoolExhausted
+        expr: |
+          sqlx_pool_connections{service="rust-gateway",state="idle"}
+          / sqlx_pool_connections{service="rust-gateway",state="total"} < 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: rust-gateway
+        annotations:
+          summary: "Rust gateway DB pool nearly exhausted"
+          description: "Less than 10% idle connections in DB pool."
+
+      - alert: RustGatewayPythonDivergence
+        expr: |
+          rate(equivalence_divergence_total{service="rust-gateway"}[10m]) > 0.005
+        for: 10m
+        labels:
+          severity: critical
+          service: rust-gateway
+        annotations:
+          summary: "Rust ↔ Python response divergence > 0.5%"
+          description: "Production equivalence sampler detected divergence rate above 0.5%."

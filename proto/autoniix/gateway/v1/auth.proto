@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package autoniix.gateway.v1;
+
+import "autoniix/common/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+service AuthService {
+  rpc SignIn(SignInRequest) returns (SignInResponse);
+  rpc SignUp(SignUpRequest) returns (SignUpResponse);
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
+  rpc SignOut(SignOutRequest) returns (common.v1.Empty);
+  rpc VerifyToken(VerifyTokenRequest) returns (VerifyTokenResponse);
+  rpc GetCurrentUser(common.v1.Empty) returns (GetCurrentUserResponse);
+}
+
+message SignInRequest {
+  string email = 1;
+  string password = 2;
+  string workspace_id = 3;
+}
+
+message SignInResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  User user = 4;
+}
+
+message SignUpRequest {
+  string email = 1;
+  string password = 2;
+  string full_name = 3;
+  string workspace_name = 4;
+}
+
+message SignUpResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  User user = 4;
+  Workspace workspace = 5;
+}
+
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message RefreshTokenResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+message SignOutRequest {
+  string refresh_token = 1;
+}
+
+message VerifyTokenRequest {
+  string token = 1;
+}
+
+message VerifyTokenResponse {
+  bool valid = 1;
+  common.v1.Principal principal = 2;
+}
+
+message GetCurrentUserResponse {
+  User user = 1;
+  Workspace workspace = 2;
+}
+
+message User {
+  string id = 1;
+  string email = 2;
+  string full_name = 3;
+  string avatar_url = 4;
+  repeated string roles = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message Workspace {
+  string id = 1;
+  string name = 2;
+  string owner_id = 3;
+  google.protobuf.Timestamp created_at = 4;
+}

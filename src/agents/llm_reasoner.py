@@ -161,15 +161,22 @@ class LLMReasoner:
             )
             return None
 
-        logger.info(
-            "agent.llm_reasoner.success",
-            category=self.category,
-            provider=result.provider,
-            model=result.model,
-            elapsed_ms=elapsed_ms,
-            cost_usd=float(result.cost_usd),
-            decision_type=parsed["decision_type"],
-        )
+        log_extra: dict[str, Any] = {
+            "category": self.category,
+            "provider": result.provider,
+            "model": result.model,
+            "elapsed_ms": elapsed_ms,
+            "cost_usd": float(result.cost_usd),
+            "decision_type": parsed["decision_type"],
+        }
+        # Log compression savings when available.
+        comp = getattr(result, "compression", None)
+        if comp is not None:
+            log_extra["compression_tier"] = comp.tier
+            log_extra["compression_savings_pct"] = round(comp.savings_pct, 1)
+            log_extra["compression_original_tokens"] = comp.original_estimated_tokens
+            log_extra["compression_final_tokens"] = comp.compressed_estimated_tokens
+        logger.info("agent.llm_reasoner.success", **log_extra)
         return parsed
 
     # ── Internals ────────────────────────────────────────────────────────

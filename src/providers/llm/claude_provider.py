@@ -39,14 +39,22 @@ class ClaudeLLM(LLMProvider):
         model = request.model or self.default_model()
         start = time.monotonic()
 
-        # Separate system from user/assistant messages
+        # Separate system from user/assistant messages.
+        # Preserve cache_control markers for Anthropic prompt caching.
         system_text = ""
+        system_cache_control = None
         messages = []
         for msg in request.messages:
             if msg["role"] == "system":
                 system_text = msg["content"]
+                # Propagate cache_control if the compressor added it.
+                if "cache_control" in msg:
+                    system_cache_control = msg["cache_control"]
             else:
-                messages.append({"role": msg["role"], "content": msg["content"]})
+                entry: dict = {"role": msg["role"], "content": msg["content"]}
+                if "cache_control" in msg:
+                    entry["cache_control"] = msg["cache_control"]
+                messages.append(entry)
 
         # Ensure alternating user/assistant (Claude requirement)
         if not messages or messages[0]["role"] != "user":
@@ -59,7 +67,13 @@ class ClaudeLLM(LLMProvider):
             "messages": messages,
         }
         if system_text:
-            body["system"] = system_text
+            if system_cache_control:
+                body["system"] = [
+                    {"type": "text", "text": system_text,
+                     "cache_control": system_cache_control}
+                ]
+            else:
+                body["system"] = system_text
 
         headers = {
             "x-api-key": self.api_key,
@@ -76,12 +90,23 @@ class ClaudeLLM(LLMProvider):
         content_blocks = data.get("content", [])
         content = "".join(b.get("text", "") for b in content_blocks if b.get("type") == "text")
 
-        # Extract usage
+        # Extract usage — account for prompt caching discount.
+        # Cache reads are billed at 10% of normal input price.
         usage = data.get("usage", {})
         tokens_in = usage.get("input_tokens", 0)
         tokens_out = usage.get("output_tokens", 0)
+        cache_read = usage.get("cache_read_input_tokens", 0)
+        cache_create = usage.get("cache_creation_input_tokens", 0)
+        # Non-cached input = total input - cached reads - cache writes
+        # (cache writes are billed at full price, reads at 10%)
+        non_cached_in = tokens_in - cache_read - cache_create
         pricing = PRICING.get(model, PRICING["claude-3-5-sonnet-20241022"])
-        cost = tokens_in * pricing["input"] + tokens_out * pricing["output"]
+        cost = (
+            non_cached_in * pricing["input"]
+            + cache_create * pricing["input"]
+            + cache_read * pricing["input"] * 0.10  # 90% discount on cache reads
+            + tokens_out * pricing["output"]
+        )
         latency = int((time.monotonic() - start) * 1000)
 
         logger.info(
@@ -89,6 +114,8 @@ class ClaudeLLM(LLMProvider):
             model=model,
             tokens_in=tokens_in,
             tokens_out=tokens_out,
+            cache_read_tokens=cache_read,
+            cache_create_tokens=cache_create,
             cost_usd=round(cost, 6),
             latency_ms=latency,
         )

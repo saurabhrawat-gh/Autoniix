@@ -59,21 +59,35 @@ class Settings(BaseSettings):
     # consumed by Phase 1B (DaVinci Resolve headless service) and is unused in 1A.
     finishing_service_url: str = "http://resolve-finisher:8014"
 
-    # LLM Routing
+    # LLM Routing — optimized for cost/quality (AE-520)
+    # Strategy: Claude Sonnet for quality-critical creative tasks,
+    # Gemini Flash for high-volume analysis, DeepSeek for budget.
     llm_openai_model: str = "gpt-4o-mini"
-    llm_claude_model: str = "claude-3-5-sonnet-20241022"
+    llm_claude_model: str = "claude-sonnet-4-20250514"
     llm_gemini_model: str = "gemini-2.5-flash"
     llm_deepseek_model: str = "deepseek-chat"
     llm_provider: str = "deepseek"
+    # Quality-critical: script, factcheck, direction → Claude Sonnet
     llm_research_provider: str = "gemini"
     llm_script_provider: str = "claude"
-    llm_factcheck_provider: str = "openai"
+    llm_factcheck_provider: str = "claude"
     llm_qc_provider: str = "gemini"
     llm_vision_provider: str = "openai"
+    # High-volume, budget: ideation, hooks, emotion → Gemini Flash
     llm_ideation_provider: str = "gemini"
-    llm_hook_provider: str = "deepseek"
-    llm_direction_provider: str = "deepseek"
+    llm_hook_provider: str = "gemini"
+    llm_direction_provider: str = "claude"
     llm_emotion_provider: str = "gemini"
+
+    # LLM Token Compression
+    # Tier: "off" | "fast" (pruning only, ~1.2-1.5x) | "max" (LLMLingua-2 + pruning + caching, 2-5x)
+    llm_compression: str = "off"
+    # Max estimated tokens before context pruning kicks in (fast/max tiers).
+    llm_prune_max_tokens: int = 8000
+    # LLMLingua-2 target compression ratio (max tier). 0.35 = compress to ~35%.
+    llm_llmlingua_ratio: float = 0.35
+    # Minimum estimated tokens to trigger compression (skip tiny prompts).
+    llm_compress_min_tokens: int = 200
 
     # Temporal
     temporal_host: str = "temporal:7233"

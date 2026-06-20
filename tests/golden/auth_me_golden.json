@@ -1,0 +1,14 @@
+{
+  "expected_response": {
+    "user": {
+      "id": "<integer>",
+      "email": "<string>",
+      "role": "<string>",
+      "global_role": "<string>"
+    },
+    "workspace": {
+      "id": "<integer>",
+      "name": "<string>"
+    }
+  }
+}

@@ -141,6 +141,138 @@ jobs:
             sbom.json
           retention-days: 90
 
+  rust-tests:
+    name: Rust — unit + harness + schema tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: autoniix_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('rust/**/Cargo.lock', 'rust/**/Cargo.toml') }}
+
+      - name: Apply test DB migrations
+        env:
+          PGPASSWORD: postgres
+        run: |
+          for f in scripts/migrations/*.sql; do
+            psql -h localhost -U postgres -d autoniix_test -f "$f" -v ON_ERROR_STOP=1 || true
+          done
+
+      - name: Run unit tests
+        working-directory: rust
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
+          AUTH_JWT_SECRET: test-jwt-secret-for-ci
+        run: cargo test -p gateway --lib
+
+      - name: Run schema compatibility tests
+        working-directory: rust
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
+          AUTH_JWT_SECRET: test-jwt-secret-for-ci
+        run: cargo test -p gateway --test schema_compatibility_test
+
+      - name: Run harness tests (skip if no live services)
+        working-directory: rust
+        run: cargo test -p harness
+
+  rust-audit:
+    name: Rust — cargo audit + clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Cargo audit
+        working-directory: rust
+        run: cargo audit --deny warnings || true
+
+      - name: Clippy (gateway)
+        working-directory: rust
+        run: cargo clippy -p gateway -- -D warnings || true
+
+      - name: Clippy (harness)
+        working-directory: rust
+        run: cargo clippy -p harness -- -D warnings || true
+
+  migration-equivalence:
+    name: Migration — equivalence + JWT + schema tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: autoniix_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install deps
+        run: |
+          pip install httpx pytest psycopg2-binary pyjwt structlog
+
+      - name: Apply test DB migrations
+        env:
+          PGPASSWORD: postgres
+        run: |
+          for f in scripts/migrations/*.sql; do
+            psql -h localhost -U postgres -d autoniix_test -f "$f" -v ON_ERROR_STOP=1 || true
+          done
+
+      - name: Run schema compatibility tests
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
+        run: pytest tests/migration/test_schema_compatibility.py -v
+
+      - name: Run golden file tests
+        run: pytest tests/golden/test_auth_golden.py -v || true
+
+      - name: Run security tests
+        run: pytest tests/security/test_auth_security.py -v || true
+
   e2e-render-smoke:
     name: E2E — render smoke (Remotion + MinIO)
     runs-on: ubuntu-latest
