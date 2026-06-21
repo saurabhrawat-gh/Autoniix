@@ -43,8 +43,8 @@ async fn test_signup_response_structure_equivalent() {
 
     let result = pair
         .compare_post(
-            "/auth/register",         // Python path
-            "/api/v2/auth/signup",    // Rust path
+            "/auth/register",      // Python path
+            "/api/v2/auth/signup", // Rust path
             json!({
                 "email": email_a,
                 "password": "Password123!",
@@ -58,7 +58,7 @@ async fn test_signup_response_structure_equivalent() {
                 "workspace_name": "Rust Workspace"
             }),
             None,
-            &["expires_in"],  // Fields that must match between both services
+            &["expires_in"], // Fields that must match between both services
         )
         .await;
 
@@ -136,12 +136,18 @@ async fn test_rust_token_accepted_by_python() {
         .await
     {
         Ok(r) => r.json().await.unwrap_or_default(),
-        Err(_) => { eprintln!("SKIP: Rust gateway not running"); return; }
+        Err(_) => {
+            eprintln!("SKIP: Rust gateway not running");
+            return;
+        }
     };
 
     let token = match signup["access_token"].as_str() {
         Some(t) => t.to_string(),
-        None => { eprintln!("SKIP: no token in signup response"); return; }
+        None => {
+            eprintln!("SKIP: no token in signup response");
+            return;
+        }
     };
 
     // Use Rust-issued token against Python /me equivalent
@@ -180,16 +186,28 @@ async fn test_signup_response_has_required_fields_in_both() {
         .await
     {
         Ok(r) => r.json().await.unwrap_or_default(),
-        Err(_) => { eprintln!("SKIP: Rust gateway not running"); return; }
+        Err(_) => {
+            eprintln!("SKIP: Rust gateway not running");
+            return;
+        }
     };
 
     // Required fields per spec
-    for field in &["access_token", "refresh_token", "expires_in", "user", "workspace"] {
+    for field in &[
+        "access_token",
+        "refresh_token",
+        "expires_in",
+        "user",
+        "workspace",
+    ] {
         assert!(
             !rs_body[field].is_null(),
             "Rust signup response missing field: {field}"
         );
     }
     assert_eq!(rs_body["expires_in"], 3600, "expires_in must be 3600");
-    assert!(rs_body["user"]["id"].as_i64().is_some(), "user.id must be integer");
+    assert!(
+        rs_body["user"]["id"].as_i64().is_some(),
+        "user.id must be integer"
+    );
 }

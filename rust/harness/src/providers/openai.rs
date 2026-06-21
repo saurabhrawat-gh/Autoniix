@@ -58,7 +58,11 @@ pub fn chat_completion(cache: &ProviderCache, req: &ChatRequest) -> ChatResponse
     }
 
     let content = generate_content(req);
-    let prompt_tokens = req.messages.iter().map(|m| word_count(&m.content)).sum::<u32>();
+    let prompt_tokens = req
+        .messages
+        .iter()
+        .map(|m| word_count(&m.content))
+        .sum::<u32>();
     let completion_tokens = word_count(&content);
 
     let resp = ChatResponse {
@@ -68,7 +72,10 @@ pub fn chat_completion(cache: &ProviderCache, req: &ChatRequest) -> ChatResponse
         model: req.model.clone(),
         choices: vec![ChatChoice {
             index: 0,
-            message: ChatMessage { role: "assistant".into(), content },
+            message: ChatMessage {
+                role: "assistant".into(),
+                content,
+            },
             finish_reason: "stop".into(),
         }],
         usage: TokenUsage {
@@ -83,10 +90,22 @@ pub fn chat_completion(cache: &ProviderCache, req: &ChatRequest) -> ChatResponse
 }
 
 fn generate_content(req: &ChatRequest) -> String {
-    let prompt: String = req.messages.iter().map(|m| m.content.as_str()).collect::<Vec<_>>().join(" ").to_lowercase();
+    let prompt: String = req
+        .messages
+        .iter()
+        .map(|m| m.content.as_str())
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase();
 
     // JSON format requested
-    if req.response_format.as_ref().and_then(|f| f.get("type")).and_then(|t| t.as_str()) == Some("json_object") {
+    if req
+        .response_format
+        .as_ref()
+        .and_then(|f| f.get("type"))
+        .and_then(|t| t.as_str())
+        == Some("json_object")
+    {
         if prompt.contains("research") {
             return json!({
                 "selected_topic": "Mock Research Topic",
@@ -118,7 +137,7 @@ mod tests {
     use tempfile::tempdir;
 
     fn cache() -> ProviderCache {
-        ProviderCache::new(tempdir().unwrap().into_path(), true)
+        ProviderCache::new(tempdir().unwrap().keep(), true)
     }
 
     #[test]
@@ -126,7 +145,10 @@ mod tests {
         let c = cache();
         let req = ChatRequest {
             model: "gpt-4o".into(),
-            messages: vec![ChatMessage { role: "user".into(), content: "Hello".into() }],
+            messages: vec![ChatMessage {
+                role: "user".into(),
+                content: "Hello".into(),
+            }],
             max_tokens: Some(100),
             temperature: None,
             response_format: None,
@@ -143,7 +165,10 @@ mod tests {
         let c = cache();
         let req = ChatRequest {
             model: "gpt-4o-mini".into(),
-            messages: vec![ChatMessage { role: "user".into(), content: "research topic".into() }],
+            messages: vec![ChatMessage {
+                role: "user".into(),
+                content: "research topic".into(),
+            }],
             max_tokens: None,
             temperature: None,
             response_format: Some(json!({"type": "json_object"})),
@@ -159,7 +184,10 @@ mod tests {
         let c = cache();
         let req = ChatRequest {
             model: "gpt-4o".into(),
-            messages: vec![ChatMessage { role: "user".into(), content: "cache test".into() }],
+            messages: vec![ChatMessage {
+                role: "user".into(),
+                content: "cache test".into(),
+            }],
             max_tokens: None,
             temperature: None,
             response_format: None,

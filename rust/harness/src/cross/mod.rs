@@ -15,7 +15,12 @@ use tracing::{error, info};
 #[derive(Debug, Error)]
 pub enum EquivalenceError {
     #[error("HTTP error calling {service} {method} {path}: {cause}")]
-    Http { service: String, method: String, path: String, cause: String },
+    Http {
+        service: String,
+        method: String,
+        path: String,
+        cause: String,
+    },
 
     #[error("Field '{field}' differs — service_a={a:?}, service_b={b:?}")]
     FieldMismatch { field: String, a: Value, b: Value },
@@ -74,7 +79,14 @@ impl ServicePair {
         headers: Option<Vec<(String, String)>>,
         fields_to_compare: &[&str],
     ) -> Result<EquivalenceResult, EquivalenceError> {
-        let (resp_a, status_a) = self.post(&self.service_a_base_url, path_a, body_a.clone(), headers.clone()).await
+        let (resp_a, status_a) = self
+            .post(
+                &self.service_a_base_url,
+                path_a,
+                body_a.clone(),
+                headers.clone(),
+            )
+            .await
             .map_err(|e| EquivalenceError::Http {
                 service: self.service_a_name.clone(),
                 method: "POST".into(),
@@ -82,7 +94,9 @@ impl ServicePair {
                 cause: e.to_string(),
             })?;
 
-        let (resp_b, status_b) = self.post(&self.service_b_base_url, path_b, body_b.clone(), headers).await
+        let (resp_b, status_b) = self
+            .post(&self.service_b_base_url, path_b, body_b.clone(), headers)
+            .await
             .map_err(|e| EquivalenceError::Http {
                 service: self.service_b_name.clone(),
                 method: "POST".into(),
@@ -90,7 +104,8 @@ impl ServicePair {
                 cause: e.to_string(),
             })?;
 
-        self.compare_responses(resp_a, status_a, resp_b, status_b, fields_to_compare).await
+        self.compare_responses(resp_a, status_a, resp_b, status_b, fields_to_compare)
+            .await
     }
 
     /// Compare GET responses from two services.
@@ -100,7 +115,9 @@ impl ServicePair {
         headers: Option<Vec<(String, String)>>,
         fields_to_compare: &[&str],
     ) -> Result<EquivalenceResult, EquivalenceError> {
-        let (resp_a, status_a) = self.get(&self.service_a_base_url, path, headers.clone()).await
+        let (resp_a, status_a) = self
+            .get(&self.service_a_base_url, path, headers.clone())
+            .await
             .map_err(|e| EquivalenceError::Http {
                 service: self.service_a_name.clone(),
                 method: "GET".into(),
@@ -108,7 +125,9 @@ impl ServicePair {
                 cause: e.to_string(),
             })?;
 
-        let (resp_b, status_b) = self.get(&self.service_b_base_url, path, headers).await
+        let (resp_b, status_b) = self
+            .get(&self.service_b_base_url, path, headers)
+            .await
             .map_err(|e| EquivalenceError::Http {
                 service: self.service_b_name.clone(),
                 method: "GET".into(),
@@ -116,7 +135,8 @@ impl ServicePair {
                 cause: e.to_string(),
             })?;
 
-        self.compare_responses(resp_a, status_a, resp_b, status_b, fields_to_compare).await
+        self.compare_responses(resp_a, status_a, resp_b, status_b, fields_to_compare)
+            .await
     }
 
     async fn post(
@@ -162,16 +182,27 @@ impl ServicePair {
         status_b: u16,
         fields_to_compare: &[&str],
     ) -> Result<EquivalenceResult, EquivalenceError> {
-        let body_a: Value = resp_a.json().await
-            .map_err(|_| EquivalenceError::InvalidJson { service: self.service_a_name.clone() })?;
-        let body_b: Value = resp_b.json().await
-            .map_err(|_| EquivalenceError::InvalidJson { service: self.service_b_name.clone() })?;
+        let body_a: Value = resp_a
+            .json()
+            .await
+            .map_err(|_| EquivalenceError::InvalidJson {
+                service: self.service_a_name.clone(),
+            })?;
+        let body_b: Value = resp_b
+            .json()
+            .await
+            .map_err(|_| EquivalenceError::InvalidJson {
+                service: self.service_b_name.clone(),
+            })?;
 
         let mut mismatches = Vec::new();
 
         // Check status codes match
         if status_a != status_b {
-            mismatches.push(EquivalenceError::StatusMismatch { a: status_a, b: status_b });
+            mismatches.push(EquivalenceError::StatusMismatch {
+                a: status_a,
+                b: status_b,
+            });
         }
 
         // Check specified fields match
@@ -205,7 +236,12 @@ impl ServicePair {
             );
         }
 
-        Ok(EquivalenceResult { equivalent, mismatches, service_a_body: body_a, service_b_body: body_b })
+        Ok(EquivalenceResult {
+            equivalent,
+            mismatches,
+            service_a_body: body_a,
+            service_b_body: body_b,
+        })
     }
 }
 
@@ -216,19 +252,35 @@ impl ServicePair {
 /// will always differ between services).
 pub async fn assert_auth_token_structure(result: &EquivalenceResult) {
     assert!(
-        result.service_a_body.get("access_token").and_then(|v| v.as_str()).is_some(),
+        result
+            .service_a_body
+            .get("access_token")
+            .and_then(|v| v.as_str())
+            .is_some(),
         "service_a missing access_token"
     );
     assert!(
-        result.service_b_body.get("access_token").and_then(|v| v.as_str()).is_some(),
+        result
+            .service_b_body
+            .get("access_token")
+            .and_then(|v| v.as_str())
+            .is_some(),
         "service_b missing access_token"
     );
     assert!(
-        result.service_a_body.get("refresh_token").and_then(|v| v.as_str()).is_some(),
+        result
+            .service_a_body
+            .get("refresh_token")
+            .and_then(|v| v.as_str())
+            .is_some(),
         "service_a missing refresh_token"
     );
     assert!(
-        result.service_b_body.get("refresh_token").and_then(|v| v.as_str()).is_some(),
+        result
+            .service_b_body
+            .get("refresh_token")
+            .and_then(|v| v.as_str())
+            .is_some(),
         "service_b missing refresh_token"
     );
 }

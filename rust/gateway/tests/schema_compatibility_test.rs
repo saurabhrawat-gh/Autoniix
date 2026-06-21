@@ -18,8 +18,7 @@ async fn get_test_pool() -> PgPool {
         Err(e) => {
             eprintln!("SKIP: cannot connect to test database: {e}");
             eprintln!("      Set TEST_DATABASE_URL and run scripts/setup_test_db.sh");
-            return PgPool::connect_lazy(&database_url)
-                .expect("failed to create lazy pool");
+            PgPool::connect_lazy(&database_url).expect("failed to create lazy pool")
         }
     }
 }
@@ -40,7 +39,7 @@ async fn test_users_table_uses_integer_ids() {
 
     let row: Option<(String, String)> = sqlx::query_as(
         "SELECT column_name, data_type FROM information_schema.columns \
-         WHERE table_name = 'users' AND column_name = 'id'"
+         WHERE table_name = 'users' AND column_name = 'id'",
     )
     .fetch_optional(&pool)
     .await
@@ -68,7 +67,7 @@ async fn test_workspaces_table_uses_integer_ids() {
 
     let row: Option<(String, String)> = sqlx::query_as(
         "SELECT column_name, data_type FROM information_schema.columns \
-         WHERE table_name = 'workspaces' AND column_name = 'id'"
+         WHERE table_name = 'workspaces' AND column_name = 'id'",
     )
     .fetch_optional(&pool)
     .await
@@ -117,7 +116,7 @@ async fn test_sessions_table_exists() {
     }
 
     let exists: Option<bool> = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'sessions')"
+        "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'sessions')",
     )
     .fetch_optional(&pool)
     .await
@@ -139,7 +138,7 @@ async fn test_user_roles_table_does_not_exist() {
     }
 
     let exists: Option<bool> = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'user_roles')"
+        "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'user_roles')",
     )
     .fetch_optional(&pool)
     .await
@@ -163,11 +162,14 @@ async fn test_rust_reads_python_created_user() {
     }
 
     // Simulate Python creating a user (direct SQL insert matching Python's schema)
-    let email = format!("py-user-{}@schema.test", chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0));
+    let email = format!(
+        "py-user-{}@schema.test",
+        chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
+    );
     let user_id: i64 = match sqlx::query_scalar(
         "INSERT INTO users (email, password_hash, role, disabled, email_verified)
          VALUES ($1, $2, 'user', false, true)
-         RETURNING id"
+         RETURNING id",
     )
     .bind(&email)
     .bind("$argon2id$v=19$m=19456,t=2,p=1$salt$hash")
@@ -181,7 +183,10 @@ async fn test_rust_reads_python_created_user() {
         }
     };
 
-    assert!(user_id > 0, "Python-created user must have positive integer id");
+    assert!(
+        user_id > 0,
+        "Python-created user must have positive integer id"
+    );
 
     // Rust reads the same user via SQL (simulating what the gateway does)
     let read_email: String = sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
@@ -207,13 +212,16 @@ async fn test_rust_created_user_has_integer_id() {
         return;
     }
 
-    let email = format!("rust-user-{}@schema.test", chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0));
+    let email = format!(
+        "rust-user-{}@schema.test",
+        chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
+    );
 
     // Insert as Rust gateway would
     let user_id: i64 = match sqlx::query_scalar(
         "INSERT INTO users (email, password_hash, role, disabled, email_verified)
          VALUES ($1, $2, 'superadmin', false, true)
-         RETURNING id"
+         RETURNING id",
     )
     .bind(&email)
     .bind("$argon2id$v=19$m=19456,t=2,p=1$salt$hash")
@@ -241,7 +249,7 @@ async fn test_rust_created_user_has_integer_id() {
 
 #[tokio::test]
 async fn test_rust_jwt_sub_is_stringified_int() {
-    use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
+    use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 
     let secret = std::env::var("AUTH_JWT_SECRET")
         .unwrap_or_else(|_| "test-jwt-secret-key-must-be-long-enough".to_string());
@@ -273,20 +281,24 @@ async fn test_rust_jwt_sub_is_stringified_int() {
     )
     .expect("must decode JWT");
 
-    let sub = token_data.claims["sub"].as_str().expect("sub must be string");
+    let sub = token_data.claims["sub"]
+        .as_str()
+        .expect("sub must be string");
     let user_id: i64 = sub.parse().expect("sub must be parseable as i64");
     assert_eq!(user_id, 42);
 
     let wid = token_data.claims["wid"].as_i64().expect("wid must be i64");
     assert_eq!(wid, 7);
 
-    let role = token_data.claims["role"].as_str().expect("role must be string");
+    let role = token_data.claims["role"]
+        .as_str()
+        .expect("role must be string");
     assert_eq!(role, "owner");
 }
 
 #[tokio::test]
 async fn test_python_jwt_decodes_in_rust() {
-    use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
+    use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 
     let secret = std::env::var("AUTH_JWT_SECRET")
         .unwrap_or_else(|_| "test-jwt-secret-key-must-be-long-enough".to_string());
@@ -345,26 +357,32 @@ async fn test_workspace_members_role_resolution() {
         return;
     }
 
-    let email = format!("member-{}@schema.test", chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0));
+    let email = format!(
+        "member-{}@schema.test",
+        chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
+    );
 
     // Create user
     let user_id: i64 = match sqlx::query_scalar(
         "INSERT INTO users (email, password_hash, role, disabled, email_verified)
-         VALUES ($1, 'hash', 'user', false, true) RETURNING id"
+         VALUES ($1, 'hash', 'user', false, true) RETURNING id",
     )
     .bind(&email)
     .fetch_one(&pool)
     .await
     {
         Ok(id) => id,
-        Err(e) => { eprintln!("SKIP: {e}"); return; }
+        Err(e) => {
+            eprintln!("SKIP: {e}");
+            return;
+        }
     };
 
     // Create workspace
     let slug = format!("ws-{}", user_id);
     let workspace_id: i64 = match sqlx::query_scalar(
         "INSERT INTO workspaces (name, slug, plan, owner_user_id)
-         VALUES ('Test WS', $1, 'starter', $2) RETURNING id"
+         VALUES ('Test WS', $1, 'starter', $2) RETURNING id",
     )
     .bind(&slug)
     .bind(user_id)
@@ -373,7 +391,10 @@ async fn test_workspace_members_role_resolution() {
     {
         Ok(id) => id,
         Err(e) => {
-            let _ = sqlx::query("DELETE FROM users WHERE id = $1").bind(user_id).execute(&pool).await;
+            let _ = sqlx::query("DELETE FROM users WHERE id = $1")
+                .bind(user_id)
+                .execute(&pool)
+                .await;
             eprintln!("SKIP: {e}");
             return;
         }
@@ -381,7 +402,7 @@ async fn test_workspace_members_role_resolution() {
 
     // Create membership with 'viewer' role
     let _ = sqlx::query(
-        "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 'viewer')"
+        "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 'viewer')",
     )
     .bind(workspace_id)
     .bind(user_id)
@@ -390,7 +411,7 @@ async fn test_workspace_members_role_resolution() {
 
     // Read role back (as Rust gateway does)
     let role: String = sqlx::query_scalar(
-        "SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2"
+        "SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2",
     )
     .bind(workspace_id)
     .bind(user_id)
@@ -402,7 +423,16 @@ async fn test_workspace_members_role_resolution() {
 
     // Cleanup
     let _ = sqlx::query("DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2")
-        .bind(workspace_id).bind(user_id).execute(&pool).await;
-    let _ = sqlx::query("DELETE FROM workspaces WHERE id = $1").bind(workspace_id).execute(&pool).await;
-    let _ = sqlx::query("DELETE FROM users WHERE id = $1").bind(user_id).execute(&pool).await;
+        .bind(workspace_id)
+        .bind(user_id)
+        .execute(&pool)
+        .await;
+    let _ = sqlx::query("DELETE FROM workspaces WHERE id = $1")
+        .bind(workspace_id)
+        .execute(&pool)
+        .await;
+    let _ = sqlx::query("DELETE FROM users WHERE id = $1")
+        .bind(user_id)
+        .execute(&pool)
+        .await;
 }

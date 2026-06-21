@@ -1,6 +1,7 @@
 use anyhow::Result;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
+#[allow(dead_code)]
 pub fn init_tracing() -> Result<()> {
     tracing_subscriber::registry()
         .with(
@@ -9,6 +10,6 @@ pub fn init_tracing() -> Result<()> {
         )
         .with(tracing_subscriber::fmt::layer().json())
         .init();
-    
+
     Ok(())
 }

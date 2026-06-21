@@ -66,7 +66,12 @@ pub fn search_photos(cache: &ProviderCache, req: &PexelsRequest) -> PexelsRespon
         })
         .collect();
 
-    let resp = PexelsResponse { page: req.page.unwrap_or(1), per_page, photos, total_results: 1000 };
+    let resp = PexelsResponse {
+        page: req.page.unwrap_or(1),
+        per_page,
+        photos,
+        total_results: 1000,
+    };
     cache.set_json(&key, &serde_json::to_value(&resp).unwrap());
     resp
 }
@@ -78,8 +83,12 @@ mod tests {
 
     #[test]
     fn test_search_photos() {
-        let cache = ProviderCache::new(tempdir().unwrap().into_path(), true);
-        let req = PexelsRequest { query: "nature".into(), per_page: Some(10), page: None };
+        let cache = ProviderCache::new(tempdir().unwrap().keep(), true);
+        let req = PexelsRequest {
+            query: "nature".into(),
+            per_page: Some(10),
+            page: None,
+        };
         let resp = search_photos(&cache, &req);
         assert!(!resp.photos.is_empty());
         assert!(resp.total_results > 0);

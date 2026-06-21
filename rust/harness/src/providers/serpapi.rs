@@ -86,7 +86,7 @@ mod tests {
 
     #[test]
     fn test_search() {
-        let cache = ProviderCache::new(tempdir().unwrap().into_path(), true);
+        let cache = ProviderCache::new(tempdir().unwrap().keep(), true);
         let req = SerpApiRequest {
             q: "artificial intelligence 2024".into(),
             num: Some(10),

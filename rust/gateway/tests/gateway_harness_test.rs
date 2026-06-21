@@ -9,17 +9,24 @@ mod common;
 use common::GatewayHarness;
 
 #[tokio::test]
-async fn test_signup_creates_user_and_workspace() {
+async fn test_register_creates_user_and_workspace() {
     let h = GatewayHarness::new().await;
-    let email = GatewayHarness::unique_email("signup");
+    let email = GatewayHarness::unique_email("register");
 
-    let body = h.signup(&email, "Password123!", "Harness User", "Harness Workspace").await;
+    // #350: register returns onboarding metadata, NOT tokens
+    let body = h
+        .register(&email, "Password123!", "Harness User", "Harness Workspace")
+        .await;
 
-    assert!(body["access_token"].as_str().is_some(), "missing access_token");
-    assert!(body["refresh_token"].as_str().is_some(), "missing refresh_token");
-    assert_eq!(body["expires_in"], 3600);
-    assert_eq!(body["user"]["email"], email);
-    assert!(body["workspace"]["id"].as_i64().is_some(), "workspace.id must be i64");
+    assert_eq!(body["status"], "ok");
+    assert!(body["user_id"].is_i64(), "must return user_id");
+    assert!(body["workspace_id"].is_i64(), "must return workspace_id");
+    assert_eq!(body["role"], "owner");
+    assert_eq!(body["onboarding_required"], true);
+    assert!(
+        body.get("access_token").is_none(),
+        "must NOT return access_token"
+    );
 
     h.cleanup().await;
 }
@@ -29,7 +36,8 @@ async fn test_signin_with_valid_credentials() {
     let h = GatewayHarness::new().await;
     let email = GatewayHarness::unique_email("signin");
 
-    h.signup(&email, "Password123!", "Signin User", "Signin Workspace").await;
+    h.signup(&email, "Password123!", "Signin User", "Signin Workspace")
+        .await;
     let body = h.signin(&email, "Password123!").await;
 
     assert!(body["access_token"].as_str().is_some());
@@ -43,7 +51,8 @@ async fn test_signin_wrong_password_returns_401() {
     let h = GatewayHarness::new().await;
     let email = GatewayHarness::unique_email("bad-pw");
 
-    h.signup(&email, "CorrectPassword!", "Bad PW User", "Workspace").await;
+    h.signup(&email, "CorrectPassword!", "Bad PW User", "Workspace")
+        .await;
 
     let resp = h
         .client
@@ -62,11 +71,16 @@ async fn test_refresh_rotates_token() {
     let h = GatewayHarness::new().await;
     let email = GatewayHarness::unique_email("refresh");
 
-    let signup_body = h.signup(&email, "Password123!", "Refresh User", "Workspace").await;
+    let signup_body = h
+        .signup(&email, "Password123!", "Refresh User", "Workspace")
+        .await;
     let refresh_token = signup_body["refresh_token"].as_str().unwrap();
 
     let refresh_body = h.refresh(refresh_token).await;
-    assert!(refresh_body["access_token"].as_str().is_some(), "refresh must return new access_token");
+    assert!(
+        refresh_body["access_token"].as_str().is_some(),
+        "refresh must return new access_token"
+    );
     // The rotated refresh token is returned as an HttpOnly cookie, not in the body.
 
     // Old refresh token should now be revoked
@@ -84,7 +98,9 @@ async fn test_logout_revokes_session() {
     let h = GatewayHarness::new().await;
     let email = GatewayHarness::unique_email("logout");
 
-    let body = h.signup(&email, "Password123!", "Logout User", "Workspace").await;
+    let body = h
+        .signup(&email, "Password123!", "Logout User", "Workspace")
+        .await;
     let access_token = body["access_token"].as_str().unwrap();
     let refresh_token = body["refresh_token"].as_str().unwrap();
 
@@ -109,10 +125,19 @@ async fn test_me_returns_current_user() {
     let me = h.me(&token).await;
 
     assert_eq!(me["data"]["email"], email);
-    assert!(me["data"]["user_id"].as_i64().is_some(), "data.user_id must be i64");
+    assert!(
+        me["data"]["user_id"].as_i64().is_some(),
+        "data.user_id must be i64"
+    );
     assert!(me["data"]["role"].as_str().is_some(), "data must have role");
-    assert!(me["data"]["workspace_id"].as_i64().is_some(), "data.workspace_id must be i64");
-    assert!(me["data"]["permissions"].is_array(), "data.permissions must be an array");
+    assert!(
+        me["data"]["workspace_id"].as_i64().is_some(),
+        "data.workspace_id must be i64"
+    );
+    assert!(
+        me["data"]["permissions"].is_array(),
+        "data.permissions must be an array"
+    );
 
     h.cleanup().await;
 }
@@ -121,7 +146,8 @@ async fn test_me_returns_current_user() {
 async fn test_me_without_token_returns_401() {
     let h = GatewayHarness::new().await;
 
-    let resp = h.client
+    let resp = h
+        .client
         .get(format!("{}/api/v2/me", h.base_url))
         .send()
         .await
@@ -135,11 +161,12 @@ async fn test_duplicate_email_returns_409() {
     let h = GatewayHarness::new().await;
     let email = GatewayHarness::unique_email("dup");
 
-    h.signup(&email, "Password123!", "User One", "Workspace One").await;
+    h.register(&email, "Password123!", "User One", "Workspace One")
+        .await;
 
     let resp = h
         .client
-        .post(format!("{}/api/v2/auth/signup", h.base_url))
+        .post(format!("{}/api/v2/auth/register", h.base_url))
         .json(&serde_json::json!({
             "email": email,
             "password": "Password123!",
@@ -149,6 +176,10 @@ async fn test_duplicate_email_returns_409() {
         .await
         .unwrap();
 
-    assert_eq!(resp.status().as_u16(), 409, "duplicate email must return 409");
+    assert_eq!(
+        resp.status().as_u16(),
+        409,
+        "duplicate email must return 409"
+    );
     h.cleanup().await;
 }

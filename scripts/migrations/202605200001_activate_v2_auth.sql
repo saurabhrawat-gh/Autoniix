@@ -78,22 +78,17 @@ ALTER TABLE users
     ADD COLUMN IF NOT EXISTS active_workspace_id BIGINT
         REFERENCES workspaces(id) ON DELETE SET NULL;
 
--- ── NOTE: First-admin bootstrap ────────────────────────────────────────────
--- No seed user is inserted here because the password hash must be generated
--- at runtime (argon2 / pbkdf2). To create the first admin user:
+-- ── NOTE: Platform admin bootstrap (#350) ──────────────────────────────────
+-- The first user to register via /api/v2/auth/register receives
+-- role='superadmin' (platform admin). All subsequent self-registered
+-- users get role='user'. Workspace-level ownership is granted via
+-- workspace_members.role='owner', not the global users.role.
 --
---   docker compose exec api python - <<'EOF'
---   import asyncio, os
---   os.environ.setdefault("DATABASE_URL", "postgresql://...")
---   async def main():
---       import httpx
---       r = httpx.post("http://localhost:8000/api/v2/auth/register",
---                      json={"email": "admin@autoniix.com",
---                            "password": "YOUR_STRONG_PASSWORD",
---                            "display_name": "Admin"})
---       print(r.status_code, r.json())
---   asyncio.run(main())
---   EOF
+-- To bootstrap the platform admin:
+--   Visit https://dash.autoniix.com/register
+--   Register with the admin email (e.g. admin@autoniix.com)
 --
--- Or simply visit https://dash.autoniix.com/register in a browser.
--- The first registrant automatically receives role='owner'.
+-- Or via API:
+--   curl -X POST https://api.autoniix.com/api/v2/auth/register \
+--     -H 'Content-Type: application/json' \
+--     -d '{"email":"admin@autoniix.com","password":"STRONG_PW","workspace_name":"Autoniix"}'

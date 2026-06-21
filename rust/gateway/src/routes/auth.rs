@@ -2,7 +2,7 @@ use axum::{
     extract::State,
     http::{header::SET_COOKIE, HeaderName, StatusCode},
     response::{AppendHeaders, IntoResponse},
-    routing::{get, post},
+    routing::{get, post, put},
     Json, Router,
 };
 use axum_extra::{headers::Cookie, TypedHeader};
@@ -32,9 +32,18 @@ fn build_cookie(name: &str, value: &str, max_age: i64, http_only: bool) -> Strin
 /// tokens, plus a JS-readable `auth_status` flag for the frontend.
 fn auth_cookies(access: &str, refresh: &str) -> AppendHeaders<[(HeaderName, String); 3]> {
     AppendHeaders([
-        (SET_COOKIE, build_cookie("access_token", access, ACCESS_MAX_AGE, true)),
-        (SET_COOKIE, build_cookie("refresh_token", refresh, REFRESH_MAX_AGE, true)),
-        (SET_COOKIE, build_cookie("auth_status", "1", ACCESS_MAX_AGE, false)),
+        (
+            SET_COOKIE,
+            build_cookie("access_token", access, ACCESS_MAX_AGE, true),
+        ),
+        (
+            SET_COOKIE,
+            build_cookie("refresh_token", refresh, REFRESH_MAX_AGE, true),
+        ),
+        (
+            SET_COOKIE,
+            build_cookie("auth_status", "1", ACCESS_MAX_AGE, false),
+        ),
     ])
 }
 
@@ -63,10 +72,18 @@ pub fn routes(auth_service: AuthServiceImpl) -> Router {
     Router::new()
         .route("/api/v2/auth/mode", get(auth_mode))
         .route("/api/v2/auth/signin", post(sign_in))
-        .route("/api/v2/auth/signup", post(sign_up))
+        // #350: /register is the canonical public signup endpoint (matches
+        // Python). /signup kept as a backward-compatible alias.
+        .route("/api/v2/auth/register", post(register))
+        .route("/api/v2/auth/signup", post(register))
         .route("/api/v2/auth/refresh", post(refresh_token))
         .route("/api/v2/auth/verify", post(verify_token))
         .route("/api/v2/auth/logout", post(logout))
+        .route("/api/v2/auth/profile", put(update_profile))
+        .route("/api/v2/auth/forgot", post(forgot_password))
+        .route("/api/v2/auth/reset", post(reset_password))
+        .route("/api/v2/auth/mfa/setup", post(mfa_setup))
+        .route("/api/v2/auth/mfa/verify", post(mfa_verify))
         .with_state(auth_service)
 }
 
@@ -84,6 +101,148 @@ async fn auth_mode(State(auth_service): State<AuthServiceImpl>) -> impl IntoResp
         v2_enabled,
         legacy_enabled,
     })
+}
+
+#[derive(Debug, Deserialize)]
+struct UpdateProfileRequest {
+    display_name: Option<String>,
+    current_password: Option<String>,
+    new_password: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct UpdateProfileResponse {
+    status: String,
+    message: String,
+}
+
+/// PUT /api/v2/auth/profile — update display_name and/or password.
+/// Mirrors Python `PUT /auth/profile`.
+async fn update_profile(
+    State(auth_service): State<AuthServiceImpl>,
+    AuthUser(principal): AuthUser,
+    Json(req): Json<UpdateProfileRequest>,
+) -> ApiResult<impl IntoResponse> {
+    let user_id: i64 = principal
+        .user_id
+        .parse()
+        .map_err(|_| ApiError::Unauthorized)?;
+
+    auth_service
+        .update_profile(
+            user_id,
+            req.display_name.as_deref(),
+            req.current_password.as_deref(),
+            req.new_password.as_deref(),
+        )
+        .await?;
+
+    Ok(Json(UpdateProfileResponse {
+        status: "ok".to_string(),
+        message: "Profile updated".to_string(),
+    }))
+}
+
+// ── Forgot / Reset ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct ForgotRequest {
+    email: String,
+}
+
+#[derive(Debug, Serialize)]
+struct StatusResponse {
+    status: String,
+}
+
+/// POST /api/v2/auth/forgot — public; never leaks whether email exists.
+async fn forgot_password(
+    State(auth_service): State<AuthServiceImpl>,
+    Json(req): Json<ForgotRequest>,
+) -> Result<Json<StatusResponse>, ApiError> {
+    auth_service.forgot_password(&req.email).await?;
+    Ok(Json(StatusResponse {
+        status: "ok".to_string(),
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+struct ResetRequest {
+    token: String,
+    password: String,
+}
+
+/// POST /api/v2/auth/reset — public; validates the reset token and sets a new
+/// password.
+async fn reset_password(
+    State(auth_service): State<AuthServiceImpl>,
+    Json(req): Json<ResetRequest>,
+) -> Result<Json<StatusResponse>, ApiError> {
+    if req.password.len() < 8 {
+        return Err(ApiError::Validation(
+            "Password must be at least 8 characters".to_string(),
+        ));
+    }
+    auth_service
+        .reset_password(&req.token, &req.password)
+        .await?;
+    Ok(Json(StatusResponse {
+        status: "ok".to_string(),
+    }))
+}
+
+// ── MFA ─────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+struct MfaSetupResponse {
+    data: MfaSetupData,
+}
+
+#[derive(Debug, Serialize)]
+struct MfaSetupData {
+    otpauth_url: String,
+    secret: String,
+}
+
+/// POST /api/v2/auth/mfa/setup — requires auth; generates a TOTP secret and
+/// returns the otpauth URI.
+async fn mfa_setup(
+    State(auth_service): State<AuthServiceImpl>,
+    AuthUser(principal): AuthUser,
+) -> Result<Json<MfaSetupResponse>, ApiError> {
+    let user_id: i64 = principal
+        .user_id
+        .parse()
+        .map_err(|_| ApiError::Unauthorized)?;
+    let (otpauth_url, secret) = auth_service.mfa_setup(user_id, &principal.email).await?;
+    Ok(Json(MfaSetupResponse {
+        data: MfaSetupData {
+            otpauth_url,
+            secret,
+        },
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+struct MfaVerifyRequest {
+    code: String,
+}
+
+/// POST /api/v2/auth/mfa/verify — requires auth; verifies the TOTP code and
+/// enables MFA.
+async fn mfa_verify(
+    State(auth_service): State<AuthServiceImpl>,
+    AuthUser(principal): AuthUser,
+    Json(req): Json<MfaVerifyRequest>,
+) -> Result<Json<StatusResponse>, ApiError> {
+    let user_id: i64 = principal
+        .user_id
+        .parse()
+        .map_err(|_| ApiError::Unauthorized)?;
+    auth_service.mfa_verify(user_id, &req.code).await?;
+    Ok(Json(StatusResponse {
+        status: "ok".to_string(),
+    }))
 }
 
 #[derive(Debug, Deserialize)]
@@ -114,20 +273,22 @@ struct SignInUser {
 }
 
 #[derive(Debug, Deserialize)]
-struct SignUpRequest {
+struct RegisterRequest {
     email: String,
     password: String,
     display_name: Option<String>,
     workspace_name: String,
 }
 
+/// #350: Register response — no tokens (no auto-login). Returns onboarding
+/// metadata only, matching Python `POST /auth/register`.
 #[derive(Debug, Serialize)]
-struct SignUpResponse {
-    access_token: String,
-    refresh_token: String,
-    expires_in: i64,
-    user: UserResponse,
-    workspace: WorkspaceResponse,
+struct RegisterResponse {
+    status: String,
+    user_id: i64,
+    workspace_id: i64,
+    role: String,
+    onboarding_required: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -157,23 +318,6 @@ struct VerifyTokenResponse {
     global_role: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
-struct UserResponse {
-    id: i64,
-    email: String,
-    display_name: Option<String>,
-    active_workspace_id: Option<i64>,
-    role: String,
-}
-
-#[derive(Debug, Serialize)]
-struct WorkspaceResponse {
-    id: i64,
-    name: String,
-    slug: String,
-    owner_user_id: i64,
-}
-
 async fn sign_in(
     State(auth_service): State<AuthServiceImpl>,
     Json(req): Json<SignInRequest>,
@@ -181,7 +325,7 @@ async fn sign_in(
     let (access_token, refresh_token, user, ws_role, wid) = auth_service
         .sign_in(&req.email, &req.password, req.workspace_id, None, None)
         .await?;
-    
+
     let workspace_id = if wid > 0 { Some(wid) } else { None };
     let response = SignInResponse {
         status: "ok".to_string(),
@@ -193,52 +337,50 @@ async fn sign_in(
             role: ws_role,
             workspace_id,
         },
-        setup_required: if workspace_id.is_none() { Some(true) } else { None },
+        setup_required: if workspace_id.is_none() {
+            Some(true)
+        } else {
+            None
+        },
     };
-    
-    Ok((StatusCode::OK, auth_cookies(&access_token, &refresh_token), Json(response)))
+
+    Ok((
+        StatusCode::OK,
+        auth_cookies(&access_token, &refresh_token),
+        Json(response),
+    ))
 }
 
-async fn sign_up(
+/// POST /api/v2/auth/register — public self-serve signup (#350).
+/// No auto-login: returns onboarding metadata only. The frontend calls
+/// /signin separately after register. Mirrors Python `POST /auth/register`.
+async fn register(
     State(auth_service): State<AuthServiceImpl>,
-    Json(req): Json<SignUpRequest>,
+    Json(req): Json<RegisterRequest>,
 ) -> ApiResult<impl IntoResponse> {
     if req.password.len() < 8 {
         return Err(crate::error::ApiError::Validation(
             "Password must be at least 8 characters".to_string(),
         ));
     }
-    
-    let (access_token, refresh_token, user, workspace) = auth_service
-        .sign_up(
+
+    let (user_id, workspace_id, role) = auth_service
+        .register(
             &req.email,
             &req.password,
             req.display_name.as_deref(),
             &req.workspace_name,
-            None,
-            None,
         )
         .await?;
-    
-    let response = SignUpResponse {
-        access_token,
-        refresh_token,
-        expires_in: 3600,
-        user: UserResponse {
-            id: user.id,
-            email: user.email,
-            display_name: user.display_name,
-            active_workspace_id: user.active_workspace_id,
-            role: user.role,
-        },
-        workspace: WorkspaceResponse {
-            id: workspace.id,
-            name: workspace.name,
-            slug: workspace.slug,
-            owner_user_id: workspace.owner_user_id,
-        },
+
+    let response = RegisterResponse {
+        status: "ok".to_string(),
+        user_id,
+        workspace_id,
+        role,
+        onboarding_required: true,
     };
-    
+
     Ok((StatusCode::CREATED, Json(response)))
 }
 
@@ -249,18 +391,25 @@ async fn refresh_token(
 ) -> ApiResult<impl IntoResponse> {
     let token = resolve_refresh_token(&cookie, body.and_then(|Json(b)| b.refresh_token))
         .ok_or(ApiError::Unauthorized)?;
-    
+
     let (access_token, new_refresh_token) = auth_service.refresh_token(&token).await?;
-    
+
     let response = RefreshTokenResponse {
         status: "ok".to_string(),
         access_token: access_token.clone(),
         expires_in: 3600,
     };
-    
-    Ok((StatusCode::OK, auth_cookies(&access_token, &new_refresh_token), Json(response)))
+
+    Ok((
+        StatusCode::OK,
+        auth_cookies(&access_token, &new_refresh_token),
+        Json(response),
+    ))
 }
 
+/// POST /api/v2/auth/verify — Rust-only extension (no Python equivalent).
+/// Lightweight token introspection for SDK clients. Returns `valid: false`
+/// instead of 401 when the token is expired or malformed.
 async fn verify_token(
     State(auth_service): State<AuthServiceImpl>,
     Json(req): Json<VerifyTokenRequest>,
@@ -312,10 +461,10 @@ async fn logout(
     if let Some(token) = resolve_refresh_token(&cookie, body.and_then(|Json(b)| b.refresh_token)) {
         auth_service.logout(&token).await?;
     }
-    
+
     let response = LogoutResponse {
         status: "ok".to_string(),
     };
-    
+
     Ok((StatusCode::OK, clear_auth_cookies(), Json(response)))
 }

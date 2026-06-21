@@ -11,15 +11,13 @@ pub async fn create_pool(database_url: &str) -> Result<PgPool> {
         .max_lifetime(Duration::from_secs(1800))
         .connect(database_url)
         .await?;
-    
+
     tracing::info!("Database connection pool created");
-    
+
     Ok(pool)
 }
 
 pub async fn health_check(pool: &PgPool) -> Result<bool> {
-    sqlx::query("SELECT 1")
-        .fetch_one(pool)
-        .await?;
+    sqlx::query("SELECT 1").fetch_one(pool).await?;
     Ok(true)
 }

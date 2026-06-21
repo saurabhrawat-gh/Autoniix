@@ -1,7 +1,6 @@
 //! Anthropic Claude API mock.
 
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
 use super::ProviderCache;
 
@@ -55,7 +54,12 @@ pub fn create_message(cache: &ProviderCache, req: &AnthropicRequest) -> Anthropi
         }
     }
 
-    let prompt: String = req.messages.iter().map(|m| m.content.as_str()).collect::<Vec<_>>().join(" ");
+    let prompt: String = req
+        .messages
+        .iter()
+        .map(|m| m.content.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
     let text = format!(
         "Mock Claude response for: {}. No real API was contacted.",
         &prompt[..prompt.len().min(80)]
@@ -67,10 +71,16 @@ pub fn create_message(cache: &ProviderCache, req: &AnthropicRequest) -> Anthropi
         id: format!("msg_mock-{key}"),
         kind: "message".into(),
         role: "assistant".into(),
-        content: vec![AnthropicContent { kind: "text".into(), text }],
+        content: vec![AnthropicContent {
+            kind: "text".into(),
+            text,
+        }],
         model: req.model.clone(),
         stop_reason: "end_turn".into(),
-        usage: AnthropicUsage { input_tokens, output_tokens },
+        usage: AnthropicUsage {
+            input_tokens,
+            output_tokens,
+        },
     };
 
     cache.set_json(&key, &serde_json::to_value(&resp).unwrap());
@@ -84,10 +94,13 @@ mod tests {
 
     #[test]
     fn test_create_message() {
-        let cache = ProviderCache::new(tempdir().unwrap().into_path(), true);
+        let cache = ProviderCache::new(tempdir().unwrap().keep(), true);
         let req = AnthropicRequest {
             model: "claude-3-5-sonnet-20241022".into(),
-            messages: vec![AnthropicMessage { role: "user".into(), content: "Explain AI.".into() }],
+            messages: vec![AnthropicMessage {
+                role: "user".into(),
+                content: "Explain AI.".into(),
+            }],
             max_tokens: 200,
             system: None,
         };
