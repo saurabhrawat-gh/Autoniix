@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -54,6 +54,8 @@ jobs:
         env:
           PGPASSWORD: postgres
         run: |
+          echo "Applying base schema (init-db.sql)..."
+          psql -h localhost -U postgres -d autoniix_test -f scripts/init-db.sql -v ON_ERROR_STOP=1
           for f in $(ls scripts/migrations/*.sql | sort); do
             echo "Applying $f..."
             psql -h localhost -U postgres -d autoniix_test -f "$f" -v ON_ERROR_STOP=1
