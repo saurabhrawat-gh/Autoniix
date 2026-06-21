@@ -28,6 +28,7 @@ pub async fn create_app(pool: sqlx::PgPool, jwt_secret: String) -> Router {
         .merge(routes::user::routes(pool.clone()))
         .merge(routes::flags::routes(pool.clone()))
         .merge(routes::notifications::routes(pool.clone()))
+        .merge(routes::system::routes(pool.clone()))
         .layer(axum_middleware::from_fn(
             middleware::require_auth_middleware,
         ));
