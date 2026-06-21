@@ -63,14 +63,25 @@ def test_rust_jwt_claims_match_python_schema(client: httpx.Client):
     email = unique_email("rust-claims")
     password = "Password123!"
 
-    # Signup via Rust
-    resp = client.post(
-        f"{RUST_URL}/api/v2/auth/signup",
-        json={"email": email, "password": password, "workspace_name": "WS"},
+    # Register via Rust (post-#350: no auto-login, need explicit signin)
+    register = client.post(
+        f"{RUST_URL}/api/v2/auth/register",
+        json={
+            "email": email,
+            "password": password,
+            "display_name": "JWT Claims",
+            "workspace_name": "WS",
+        },
     )
-    assert resp.status_code == 201, f"Rust signup failed: {resp.text}"
+    assert register.status_code == 201, f"Rust register failed: {register.text}"
 
-    token = resp.json()["access_token"]
+    signin = client.post(
+        f"{RUST_URL}/api/v2/auth/signin",
+        json={"email": email, "password": password},
+    )
+    assert signin.status_code == 200, f"Rust signin failed: {signin.text}"
+
+    token = signin.json()["access_token"]
     claims = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
 
     # Required fields per Python schema
@@ -103,14 +114,25 @@ def test_python_jwt_claims_match_rust_schema(client: httpx.Client):
     email = unique_email("py-claims")
     password = "Password123!"
 
-    # Register via Python
-    resp = client.post(
-        f"{PYTHON_URL}/auth/register",
-        json={"email": email, "password": password, "workspace_name": "WS"},
+    # Register via Python, then login (post-#350: register returns no tokens)
+    register = client.post(
+        f"{PYTHON_URL}/api/v2/auth/register",
+        json={
+            "email": email,
+            "password": password,
+            "display_name": "JWT Claims",
+            "workspace_name": "WS",
+        },
     )
-    assert resp.status_code in (200, 201), f"Python register failed: {resp.text}"
+    assert register.status_code in (200, 201), f"Python register failed: {register.text}"
 
-    token = resp.json()["access_token"]
+    login = client.post(
+        f"{PYTHON_URL}/api/v2/auth/login",
+        json={"email": email, "password": password},
+    )
+    assert login.status_code == 200, f"Python login failed: {login.text}"
+
+    token = login.json()["access_token"]
     claims = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
 
     # Rust expects: sub (string), email, role, global_role, wid (i64)
@@ -132,21 +154,31 @@ def test_python_jwt_claims_match_rust_schema(client: httpx.Client):
 
 
 def test_rust_token_accepted_by_python(client: httpx.Client):
-    """Token issued by Rust must be accepted by Python /auth/me."""
+    """Token issued by Rust must be accepted by Python /api/v2/auth/me."""
     email = unique_email("rust-to-py")
     password = "Password123!"
 
-    # Signup via Rust
-    signup = client.post(
-        f"{RUST_URL}/api/v2/auth/signup",
-        json={"email": email, "password": password, "workspace_name": "WS"},
+    # Register + signin via Rust (post-#350)
+    register = client.post(
+        f"{RUST_URL}/api/v2/auth/register",
+        json={
+            "email": email,
+            "password": password,
+            "display_name": "Cross Token",
+            "workspace_name": "WS",
+        },
     )
-    assert signup.status_code == 201, f"Rust signup failed: {signup.text}"
-    rust_token = signup.json()["access_token"]
+    assert register.status_code == 201, f"Rust register failed: {register.text}"
+    signin = client.post(
+        f"{RUST_URL}/api/v2/auth/signin",
+        json={"email": email, "password": password},
+    )
+    assert signin.status_code == 200, f"Rust signin failed: {signin.text}"
+    rust_token = signin.json()["access_token"]
 
-    # Use Rust token on Python /auth/me
+    # Use Rust token on Python /api/v2/auth/me
     me_resp = client.get(
-        f"{PYTHON_URL}/auth/me",
+        f"{PYTHON_URL}/api/v2/auth/me",
         headers={"Authorization": f"Bearer {rust_token}"},
     )
 
@@ -167,13 +199,23 @@ def test_python_token_accepted_by_rust(client: httpx.Client):
     email = unique_email("py-to-rust")
     password = "Password123!"
 
-    # Register via Python
+    # Register via Python, then login to get a token (post-#350)
     register = client.post(
-        f"{PYTHON_URL}/auth/register",
-        json={"email": email, "password": password, "workspace_name": "WS"},
+        f"{PYTHON_URL}/api/v2/auth/register",
+        json={
+            "email": email,
+            "password": password,
+            "display_name": "Py To Rust",
+            "workspace_name": "WS",
+        },
     )
     assert register.status_code in (200, 201), f"Python register failed: {register.text}"
-    python_token = register.json()["access_token"]
+    login = client.post(
+        f"{PYTHON_URL}/api/v2/auth/login",
+        json={"email": email, "password": password},
+    )
+    assert login.status_code == 200, f"Python login failed: {login.text}"
+    python_token = login.json()["access_token"]
 
     # Use Python token on Rust /api/v2/me
     me_resp = client.get(
@@ -218,7 +260,7 @@ def test_forged_token_rejected_by_python(client: httpx.Client):
         algorithm=JWT_ALGORITHM,
     )
     resp = client.get(
-        f"{PYTHON_URL}/auth/me",
+        f"{PYTHON_URL}/api/v2/auth/me",
         headers={"Authorization": f"Bearer {forged}"},
     )
     assert resp.status_code == 401, f"Python must reject forged token, got {resp.status_code}"
@@ -237,8 +279,9 @@ def test_none_algorithm_rejected(client: httpx.Client):
         pytest.skip("PyJWT refuses to encode 'none' algorithm — good")
 
     for url, label in [(RUST_URL, "Rust"), (PYTHON_URL, "Python")]:
+        me_path = "/api/v2/me" if label == "Rust" else "/api/v2/auth/me"
         resp = client.get(
-            f"{url}/api/v2/me" if label == "Rust" else f"{url}/auth/me",
+            f"{url}{me_path}",
             headers={"Authorization": f"Bearer {forged}"},
         )
         assert resp.status_code == 401, f"{label} must reject 'none' algorithm token"

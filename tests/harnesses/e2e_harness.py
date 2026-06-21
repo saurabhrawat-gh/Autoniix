@@ -6,7 +6,7 @@ Per HARNESS-ENGINEERING-PLAN.md Week 4 Day 2.
 
 Usage:
     async with E2EHarness() as h:
-        resp = await h.rust.post("/api/v2/auth/signup", json={...})
+        resp = await h.rust.post("/api/v2/auth/register", json={...})
         assert resp.status_code == 201
 
     # Or with docker-compose management:
@@ -118,26 +118,44 @@ class E2EHarness:
 
     # ── Auth helpers ────────────────────────────────────────────────────────
 
-    async def rust_signup(
+    async def rust_register(
         self,
         email: str,
         password: str = "Password123!",
         workspace_name: str = "E2E Workspace",
+        display_name: str = "E2E User",
     ) -> httpx.Response:
+        """Register a new user via Rust. Returns onboarding metadata on 201
+        (no tokens — call rust_signin afterwards to obtain a token)."""
         return await self.rust.post(
-            "/api/v2/auth/signup",
-            json={"email": email, "password": password, "workspace_name": workspace_name},
+            "/api/v2/auth/register",
+            json={
+                "email": email,
+                "password": password,
+                "display_name": display_name,
+                "workspace_name": workspace_name,
+            },
         )
+
+    # Backward-compat alias — /signup is a deprecated alias for /register in Rust.
+    async def rust_signup(self, *args: Any, **kwargs: Any) -> httpx.Response:
+        return await self.rust_register(*args, **kwargs)
 
     async def python_register(
         self,
         email: str,
         password: str = "Password123!",
         workspace_name: str = "E2E Workspace",
+        display_name: str = "E2E User",
     ) -> httpx.Response:
         return await self.python.post(
-            "/auth/register",
-            json={"email": email, "password": password, "workspace_name": workspace_name},
+            "/api/v2/auth/register",
+            json={
+                "email": email,
+                "password": password,
+                "display_name": display_name,
+                "workspace_name": workspace_name,
+            },
         )
 
     async def rust_signin(self, email: str, password: str = "Password123!") -> str:

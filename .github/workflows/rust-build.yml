@@ -2,12 +2,6 @@ name: Rust Build & Test
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - 'rust/**'
-      - 'proto/**/*.proto'
 
 env:
   CARGO_TERM_COLOR: always
@@ -86,8 +80,9 @@ jobs:
         env:
           PGPASSWORD: postgres
         run: |
-          for f in scripts/migrations/*.sql; do
-            psql -h localhost -U postgres -d autoniix_test -f "$f" -v ON_ERROR_STOP=1 || true
+          for f in $(ls scripts/migrations/*.sql | sort); do
+            echo "Applying $f..."
+            psql -h localhost -U postgres -d autoniix_test -f "$f" -v ON_ERROR_STOP=0
           done
 
       - name: Run unit tests

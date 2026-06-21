@@ -95,23 +95,27 @@ FastAPI auto-generates OpenAPI schema at `/openapi.json`. No manual work require
 // rust/gateway/src/routes/auth.rs
 use utoipa::ToSchema;
 
+// Post-#350: register returns onboarding metadata only — NO tokens.
+// The client must call /signin afterwards to obtain a session.
 #[derive(Serialize, ToSchema)]
-struct SignUpResponse {
-    access_token: String,
-    refresh_token: String,
-    // ...
+struct RegisterResponse {
+    status: String,         // always "ok"
+    user_id: i64,
+    workspace_id: i64,
+    role: String,           // always "owner" for the first user
+    onboarding_required: bool,
 }
 
 #[utoipa::path(
     post,
-    path = "/api/v2/auth/signup",
-    request_body = SignUpRequest,
+    path = "/api/v2/auth/register",
+    request_body = RegisterRequest,
     responses(
-        (status = 201, description = "User created", body = SignUpResponse),
+        (status = 201, description = "User + workspace created", body = RegisterResponse),
         (status = 409, description = "Email exists", body = Error),
     )
 )]
-async fn sign_up(/* ... */) -> ApiResult<impl IntoResponse> {
+async fn register(/* ... */) -> ApiResult<impl IntoResponse> {
     // ...
 }
 ```
@@ -127,7 +131,8 @@ cargo run --bin openapi-gen > ../../docs/openapi/rust-gateway.json
 
 ### Rust Gateway Auth Endpoints
 
-- [x] `POST /api/v2/auth/signup` — Create user account
+- [x] `POST /api/v2/auth/register` — Create user account (canonical; post-#350)
+- [x] `POST /api/v2/auth/signup` — Deprecated alias for `/register`
 - [x] `POST /api/v2/auth/signin` — Sign in
 - [x] `POST /api/v2/auth/refresh` — Refresh access token
 - [x] `POST /api/v2/auth/verify` — Verify JWT token
@@ -136,7 +141,7 @@ cargo run --bin openapi-gen > ../../docs/openapi/rust-gateway.json
 
 ### Python Dashboard (Comparison)
 
-- [x] `POST /auth/register` — Create user account
+- [x] `POST /api/v2/auth/register` — Create user account
 
 ## Dependencies
 

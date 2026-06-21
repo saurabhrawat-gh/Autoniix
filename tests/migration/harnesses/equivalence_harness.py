@@ -21,10 +21,24 @@ import structlog
 
 logger = structlog.get_logger()
 
-# Fields that must match between Python and Rust signup/signin responses
-AUTH_FIELDS_TO_COMPARE = ["access_token", "refresh_token", "user", "workspace"]
-# Fields that are allowed to differ (timestamps, tokens, IDs)
-AUTH_FIELDS_IGNORE = ["expires_in", "token_type", "created_at", "updated_at"]
+# Fields that must match between Python and Rust REGISTER responses
+# (post-#350: register returns onboarding metadata only, no tokens)
+REGISTER_FIELDS_TO_COMPARE = [
+    "status",
+    "role",
+    "onboarding_required",
+]
+# Fields that must match between Python and Rust SIGNIN responses
+SIGNIN_FIELDS_TO_COMPARE = ["access_token", "refresh_token", "user"]
+# Fields allowed to differ across services (instance-specific values)
+AUTH_FIELDS_IGNORE = [
+    "expires_in",
+    "token_type",
+    "created_at",
+    "updated_at",
+    "user_id",
+    "workspace_id",
+]
 
 
 @dataclass
@@ -201,51 +215,56 @@ class EquivalenceHarness:
 
     # ── Auth endpoint comparisons ──────────────────────────────────────────
 
-    def compare_signup(
+    def compare_register(
         self,
         email: str | None = None,
         password: str = "Password123!",
         workspace_name: str = "Equiv Workspace",
         display_name: str = "Equiv User",
     ) -> ComparisonResult:
-        """Compare Python /auth/register vs Rust /api/v2/auth/signup."""
+        """Compare Python /api/v2/auth/register vs Rust /api/v2/auth/register.
+
+        Post-#350: both services share the same canonical endpoint path.
+        Both return onboarding metadata only (no tokens) on 201.
+        """
         if email is None:
-            email = self.unique_email("signup")
+            email = self.unique_email("register")
+
+        body = {
+            "email": email,
+            "password": password,
+            "display_name": display_name,
+            "workspace_name": workspace_name,
+        }
 
         python_resp = self.client.post(
-            f"{self.python_url}/auth/register",
-            json={
-                "email": email,
-                "password": password,
-                "display_name": display_name,
-                "workspace_name": workspace_name,
-            },
+            f"{self.python_url}/api/v2/auth/register",
+            json=body,
         )
         rust_resp = self.client.post(
-            f"{self.rust_url}/api/v2/auth/signup",
-            json={
-                "email": email,
-                "password": password,
-                "display_name": display_name,
-                "workspace_name": workspace_name,
-            },
+            f"{self.rust_url}/api/v2/auth/register",
+            json=body,
         )
 
         return self._compare(
             python_resp,
             rust_resp,
-            AUTH_FIELDS_TO_COMPARE,
-            endpoint="signup",
+            REGISTER_FIELDS_TO_COMPARE,
+            endpoint="register",
         )
+
+    # Backward-compat alias: callers using the old method name still work.
+    def compare_signup(self, *args: Any, **kwargs: Any) -> ComparisonResult:
+        return self.compare_register(*args, **kwargs)
 
     def compare_signin(
         self,
         email: str,
         password: str = "Password123!",
     ) -> ComparisonResult:
-        """Compare Python /auth/login vs Rust /api/v2/auth/signin."""
+        """Compare Python /api/v2/auth/login vs Rust /api/v2/auth/signin."""
         python_resp = self.client.post(
-            f"{self.python_url}/auth/login",
+            f"{self.python_url}/api/v2/auth/login",
             json={"email": email, "password": password},
         )
         rust_resp = self.client.post(
@@ -256,14 +275,14 @@ class EquivalenceHarness:
         return self._compare(
             python_resp,
             rust_resp,
-            ["access_token", "refresh_token", "user"],
+            SIGNIN_FIELDS_TO_COMPARE,
             endpoint="signin",
         )
 
     def compare_me(self, access_token: str) -> ComparisonResult:
-        """Compare Python /auth/me vs Rust /api/v2/me using the same token."""
+        """Compare Python /api/v2/auth/me vs Rust /api/v2/me using the same token."""
         headers = {"Authorization": f"Bearer {access_token}"}
-        python_resp = self.client.get(f"{self.python_url}/auth/me", headers=headers)
+        python_resp = self.client.get(f"{self.python_url}/api/v2/auth/me", headers=headers)
         rust_resp = self.client.get(f"{self.rust_url}/api/v2/me", headers=headers)
 
         # Both services wrap the payload in a top-level `data` object; comparing
@@ -276,9 +295,9 @@ class EquivalenceHarness:
         )
 
     def compare_refresh(self, refresh_token: str) -> ComparisonResult:
-        """Compare Python /auth/refresh vs Rust /api/v2/auth/refresh."""
+        """Compare Python /api/v2/auth/refresh vs Rust /api/v2/auth/refresh."""
         python_resp = self.client.post(
-            f"{self.python_url}/auth/refresh",
+            f"{self.python_url}/api/v2/auth/refresh",
             json={"refresh_token": refresh_token},
         )
         rust_resp = self.client.post(

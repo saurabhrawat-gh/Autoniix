@@ -41,33 +41,46 @@ def harness():
     h.close()
 
 
-# ── Signup equivalence ──────────────────────────────────────────────────────
+# ── Register equivalence (post-#350) ────────────────────────────────────────
 
 
-def test_signup_responses_equivalent(harness: EquivalenceHarness):
-    """Python /auth/register and Rust /api/v2/auth/signup must return equivalent responses."""
-    email = unique_email("signup-equiv")
-    result = harness.compare_signup(email=email)
+def test_register_responses_equivalent(harness: EquivalenceHarness):
+    """Python and Rust /api/v2/auth/register must return equivalent responses.
+    Post-#350: both share the canonical /register path and the same
+    onboarding-metadata body shape (no tokens)."""
+    email = unique_email("register-equiv")
+    result = harness.compare_register(email=email)
     print(result)
     assert result.status_match, (
         f"Status mismatch: Python={result.python_status} vs Rust={result.rust_status}"
     )
     assert result.body_match, (
-        f"Body mismatch:\n" + "\n".join(result.mismatches)
+        "Body mismatch:\n" + "\n".join(result.mismatches)
     )
 
 
-def test_signup_returns_required_fields(harness: EquivalenceHarness):
-    """Both services must return access_token, refresh_token, user, workspace."""
-    email = unique_email("signup-fields")
-    result = harness.compare_signup(email=email)
+def test_register_returns_required_fields(harness: EquivalenceHarness):
+    """Both services must return status, user_id, workspace_id, role, onboarding_required.
+    Post-#350: register no longer returns tokens — frontend signs in separately."""
+    email = unique_email("register-fields")
+    result = harness.compare_register(email=email)
 
-    for field_name in ["access_token", "refresh_token", "user", "workspace"]:
+    for field_name in ["status", "user_id", "workspace_id", "role", "onboarding_required"]:
         assert result.python_body.get(field_name) is not None, (
-            f"Python signup missing field: {field_name}"
+            f"Python register missing field: {field_name}"
         )
         assert result.rust_body.get(field_name) is not None, (
-            f"Rust signup missing field: {field_name}"
+            f"Rust register missing field: {field_name}"
+        )
+
+    # Tokens MUST NOT be returned (would defeat the email-verification flow
+    # implied by onboarding_required=true).
+    for forbidden in ["access_token", "refresh_token"]:
+        assert result.python_body.get(forbidden) is None, (
+            f"Python register must not return {forbidden} (post-#350)"
+        )
+        assert result.rust_body.get(forbidden) is None, (
+            f"Rust register must not return {forbidden} (post-#350)"
         )
 
 
@@ -75,19 +88,20 @@ def test_signup_returns_required_fields(harness: EquivalenceHarness):
 
 
 def test_signin_responses_equivalent(harness: EquivalenceHarness):
-    """Python /auth/login and Rust /api/v2/auth/signin must return equivalent responses."""
+    """Python /api/v2/auth/login and Rust /api/v2/auth/signin must return equivalent responses."""
     email = unique_email("signin-equiv")
     password = "Password123!"
 
-    # Pre-register via both services
-    harness.client.post(
-        f"{PYTHON_URL}/auth/register",
-        json={"email": email, "password": password, "workspace_name": "WS"},
-    )
-    harness.client.post(
-        f"{RUST_URL}/api/v2/auth/signup",
-        json={"email": email, "password": password, "workspace_name": "WS"},
-    )
+    # Pre-register via both services (each gets its own row — user_id
+    # differs but the email/password verification logic is what's under test)
+    body = {
+        "email": email,
+        "password": password,
+        "display_name": "Signin Equiv",
+        "workspace_name": "WS",
+    }
+    harness.client.post(f"{PYTHON_URL}/api/v2/auth/register", json=body)
+    harness.client.post(f"{RUST_URL}/api/v2/auth/register", json=body)
 
     result = harness.compare_signin(email=email, password=password)
     print(result)
@@ -100,31 +114,47 @@ def test_signin_responses_equivalent(harness: EquivalenceHarness):
 
 
 def test_me_endpoint_cross_service(harness: EquivalenceHarness):
-    """Rust-issued token should work on Python /auth/me and vice versa."""
+    """Rust-issued token must work on Python /api/v2/auth/me.
+    Post-#350: register no longer returns tokens, so we register + signin
+    explicitly to obtain a token, then replay it across services."""
     email = unique_email("me-cross")
     password = "Password123!"
 
-    # Signup via Rust
-    signup = harness.client.post(
-        f"{RUST_URL}/api/v2/auth/signup",
-        json={"email": email, "password": password, "workspace_name": "WS"},
+    register = harness.client.post(
+        f"{RUST_URL}/api/v2/auth/register",
+        json={
+            "email": email,
+            "password": password,
+            "display_name": "Me Cross",
+            "workspace_name": "WS",
+        },
     )
-    if signup.status_code != 201:
-        pytest.skip("Rust signup failed")
+    if register.status_code != 201:
+        pytest.skip(f"Rust register failed: {register.status_code} {register.text}")
 
-    rust_token = signup.json().get("access_token", "")
-    assert rust_token, "Rust signup must return access_token"
+    signin = harness.client.post(
+        f"{RUST_URL}/api/v2/auth/signin",
+        json={"email": email, "password": password},
+    )
+    if signin.status_code != 200:
+        pytest.skip(f"Rust signin failed: {signin.status_code} {signin.text}")
+    rust_token = signin.json().get("access_token", "")
+    assert rust_token, "Rust signin must return access_token"
 
-    # Use Rust token on Python /auth/me
+    # Use Rust token on Python /api/v2/auth/me
     me_resp = harness.client.get(
-        f"{PYTHON_URL}/auth/me",
+        f"{PYTHON_URL}/api/v2/auth/me",
         headers={"Authorization": f"Bearer {rust_token}"},
     )
-    if me_resp.status_code == 200:
-        assert me_resp.json().get("email") == email, "Python /me must return same email"
-        print("✓ Rust-issued JWT accepted by Python")
-    else:
-        print(f"⚠ Python returned {me_resp.status_code} for Rust-issued JWT")
+    assert me_resp.status_code == 200, (
+        f"Python /me must accept Rust-issued JWT (got {me_resp.status_code}: "
+        f"{me_resp.text}). Check AUTH_JWT_SECRET is shared."
+    )
+    body = me_resp.json()
+    me_email = (body.get("data") or {}).get("email") or body.get("email")
+    assert me_email == email, (
+        f"Python /me must return same email: expected {email}, got {me_email}"
+    )
 
 
 # ── Error handling equivalence ──────────────────────────────────────────────
@@ -134,16 +164,15 @@ def test_signin_invalid_password_returns_same_error(harness: EquivalenceHarness)
     """Both services must reject invalid credentials with same status code."""
     email = unique_email("error-equiv")
     password = "Password123!"
+    body = {
+        "email": email,
+        "password": password,
+        "display_name": "Err Equiv",
+        "workspace_name": "WS",
+    }
 
-    # Register via both
-    harness.client.post(
-        f"{PYTHON_URL}/auth/register",
-        json={"email": email, "password": password, "workspace_name": "WS"},
-    )
-    harness.client.post(
-        f"{RUST_URL}/api/v2/auth/signup",
-        json={"email": email, "password": password, "workspace_name": "WS"},
-    )
+    harness.client.post(f"{PYTHON_URL}/api/v2/auth/register", json=body)
+    harness.client.post(f"{RUST_URL}/api/v2/auth/register", json=body)
 
     # Try login with wrong password
     result = harness.compare_signin(email=email, password="WrongPassword!")
@@ -151,7 +180,6 @@ def test_signin_invalid_password_returns_same_error(harness: EquivalenceHarness)
         f"Error status mismatch for invalid password: "
         f"Python={result.python_status} vs Rust={result.rust_status}"
     )
-    # Both should be 4xx
     assert 400 <= result.python_status < 500, (
         f"Python should return 4xx for invalid password, got {result.python_status}"
     )
@@ -160,22 +188,30 @@ def test_signin_invalid_password_returns_same_error(harness: EquivalenceHarness)
     )
 
 
-def test_signup_duplicate_email_returns_same_error(harness: EquivalenceHarness):
-    """Both services must reject duplicate email with same status code."""
+def test_register_duplicate_email_returns_same_error(harness: EquivalenceHarness):
+    """Both services must reject duplicate email with same status code.
+    Per #350 contract, both should return 409."""
     email = unique_email("dup-equiv")
-    password = "Password123!"
-    payload = {"email": email, "password": password, "workspace_name": "WS"}
+    payload = {
+        "email": email,
+        "password": "Password123!",
+        "display_name": "Dup Equiv",
+        "workspace_name": "WS",
+    }
 
-    # First signup via Python
-    harness.client.post(f"{PYTHON_URL}/auth/register", json=payload)
-    # First signup via Rust
-    harness.client.post(f"{RUST_URL}/api/v2/auth/signup", json=payload)
+    # First registration on each service (one DB row per service in shared DB,
+    # but the duplicate-detection lookup is what's under test)
+    harness.client.post(f"{PYTHON_URL}/api/v2/auth/register", json=payload)
+    harness.client.post(f"{RUST_URL}/api/v2/auth/register", json=payload)
 
-    # Try duplicate on both
-    py_resp = harness.client.post(f"{PYTHON_URL}/auth/register", json=payload)
-    rs_resp = harness.client.post(f"{RUST_URL}/api/v2/auth/signup", json=payload)
+    # Duplicate attempt should return 409 on both
+    py_resp = harness.client.post(f"{PYTHON_URL}/api/v2/auth/register", json=payload)
+    rs_resp = harness.client.post(f"{RUST_URL}/api/v2/auth/register", json=payload)
 
     assert py_resp.status_code == rs_resp.status_code, (
-        f"Duplicate email error mismatch: Python={py_resp.status_code} vs Rust={rs_resp.status_code}"
+        f"Duplicate email error mismatch: "
+        f"Python={py_resp.status_code} vs Rust={rs_resp.status_code}"
     )
-    assert 400 <= py_resp.status_code < 500, "Both should reject duplicate email"
+    assert py_resp.status_code == 409, (
+        f"Both services must return 409 on duplicate email, got {py_resp.status_code}"
+    )
