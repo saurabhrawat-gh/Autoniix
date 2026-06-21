@@ -1,0 +1,146 @@
+name: Build & Deploy
+
+# HALTED — no auto-triggers until resumed.
+# To resume: change workflow_dispatch to:
+#   push:
+#     branches: [main]
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  rust:
+    name: Rust — fmt + clippy + test + docker
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: autoniix_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Format check
+        working-directory: rust
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        working-directory: rust
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Apply test DB migrations
+        env:
+          PGPASSWORD: postgres
+        run: |
+          for f in $(ls scripts/migrations/*.sql | sort); do
+            echo "Applying $f..."
+            psql -h localhost -U postgres -d autoniix_test -f "$f" -v ON_ERROR_STOP=1
+          done
+
+      - name: Unit tests
+        working-directory: rust
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
+          AUTH_JWT_SECRET: test-jwt-secret-for-ci
+        run: cargo test -p gateway --lib
+
+      - name: Schema compatibility tests
+        working-directory: rust
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
+          AUTH_JWT_SECRET: test-jwt-secret-for-ci
+        run: cargo test -p gateway --test schema_compatibility_test
+
+      - name: Harness tests
+        working-directory: rust
+        run: cargo test -p harness
+
+      - name: Build release binary
+        working-directory: rust
+        run: cargo build --release
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: gateway-binary-${{ github.sha }}
+          path: rust/target/release/gateway
+          retention-days: 7
+
+      - name: Docker build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: rust/gateway/Dockerfile
+          push: false
+          tags: autoniix/gateway:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy — VPS
+    runs-on: self-hosted
+    needs: [rust]
+    steps:
+      - name: Pull & restart
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory /home/autoniix/autoniix
+          cd /home/autoniix/autoniix
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/saurabhrawat-gh/Autoniix.git"
+          git fetch --all --prune
+          git reset --hard origin/main
+          docker compose --profile tls down --remove-orphans 2>/dev/null || true
+          docker compose --profile tls up -d --build --remove-orphans
+          docker compose ps --format "table {{.Name}}\t{{.Status}}"
+          echo "Deploy complete at $(date -u)"
+
+      - name: Post-deploy migrations
+        run: |
+          set -euo pipefail
+          cd /home/autoniix/autoniix
+          for i in $(seq 1 30); do
+            HEALTH=$(curl -fsS http://localhost:8020/health 2>/dev/null || echo '{}')
+            if echo "$HEALTH" | python3 -c \
+                "import sys,json; d=json.load(sys.stdin); sys.exit(0 if d.get('components',{}).get('db') else 1)" \
+                2>/dev/null; then
+              echo "DB healthy after ${i} attempts"
+              break
+            fi
+            sleep 3
+          done
+          docker compose exec -T dashboard-bff python -m scripts.run_migrations
+
+      - name: Post-deploy smoke
+        run: |
+          cd /home/autoniix/autoniix
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:8020/health >/dev/null 2>&1 && break
+            sleep 3
+          done
+          bash scripts/check-stack.sh
