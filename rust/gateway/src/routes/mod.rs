@@ -1,4 +1,6 @@
 pub mod auth;
+pub mod flags;
+pub mod notifications;
 pub mod user;
 
 use axum::{routing::get, Json, Router};
@@ -13,6 +15,6 @@ async fn api_info() -> Json<serde_json::Value> {
         "name": "Autoniix Gateway",
         "version": env!("CARGO_PKG_VERSION"),
         "protocol": "REST + Connect-RPC (dual mode)",
-        "status": "phase_1_auth_implemented"
+        "status": "phase_2_auth_complete"
     }))
 }
