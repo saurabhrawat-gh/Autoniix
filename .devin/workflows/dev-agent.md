@@ -93,11 +93,25 @@ e. Update `.env.example` if new env vars added
 - For each: run a test OR perform the manual verification step stated in the issue
 - Do NOT tick any checkbox in the issue — the user ticks those during QA
 
-### 7. Run pre-commit checks
+### 7. Run local CI — MANDATORY before any push
+
+Run the check targeted to what you changed (fast path), or `--all` if unsure:
+
 ```bash
 # turbo
-ruff check src/ tests/ && pytest --tb=short -q
+bash scripts/ci-local.sh --rust      # if Rust files changed
+bash scripts/ci-local.sh --db        # if SQL migrations added
+bash scripts/ci-local.sh --python    # if Python files changed
+bash scripts/ci-local.sh --node      # if dashboard files changed
+bash scripts/ci-local.sh --go        # if Go files changed
+bash scripts/ci-local.sh             # if multiple areas changed
 ```
+
+**Wait for the final line before proceeding:**
+- `✅  ALL CI CHECKS PASSED — safe to merge to main` → continue to step 8
+- `❌  THE FOLLOWING CHECKS FAILED: ...` → **STOP. Fix every failure. Re-run until green.**
+
+> This is non-negotiable. Every failed remote build costs real money.
 
 ### 8. Run diff review
 - Run `/diff-review` — verify no unrelated changes, no style drift
@@ -123,6 +137,12 @@ git merge --no-ff {branch-name} -m "{prefix}: merge issue-{N} into develop"
 git branch -d {branch-name}
 ```
 
+**After merge, re-run local CI on develop to confirm no merge conflicts broke anything:**
+```bash
+bash scripts/ci-local.sh --rust   # or whichever block is relevant
+```
+If red: fix before push. If green: proceed to step 11.
+
 **Hard rules — non-negotiable:**
 - Feature branches must NEVER be pushed to `origin` for any reason
 - Feature branches must be deleted locally immediately after merging into `develop`
@@ -130,12 +150,16 @@ git branch -d {branch-name}
 - The only branches that ever exist on `origin` are `main` and `develop`
 
 ### 11. Set issue to ready-to-deploy, update Jira, push develop (GHA auto-merges to main)
+
+**GATE: Only reach this step if step 7 AND step 10 post-merge checks both showed `✅ ALL CI CHECKS PASSED`.**
+
 - Call `mcp0_update_issue` on the issue: remove `in-progress`, add `ready-to-deploy`
 - Look up the Jira key for this issue via `scripts/issue_map.json`
 - Call `mcp0_transitionJiraIssue` with transition id `41` (→ Dev Done) on the Story's Jira key
 - Call `mcp0_add_issue_comment`:
   ```
   ✅ Implementation complete. Merged to `develop`.
+  Local CI passed (scripts/ci-local.sh) before push.
 
   Pushing to `develop` — GitHub Actions will automatically:
   1. Merge `develop → main`
@@ -197,7 +221,14 @@ git checkout -b hotfix/issue-{number}-{short-slug}
 git add -A && git commit -m "hotfix(#N): {short description}"
 ```
 
-### H6. Merge directly to main, then delete the hotfix branch
+### H6. Run local CI, then merge directly to main
+
+**GATE: Run local CI first — hotfixes go straight to production, no second chances:**
+```bash
+bash scripts/ci-local.sh   # run everything — hotfixes touch critical paths
+```
+Wait for `✅  ALL CI CHECKS PASSED`. If red: fix first. Do NOT push a red hotfix.
+
 ```bash
 git checkout main
 git pull --ff-only origin main
@@ -260,7 +291,7 @@ handoff:
 - Never push directly to `main` except for hotfixes
 - Never open a PR for individual feature/bug/task issues — merge them to `develop` locally and delete the feature branch
 - **The only branches that may ever exist on `origin` are `main` and `develop`.** Feature/hotfix branches are local-only and must be deleted after merge
-- **Every push to `develop` triggers GHA `on-develop-push` which auto-merges `develop → main` and deploys to production automatically**
+- **Every push to `develop` triggers GHA which merges `develop → main` and deploys to production — run `bash scripts/ci-local.sh` locally before every push, no exceptions**
 - If the issue is ambiguous, comment on the issue and flag to the user — do NOT guess
 - Role checks must use `require_role()` from `_deps.py` — never inline permission logic
 - All DB changes must be in a timestamped migration file, never applied directly
