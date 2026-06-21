@@ -1,0 +1,13 @@
+{
+  "_comment": "GitHub ↔ Jira issue mapping for cross-system sync",
+  "_updated": "2026-06-21",
+  "mappings": {
+    "638": "AE-571",
+    "643": "AE-572",
+    "644": "AE-573",
+    "645": "AE-577",
+    "646": "AE-574",
+    "647": "AE-575",
+    "650": "AE-576"
+  }
+}

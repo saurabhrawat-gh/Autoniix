@@ -73,7 +73,7 @@ mod tests {
 
     #[test]
     fn test_synthesize_returns_wav() {
-        let cache = ProviderCache::new(tempdir().unwrap().into_path(), true);
+        let cache = ProviderCache::new(tempdir().unwrap().keep(), true);
         let req = FishAudioRequest {
             text: "Hello world this is a test".into(),
             voice_id: "test_voice".into(),
@@ -88,7 +88,7 @@ mod tests {
 
     #[test]
     fn test_synthesize_cached() {
-        let cache = ProviderCache::new(tempdir().unwrap().into_path(), true);
+        let cache = ProviderCache::new(tempdir().unwrap().keep(), true);
         let req = FishAudioRequest {
             text: "Cache test sentence".into(),
             voice_id: "v1".into(),

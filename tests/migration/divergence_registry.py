@@ -41,21 +41,75 @@ class Divergence:
 # constantly while the alignment work is scheduled. Each references the GitHub
 # issue that tracks closing the gap. Remove the entry when its issue lands.
 INTENTIONAL_DIVERGENCES: dict[str, list[Divergence]] = {
-    "POST /auth/signup": [
+    # Register response shape (no tokens) and /register canonical path were
+    # aligned by #350; password policy (min 8 chars, no complexity rule) is
+    # now identical between Python and Rust. /signup remains as a Rust-only
+    # backward-compatible alias for /register — deprecated, returns the same
+    # body. There are no known intentional divergences for register at this time.
+    "POST /api/v2/auth/register": [],
+
+    # GET /api/v2/users (superadmin-only user list) is a fresh port: Rust
+    # uses the exact same SQL as Python so the response is byte-for-byte
+    # identical. No intentional divergences.
+    "GET /api/v2/users": [],
+    # POST /api/v2/users/transfer-superadmin/{id} — atomic role swap inside
+    # a transaction. Rust mirrors Python's error semantics (400/404/409) and
+    # the "user.superadmin.transfer" audit action verbatim.
+    "POST /api/v2/users/transfer-superadmin": [],
+    # PUT /api/v2/users/{id}/disable — disables account + revokes sessions.
+    # Same 403 ("You cannot disable your own account") and 403 superadmin
+    # guard messages as Python.
+    "PUT /api/v2/users/disable": [],
+    # PUT /api/v2/users/{id}/enable — idempotent re-enable. No edge cases.
+    "PUT /api/v2/users/enable": [],
+    # DELETE /api/v2/users/{id} — tombstone the user row with
+    # deleted-{id}@deleted.local sentinel email + cascade clean-up (sessions
+    # revoked, workspace_members cleared). Mirrors Python's three-statement
+    # transaction byte-for-byte.
+    "DELETE /api/v2/users": [],
+
+    # GET /api/v2/flags — feature flag catalog, any authenticated user.
+    # PUT /api/v2/flags/{key} — owner/member only, 404 on unknown key,
+    # audits `flag.update` with before/after payloads. Both byte-for-byte
+    # ports of `v2/flags.py`.
+    "GET /api/v2/flags": [],
+    "PUT /api/v2/flags": [],
+
+    # GET /api/v2/notifications — list (any authed user); supports
+    # `unread_only`, `severity`, `limit` query params.
+    "GET /api/v2/notifications": [],
+    # POST /api/v2/notifications — owner/member; 60s dedupe window.
+    "POST /api/v2/notifications": [
         Divergence(
-            field="password",
-            python_behavior="min 6 chars",
-            rust_behavior="min 8 chars + complexity",
-            reason="Security hardening — Rust enforces stronger password policy",
-            approved_by="security-team",
-            approved_date="2026-06-20",
+            field="dispatch_routes",
+            python_behavior="fires dispatch_routes(...) inline (best-effort) after INSERT",
+            rust_behavior="defers fan-out to a separate background worker",
+            reason=(
+                "Inline outbound HTTP on the request thread is a tail-latency "
+                "and reliability risk; the row is created identically, the "
+                "side-channel is just decoupled. Tracked separately as a "
+                "Phase-2 notifications worker."
+            ),
+            approved_by="migration-lead",
+            approved_date="2026-06-21",
         ),
-        # #645 resolved by #350: both sides now use public self-serve signup
-        # with no auto-login. Register returns onboarding metadata only;
-        # the frontend calls /signin separately. /signup is kept as a
-        # backward-compatible alias for /register in Rust.
     ],
-    "POST /auth/signin": [
+    # POST /api/v2/notifications/{id}/read — idempotent append to read_by.
+    "POST /api/v2/notifications/read": [],
+    # GET /api/v2/notifications/routes — list routes (owner/member).
+    "GET /api/v2/notifications/routes": [],
+    # POST /api/v2/notifications/routes — create + audit `notification.route.create`.
+    "POST /api/v2/notifications/routes": [],
+    # PUT /api/v2/notifications/routes/{id} — replace; 404 on missing row.
+    "PUT /api/v2/notifications/routes": [],
+    # DELETE /api/v2/notifications/routes/{id} — drop + audit `notification.route.delete`.
+    # No 404 — matches Python's always-200 behavior.
+    "DELETE /api/v2/notifications/routes": [],
+    # GET /api/v2/notifications/deliveries — owner/member; optional
+    # `notification_id` filter narrows the result set.
+    "GET /api/v2/notifications/deliveries": [],
+
+    "POST /api/v2/auth/login": [
         Divergence(
             field="expires_in",
             python_behavior=3600,

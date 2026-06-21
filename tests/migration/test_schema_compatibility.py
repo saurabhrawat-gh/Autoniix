@@ -74,8 +74,13 @@ def test_rust_reads_python_created_user(client: httpx.Client):
 
     # Create user via Python
     resp = client.post(
-        f"{PYTHON_URL}/auth/register",
-        json={"email": email, "password": password, "workspace_name": "Schema WS"},
+        f"{PYTHON_URL}/api/v2/auth/register",
+        json={
+            "email": email,
+            "password": password,
+            "display_name": "Schema Compat",
+            "workspace_name": "Schema WS",
+        },
     )
     assert resp.status_code in (200, 201), f"Python register failed: {resp.text}"
 
@@ -110,20 +115,27 @@ def test_rust_reads_python_created_user_from_db(db):
 
 
 def test_python_reads_rust_created_user(client: httpx.Client):
-    """User created via Rust must be readable by Python (login)."""
+    """User created via Rust /register must be readable by Python /login.
+    Post-#350: register no longer auto-logs-in, so login is the only way to
+    verify cross-service compatibility of the users + workspace_members rows."""
     email = unique_email("rust-to-py")
     password = "Password123!"
 
-    # Create user via Rust
+    # Create user via Rust /register (canonical endpoint post-#350)
     resp = client.post(
-        f"{RUST_URL}/api/v2/auth/signup",
-        json={"email": email, "password": password, "workspace_name": "Schema WS"},
+        f"{RUST_URL}/api/v2/auth/register",
+        json={
+            "email": email,
+            "password": password,
+            "display_name": "Schema Compat",
+            "workspace_name": "Schema WS",
+        },
     )
-    assert resp.status_code == 201, f"Rust signup failed: {resp.text}"
+    assert resp.status_code == 201, f"Rust register failed: {resp.text}"
 
     # Python must be able to log in with same credentials
     login = client.post(
-        f"{PYTHON_URL}/auth/login",
+        f"{PYTHON_URL}/api/v2/auth/login",
         json={"email": email, "password": password},
     )
     assert login.status_code == 200, (
@@ -132,20 +144,32 @@ def test_python_reads_rust_created_user(client: httpx.Client):
     assert login.json().get("access_token"), "Python must return access_token"
 
 
-def test_rust_signup_creates_correct_db_rows(client: httpx.Client, db):
-    """Rust signup must create rows in users, workspaces, workspace_members, sessions."""
+def test_rust_register_creates_correct_db_rows(client: httpx.Client, db):
+    """Rust /register must create rows in users, workspaces, workspace_members.
+    Post-#350: NO session row is created on register — only on subsequent
+    /signin. The user_id and workspace_id come back directly in the body
+    (not nested under user.id / workspace.id like the old token-returning shape)."""
     email = unique_email("db-rows")
     password = "Password123!"
 
     resp = client.post(
-        f"{RUST_URL}/api/v2/auth/signup",
-        json={"email": email, "password": password, "workspace_name": "DB Rows WS"},
+        f"{RUST_URL}/api/v2/auth/register",
+        json={
+            "email": email,
+            "password": password,
+            "display_name": "DB Rows",
+            "workspace_name": "DB Rows WS",
+        },
     )
-    assert resp.status_code == 201, f"Rust signup failed: {resp.text}"
+    assert resp.status_code == 201, f"Rust register failed: {resp.text}"
 
     body = resp.json()
-    user_id = body.get("user", {}).get("id")
-    workspace_id = body.get("workspace", {}).get("id")
+    user_id = body.get("user_id")
+    workspace_id = body.get("workspace_id")
+    assert isinstance(user_id, int), f"register must return integer user_id, got {user_id!r}"
+    assert isinstance(workspace_id, int), (
+        f"register must return integer workspace_id, got {workspace_id!r}"
+    )
 
     cursor = db.cursor()
 
@@ -172,13 +196,16 @@ def test_rust_signup_creates_correct_db_rows(client: httpx.Client, db):
     assert member is not None, "workspace_members row not found"
     assert member[0] == "owner", f"First user must be 'owner', got '{member[0]}'"
 
-    # Check session row
+    # Post-#350: register does NOT create a session row (no auto-login).
+    # A session is created only when the user subsequently calls /signin.
     cursor.execute(
-        "SELECT COUNT(*) FROM sessions WHERE user_id = %s AND revoked_at IS NULL",
+        "SELECT COUNT(*) FROM sessions WHERE user_id = %s",
         (user_id,),
     )
     session_count = cursor.fetchone()[0]
-    assert session_count >= 1, "At least one active session must exist"
+    assert session_count == 0, (
+        f"register must NOT create a session row (post-#350); found {session_count}"
+    )
 
     cursor.close()
 

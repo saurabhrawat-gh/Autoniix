@@ -106,7 +106,7 @@ mod tests {
 
     #[test]
     fn test_generate_content() {
-        let cache = ProviderCache::new(tempdir().unwrap().into_path(), true);
+        let cache = ProviderCache::new(tempdir().unwrap().keep(), true);
         let req = GeminiRequest {
             contents: vec![GeminiContent {
                 parts: vec![GeminiPart {

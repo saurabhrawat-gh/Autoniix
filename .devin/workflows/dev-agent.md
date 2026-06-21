@@ -16,11 +16,11 @@ There are two paths depending on issue type:
 
 If the user invoked this workflow with a Jira key (e.g. `/dev-agent AE-227`, or any message containing a `AE-\d+` pattern as the explicit target):
 
-1. **Resolve the Jira key to a GitHub issue number** via reverse-lookup in `scripts/migration/state/issue_map.json`:
+1. **Resolve the Jira key to a GitHub issue number** via reverse-lookup in `scripts/issue_map.json`:
    ```bash
-   python3 -c "import json; m={v:int(k) for k,v in json.load(open('scripts/migration/state/issue_map.json')).items()}; print(m['AE-227'])"
+   python3 -c "import json; m={v:int(k) for k,v in json.load(open('scripts/issue_map.json')).items()}; print(m['AE-227'])"
    ```
-2. **If no mapping found** → STOP. Report to the user: "AE-XXX has no GitHub mirror. Create the mirror first (use `/tmp/mirror_jira_to_gh.py` as template) and update `scripts/migration/state/issue_map.json` before invoking `/dev-agent`."
+2. **If no mapping found** → STOP. Report to the user: "AE-XXX has no GitHub mirror. Create the mirror first (use `/tmp/mirror_jira_to_gh.py` as template) and update `scripts/issue_map.json` before invoking `/dev-agent`."
 3. **If mapping found** → set `{N}` = resolved GH issue number, then **skip Step 0 and Step 1**. Read the GH issue body directly via `mcp1_get_issue` and jump to Step 1a (Read Research Notes).
 4. **Path selection** — inspect the GH issue's labels:
    - Has `bug:production` or `hotfix` → take the **Hotfix Path** starting at H2.
@@ -59,7 +59,7 @@ Before anything else, check for open hotfix issues:
 
 ### 2. Label as in-progress
 - Call `mcp0_update_issue`: remove `ready-for-dev`, add `in-progress`
-- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = the Jira key for this issue (look up in `scripts/migration/state/issue_map.json`), transition id `21` (→ In Progress)
+- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = the Jira key for this issue (look up in `scripts/issue_map.json`), transition id `21` (→ In Progress)
 - Call `mcp0_editJiraIssue` to assign to Dev Agent: `{"assignee": {"accountId": "712020:863fd585-7c67-4cac-86c6-8885e80502b3"}}`
 - Post comment: "Starting implementation of #{issue_number}."
 
@@ -131,7 +131,7 @@ git branch -d {branch-name}
 
 ### 11. Set issue to ready-to-deploy, update Jira, push develop (GHA auto-merges to main)
 - Call `mcp0_update_issue` on the issue: remove `in-progress`, add `ready-to-deploy`
-- Look up the Jira key for this issue via `scripts/migration/state/issue_map.json`
+- Look up the Jira key for this issue via `scripts/issue_map.json`
 - Call `mcp0_transitionJiraIssue` with transition id `41` (→ Dev Done) on the Story's Jira key
 - Call `mcp0_add_issue_comment`:
   ```
@@ -178,7 +178,7 @@ Use this path ONLY for issues labelled `hotfix` or `bug:production`. These skip 
 
 ### H2. Label as in-progress
 - Call `mcp0_update_issue`: remove `ready-for-dev`, add `in-progress`
-- Look up the Jira key via `scripts/migration/state/issue_map.json`
+- Look up the Jira key via `scripts/issue_map.json`
 - Call `mcp0_transitionJiraIssue` with transition id `21` (→ In Progress)
 - Call `mcp0_editJiraIssue` to assign to Dev Agent: `{"assignee": {"accountId": "712020:863fd585-7c67-4cac-86c6-8885e80502b3"}}`
 
@@ -268,3 +268,4 @@ handoff:
 - Always emit the HandoffPayload comment at the end of implementation (Step 12 / H9)
 - When creating bug issues, always use the standard format: `bug | {QA/Prod} | {Layer} | description`
 - Read Research Notes (if present) before writing a single line of code — the approach is already decided
+- **Jira ↔ GitHub sync is mandatory**: When a GitHub issue is created, create a Jira mirror and update `scripts/issue_map.json`. When a GitHub issue is closed, transition the Jira mirror to Done (transition id `5`). Jira cloudId: `73672c49-7089-4f35-adde-e3fa0d1e438f`, project key: `AE`. If no Jira mirror exists for a GH issue, create one before proceeding

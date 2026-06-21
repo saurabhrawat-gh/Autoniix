@@ -1,13 +1,14 @@
 //! Integration tests for provider mocks.
 //! Run with: cargo test -p harness
 
+use base64::Engine as _;
 use harness::providers::{
     anthropic, dalle, fish_audio, gemini, openai, pexels, pixabay, serpapi, youtube, ProviderCache,
 };
 use tempfile::tempdir;
 
 fn cache() -> ProviderCache {
-    ProviderCache::new(tempdir().unwrap().into_path(), true)
+    ProviderCache::new(tempdir().unwrap().keep(), true)
 }
 
 // ── OpenAI ──────────────────────────────────────────────────────────────────
@@ -140,7 +141,9 @@ fn test_dalle_b64_format_decodes() {
         .b64_json
         .as_ref()
         .expect("b64_json must be present");
-    let decoded = base64::decode(b64).expect("must be valid base64");
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(b64)
+        .expect("must be valid base64");
     assert!(!decoded.is_empty());
 }
 

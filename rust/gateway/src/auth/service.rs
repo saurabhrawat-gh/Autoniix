@@ -207,12 +207,13 @@ impl AuthServiceImpl {
         hasher.update(token.as_bytes());
         let token_hash = format!("{:x}", hasher.finalize());
 
-        let row: Option<(
+        type ResetRow = (
             i64,
             i64,
             chrono::DateTime<Utc>,
             Option<chrono::DateTime<Utc>>,
-        )> = sqlx::query_as(
+        );
+        let row: Option<ResetRow> = sqlx::query_as(
             "SELECT id, user_id, expires_at, used_at FROM password_resets WHERE token_hash = $1",
         )
         .bind(&token_hash)
@@ -356,7 +357,7 @@ impl AuthServiceImpl {
 
         User::update_last_login(&self.pool, user.id)
             .await
-            .map_err(|e| ApiError::Database(e))?;
+            .map_err(ApiError::Database)?;
 
         let wid = if let Some(requested_wid) = workspace_id {
             requested_wid
@@ -367,7 +368,7 @@ impl AuthServiceImpl {
         let ws_role = if wid > 0 {
             User::get_workspace_role(&self.pool, user.id, wid)
                 .await
-                .map_err(|e| ApiError::Database(e))?
+                .map_err(ApiError::Database)?
                 .unwrap_or_else(|| "viewer".to_string())
         } else {
             "viewer".to_string()
@@ -417,7 +418,7 @@ impl AuthServiceImpl {
     ) -> ApiResult<(i64, i64, String)> {
         let existing = User::find_by_email(&self.pool, email)
             .await
-            .map_err(|e| ApiError::Database(e))?;
+            .map_err(ApiError::Database)?;
 
         if existing.is_some() {
             return Err(ApiError::Conflict(
@@ -427,12 +428,12 @@ impl AuthServiceImpl {
 
         let password_hash = PasswordManager::hash_password(password)?;
 
-        let mut tx = self.pool.begin().await.map_err(|e| ApiError::Database(e))?;
+        let mut tx = self.pool.begin().await.map_err(ApiError::Database)?;
 
         let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
             .fetch_one(&mut *tx)
             .await
-            .map_err(|e| ApiError::Database(e))?;
+            .map_err(ApiError::Database)?;
 
         let global_role = if user_count == 0 {
             "superadmin"
@@ -464,7 +465,7 @@ impl AuthServiceImpl {
                     .bind(&ws_slug)
                     .fetch_optional(&mut *tx)
                     .await
-                    .map_err(|e| ApiError::Database(e))?;
+                    .map_err(ApiError::Database)?;
 
             if exists.is_none() {
                 break;
@@ -489,9 +490,9 @@ impl AuthServiceImpl {
 
         User::update_active_workspace(&mut *tx, user.id, workspace.id)
             .await
-            .map_err(|e| ApiError::Database(e))?;
+            .map_err(ApiError::Database)?;
 
-        tx.commit().await.map_err(|e| ApiError::Database(e))?;
+        tx.commit().await.map_err(ApiError::Database)?;
 
         // No tokens, no session — the frontend calls /login separately
         // after register, matching Python's flow.
@@ -505,7 +506,7 @@ impl AuthServiceImpl {
 
         let session = Session::find_by_token_hash(&self.pool, &token_hash)
             .await
-            .map_err(|e| ApiError::Database(e))?
+            .map_err(ApiError::Database)?
             .ok_or(ApiError::Unauthorized)?;
 
         if !session.is_valid() {
@@ -514,7 +515,7 @@ impl AuthServiceImpl {
 
         let user = User::find_by_id(&self.pool, session.user_id)
             .await
-            .map_err(|e| ApiError::Database(e))?
+            .map_err(ApiError::Database)?
             .ok_or(ApiError::Unauthorized)?;
 
         if user.disabled {
@@ -525,7 +526,7 @@ impl AuthServiceImpl {
         let ws_role = if wid > 0 {
             User::get_workspace_role(&self.pool, user.id, wid)
                 .await
-                .map_err(|e| ApiError::Database(e))?
+                .map_err(ApiError::Database)?
                 .unwrap_or_else(|| "viewer".to_string())
         } else {
             "viewer".to_string()
@@ -565,7 +566,7 @@ impl AuthServiceImpl {
 
         Session::revoke(&self.pool, &token_hash)
             .await
-            .map_err(|e| ApiError::Database(e))?;
+            .map_err(ApiError::Database)?;
 
         Ok(())
     }

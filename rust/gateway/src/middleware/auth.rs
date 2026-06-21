@@ -1,5 +1,4 @@
 use axum::{
-    body::Body,
     extract::{Request, State},
     http::{header::AUTHORIZATION, StatusCode},
     middleware::Next,
@@ -7,10 +6,7 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::{
-    auth::{jwt::Claims, JwtManager},
-    error::ApiError,
-};
+use crate::auth::{jwt::Claims, JwtManager};
 
 #[derive(Debug, Clone)]
 pub struct Principal {
@@ -83,11 +79,13 @@ pub async fn require_auth_middleware(request: Request, next: Next) -> Result<Res
     Ok(next.run(request).await)
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct RequireRole {
     pub roles: Vec<String>,
 }
 
+#[allow(dead_code)]
 impl RequireRole {
     pub fn new(roles: Vec<String>) -> Self {
         Self { roles }

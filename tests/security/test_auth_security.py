@@ -93,11 +93,34 @@ class TestSQLInjection:
         ]
         for payload in payloads:
             resp = client.post(
-                f"{PYTHON_URL}/auth/login",
+                f"{PYTHON_URL}/api/v2/auth/login",
                 json={"email": payload, "password": "anything"},
             )
             assert resp.status_code in (400, 401, 422), (
                 f"Python must reject SQL injection payload '{payload}', got {resp.status_code}"
+            )
+
+    @pytest.mark.usefixtures("rust_available")
+    def test_sql_injection_in_register_email_rust(self, client: httpx.Client):
+        """#350 made /register public — verify injection in register email
+        is rejected before INSERT, regardless of first-user vs nth-user path."""
+        payloads = [
+            "admin'); DROP TABLE users;--",
+            "x@y.com'; UPDATE users SET role='superadmin' WHERE 1=1;--",
+        ]
+        for payload in payloads:
+            resp = client.post(
+                f"{RUST_URL}/api/v2/auth/register",
+                json={
+                    "email": payload,
+                    "password": "Password123!",
+                    "display_name": "Injection",
+                    "workspace_name": "InjWS",
+                },
+            )
+            assert resp.status_code in (400, 409, 422), (
+                f"Rust /register must reject injection payload '{payload}', "
+                f"got {resp.status_code}"
             )
 
 
@@ -155,34 +178,58 @@ class TestJWTSecurity:
 
     @pytest.mark.usefixtures("rust_available")
     def test_privilege_escalation_via_jwt_rust(self, client: httpx.Client):
-        """Forged JWT with elevated role must not grant access."""
-        # Create a normal user
+        """Forged JWT with elevated role must not actually grant elevated
+        access. The token is technically valid (signed with the right
+        secret) but the server MUST read the authoritative role from the
+        database, not from the JWT claim, when making authorization
+        decisions. Documents the expected behavior so a regression that
+        trusts the JWT role is caught."""
+        # Create a normal user via #350 register flow
         email = unique_email("privesc")
-        signup = client.post(
-            f"{RUST_URL}/api/v2/auth/signup",
-            json={"email": email, "password": "Password123!", "workspace_name": "WS"},
+        register = client.post(
+            f"{RUST_URL}/api/v2/auth/register",
+            json={
+                "email": email,
+                "password": "Password123!",
+                "display_name": "Priv Esc",
+                "workspace_name": "WS",
+            },
         )
-        if signup.status_code != 201:
-            pytest.skip("Cannot create test user")
+        if register.status_code != 201:
+            pytest.skip("Cannot create test user via /register")
+        user_id = register.json()["user_id"]
 
-        # Forge a token with superadmin role using correct secret
+        # Forge a token with superadmin role using the correct secret.
+        # The role claim is whatever the attacker controls; the wid is
+        # the user's actual workspace.
         forged = jwt.encode(
-            {"sub": signup.json()["user"]["id"], "email": email, "role": "superadmin", "global_role": "superadmin", "wid": 1, "exp": 9999999999, "iat": int(time.time())},
+            {
+                "sub": str(user_id),
+                "email": email,
+                "role": "superadmin",
+                "global_role": "superadmin",
+                "wid": register.json()["workspace_id"],
+                "exp": int(time.time()) + 3600,
+                "iat": int(time.time()),
+            },
             JWT_SECRET,
             algorithm=JWT_ALGORITHM,
         )
-        # This should work (correct secret) but the role escalation is detected
-        # at the authorization layer, not just JWT validation
+        # /me MUST report the DB role, not the JWT role. If the server
+        # echoes back "superadmin", that's a privilege-escalation bug.
         resp = client.get(
             f"{RUST_URL}/api/v2/me",
             headers={"Authorization": f"Bearer {forged}"},
         )
-        # Token is valid (correct secret), but /me should return actual user data
-        if resp.status_code == 200:
-            body = resp.json()
-            # The role in the forged token should NOT override the DB role
-            # (depends on implementation — this test documents expected behavior)
-            print(f"Note: Forged role token accepted — verify role is read from DB, not JWT")
+        assert resp.status_code == 200, (
+            f"Token signed with correct secret should be accepted: {resp.status_code} {resp.text}"
+        )
+        body = resp.json()
+        global_role = (body.get("data") or {}).get("global_role") or body.get("global_role")
+        assert global_role != "superadmin", (
+            f"PRIVILEGE ESCALATION: /me returned global_role='superadmin' from "
+            f"forged JWT claim. Server must read role from DB, not JWT."
+        )
 
 
 # ── A07: Identification and Authentication Failures ─────────────────────────
@@ -193,11 +240,19 @@ class TestBruteForce:
 
     @pytest.mark.usefixtures("rust_available")
     def test_brute_force_rate_limiting_rust(self, client: httpx.Client):
-        """Rust should rate-limit repeated failed login attempts."""
+        """Rust should rate-limit repeated failed login attempts. After
+        20 wrong-password attempts we expect either a 429 (rate limited)
+        or all 401s; a single 200 would mean we either succeeded with
+        the wrong password (impossible) or hit a session re-use bug."""
         email = unique_email("brute")
         client.post(
-            f"{RUST_URL}/api/v2/auth/signup",
-            json={"email": email, "password": "Password123!", "workspace_name": "WS"},
+            f"{RUST_URL}/api/v2/auth/register",
+            json={
+                "email": email,
+                "password": "Password123!",
+                "display_name": "Brute",
+                "workspace_name": "WS",
+            },
         )
 
         statuses = []
@@ -208,8 +263,6 @@ class TestBruteForce:
             )
             statuses.append(resp.status_code)
 
-        # After 20 attempts, should get rate limited (429) or all 401
-        # If no rate limiting, at least all should be 401 (not 200)
         assert 200 not in statuses, "Must not succeed with wrong password"
         if 429 in statuses:
             print(f"✓ Rate limiting active: got 429 after {statuses.index(429) + 1} attempts")
@@ -232,8 +285,13 @@ class TestBruteForce:
         # Existing email, wrong password
         email = unique_email("timing")
         client.post(
-            f"{RUST_URL}/api/v2/auth/signup",
-            json={"email": email, "password": "Password123!", "workspace_name": "WS"},
+            f"{RUST_URL}/api/v2/auth/register",
+            json={
+                "email": email,
+                "password": "Password123!",
+                "display_name": "Timing",
+                "workspace_name": "WS",
+            },
         )
         start = _time.monotonic()
         client.post(
@@ -287,26 +345,61 @@ class TestPasswordPolicy:
 
     @pytest.mark.usefixtures("rust_available")
     def test_weak_password_rejected_rust(self, client: httpx.Client):
-        """Rust should reject weak passwords."""
-        weak_passwords = ["123", "password", "abc", ""]
+        """Rust /register should reject passwords shorter than 8 chars.
+        Documents the current policy (Plan §14: "min 8 chars + complexity"
+        — we only enforce length so far; complexity is a follow-up)."""
+        weak_passwords = ["", "x", "123", "abc", "1234567"]  # all <8
         for pw in weak_passwords:
             resp = client.post(
-                f"{RUST_URL}/api/v2/auth/signup",
-                json={"email": unique_email("weak"), "password": pw, "workspace_name": "WS"},
+                f"{RUST_URL}/api/v2/auth/register",
+                json={
+                    "email": unique_email("weak"),
+                    "password": pw,
+                    "display_name": "Weak",
+                    "workspace_name": "WS",
+                },
             )
             assert resp.status_code in (400, 422), (
-                f"Rust must reject weak password '{pw}', got {resp.status_code}"
+                f"Rust /register must reject weak password '{pw}' (len={len(pw)}), "
+                f"got {resp.status_code}: {resp.text}"
             )
 
     @pytest.mark.usefixtures("rust_available")
     def test_long_password_handled_rust(self, client: httpx.Client):
-        """Rust should handle very long passwords gracefully (not crash)."""
+        """Rust should handle very long passwords gracefully (not crash).
+        Argon2 has a 4096-byte input limit; the server must validate or
+        truncate before hashing, never 500."""
         long_pw = "A" * 10000
         resp = client.post(
-            f"{RUST_URL}/api/v2/auth/signup",
-            json={"email": unique_email("longpw"), "password": long_pw, "workspace_name": "WS"},
+            f"{RUST_URL}/api/v2/auth/register",
+            json={
+                "email": unique_email("longpw"),
+                "password": long_pw,
+                "display_name": "Long",
+                "workspace_name": "WS",
+            },
         )
-        # Should either accept (201) or reject gracefully (400/422), not 500
         assert resp.status_code != 500, (
-            f"Rust must not crash on long password, got {resp.status_code}"
+            f"Rust must not crash on long password, got {resp.status_code}: {resp.text}"
+        )
+
+    @pytest.mark.usefixtures("rust_available")
+    def test_duplicate_email_returns_409_rust(self, client: httpx.Client):
+        """#350: a second registration with the same email must return 409
+        (not 500, not 200). Prevents silent overwrites + user enumeration
+        via 200 vs 500 timing differences."""
+        email = unique_email("dup")
+        body = {
+            "email": email,
+            "password": "Password123!",
+            "display_name": "Dup",
+            "workspace_name": "DupWS",
+        }
+
+        first = client.post(f"{RUST_URL}/api/v2/auth/register", json=body)
+        assert first.status_code == 201, f"first register must succeed: {first.text}"
+
+        second = client.post(f"{RUST_URL}/api/v2/auth/register", json=body)
+        assert second.status_code == 409, (
+            f"duplicate email must return 409, got {second.status_code}: {second.text}"
         )

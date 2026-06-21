@@ -86,7 +86,7 @@ mod tests {
 
     #[test]
     fn test_search_images() {
-        let cache = ProviderCache::new(tempdir().unwrap().into_path(), true);
+        let cache = ProviderCache::new(tempdir().unwrap().keep(), true);
         let req = PixabayRequest {
             q: "technology".into(),
             per_page: Some(15),

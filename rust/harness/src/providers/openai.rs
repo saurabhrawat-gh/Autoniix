@@ -137,7 +137,7 @@ mod tests {
     use tempfile::tempdir;
 
     fn cache() -> ProviderCache {
-        ProviderCache::new(tempdir().unwrap().into_path(), true)
+        ProviderCache::new(tempdir().unwrap().keep(), true)
     }
 
     #[test]

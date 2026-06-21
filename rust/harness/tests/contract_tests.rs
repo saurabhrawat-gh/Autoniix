@@ -14,6 +14,7 @@ fn rust_gateway_url() -> String {
     std::env::var("RUST_GATEWAY_URL").unwrap_or_else(|_| RUST_GATEWAY.to_string())
 }
 
+#[allow(dead_code)]
 fn python_dashboard_url() -> String {
     std::env::var("PYTHON_DASHBOARD_URL").unwrap_or_else(|_| PYTHON_DASHBOARD.to_string())
 }

@@ -77,16 +77,17 @@ def assert_keys_match(actual: dict, expected: dict, path: str = "") -> None:
                     assert_keys_match(item, expected_val[0], f"{full_path}[{i}]")
 
 
-# ── Golden file: auth signup response shape ─────────────────────────────────
+# ── Golden file: auth register response shape (post-#350) ───────────────────
 
 
-def test_signup_response_matches_golden(client: httpx.Client):
-    """Rust signup response must match the golden file's expected structure."""
+def test_register_response_matches_golden(client: httpx.Client):
+    """Rust /register response must match the golden file's expected structure.
+    Post-#350: returns onboarding metadata only, NO tokens."""
     golden = load_golden("auth_signup_golden.json")
 
-    email = unique_email("golden-signup")
+    email = unique_email("golden-register")
     resp = client.post(
-        f"{RUST_URL}/api/v2/auth/signup",
+        f"{RUST_URL}/api/v2/auth/register",
         json={
             "email": email,
             "password": "Password123!",
@@ -94,27 +95,30 @@ def test_signup_response_matches_golden(client: httpx.Client):
             "workspace_name": "Golden Workspace",
         },
     )
-    assert resp.status_code == 201, f"Signup failed: {resp.text}"
+    assert resp.status_code == 201, f"Register failed: {resp.text}"
     body = resp.json()
 
     expected = golden.get("expected_response", {})
     assert_keys_match(body, expected)
 
-    # Verify specific field types
-    assert isinstance(body.get("access_token"), str), "access_token must be string"
-    assert isinstance(body.get("refresh_token"), str), "refresh_token must be string"
-    assert isinstance(body.get("user"), dict), "user must be object"
-    assert isinstance(body.get("workspace"), dict), "workspace must be object"
+    # Verify required onboarding-metadata fields
+    assert body.get("status") == "ok", f"status must be 'ok', got {body.get('status')}"
+    assert isinstance(body.get("user_id"), int), (
+        f"user_id must be int, got {type(body.get('user_id'))}"
+    )
+    assert isinstance(body.get("workspace_id"), int), (
+        f"workspace_id must be int, got {type(body.get('workspace_id'))}"
+    )
+    assert body.get("role") == "owner", (
+        f"first user must be 'owner', got {body.get('role')!r}"
+    )
+    assert isinstance(body.get("onboarding_required"), bool), (
+        f"onboarding_required must be bool, got {type(body.get('onboarding_required'))}"
+    )
 
-    if "expires_in" in body:
-        assert body["expires_in"] == 3600, f"expires_in must be 3600, got {body['expires_in']}"
-
-    if "user" in body:
-        user = body["user"]
-        assert "id" in user, "user must have id"
-        assert "email" in user, "user must have email"
-        assert user["email"] == email, "user email must match signup email"
-        assert isinstance(user["id"], int), f"user.id must be int, got {type(user['id'])}"
+    # Tokens MUST NOT be returned (would leak credentials before email verification).
+    assert "access_token" not in body, "register must not return access_token (post-#350)"
+    assert "refresh_token" not in body, "register must not return refresh_token (post-#350)"
 
 
 # ── Golden file: auth signin response shape ─────────────────────────────────
@@ -127,10 +131,15 @@ def test_signin_response_matches_golden(client: httpx.Client):
     email = unique_email("golden-signin")
     password = "Password123!"
 
-    # Pre-register
+    # Pre-register (post-#350: no auto-login; signin happens below)
     client.post(
-        f"{RUST_URL}/api/v2/auth/signup",
-        json={"email": email, "password": password, "workspace_name": "WS"},
+        f"{RUST_URL}/api/v2/auth/register",
+        json={
+            "email": email,
+            "password": password,
+            "display_name": "Golden Signin",
+            "workspace_name": "WS",
+        },
     )
 
     resp = client.post(
@@ -157,13 +166,23 @@ def test_me_response_matches_golden(client: httpx.Client):
     email = unique_email("golden-me")
     password = "Password123!"
 
-    # Signup and get token
-    signup = client.post(
-        f"{RUST_URL}/api/v2/auth/signup",
-        json={"email": email, "password": password, "workspace_name": "WS"},
+    # Register + signin to obtain a token (post-#350)
+    register = client.post(
+        f"{RUST_URL}/api/v2/auth/register",
+        json={
+            "email": email,
+            "password": password,
+            "display_name": "Golden Me",
+            "workspace_name": "WS",
+        },
     )
-    assert signup.status_code == 201
-    token = signup.json()["access_token"]
+    assert register.status_code == 201, f"register failed: {register.text}"
+    signin = client.post(
+        f"{RUST_URL}/api/v2/auth/signin",
+        json={"email": email, "password": password},
+    )
+    assert signin.status_code == 200, f"signin failed: {signin.text}"
+    token = signin.json()["access_token"]
 
     resp = client.get(
         f"{RUST_URL}/api/v2/me",
@@ -186,8 +205,9 @@ def test_me_response_matches_golden(client: httpx.Client):
 # ── Golden file: DB state after signup ──────────────────────────────────────
 
 
-def test_signup_db_state_matches_golden(client: httpx.Client):
-    """After signup, DB state must match the golden file's expected_db_state."""
+def test_register_db_state_matches_golden(client: httpx.Client):
+    """After /register, DB state must match the golden file's expected_db_state.
+    Post-#350: sessions table must remain empty until a subsequent /signin."""
     golden = load_golden("auth_signup_golden.json")
     expected_db = golden.get("expected_db_state", {})
     if not expected_db:
@@ -195,29 +215,31 @@ def test_signup_db_state_matches_golden(client: httpx.Client):
 
     email = unique_email("golden-db")
     resp = client.post(
-        f"{RUST_URL}/api/v2/auth/signup",
-        json={"email": email, "password": "Password123!", "workspace_name": "Golden WS"},
+        f"{RUST_URL}/api/v2/auth/register",
+        json={
+            "email": email,
+            "password": "Password123!",
+            "display_name": "Golden DB",
+            "workspace_name": "Golden WS",
+        },
     )
-    assert resp.status_code == 201
+    assert resp.status_code == 201, f"register failed: {resp.text}"
     body = resp.json()
-    user_id = body.get("user", {}).get("id")
-    workspace_id = body.get("workspace", {}).get("id")
+    user_id = body.get("user_id")
+    workspace_id = body.get("workspace_id")
 
-    # Verify expected DB state structure
-    if "users" in expected_db:
-        expected_user = expected_db["users"][0]
-        if "email" in expected_user:
-            assert body["user"]["email"] == email
-        if "role" in expected_user:
-            # The global role is assigned by signup order (first user = superadmin,
-            # everyone else = user), so it is not deterministic against a shared/
-            # populated DB. Assert only that a non-empty role string is returned.
-            role = body["user"].get("role")
-            assert isinstance(role, str) and role, f"User role must be a non-empty string, got {role!r}"
-
-    if "workspaces" in expected_db:
-        expected_ws = expected_db["workspaces"][0]
-        if "name" in expected_ws:
-            assert body["workspace"]["name"] == "Golden WS"
+    # Verify the response carries the expected IDs (used downstream by callers
+    # to query the DB rows). Detailed schema validation lives in
+    # tests/migration/test_schema_compatibility.py.
+    assert isinstance(user_id, int) and user_id > 0, (
+        f"register must return positive integer user_id, got {user_id!r}"
+    )
+    assert isinstance(workspace_id, int) and workspace_id > 0, (
+        f"register must return positive integer workspace_id, got {workspace_id!r}"
+    )
+    # The first user in the new workspace is always 'owner' (per #350 contract).
+    assert body.get("role") == "owner", (
+        f"first user of new workspace must be 'owner', got {body.get('role')!r}"
+    )
 
     print(f"✓ DB state matches golden file for user_id={user_id}, workspace_id={workspace_id}")

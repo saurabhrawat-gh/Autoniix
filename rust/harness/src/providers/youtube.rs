@@ -133,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_search() {
-        let cache = ProviderCache::new(tempdir().unwrap().into_path(), true);
+        let cache = ProviderCache::new(tempdir().unwrap().keep(), true);
         let req = YouTubeSearchRequest {
             q: "machine learning tutorial".into(),
             max_results: Some(5),
@@ -147,7 +147,7 @@ mod tests {
 
     #[test]
     fn test_video_details() {
-        let cache = ProviderCache::new(tempdir().unwrap().into_path(), true);
+        let cache = ProviderCache::new(tempdir().unwrap().keep(), true);
         let req = YouTubeVideoRequest {
             id: "test_video_abc".into(),
             part: None,

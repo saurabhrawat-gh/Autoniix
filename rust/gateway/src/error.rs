@@ -14,8 +14,16 @@ pub enum ApiError {
     #[error("Authentication failed")]
     Unauthorized,
 
+    /// 403 with no message body (legacy callers that don't need to surface
+    /// a reason).
     #[error("Forbidden")]
     Forbidden,
+
+    /// 403 carrying a human-readable reason. Use this for action-specific
+    /// rejections like "Cannot disable your own account" — matches the
+    /// shape Python returns via `HTTPException(403, "...")`.
+    #[error("{0}")]
+    ForbiddenWith(String),
 
     #[error("Not found: {0}")]
     NotFound(String),
@@ -46,6 +54,7 @@ impl IntoResponse for ApiError {
             }
             ApiError::Unauthorized => (StatusCode::UNAUTHORIZED, "UNAUTHORIZED", self.to_string()),
             ApiError::Forbidden => (StatusCode::FORBIDDEN, "FORBIDDEN", self.to_string()),
+            ApiError::ForbiddenWith(_) => (StatusCode::FORBIDDEN, "FORBIDDEN", self.to_string()),
             ApiError::NotFound(_) => (StatusCode::NOT_FOUND, "NOT_FOUND", self.to_string()),
             ApiError::Validation(_) => (
                 StatusCode::BAD_REQUEST,

@@ -1,7 +1,6 @@
 //! Anthropic Claude API mock.
 
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
 use super::ProviderCache;
 
@@ -95,7 +94,7 @@ mod tests {
 
     #[test]
     fn test_create_message() {
-        let cache = ProviderCache::new(tempdir().unwrap().into_path(), true);
+        let cache = ProviderCache::new(tempdir().unwrap().keep(), true);
         let req = AnthropicRequest {
             model: "claude-3-5-sonnet-20241022".into(),
             messages: vec![AnthropicMessage {

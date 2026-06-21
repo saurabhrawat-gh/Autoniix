@@ -1,3 +1,4 @@
+mod audit;
 mod auth;
 mod config;
 mod db;
@@ -25,6 +26,8 @@ pub async fn create_app(pool: sqlx::PgPool, jwt_secret: String) -> Router {
 
     let protected_routes = Router::new()
         .merge(routes::user::routes(pool.clone()))
+        .merge(routes::flags::routes(pool.clone()))
+        .merge(routes::notifications::routes(pool.clone()))
         .layer(axum_middleware::from_fn(
             middleware::require_auth_middleware,
         ));
