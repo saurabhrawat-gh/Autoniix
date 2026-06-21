@@ -70,7 +70,11 @@ pub fn search_images(cache: &ProviderCache, req: &PixabayRequest) -> PixabayResp
         })
         .collect();
 
-    let resp = PixabayResponse { total: 1000, total_hits: 500, hits };
+    let resp = PixabayResponse {
+        total: 1000,
+        total_hits: 500,
+        hits,
+    };
     cache.set_json(&key, &serde_json::to_value(&resp).unwrap());
     resp
 }

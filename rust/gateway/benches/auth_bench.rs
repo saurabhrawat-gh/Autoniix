@@ -71,8 +71,14 @@ async fn setup() -> BenchState {
         .await
         .unwrap();
 
-    let access_token = signup_resp["access_token"].as_str().unwrap_or("").to_string();
-    let refresh_token = signup_resp["refresh_token"].as_str().unwrap_or("").to_string();
+    let access_token = signup_resp["access_token"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    let refresh_token = signup_resp["refresh_token"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
 
     BenchState {
         base_url,

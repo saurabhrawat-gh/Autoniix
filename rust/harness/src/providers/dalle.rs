@@ -53,7 +53,10 @@ pub fn generate(cache: &ProviderCache, req: &DalleRequest) -> DalleResponse {
 
     let use_b64 = req.response_format == Some(ResponseFormat::B64Json);
     let image = if use_b64 {
-        DalleImage { url: None, b64_json: Some(PLACEHOLDER_PNG_B64.to_string()) }
+        DalleImage {
+            url: None,
+            b64_json: Some(PLACEHOLDER_PNG_B64.to_string()),
+        }
     } else {
         DalleImage {
             url: Some(format!("https://mock-dalle.example.com/images/{key}.png")),
@@ -61,7 +64,10 @@ pub fn generate(cache: &ProviderCache, req: &DalleRequest) -> DalleResponse {
         }
     };
 
-    let resp = DalleResponse { created: chrono::Utc::now().timestamp(), data: vec![image] };
+    let resp = DalleResponse {
+        created: chrono::Utc::now().timestamp(),
+        data: vec![image],
+    };
     cache.set_json(&key, &serde_json::to_value(&resp).unwrap());
     resp
 }

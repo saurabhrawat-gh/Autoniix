@@ -17,7 +17,10 @@ fn test_openai_chat_completion() {
     let c = cache();
     let req = openai::ChatRequest {
         model: "gpt-4o".into(),
-        messages: vec![openai::ChatMessage { role: "user".into(), content: "Hello, world!".into() }],
+        messages: vec![openai::ChatMessage {
+            role: "user".into(),
+            content: "Hello, world!".into(),
+        }],
         max_tokens: Some(100),
         temperature: None,
         response_format: None,
@@ -54,7 +57,10 @@ fn test_openai_cache_hit_returns_same_id() {
     let c = cache();
     let req = openai::ChatRequest {
         model: "gpt-4o".into(),
-        messages: vec![openai::ChatMessage { role: "user".into(), content: "cache test".into() }],
+        messages: vec![openai::ChatMessage {
+            role: "user".into(),
+            content: "cache test".into(),
+        }],
         max_tokens: None,
         temperature: None,
         response_format: None,
@@ -130,7 +136,10 @@ fn test_dalle_b64_format_decodes() {
         response_format: Some(dalle::ResponseFormat::B64Json),
     };
     let resp = dalle::generate(&c, &req);
-    let b64 = resp.data[0].b64_json.as_ref().expect("b64_json must be present");
+    let b64 = resp.data[0]
+        .b64_json
+        .as_ref()
+        .expect("b64_json must be present");
     let decoded = base64::decode(b64).expect("must be valid base64");
     assert!(!decoded.is_empty());
 }
@@ -140,7 +149,11 @@ fn test_dalle_b64_format_decodes() {
 #[test]
 fn test_pexels_search() {
     let c = cache();
-    let req = pexels::PexelsRequest { query: "ocean waves".into(), per_page: Some(10), page: None };
+    let req = pexels::PexelsRequest {
+        query: "ocean waves".into(),
+        per_page: Some(10),
+        page: None,
+    };
     let resp = pexels::search_photos(&c, &req);
     assert!(!resp.photos.is_empty());
     assert!(resp.total_results > 0);
@@ -204,7 +217,10 @@ fn test_youtube_search() {
 #[test]
 fn test_youtube_video_details() {
     let c = cache();
-    let req = youtube::YouTubeVideoRequest { id: "dQw4w9WgXcQ".into(), part: None };
+    let req = youtube::YouTubeVideoRequest {
+        id: "dQw4w9WgXcQ".into(),
+        part: None,
+    };
     let resp = youtube::video_details(&c, &req);
     assert_eq!(resp.kind, "youtube#videoListResponse");
     assert_eq!(resp.items[0]["id"], "dQw4w9WgXcQ");
@@ -218,7 +234,9 @@ fn test_gemini_generate_content() {
     let c = cache();
     let req = gemini::GeminiRequest {
         contents: vec![gemini::GeminiContent {
-            parts: vec![gemini::GeminiPart { text: "Explain neural networks briefly.".into() }],
+            parts: vec![gemini::GeminiPart {
+                text: "Explain neural networks briefly.".into(),
+            }],
             role: Some("user".into()),
         }],
         model: Some("gemini-1.5-pro".into()),
@@ -238,7 +256,10 @@ fn test_cache_disabled_writes_no_files() {
     let c = ProviderCache::new(dir.path(), false);
     let req = openai::ChatRequest {
         model: "gpt-4o".into(),
-        messages: vec![openai::ChatMessage { role: "user".into(), content: "no cache".into() }],
+        messages: vec![openai::ChatMessage {
+            role: "user".into(),
+            content: "no cache".into(),
+        }],
         max_tokens: None,
         temperature: None,
         response_format: None,

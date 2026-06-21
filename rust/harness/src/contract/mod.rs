@@ -23,7 +23,11 @@ pub enum ContractError {
     InvalidJson(String),
 
     #[error("Schema not found for {method} {path} (status {code})")]
-    SchemaNotFound { method: String, path: String, code: u16 },
+    SchemaNotFound {
+        method: String,
+        path: String,
+        code: u16,
+    },
 
     #[error("Schema validation errors:\n{}", errors.join("\n  - "))]
     ValidationFailed { errors: Vec<String> },
@@ -122,12 +126,13 @@ impl ContractValidator {
             .map_err(|_| ContractError::InvalidJson(body_text.clone()))?;
 
         // Locate response schema in the OpenAPI document
-        let response_schema =
-            self.get_response_schema(method.as_str(), path, expected_status)?;
+        let response_schema = self.get_response_schema(method.as_str(), path, expected_status)?;
 
         // Validate
-        let compiled = JSONSchema::compile(&response_schema)
-            .map_err(|e| ContractError::ValidationFailed { errors: vec![e.to_string()] })?;
+        let compiled =
+            JSONSchema::compile(&response_schema).map_err(|e| ContractError::ValidationFailed {
+                errors: vec![e.to_string()],
+            })?;
 
         let errors: Vec<String> = compiled
             .iter_errors(&body)
@@ -269,7 +274,10 @@ mod tests {
 
         let compiled = JSONSchema::compile(&schema).unwrap();
         let errors: Vec<_> = compiled.iter_errors(&response).collect();
-        assert!(errors.is_empty(), "expected no validation errors: {errors:?}");
+        assert!(
+            errors.is_empty(),
+            "expected no validation errors: {errors:?}"
+        );
     }
 
     #[test]
@@ -283,6 +291,9 @@ mod tests {
 
         let compiled = JSONSchema::compile(&schema).unwrap();
         let errors: Vec<_> = compiled.iter_errors(&response).collect();
-        assert!(!errors.is_empty(), "expected validation errors for missing fields");
+        assert!(
+            !errors.is_empty(),
+            "expected validation errors for missing fields"
+        );
     }
 }

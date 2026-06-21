@@ -75,10 +75,7 @@ pub async fn auth_middleware(
     Ok(next.run(request).await)
 }
 
-pub async fn require_auth_middleware(
-    request: Request,
-    next: Next,
-) -> Result<Response, StatusCode> {
+pub async fn require_auth_middleware(request: Request, next: Next) -> Result<Response, StatusCode> {
     if request.extensions().get::<Principal>().is_none() {
         return Err(StatusCode::UNAUTHORIZED);
     }
@@ -112,10 +109,7 @@ impl RequireRole {
             .get::<Principal>()
             .ok_or(StatusCode::UNAUTHORIZED)?;
 
-        let has_role = required
-            .roles
-            .iter()
-            .any(|r| principal.has_role(r));
+        let has_role = required.roles.iter().any(|r| principal.has_role(r));
 
         if !has_role {
             return Err(StatusCode::FORBIDDEN);

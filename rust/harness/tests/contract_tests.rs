@@ -47,28 +47,39 @@ fn rust_validator() -> Option<ContractValidator> {
 async fn test_signup_contract() {
     let validator = match rust_validator() {
         Some(v) => v,
-        None => { eprintln!("SKIP: no OpenAPI schema found"); return; }
+        None => {
+            eprintln!("SKIP: no OpenAPI schema found");
+            return;
+        }
     };
 
     let unique = format!("contract-{}", chrono::Utc::now().timestamp());
-    let result = validator.validate_endpoint(
-        &rust_gateway_url(),
-        reqwest::Method::POST,
-        "/api/v2/auth/signup",
-        Some(json!({
-            "email": format!("{unique}@example.com"),
-            "password": "SecurePassword123!",
-            "display_name": "Contract Test",
-            "workspace_name": "Test Workspace"
-        })),
-        None,
-        201,
-    ).await;
+    let result = validator
+        .validate_endpoint(
+            &rust_gateway_url(),
+            reqwest::Method::POST,
+            "/api/v2/auth/signup",
+            Some(json!({
+                "email": format!("{unique}@example.com"),
+                "password": "SecurePassword123!",
+                "display_name": "Contract Test",
+                "workspace_name": "Test Workspace"
+            })),
+            None,
+            201,
+        )
+        .await;
 
     match result {
         Ok(body) => {
-            assert!(body.get("access_token").is_some(), "signup must return access_token");
-            assert!(body.get("refresh_token").is_some(), "signup must return refresh_token");
+            assert!(
+                body.get("access_token").is_some(),
+                "signup must return access_token"
+            );
+            assert!(
+                body.get("refresh_token").is_some(),
+                "signup must return refresh_token"
+            );
         }
         Err(harness::contract::ContractError::Request(_)) => {
             eprintln!("SKIP: Rust gateway not running at {}", rust_gateway_url());
@@ -81,30 +92,37 @@ async fn test_signup_contract() {
 async fn test_signin_contract() {
     let validator = match rust_validator() {
         Some(v) => v,
-        None => { eprintln!("SKIP: no OpenAPI schema found"); return; }
+        None => {
+            eprintln!("SKIP: no OpenAPI schema found");
+            return;
+        }
     };
 
     let unique = format!("signin-test-{}", chrono::Utc::now().timestamp());
     let email = format!("{unique}@example.com");
 
     // Sign up first
-    let _ = validator.validate_endpoint(
-        &rust_gateway_url(),
-        reqwest::Method::POST,
-        "/api/v2/auth/signup",
-        Some(json!({"email": email, "password": "Password123!", "workspace_name": "W"})),
-        None,
-        201,
-    ).await;
+    let _ = validator
+        .validate_endpoint(
+            &rust_gateway_url(),
+            reqwest::Method::POST,
+            "/api/v2/auth/signup",
+            Some(json!({"email": email, "password": "Password123!", "workspace_name": "W"})),
+            None,
+            201,
+        )
+        .await;
 
-    let result = validator.validate_endpoint(
-        &rust_gateway_url(),
-        reqwest::Method::POST,
-        "/api/v2/auth/signin",
-        Some(json!({"email": email, "password": "Password123!"})),
-        None,
-        200,
-    ).await;
+    let result = validator
+        .validate_endpoint(
+            &rust_gateway_url(),
+            reqwest::Method::POST,
+            "/api/v2/auth/signin",
+            Some(json!({"email": email, "password": "Password123!"})),
+            None,
+            200,
+        )
+        .await;
 
     match result {
         Ok(body) => {

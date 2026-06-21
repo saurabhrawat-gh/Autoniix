@@ -52,11 +52,10 @@ impl JwtManager {
     }
 
     pub fn create_token(&self, claims: Claims) -> ApiResult<String> {
-        encode(&Header::default(), &claims, &self.encoding_key)
-            .map_err(|e| {
-                tracing::error!("Failed to encode JWT: {:?}", e);
-                ApiError::Internal("Failed to encode JWT".to_string())
-            })
+        encode(&Header::default(), &claims, &self.encoding_key).map_err(|e| {
+            tracing::error!("Failed to encode JWT: {:?}", e);
+            ApiError::Internal("Failed to encode JWT".to_string())
+        })
     }
 
     pub fn verify_token(&self, token: &str) -> ApiResult<Claims> {
@@ -103,13 +102,15 @@ mod tests {
     fn test_jwt_roundtrip() {
         let manager = JwtManager::new("test-secret-key");
 
-        let token = manager.create_access_token(
-            "123".to_string(),
-            456,
-            "test@example.com".to_string(),
-            "owner".to_string(),
-            "superadmin".to_string(),
-        ).unwrap();
+        let token = manager
+            .create_access_token(
+                "123".to_string(),
+                456,
+                "test@example.com".to_string(),
+                "owner".to_string(),
+                "superadmin".to_string(),
+            )
+            .unwrap();
 
         let claims = manager.verify_token(&token).unwrap();
 
