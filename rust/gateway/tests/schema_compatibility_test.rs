@@ -256,14 +256,18 @@ async fn test_rust_jwt_sub_is_stringified_int() {
 
     // Simulate Rust creating a JWT (as jwt.rs does)
     use jsonwebtoken::{encode, EncodingKey, Header};
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
     let claims = json!({
         "sub": "42",
         "email": "test@schema.test",
         "role": "owner",
         "global_role": "superadmin",
         "wid": 7,
-        "iat": 1718901234,
-        "exp": 1718904834
+        "iat": now,
+        "exp": now + 3600
     });
 
     let token = encode(
@@ -305,14 +309,18 @@ async fn test_python_jwt_decodes_in_rust() {
 
     // Simulate Python creating a JWT (sub as int, wid as int)
     use jsonwebtoken::{encode, EncodingKey, Header};
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
     let claims = json!({
         "sub": 42,               // Python sends int
         "email": "py@schema.test",
         "role": "member",
         "global_role": "user",
         "wid": 7,
-        "iat": 1718901234,
-        "exp": 1718904834
+        "iat": now,
+        "exp": now + 3600
     });
 
     let token = encode(
