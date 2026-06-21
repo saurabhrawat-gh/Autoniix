@@ -372,6 +372,7 @@ async fn list_channels(
                 "human_review_ratio": r.try_get::<Option<f64>, _>("human_review_ratio").ok().flatten(),
                 "created_at": r.try_get::<Option<DateTime<Utc>>, _>("created_at").ok().flatten(),
                 "language": r.try_get::<Option<String>, _>("language").ok().flatten(),
+                "publish_cadence": r.try_get::<Option<String>, _>("publish_cadence").ok().flatten(),
                 "videos_per_week_short": r.try_get::<Option<i32>, _>("videos_per_week_short").ok().flatten(),
                 "videos_per_week_long": r.try_get::<Option<i32>, _>("videos_per_week_long").ok().flatten(),
                 "environment": r.try_get::<Option<String>, _>("environment").ok().flatten(),
