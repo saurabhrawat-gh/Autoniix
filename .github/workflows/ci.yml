@@ -1,16 +1,7 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
-    inputs:
-      reason:
-        description: "Reason for manual deploy trigger"
-        required: false
-        default: "manual hotfix deploy"
+  workflow_dispatch:  # HALTED: manual trigger only — resume by restoring push: branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
