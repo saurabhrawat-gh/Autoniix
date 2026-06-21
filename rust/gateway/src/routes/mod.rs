@@ -1,4 +1,7 @@
 pub mod auth;
+pub mod flags;
+pub mod notifications;
+pub mod system;
 pub mod user;
 
 use axum::{routing::get, Json, Router};

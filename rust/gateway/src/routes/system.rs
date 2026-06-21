@@ -223,10 +223,7 @@ async fn get_config(
 
     Ok((
         StatusCode::OK,
-        Json(ListConfigResponse {
-            status: "ok",
-            data,
-        }),
+        Json(ListConfigResponse { status: "ok", data }),
     ))
 }
 
@@ -334,8 +331,13 @@ async fn emergency_resume(
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&principal)?;
 
-    let result =
-        proxy_legacy(&headers, reqwest::Method::POST, "/api/emergency-resume", None).await?;
+    let result = proxy_legacy(
+        &headers,
+        reqwest::Method::POST,
+        "/api/emergency-resume",
+        None,
+    )
+    .await?;
 
     audit_log(
         &pool,
@@ -389,7 +391,9 @@ async fn get_environment(
     .await
     .map_err(ApiError::Database)?;
 
-    let mode = db_mode.unwrap_or_else(|| env::var("ENVIRONMENT_MODE").unwrap_or_else(|_| "production".to_string()));
+    let mode = db_mode.unwrap_or_else(|| {
+        env::var("ENVIRONMENT_MODE").unwrap_or_else(|_| "production".to_string())
+    });
 
     Ok((
         StatusCode::OK,
@@ -513,4 +517,3 @@ mod tests {
         assert!(url.starts_with("http"));
     }
 }
-
