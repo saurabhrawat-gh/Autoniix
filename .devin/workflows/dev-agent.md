@@ -95,23 +95,29 @@ e. Update `.env.example` if new env vars added
 
 ### 7. Run local CI — MANDATORY before any push
 
-Run the check targeted to what you changed (fast path), or `--all` if unsure:
+Always run the script. The default mode is an **exact mirror** of `.github/workflows/build.yml` (Rust + Docker), which is the only thing CI gates on today:
 
 ```bash
 # turbo
-bash scripts/ci-local.sh --rust      # if Rust files changed
-bash scripts/ci-local.sh --db        # if SQL migrations added
-bash scripts/ci-local.sh --python    # if Python files changed
-bash scripts/ci-local.sh --node      # if dashboard files changed
-bash scripts/ci-local.sh --go        # if Go files changed
-bash scripts/ci-local.sh             # if multiple areas changed
+bash scripts/ci-local.sh
 ```
 
-**Wait for the final line before proceeding:**
-- `✅  ALL CI CHECKS PASSED — safe to merge to main` → continue to step 8
-- `❌  THE FOLLOWING CHECKS FAILED: ...` → **STOP. Fix every failure. Re-run until green.**
+If your change also touched Python / Node / Go / Proto, add the relevant flag(s) so the broader code-quality checks run too (they don't block CI today but should still be green):
 
-> This is non-negotiable. Every failed remote build costs real money.
+```bash
+bash scripts/ci-local.sh --python   # touched src/ tests/ scripts/ (Python)
+bash scripts/ci-local.sh --node     # touched dashboard/ (Next.js / TS)
+bash scripts/ci-local.sh --go       # touched go/
+bash scripts/ci-local.sh --proto    # touched proto/
+bash scripts/ci-local.sh --full     # touched multiple stacks
+```
+
+**Required outcome before proceeding:**
+- `✅  ALL CHECKS PASSED — safe to push to main` → continue to step 8
+- `✅  CI MIRROR PASSED ... ⚠  optional check(s) reported issues` → fix the soft failures, re-run, do not proceed while red
+- `❌  FAILED: ...` (hard fail in the CI mirror) → **STOP. Fix every failure. Re-run until fully green.**
+
+> This is non-negotiable. **Never push to `origin/develop` without a fully-green `ci-local.sh` run.** Every failed remote build costs real money.
 
 ### 8. Run diff review
 - Run `/diff-review` — verify no unrelated changes, no style drift
@@ -139,7 +145,8 @@ git branch -d {branch-name}
 
 **After merge, re-run local CI on develop to confirm no merge conflicts broke anything:**
 ```bash
-bash scripts/ci-local.sh --rust   # or whichever block is relevant
+bash scripts/ci-local.sh        # CI mirror — always required
+# add --python / --node / --go / --proto / --full if relevant to the merge
 ```
 If red: fix before push. If green: proceed to step 11.
 
@@ -151,7 +158,11 @@ If red: fix before push. If green: proceed to step 11.
 
 ### 11. Set issue to ready-to-deploy, update Jira, push develop (GHA auto-merges to main)
 
-**GATE: Only reach this step if step 7 AND step 10 post-merge checks both showed `✅ ALL CI CHECKS PASSED`.**
+**HARD GATE — do not push to `origin/develop` unless BOTH of these are true:**
+1. Step 7 (pre-merge) finished with `✅ CI MIRROR PASSED` (or `✅ ALL CHECKS PASSED` if optional flags used)
+2. Step 10 (post-merge) finished with the same green outcome
+
+If either was red at any point, you must NOT have reached this step. Go back and fix.
 
 - Call `mcp0_update_issue` on the issue: remove `in-progress`, add `ready-to-deploy`
 - Look up the Jira key for this issue via `scripts/issue_map.json`
