@@ -5,9 +5,7 @@ name: Automation
 #   2. on-main-push       — mark all ready-to-deploy issues as in-prod
 #   3. on-prod-verified   — close issue if every AC checkbox is ticked
 #   4. on-bug-reopened    — escalate priority + revert lifecycle
-#   5. jira-hierarchy-rollup — propagate sub-task status → Story → Epic in Jira
-#                              (Epics + Stories use ONLY: To Do | In Progress | Done)
-#   6. sync-board-status       — mirror lifecycle labels to GH Projects board
+#   5. sync-board-status  — mirror lifecycle labels to GH Projects board
 
 on:
   issues:
@@ -15,15 +13,6 @@ on:
   push:
     branches: [main, develop]
   workflow_dispatch:
-    inputs:
-      epic_number:
-        description: "Re-evaluate a specific Epic number (manual GitHub epic-close check)"
-        required: false
-        type: string
-      jira_key:
-        description: "Re-run Jira rollup for a specific Jira key (e.g. AE-123)"
-        required: false
-        type: string
 
 permissions:
   issues: write
@@ -332,107 +321,7 @@ jobs:
             });
 
   # ─────────────────────────────────────────────────────────────────────
-  # JOB 5: jira-hierarchy-rollup
-  #   Fires when any sub-task / story changes lifecycle status.
-  #   1. Reads the Jira key from the issue body ("Jira mirror: AE-XXX").
-  #   2. Calls scripts/jira_rollup.py which:
-  #        • Evaluates all siblings of the changed issue → sets Story status
-  #          (To Do | In Progress | Done)
-  #        • Evaluates all Stories under the Epic → sets Epic status
-  #   3. Separately: closes the GitHub Epic issue when all child issues close.
-  # ─────────────────────────────────────────────────────────────────────
-  jira-hierarchy-rollup:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'issues' && (
-        github.event.action == 'closed' ||
-        github.event.action == 'reopened' ||
-        (
-          (github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
-          contains(
-            fromJSON('["in-progress","ready-to-deploy","in-prod","prod-verified"]'),
-            github.event.label.name
-          )
-        )
-      ))
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Extract Jira key from issue body
-        id: jira
-        env:
-          BODY: ${{ github.event.issue.body || '' }}
-          INPUT_KEY: ${{ github.event.inputs.jira_key || '' }}
-        run: |
-          set -euo pipefail
-          KEY="${INPUT_KEY:-}"
-          if [ -z "$KEY" ]; then
-            KEY=$(printf '%s' "$BODY" | grep -oE 'AE-[0-9]+' | head -n1 || true)
-          fi
-          echo "key=${KEY}" >> "$GITHUB_OUTPUT"
-          [ -n "$KEY" ] && echo "Jira key: $KEY" || echo "No Jira key found in body"
-
-      - name: Jira hierarchy rollup (Story + Epic)
-        if: steps.jira.outputs.key != ''
-        env:
-          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
-          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
-          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
-        run: python3 scripts/jira_rollup.py "${{ steps.jira.outputs.key }}"
-
-      - name: Close GitHub Epic when all children closed
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const { owner, repo } = context.repo;
-
-            let epicNumber = null;
-
-            if (context.eventName === 'workflow_dispatch') {
-              epicNumber = parseInt(context.payload.inputs?.epic_number || '0', 10) || null;
-            } else {
-              const issue = context.payload.issue;
-              if (!issue?.body) return;
-              const m = issue.body.match(/\*\*Parent Epic:\*\*\s*#(\d+)/i);
-              if (!m) return;
-              epicNumber = parseInt(m[1], 10);
-            }
-
-            if (!epicNumber) return;
-
-            let epic;
-            try {
-              epic = (await github.rest.issues.get({ owner, repo, issue_number: epicNumber })).data;
-            } catch (e) { core.warning(`Cannot fetch Epic #${epicNumber}: ${e.message}`); return; }
-
-            const labels = epic.labels.map(l => l.name);
-            if (!labels.includes('epic') && !labels.includes('type:epic')) return;
-
-            const childRefs = [...(epic.body || '').matchAll(/^\s*-\s*\[[ xX]\]\s*#(\d+)/gm)]
-              .map(m => parseInt(m[1], 10));
-            if (!childRefs.length) return;
-
-            const children = await Promise.all(
-              childRefs.map(n =>
-                github.rest.issues.get({ owner, repo, issue_number: n })
-                  .then(r => r.data).catch(() => null)
-              )
-            );
-            const valid = children.filter(Boolean);
-            const allClosed = valid.length === childRefs.length && valid.every(c => c.state === 'closed');
-
-            if (allClosed && epic.state === 'open') {
-              await github.rest.issues.update({ owner, repo, issue_number: epicNumber, state: 'closed', state_reason: 'completed' });
-              core.info(`✅ Epic #${epicNumber} closed — all children done`);
-            } else if (!allClosed && epic.state === 'closed' && context.payload.action === 'reopened') {
-              await github.rest.issues.update({ owner, repo, issue_number: epicNumber, state: 'open' });
-              core.info(`↩  Epic #${epicNumber} reopened`);
-            }
-
-  # ─────────────────────────────────────────────────────────────────────
-  # JOB 6: sync-board-status — mirror lifecycle labels to GH Projects board
+  # JOB 5: sync-board-status — mirror lifecycle labels to GH Projects board
   # ─────────────────────────────────────────────────────────────────────
   sync-board-status:
     if: >-
