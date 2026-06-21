@@ -10,7 +10,12 @@ async fn test_health_check() {
     let app = gateway::create_test_app().await;
 
     let response = app
-        .oneshot(Request::builder().uri("/health/live").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/health/live")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
@@ -22,27 +27,37 @@ async fn test_auth_mode_is_public() {
     let app = gateway::create_test_app().await;
 
     let response = app
-        .oneshot(Request::builder().uri("/api/v2/auth/mode").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/api/v2/auth/mode")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
     // Public endpoint — no auth required.
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let data: Value = serde_json::from_slice(&body).unwrap();
     assert!(data["v2_enabled"].is_boolean(), "v2_enabled must be a bool");
-    assert!(data["legacy_enabled"].is_boolean(), "legacy_enabled must be a bool");
+    assert!(
+        data["legacy_enabled"].is_boolean(),
+        "legacy_enabled must be a bool"
+    );
 }
 
 #[tokio::test]
-async fn test_sign_up_and_sign_in() {
+async fn test_register_then_sign_in() {
     let app = gateway::create_test_app().await;
 
-    let signup_body = json!({
+    let register_body = json!({
         "email": "test@example.com",
         "password": "securepassword123",
-        "full_name": "Test User",
+        "display_name": "Test User",
         "workspace_name": "Test Workspace"
     });
 
@@ -50,10 +65,10 @@ async fn test_sign_up_and_sign_in() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/api/v2/auth/signup")
+                .uri("/api/v2/auth/register")
                 .method("POST")
                 .header("content-type", "application/json")
-                .body(Body::from(signup_body.to_string()))
+                .body(Body::from(register_body.to_string()))
                 .unwrap(),
         )
         .await
@@ -61,12 +76,24 @@ async fn test_sign_up_and_sign_in() {
 
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let signup_response: Value = serde_json::from_slice(&body).unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let register_response: Value = serde_json::from_slice(&body).unwrap();
 
-    assert!(signup_response["access_token"].is_string());
-    assert!(signup_response["refresh_token"].is_string());
-    assert_eq!(signup_response["user"]["email"], "test@example.com");
+    // #350: register returns onboarding metadata, NOT tokens
+    assert_eq!(register_response["status"], "ok");
+    assert!(register_response["user_id"].is_i64(), "must return user_id");
+    assert!(
+        register_response["workspace_id"].is_i64(),
+        "must return workspace_id"
+    );
+    assert_eq!(register_response["role"], "owner");
+    assert_eq!(register_response["onboarding_required"], true);
+    assert!(
+        register_response.get("access_token").is_none(),
+        "must NOT return access_token"
+    );
 
     let signin_body = json!({
         "email": "test@example.com",
@@ -131,7 +158,9 @@ async fn test_forgot_password_is_public() {
 
     // Always returns 200 — never leaks whether email exists.
     assert_eq!(response.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let data: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(data["status"], "ok");
 }

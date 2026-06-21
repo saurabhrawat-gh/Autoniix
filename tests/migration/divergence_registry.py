@@ -50,14 +50,10 @@ INTENTIONAL_DIVERGENCES: dict[str, list[Divergence]] = {
             approved_by="security-team",
             approved_date="2026-06-20",
         ),
-        Divergence(
-            field="access_token",
-            python_behavior="register returns NO tokens (invite-only, no auto-login)",
-            rust_behavior="signup auto-logs-in and returns access_token + refresh_token",
-            reason="PENDING-ALIGNMENT — tracked in #645 (register must be invite-only + not auto-login)",
-            approved_by="UNRESOLVED",
-            approved_date="2026-06-20",
-        ),
+        # #645 resolved by #350: both sides now use public self-serve signup
+        # with no auto-login. Register returns onboarding metadata only;
+        # the frontend calls /signin separately. /signup is kept as a
+        # backward-compatible alias for /register in Rust.
     ],
     "POST /auth/signin": [
         Divergence(

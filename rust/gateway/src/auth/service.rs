@@ -6,8 +6,8 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use totp_rs::{Algorithm, Secret, TOTP};
 
-use crate::error::{ApiError, ApiResult};
 use super::{JwtManager, PasswordManager, Session, User, Workspace, WorkspaceMember};
+use crate::error::{ApiError, ApiResult};
 
 fn generate_refresh_token() -> (String, String) {
     let mut rng = rand::thread_rng();
@@ -152,8 +152,8 @@ impl AuthServiceImpl {
         .map_err(ApiError::Database)?;
 
         // Best-effort email send via Resend API (no-op when RESEND_API_KEY unset).
-        let frontend_url = std::env::var("FRONTEND_URL")
-            .unwrap_or_else(|_| "http://localhost:3000".to_string());
+        let frontend_url =
+            std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
         let reset_link = format!("{}/reset-password?token={}", frontend_url, raw_token);
 
         let api_key = std::env::var("RESEND_API_KEY").ok();
@@ -207,14 +207,18 @@ impl AuthServiceImpl {
         hasher.update(token.as_bytes());
         let token_hash = format!("{:x}", hasher.finalize());
 
-        let row: Option<(i64, i64, chrono::DateTime<Utc>, Option<chrono::DateTime<Utc>>)> =
-            sqlx::query_as(
-                "SELECT id, user_id, expires_at, used_at FROM password_resets WHERE token_hash = $1",
-            )
-            .bind(&token_hash)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(ApiError::Database)?;
+        let row: Option<(
+            i64,
+            i64,
+            chrono::DateTime<Utc>,
+            Option<chrono::DateTime<Utc>>,
+        )> = sqlx::query_as(
+            "SELECT id, user_id, expires_at, used_at FROM password_resets WHERE token_hash = $1",
+        )
+        .bind(&token_hash)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(ApiError::Database)?;
 
         let Some((reset_id, user_id, expires_at, used_at)) = row else {
             return Err(ApiError::Validation("Invalid or expired token".to_string()));
@@ -257,7 +261,8 @@ impl AuthServiceImpl {
     /// return the otpauth URI + secret. Mirrors Python `POST /auth/mfa/setup`.
     pub async fn mfa_setup(&self, user_id: i64, email: &str) -> ApiResult<(String, String)> {
         let secret = Secret::generate_secret();
-        let secret_bytes = secret.to_bytes()
+        let secret_bytes = secret
+            .to_bytes()
             .map_err(|_| ApiError::Internal("Failed to decode secret".to_string()))?;
         let secret_b32 = secret.to_encoded().to_string();
 
@@ -287,38 +292,28 @@ impl AuthServiceImpl {
     /// Verify a TOTP code and enable MFA if valid. Mirrors Python
     /// `POST /auth/mfa/verify`.
     pub async fn mfa_verify(&self, user_id: i64, code: &str) -> ApiResult<()> {
-        let secret_b32: Option<String> = sqlx::query_scalar(
-            "SELECT mfa_secret FROM users WHERE id = $1",
-        )
-        .bind(user_id)
-        .fetch_one(&self.pool)
-        .await
-        .map_err(ApiError::Database)?;
+        let secret_b32: Option<String> =
+            sqlx::query_scalar("SELECT mfa_secret FROM users WHERE id = $1")
+                .bind(user_id)
+                .fetch_one(&self.pool)
+                .await
+                .map_err(ApiError::Database)?;
 
-        let secret_b32 = secret_b32
-            .ok_or_else(|| ApiError::Validation("MFA not initialized".to_string()))?;
+        let secret_b32 =
+            secret_b32.ok_or_else(|| ApiError::Validation("MFA not initialized".to_string()))?;
 
         let secret_bytes = Secret::Encoded(secret_b32)
             .to_bytes()
             .map_err(|_| ApiError::Validation("MFA not initialized".to_string()))?;
 
-        let totp = TOTP::new(
-            Algorithm::SHA1,
-            6,
-            1,
-            30,
-            secret_bytes,
-            None,
-            String::new(),
-        )
-        .map_err(|_| ApiError::Internal("Failed to parse TOTP secret".to_string()))?;
+        let totp = TOTP::new(Algorithm::SHA1, 6, 1, 30, secret_bytes, None, String::new())
+            .map_err(|_| ApiError::Internal("Failed to parse TOTP secret".to_string()))?;
 
         // valid_window=1 allows ±30s clock drift, matching pyotp's default.
         let now = Utc::now();
         let timestamp = now.timestamp() as u64;
-        let valid = (-1i64..=1).any(|offset| {
-            totp.generate(timestamp + (offset as u64 * 30)) == code
-        });
+        let valid =
+            (-1i64..=1).any(|offset| totp.generate(timestamp + (offset as u64 * 30)) == code);
         if !valid {
             return Err(ApiError::Unauthorized);
         }
@@ -389,33 +384,45 @@ impl AuthServiceImpl {
         let (refresh_raw, refresh_hash) = generate_refresh_token();
         let expires_at = Utc::now() + Duration::days(30);
 
-        Session::create(&self.pool, user.id, &refresh_hash, expires_at, ip, user_agent)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to create session: {:?}", e);
-                ApiError::Database(e)
-            })?;
+        Session::create(
+            &self.pool,
+            user.id,
+            &refresh_hash,
+            expires_at,
+            ip,
+            user_agent,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to create session: {:?}", e);
+            ApiError::Database(e)
+        })?;
 
         // Return the workspace-scoped role and active workspace id so the route
         // can build a Python-matching signin response (#646).
         Ok((access_token, refresh_raw, user, ws_role, wid))
     }
 
-    pub async fn sign_up(
+    /// Register a new user and create their first workspace. Mirrors Python
+    /// `POST /auth/register` (#350): public self-serve signup, no auto-login
+    /// (no tokens issued), returns onboarding metadata only. The first user
+    /// bootstraps as platform superadmin; subsequent users get `role='user'`.
+    /// Workspace-level ownership is via `workspace_members.role='owner'`.
+    pub async fn register(
         &self,
         email: &str,
         password: &str,
         display_name: Option<&str>,
         workspace_name: &str,
-        ip: Option<&str>,
-        user_agent: Option<&str>,
-    ) -> ApiResult<(String, String, User, Workspace)> {
+    ) -> ApiResult<(i64, i64, String)> {
         let existing = User::find_by_email(&self.pool, email)
             .await
             .map_err(|e| ApiError::Database(e))?;
 
         if existing.is_some() {
-            return Err(ApiError::Validation("Email already exists".to_string()));
+            return Err(ApiError::Conflict(
+                "An account with this email already exists".to_string(),
+            ));
         }
 
         let password_hash = PasswordManager::hash_password(password)?;
@@ -433,20 +440,14 @@ impl AuthServiceImpl {
             "user"
         };
 
-        let user = User::create(
-            &mut *tx,
-            email,
-            &password_hash,
-            display_name,
-            global_role,
-        )
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to create user: {:?}", e);
-            ApiError::Database(e)
-        })?;
+        let user = User::create(&mut *tx, email, &password_hash, display_name, global_role)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to create user: {:?}", e);
+                ApiError::Database(e)
+            })?;
 
-        let ws_slug = workspace_name
+        let base_slug = workspace_name
             .trim()
             .to_lowercase()
             .replace(" ", "-")
@@ -454,18 +455,30 @@ impl AuthServiceImpl {
             .take(60)
             .collect::<String>();
 
-        let workspace = Workspace::create(
-            &mut *tx,
-            workspace_name,
-            &ws_slug,
-            "starter",
-            user.id,
-        )
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to create workspace: {:?}", e);
-            ApiError::Database(e)
-        })?;
+        // Ensure slug uniqueness (matching Python's suffix loop)
+        let mut ws_slug = base_slug.clone();
+        let mut suffix = 0;
+        loop {
+            let exists: Option<i64> =
+                sqlx::query_scalar("SELECT id FROM workspaces WHERE slug = $1")
+                    .bind(&ws_slug)
+                    .fetch_optional(&mut *tx)
+                    .await
+                    .map_err(|e| ApiError::Database(e))?;
+
+            if exists.is_none() {
+                break;
+            }
+            suffix += 1;
+            ws_slug = format!("{}-{}", base_slug, suffix);
+        }
+
+        let workspace = Workspace::create(&mut *tx, workspace_name, &ws_slug, "starter", user.id)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to create workspace: {:?}", e);
+                ApiError::Database(e)
+            })?;
 
         WorkspaceMember::create(&mut *tx, workspace.id, user.id, "owner")
             .await
@@ -480,25 +493,9 @@ impl AuthServiceImpl {
 
         tx.commit().await.map_err(|e| ApiError::Database(e))?;
 
-        let access_token = self.jwt_manager.create_access_token(
-            user.id.to_string(),
-            workspace.id,
-            user.email.clone(),
-            "owner".to_string(),
-            global_role.to_string(),
-        )?;
-
-        let (refresh_raw, refresh_hash) = generate_refresh_token();
-        let expires_at = Utc::now() + Duration::days(30);
-
-        Session::create(&self.pool, user.id, &refresh_hash, expires_at, ip, user_agent)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to create session: {:?}", e);
-                ApiError::Database(e)
-            })?;
-
-        Ok((access_token, refresh_raw, user, workspace))
+        // No tokens, no session — the frontend calls /login separately
+        // after register, matching Python's flow.
+        Ok((user.id, workspace.id, "owner".to_string()))
     }
 
     pub async fn refresh_token(&self, refresh_token: &str) -> ApiResult<(String, String)> {
@@ -545,12 +542,18 @@ impl AuthServiceImpl {
         let (new_refresh_raw, new_refresh_hash) = generate_refresh_token();
         let expires_at = Utc::now() + Duration::days(30);
 
-        Session::rotate(&self.pool, session.id, user.id, &new_refresh_hash, expires_at)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to rotate session: {:?}", e);
-                ApiError::Database(e)
-            })?;
+        Session::rotate(
+            &self.pool,
+            session.id,
+            user.id,
+            &new_refresh_hash,
+            expires_at,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to rotate session: {:?}", e);
+            ApiError::Database(e)
+        })?;
 
         Ok((access_token, new_refresh_raw))
     }

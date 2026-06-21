@@ -223,16 +223,12 @@ async def register(request: Request, body: RegisterIn):
             raise HTTPException(409, "An account with this email already exists")
         async with conn.transaction():
             verify_token = secrets.token_urlsafe(32)
-            # AE-285: invite-only after first user. Only the very first registrant
-            # bootstraps as superadmin. All subsequent accounts must arrive via
-            # an invitation link — the public /register form is disabled.
+            # #350: Public self-serve signup. The first registrant bootstraps
+            # as the platform superadmin; all subsequent self-registered users
+            # get the non-privileged 'user' global role. Workspace-level
+            # ownership is granted via workspace_members.role='owner'.
             user_count = await conn.fetchval("SELECT COUNT(*) FROM users")
-            if (user_count or 0) > 0:
-                raise HTTPException(
-                    403,
-                    "Registration is closed. Please use your invitation link to join.",
-                )
-            global_role = "superadmin"
+            global_role = "superadmin" if (user_count or 0) == 0 else "user"
             uid = await conn.fetchval(
                 """INSERT INTO users (email, display_name, password_hash, role,
                                       email_verify_token, email_verified)

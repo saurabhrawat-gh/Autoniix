@@ -5,10 +5,10 @@
 //! Usage:
 //! ```rust
 //! #[tokio::test]
-//! async fn test_signup() {
+//! async fn test_register() {
 //!     let h = GatewayHarness::new().await;
-//!     let resp = h.signup("test@ex.com", "password123", "Test User", "My Workspace").await;
-//!     assert_eq!(resp["user"]["email"], "test@ex.com");
+//!     let resp = h.register("test@ex.com", "password123", "Test User", "My Workspace").await;
+//!     assert_eq!(resp["status"], "ok");
 //!     h.cleanup().await;
 //! }
 //! ```
@@ -63,8 +63,9 @@ impl GatewayHarness {
 
     // ── Auth helpers ────────────────────────────────────────────────────────
 
-    /// Sign up a new user. Returns the full JSON response body.
-    pub async fn signup(
+    /// Register a new user via /register (#350). Returns onboarding metadata
+    /// (status, user_id, workspace_id, role, onboarding_required) — NO tokens.
+    pub async fn register(
         &self,
         email: &str,
         password: &str,
@@ -73,7 +74,7 @@ impl GatewayHarness {
     ) -> Value {
         let resp = self
             .client
-            .post(format!("{}/api/v2/auth/signup", self.base_url))
+            .post(format!("{}/api/v2/auth/register", self.base_url))
             .json(&json!({
                 "email": email,
                 "password": password,
@@ -82,16 +83,31 @@ impl GatewayHarness {
             }))
             .send()
             .await
-            .expect("signup request failed");
+            .expect("register request failed");
 
         assert!(
             resp.status().is_success(),
-            "signup returned {}: {}",
+            "register returned {}: {}",
             resp.status(),
             resp.text().await.unwrap_or_default()
         );
 
-        resp.json().await.expect("signup response is not JSON")
+        resp.json().await.expect("register response is not JSON")
+    }
+
+    /// Backward-compatible alias: register then sign in, returning the signin
+    /// response (which includes access_token). Tests that need tokens should
+    /// use `register_and_signin` or `register_and_get_token`.
+    pub async fn signup(
+        &self,
+        email: &str,
+        password: &str,
+        display_name: &str,
+        workspace_name: &str,
+    ) -> Value {
+        self.register(email, password, display_name, workspace_name)
+            .await;
+        self.signin(email, password).await
     }
 
     /// Sign in and return the full JSON response body (includes access_token).
@@ -114,18 +130,14 @@ impl GatewayHarness {
         resp.json().await.expect("signin response is not JSON")
     }
 
-    /// Shortcut: sign up and immediately return the access token string.
-    pub async fn signup_and_get_token(
-        &self,
-        email: &str,
-        password: &str,
-    ) -> String {
-        let body = self
-            .signup(email, password, "Test User", "Test Workspace")
+    /// Shortcut: register, sign in, and return the access token string.
+    pub async fn signup_and_get_token(&self, email: &str, password: &str) -> String {
+        self.register(email, password, "Test User", "Test Workspace")
             .await;
+        let body = self.signin(email, password).await;
         body["access_token"]
             .as_str()
-            .expect("signup response missing access_token")
+            .expect("signin response missing access_token")
             .to_string()
     }
 
@@ -196,7 +208,12 @@ impl GatewayHarness {
     }
 
     /// Make an arbitrary authenticated POST request.
-    pub async fn post_auth(&self, path: &str, body: Value, access_token: &str) -> reqwest::Response {
+    pub async fn post_auth(
+        &self,
+        path: &str,
+        body: Value,
+        access_token: &str,
+    ) -> reqwest::Response {
         self.client
             .post(format!("{}{}", self.base_url, path))
             .bearer_auth(access_token)
@@ -230,7 +247,7 @@ impl GatewayHarness {
             DELETE FROM sessions s
             USING users u
             WHERE s.user_id = u.id AND u.email LIKE '%@harness.test'
-            "#
+            "#,
         )
         .execute(&self.pool)
         .await;
@@ -240,7 +257,7 @@ impl GatewayHarness {
             DELETE FROM workspace_members wm
             USING users u
             WHERE wm.user_id = u.id AND u.email LIKE '%@harness.test'
-            "#
+            "#,
         )
         .execute(&self.pool)
         .await;
