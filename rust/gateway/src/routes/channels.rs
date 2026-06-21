@@ -955,6 +955,37 @@ async fn patch_channel(
         return Ok((StatusCode::OK, Json(json!({"status": "noop"}))));
     }
 
+    // Fetch before state for audit log + 404 guard
+    let before_row = sqlx::query(
+        "SELECT channel_name, niche, sub_niche, status, auto_upload, human_review_required, \
+                handle, description, tone, brand_personality FROM channels \
+         WHERE channel_id=$1 AND workspace_id=$2",
+    )
+    .bind(&channel_id)
+    .bind(principal.wid)
+    .fetch_optional(&pool)
+    .await
+    .map_err(ApiError::Database)?;
+
+    let before_row = before_row
+        .ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
+
+    let before_snapshot = {
+        use sqlx::Row;
+        json!({
+            "channel_name": before_row.try_get::<Option<String>, _>("channel_name").ok().flatten(),
+            "niche": before_row.try_get::<Option<String>, _>("niche").ok().flatten(),
+            "sub_niche": before_row.try_get::<Option<String>, _>("sub_niche").ok().flatten(),
+            "status": before_row.try_get::<Option<String>, _>("status").ok().flatten(),
+            "auto_upload": before_row.try_get::<Option<bool>, _>("auto_upload").ok().flatten(),
+            "human_review_required": before_row.try_get::<Option<String>, _>("human_review_required").ok().flatten(),
+            "handle": before_row.try_get::<Option<String>, _>("handle").ok().flatten(),
+            "description": before_row.try_get::<Option<String>, _>("description").ok().flatten(),
+            "tone": before_row.try_get::<Option<String>, _>("tone").ok().flatten(),
+            "brand_personality": before_row.try_get::<Option<String>, _>("brand_personality").ok().flatten(),
+        })
+    };
+
     // Build query with COALESCE-based selective update for all patchable columns
     sqlx::query(
         r#"UPDATE channels SET
@@ -1036,9 +1067,10 @@ async fn patch_channel(
         &pool,
         AuditCtx {
             target_id: Some(channel_id.clone()),
+            before: Some(before_snapshot),
             after: Some(update_body),
             headers: Some(&headers),
-            ..AuditCtx::new(&principal, "channel.update", "channel")
+            ..AuditCtx::new(&principal, "channel.patch", "channel")
         },
     )
     .await;
@@ -1632,12 +1664,13 @@ async fn get_draft(
 // ── Export ────────────────────────────────────────────────────────────────────
 
 async fn export_channel(
-    AuthUser(_): AuthUser,
+    AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
 ) -> ApiResult<impl IntoResponse> {
-    let ch = sqlx::query("SELECT * FROM channels WHERE channel_id=$1")
+    let ch = sqlx::query("SELECT * FROM channels WHERE channel_id=$1 AND workspace_id=$2")
         .bind(&channel_id)
+        .bind(principal.wid)
         .fetch_optional(&pool)
         .await
         .map_err(ApiError::Database)?
@@ -1880,7 +1913,7 @@ async fn proxy_get_brand_kit(
     headers: HeaderMap,
 ) -> ApiResult<impl IntoResponse> {
     let auth = headers.get("authorization").and_then(|v| v.to_str().ok()).map(String::from);
-    let url = format!("{}/api/channels/{channel_id}/brand-kit", bff_base());
+    let url = format!("{}/api/v2/channels/{channel_id}/brand-kit", bff_base());
     proxy_get(&url, auth.as_deref()).await
 }
 
@@ -1893,7 +1926,7 @@ async fn proxy_put_brand_kit(
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&principal)?;
     let auth = headers.get("authorization").and_then(|v| v.to_str().ok()).map(String::from);
-    let url = format!("{}/api/channels/{channel_id}/brand-kit", bff_base());
+    let url = format!("{}/api/v2/channels/{channel_id}/brand-kit", bff_base());
     let result = proxy_put(&url, auth.as_deref(), Some(json!({"brand_kit_id": body.brand_kit_id}))).await?;
     audit_log(&pool, AuditCtx {
         target_id: Some(channel_id),
