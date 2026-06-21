@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod channels;
 pub mod flags;
 pub mod notifications;
 pub mod system;
@@ -16,6 +17,6 @@ async fn api_info() -> Json<serde_json::Value> {
         "name": "Autoniix Gateway",
         "version": env!("CARGO_PKG_VERSION"),
         "protocol": "REST + Connect-RPC (dual mode)",
-        "status": "phase_1_auth_implemented"
+        "status": "auth_complete"
     }))
 }
