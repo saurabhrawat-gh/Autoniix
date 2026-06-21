@@ -18,7 +18,7 @@ async fn get_test_pool() -> PgPool {
         Err(e) => {
             eprintln!("SKIP: cannot connect to test database: {e}");
             eprintln!("      Set TEST_DATABASE_URL and run scripts/setup_test_db.sh");
-            return PgPool::connect_lazy(&database_url).expect("failed to create lazy pool");
+            PgPool::connect_lazy(&database_url).expect("failed to create lazy pool")
         }
     }
 }

@@ -83,7 +83,7 @@ mod tests {
 
     #[test]
     fn test_search_photos() {
-        let cache = ProviderCache::new(tempdir().unwrap().into_path(), true);
+        let cache = ProviderCache::new(tempdir().unwrap().keep(), true);
         let req = PexelsRequest {
             query: "nature".into(),
             per_page: Some(10),

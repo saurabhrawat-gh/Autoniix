@@ -1,11 +1,22 @@
 """
 Rollback safety tests — verify that data created via Rust can still be
-read by the Python service after a rollback.
+read by the Python service after a rollback (and vice-versa).
 
-Per HARNESS-ENGINEERING-PLAN.md Week 4 Day 4.
+Per HARNESS-ENGINEERING-PLAN.md Section 11 (Production Rollout Strategy).
 
-These tests require both services to be running and sharing the same database.
-Skip automatically if services are not reachable.
+Scenario:
+  Both services share the SAME database. The migration uses per-endpoint
+  feature flags (auth.v2.enabled). To roll back, we flip a flag and route
+  traffic back to Python. These tests prove that data written by one
+  service is consumable by the other — no data loss, no re-auth required.
+
+Post-#350: /register returns onboarding metadata only (no tokens). The
+frontend (and these tests) must call /login (Python) or /signin (Rust)
+separately to obtain a session.
+
+Requires both services running against the same database. Skips when
+either is unreachable so the suite passes in environments where only one
+service is up (e.g. PR CI for the Rust crate).
 
 Run:
     RUST_GATEWAY_URL=http://localhost:8080 \
@@ -14,17 +25,19 @@ Run:
 """
 from __future__ import annotations
 
+import os
 import time
 
 import httpx
 import pytest
 
-RUST_URL = "http://localhost:8080"
-PYTHON_URL = "http://localhost:8000"
+RUST_URL = os.getenv("RUST_GATEWAY_URL", "http://localhost:8080")
+PYTHON_URL = os.getenv("PYTHON_DASHBOARD_URL", "http://localhost:8000")
 
 
 def unique_email(label: str) -> str:
-    return f"{label}-{int(time.time() * 1000)}@rollback.test"
+    # Use ns precision + a label to keep emails unique across parametrize runs
+    return f"{label}-{time.time_ns()}@rollback.test"
 
 
 @pytest.fixture
@@ -39,158 +52,263 @@ def python_client():
         yield c
 
 
-def skip_if_unavailable(client: httpx.Client, url: str) -> None:
-    """Skip test if service is not reachable."""
+def _skip_if_unavailable(client: httpx.Client, url: str, health_path: str) -> None:
+    """Skip test if service is not reachable on the given health path."""
     try:
-        client.get("/health", timeout=2.0)
-    except (httpx.ConnectError, httpx.TimeoutException):
+        r = client.get(health_path, timeout=2.0)
+        if r.status_code >= 500:
+            pytest.skip(f"Service at {url} returned {r.status_code} on {health_path}")
+    except (httpx.ConnectError, httpx.TimeoutException, httpx.RemoteProtocolError):
         pytest.skip(f"Service not running at {url}")
 
 
-# ── Test: Rust-created user readable by Python ────────────────────────────────
+def skip_unless_both_up(rust: httpx.Client, py: httpx.Client) -> None:
+    """Convenience: skip when either service is unreachable.
 
-def test_rust_user_readable_by_python(rust_client, python_client):
-    """Data created via Rust signup must be readable via Python login."""
-    skip_if_unavailable(rust_client, RUST_URL)
-    skip_if_unavailable(python_client, PYTHON_URL)
+    Rust gateway exposes `/health/live`; Python dashboard exposes `/health`.
+    """
+    _skip_if_unavailable(rust, RUST_URL, "/health/live")
+    _skip_if_unavailable(py, PYTHON_URL, "/health")
 
-    email = unique_email("rust-to-python")
-    password = "RollbackTest123!"
 
-    # Step 1: Create user via Rust
-    signup_resp = rust_client.post(
-        "/api/v2/auth/signup",
-        json={"email": email, "password": password, "workspace_name": "Rollback WS"},
+# ── Helpers: register + signin via each service ───────────────────────────────
+
+WS_NAME = "Rollback WS"
+
+
+def _rust_register(client: httpx.Client, email: str, password: str) -> dict:
+    """Create a user + workspace via Rust. Returns the onboarding metadata
+    (status, user_id, workspace_id, role, onboarding_required)."""
+    r = client.post(
+        "/api/v2/auth/register",
+        json={
+            "email": email,
+            "password": password,
+            "display_name": "Rollback User",
+            "workspace_name": WS_NAME,
+        },
     )
-    assert signup_resp.status_code == 201, f"Rust signup failed: {signup_resp.text}"
+    assert r.status_code == 201, f"Rust register failed: {r.status_code} {r.text}"
+    body = r.json()
+    assert body.get("status") == "ok"
+    return body
 
-    rust_user_id = signup_resp.json()["user"]["id"]
 
-    # Step 2: Log in via Python (simulates rollback to Python)
-    login_resp = python_client.post(
-        "/auth/login",
-        json={"email": email, "password": password},
+def _python_register(client: httpx.Client, email: str, password: str) -> dict:
+    """Create a user + workspace via Python. Returns the onboarding metadata."""
+    r = client.post(
+        "/api/v2/auth/register",
+        json={
+            "email": email,
+            "password": password,
+            "display_name": "Rollback User",
+            "workspace_name": WS_NAME,
+        },
     )
-    assert login_resp.status_code == 200, (
-        f"Python login failed for Rust-created user: {login_resp.text}"
+    assert r.status_code in (200, 201), (
+        f"Python register failed: {r.status_code} {r.text}"
     )
-
-    python_token = login_resp.json().get("access_token", "")
-    assert python_token, "Python login must return access_token"
-
-    # Step 3: Verify /me returns same user data via Python
-    me_resp = python_client.get(
-        "/auth/me",
-        headers={"Authorization": f"Bearer {python_token}"},
-    )
-    if me_resp.status_code == 200:
-        assert me_resp.json().get("email") == email, "Python /me must return same email"
+    body = r.json()
+    assert body.get("status") == "ok"
+    return body
 
 
-# ── Test: Python-created user readable by Rust ───────────────────────────────
-
-def test_python_user_readable_by_rust(rust_client, python_client):
-    """Data created via Python register must be readable via Rust signin."""
-    skip_if_unavailable(rust_client, RUST_URL)
-    skip_if_unavailable(python_client, PYTHON_URL)
-
-    email = unique_email("python-to-rust")
-    password = "RollbackTest123!"
-
-    # Step 1: Create user via Python
-    register_resp = python_client.post(
-        "/auth/register",
-        json={"email": email, "password": password, "workspace_name": "Python WS"},
-    )
-    assert register_resp.status_code in (200, 201), (
-        f"Python register failed: {register_resp.text}"
-    )
-
-    # Step 2: Sign in via Rust (simulates forward migration to Rust)
-    signin_resp = rust_client.post(
+def _rust_signin(client: httpx.Client, email: str, password: str) -> dict:
+    r = client.post(
         "/api/v2/auth/signin",
         json={"email": email, "password": password},
     )
-    assert signin_resp.status_code == 200, (
-        f"Rust signin failed for Python-created user: {signin_resp.text}"
+    assert r.status_code == 200, f"Rust signin failed: {r.status_code} {r.text}"
+    body = r.json()
+    assert body.get("access_token"), "Rust signin must return access_token"
+    return body
+
+
+def _python_login(client: httpx.Client, email: str, password: str) -> dict:
+    r = client.post(
+        "/api/v2/auth/login",
+        json={"email": email, "password": password},
+    )
+    assert r.status_code == 200, f"Python login failed: {r.status_code} {r.text}"
+    body = r.json()
+    return body
+
+
+# ── TC-RB-01: Rust-created user can log in via Python (Rust → Python rollback) ──
+
+def test_rust_user_can_login_via_python(rust_client, python_client):
+    """User registered via Rust must be able to log in via Python after a
+    rollback. Validates that the users + workspaces + workspace_members
+    rows written by Rust are readable + verifiable by Python's auth path
+    (same Argon2 hash format, same schema)."""
+    skip_unless_both_up(rust_client, python_client)
+
+    email = unique_email("rust-to-py")
+    password = "RollbackTest123!"
+
+    _rust_register(rust_client, email, password)
+    py_session = _python_login(python_client, email, password)
+
+    user = py_session.get("user") or {}
+    assert user.get("email", "").lower() == email.lower(), (
+        "Python login must return the same email Rust registered"
     )
 
-    rust_token = signin_resp.json().get("access_token", "")
-    assert rust_token, "Rust signin must return access_token"
+
+# ── TC-RB-02: Python-created user can sign in via Rust (forward migration) ──
+
+def test_python_user_can_signin_via_rust(rust_client, python_client):
+    """User registered via Python must be able to sign in via Rust after
+    the migration cuts over. Validates the reverse direction — same
+    requirement, both Argon2 verifiers must accept each other's hashes."""
+    skip_unless_both_up(rust_client, python_client)
+
+    email = unique_email("py-to-rust")
+    password = "RollbackTest123!"
+
+    _python_register(python_client, email, password)
+    rust_session = _rust_signin(rust_client, email, password)
+
+    user = rust_session.get("user") or {}
+    assert user.get("email", "").lower() == email.lower(), (
+        "Rust signin must return the same email Python registered"
+    )
 
 
-# ── Test: Token cross-validity (shared JWT secret) ───────────────────────────
+# ── TC-RB-03: Rust-issued JWT accepted by Python /me (shared secret) ─────────
 
-def test_rust_token_cross_validated_by_python(rust_client, python_client):
-    """JWT issued by Rust must be accepted by Python (shared secret)."""
-    skip_if_unavailable(rust_client, RUST_URL)
-    skip_if_unavailable(python_client, PYTHON_URL)
+def test_rust_jwt_accepted_by_python_me(rust_client, python_client):
+    """JWT issued by Rust /signin must be accepted by Python /me.
+    Requires both services to share AUTH_JWT_SECRET. During a mid-traffic
+    rollback, in-flight Rust-issued tokens must keep working against
+    Python — otherwise every active user gets force-logged-out."""
+    skip_unless_both_up(rust_client, python_client)
 
     email = unique_email("jwt-cross")
     password = "RollbackTest123!"
 
-    # Create user + get Rust token
-    signup = rust_client.post(
-        "/api/v2/auth/signup",
-        json={"email": email, "password": password, "workspace_name": "JWT WS"},
-    )
-    if signup.status_code != 201:
-        pytest.skip("Rust signup failed — cannot test cross-validation")
+    _rust_register(rust_client, email, password)
+    rust_session = _rust_signin(rust_client, email, password)
+    rust_token = rust_session["access_token"]
 
-    rust_token = signup.json().get("access_token", "")
-
-    # Use Rust token against Python endpoint
     me_resp = python_client.get(
-        "/auth/me",
+        "/api/v2/auth/me",
         headers={"Authorization": f"Bearer {rust_token}"},
     )
+    assert me_resp.status_code == 200, (
+        f"Python /me must accept Rust-issued JWT (got {me_resp.status_code}: "
+        f"{me_resp.text}). If 401, AUTH_JWT_SECRET differs between services."
+    )
+    body = me_resp.json()
+    me_email = (body.get("data") or {}).get("email") or body.get("email")
+    assert (me_email or "").lower() == email.lower(), (
+        f"Python /me returned wrong email: expected {email}, got {me_email}"
+    )
 
-    # If Python accepts the token (shared JWT secret), email must match
-    if me_resp.status_code == 200:
-        assert me_resp.json().get("email") == email, "email must match across services"
-        print(f"✓ Rust JWT accepted by Python (shared secret verified)")
-    else:
-        # 401 means JWT secret mismatch — flag as warning, not hard failure
-        print(f"⚠ Python returned {me_resp.status_code} — JWT secret may differ")
+
+# ── TC-RB-04: Python-issued JWT accepted by Rust /me (reverse direction) ────
+
+def test_python_jwt_accepted_by_rust_me(rust_client, python_client):
+    """JWT issued by Python /login must be accepted by Rust /me. During
+    the forward migration, in-flight Python-issued tokens must keep
+    working against Rust — same kill-switch invariant in reverse."""
+    skip_unless_both_up(rust_client, python_client)
+
+    email = unique_email("jwt-cross-rev")
+    password = "RollbackTest123!"
+
+    _python_register(python_client, email, password)
+    py_session = _python_login(python_client, email, password)
+    py_token = py_session.get("access_token")
+    if not py_token:
+        pytest.skip("Python login did not return access_token in body (cookie-only mode)")
+
+    me_resp = rust_client.get(
+        "/api/v2/me",
+        headers={"Authorization": f"Bearer {py_token}"},
+    )
+    assert me_resp.status_code == 200, (
+        f"Rust /me must accept Python-issued JWT (got {me_resp.status_code}: "
+        f"{me_resp.text}). If 401, AUTH_JWT_SECRET differs between services."
+    )
+    body = me_resp.json()
+    me_email = (body.get("data") or {}).get("email") or body.get("email")
+    assert (me_email or "").lower() == email.lower(), (
+        f"Rust /me returned wrong email: expected {email}, got {me_email}"
+    )
 
 
-# ── Test: Session data consistent across rollback ────────────────────────────
+# ── TC-RB-05: Refresh token issued by Rust can be rotated via Python ───────
 
-def test_refresh_token_works_after_service_switch(rust_client, python_client):
-    """
-    Opaque refresh tokens stored in the sessions table must be readable
-    after switching between services (Rust → Python).
+def test_rust_refresh_token_rotates_via_python(rust_client, python_client):
+    """Opaque refresh tokens written to the sessions table by Rust must be
+    rotatable by Python (sha256 hash + sessions row schema must match).
+    This is the riskiest rollback path — if it breaks, every active user
+    loses their session on rollback.
 
-    This validates that both services use the same sessions schema.
-    """
-    skip_if_unavailable(rust_client, RUST_URL)
-    skip_if_unavailable(python_client, PYTHON_URL)
+    The refresh token comes back as an HttpOnly cookie on signin. We pull
+    it from the cookie jar and replay it against Python's /refresh."""
+    skip_unless_both_up(rust_client, python_client)
 
     email = unique_email("refresh-cross")
     password = "RollbackTest123!"
 
-    # Create session via Rust
-    signup = rust_client.post(
-        "/api/v2/auth/signup",
-        json={"email": email, "password": password, "workspace_name": "Session WS"},
+    _rust_register(rust_client, email, password)
+    signin = rust_client.post(
+        "/api/v2/auth/signin",
+        json={"email": email, "password": password},
     )
-    if signup.status_code != 201:
-        pytest.skip("Rust signup failed")
+    assert signin.status_code == 200, f"Rust signin failed: {signin.text}"
 
-    refresh_token = signup.json().get("refresh_token", "")
-
-    # Refresh via Python (simulates Rust → Python rollback)
-    refresh_resp = python_client.post(
-        "/auth/refresh",
-        json={"refresh_token": refresh_token},
+    refresh = signin.cookies.get("refresh_token")
+    assert refresh, (
+        "Rust signin must set refresh_token cookie — cannot test cross-service "
+        "refresh without it"
     )
 
-    if refresh_resp.status_code == 200:
-        new_token = refresh_resp.json().get("access_token", "")
-        assert new_token, "Python must return new access_token on refresh"
-        print("✓ Rust-created session refreshed via Python (schema compatible)")
-    else:
-        print(
-            f"⚠ Python refresh returned {refresh_resp.status_code} "
-            f"for Rust-created session — sessions schema may differ"
-        )
+    rotated = python_client.post(
+        "/api/v2/auth/refresh",
+        json={"refresh_token": refresh},
+    )
+    assert rotated.status_code == 200, (
+        f"Python /refresh must rotate Rust-issued session (got {rotated.status_code}: "
+        f"{rotated.text}). If 401, sessions table schema or sha256 hashing differs."
+    )
+    body = rotated.json()
+    assert body.get("access_token"), "Python /refresh must return a new access_token"
+
+
+# ── TC-RB-06: Feature flag flip is observable via /auth/mode ──────────────
+
+def test_auth_mode_endpoint_reports_flag_state(rust_client, python_client):
+    """The kill-switch flag (auth.v2.enabled) must be queryable via
+    /api/v2/auth/mode on both services. The frontend reads this on mount
+    to know which backend is serving auth; during a rollback drill we
+    verify both sides agree on the current flag state.
+
+    This is the smoke test for the rollback mechanism itself — if the
+    flag isn't readable, we can't roll back without a deploy."""
+    skip_unless_both_up(rust_client, python_client)
+
+    rust_mode = rust_client.get("/api/v2/auth/mode")
+    assert rust_mode.status_code == 200, f"Rust /auth/mode unreachable: {rust_mode.text}"
+    rust_body = rust_mode.json()
+    assert "v2_enabled" in rust_body, "Rust /auth/mode must expose v2_enabled"
+    assert "legacy_enabled" in rust_body, "Rust /auth/mode must expose legacy_enabled"
+
+    py_mode = python_client.get("/api/v2/auth/mode")
+    assert py_mode.status_code == 200, f"Python /auth/mode unreachable: {py_mode.text}"
+    py_body = py_mode.json()
+    assert "v2_enabled" in py_body
+    assert "legacy_enabled" in py_body
+
+    # Both services read from the same feature_flags table — their view
+    # of the kill-switch must be identical at any point in time.
+    assert rust_body["v2_enabled"] == py_body["v2_enabled"], (
+        f"Rust and Python disagree on auth.v2.enabled: "
+        f"rust={rust_body['v2_enabled']} python={py_body['v2_enabled']}. "
+        "Rollback flag flip would be inconsistent."
+    )
+    assert rust_body["legacy_enabled"] == py_body["legacy_enabled"], (
+        "Rust and Python disagree on auth.legacy.enabled — same problem"
+    )

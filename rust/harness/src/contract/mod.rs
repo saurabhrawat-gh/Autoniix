@@ -4,10 +4,10 @@
 
 use std::path::Path;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use jsonschema::JSONSchema;
-use reqwest::{Client, Method, StatusCode};
-use serde_json::{json, Value};
+use reqwest::{Client, Method};
+use serde_json::Value;
 use thiserror::Error;
 use tracing::{error, info, warn};
 
@@ -134,10 +134,12 @@ impl ContractValidator {
                 errors: vec![e.to_string()],
             })?;
 
-        let errors: Vec<String> = compiled
-            .iter_errors(&body)
-            .map(|e| format!("{}: {}", e.instance_path, e))
-            .collect();
+        let errors: Vec<String> = match compiled.validate(&body) {
+            Ok(()) => Vec::new(),
+            Err(validation_errors) => validation_errors
+                .map(|e| format!("{}: {}", e.instance_path, e))
+                .collect(),
+        };
 
         if errors.is_empty() {
             info!(method = %method, path, status = expected_status, "contract validated ✓");
@@ -183,10 +185,10 @@ impl ContractValidator {
     }
 
     /// Resolve a `$ref` pointer within the schema document (single level).
-    fn resolve_ref(&self, mut schema: Value) -> Value {
+    fn resolve_ref(&self, schema: Value) -> Value {
         if let Some(ref_str) = schema.get("$ref").and_then(|r| r.as_str()) {
-            if ref_str.starts_with("#/") {
-                let parts: Vec<&str> = ref_str[2..].split('/').collect();
+            if let Some(pointer) = ref_str.strip_prefix("#/") {
+                let parts: Vec<&str> = pointer.split('/').collect();
                 let mut cursor = &self.schema;
                 for part in &parts {
                     cursor = match cursor.get(part) {
@@ -273,7 +275,10 @@ mod tests {
         });
 
         let compiled = JSONSchema::compile(&schema).unwrap();
-        let errors: Vec<_> = compiled.iter_errors(&response).collect();
+        let errors: Vec<String> = match compiled.validate(&response) {
+            Ok(()) => Vec::new(),
+            Err(validation_errors) => validation_errors.map(|e| e.to_string()).collect(),
+        };
         assert!(
             errors.is_empty(),
             "expected no validation errors: {errors:?}"
@@ -290,7 +295,10 @@ mod tests {
         let response = json!({ "expires_in": 3600 }); // missing access_token + refresh_token
 
         let compiled = JSONSchema::compile(&schema).unwrap();
-        let errors: Vec<_> = compiled.iter_errors(&response).collect();
+        let errors: Vec<String> = match compiled.validate(&response) {
+            Ok(()) => Vec::new(),
+            Err(validation_errors) => validation_errors.map(|e| e.to_string()).collect(),
+        };
         assert!(
             !errors.is_empty(),
             "expected validation errors for missing fields"

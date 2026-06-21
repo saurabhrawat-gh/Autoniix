@@ -13,6 +13,8 @@
 //! }
 //! ```
 
+#![allow(dead_code)]
+
 use axum::Router;
 use serde_json::{json, Value};
 use sqlx::{postgres::PgPoolOptions, PgPool};

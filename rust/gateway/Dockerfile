@@ -1,11 +1,15 @@
 # syntax=docker/dockerfile:1
 
-FROM rust:1.75-bookworm AS builder
+FROM rust:1-bookworm AS builder
+
+# protoc is required by the gateway build script (tonic-build) to compile .proto files
+RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
 COPY rust/Cargo.toml rust/Cargo.lock ./
 COPY rust/gateway gateway/
+COPY rust/harness harness/
 COPY proto ../proto/
 
 WORKDIR /build/gateway

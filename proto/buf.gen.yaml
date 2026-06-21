@@ -23,13 +23,13 @@ plugins:
       - pyi_out=../gen/python
   - remote: buf.build/grpc/python
     out: ../gen/python
+  - remote: buf.build/bufbuild/es
+    out: ../dashboard/src/generated
+    opt:
+      - target=ts
   - remote: buf.build/connectrpc/es
     out: ../dashboard/src/generated
     opt:
       - target=ts
-  - remote: buf.build/connectrpc/connect-es
-    out: ../dashboard/src/generated
-    opt:
-      - target=ts
 inputs:
-  - directory: autoniix
+  - directory: .

@@ -20,15 +20,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: bufbuild/buf-setup-action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Lint proto files
         working-directory: proto
         run: buf lint
-      
+
       - name: Format check
         working-directory: proto
         run: |
@@ -40,11 +40,11 @@ jobs:
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: bufbuild/buf-setup-action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Check for breaking changes
         working-directory: proto
         run: |
@@ -55,15 +55,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: bufbuild/buf-setup-action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Generate code
         working-directory: proto
         run: buf generate
-      
+
       - name: Verify generated files
         run: |
           if [ -z "$(ls -A gen/go)" ]; then

@@ -133,6 +133,7 @@ impl User {
 }
 
 impl Workspace {
+    #[allow(dead_code)]
     pub async fn find_by_id(pool: &sqlx::PgPool, id: i64) -> sqlx::Result<Option<Self>> {
         sqlx::query_as::<_, Self>(
             "SELECT id, name, slug, plan, owner_user_id FROM workspaces WHERE id = $1",

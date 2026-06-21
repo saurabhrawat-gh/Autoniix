@@ -2,8 +2,6 @@ syntax = "proto3";
 
 package autoniix.voice.v1;
 
-import "autoniix/common/v1/common.proto";
-
 service VoiceService {
   rpc SynthesizeVoice(SynthesizeVoiceRequest) returns (SynthesizeVoiceResponse);
   rpc ListVoiceModels(ListVoiceModelsRequest) returns (ListVoiceModelsResponse);
