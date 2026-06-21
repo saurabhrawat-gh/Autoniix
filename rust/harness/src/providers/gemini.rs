@@ -77,7 +77,9 @@ pub fn generate_content(cache: &ProviderCache, req: &GeminiRequest) -> GeminiRes
     let resp = GeminiResponse {
         candidates: vec![GeminiCandidate {
             content: GeminiContent {
-                parts: vec![GeminiPart { text: response_text }],
+                parts: vec![GeminiPart {
+                    text: response_text,
+                }],
                 role: Some("model".into()),
             },
             finish_reason: "STOP".into(),
@@ -104,10 +106,12 @@ mod tests {
 
     #[test]
     fn test_generate_content() {
-        let cache = ProviderCache::new(tempdir().unwrap().into_path(), true);
+        let cache = ProviderCache::new(tempdir().unwrap().keep(), true);
         let req = GeminiRequest {
             contents: vec![GeminiContent {
-                parts: vec![GeminiPart { text: "Explain neural networks.".into() }],
+                parts: vec![GeminiPart {
+                    text: "Explain neural networks.".into(),
+                }],
                 role: Some("user".into()),
             }],
             model: Some("gemini-1.5-pro".into()),

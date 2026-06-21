@@ -18,8 +18,6 @@ pub async fn create_pool(database_url: &str) -> Result<PgPool> {
 }
 
 pub async fn health_check(pool: &PgPool) -> Result<bool> {
-    sqlx::query("SELECT 1")
-        .fetch_one(pool)
-        .await?;
+    sqlx::query("SELECT 1").fetch_one(pool).await?;
     Ok(true)
 }

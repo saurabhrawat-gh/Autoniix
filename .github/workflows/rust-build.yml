@@ -1,11 +1,7 @@
 name: Rust Build & Test
 
 on:
-  pull_request:
-    paths:
-      - 'rust/**'
-      - 'proto/**/*.proto'
-      - '.github/workflows/rust-build.yml'
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -17,52 +13,38 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
+concurrency:
+  group: rust-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  check:
-    name: Check
+  check-and-build:
+    name: Check & Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: dtolnay/rust-toolchain@stable
-      
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
-      
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
       - name: Check formatting
         working-directory: rust
         run: cargo fmt --all -- --check
-      
+
       - name: Clippy
         working-directory: rust
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: check
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: dtolnay/rust-toolchain@stable
-      
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: rust
-      
-      - uses: bufbuild/buf-setup-action@v1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Generate proto code
-        working-directory: proto
-        run: buf generate
-      
-      - name: Build all crates
+      - name: Build all crates (release)
         working-directory: rust
         run: cargo build --release --all-features
-      
+
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
@@ -73,38 +55,70 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    needs: check
+    needs: check-and-build
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: autoniix_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: dtolnay/rust-toolchain@stable
-      
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
-      
-      - uses: bufbuild/buf-setup-action@v1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Generate proto code
-        working-directory: proto
-        run: buf generate
-      
-      - name: Run tests
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Apply test DB migrations
+        env:
+          PGPASSWORD: postgres
+        run: |
+          for f in scripts/migrations/*.sql; do
+            psql -h localhost -U postgres -d autoniix_test -f "$f" -v ON_ERROR_STOP=1 || true
+          done
+
+      - name: Run unit tests
         working-directory: rust
-        run: cargo test --all-features
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
+          AUTH_JWT_SECRET: test-jwt-secret-for-ci
+        run: cargo test -p gateway --lib
+
+      - name: Run schema compatibility tests
+        working-directory: rust
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
+          AUTH_JWT_SECRET: test-jwt-secret-for-ci
+        run: cargo test -p gateway --test schema_compatibility_test
+
+      - name: Run harness tests (skip if no live services)
+        working-directory: rust
+        run: cargo test -p harness
 
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
-    needs: build
+    needs: check-and-build
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
+
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:

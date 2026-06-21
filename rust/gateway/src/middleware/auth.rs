@@ -1,5 +1,4 @@
 use axum::{
-    body::Body,
     extract::{Request, State},
     http::{header::AUTHORIZATION, StatusCode},
     middleware::Next,
@@ -7,10 +6,7 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::{
-    auth::{jwt::Claims, JwtManager},
-    error::ApiError,
-};
+use crate::auth::{jwt::Claims, JwtManager};
 
 #[derive(Debug, Clone)]
 pub struct Principal {
@@ -75,10 +71,7 @@ pub async fn auth_middleware(
     Ok(next.run(request).await)
 }
 
-pub async fn require_auth_middleware(
-    request: Request,
-    next: Next,
-) -> Result<Response, StatusCode> {
+pub async fn require_auth_middleware(request: Request, next: Next) -> Result<Response, StatusCode> {
     if request.extensions().get::<Principal>().is_none() {
         return Err(StatusCode::UNAUTHORIZED);
     }
@@ -86,11 +79,13 @@ pub async fn require_auth_middleware(
     Ok(next.run(request).await)
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct RequireRole {
     pub roles: Vec<String>,
 }
 
+#[allow(dead_code)]
 impl RequireRole {
     pub fn new(roles: Vec<String>) -> Self {
         Self { roles }
@@ -112,10 +107,7 @@ impl RequireRole {
             .get::<Principal>()
             .ok_or(StatusCode::UNAUTHORIZED)?;
 
-        let has_role = required
-            .roles
-            .iter()
-            .any(|r| principal.has_role(r));
+        let has_role = required.roles.iter().any(|r| principal.has_role(r));
 
         if !has_role {
             return Err(StatusCode::FORBIDDEN);

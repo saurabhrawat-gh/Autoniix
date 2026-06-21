@@ -16,7 +16,10 @@ pub struct FishAudioRequest {
 
 /// Mock Fish Audio TTS — returns a valid silent WAV file.
 pub fn synthesize(cache: &ProviderCache, req: &FishAudioRequest) -> Vec<u8> {
-    let key = ProviderCache::key("fish_audio", &serde_json::to_string(req).unwrap_or_default());
+    let key = ProviderCache::key(
+        "fish_audio",
+        &serde_json::to_string(req).unwrap_or_default(),
+    );
 
     if let Some(bytes) = cache.get_bytes(&key, "wav") {
         return bytes;
@@ -48,8 +51,8 @@ fn silent_wav(duration_secs: usize) -> Vec<u8> {
     buf.extend_from_slice(b"WAVE");
     // fmt chunk
     buf.extend_from_slice(b"fmt ");
-    buf.extend_from_slice(&16u32.to_le_bytes());         // chunk size
-    buf.extend_from_slice(&1u16.to_le_bytes());          // PCM
+    buf.extend_from_slice(&16u32.to_le_bytes()); // chunk size
+    buf.extend_from_slice(&1u16.to_le_bytes()); // PCM
     buf.extend_from_slice(&CHANNELS.to_le_bytes());
     buf.extend_from_slice(&SAMPLE_RATE.to_le_bytes());
     buf.extend_from_slice(&(SAMPLE_RATE * CHANNELS as u32 * BITS as u32 / 8).to_le_bytes());
@@ -70,7 +73,7 @@ mod tests {
 
     #[test]
     fn test_synthesize_returns_wav() {
-        let cache = ProviderCache::new(tempdir().unwrap().into_path(), true);
+        let cache = ProviderCache::new(tempdir().unwrap().keep(), true);
         let req = FishAudioRequest {
             text: "Hello world this is a test".into(),
             voice_id: "test_voice".into(),
@@ -85,7 +88,7 @@ mod tests {
 
     #[test]
     fn test_synthesize_cached() {
-        let cache = ProviderCache::new(tempdir().unwrap().into_path(), true);
+        let cache = ProviderCache::new(tempdir().unwrap().keep(), true);
         let req = FishAudioRequest {
             text: "Cache test sentence".into(),
             voice_id: "v1".into(),

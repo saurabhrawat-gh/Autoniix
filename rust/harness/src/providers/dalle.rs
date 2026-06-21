@@ -1,7 +1,6 @@
 //! DALL-E image generation mock — returns a 1×1 transparent PNG.
 
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
 use super::ProviderCache;
 
@@ -53,7 +52,10 @@ pub fn generate(cache: &ProviderCache, req: &DalleRequest) -> DalleResponse {
 
     let use_b64 = req.response_format == Some(ResponseFormat::B64Json);
     let image = if use_b64 {
-        DalleImage { url: None, b64_json: Some(PLACEHOLDER_PNG_B64.to_string()) }
+        DalleImage {
+            url: None,
+            b64_json: Some(PLACEHOLDER_PNG_B64.to_string()),
+        }
     } else {
         DalleImage {
             url: Some(format!("https://mock-dalle.example.com/images/{key}.png")),
@@ -61,7 +63,10 @@ pub fn generate(cache: &ProviderCache, req: &DalleRequest) -> DalleResponse {
         }
     };
 
-    let resp = DalleResponse { created: chrono::Utc::now().timestamp(), data: vec![image] };
+    let resp = DalleResponse {
+        created: chrono::Utc::now().timestamp(),
+        data: vec![image],
+    };
     cache.set_json(&key, &serde_json::to_value(&resp).unwrap());
     resp
 }
@@ -69,11 +74,12 @@ pub fn generate(cache: &ProviderCache, req: &DalleRequest) -> DalleResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use base64::Engine as _;
     use tempfile::tempdir;
 
     #[test]
     fn test_generate_url_format() {
-        let cache = ProviderCache::new(tempdir().unwrap().into_path(), true);
+        let cache = ProviderCache::new(tempdir().unwrap().keep(), true);
         let req = DalleRequest {
             prompt: "A futuristic city".into(),
             size: Some("1024x1024".into()),
@@ -88,7 +94,7 @@ mod tests {
 
     #[test]
     fn test_generate_b64_format() {
-        let cache = ProviderCache::new(tempdir().unwrap().into_path(), true);
+        let cache = ProviderCache::new(tempdir().unwrap().keep(), true);
         let req = DalleRequest {
             prompt: "Abstract art".into(),
             size: None,
@@ -98,7 +104,9 @@ mod tests {
         let resp = generate(&cache, &req);
         let b64 = resp.data[0].b64_json.as_ref().unwrap();
         // Verify it decodes to valid bytes
-        let decoded = base64::decode(b64).unwrap();
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(b64)
+            .unwrap();
         assert!(!decoded.is_empty());
     }
 }

@@ -26,7 +26,6 @@ pub mod youtube;
 
 use std::path::PathBuf;
 
-use anyhow::Result;
 use sha2::{Digest, Sha256};
 
 /// Shared cache layer for all provider mocks.

@@ -5,8 +5,7 @@ use axum::{routing::get, Json, Router};
 use serde_json::json;
 
 pub fn api_routes() -> Router {
-    Router::new()
-        .route("/api/v2/info", get(api_info))
+    Router::new().route("/api/v2/info", get(api_info))
 }
 
 async fn api_info() -> Json<serde_json::Value> {

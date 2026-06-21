@@ -1,10 +1,4 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    routing::get,
-    Json, Router,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::get, Json, Router};
 use serde::Serialize;
 use sqlx::PgPool;
 
@@ -52,29 +46,27 @@ async fn get_current_user(
 
     // `display_name` is the only field sourced from the DB; everything else comes
     // from the verified JWT principal (mirrors Python `v2/auth.py` /me).
-    let display_name: Option<String> = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT display_name FROM users WHERE id = $1",
-    )
-    .bind(user_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(ApiError::Database)?
-    .flatten();
+    let display_name: Option<String> =
+        sqlx::query_scalar::<_, Option<String>>("SELECT display_name FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(ApiError::Database)?
+            .flatten();
 
     // Resolve permissions for the workspace-scoped role from the shared
     // `role_permissions` matrix (same source as Python `_permissions.py`).
-    let mut permissions: Vec<String> = sqlx::query_scalar::<_, String>(
-        "SELECT permission FROM role_permissions WHERE role = $1",
-    )
-    .bind(&principal.role)
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| {
-        ApiError::ServiceUnavailable(format!(
-            "role_permissions matrix unreadable for role={}: {e}",
-            principal.role
-        ))
-    })?;
+    let mut permissions: Vec<String> =
+        sqlx::query_scalar::<_, String>("SELECT permission FROM role_permissions WHERE role = $1")
+            .bind(&principal.role)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| {
+                ApiError::ServiceUnavailable(format!(
+                    "role_permissions matrix unreadable for role={}: {e}",
+                    principal.role
+                ))
+            })?;
     permissions.sort();
 
     // A known role with zero seeded permissions means the RBAC matrix is
