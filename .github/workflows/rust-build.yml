@@ -18,9 +18,13 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
+concurrency:
+  group: rust-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  check:
-    name: Check
+  check-and-build:
+    name: Check & Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,23 +46,7 @@ jobs:
         working-directory: rust
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: check
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: rust
-
-      - name: Install protoc
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-
-      - name: Build all crates
+      - name: Build all crates (release)
         working-directory: rust
         run: cargo build --release --all-features
 
@@ -72,7 +60,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    needs: check
+    needs: check-and-build
     services:
       postgres:
         image: postgres:16
@@ -128,7 +116,8 @@ jobs:
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
-    needs: build
+    needs: check-and-build
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
