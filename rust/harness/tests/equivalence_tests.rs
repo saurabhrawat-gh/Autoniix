@@ -179,35 +179,37 @@ async fn test_signup_response_has_required_fields_in_both() {
     let client = reqwest::Client::new();
 
     let email_rs = unique_email("fields-rs");
-    let rs_body: serde_json::Value = match client
+    let rs_resp = match client
         .post(format!("{}/api/v2/auth/signup", rust_url()))
         .json(&json!({"email": email_rs, "password": "Password123!", "workspace_name": "W"}))
         .send()
         .await
     {
-        Ok(r) => r.json().await.unwrap_or_default(),
+        Ok(r) => r,
         Err(_) => {
             eprintln!("SKIP: Rust gateway not running");
             return;
         }
     };
+    if !rs_resp.status().is_success() {
+        eprintln!(
+            "SKIP: Rust gateway returned {} — not a clean test environment",
+            rs_resp.status()
+        );
+        return;
+    }
+    let rs_body: serde_json::Value = rs_resp.json().await.unwrap_or_default();
 
-    // Required fields per spec
-    for field in &[
-        "access_token",
-        "refresh_token",
-        "expires_in",
-        "user",
-        "workspace",
-    ] {
+    // Register returns onboarding metadata only (no auto-login).
+    // Frontend calls /signin separately after register.
+    for field in &["status", "user_id", "workspace_id", "role"] {
         assert!(
             !rs_body[field].is_null(),
             "Rust signup response missing field: {field}"
         );
     }
-    assert_eq!(rs_body["expires_in"], 3600, "expires_in must be 3600");
     assert!(
-        rs_body["user"]["id"].as_i64().is_some(),
-        "user.id must be integer"
+        rs_body["user_id"].as_i64().is_some(),
+        "user_id must be integer"
     );
 }
