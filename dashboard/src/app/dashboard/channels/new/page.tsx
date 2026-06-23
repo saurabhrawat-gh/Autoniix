@@ -412,7 +412,7 @@ function BasicsStep({ state, update, errors }: { state: FormState; update: any; 
           </SelectContent>
         </Select>
       </Field>
-      <Field label="Handle (optional)" hint="@thecuriousengineer">
+      <Field label="Handle" required hint="@thecuriousengineer" error={errors.handle}>
         <Input value={state.handle} onChange={e => update('handle', e.target.value)} placeholder="@yourhandle" />
       </Field>
       <Field label="Niche" required hint="The 1-2 word category. Used by research + topic generation." error={errors.niche}>

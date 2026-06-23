@@ -191,9 +191,45 @@ export default function ChannelDetail() {
         )}
         {tab === 'Strategy' && (
           <Grid>
-            <Inp label="Content mode" value={get('content_mode')} onChange={(v: any) => set('content_mode', v)} />
+            <div className="block">
+              <FieldLabel className="text-xs uppercase tracking-wide opacity-70 mb-1 block">Content mode</FieldLabel>
+              <Select value={get('content_mode') || 'short'} onValueChange={(v: string) => set('content_mode', v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="short">Short</SelectItem>
+                  <SelectItem value="long">Long</SelectItem>
+                  <SelectItem value="mixed">Mixed (Short + Long)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Inp label="Publish cadence" value={get('publish_cadence') || ''} onChange={(v: any) => set('publish_cadence', v)} />
             <Inp label="Tone" value={get('tone') || ''} onChange={(v: any) => set('tone', v)} />
             <Inp label="Brand personality" wide value={get('brand_personality') || ''} onChange={(v: any) => set('brand_personality', v)} />
+            <div className="md:col-span-2 block">
+              <FieldLabel className="text-xs uppercase tracking-wide opacity-70 mb-1 block">Channel type tags</FieldLabel>
+              <div className="flex flex-wrap gap-1.5">
+                {['faceless','commentary','storytelling','documentary','kids','podcast','trend-based','evergreen','character','persona'].map(tag => {
+                  const active = (get('content_type_tags') || []).includes(tag);
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => set('content_type_tags', active
+                        ? (get('content_type_tags') || []).filter((x: string) => x !== tag)
+                        : [...(get('content_type_tags') || []), tag])}
+                      className={cn(
+                        'text-xs px-2.5 py-1 rounded-full border transition-colors',
+                        active
+                          ? 'bg-accent/10 text-accent border-accent/30'
+                          : 'bg-surface-2 text-content-tertiary border-border hover:border-accent/30'
+                      )}
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <Inp label="Mission" wide multiline value={get('mission') || ''} onChange={(v: any) => set('mission', v)} />
             <Inp label="Vision" wide multiline value={get('vision') || ''} onChange={(v: any) => set('vision', v)} />
           </Grid>

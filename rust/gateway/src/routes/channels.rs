@@ -35,7 +35,7 @@ use crate::{
 
 // ── Trigger cooldown guard ────────────────────────────────────────────────────
 
-const TRIGGER_COOLDOWN_SECS: u64 = 60;
+const TRIGGER_COOLDOWN_SECS: u64 = 600;
 
 static TRIGGER_COOLDOWN: OnceLock<Mutex<HashMap<String, Instant>>> = OnceLock::new();
 
@@ -653,7 +653,7 @@ async fn list_presets(
 // ── Stats ─────────────────────────────────────────────────────────────────────
 
 async fn get_stats(
-    AuthUser(_): AuthUser,
+    AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
 ) -> ApiResult<impl IntoResponse> {
     let ch = sqlx::query(
@@ -661,8 +661,9 @@ async fn get_stats(
                   COUNT(*) FILTER (WHERE status = 'active')   AS active,
                   COUNT(*) FILTER (WHERE status = 'disabled') AS disabled,
                   COUNT(*) FILTER (WHERE status = 'archived') AS archived
-             FROM channels"#,
+             FROM channels WHERE workspace_id = $1"#,
     )
+    .bind(principal.wid)
     .fetch_one(&pool)
     .await
     .map_err(ApiError::Database)?;
@@ -674,8 +675,11 @@ async fn get_stats(
                   COUNT(*) FILTER (WHERE status NOT IN
                       ('delivered','test_delivered','failed','stopped','superseded','rejected')) AS in_progress,
                   CAST(COALESCE(SUM(total_cost), 0) AS FLOAT8) AS total_cost
-             FROM videos WHERE created_at::date = CURRENT_DATE"#,
+             FROM videos
+            WHERE channel_id IN (SELECT channel_id FROM channels WHERE workspace_id=$1)
+              AND created_at::date = CURRENT_DATE"#,
     )
+    .bind(principal.wid)
     .fetch_one(&pool)
     .await
     .map_err(ApiError::Database)?;
@@ -746,6 +750,16 @@ async fn create_channel(
     if body.platform != "youtube" {
         return Err(ApiError::Validation(
             "Only 'youtube' platform is supported".to_string(),
+        ));
+    }
+
+    let h = body.handle.as_deref().unwrap_or("").trim();
+    if h.is_empty() {
+        return Err(ApiError::Validation("handle is required".to_string()));
+    }
+    if !h.starts_with('@') {
+        return Err(ApiError::Validation(
+            "handle must start with '@'".to_string(),
         ));
     }
 
@@ -1138,6 +1152,12 @@ async fn get_channel(
                         .ok()
                         .flatten()
                         .map(|f| json!(f))
+                })
+                .or_else(|| {
+                    r.try_get::<Option<Vec<String>>, _>(name)
+                        .ok()
+                        .flatten()
+                        .map(|v| json!(v))
                 })
                 .or_else(|| {
                     r.try_get::<Option<DateTime<Utc>>, _>(name)
@@ -1998,7 +2018,13 @@ async fn list_pillars(
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
 ) -> ApiResult<impl IntoResponse> {
-    let _ = principal;
+    sqlx::query_scalar::<_, i64>("SELECT 1 FROM channels WHERE channel_id=$1 AND workspace_id=$2")
+        .bind(&channel_id)
+        .bind(principal.wid)
+        .fetch_optional(&pool)
+        .await
+        .map_err(ApiError::Database)?
+        .ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
     let rows = sqlx::query(
         "SELECT id, name, description, weight, examples, position \
            FROM channel_pillars WHERE channel_id=$1 ORDER BY position",
@@ -2031,7 +2057,13 @@ async fn list_topic_rules(
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
 ) -> ApiResult<impl IntoResponse> {
-    let _ = principal;
+    sqlx::query_scalar::<_, i64>("SELECT 1 FROM channels WHERE channel_id=$1 AND workspace_id=$2")
+        .bind(&channel_id)
+        .bind(principal.wid)
+        .fetch_optional(&pool)
+        .await
+        .map_err(ApiError::Database)?
+        .ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
     let rows = sqlx::query(
         "SELECT id, kind, value, metadata, created_at \
            FROM channel_topic_rules WHERE channel_id=$1 ORDER BY kind, id",
@@ -2063,7 +2095,13 @@ async fn list_references(
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
 ) -> ApiResult<impl IntoResponse> {
-    let _ = principal;
+    sqlx::query_scalar::<_, i64>("SELECT 1 FROM channels WHERE channel_id=$1 AND workspace_id=$2")
+        .bind(&channel_id)
+        .bind(principal.wid)
+        .fetch_optional(&pool)
+        .await
+        .map_err(ApiError::Database)?
+        .ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
     let rows = sqlx::query(
         "SELECT id, kind, label, uri, minio_key, parsed_metadata, uploaded_at \
            FROM channel_references WHERE channel_id=$1 ORDER BY uploaded_at DESC",
@@ -2097,7 +2135,13 @@ async fn list_memory(
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
 ) -> ApiResult<impl IntoResponse> {
-    let _ = principal;
+    sqlx::query_scalar::<_, i64>("SELECT 1 FROM channels WHERE channel_id=$1 AND workspace_id=$2")
+        .bind(&channel_id)
+        .bind(principal.wid)
+        .fetch_optional(&pool)
+        .await
+        .map_err(ApiError::Database)?
+        .ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
     let rows = sqlx::query(
         "SELECT id, memory_type, content, confidence, created_at \
            FROM channel_memory WHERE channel_id=$1 ORDER BY created_at DESC LIMIT 100",
@@ -2214,6 +2258,24 @@ async fn export_channel(
                         .ok()
                         .flatten()
                         .map(Value::Bool)
+                })
+                .or_else(|| {
+                    r.try_get::<Option<f64>, _>(n)
+                        .ok()
+                        .flatten()
+                        .map(|f| json!(f))
+                })
+                .or_else(|| {
+                    r.try_get::<Option<Vec<String>>, _>(n)
+                        .ok()
+                        .flatten()
+                        .map(|v| json!(v))
+                })
+                .or_else(|| {
+                    r.try_get::<Option<DateTime<Utc>>, _>(n)
+                        .ok()
+                        .flatten()
+                        .map(|t| json!(t))
                 })
                 .unwrap_or(Value::Null);
             m.insert(n.to_string(), v);

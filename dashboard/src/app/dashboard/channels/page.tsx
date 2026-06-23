@@ -268,8 +268,9 @@ export default function ChannelsPage() {
   }
   function getModes(ch: any): string[] {
     const raw = ch.content_mode || 'short';
-    if (raw === 'mixed') return ['short', 'long_form'];
-    return raw.split(',').map((m: string) => m.trim());
+    if (raw === 'mixed' || raw === 'both') return ['short', 'long_form'];
+    if (raw === 'long') return ['long_form'];
+    return [raw];
   }
   function isModeAtLimit(ch: any, mode: string): boolean {
     const u = ch.weekly_usage?.[mode]; return u ? u.used >= u.limit : false;
