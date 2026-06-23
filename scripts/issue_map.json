@@ -31,8 +31,8 @@
     "672": { "jira": "AE-584", "status": "done",   "title": "H.2 — GatewayHarness + Criterion benchmarks for auth endpoints" },
     "673": { "jira": "AE-585", "status": "done",   "title": "H.3 — Go + Python harness templates for microservices" },
     "674": { "jira": "AE-586", "status": "done",   "title": "H.4 — Migration validation: Python ↔ Rust equivalence + rollback tests" },
-    "676": { "jira": "AE-588", "status": "open",   "title": "Channels BE: 4 data-loss bugs — content_type_tags, publish_cadence, uploaded_by, content_mode patch" },
-    "677": { "jira": "AE-589", "status": "open",   "title": "Channels FE: wrong badge, broken redirect, handle not required" },
-    "678": { "jira": "AE-590", "status": "open",   "title": "Channels BE: missing list endpoints + trigger cooldown guard" }
+    "676": { "jira": "AE-588", "status": "in-prod", "title": "Channels BE: 4 data-loss bugs — content_type_tags, publish_cadence, uploaded_by, content_mode patch" },
+    "677": { "jira": "AE-589", "status": "in-prod", "title": "Channels FE: wrong badge, broken redirect, handle not required" },
+    "678": { "jira": "AE-590", "status": "in-prod", "title": "Channels BE: missing list endpoints + trigger cooldown guard" }
   }
 }
