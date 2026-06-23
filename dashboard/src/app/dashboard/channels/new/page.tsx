@@ -193,8 +193,8 @@ export default function ChannelWizard() {
     }
     setSubmitting(true); setError(null);
     try {
-      const r = await channelsApi.create(state);
-      router.push(`/dashboard/channels/${r.channel_id}`);
+      await channelsApi.create(state);
+      router.push('/dashboard/channels');
     } catch (e: any) {
       setError(e?.message || 'Failed to create channel');
     } finally {

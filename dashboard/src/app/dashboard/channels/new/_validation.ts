@@ -25,6 +25,9 @@ export function validateBasics(state: any): StepValidation {
 
   if (!(state.niche ?? '').trim()) errors.niche = 'Pick a niche.';
   if (!(state.primary_language ?? '').trim()) errors.primary_language = 'Select a primary language.';
+  const handle: string = (state.handle ?? '').trim();
+  if (!handle) errors.handle = 'YouTube handle is required (e.g. @YourChannel).';
+  else if (!handle.startsWith('@')) errors.handle = 'Handle must start with @.';
   if (!['short', 'long', 'mixed'].includes(state.content_mode)) {
     errors.content_mode = 'Pick a content mode.';
   }

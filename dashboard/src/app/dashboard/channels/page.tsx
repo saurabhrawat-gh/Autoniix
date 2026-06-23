@@ -268,7 +268,7 @@ export default function ChannelsPage() {
   }
   function getModes(ch: any): string[] {
     const raw = ch.content_mode || 'short';
-    if (raw === 'both') return ['short', 'long_form'];
+    if (raw === 'mixed') return ['short', 'long_form'];
     return raw.split(',').map((m: string) => m.trim());
   }
   function isModeAtLimit(ch: any, mode: string): boolean {
@@ -461,10 +461,6 @@ export default function ChannelsPage() {
                       </Link>
                       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                         {ch.niche && <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">{ch.niche}</span>}
-                        {ch.environment === 'production'
-                          ? <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-red-500/10 text-red-400">PROD</span>
-                          : <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-emerald-500/10 text-emerald-500">TEST</span>
-                        }
                         {modes.map((m: string) => (
                           <span key={m} className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium',
                             m === 'short' ? 'bg-violet-500/10 text-violet-500' : 'bg-blue-500/10 text-blue-500')}>
@@ -472,7 +468,6 @@ export default function ChannelsPage() {
                           </span>
                         ))}
                         {ch.auto_upload && <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent">Auto</span>}
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 font-medium">{platformLabel(ch.platform)}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -649,10 +644,6 @@ export default function ChannelsPage() {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-medium text-sm text-content-primary hover:text-accent truncate">{ch.channel_name}</span>
                           {ch.niche && <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">{ch.niche}</span>}
-                          {ch.environment === 'production'
-                            ? <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-red-500/10 text-red-400">PROD</span>
-                            : <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-emerald-500/10 text-emerald-500">TEST</span>
-                          }
                           {modes.map((m: string) => (
                             <span key={m} className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium',
                               m === 'short' ? 'bg-violet-500/10 text-violet-500' : 'bg-blue-500/10 text-blue-500')}>
@@ -660,7 +651,6 @@ export default function ChannelsPage() {
                             </span>
                           ))}
                           {ch.auto_upload && <span className="text-[10px] px-1 py-0.5 rounded bg-accent/10 text-accent">Auto</span>}
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 font-medium">{platformLabel(ch.platform)}</span>
                           {isArchived && <span className="text-[10px] px-1 py-0.5 rounded bg-surface-3 text-content-tertiary">Archived</span>}
                         </div>
                         <div className="text-[10px] text-content-tertiary mt-0.5 font-mono truncate">{ch.channel_id}</div>
