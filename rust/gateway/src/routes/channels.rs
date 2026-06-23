@@ -17,15 +17,15 @@ use axum::{
     Json, Router,
 };
 use chrono::{DateTime, Utc};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::PgPool;
-use rand::Rng;
 use std::collections::HashMap;
 
 use crate::{
-    auth::password::PasswordManager,
     audit::{audit_log, AuditCtx},
+    auth::password::PasswordManager,
     error::{ApiError, ApiResult},
     extractors::AuthUser,
     middleware::Principal,
@@ -37,39 +37,69 @@ pub fn routes(pool: PgPool) -> Router {
     Router::new()
         // Static paths must be registered before /{channel_id} or Axum will
         // try to parse e.g. "presets" as a channel_id path segment.
-        .route("/api/v2/channels/presets",          get(list_presets))
-        .route("/api/v2/channels/stats",            get(get_stats))
-        .route("/api/v2/channels/drafts",           post(create_draft))
-        .route("/api/v2/channels/drafts/:draft_id", get(get_draft).put(save_draft))
+        .route("/api/v2/channels/presets", get(list_presets))
+        .route("/api/v2/channels/stats", get(get_stats))
+        .route("/api/v2/channels/drafts", post(create_draft))
+        .route(
+            "/api/v2/channels/drafts/:draft_id",
+            get(get_draft).put(save_draft),
+        )
         .route("/api/v2/channels/ai/field-suggest", post(field_suggest))
         // CRUD
-        .route("/api/v2/channels",                  get(list_channels).post(create_channel))
+        .route("/api/v2/channels", get(list_channels).post(create_channel))
         .route(
             "/api/v2/channels/:channel_id",
             get(get_channel).put(patch_channel).delete(delete_channel),
         )
-        .route("/api/v2/channels/:channel_id/profile",  put(upsert_profile))
-        .route("/api/v2/channels/:channel_id/export",   get(export_channel))
+        .route("/api/v2/channels/:channel_id/profile", put(upsert_profile))
+        .route("/api/v2/channels/:channel_id/export", get(export_channel))
         // Status actions
-        .route("/api/v2/channels/:channel_id/enable",   put(enable_channel))
-        .route("/api/v2/channels/:channel_id/disable",  put(disable_channel))
-        .route("/api/v2/channels/:channel_id/archive",  put(archive_channel))
-        .route("/api/v2/channels/:channel_id/restore",  put(restore_channel))
+        .route("/api/v2/channels/:channel_id/enable", put(enable_channel))
+        .route("/api/v2/channels/:channel_id/disable", put(disable_channel))
+        .route("/api/v2/channels/:channel_id/archive", put(archive_channel))
+        .route("/api/v2/channels/:channel_id/restore", put(restore_channel))
         // Sub-resources
-        .route("/api/v2/channels/:channel_id/pillars",               post(add_pillar))
-        .route("/api/v2/channels/:channel_id/pillars/:pillar_id",    put(update_pillar).delete(delete_pillar))
-        .route("/api/v2/channels/:channel_id/topic-rules",           post(add_topic_rule))
-        .route("/api/v2/channels/:channel_id/topic-rules/:rule_id",  delete(delete_topic_rule))
-        .route("/api/v2/channels/:channel_id/references",            post(add_reference))
-        .route("/api/v2/channels/:channel_id/references/:ref_id",    delete(delete_reference))
-        .route("/api/v2/channels/:channel_id/memory",                post(add_memory))
+        .route("/api/v2/channels/:channel_id/pillars", post(add_pillar))
+        .route(
+            "/api/v2/channels/:channel_id/pillars/:pillar_id",
+            put(update_pillar).delete(delete_pillar),
+        )
+        .route(
+            "/api/v2/channels/:channel_id/topic-rules",
+            post(add_topic_rule),
+        )
+        .route(
+            "/api/v2/channels/:channel_id/topic-rules/:rule_id",
+            delete(delete_topic_rule),
+        )
+        .route(
+            "/api/v2/channels/:channel_id/references",
+            post(add_reference),
+        )
+        .route(
+            "/api/v2/channels/:channel_id/references/:ref_id",
+            delete(delete_reference),
+        )
+        .route("/api/v2/channels/:channel_id/memory", post(add_memory))
         // Proxy endpoints (Temporal + brand service)
-        .route("/api/v2/channels/:channel_id/trigger",                       post(proxy_trigger))
-        .route("/api/v2/channels/:channel_id/clone",                         post(proxy_clone))
-        .route("/api/v2/channels/:channel_id/brand-kit",                     get(proxy_get_brand_kit).put(proxy_put_brand_kit))
-        .route("/api/v2/channels/:channel_id/jobs/:content_id/pause",        post(proxy_pause_job))
-        .route("/api/v2/channels/:channel_id/jobs/:content_id/resume",       post(proxy_resume_job))
-        .route("/api/v2/channels/:channel_id/jobs/:content_id/stop",         post(proxy_stop_job))
+        .route("/api/v2/channels/:channel_id/trigger", post(proxy_trigger))
+        .route("/api/v2/channels/:channel_id/clone", post(proxy_clone))
+        .route(
+            "/api/v2/channels/:channel_id/brand-kit",
+            get(proxy_get_brand_kit).put(proxy_put_brand_kit),
+        )
+        .route(
+            "/api/v2/channels/:channel_id/jobs/:content_id/pause",
+            post(proxy_pause_job),
+        )
+        .route(
+            "/api/v2/channels/:channel_id/jobs/:content_id/resume",
+            post(proxy_resume_job),
+        )
+        .route(
+            "/api/v2/channels/:channel_id/jobs/:content_id/stop",
+            post(proxy_stop_job),
+        )
         .with_state(pool)
 }
 
@@ -139,18 +169,41 @@ struct ChannelCreate {
     preset: Option<String>,
     #[serde(default)]
     extra: Value,
+    #[serde(default)]
+    content_type_tags: Vec<String>,
+    publish_cadence: Option<String>,
 }
 
-fn default_platform() -> String { "youtube".to_string() }
-fn default_content_mode() -> String { "short".to_string() }
-fn default_lang() -> String { "en".to_string() }
-fn default_review() -> String { "first_10".to_string() }
-fn default_review_timeout() -> i32 { 24 }
-fn default_daily_spend() -> f64 { 5.0 }
-fn default_short_videos() -> i32 { 7 }
-fn default_long_videos() -> i32 { 1 }
-fn default_short_duration() -> i32 { 60 }
-fn default_long_duration() -> i32 { 600 }
+fn default_platform() -> String {
+    "youtube".to_string()
+}
+fn default_content_mode() -> String {
+    "short".to_string()
+}
+fn default_lang() -> String {
+    "en".to_string()
+}
+fn default_review() -> String {
+    "first_10".to_string()
+}
+fn default_review_timeout() -> i32 {
+    24
+}
+fn default_daily_spend() -> f64 {
+    5.0
+}
+fn default_short_videos() -> i32 {
+    7
+}
+fn default_long_videos() -> i32 {
+    1
+}
+fn default_short_duration() -> i32 {
+    60
+}
+fn default_long_duration() -> i32 {
+    600
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ChannelPatch {
@@ -187,6 +240,9 @@ struct ChannelPatch {
     voice_stability: Option<f64>,
     voice_similarity: Option<f64>,
     voice_style: Option<f64>,
+    content_mode: Option<String>,
+    content_type_tags: Option<Vec<String>>,
+    publish_cadence: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -200,7 +256,9 @@ struct PillarIn {
     #[serde(default)]
     position: i32,
 }
-fn default_weight() -> f64 { 1.0 }
+fn default_weight() -> f64 {
+    1.0
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 struct TopicRuleIn {
@@ -234,7 +292,9 @@ struct DraftIn {
     #[serde(default)]
     payload: Value,
 }
-fn default_step() -> i32 { 1 }
+fn default_step() -> i32 {
+    1
+}
 
 #[derive(Debug, Deserialize)]
 struct FieldSuggestIn {
@@ -270,7 +330,9 @@ struct ListChannelsQuery {
     #[serde(default = "default_enrich")]
     enrich: bool,
 }
-fn default_enrich() -> bool { true }
+fn default_enrich() -> bool {
+    true
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -278,7 +340,9 @@ fn require_owner_or_member(p: &Principal) -> ApiResult<()> {
     if p.role == "owner" || p.role == "member" {
         Ok(())
     } else {
-        Err(ApiError::ForbiddenWith("owner or member role required".to_string()))
+        Err(ApiError::ForbiddenWith(
+            "owner or member role required".to_string(),
+        ))
     }
 }
 
@@ -297,19 +361,35 @@ fn new_channel_id(name: &str) -> String {
         .filter(|c| c.is_alphanumeric())
         .take(14)
         .collect();
-    let base = if base.is_empty() { "ch".to_string() } else { base };
+    let base = if base.is_empty() {
+        "ch".to_string()
+    } else {
+        base
+    };
     let suffix = format!("{:04x}", rand::thread_rng().gen::<u16>());
     format!("{base}_{suffix}")
 }
 
 fn completeness(profile: &Value) -> i32 {
     let fields = [
-        "mission", "vision", "brand_personality", "tone",
-        "narration_style", "music_style", "humor_style", "lut_preference",
+        "mission",
+        "vision",
+        "brand_personality",
+        "tone",
+        "narration_style",
+        "music_style",
+        "humor_style",
+        "lut_preference",
     ];
     let filled = fields
         .iter()
-        .filter(|&&f| profile.get(f).and_then(|v| v.as_str()).map(|s| !s.is_empty()).unwrap_or(false))
+        .filter(|&&f| {
+            profile
+                .get(f)
+                .and_then(|v| v.as_str())
+                .map(|s| !s.is_empty())
+                .unwrap_or(false)
+        })
         .count();
     ((filled as f64 / fields.len() as f64) * 100.0).round() as i32
 }
@@ -332,6 +412,7 @@ async fn list_channels(
                c.created_at,
                c.primary_language AS language,
                c.publish_cadence,
+               c.content_type_tags,
                c.videos_per_week_short,
                c.videos_per_week_long,
                c.environment,
@@ -373,6 +454,7 @@ async fn list_channels(
                 "created_at": r.try_get::<Option<DateTime<Utc>>, _>("created_at").ok().flatten(),
                 "language": r.try_get::<Option<String>, _>("language").ok().flatten(),
                 "publish_cadence": r.try_get::<Option<String>, _>("publish_cadence").ok().flatten(),
+                "content_type_tags": r.try_get::<Option<Vec<String>>, _>("content_type_tags").ok().flatten().unwrap_or_default(),
                 "videos_per_week_short": r.try_get::<Option<i32>, _>("videos_per_week_short").ok().flatten(),
                 "videos_per_week_long": r.try_get::<Option<i32>, _>("videos_per_week_long").ok().flatten(),
                 "environment": r.try_get::<Option<String>, _>("environment").ok().flatten(),
@@ -392,7 +474,7 @@ async fn list_channels(
     Ok((StatusCode::OK, Json(json!({"data": data}))))
 }
 
-async fn enrich_channel_list(pool: &PgPool, channels: &mut Vec<Value>) {
+async fn enrich_channel_list(pool: &PgPool, channels: &mut [Value]) {
     let ids: Vec<String> = channels
         .iter()
         .filter_map(|c| c.get("channel_id")?.as_str().map(String::from))
@@ -481,19 +563,38 @@ async fn enrich_channel_list(pool: &PgPool, channels: &mut Vec<Value>) {
     }
 
     for ch in channels.iter_mut() {
-        let cid = ch.get("channel_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let cid = ch
+            .get("channel_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         let (d, ip, t) = stats_map.get(&cid).copied().unwrap_or((0, 0, 0));
         let (su, lu) = weekly_map.get(&cid).copied().unwrap_or((0, 0));
-        let spw = ch.get("videos_per_week_short").and_then(|v| v.as_i64()).unwrap_or(7);
-        let lpw = ch.get("videos_per_week_long").and_then(|v| v.as_i64()).unwrap_or(1);
+        let spw = ch
+            .get("videos_per_week_short")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(7);
+        let lpw = ch
+            .get("videos_per_week_long")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(1);
 
         if let Some(obj) = ch.as_object_mut() {
-            obj.insert("stats".to_string(), json!({"delivered": d, "in_progress": ip, "total": t}));
-            obj.insert("weekly_usage".to_string(), json!({
-                "short":    {"used": su, "limit": spw},
-                "long_form": {"used": lu, "limit": lpw},
-            }));
-            obj.insert("active_jobs".to_string(), json!(job_map.get(&cid).cloned().unwrap_or_default()));
+            obj.insert(
+                "stats".to_string(),
+                json!({"delivered": d, "in_progress": ip, "total": t}),
+            );
+            obj.insert(
+                "weekly_usage".to_string(),
+                json!({
+                    "short":    {"used": su, "limit": spw},
+                    "long_form": {"used": lu, "limit": lpw},
+                }),
+            );
+            obj.insert(
+                "active_jobs".to_string(),
+                json!(job_map.get(&cid).cloned().unwrap_or_default()),
+            );
         }
     }
 }
@@ -565,12 +666,11 @@ async fn get_stats(
     .await
     .map_err(ApiError::Database)?;
 
-    let stop = sqlx::query(
-        "SELECT config_value FROM system_config WHERE config_key = 'emergency_stop'",
-    )
-    .fetch_optional(&pool)
-    .await
-    .map_err(ApiError::Database)?;
+    let stop =
+        sqlx::query("SELECT config_value FROM system_config WHERE config_key = 'emergency_stop'")
+            .fetch_optional(&pool)
+            .await
+            .map_err(ApiError::Database)?;
 
     use sqlx::Row;
     let today_cost: f64 = vid.try_get::<f64, _>("total_cost").unwrap_or(0.0);
@@ -585,28 +685,31 @@ async fn get_stats(
         .map(|s| matches!(s.to_lowercase().as_str(), "true" | "1"))
         .unwrap_or(false);
 
-    Ok((StatusCode::OK, Json(json!({
-        "data": {
-            "channels": {
-                "total":    ch.try_get::<i64, _>("total").unwrap_or(0),
-                "active":   ch.try_get::<i64, _>("active").unwrap_or(0),
-                "disabled": ch.try_get::<i64, _>("disabled").unwrap_or(0),
-                "archived": ch.try_get::<i64, _>("archived").unwrap_or(0),
-            },
-            "today": {
-                "videos_total": vid.try_get::<i64, _>("total").unwrap_or(0),
-                "delivered":    vid.try_get::<i64, _>("delivered").unwrap_or(0),
-                "failed":       vid.try_get::<i64, _>("failed").unwrap_or(0),
-                "in_progress":  vid.try_get::<i64, _>("in_progress").unwrap_or(0),
-                "cost":         today_cost,
-            },
-            "budget": {
-                "daily_limit": budget_limit,
-                "today_cost":  today_cost,
-            },
-            "emergency_stop": emergency_stop,
-        }
-    }))))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "data": {
+                "channels": {
+                    "total":    ch.try_get::<i64, _>("total").unwrap_or(0),
+                    "active":   ch.try_get::<i64, _>("active").unwrap_or(0),
+                    "disabled": ch.try_get::<i64, _>("disabled").unwrap_or(0),
+                    "archived": ch.try_get::<i64, _>("archived").unwrap_or(0),
+                },
+                "today": {
+                    "videos_total": vid.try_get::<i64, _>("total").unwrap_or(0),
+                    "delivered":    vid.try_get::<i64, _>("delivered").unwrap_or(0),
+                    "failed":       vid.try_get::<i64, _>("failed").unwrap_or(0),
+                    "in_progress":  vid.try_get::<i64, _>("in_progress").unwrap_or(0),
+                    "cost":         today_cost,
+                },
+                "budget": {
+                    "daily_limit": budget_limit,
+                    "today_cost":  today_cost,
+                },
+                "emergency_stop": emergency_stop,
+            }
+        })),
+    ))
 }
 
 // ── Create channel ────────────────────────────────────────────────────────────
@@ -620,10 +723,15 @@ async fn create_channel(
     require_owner_or_member(&principal)?;
 
     if body.platform != "youtube" {
-        return Err(ApiError::Validation("Only 'youtube' platform is supported".to_string()));
+        return Err(ApiError::Validation(
+            "Only 'youtube' platform is supported".to_string(),
+        ));
     }
 
-    let channel_id = body.channel_id.clone().unwrap_or_else(|| new_channel_id(&body.channel_name));
+    let channel_id = body
+        .channel_id
+        .clone()
+        .unwrap_or_else(|| new_channel_id(&body.channel_name));
 
     // Load preset if specified
     let preset_payload: Value = if let Some(ref preset_name) = body.preset {
@@ -641,10 +749,22 @@ async fn create_channel(
         Value::Null
     };
 
-    let preset_humor = preset_payload.get("humor_style").and_then(|v| v.as_str()).map(String::from);
-    let preset_narration = preset_payload.get("narration_style").and_then(|v| v.as_str()).map(String::from);
-    let preset_music = preset_payload.get("music_style").and_then(|v| v.as_str()).map(String::from);
-    let preset_pacing = preset_payload.get("pacing_style").and_then(|v| v.as_str()).map(String::from);
+    let preset_humor = preset_payload
+        .get("humor_style")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let preset_narration = preset_payload
+        .get("narration_style")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let preset_music = preset_payload
+        .get("music_style")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let preset_pacing = preset_payload
+        .get("pacing_style")
+        .and_then(|v| v.as_str())
+        .map(String::from);
 
     let mut tx = pool.begin().await.map_err(ApiError::Database)?;
 
@@ -655,7 +775,9 @@ async fn create_channel(
         .await
         .map_err(ApiError::Database)?;
     if exists.is_some() {
-        return Err(ApiError::Conflict(format!("channel_id {channel_id:?} exists")));
+        return Err(ApiError::Conflict(format!(
+            "channel_id {channel_id:?} exists"
+        )));
     }
 
     sqlx::query(
@@ -671,11 +793,13 @@ async fn create_channel(
             videos_per_week_short, videos_per_week_long,
             short_form_duration, long_form_duration,
             elevenlabs_voice_id, voice_stability, voice_similarity, voice_style,
-            source, status, environment, workspace_id
+            source, status, environment, workspace_id,
+            publish_cadence, content_type_tags
         ) VALUES (
             $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
             $16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,
-            $31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44
+            $31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,
+            $45,$46
         )"#,
     )
     .bind(&channel_id)
@@ -722,6 +846,8 @@ async fn create_channel(
     .bind("active")
     .bind("production")
     .bind(principal.wid)
+    .bind(&body.publish_cadence)
+    .bind(&body.content_type_tags)
     .execute(&mut *tx)
     .await
     .map_err(ApiError::Database)?;
@@ -732,26 +858,78 @@ async fn create_channel(
         _ => serde_json::Map::new(),
     };
     for (k, v) in [
-        ("mission",                body.mission.as_ref().map(|s| Value::String(s.clone()))),
-        ("vision",                 body.vision.as_ref().map(|s| Value::String(s.clone()))),
-        ("brand_personality",      body.brand_personality.as_ref().map(|s| Value::String(s.clone()))),
-        ("tone",                   body.tone.as_ref().map(|s| Value::String(s.clone()))),
-        ("humor_style",            body.humor_style.as_ref().map(|s| Value::String(s.clone()))),
-        ("narration_style",        body.narration_style.as_ref().map(|s| Value::String(s.clone()))),
-        ("music_style",            body.music_style.as_ref().map(|s| Value::String(s.clone()))),
-        ("lut_preference",         body.lut_preference.as_ref().map(|s| Value::String(s.clone()))),
-        ("transition_preference",  body.transition_preference.as_ref().map(|s| Value::String(s.clone()))),
-        ("typography_preference",  body.typography_preference.as_ref().map(|s| Value::String(s.clone()))),
-        ("primary_language",       Some(Value::String(body.primary_language.clone()))),
-        ("geography",              body.geography.as_ref().map(|s| Value::String(s.clone()))),
-        ("target_age_group",       body.target_age_group.as_ref().map(|s| Value::String(s.clone()))),
+        (
+            "mission",
+            body.mission.as_ref().map(|s| Value::String(s.clone())),
+        ),
+        (
+            "vision",
+            body.vision.as_ref().map(|s| Value::String(s.clone())),
+        ),
+        (
+            "brand_personality",
+            body.brand_personality
+                .as_ref()
+                .map(|s| Value::String(s.clone())),
+        ),
+        ("tone", body.tone.as_ref().map(|s| Value::String(s.clone()))),
+        (
+            "humor_style",
+            body.humor_style.as_ref().map(|s| Value::String(s.clone())),
+        ),
+        (
+            "narration_style",
+            body.narration_style
+                .as_ref()
+                .map(|s| Value::String(s.clone())),
+        ),
+        (
+            "music_style",
+            body.music_style.as_ref().map(|s| Value::String(s.clone())),
+        ),
+        (
+            "lut_preference",
+            body.lut_preference
+                .as_ref()
+                .map(|s| Value::String(s.clone())),
+        ),
+        (
+            "transition_preference",
+            body.transition_preference
+                .as_ref()
+                .map(|s| Value::String(s.clone())),
+        ),
+        (
+            "typography_preference",
+            body.typography_preference
+                .as_ref()
+                .map(|s| Value::String(s.clone())),
+        ),
+        (
+            "primary_language",
+            Some(Value::String(body.primary_language.clone())),
+        ),
+        (
+            "geography",
+            body.geography.as_ref().map(|s| Value::String(s.clone())),
+        ),
+        (
+            "target_age_group",
+            body.target_age_group
+                .as_ref()
+                .map(|s| Value::String(s.clone())),
+        ),
     ] {
         if let Some(val) = v {
             profile_payload.insert(k.to_string(), val);
         }
     }
-    if let Some(mi) = body.meme_intensity { profile_payload.insert("meme_intensity".to_string(), json!(mi)); }
-    if let Some(ei) = body.emotion_intensity { profile_payload.insert("emotion_intensity".to_string(), json!(ei)); }
+    if let Some(mi) = body.meme_intensity {
+        profile_payload.insert("meme_intensity".to_string(), json!(mi));
+    }
+    if let Some(ei) = body.emotion_intensity {
+        profile_payload.insert("emotion_intensity".to_string(), json!(ei));
+    }
 
     let profile_json = Value::Object(profile_payload.clone());
     let score = completeness(&profile_json);
@@ -822,7 +1000,11 @@ async fn create_channel(
             .bind(r.get("label").and_then(|v| v.as_str()))
             .bind(r.get("uri").and_then(|v| v.as_str()))
             .bind(r.get("minio_key").and_then(|v| v.as_str()))
-            .bind(r.get("parsed_metadata").cloned().unwrap_or_else(|| json!({})))
+            .bind(
+                r.get("parsed_metadata")
+                    .cloned()
+                    .unwrap_or_else(|| json!({})),
+            )
             .bind(principal.user_id.parse::<i64>().ok())
             .execute(&mut *tx)
             .await
@@ -843,7 +1025,10 @@ async fn create_channel(
     )
     .await;
 
-    Ok((StatusCode::OK, Json(json!({"status": "ok", "channel_id": channel_id}))))
+    Ok((
+        StatusCode::OK,
+        Json(json!({"status": "ok", "channel_id": channel_id})),
+    ))
 }
 
 // ── Get channel ───────────────────────────────────────────────────────────────
@@ -853,15 +1038,13 @@ async fn get_channel(
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
 ) -> ApiResult<impl IntoResponse> {
-    let ch = sqlx::query(
-        "SELECT * FROM channels WHERE channel_id=$1 AND workspace_id=$2",
-    )
-    .bind(&channel_id)
-    .bind(principal.wid)
-    .fetch_optional(&pool)
-    .await
-    .map_err(ApiError::Database)?
-    .ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
+    let ch = sqlx::query("SELECT * FROM channels WHERE channel_id=$1 AND workspace_id=$2")
+        .bind(&channel_id)
+        .bind(principal.wid)
+        .fetch_optional(&pool)
+        .await
+        .map_err(ApiError::Database)?
+        .ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
 
     let profile = sqlx::query("SELECT * FROM channel_profiles WHERE channel_id=$1")
         .bind(&channel_id)
@@ -869,21 +1052,19 @@ async fn get_channel(
         .await
         .map_err(ApiError::Database)?;
 
-    let pillars = sqlx::query(
-        "SELECT * FROM channel_pillars WHERE channel_id=$1 ORDER BY position",
-    )
-    .bind(&channel_id)
-    .fetch_all(&pool)
-    .await
-    .map_err(ApiError::Database)?;
+    let pillars =
+        sqlx::query("SELECT * FROM channel_pillars WHERE channel_id=$1 ORDER BY position")
+            .bind(&channel_id)
+            .fetch_all(&pool)
+            .await
+            .map_err(ApiError::Database)?;
 
-    let rules = sqlx::query(
-        "SELECT * FROM channel_topic_rules WHERE channel_id=$1 ORDER BY kind, id",
-    )
-    .bind(&channel_id)
-    .fetch_all(&pool)
-    .await
-    .map_err(ApiError::Database)?;
+    let rules =
+        sqlx::query("SELECT * FROM channel_topic_rules WHERE channel_id=$1 ORDER BY kind, id")
+            .bind(&channel_id)
+            .fetch_all(&pool)
+            .await
+            .map_err(ApiError::Database)?;
 
     let refs = sqlx::query(
         r#"SELECT id, kind, label, uri, minio_key, parsed_metadata, uploaded_at
@@ -909,30 +1090,59 @@ async fn get_channel(
         let mut map = serde_json::Map::new();
         for col in cols {
             let name = col.name();
-            let val: Value = r.try_get::<Option<Value>, _>(name)
+            let val: Value = r
+                .try_get::<Option<Value>, _>(name)
                 .ok()
                 .flatten()
-                .or_else(|| r.try_get::<Option<String>, _>(name).ok().flatten().map(Value::String))
-                .or_else(|| r.try_get::<Option<i64>, _>(name).ok().flatten().map(|n| json!(n)))
-                .or_else(|| r.try_get::<Option<bool>, _>(name).ok().flatten().map(Value::Bool))
-                .or_else(|| r.try_get::<Option<f64>, _>(name).ok().flatten().map(|f| json!(f)))
-                .or_else(|| r.try_get::<Option<DateTime<Utc>>, _>(name).ok().flatten().map(|t| json!(t)))
+                .or_else(|| {
+                    r.try_get::<Option<String>, _>(name)
+                        .ok()
+                        .flatten()
+                        .map(Value::String)
+                })
+                .or_else(|| {
+                    r.try_get::<Option<i64>, _>(name)
+                        .ok()
+                        .flatten()
+                        .map(|n| json!(n))
+                })
+                .or_else(|| {
+                    r.try_get::<Option<bool>, _>(name)
+                        .ok()
+                        .flatten()
+                        .map(Value::Bool)
+                })
+                .or_else(|| {
+                    r.try_get::<Option<f64>, _>(name)
+                        .ok()
+                        .flatten()
+                        .map(|f| json!(f))
+                })
+                .or_else(|| {
+                    r.try_get::<Option<DateTime<Utc>>, _>(name)
+                        .ok()
+                        .flatten()
+                        .map(|t| json!(t))
+                })
                 .unwrap_or(Value::Null);
             map.insert(name.to_string(), val);
         }
         Value::Object(map)
     }
 
-    Ok((StatusCode::OK, Json(json!({
-        "data": {
-            "channel": row_to_value(&ch),
-            "profile": profile.as_ref().map(row_to_value),
-            "pillars": pillars.iter().map(row_to_value).collect::<Vec<_>>(),
-            "topic_rules": rules.iter().map(row_to_value).collect::<Vec<_>>(),
-            "references": refs.iter().map(row_to_value).collect::<Vec<_>>(),
-            "memory": memory.iter().map(row_to_value).collect::<Vec<_>>(),
-        }
-    }))))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "data": {
+                "channel": row_to_value(&ch),
+                "profile": profile.as_ref().map(row_to_value),
+                "pillars": pillars.iter().map(row_to_value).collect::<Vec<_>>(),
+                "topic_rules": rules.iter().map(row_to_value).collect::<Vec<_>>(),
+                "references": refs.iter().map(row_to_value).collect::<Vec<_>>(),
+                "memory": memory.iter().map(row_to_value).collect::<Vec<_>>(),
+            }
+        })),
+    ))
 }
 
 // ── Patch channel ─────────────────────────────────────────────────────────────
@@ -948,7 +1158,8 @@ async fn patch_channel(
 
     // Build a dynamic UPDATE from only non-null fields
     let update_body = serde_json::to_value(&body).unwrap_or(Value::Null);
-    let has_updates = update_body.as_object()
+    let has_updates = update_body
+        .as_object()
         .map(|m| m.values().any(|v| !v.is_null()))
         .unwrap_or(false);
 
@@ -968,8 +1179,8 @@ async fn patch_channel(
     .await
     .map_err(ApiError::Database)?;
 
-    let before_row = before_row
-        .ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
+    let before_row =
+        before_row.ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
 
     let before_snapshot = {
         use sqlx::Row;
@@ -1023,6 +1234,9 @@ async fn patch_channel(
             voice_stability      = COALESCE($32, voice_stability),
             voice_similarity     = COALESCE($33, voice_similarity),
             voice_style          = COALESCE($34, voice_style),
+            publish_cadence      = COALESCE($35, publish_cadence),
+            content_type_tags    = COALESCE($36, content_type_tags),
+            content_mode         = COALESCE($37, content_mode),
             updated_at           = NOW()
            WHERE channel_id = $1"#,
     )
@@ -1060,6 +1274,9 @@ async fn patch_channel(
     .bind(body.voice_stability)
     .bind(body.voice_similarity)
     .bind(body.voice_style)
+    .bind(&body.publish_cadence)
+    .bind(body.content_type_tags.as_deref())
+    .bind(&body.content_mode)
     .execute(&pool)
     .await
     .map_err(ApiError::Database)?;
@@ -1128,7 +1345,10 @@ async fn upsert_profile(
     )
     .await;
 
-    Ok((StatusCode::OK, Json(json!({"status": "ok", "completeness_score": score}))))
+    Ok((
+        StatusCode::OK,
+        Json(json!({"status": "ok", "completeness_score": score})),
+    ))
 }
 
 // ── Status actions ────────────────────────────────────────────────────────────
@@ -1178,7 +1398,16 @@ async fn enable_channel(
     headers: HeaderMap,
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&principal)?;
-    set_channel_status(&pool, &principal, &channel_id, "active", "channel.enable", &headers, None).await
+    set_channel_status(
+        &pool,
+        &principal,
+        &channel_id,
+        "active",
+        "channel.enable",
+        &headers,
+        None,
+    )
+    .await
 }
 
 async fn disable_channel(
@@ -1188,7 +1417,16 @@ async fn disable_channel(
     headers: HeaderMap,
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&principal)?;
-    set_channel_status(&pool, &principal, &channel_id, "disabled", "channel.disable", &headers, None).await
+    set_channel_status(
+        &pool,
+        &principal,
+        &channel_id,
+        "disabled",
+        "channel.disable",
+        &headers,
+        None,
+    )
+    .await
 }
 
 async fn archive_channel(
@@ -1198,7 +1436,16 @@ async fn archive_channel(
     headers: HeaderMap,
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&principal)?;
-    set_channel_status(&pool, &principal, &channel_id, "archived", "channel.archive", &headers, None).await
+    set_channel_status(
+        &pool,
+        &principal,
+        &channel_id,
+        "archived",
+        "channel.archive",
+        &headers,
+        None,
+    )
+    .await
 }
 
 async fn restore_channel(
@@ -1208,7 +1455,16 @@ async fn restore_channel(
     headers: HeaderMap,
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&principal)?;
-    set_channel_status(&pool, &principal, &channel_id, "disabled", "channel.restore", &headers, Some("status='archived'")).await
+    set_channel_status(
+        &pool,
+        &principal,
+        &channel_id,
+        "disabled",
+        "channel.restore",
+        &headers,
+        Some("status='archived'"),
+    )
+    .await
 }
 
 // ── Hard delete ───────────────────────────────────────────────────────────────
@@ -1223,10 +1479,14 @@ async fn delete_channel(
     require_owner(&principal)?;
 
     if body.confirmation != "delete" {
-        return Err(ApiError::Validation("confirmation must be 'delete'".to_string()));
+        return Err(ApiError::Validation(
+            "confirmation must be 'delete'".to_string(),
+        ));
     }
 
-    let user_id: i64 = principal.user_id.parse()
+    let user_id: i64 = principal
+        .user_id
+        .parse()
         .map_err(|_| ApiError::ForbiddenWith("No user context".to_string()))?;
 
     // Re-verify password
@@ -1239,8 +1499,7 @@ async fn delete_channel(
 
     use sqlx::Row;
     let hash: String = user.try_get("password_hash").unwrap_or_default();
-    let verified = PasswordManager::verify_password(&body.password, &hash)
-        .unwrap_or(false);
+    let verified = PasswordManager::verify_password(&body.password, &hash).unwrap_or(false);
     if !verified {
         return Err(ApiError::ForbiddenWith("wrong_password".to_string()));
     }
@@ -1315,13 +1574,20 @@ async fn delete_channel(
                 target_id: Some(channel_id.clone()),
                 before: Some(json!({"channel_id": &channel_id, "reason": "channel_hard_delete"})),
                 headers: Some(&headers),
-                ..AuditCtx::new(&principal, "provider.youtube.unlink", "provider_credentials")
+                ..AuditCtx::new(
+                    &principal,
+                    "provider.youtube.unlink",
+                    "provider_credentials",
+                )
             },
         )
         .await;
     }
 
-    Ok((StatusCode::OK, Json(json!({"status": "ok", "data": {"deleted": true, "channel_id": channel_id}}))))
+    Ok((
+        StatusCode::OK,
+        Json(json!({"status": "ok", "data": {"deleted": true, "channel_id": channel_id}})),
+    ))
 }
 
 // ── Pillars ───────────────────────────────────────────────────────────────────
@@ -1349,12 +1615,16 @@ async fn add_pillar(
     .await
     .map_err(ApiError::Database)?;
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(pid.to_string()),
-        after: Some(serde_json::to_value(&body).unwrap_or(Value::Null)),
-        headers: Some(&headers),
-        ..AuditCtx::new(&principal, "channel.pillar.create", "channel_pillar")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(pid.to_string()),
+            after: Some(serde_json::to_value(&body).unwrap_or(Value::Null)),
+            headers: Some(&headers),
+            ..AuditCtx::new(&principal, "channel.pillar.create", "channel_pillar")
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({"status": "ok", "id": pid}))))
 }
@@ -1388,12 +1658,16 @@ async fn update_pillar(
         return Err(ApiError::NotFound("Pillar not found".to_string()));
     }
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(pillar_id.to_string()),
-        after: Some(serde_json::to_value(&body).unwrap_or(Value::Null)),
-        headers: Some(&headers),
-        ..AuditCtx::new(&principal, "channel.pillar.update", "channel_pillar")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(pillar_id.to_string()),
+            after: Some(serde_json::to_value(&body).unwrap_or(Value::Null)),
+            headers: Some(&headers),
+            ..AuditCtx::new(&principal, "channel.pillar.update", "channel_pillar")
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
 }
@@ -1417,11 +1691,15 @@ async fn delete_pillar(
         return Err(ApiError::NotFound("Pillar not found".to_string()));
     }
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(pillar_id.to_string()),
-        headers: Some(&headers),
-        ..AuditCtx::new(&principal, "channel.pillar.delete", "channel_pillar")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(pillar_id.to_string()),
+            headers: Some(&headers),
+            ..AuditCtx::new(&principal, "channel.pillar.delete", "channel_pillar")
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
 }
@@ -1449,12 +1727,20 @@ async fn add_topic_rule(
     .await
     .map_err(ApiError::Database)?;
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(rid.to_string()),
-        after: Some(serde_json::to_value(&body).unwrap_or(Value::Null)),
-        headers: Some(&headers),
-        ..AuditCtx::new(&principal, "channel.topic_rule.create", "channel_topic_rule")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(rid.to_string()),
+            after: Some(serde_json::to_value(&body).unwrap_or(Value::Null)),
+            headers: Some(&headers),
+            ..AuditCtx::new(
+                &principal,
+                "channel.topic_rule.create",
+                "channel_topic_rule",
+            )
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({"status": "ok", "id": rid}))))
 }
@@ -1478,11 +1764,19 @@ async fn delete_topic_rule(
         return Err(ApiError::NotFound("Rule not found".to_string()));
     }
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(rule_id.to_string()),
-        headers: Some(&headers),
-        ..AuditCtx::new(&principal, "channel.topic_rule.delete", "channel_topic_rule")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(rule_id.to_string()),
+            headers: Some(&headers),
+            ..AuditCtx::new(
+                &principal,
+                "channel.topic_rule.delete",
+                "channel_topic_rule",
+            )
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
 }
@@ -1513,12 +1807,16 @@ async fn add_reference(
     .await
     .map_err(ApiError::Database)?;
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(rid.to_string()),
-        after: Some(serde_json::to_value(&body).unwrap_or(Value::Null)),
-        headers: Some(&headers),
-        ..AuditCtx::new(&principal, "channel.reference.create", "channel_reference")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(rid.to_string()),
+            after: Some(serde_json::to_value(&body).unwrap_or(Value::Null)),
+            headers: Some(&headers),
+            ..AuditCtx::new(&principal, "channel.reference.create", "channel_reference")
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({"status": "ok", "id": rid}))))
 }
@@ -1542,11 +1840,15 @@ async fn delete_reference(
         return Err(ApiError::NotFound("Reference not found".to_string()));
     }
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(ref_id.to_string()),
-        headers: Some(&headers),
-        ..AuditCtx::new(&principal, "channel.reference.delete", "channel_reference")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(ref_id.to_string()),
+            headers: Some(&headers),
+            ..AuditCtx::new(&principal, "channel.reference.delete", "channel_reference")
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
 }
@@ -1574,12 +1876,16 @@ async fn add_memory(
     .await
     .map_err(ApiError::Database)?;
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(mid.to_string()),
-        after: Some(serde_json::to_value(&body).unwrap_or(Value::Null)),
-        headers: Some(&headers),
-        ..AuditCtx::new(&principal, "channel.memory.add", "channel_memory")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(mid.to_string()),
+            after: Some(serde_json::to_value(&body).unwrap_or(Value::Null)),
+            headers: Some(&headers),
+            ..AuditCtx::new(&principal, "channel.memory.add", "channel_memory")
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({"status": "ok", "id": mid}))))
 }
@@ -1642,24 +1948,26 @@ async fn get_draft(
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&principal)?;
 
-    let row = sqlx::query(
-        "SELECT id, current_step, payload, updated_at FROM channel_drafts WHERE id=$1",
-    )
-    .bind(draft_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(ApiError::Database)?
-    .ok_or_else(|| ApiError::NotFound("Draft not found".to_string()))?;
+    let row =
+        sqlx::query("SELECT id, current_step, payload, updated_at FROM channel_drafts WHERE id=$1")
+            .bind(draft_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(ApiError::Database)?
+            .ok_or_else(|| ApiError::NotFound("Draft not found".to_string()))?;
 
     use sqlx::Row;
-    Ok((StatusCode::OK, Json(json!({
-        "data": {
-            "id": row.try_get::<i64, _>("id").ok(),
-            "current_step": row.try_get::<i32, _>("current_step").ok(),
-            "payload": row.try_get::<Option<Value>, _>("payload").ok().flatten(),
-            "updated_at": row.try_get::<Option<DateTime<Utc>>, _>("updated_at").ok().flatten(),
-        }
-    }))))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "data": {
+                "id": row.try_get::<i64, _>("id").ok(),
+                "current_step": row.try_get::<i32, _>("current_step").ok(),
+                "payload": row.try_get::<Option<Value>, _>("payload").ok().flatten(),
+                "updated_at": row.try_get::<Option<DateTime<Utc>>, _>("updated_at").ok().flatten(),
+            }
+        })),
+    ))
 }
 
 // ── Export ────────────────────────────────────────────────────────────────────
@@ -1683,13 +1991,12 @@ async fn export_channel(
         .await
         .map_err(ApiError::Database)?;
 
-    let pillars = sqlx::query(
-        "SELECT * FROM channel_pillars WHERE channel_id=$1 ORDER BY position",
-    )
-    .bind(&channel_id)
-    .fetch_all(&pool)
-    .await
-    .map_err(ApiError::Database)?;
+    let pillars =
+        sqlx::query("SELECT * FROM channel_pillars WHERE channel_id=$1 ORDER BY position")
+            .bind(&channel_id)
+            .fetch_all(&pool)
+            .await
+            .map_err(ApiError::Database)?;
 
     let rules = sqlx::query("SELECT * FROM channel_topic_rules WHERE channel_id=$1")
         .bind(&channel_id)
@@ -1702,24 +2009,45 @@ async fn export_channel(
         let mut m = serde_json::Map::new();
         for col in r.columns() {
             let n = col.name();
-            let v = r.try_get::<Option<Value>, _>(n).ok().flatten()
-                .or_else(|| r.try_get::<Option<String>, _>(n).ok().flatten().map(Value::String))
-                .or_else(|| r.try_get::<Option<i64>, _>(n).ok().flatten().map(|x| json!(x)))
-                .or_else(|| r.try_get::<Option<bool>, _>(n).ok().flatten().map(Value::Bool))
+            let v = r
+                .try_get::<Option<Value>, _>(n)
+                .ok()
+                .flatten()
+                .or_else(|| {
+                    r.try_get::<Option<String>, _>(n)
+                        .ok()
+                        .flatten()
+                        .map(Value::String)
+                })
+                .or_else(|| {
+                    r.try_get::<Option<i64>, _>(n)
+                        .ok()
+                        .flatten()
+                        .map(|x| json!(x))
+                })
+                .or_else(|| {
+                    r.try_get::<Option<bool>, _>(n)
+                        .ok()
+                        .flatten()
+                        .map(Value::Bool)
+                })
                 .unwrap_or(Value::Null);
             m.insert(n.to_string(), v);
         }
         Value::Object(m)
     }
 
-    Ok((StatusCode::OK, Json(json!({
-        "data": {
-            "channel":     row_json(&ch),
-            "profile":     profile.as_ref().map(row_json),
-            "pillars":     pillars.iter().map(row_json).collect::<Vec<_>>(),
-            "topic_rules": rules.iter().map(row_json).collect::<Vec<_>>(),
-        }
-    }))))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "data": {
+                "channel":     row_json(&ch),
+                "profile":     profile.as_ref().map(row_json),
+                "pillars":     pillars.iter().map(row_json).collect::<Vec<_>>(),
+                "topic_rules": rules.iter().map(row_json).collect::<Vec<_>>(),
+            }
+        })),
+    ))
 }
 
 // ── Field suggest (heuristic) ─────────────────────────────────────────────────
@@ -1731,30 +2059,46 @@ async fn field_suggest(
     AuthUser(_): AuthUser,
     Json(body): Json<FieldSuggestIn>,
 ) -> ApiResult<impl IntoResponse> {
-    let niche = body.context.get("niche").and_then(|v| v.as_str()).unwrap_or("").to_string();
-    let name = body.context.get("channel_name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let niche = body
+        .context
+        .get("niche")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let name = body
+        .context
+        .get("channel_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
     let suggestion = heuristic_suggest(&body.field, &niche, &name);
 
-    Ok((StatusCode::OK, Json(json!({
-        "data": {"suggestion": suggestion, "rationale": "heuristic"}
-    }))))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "data": {"suggestion": suggestion, "rationale": "heuristic"}
+        })),
+    ))
 }
 
 fn heuristic_suggest(field: &str, niche: &str, name: &str) -> String {
     match field {
-        "mission"           => format!("Make {niche} feel obvious to anyone who watches one of our videos."),
-        "vision"            => format!("Be the most-bingeable {niche} channel for curious beginners."),
+        "mission" => format!("Make {niche} feel obvious to anyone who watches one of our videos."),
+        "vision" => format!("Be the most-bingeable {niche} channel for curious beginners."),
         "brand_personality" => "Warm, sharply curious, occasionally playful.".to_string(),
-        "tone"              => "Direct, friendly, confident without being preachy.".to_string(),
-        "narration_style"   => "Conversational, fast-cut, micro-pauses for emphasis.".to_string(),
-        "music_style"       => "Cinematic minimal pads with subtle percussion.".to_string(),
-        "humor_style"       => "Dry observational, never cynical.".to_string(),
-        "thumbnail_style"   => "Bold subject, single contrast color, 3-word headline.".to_string(),
-        "pacing_style"      => "Fast (1.6 cuts/sec), slow on key facts.".to_string(),
-        "lut_preference"    => "Cinematic teal-orange, mild contrast.".to_string(),
-        "transition_preference"  => "Whip-pan + match-cut; avoid stock fades.".to_string(),
-        "typography_preference"  => "Inter / Geist; bold weights on emphasis words.".to_string(),
-        other               => format!("Suggested value for {other} on {}", if name.is_empty() { niche } else { name }),
+        "tone" => "Direct, friendly, confident without being preachy.".to_string(),
+        "narration_style" => "Conversational, fast-cut, micro-pauses for emphasis.".to_string(),
+        "music_style" => "Cinematic minimal pads with subtle percussion.".to_string(),
+        "humor_style" => "Dry observational, never cynical.".to_string(),
+        "thumbnail_style" => "Bold subject, single contrast color, 3-word headline.".to_string(),
+        "pacing_style" => "Fast (1.6 cuts/sec), slow on key facts.".to_string(),
+        "lut_preference" => "Cinematic teal-orange, mild contrast.".to_string(),
+        "transition_preference" => "Whip-pan + match-cut; avoid stock fades.".to_string(),
+        "typography_preference" => "Inter / Geist; bold weights on emphasis words.".to_string(),
+        other => format!(
+            "Suggested value for {other} on {}",
+            if name.is_empty() { niche } else { name }
+        ),
     }
 }
 
@@ -1773,7 +2117,10 @@ async fn proxy_post(
     if let Some(b) = body {
         req = req.json(&b);
     }
-    let resp = req.send().await.map_err(|e| ApiError::Internal(format!("proxy: {e}")))?;
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| ApiError::Internal(format!("proxy: {e}")))?;
     let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
     let body: Value = resp.json().await.unwrap_or(Value::Null);
     Ok((status, Json(body)))
@@ -1785,13 +2132,20 @@ async fn proxy_get(url: &str, auth_header: Option<&str>) -> ApiResult<impl IntoR
     if let Some(auth) = auth_header {
         req = req.header("Authorization", auth);
     }
-    let resp = req.send().await.map_err(|e| ApiError::Internal(format!("proxy: {e}")))?;
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| ApiError::Internal(format!("proxy: {e}")))?;
     let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
     let body: Value = resp.json().await.unwrap_or(Value::Null);
     Ok((status, Json(body)))
 }
 
-async fn proxy_put(url: &str, auth_header: Option<&str>, body: Option<Value>) -> ApiResult<impl IntoResponse> {
+async fn proxy_put(
+    url: &str,
+    auth_header: Option<&str>,
+    body: Option<Value>,
+) -> ApiResult<impl IntoResponse> {
     let client = reqwest::Client::new();
     let mut req = client.put(url);
     if let Some(auth) = auth_header {
@@ -1800,7 +2154,10 @@ async fn proxy_put(url: &str, auth_header: Option<&str>, body: Option<Value>) ->
     if let Some(b) = body {
         req = req.json(&b);
     }
-    let resp = req.send().await.map_err(|e| ApiError::Internal(format!("proxy: {e}")))?;
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| ApiError::Internal(format!("proxy: {e}")))?;
     let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
     let body: Value = resp.json().await.unwrap_or(Value::Null);
     Ok((status, Json(body)))
@@ -1816,22 +2173,37 @@ async fn proxy_trigger(
     Json(body): Json<TriggerIn>,
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&principal)?;
-    let auth = headers.get("authorization").and_then(|v| v.to_str().ok()).map(String::from);
+    let auth = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
     let mut payload = json!({});
-    if let Some(m) = body.content_mode.as_ref() { payload["content_mode"] = json!(m); }
-    if let Some(h) = body.topic_hint.as_ref() { payload["topic_candidates"] = json!([h]); }
-    if !body.topic_candidates.is_empty() { payload["topic_candidates"] = json!(body.topic_candidates); }
-    if let Some(c) = body.max_cost_usd { payload["max_cost_usd"] = json!(c); }
+    if let Some(m) = body.content_mode.as_ref() {
+        payload["content_mode"] = json!(m);
+    }
+    if let Some(h) = body.topic_hint.as_ref() {
+        payload["topic_candidates"] = json!([h]);
+    }
+    if !body.topic_candidates.is_empty() {
+        payload["topic_candidates"] = json!(body.topic_candidates);
+    }
+    if let Some(c) = body.max_cost_usd {
+        payload["max_cost_usd"] = json!(c);
+    }
 
     let url = format!("{}/api/channels/{channel_id}/trigger", bff_base());
     let result = proxy_post(&url, auth.as_deref(), Some(payload.clone())).await?;
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(channel_id.clone()),
-        after: Some(payload),
-        headers: Some(&headers),
-        ..AuditCtx::new(&principal, "channel.trigger", "channel")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(channel_id.clone()),
+            after: Some(payload),
+            headers: Some(&headers),
+            ..AuditCtx::new(&principal, "channel.trigger", "channel")
+        },
+    )
+    .await;
 
     Ok(result)
 }
@@ -1843,14 +2215,21 @@ async fn proxy_clone(
     headers: HeaderMap,
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&principal)?;
-    let auth = headers.get("authorization").and_then(|v| v.to_str().ok()).map(String::from);
+    let auth = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
     let url = format!("{}/api/channels/{channel_id}/clone", bff_base());
     let result = proxy_post(&url, auth.as_deref(), None).await?;
-    audit_log(&pool, AuditCtx {
-        target_id: Some(channel_id),
-        headers: Some(&headers),
-        ..AuditCtx::new(&principal, "channel.clone", "channel")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(channel_id),
+            headers: Some(&headers),
+            ..AuditCtx::new(&principal, "channel.clone", "channel")
+        },
+    )
+    .await;
     Ok(result)
 }
 
@@ -1861,14 +2240,24 @@ async fn proxy_pause_job(
     headers: HeaderMap,
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&principal)?;
-    let auth = headers.get("authorization").and_then(|v| v.to_str().ok()).map(String::from);
-    let url = format!("{}/api/channels/{channel_id}/jobs/{content_id}/pause", bff_base());
+    let auth = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
+    let url = format!(
+        "{}/api/channels/{channel_id}/jobs/{content_id}/pause",
+        bff_base()
+    );
     let result = proxy_post(&url, auth.as_deref(), None).await?;
-    audit_log(&pool, AuditCtx {
-        target_id: Some(content_id),
-        headers: Some(&headers),
-        ..AuditCtx::new(&principal, "job.pause", "video")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(content_id),
+            headers: Some(&headers),
+            ..AuditCtx::new(&principal, "job.pause", "video")
+        },
+    )
+    .await;
     Ok(result)
 }
 
@@ -1879,14 +2268,24 @@ async fn proxy_resume_job(
     headers: HeaderMap,
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&principal)?;
-    let auth = headers.get("authorization").and_then(|v| v.to_str().ok()).map(String::from);
-    let url = format!("{}/api/channels/{channel_id}/jobs/{content_id}/resume", bff_base());
+    let auth = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
+    let url = format!(
+        "{}/api/channels/{channel_id}/jobs/{content_id}/resume",
+        bff_base()
+    );
     let result = proxy_post(&url, auth.as_deref(), None).await?;
-    audit_log(&pool, AuditCtx {
-        target_id: Some(content_id),
-        headers: Some(&headers),
-        ..AuditCtx::new(&principal, "job.resume", "video")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(content_id),
+            headers: Some(&headers),
+            ..AuditCtx::new(&principal, "job.resume", "video")
+        },
+    )
+    .await;
     Ok(result)
 }
 
@@ -1897,14 +2296,24 @@ async fn proxy_stop_job(
     headers: HeaderMap,
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&principal)?;
-    let auth = headers.get("authorization").and_then(|v| v.to_str().ok()).map(String::from);
-    let url = format!("{}/api/channels/{channel_id}/jobs/{content_id}/stop", bff_base());
+    let auth = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
+    let url = format!(
+        "{}/api/channels/{channel_id}/jobs/{content_id}/stop",
+        bff_base()
+    );
     let result = proxy_post(&url, auth.as_deref(), None).await?;
-    audit_log(&pool, AuditCtx {
-        target_id: Some(content_id),
-        headers: Some(&headers),
-        ..AuditCtx::new(&principal, "job.stop", "video")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(content_id),
+            headers: Some(&headers),
+            ..AuditCtx::new(&principal, "job.stop", "video")
+        },
+    )
+    .await;
     Ok(result)
 }
 
@@ -1913,7 +2322,10 @@ async fn proxy_get_brand_kit(
     Path(channel_id): Path<String>,
     headers: HeaderMap,
 ) -> ApiResult<impl IntoResponse> {
-    let auth = headers.get("authorization").and_then(|v| v.to_str().ok()).map(String::from);
+    let auth = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
     let url = format!("{}/api/v2/channels/{channel_id}/brand-kit", bff_base());
     proxy_get(&url, auth.as_deref()).await
 }
@@ -1926,14 +2338,26 @@ async fn proxy_put_brand_kit(
     Json(body): Json<BrandKitBindIn>,
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&principal)?;
-    let auth = headers.get("authorization").and_then(|v| v.to_str().ok()).map(String::from);
+    let auth = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
     let url = format!("{}/api/v2/channels/{channel_id}/brand-kit", bff_base());
-    let result = proxy_put(&url, auth.as_deref(), Some(json!({"brand_kit_id": body.brand_kit_id}))).await?;
-    audit_log(&pool, AuditCtx {
-        target_id: Some(channel_id),
-        after: Some(json!({"brand_kit_id": body.brand_kit_id})),
-        headers: Some(&headers),
-        ..AuditCtx::new(&principal, "channel.brand_kit.bind", "channel")
-    }).await;
+    let result = proxy_put(
+        &url,
+        auth.as_deref(),
+        Some(json!({"brand_kit_id": body.brand_kit_id})),
+    )
+    .await?;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(channel_id),
+            after: Some(json!({"brand_kit_id": body.brand_kit_id})),
+            headers: Some(&headers),
+            ..AuditCtx::new(&principal, "channel.brand_kit.bind", "channel")
+        },
+    )
+    .await;
     Ok(result)
 }

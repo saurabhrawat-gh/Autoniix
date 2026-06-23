@@ -79,6 +79,13 @@ jobs:
         working-directory: rust
         run: cargo test -p harness
 
+      - name: Gateway integration tests
+        working-directory: rust
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
+          AUTH_JWT_SECRET: test-jwt-secret-for-ci
+        run: cargo test -p gateway --test gateway_harness_test
+
       - name: Build release binary
         working-directory: rust
         run: cargo build --release
@@ -100,10 +107,65 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  go-harness:
+    name: Go — harness tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: go/go.sum
+
+      - name: Go harness tests
+        working-directory: go
+        run: go test ./shared/testharness/... -v
+
+  python-harness:
+    name: Python — migration + contract tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: autoniix_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest pytest-asyncio
+
+      - name: Contract tests
+        env:
+          RUST_GATEWAY_URL: ""
+          PYTHON_DASHBOARD_URL: ""
+        run: pytest tests/contracts/ -v --tb=short -q
+
+      - name: Migration tests (offline — auto-skip if services not running)
+        env:
+          RUST_GATEWAY_URL: ""
+          PYTHON_DASHBOARD_URL: ""
+        run: pytest tests/migration/ -v --tb=short -q
+
   deploy:
     name: Deploy — VPS
     runs-on: self-hosted
-    needs: [rust]
+    needs: [rust, go-harness, python-harness]
     steps:
       - name: Pull & restart
         env:
