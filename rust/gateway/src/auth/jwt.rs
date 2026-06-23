@@ -15,6 +15,20 @@ pub struct Claims {
     pub exp: i64,
 }
 
+/// Short-lived (5-minute) token issued when `mfa_enabled = true` on signin.
+/// The client must exchange this for full tokens via `POST /auth/mfa/challenge`.
+/// Carries `typ = "mfa_pending"` to prevent reuse as an access token.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MfaPendingClaims {
+    pub sub: String,
+    pub email: String,
+    pub wid: i64,
+    pub global_role: String,
+    pub typ: String,
+    pub iat: i64,
+    pub exp: i64,
+}
+
 impl Claims {
     pub fn new(
         user_id: String,
@@ -91,6 +105,49 @@ impl JwtManager {
     ) -> ApiResult<String> {
         let claims = Claims::new(user_id, wid, email, role, global_role, 60 * 60 * 24 * 30);
         self.create_token(claims)
+    }
+
+    /// Create a 5-minute pending token for MFA challenge (#666).
+    /// The frontend must call `POST /auth/mfa/challenge` with this token + TOTP code
+    /// to receive full access/refresh tokens.
+    pub fn create_mfa_pending_token(
+        &self,
+        user_id: String,
+        wid: i64,
+        email: String,
+        global_role: String,
+    ) -> ApiResult<String> {
+        let now = Utc::now().timestamp();
+        let claims = MfaPendingClaims {
+            sub: user_id,
+            email,
+            wid,
+            global_role,
+            typ: "mfa_pending".to_string(),
+            iat: now,
+            exp: now + 300, // 5 minutes
+        };
+        encode(&Header::default(), &claims, &self.encoding_key).map_err(|e| {
+            tracing::error!("Failed to encode MFA pending JWT: {:?}", e);
+            ApiError::Internal("Failed to encode MFA pending token".to_string())
+        })
+    }
+
+    /// Verify and decode an MFA pending token. Returns `Unauthorized` if the
+    /// token is expired, invalid, or not of type `mfa_pending`.
+    pub fn verify_mfa_pending_token(&self, token: &str) -> ApiResult<MfaPendingClaims> {
+        let claims = decode::<MfaPendingClaims>(token, &self.decoding_key, &Validation::default())
+            .map(|data| data.claims)
+            .map_err(|e| {
+                tracing::warn!("MFA pending JWT validation failed: {:?}", e);
+                ApiError::Unauthorized
+            })?;
+
+        if claims.typ != "mfa_pending" {
+            tracing::warn!("Token presented as MFA pending but has typ={}", claims.typ);
+            return Err(ApiError::Unauthorized);
+        }
+        Ok(claims)
     }
 }
 

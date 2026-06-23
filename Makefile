@@ -1,6 +1,7 @@
 .PHONY: help infra bff ui dev stop logs up down health restart-app restart-bff verify-bff use-test use-prod env-status \
         migrate migrate-status backfill auth-enable smoke deploy-check schedule-register setup fresh tls-up tls-down \
-        backup restore alerts-status providers-wipe rebuild-ui rebuild-bff rebuild-svc logs-svc
+        backup restore alerts-status providers-wipe rebuild-ui rebuild-bff rebuild-svc logs-svc \
+        test-harness test-rust test-migration bench-rust
 
 help: ## Show available commands
 	@echo ""
@@ -44,6 +45,12 @@ help: ## Show available commands
 	@echo "  make backup     → Run backup.sh (Postgres + MinIO → local + optional R2)"
 	@echo "  make restore    → Restore from latest snapshot (pass STAMP= to pick one)"
 	@echo "  make alerts-status → Show firing alerts from Alertmanager"
+	@echo ""
+	@echo "  Harness (HARNESS-ENGINEERING-PLAN.md):"
+	@echo "  make test-harness   → cargo test -p harness (provider mocks, contract)"
+	@echo "  make test-rust      → cargo test -p gateway (integration tests)"
+	@echo "  make test-migration → pytest tests/migration/ (offline: auto-skip)"
+	@echo "  make bench-rust     → cargo bench -p gateway (requires TEST_DATABASE_URL)"
 	@echo ""
 	@echo "  Quick start (3 terminals):"
 	@echo "    Terminal 1:  make infra"
@@ -325,6 +332,32 @@ providers-wipe: ## Wipe ALL provider credentials, chains, routes (clean slate)
 	if [ "$$confirm" != "WIPE" ]; then echo "❌ Aborted"; exit 1; fi
 	python -m scripts.clean_slate_providers --yes
 	@echo "✅ Providers wiped — reload /dashboard/providers to verify empty state"
+
+# Harness — per HARNESS-ENGINEERING-PLAN.md
+test-harness: ## Run Rust harness tests (provider mocks + contract validator; no DB needed)
+	cargo test -p harness
+	@echo "✅ Harness tests passed"
+
+test-rust: ## Run Rust gateway integration tests (requires TEST_DATABASE_URL)
+	@if [ -z "$(TEST_DATABASE_URL)" ]; then \
+		echo "⚠  TEST_DATABASE_URL not set — using postgresql://localhost/autoniix_test"; \
+	fi
+	TEST_DATABASE_URL=$${TEST_DATABASE_URL:-postgresql://localhost/autoniix_test} \
+		cargo test -p gateway
+	@echo "✅ Gateway tests passed"
+
+test-migration: ## Run Python migration equivalence tests (auto-skip if services not running)
+	pytest tests/migration/ -v --tb=short
+	@echo "✅ Migration tests done (skipped if services offline)"
+
+bench-rust: ## Run Criterion benchmarks for auth endpoints (requires TEST_DATABASE_URL)
+	@if [ -z "$(TEST_DATABASE_URL)" ]; then \
+		echo "❌ TEST_DATABASE_URL required for benchmarks"; \
+		echo "   Usage: TEST_DATABASE_URL=postgresql://... make bench-rust"; \
+		exit 1; \
+	fi
+	cargo bench -p gateway
+	@echo "✅ Benchmarks complete — results in rust/target/criterion/"
 
 # Alerting
 alerts-status: ## Show currently firing alerts from Alertmanager

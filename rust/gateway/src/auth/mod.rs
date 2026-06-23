@@ -6,4 +6,4 @@ pub mod service;
 pub use jwt::JwtManager;
 pub use models::*;
 pub use password::PasswordManager;
-pub use service::AuthServiceImpl;
+pub use service::{AuthServiceImpl, SignInResult};

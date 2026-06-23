@@ -64,9 +64,7 @@ async fn test_create_and_list_channels() {
     let channel_id = body["channel_id"].as_str().unwrap().to_string();
 
     // List
-    let list_resp = h
-        .get_auth("/api/v2/channels", &token)
-        .await;
+    let list_resp = h.get_auth("/api/v2/channels", &token).await;
     assert_eq!(list_resp.status(), 200);
     let list: serde_json::Value = list_resp.json().await.unwrap();
     let channels = list["data"].as_array().unwrap();
@@ -110,8 +108,14 @@ async fn test_get_channel_full_bundle() {
     let body: serde_json::Value = resp.json().await.unwrap();
     let data = &body["data"];
     assert_eq!(data["channel"]["channel_id"], channel_id);
-    assert!(data["pillars"].as_array().map(|a| !a.is_empty()).unwrap_or(false));
-    assert!(data["topic_rules"].as_array().map(|a| !a.is_empty()).unwrap_or(false));
+    assert!(data["pillars"]
+        .as_array()
+        .map(|a| !a.is_empty())
+        .unwrap_or(false));
+    assert!(data["topic_rules"]
+        .as_array()
+        .map(|a| !a.is_empty())
+        .unwrap_or(false));
 
     cleanup_channel(&h, &channel_id).await;
     h.cleanup().await;
@@ -187,7 +191,10 @@ async fn test_channel_status_lifecycle() {
     ] {
         let resp = h
             .client
-            .put(format!("{}/api/v2/channels/{channel_id}/{action}", h.base_url))
+            .put(format!(
+                "{}/api/v2/channels/{channel_id}/{action}",
+                h.base_url
+            ))
             .bearer_auth(&token)
             .send()
             .await
@@ -245,7 +252,10 @@ async fn test_pillars_crud() {
     // Update pillar
     let upd = h
         .client
-        .put(format!("{}/api/v2/channels/{channel_id}/pillars/{pillar_id}", h.base_url))
+        .put(format!(
+            "{}/api/v2/channels/{channel_id}/pillars/{pillar_id}",
+            h.base_url
+        ))
         .bearer_auth(&token)
         .json(&json!({"name": "Baking", "weight": 1.5, "examples": ["bread"], "position": 1}))
         .send()
@@ -256,7 +266,10 @@ async fn test_pillars_crud() {
     // Delete pillar
     let del = h
         .client
-        .delete(format!("{}/api/v2/channels/{channel_id}/pillars/{pillar_id}", h.base_url))
+        .delete(format!(
+            "{}/api/v2/channels/{channel_id}/pillars/{pillar_id}",
+            h.base_url
+        ))
         .bearer_auth(&token)
         .send()
         .await
@@ -301,7 +314,10 @@ async fn test_topic_rules_and_references() {
 
     let del_rule = h
         .client
-        .delete(format!("{}/api/v2/channels/{channel_id}/topic-rules/{rule_id}", h.base_url))
+        .delete(format!(
+            "{}/api/v2/channels/{channel_id}/topic-rules/{rule_id}",
+            h.base_url
+        ))
         .bearer_auth(&token)
         .send()
         .await
@@ -324,7 +340,10 @@ async fn test_topic_rules_and_references() {
 
     let del_ref = h
         .client
-        .delete(format!("{}/api/v2/channels/{channel_id}/references/{ref_id}", h.base_url))
+        .delete(format!(
+            "{}/api/v2/channels/{channel_id}/references/{ref_id}",
+            h.base_url
+        ))
         .bearer_auth(&token)
         .send()
         .await
@@ -374,7 +393,10 @@ async fn test_drafts_lifecycle() {
         .await
         .unwrap();
     assert_eq!(get["data"]["current_step"], 2);
-    assert_eq!(get["data"]["payload"]["channel_name"], "Draft Channel Step 2");
+    assert_eq!(
+        get["data"]["payload"]["channel_name"],
+        "Draft Channel Step 2"
+    );
 
     // Cleanup draft
     let _ = sqlx::query("DELETE FROM channel_drafts WHERE id=$1")
@@ -400,7 +422,10 @@ async fn test_field_suggest_heuristic() {
     assert_eq!(resp.status(), 200);
     let body: serde_json::Value = resp.json().await.unwrap();
     let suggestion = body["data"]["suggestion"].as_str().unwrap_or("");
-    assert!(!suggestion.is_empty(), "field suggest should return a non-empty suggestion");
+    assert!(
+        !suggestion.is_empty(),
+        "field suggest should return a non-empty suggestion"
+    );
     assert_eq!(body["data"]["rationale"], "heuristic");
 
     h.cleanup().await;
@@ -419,7 +444,11 @@ async fn test_create_channel_rejects_non_youtube_platform() {
             &token,
         )
         .await;
-    assert_eq!(resp.status(), 400, "non-youtube platform should be rejected");
+    assert_eq!(
+        resp.status(),
+        400,
+        "non-youtube platform should be rejected"
+    );
 
     h.cleanup().await;
 }
@@ -444,7 +473,10 @@ async fn test_list_channels_excludes_archived_by_default() {
 
     // Archive it
     h.client
-        .put(format!("{}/api/v2/channels/{channel_id}/archive", h.base_url))
+        .put(format!(
+            "{}/api/v2/channels/{channel_id}/archive",
+            h.base_url
+        ))
         .bearer_auth(&token)
         .send()
         .await
