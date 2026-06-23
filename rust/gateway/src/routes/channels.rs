@@ -22,6 +22,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use crate::{
     audit::{audit_log, AuditCtx},
@@ -31,6 +33,16 @@ use crate::{
     middleware::Principal,
 };
 
+// ── Trigger cooldown guard ────────────────────────────────────────────────────
+
+const TRIGGER_COOLDOWN_SECS: u64 = 60;
+
+static TRIGGER_COOLDOWN: OnceLock<Mutex<HashMap<String, Instant>>> = OnceLock::new();
+
+fn trigger_cooldown_map() -> &'static Mutex<HashMap<String, Instant>> {
+    TRIGGER_COOLDOWN.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
 // ── Route table ─────────────────────────────────────────────────────────────
 
 pub fn routes(pool: PgPool) -> Router {
@@ -39,7 +51,10 @@ pub fn routes(pool: PgPool) -> Router {
         // try to parse e.g. "presets" as a channel_id path segment.
         .route("/api/v2/channels/presets", get(list_presets))
         .route("/api/v2/channels/stats", get(get_stats))
-        .route("/api/v2/channels/drafts", post(create_draft))
+        .route(
+            "/api/v2/channels/drafts",
+            get(list_drafts).post(create_draft),
+        )
         .route(
             "/api/v2/channels/drafts/:draft_id",
             get(get_draft).put(save_draft),
@@ -59,14 +74,17 @@ pub fn routes(pool: PgPool) -> Router {
         .route("/api/v2/channels/:channel_id/archive", put(archive_channel))
         .route("/api/v2/channels/:channel_id/restore", put(restore_channel))
         // Sub-resources
-        .route("/api/v2/channels/:channel_id/pillars", post(add_pillar))
+        .route(
+            "/api/v2/channels/:channel_id/pillars",
+            get(list_pillars).post(add_pillar),
+        )
         .route(
             "/api/v2/channels/:channel_id/pillars/:pillar_id",
             put(update_pillar).delete(delete_pillar),
         )
         .route(
             "/api/v2/channels/:channel_id/topic-rules",
-            post(add_topic_rule),
+            get(list_topic_rules).post(add_topic_rule),
         )
         .route(
             "/api/v2/channels/:channel_id/topic-rules/:rule_id",
@@ -74,13 +92,16 @@ pub fn routes(pool: PgPool) -> Router {
         )
         .route(
             "/api/v2/channels/:channel_id/references",
-            post(add_reference),
+            get(list_references).post(add_reference),
         )
         .route(
             "/api/v2/channels/:channel_id/references/:ref_id",
             delete(delete_reference),
         )
-        .route("/api/v2/channels/:channel_id/memory", post(add_memory))
+        .route(
+            "/api/v2/channels/:channel_id/memory",
+            get(list_memory).post(add_memory),
+        )
         // Proxy endpoints (Temporal + brand service)
         .route("/api/v2/channels/:channel_id/trigger", post(proxy_trigger))
         .route("/api/v2/channels/:channel_id/clone", post(proxy_clone))
@@ -1970,6 +1991,169 @@ async fn get_draft(
     ))
 }
 
+// ── Sub-resource list endpoints ───────────────────────────────────────────────
+
+async fn list_pillars(
+    AuthUser(principal): AuthUser,
+    State(pool): State<PgPool>,
+    Path(channel_id): Path<String>,
+) -> ApiResult<impl IntoResponse> {
+    let _ = principal;
+    let rows = sqlx::query(
+        "SELECT id, name, description, weight, examples, position \
+           FROM channel_pillars WHERE channel_id=$1 ORDER BY position",
+    )
+    .bind(&channel_id)
+    .fetch_all(&pool)
+    .await
+    .map_err(ApiError::Database)?;
+
+    use sqlx::Row;
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id": r.try_get::<i64, _>("id").ok(),
+                "name": r.try_get::<Option<String>, _>("name").ok().flatten(),
+                "description": r.try_get::<Option<String>, _>("description").ok().flatten(),
+                "weight": r.try_get::<Option<f64>, _>("weight").ok().flatten(),
+                "examples": r.try_get::<Option<Value>, _>("examples").ok().flatten(),
+                "position": r.try_get::<Option<i32>, _>("position").ok().flatten(),
+            })
+        })
+        .collect();
+
+    Ok((StatusCode::OK, Json(json!({"data": data}))))
+}
+
+async fn list_topic_rules(
+    AuthUser(principal): AuthUser,
+    State(pool): State<PgPool>,
+    Path(channel_id): Path<String>,
+) -> ApiResult<impl IntoResponse> {
+    let _ = principal;
+    let rows = sqlx::query(
+        "SELECT id, kind, value, metadata, created_at \
+           FROM channel_topic_rules WHERE channel_id=$1 ORDER BY kind, id",
+    )
+    .bind(&channel_id)
+    .fetch_all(&pool)
+    .await
+    .map_err(ApiError::Database)?;
+
+    use sqlx::Row;
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id": r.try_get::<i64, _>("id").ok(),
+                "kind": r.try_get::<Option<String>, _>("kind").ok().flatten(),
+                "value": r.try_get::<Option<String>, _>("value").ok().flatten(),
+                "metadata": r.try_get::<Option<Value>, _>("metadata").ok().flatten(),
+                "created_at": r.try_get::<Option<DateTime<Utc>>, _>("created_at").ok().flatten(),
+            })
+        })
+        .collect();
+
+    Ok((StatusCode::OK, Json(json!({"data": data}))))
+}
+
+async fn list_references(
+    AuthUser(principal): AuthUser,
+    State(pool): State<PgPool>,
+    Path(channel_id): Path<String>,
+) -> ApiResult<impl IntoResponse> {
+    let _ = principal;
+    let rows = sqlx::query(
+        "SELECT id, kind, label, uri, minio_key, parsed_metadata, uploaded_at \
+           FROM channel_references WHERE channel_id=$1 ORDER BY uploaded_at DESC",
+    )
+    .bind(&channel_id)
+    .fetch_all(&pool)
+    .await
+    .map_err(ApiError::Database)?;
+
+    use sqlx::Row;
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id": r.try_get::<i64, _>("id").ok(),
+                "kind": r.try_get::<Option<String>, _>("kind").ok().flatten(),
+                "label": r.try_get::<Option<String>, _>("label").ok().flatten(),
+                "uri": r.try_get::<Option<String>, _>("uri").ok().flatten(),
+                "minio_key": r.try_get::<Option<String>, _>("minio_key").ok().flatten(),
+                "parsed_metadata": r.try_get::<Option<Value>, _>("parsed_metadata").ok().flatten(),
+                "uploaded_at": r.try_get::<Option<DateTime<Utc>>, _>("uploaded_at").ok().flatten(),
+            })
+        })
+        .collect();
+
+    Ok((StatusCode::OK, Json(json!({"data": data}))))
+}
+
+async fn list_memory(
+    AuthUser(principal): AuthUser,
+    State(pool): State<PgPool>,
+    Path(channel_id): Path<String>,
+) -> ApiResult<impl IntoResponse> {
+    let _ = principal;
+    let rows = sqlx::query(
+        "SELECT id, memory_type, content, confidence, created_at \
+           FROM channel_memory WHERE channel_id=$1 ORDER BY created_at DESC LIMIT 100",
+    )
+    .bind(&channel_id)
+    .fetch_all(&pool)
+    .await
+    .map_err(ApiError::Database)?;
+
+    use sqlx::Row;
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id": r.try_get::<i64, _>("id").ok(),
+                "memory_type": r.try_get::<Option<String>, _>("memory_type").ok().flatten(),
+                "content": r.try_get::<Option<Value>, _>("content").ok().flatten(),
+                "confidence": r.try_get::<Option<f64>, _>("confidence").ok().flatten(),
+                "created_at": r.try_get::<Option<DateTime<Utc>>, _>("created_at").ok().flatten(),
+            })
+        })
+        .collect();
+
+    Ok((StatusCode::OK, Json(json!({"data": data}))))
+}
+
+async fn list_drafts(
+    AuthUser(principal): AuthUser,
+    State(pool): State<PgPool>,
+) -> ApiResult<impl IntoResponse> {
+    let uid = principal.user_id.parse::<i64>().ok();
+    let rows = sqlx::query(
+        "SELECT id, current_step, payload, updated_at \
+           FROM channel_drafts WHERE user_id=$1 ORDER BY updated_at DESC",
+    )
+    .bind(uid)
+    .fetch_all(&pool)
+    .await
+    .map_err(ApiError::Database)?;
+
+    use sqlx::Row;
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id": r.try_get::<i64, _>("id").ok(),
+                "current_step": r.try_get::<Option<i32>, _>("current_step").ok().flatten(),
+                "payload": r.try_get::<Option<Value>, _>("payload").ok().flatten(),
+                "updated_at": r.try_get::<Option<DateTime<Utc>>, _>("updated_at").ok().flatten(),
+            })
+        })
+        .collect();
+
+    Ok((StatusCode::OK, Json(json!({"data": data}))))
+}
+
 // ── Export ────────────────────────────────────────────────────────────────────
 
 async fn export_channel(
@@ -2173,6 +2357,27 @@ async fn proxy_trigger(
     Json(body): Json<TriggerIn>,
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&principal)?;
+
+    // Per-channel cooldown: reject if same channel was triggered within TRIGGER_COOLDOWN_SECS
+    let cooldown_key = format!(
+        "{}:{}",
+        channel_id,
+        body.content_mode.as_deref().unwrap_or("any")
+    );
+    {
+        let mut map = trigger_cooldown_map().lock().unwrap();
+        if let Some(last) = map.get(&cooldown_key) {
+            let elapsed = last.elapsed();
+            if elapsed < Duration::from_secs(TRIGGER_COOLDOWN_SECS) {
+                let remaining = TRIGGER_COOLDOWN_SECS - elapsed.as_secs();
+                return Err(ApiError::Validation(format!(
+                    "Trigger cooldown active — wait {remaining}s before retrying this channel/mode."
+                )));
+            }
+        }
+        map.insert(cooldown_key, Instant::now());
+    }
+
     let auth = headers
         .get("authorization")
         .and_then(|v| v.to_str().ok())
