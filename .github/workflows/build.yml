@@ -86,6 +86,15 @@ jobs:
           AUTH_JWT_SECRET: test-jwt-secret-for-ci
         run: cargo test -p gateway --test gateway_harness_test
 
+      - name: Middleware + auth integration tests (IM-171 IM-172)
+        working-directory: rust
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
+          AUTH_JWT_SECRET: test-jwt-secret-for-ci
+        run: |
+          cargo test -p gateway --test middleware_test
+          cargo test -p gateway --test auth_test
+
       - name: Build release binary
         working-directory: rust
         run: cargo build --release
@@ -238,3 +247,11 @@ jobs:
             sleep 3
           done
           bash scripts/check-stack.sh
+          # Verify Rust gateway is up
+          for i in $(seq 1 20); do
+            curl -fsS http://localhost:8081/health/live >/dev/null 2>&1 && \
+              echo "✅ rust-gateway healthy" && break
+            sleep 3
+          done
+          curl -fsS http://localhost:8081/health/live | python3 -c \
+            "import sys,json; d=json.load(sys.stdin); sys.exit(0 if d.get('status') == 'ok' else 1)"
