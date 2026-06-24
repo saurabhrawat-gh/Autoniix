@@ -74,7 +74,7 @@ fn client_ip(request: &Request) -> String {
 /// Axum middleware that enforces `InviteRateLimiter` on the route it wraps.
 ///
 /// Apply it per-route (not globally) so only sensitive endpoints are gated:
-/// ```rust
+/// ```text
 /// .route(
 ///     "/api/v2/auth/accept-invite",
 ///     post(accept_invite).layer(
