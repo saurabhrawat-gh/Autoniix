@@ -3,9 +3,9 @@ pub mod channels;
 pub mod flags;
 pub mod lookup_values;
 pub mod notifications;
-pub mod voice;
 pub mod system;
 pub mod user;
+pub mod voice;
 
 use axum::{routing::get, Json, Router};
 use serde_json::json;

@@ -103,8 +103,7 @@ pub async fn invite_rate_limit(
                 HeaderValue::from_static("application/json"),
             );
             if let Ok(v) = HeaderValue::from_str(&retry_after.to_string()) {
-                resp.headers_mut()
-                    .insert(header::RETRY_AFTER, v);
+                resp.headers_mut().insert(header::RETRY_AFTER, v);
             }
             resp
         }

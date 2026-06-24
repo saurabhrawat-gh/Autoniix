@@ -127,17 +127,32 @@ step "[7/10] cargo test -p gateway --test schema_compatibility_test"
 pass "schema compat tests pass"
 
 # ─── 8. Harness tests ────────────────────────────────────────────────────────
-step "[8/10] cargo test -p harness"
+step "[8/12] cargo test -p harness"
 (cd "$ROOT/rust" && cargo test -p harness) || fail "harness tests"
 pass "harness tests pass"
 
-# ─── 9. Release build ────────────────────────────────────────────────────────
-step "[9/10] cargo build --release"
+# ─── 9. Middleware + auth integration tests (IM-171 IM-172) ──────────────────
+step "[9/12] cargo test -p gateway --test middleware_test"
+(cd "$ROOT/rust" && \
+    TEST_DATABASE_URL="$DB_URL" \
+    AUTH_JWT_SECRET="test-jwt-secret-for-ci" \
+    cargo test -p gateway --test middleware_test) || fail "middleware integration tests"
+pass "middleware integration tests pass"
+
+step "[10/12] cargo test -p gateway --test auth_test"
+(cd "$ROOT/rust" && \
+    TEST_DATABASE_URL="$DB_URL" \
+    AUTH_JWT_SECRET="test-jwt-secret-for-ci" \
+    cargo test -p gateway --test auth_test) || fail "auth integration tests"
+pass "auth integration tests pass"
+
+# ─── 11. Release build ───────────────────────────────────────────────────────
+step "[11/12] cargo build --release"
 (cd "$ROOT/rust" && cargo build --release) || fail "cargo build --release"
 pass "release binary built"
 
-# ─── 10. Docker build (matches docker/build-push-action) ─────────────────────
-step "[10/10] docker build -f rust/gateway/Dockerfile ."
+# ─── 12. Docker build (matches docker/build-push-action) ─────────────────────
+step "[12/12] docker build -f rust/gateway/Dockerfile ."
 (cd "$ROOT" && docker build -f rust/gateway/Dockerfile -t autoniix/gateway:ci-local . >/dev/null 2>&1) \
     || fail "docker build (run manually for full log: docker build -f rust/gateway/Dockerfile .)"
 pass "docker image built"
