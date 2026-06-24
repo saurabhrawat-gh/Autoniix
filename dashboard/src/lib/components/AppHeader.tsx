@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { useAppState } from './AppStateProvider';
 import { useToast } from '../toast';
@@ -12,7 +13,8 @@ import { CommandPalette } from './CommandPalette';
 import { NotificationBell } from './NotificationBell';
 import { WsStatusPill } from './WsStatusPill';
 import { MobileDrawer } from './MobileDrawer';
-import { ThemeToggle } from '../theme';
+import { ThemeToggle, ThemePicker } from '../theme';
+import { LocaleSwitcher } from './LocaleSwitcher';
 import {
   Video,
   Activity,
@@ -44,6 +46,8 @@ import { Button } from '../ui';
 type Workspace = { id: number; name: string; slug: string; plan: string; role: string; active: boolean };
 
 export function AppHeader() {
+  const t = useTranslations('header');
+  const tNav = useTranslations('nav');
   const pathname = usePathname() || '';
   const router = useRouter();
   const { systemStopped, setPaletteOpen } = useAppState();
@@ -66,10 +70,10 @@ export function AppHeader() {
 
   async function handleLogout() {
     const ok = await confirmDialog({
-      title: 'Sign out?',
-      description: 'You will be returned to the login page.',
+      title: t('signOutDialog.title'),
+      description: t('signOutDialog.description'),
       destructive: true,
-      confirmLabel: 'Sign out',
+      confirmLabel: t('signOutDialog.confirm'),
     });
     if (!ok) return;
     clearToken();
@@ -82,10 +86,10 @@ export function AppHeader() {
     setSwitchingWs(true);
     try {
       await authApi.switchWorkspace(id);
-      showToast('Workspace switched', 'success');
+      showToast(t('workspaceSwitched'), 'success');
       window.location.reload();
     } catch (e: any) {
-      showToast(e?.message || 'Failed to switch workspace', 'error');
+      showToast(e?.message || t('failedToSwitchWorkspace'), 'error');
     } finally {
       setSwitchingWs(false);
     }
@@ -101,18 +105,18 @@ export function AppHeader() {
           variant="ghost"
           size="icon-sm"
           onClick={() => setDrawerOpen(true)}
-          aria-label="Open menu"
+          aria-label={t('openMenu')}
           className="md:hidden w-8 h-8 text-content-secondary"
         >
           <MenuIcon size={18} />
         </Button>
 
         {/* Mobile brand (visible only on mobile since sidebar has it on desktop) */}
-        <Link href="/dashboard" className="md:hidden flex items-center gap-2" aria-label="Home">
+        <Link href="/dashboard" className="md:hidden flex items-center gap-2" aria-label={tNav('home')}>
           <div className="w-7 h-7 rounded-md bg-accent/10 flex items-center justify-center">
             <Video size={14} className="text-accent" />
           </div>
-          <span className="text-sm font-semibold text-content-primary">Autoniix</span>
+          <span className="text-sm font-semibold text-content-primary">{t('brand')}</span>
         </Link>
 
         {/* Spacer */}
@@ -122,31 +126,34 @@ export function AppHeader() {
         <WsStatusPill />
 
         {/* Command palette — icon button only */}
-        <Tip text="Search & commands (⌘K)" pos="bottom">
+        <Tip text={t('searchCommandsTooltip')} pos="bottom">
           <Button
             type="button"
             variant="outline"
             size="icon-sm"
             onClick={() => setPaletteOpen(true)}
-            aria-label="Open command palette"
+            aria-label={t('openCommandPalette')}
             className="w-8 h-8 bg-surface-1 hover:bg-surface-2 text-content-secondary hover:text-content-primary"
           >
             <Search size={14} />
           </Button>
         </Tip>
 
-        {/* Theme toggle */}
+        {/* Theme toggle + color picker */}
+        <ThemePicker />
         <ThemeToggle />
+
+        <LocaleSwitcher />
 
         <NotificationBell />
 
-        <Tip text="Keyboard shortcuts (?)" pos="bottom">
+        <Tip text={t('keyboardShortcutsTooltip')} pos="bottom">
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
             onClick={() => setHelpOpen(true)}
-            aria-label="Keyboard shortcuts"
+            aria-label={t('keyboardShortcutsLabel')}
             className="w-8 h-8 bg-surface-2 hover:bg-surface-3 text-content-secondary hover:text-content-primary"
           >
             <HelpCircle size={14} />
@@ -161,13 +168,13 @@ export function AppHeader() {
                 type="button"
                 variant="outline"
                 size="sm"
-                aria-label="Switch workspace"
+                aria-label={t('switchWorkspace')}
                 disabled={switchingWs}
                 className="h-7 px-2 gap-1 text-[11px] font-medium text-content-secondary hover:text-content-primary max-w-[140px]"
               >
                 <Boxes size={12} className="shrink-0" />
                 <span className="truncate hidden sm:inline">
-                  {workspaces.find(w => w.active)?.name ?? 'Workspace'}
+                  {workspaces.find(w => w.active)?.name ?? t('workspaceFallback')}
                 </span>
                 <ChevronDown size={10} className="shrink-0" />
               </Button>
@@ -179,7 +186,7 @@ export function AppHeader() {
                 className="z-[200] min-w-[200px] bg-surface-0 border border-border rounded-xl shadow-lg p-1 text-sm"
               >
                 <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-tertiary">
-                  Your workspaces
+                  {t('yourWorkspaces')}
                 </div>
                 {workspaces.map(ws => (
                   <DropdownMenu.Item
@@ -209,7 +216,7 @@ export function AppHeader() {
               type="button"
               variant="ghost"
               size="icon-sm"
-              aria-label="User menu"
+              aria-label={t('userMenu')}
               className="w-8 h-8 bg-surface-2 hover:bg-surface-3 text-content-secondary hover:text-content-primary"
             >
               <UserCircle size={16} />
@@ -226,7 +233,7 @@ export function AppHeader() {
                 className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-content-primary hover:bg-surface-2 outline-none"
               >
                 <UserCircle size={14} className="text-content-secondary" />
-                Profile &amp; Security
+                {t('profileSecurity')}
               </DropdownMenu.Item>
               <DropdownMenu.Separator className="my-1 h-px bg-border" />
               <DropdownMenu.Item
@@ -234,7 +241,7 @@ export function AppHeader() {
                 className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-status-danger hover:bg-status-danger/10 outline-none"
               >
                 <LogOut size={14} />
-                Sign out
+                {t('signOut')}
               </DropdownMenu.Item>
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
@@ -242,19 +249,19 @@ export function AppHeader() {
 
         {/* Add Channel — styled like Long/Short buttons */}
         {systemStopped ? (
-          <Tip text="Resume system from Settings to add channels" pos="bottom">
+          <Tip text={t('systemStoppedTooltip')} pos="bottom">
             <span className="inline-flex items-center justify-center gap-1.5 h-8 w-8 lg:w-auto lg:px-3 rounded-md text-xs font-medium opacity-50 cursor-not-allowed border text-content-tertiary bg-surface-2 border-border">
-              <Plus size={14} /> <span className="hidden lg:inline">Add Channel</span>
+              <Plus size={14} /> <span className="hidden lg:inline">{t('addChannel')}</span>
             </span>
           </Tip>
         ) : (
-          <Tip text="Create a new channel (n)" pos="bottom">
+          <Tip text={t('addChannelTooltip')} pos="bottom">
             <Link
               href="/dashboard/channels/new"
-              aria-label="Add channel"
+              aria-label={t('addChannelLabel')}
               className="inline-flex items-center justify-center gap-1.5 h-8 w-8 lg:w-auto lg:px-3 rounded-md text-xs font-medium border text-accent bg-accent/5 border-accent/15 hover:bg-accent/10 transition-colors"
             >
-              <Plus size={14} /> <span className="hidden lg:inline">Add Channel</span>
+              <Plus size={14} /> <span className="hidden lg:inline">{t('addChannel')}</span>
             </Link>
           </Tip>
         )}
@@ -266,15 +273,15 @@ export function AppHeader() {
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         items={[
-          { href: '/dashboard', label: 'Home', icon: Home, active: pathname === '/dashboard' },
-          { href: '/dashboard/channels', label: 'Channels', icon: Tv, active: pathname.startsWith('/dashboard/channels') },
-          { href: '/dashboard/content', label: 'Content', icon: Film, active: pathname.startsWith('/dashboard/content') },
-          { href: '/dashboard/library', label: 'Library', icon: Archive, active: pathname.startsWith('/dashboard/library') },
-          { href: '/dashboard/experiments', label: 'Experiments', icon: Zap, active: pathname.startsWith('/dashboard/experiments') },
-          { href: '/dashboard/providers', label: 'Providers', icon: Plug, active: pathname.startsWith('/dashboard/providers') },
-          { href: '/dashboard/progress', label: 'Progress', icon: Activity, active: pathname.startsWith('/dashboard/progress') || pathname.startsWith('/dashboard/jobs') },
-          { href: '/dashboard/settings', label: 'Settings', icon: Settings, active: pathname.startsWith('/dashboard/settings') },
-          { href: '/dashboard/channels/new', label: 'Add Channel', icon: Plus },
+          { href: '/dashboard', label: tNav('home'), icon: Home, active: pathname === '/dashboard' },
+          { href: '/dashboard/channels', label: tNav('channels'), icon: Tv, active: pathname.startsWith('/dashboard/channels') },
+          { href: '/dashboard/content', label: tNav('content'), icon: Film, active: pathname.startsWith('/dashboard/content') },
+          { href: '/dashboard/library', label: tNav('library'), icon: Archive, active: pathname.startsWith('/dashboard/library') },
+          { href: '/dashboard/experiments', label: tNav('experiments'), icon: Zap, active: pathname.startsWith('/dashboard/experiments') },
+          { href: '/dashboard/providers', label: tNav('providers'), icon: Plug, active: pathname.startsWith('/dashboard/providers') },
+          { href: '/dashboard/progress', label: tNav('progress'), icon: Activity, active: pathname.startsWith('/dashboard/progress') || pathname.startsWith('/dashboard/jobs') },
+          { href: '/dashboard/settings', label: tNav('settings'), icon: Settings, active: pathname.startsWith('/dashboard/settings') },
+          { href: '/dashboard/channels/new', label: t('addChannel'), icon: Plus },
         ]}
         footer={(
           <Button
@@ -284,7 +291,7 @@ export function AppHeader() {
             leftIcon={<LogOut size={14} />}
             className="w-full h-9 text-sm font-medium text-content-secondary"
           >
-            Sign out
+            {t('signOut')}
           </Button>
         )}
       />

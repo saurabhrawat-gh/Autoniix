@@ -1,34 +1,41 @@
 'use client';
 
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { authApi } from '@/lib/api-v2';
 import { ThemeToggle } from '@/lib/theme';
-import { Button, Input, Label, Card } from '@/lib/ui';
+import { Button, Input, Card } from '@/lib/ui';
+import { FormField } from '@/lib/components/FormField';
+
+const schema = z.object({
+  workspaceName: z.string().min(2, 'At least 2 characters').max(60),
+  email: z.string().email('Invalid email address'),
+  name: z.string().optional(),
+  password: z.string().min(8, 'At least 8 characters'),
+});
+type Values = z.infer<typeof schema>;
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [workspaceName, setWorkspaceName] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<Values>({
+    resolver: zodResolver(schema),
+  });
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true); setErr(null);
+  async function onSubmit(values: Values) {
+    setServerError(null);
     try {
-      await authApi.register(email, password, workspaceName, name || undefined);
-      await authApi.login(email, password);
+      await authApi.register(values.email, values.password, values.workspaceName, values.name || undefined);
+      await authApi.login(values.email, values.password);
       router.push('/onboarding');
     } catch (e: any) {
-      setErr(e?.message || 'Registration failed');
-    } finally {
-      setBusy(false);
+      setServerError(e?.message || 'Registration failed');
     }
-  };
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen relative">
@@ -36,75 +43,36 @@ export default function RegisterPage() {
 
       <div className="w-full max-w-md px-6">
         <Card variant="elevated" padding="xl">
-          <form onSubmit={submit} className="space-y-5">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div className="text-center space-y-1">
               <h1 className="text-xl font-semibold text-content-primary">Create your workspace</h1>
               <p className="text-content-tertiary text-xs">
-                You'll be the owner. Invite teammates after setup.
+                You&apos;ll be the owner. Invite teammates after setup.
               </p>
             </div>
 
-            {err && (
-              <div className="bg-status-error/10 text-status-error text-sm rounded-lg p-3 text-center">{err}</div>
+            {serverError && (
+              <div className="bg-status-error/10 text-status-error text-sm rounded-lg p-3 text-center">{serverError}</div>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="r-ws" required>Workspace name</Label>
-              <Input
-                id="r-ws"
-                required
-                minLength={2}
-                maxLength={60}
-                value={workspaceName}
-                onChange={e => setWorkspaceName(e.target.value)}
-                placeholder="Acme Studios"
-                autoFocus
-              />
-            </div>
+            <FormField id="r-ws" label="Workspace name" required error={errors.workspaceName}>
+              <Input id="r-ws" placeholder="Acme Studios" autoFocus {...register('workspaceName')} />
+            </FormField>
 
-            <div className="space-y-2">
-              <Label htmlFor="r-email" required>Email</Label>
-              <Input
-                id="r-email"
-                type="email"
-                required
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="you@example.com"
-              />
-            </div>
+            <FormField id="r-email" label="Email" required error={errors.email}>
+              <Input id="r-email" type="email" placeholder="you@example.com" {...register('email')} />
+            </FormField>
 
-            <div className="space-y-2">
-              <Label htmlFor="r-name">Display name <span className="text-content-tertiary font-normal">(optional)</span></Label>
-              <Input
-                id="r-name"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="Saurabh"
-              />
-            </div>
+            <FormField id="r-name" label="Display name" hint="Optional">
+              <Input id="r-name" placeholder="Saurabh" {...register('name')} />
+            </FormField>
 
-            <div className="space-y-2">
-              <Label htmlFor="r-pw" required>Password</Label>
-              <Input
-                id="r-pw"
-                type="password"
-                required
-                minLength={8}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="At least 8 characters"
-              />
-            </div>
+            <FormField id="r-pw" label="Password" required error={errors.password}>
+              <Input id="r-pw" type="password" placeholder="At least 8 characters" {...register('password')} />
+            </FormField>
 
-            <Button
-              type="submit"
-              size="lg"
-              className="w-full"
-              disabled={!email || password.length < 8 || workspaceName.length < 2}
-              loading={busy}
-            >
-              {busy ? 'Creating…' : 'Create workspace'}
+            <Button type="submit" size="lg" className="w-full" loading={isSubmitting}>
+              {isSubmitting ? 'Creating…' : 'Create workspace'}
             </Button>
 
             <p className="text-center text-xs text-content-tertiary">

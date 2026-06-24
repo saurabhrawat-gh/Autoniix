@@ -1,24 +1,28 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { authApi } from '@/lib/api-v2';
-import { Button, Input, Label, Card } from '@/lib/ui';
+import { Button, Input, Card } from '@/lib/ui';
 import { ShieldCheck, AlertCircle, CheckCircle2 } from '@/lib/components/Icon';
+import { FormField } from '@/lib/components/FormField';
+import { acceptInviteSchema, type AcceptInviteValues } from '@/lib/schemas/auth';
 
 function AcceptInviteContent() {
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get('token') || '';
 
-  const [password, setPassword] = useState('');
-  const [confirmPw, setConfirmPw] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [needsAccount, setNeedsAccount] = useState<boolean | null>(null);
+
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<AcceptInviteValues>({
+    resolver: zodResolver(acceptInviteSchema),
+  });
 
   useEffect(() => {
     if (!token) return;
@@ -28,26 +32,18 @@ function AcceptInviteContent() {
       .catch(() => setNeedsAccount(true));
   }, [token]);
 
-  async function handleAccept(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    if (needsAccount) {
-      if (password.length < 8) { setErr('Password must be at least 8 characters'); return; }
-      if (password !== confirmPw) { setErr('Passwords do not match'); return; }
-    }
-    setBusy(true);
+  async function onSubmit(values: AcceptInviteValues) {
+    setServerError(null);
     try {
       await authApi.acceptInvite(
         token,
-        needsAccount ? password : undefined,
-        needsAccount && displayName ? displayName : undefined,
+        needsAccount ? values.password : undefined,
+        needsAccount && values.name ? values.name : undefined,
       );
       setDone(true);
       setTimeout(() => router.push('/dashboard'), 1500);
     } catch (e: any) {
-      setErr(e?.message || 'Failed to accept invite');
-    } finally {
-      setBusy(false);
+      setServerError(e?.message || 'Failed to accept invite');
     }
   }
 
@@ -70,43 +66,18 @@ function AcceptInviteContent() {
   }
 
   return (
-    <form onSubmit={handleAccept} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       {needsAccount && (
         <>
-          <div className="space-y-1.5">
-            <Label htmlFor="ai-name">Display name (optional)</Label>
-            <Input
-              id="ai-name"
-              value={displayName}
-              onChange={e => setDisplayName(e.target.value)}
-              placeholder="Your name"
-              autoComplete="name"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="ai-pw">Create password</Label>
-            <Input
-              id="ai-pw"
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
-              autoComplete="new-password"
-              required
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="ai-cpw">Confirm password</Label>
-            <Input
-              id="ai-cpw"
-              type="password"
-              value={confirmPw}
-              onChange={e => setConfirmPw(e.target.value)}
-              placeholder="Repeat password"
-              autoComplete="new-password"
-              required
-            />
-          </div>
+          <FormField id="ai-name" label="Display name" hint="Optional" error={errors.name}>
+            <Input id="ai-name" placeholder="Your name" autoComplete="name" {...register('name')} />
+          </FormField>
+          <FormField id="ai-pw" label="Create password" required error={errors.password}>
+            <Input id="ai-pw" type="password" placeholder="At least 8 characters" autoComplete="new-password" {...register('password')} />
+          </FormField>
+          <FormField id="ai-cpw" label="Confirm password" required error={errors.confirm}>
+            <Input id="ai-cpw" type="password" placeholder="Repeat password" autoComplete="new-password" {...register('confirm')} />
+          </FormField>
         </>
       )}
 
@@ -116,16 +87,16 @@ function AcceptInviteContent() {
         </p>
       )}
 
-      {err && (
+      {serverError && (
         <div className="flex items-center gap-2 p-3 rounded-lg border border-status-danger/30 bg-status-danger/5">
           <AlertCircle size={14} className="text-status-danger shrink-0" />
-          <p className="text-sm text-status-danger">{err}</p>
+          <p className="text-sm text-status-danger">{serverError}</p>
         </div>
       )}
 
       <Button
         type="submit"
-        loading={busy}
+        loading={isSubmitting}
         className="w-full"
         leftIcon={<ShieldCheck size={15} />}
       >

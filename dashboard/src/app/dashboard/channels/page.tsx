@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { channelsApi, dashboardApi } from '@/lib/api-v2';
 import { isLoggedIn, wsEvents } from '@/lib/api-v2';
+import { qk } from '@/lib/api/query-keys';
 import { cn, statusDot } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import { Skeleton, SkeletonCard } from '@/lib/components/Skeleton';
@@ -51,9 +53,7 @@ function savePinned(s: Set<string>) {
 
 export default function ChannelsPage() {
   const router = useRouter();
-  const [allChannels, setAllChannels] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [systemStopped, setSystemStopped] = useState(false);
+  const queryClient = useQueryClient();
   const [actionMenu, setActionMenu] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState<string | null>(null);
   const [triggeringKeys, setTriggeringKeys] = useState<Set<string>>(new Set());
@@ -89,14 +89,6 @@ export default function ChannelsPage() {
     'bg-violet-500','bg-blue-500','bg-emerald-500','bg-amber-500',
     'bg-pink-500','bg-teal-500','bg-orange-500','bg-cyan-500',
   ];
-  function platformLabel(platform: string | undefined) {
-    const map: Record<string, string> = {
-      youtube: 'YouTube', instagram: 'Instagram', tiktok: 'TikTok',
-      x: 'X', linkedin: 'LinkedIn',
-    };
-    return map[platform || 'youtube'] ?? 'YouTube';
-  }
-
   function avatarColor(id: string) {
     let hash = 0;
     for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
@@ -112,22 +104,32 @@ export default function ChannelsPage() {
     return () => { debounceRef.current && clearTimeout(debounceRef.current); };
   }, [search]);
 
-  const loadData = useCallback(async () => {
-    try {
-      const [c, s] = await Promise.all([channelsApi.list(true), dashboardApi.stats().catch(() => null)]);
-      setAllChannels(c.data || []);
-      setSystemStopped(s?.data?.emergency_stop === true);
-    } catch (e: any) {
-      showToast(e?.message || 'Failed to load data', 'error');
-    }
-    setLoading(false);
-  }, [showToast]);
+  const { data: channelsRes, isLoading: channelsLoading, error: channelsError } = useQuery({
+    queryKey: qk.channels.list(true),
+    queryFn: () => channelsApi.list(true),
+    enabled: isLoggedIn(),
+    refetchInterval: 15_000,
+  });
+
+  const { data: statsRes } = useQuery({
+    queryKey: qk.dashboard.stats(),
+    queryFn: () => dashboardApi.stats(),
+    enabled: isLoggedIn(),
+    refetchInterval: 15_000,
+  });
+
+  const allChannels: any[] = channelsRes?.data ?? [];
+  const loading = channelsLoading;
+  const systemStopped = statsRes?.data?.emergency_stop === true;
 
   useEffect(() => {
     if (!isLoggedIn()) { router.replace('/login'); return; }
     setPinned(loadPinned());
-    loadData();
-  }, [router, loadData]);
+  }, [router]);
+
+  useEffect(() => {
+    if (channelsError) showToast((channelsError as any)?.message || 'Failed to load data', 'error');
+  }, [channelsError, showToast]);
 
   useEffect(() => {
     if (!isLoggedIn()) return;
@@ -136,15 +138,21 @@ export default function ChannelsPage() {
     function connectWs() {
       try {
         ws = wsEvents();
-        ws.onmessage = (ev) => { try { if (JSON.parse(ev.data).type === 'job_update') loadData(); } catch {} };
+        ws.onmessage = (ev) => {
+          try {
+            if (JSON.parse(ev.data).type === 'job_update') {
+              queryClient.invalidateQueries({ queryKey: qk.channels.all });
+              queryClient.invalidateQueries({ queryKey: qk.dashboard.stats() });
+            }
+          } catch {}
+        };
         ws.onclose = () => { reconnectTimer = setTimeout(connectWs, 5000); };
         ws.onerror = () => { ws?.close(); };
       } catch {}
     }
     connectWs();
-    const pollInterval = setInterval(loadData, 15000);
-    return () => { ws?.close(); clearTimeout(reconnectTimer); clearInterval(pollInterval); };
-  }, [loadData]);
+    return () => { ws?.close(); clearTimeout(reconnectTimer); };
+  }, [queryClient]);
 
   function togglePin(id: string) {
     setPinned(prev => {
@@ -188,36 +196,29 @@ export default function ChannelsPage() {
   }, [allChannels, tab, debouncedSearch, sortKey, sortDir, pinned]);
 
   async function toggleChannel(id: string, current: string) {
-    const next = current === 'active' ? 'disabled' : 'active';
-    const snapshot = allChannels;
-    setAllChannels(prev => prev.map(c => c.channel_id === id ? { ...c, status: next } : c));
     try {
       if (current === 'active') await channelsApi.disable(id);
       else await channelsApi.enable(id);
-      loadData();
-    } catch (e: any) { setAllChannels(snapshot); showToast(e?.message || 'Toggle failed', 'error'); }
+      queryClient.invalidateQueries({ queryKey: qk.channels.all });
+    } catch (e: any) { showToast(e?.message || 'Toggle failed', 'error'); }
   }
 
   async function archiveChannel(id: string) {
-    const snapshot = allChannels;
-    const name = allChannels.find(c => c.channel_id === id)?.channel_name || 'channel';
-    setAllChannels(prev => prev.map(c => c.channel_id === id ? { ...c, status: 'archived' } : c));
+    const name = allChannels.find((c: any) => c.channel_id === id)?.channel_name || 'channel';
     setConfirmArchive(null);
     try {
       await channelsApi.archive(id);
-      showToast(`${name} archived`, { variant: 'info', duration: 6000, action: { label: 'Undo', onAct: async () => { await channelsApi.restore(id); loadData(); } } });
-      loadData();
-    } catch (e: any) { setAllChannels(snapshot); showToast(e?.message || 'Archive failed', 'error'); }
+      queryClient.invalidateQueries({ queryKey: qk.channels.all });
+      showToast(`${name} archived`, { variant: 'info', duration: 6000, action: { label: 'Undo', onAct: async () => { await channelsApi.restore(id); queryClient.invalidateQueries({ queryKey: qk.channels.all }); } } });
+    } catch (e: any) { showToast(e?.message || 'Archive failed', 'error'); }
   }
 
   async function restoreChannel(id: string) {
-    const snapshot = allChannels;
-    setAllChannels(prev => prev.map(c => c.channel_id === id ? { ...c, status: 'disabled' } : c));
-    try { await channelsApi.restore(id); loadData(); } catch (e: any) { setAllChannels(snapshot); showToast(e?.message || 'Restore failed', 'error'); }
+    try { await channelsApi.restore(id); queryClient.invalidateQueries({ queryKey: qk.channels.all }); } catch (e: any) { showToast(e?.message || 'Restore failed', 'error'); }
   }
 
   async function cloneChannel(id: string) {
-    try { await channelsApi.clone(id); setActionMenu(null); loadData(); } catch (e: any) { showToast(e?.message || 'Clone failed', 'error'); }
+    try { await channelsApi.clone(id); setActionMenu(null); queryClient.invalidateQueries({ queryKey: qk.channels.all }); } catch (e: any) { showToast(e?.message || 'Clone failed', 'error'); }
   }
 
   async function exportChannel(id: string) {
@@ -234,7 +235,7 @@ export default function ChannelsPage() {
     const key = `${id}:${contentMode}`;
     if (triggeringKeys.has(key)) return;
     setTriggeringKeys(prev => new Set(prev).add(key));
-    try { await channelsApi.trigger(id, { content_mode: contentMode }); await loadData(); } catch (e: any) { showToast(e?.message || 'Trigger failed', 'error'); }
+    try { await channelsApi.trigger(id, { content_mode: contentMode }); queryClient.invalidateQueries({ queryKey: qk.channels.all }); } catch (e: any) { showToast(e?.message || 'Trigger failed', 'error'); }
     setTriggeringKeys(prev => { const n = new Set(prev); n.delete(key); return n; });
   }
 
@@ -244,7 +245,7 @@ export default function ChannelsPage() {
     try {
       if (isPaused) await channelsApi.resumeJob(channelId, contentId);
       else await channelsApi.pauseJob(channelId, contentId);
-      await loadData();
+      queryClient.invalidateQueries({ queryKey: qk.channels.all });
     } catch (e: any) { showToast(e?.message || 'Action failed', 'error'); }
     setBusyJobs(prev => { const n = new Set(prev); n.delete(contentId); return n; });
   }
@@ -252,7 +253,7 @@ export default function ChannelsPage() {
   async function stopJob(channelId: string, contentId: string) {
     if (busyJobs.has(contentId)) return;
     setBusyJobs(prev => new Set(prev).add(contentId));
-    try { await channelsApi.stopJob(channelId, contentId); await loadData(); } catch (e: any) { showToast(e?.message || 'Stop failed', 'error'); }
+    try { await channelsApi.stopJob(channelId, contentId); queryClient.invalidateQueries({ queryKey: qk.channels.all }); } catch (e: any) { showToast(e?.message || 'Stop failed', 'error'); }
     setBusyJobs(prev => { const n = new Set(prev); n.delete(contentId); return n; });
   }
 
@@ -268,8 +269,8 @@ export default function ChannelsPage() {
   }
   function getModes(ch: any): string[] {
     const raw = ch.content_mode || 'short';
-    if (raw === 'mixed' || raw === 'both') return ['short', 'long_form'];
-    if (raw === 'long') return ['long_form'];
+    if (raw === 'mixed' || raw === 'both') return ['short', 'long'];
+    if (raw === 'long') return ['long'];
     return [raw];
   }
   function isModeAtLimit(ch: any, mode: string): boolean {
@@ -312,7 +313,7 @@ export default function ChannelsPage() {
             <p className="text-xs text-content-tertiary mt-0.5">Manage and trigger your automation channels.</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Button variant="outline" size="icon-sm" onClick={() => loadData()} aria-label="Refresh">
+            <Button variant="outline" size="icon-sm" onClick={() => queryClient.invalidateQueries({ queryKey: qk.channels.all })} aria-label="Refresh">
               <RotateCw size={13} />
             </Button>
             {/* View toggle */}

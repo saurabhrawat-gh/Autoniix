@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { systemApi, authApi } from '@/lib/api-v2';
@@ -9,24 +9,21 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import { PageHeader } from '@/lib/components/PageHeader';
 import { Skeleton } from '@/lib/components/Skeleton';
-import { Power, PowerOff, Flag, ChevronRight } from '@/lib/components/Icon';
+import {
+  Power, PowerOff, Flag, ChevronRight, Database, Bell, Lock,
+  DollarSign, SlidersHorizontal,
+} from '@/lib/components/Icon';
 import { useAppState } from '@/lib/components/AppStateProvider';
 import { useTheme } from '@/lib/theme';
 import {
-  Button,
-  Input,
-  Textarea,
-  Label,
-  Switch,
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogBody,
-  DialogFooter,
-  DialogCloseButton,
-  DialogTitle,
-  DialogDescription,
+  Button, Input, Textarea, Label, Switch,
+  Tabs, TabsList, TabsTrigger, TabsContent,
+  Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter,
+  DialogCloseButton, DialogTitle, DialogDescription,
 } from '@/lib/ui';
+
+// ── system_config helpers ─────────────────────────────────────────────────
 
 const FRIENDLY_LABELS: Record<string, string> = {
   dashboard_admin_password: 'Admin Password',
@@ -49,35 +46,97 @@ const FRIENDLY_LABELS: Record<string, string> = {
   human_review_required: 'Human Review Required',
 };
 
-const GROUP_LABELS: Record<string, string> = {
-  channel_defaults: 'Channel Defaults',
-  dashboard: 'Dashboard',
-  notifications: 'Notifications',
-  budget: 'Budget & Costs',
-  system: 'System',
-};
-
 const SENSITIVE_KEYS = ['password', 'token', 'secret', 'api_key'];
-const CHANNEL_DEFAULT_KEYS = ['default_content_mode', 'per_video_budget_usd', 'max_daily_videos', 'auto_approve_threshold', 'human_review_required', 'quality_threshold'];
 
 function friendlyName(key: string): string {
   if (FRIENDLY_LABELS[key]) return FRIENDLY_LABELS[key];
   return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
-
 function isSensitive(key: string): boolean {
   return SENSITIVE_KEYS.some(s => key.toLowerCase().includes(s));
 }
-
 function isBooleanValue(val: string): boolean {
   return val === 'true' || val === 'false';
 }
-
 function isJsonObject(val: string): boolean {
   if (!val) return false;
   const t = val.trim();
   return t.startsWith('{') && t.endsWith('}');
 }
+
+// ── entity_settings schema ─────────────────────────────────────────────────
+
+type SettingSchema = {
+  label: string;
+  description: string;
+  type: 'select' | 'number' | 'toggle' | 'text';
+  options?: { value: string; label: string }[];
+  min?: number;
+  max?: number;
+  step?: number;
+  unit?: string;
+};
+
+const CONTENT_SCHEMA: Record<string, SettingSchema> = {
+  'content.default_mode': {
+    label: 'Default Content Mode',
+    description: 'Applied to all channels unless overridden at channel or content-mode scope.',
+    type: 'select',
+    options: [
+      { value: 'short', label: 'Short-form' },
+      { value: 'long', label: 'Long-form' },
+      { value: 'mixed', label: 'Mixed' },
+    ],
+  },
+  'content.quality_threshold': {
+    label: 'Quality Threshold',
+    description: 'Minimum quality score (0–1.0) required for a video to pass QA.',
+    type: 'number',
+    min: 0, max: 1, step: 0.01,
+  },
+  'content.human_review_required': {
+    label: 'Human Review Required',
+    description: 'Force all generated content through human review before publishing.',
+    type: 'toggle',
+  },
+  'content.auto_approve_threshold': {
+    label: 'Auto-Approve Threshold',
+    description: 'Quality score above which content is auto-approved without human review.',
+    type: 'number',
+    min: 0, max: 1, step: 0.01,
+  },
+  'content.max_daily_videos': {
+    label: 'Max Daily Videos',
+    description: 'Hard cap on videos published per day across all channels system-wide.',
+    type: 'number',
+    min: 0, max: 9999, step: 1,
+    unit: 'videos/day',
+  },
+};
+
+const BUDGET_SCHEMA: Record<string, SettingSchema> = {
+  'budget.per_video_usd': {
+    label: 'Per-Video Budget',
+    description: 'Default maximum API and compute spend per video job.',
+    type: 'number',
+    min: 0, step: 0.01,
+    unit: 'USD',
+  },
+  'budget.daily_limit_usd': {
+    label: 'Daily Cost Limit',
+    description: 'Hard ceiling on total daily API/compute costs. Jobs are blocked beyond this.',
+    type: 'number',
+    min: 0, step: 0.01,
+    unit: 'USD',
+  },
+  'budget.monthly_limit_usd': {
+    label: 'Monthly Budget',
+    description: 'Soft monthly spend cap — triggers an alert when reached but does not block jobs.',
+    type: 'number',
+    min: 0, step: 0.01,
+    unit: 'USD',
+  },
+};
 
 function isJsonArray(val: string): boolean {
   if (!val) return false;
@@ -87,63 +146,80 @@ function isJsonArray(val: string): boolean {
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { showToast } = useToast();
+
+  // ── system_config state ────────────────────────────────────────────────
   const [configs, setConfigs] = useState<any[]>([]);
-  const [editing, setEditing] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState('');
-  const [chipInput, setChipInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [configError, setConfigError] = useState<string | null>(null);
   const [emergency, setEmergency] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [chipInput, setChipInput] = useState('');
   const [jsonError, setJsonError] = useState('');
   const [cleanSlateOpen, setCleanSlateOpen] = useState(false);
   const [cleanSlateInput, setCleanSlateInput] = useState('');
   const [cleanSlateRunning, setCleanSlateRunning] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const { showToast } = useToast();
+
+  // ── entity_settings state ──────────────────────────────────────────────
+  const [entityMap, setEntityMap] = useState<Record<string, { value: unknown; locked: boolean }>>({});
+  const [entityEdits, setEntityEdits] = useState<Record<string, unknown>>({});
+  const [entityLocked, setEntityLocked] = useState<Record<string, boolean>>({});
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+
   const systemStopped = emergency;
+
+  const loadConfigs = useCallback(async () => {
+    try {
+      const res = await systemApi.config();
+      const data = res.data ?? [];
+      setConfigs(data);
+      setConfigError(null);
+      const stopped = data.some((c: any) => c.key === 'emergency_stop' && c.value === 'true');
+      setEmergency(stopped);
+      if (stopped) { setEditMode(false); setEditing(null); }
+    } catch (e: any) {
+      setConfigError(e?.message || 'Failed to load config');
+    }
+  }, []);
+
+  const loadEntitySettings = useCallback(async () => {
+    try {
+      const res = await systemApi.getEntitySettings();
+      const map: Record<string, { value: unknown; locked: boolean }> = {};
+      for (const row of (res.data ?? [])) map[row.key] = { value: row.value, locked: row.locked };
+      setEntityMap(map);
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (!isLoggedIn()) { router.replace('/login'); return; }
-    loadConfigs();
-    authApi.me().then((res: any) => {
-      setUserRole(res?.data?.role ?? null);
-    }).catch(() => setUserRole(null));
-  }, [router]);
+    Promise.all([loadConfigs(), loadEntitySettings()]).finally(() => setLoading(false));
+    authApi.me().catch(() => {});
+  }, [router, loadConfigs, loadEntitySettings]);
 
-  async function loadConfigs() {
-    try {
-      const res = await systemApi.config();
-      setConfigs(res.data ?? []);
-      setConfigError(null);
-      const isStopped = (res.data ?? []).some((c: any) => c.key === 'emergency_stop' && c.value === 'true');
-      setEmergency(isStopped);
-      if (isStopped) { setEditMode(false); setEditing(null); }
-    } catch (e: any) {
-      setConfigError(e?.message || 'Failed to load config from v2 API');
-    }
-    setLoading(false);
-  }
+  useEffect(() => {
+    if (!editing) return;
+    if (!isJsonObject(editValue) && !isJsonArray(editValue)) { setJsonError(''); return; }
+    try { JSON.parse(editValue); setJsonError(''); }
+    catch (e: any) { setJsonError((e?.message || 'Invalid JSON').replace(/^JSON\.parse:\s*/, '')); }
+  }, [editValue, editing]);
 
   async function saveConfig(key: string, value?: string) {
     const val = value !== undefined ? value : editValue;
-    // Validate JSON if applicable
     if (isJsonObject(val) || isJsonArray(val)) {
-      try { JSON.parse(val); } catch {
-        setJsonError('Invalid JSON'); return;
-      }
+      try { JSON.parse(val); } catch { setJsonError('Invalid JSON'); return; }
     }
     try {
       await systemApi.updateConfig(key, val);
-      setEditing(null);
-      setJsonError('');
+      setEditing(null); setJsonError('');
       loadConfigs();
     } catch {}
   }
 
   async function toggleBool(key: string, currentValue: string) {
-    const newVal = currentValue === 'true' ? 'false' : 'true';
-    await saveConfig(key, newVal);
+    await saveConfig(key, currentValue === 'true' ? 'false' : 'true');
   }
 
   async function toggleEmergency() {
@@ -155,48 +231,21 @@ export default function SettingsPage() {
   }
 
   function startEdit(key: string, value: string) {
-    setEditing(key);
-    setEditValue(value);
-    setJsonError('');
-    setChipInput('');
+    setEditing(key); setEditValue(value); setJsonError(''); setChipInput('');
   }
-
-  // Live JSON validation as user types
-  useEffect(() => {
-    if (!editing) return;
-    if (!isJsonObject(editValue) && !isJsonArray(editValue)) {
-      setJsonError('');
-      return;
-    }
-    try {
-      JSON.parse(editValue);
-      setJsonError('');
-    } catch (e: any) {
-      const msg = e?.message || 'Invalid JSON';
-      // Trim noisy "JSON.parse:" prefixes for cleaner inline display
-      setJsonError(msg.replace(/^JSON\.parse:\s*/, ''));
-    }
-  }, [editValue, editing]);
 
   function addChip() {
     if (!chipInput.trim()) return;
     try {
       const arr = JSON.parse(editValue);
-      if (Array.isArray(arr)) {
-        arr.push(chipInput.trim());
-        setEditValue(JSON.stringify(arr));
-        setChipInput('');
-      }
+      if (Array.isArray(arr)) { arr.push(chipInput.trim()); setEditValue(JSON.stringify(arr)); setChipInput(''); }
     } catch {}
   }
 
   function removeChip(index: number) {
     try {
       const arr = JSON.parse(editValue);
-      if (Array.isArray(arr)) {
-        arr.splice(index, 1);
-        setEditValue(JSON.stringify(arr));
-      }
+      if (Array.isArray(arr)) { arr.splice(index, 1); setEditValue(JSON.stringify(arr)); }
     } catch {}
   }
 
@@ -205,16 +254,14 @@ export default function SettingsPage() {
     setCleanSlateRunning(true);
     try {
       const res = await systemApi.cleanSlate();
-      const d = res?.data || {};
+      const d = (res as any)?.data || {};
       showToast(
         `Clean slate done: ${d.workflows_terminated || 0} workflow(s) terminated, ` +
-        `${(d.tables_truncated || []).length} table(s) cleared, ` +
-        `${d.storage_objects_deleted || 0} object(s) removed`,
+        `${(d.tables_truncated || []).length} table(s) cleared`,
         'success'
       );
-      setCleanSlateOpen(false);
-      setCleanSlateInput('');
-      setTimeout(() => { router.push('/dashboard'); }, 500);
+      setCleanSlateOpen(false); setCleanSlateInput('');
+      setTimeout(() => router.push('/dashboard'), 500);
     } catch (err: any) {
       showToast(err?.message || 'Clean slate failed', 'error');
     } finally {
@@ -222,185 +269,258 @@ export default function SettingsPage() {
     }
   }
 
+  // ── entity_settings helpers ────────────────────────────────────────────
+  function esVal(key: string): unknown {
+    return key in entityEdits ? entityEdits[key] : (entityMap[key]?.value ?? null);
+  }
+  function esLocked(key: string): boolean {
+    return key in entityLocked ? entityLocked[key] : (entityMap[key]?.locked ?? false);
+  }
+  function setEsVal(key: string, val: unknown) {
+    setEntityEdits(prev => ({ ...prev, [key]: val }));
+  }
+  function setEsLocked(key: string, locked: boolean) {
+    setEntityLocked(prev => ({ ...prev, [key]: locked }));
+  }
+  async function saveEntitySetting(key: string) {
+    setSavingKey(key);
+    try {
+      await systemApi.setEntitySetting(key, esVal(key), esLocked(key));
+      setEntityMap(prev => ({ ...prev, [key]: { value: esVal(key), locked: esLocked(key) } }));
+      setEntityEdits(prev => { const n = { ...prev }; delete n[key]; return n; });
+      setEntityLocked(prev => { const n = { ...prev }; delete n[key]; return n; });
+      showToast('Setting saved', 'success');
+    } catch (e: any) {
+      showToast(e?.message || 'Save failed', 'error');
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
   if (loading) return (
     <div className="flex-1 flex flex-col">
-      <PageHeader
-        title="Settings"
-        subtitle="Loading configuration…"
-        crumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Settings' }]}
-        containerClassName="max-w-4xl"
-      />
+      <PageHeader title="Settings" subtitle="Loading…" crumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Settings' }]} containerClassName="max-w-5xl" />
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-6 py-6 space-y-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
+        <div className="max-w-5xl mx-auto px-6 py-6 space-y-3">
+          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
         </div>
       </main>
     </div>
   );
 
-  const groups: Record<string, any[]> = {
-    channel_defaults: configs.filter(c => CHANNEL_DEFAULT_KEYS.includes(c.key)),
-    dashboard: configs.filter(c => c.key.startsWith('dashboard_')),
-    notifications: configs.filter(c => c.key.startsWith('notify_') || c.key.startsWith('telegram_')),
-    budget: configs.filter(c => (c.key.includes('budget') || c.key.includes('cost')) && !CHANNEL_DEFAULT_KEYS.includes(c.key)),
-    system: configs.filter(c =>
-      !c.key.startsWith('dashboard_') && !c.key.startsWith('notify_') &&
-      !c.key.startsWith('telegram_') && !c.key.includes('budget') && !c.key.includes('cost') &&
-      !CHANNEL_DEFAULT_KEYS.includes(c.key)
-    ),
-  };
+  const sysOpsKeys = ['emergency_stop', 'environment_mode', 'dashboard_admin_password', 'dashboard_session_ttl_hours'];
+  const notifCfgs = configs.filter(c => c.key.startsWith('notify_') || c.key.startsWith('telegram_'));
+  const opsCfgs = configs.filter(c => sysOpsKeys.includes(c.key));
+  const otherCfgs = configs.filter(c => !sysOpsKeys.includes(c.key) && !c.key.startsWith('notify_') && !c.key.startsWith('telegram_'));
+
+  const cfgRowProps = (cfg: any) => ({
+    cfg, editMode, isEditing: editing === cfg.key, editValue, chipInput, jsonError,
+    onStartEdit: () => startEdit(cfg.key, cfg.value),
+    onEditValueChange: setEditValue,
+    onChipInputChange: setChipInput,
+    onAddChip: addChip,
+    onRemoveChip: removeChip,
+    onSave: () => saveConfig(cfg.key),
+    onCancel: () => { setEditing(null); setJsonError(''); },
+    onToggleBool: () => toggleBool(cfg.key, cfg.value),
+  });
 
   return (
     <div className="flex-1 flex flex-col">
       <PageHeader
-        title="Settings"
-        subtitle="Manage configuration"
+        title="System Settings"
+        subtitle="Configure defaults for every workspace and all content pipelines."
         crumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Settings' }]}
-        containerClassName="max-w-4xl"
+        containerClassName="max-w-5xl"
         actions={(
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <span className={cn('text-xs font-medium', systemStopped ? 'text-content-tertiary' : 'text-content-secondary')}
-                title={systemStopped ? 'Resume the system to edit settings' : 'Toggle to enable editing'}>
-                Edit Mode{systemStopped ? ' (locked)' : ''}
-              </span>
-              <Switch
-                checked={editMode && !systemStopped}
-                onCheckedChange={(v) => !systemStopped && setEditMode(v)}
-                disabled={systemStopped}
-                aria-label="Toggle edit mode"
-              />
-            </label>
-            <Button
-              onClick={toggleEmergency}
-              size="sm"
-              leftIcon={emergency ? <Power size={14} /> : <PowerOff size={14} />}
-              title={emergency ? 'Resume all paused workflows and re-enable the system' : 'Freeze the entire system and pause all running workflows'}
-              className={cn(
-                emergency
-                  ? 'bg-status-success hover:bg-status-success/90 text-content-inverse'
-                  : 'bg-status-error hover:bg-status-error/90 text-content-inverse hover:shadow-lg'
-              )}
-            >
-              {emergency ? 'Resume System' : 'Emergency Stop'}
-            </Button>
-          </div>
+          <Button
+            onClick={toggleEmergency}
+            size="sm"
+            leftIcon={emergency ? <Power size={14} /> : <PowerOff size={14} />}
+            className={cn(
+              emergency
+                ? 'bg-status-success hover:bg-status-success/90 text-content-inverse'
+                : 'bg-status-error hover:bg-status-error/90 text-content-inverse'
+            )}
+          >
+            {emergency ? 'Resume System' : 'Emergency Stop'}
+          </Button>
         )}
       />
 
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-6 py-6">
-          <DisplayPreferences />
-          {userRole === 'owner' && (
-            <div className="mb-8">
-              <h2 className="text-xs font-semibold text-content-secondary mb-3 flex items-center gap-2">
-                Advanced
-              </h2>
-              <Link
-                href="/dashboard/settings/flags"
-                className="card flex items-center justify-between gap-4 p-5 hover:bg-surface-1 transition-colors group"
-              >
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-md bg-accent/10 text-accent shrink-0">
-                    <Flag size={16} />
-                  </span>
-                  <div>
-                    <div className="text-sm font-medium text-content-primary">Feature Flags</div>
-                    <div className="text-xs text-content-tertiary mt-0.5">
-                      Toggle preview features and gradual rollouts for this workspace.
-                    </div>
-                  </div>
-                </div>
-                <ChevronRight size={16} className="text-content-tertiary group-hover:text-content-primary shrink-0" />
-              </Link>
-            </div>
-          )}
+        <div className="max-w-5xl mx-auto px-6 py-6">
           {configError && (
-            <div className="mb-6 p-4 rounded-lg bg-status-error/10 border border-status-error/20 text-sm">
+            <div className="mb-4 p-4 rounded-lg bg-status-error/10 border border-status-error/20 text-sm">
               <span className="font-semibold text-status-error">Config load failed: </span>
               <span className="text-content-secondary">{configError}</span>
               <Button variant="link" size="sm" onClick={loadConfigs} className="ml-3 h-auto p-0 text-xs">Retry</Button>
             </div>
           )}
-          {Object.entries(groups).map(([group, items]) => (
-            items.length > 0 && (
-              <div key={group} className="mb-8">
-                <h2 className="text-xs font-semibold text-content-secondary mb-3 flex items-center gap-2">
-                  {GROUP_LABELS[group] || group}
-                  <span className="text-content-tertiary font-normal">({items.length})</span>
-                </h2>
+
+          <Tabs defaultValue="system">
+            <TabsList className="mb-6">
+              <TabsTrigger value="system">System</TabsTrigger>
+              <TabsTrigger value="content">Content Defaults</TabsTrigger>
+              <TabsTrigger value="budget">Budget</TabsTrigger>
+              <TabsTrigger value="notifications">Notifications</TabsTrigger>
+              <TabsTrigger value="display">Display</TabsTrigger>
+              <TabsTrigger value="directories">Directories</TabsTrigger>
+            </TabsList>
+
+            {/* ── System tab ─────────────────────────────────────────── */}
+            <TabsContent value="system">
+              {emergency && (
+                <div className="mb-4 p-4 rounded-lg bg-status-error/10 border border-status-error/30 flex items-center gap-3">
+                  <PowerOff size={16} className="text-status-error shrink-0" />
+                  <div className="text-sm text-status-error font-medium">System is stopped. All workflows are paused.</div>
+                </div>
+              )}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-xs font-semibold text-content-secondary">Operations</h2>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <span className="text-xs text-content-tertiary">Edit Mode</span>
+                    <Switch checked={editMode && !systemStopped} onCheckedChange={v => !systemStopped && setEditMode(v)} disabled={systemStopped} aria-label="Toggle edit mode" />
+                  </label>
+                </div>
                 <div className={cn('card divide-y divide-border', systemStopped && 'lockdown-frost')}>
-                  {items.map((cfg: any) => (
-                    <ConfigRow
-                      key={cfg.key}
-                      cfg={cfg}
-                      editMode={editMode}
-                      isEditing={editing === cfg.key}
-                      editValue={editValue}
-                      chipInput={chipInput}
-                      jsonError={jsonError}
-                      onStartEdit={() => startEdit(cfg.key, cfg.value)}
-                      onEditValueChange={setEditValue}
-                      onChipInputChange={setChipInput}
-                      onAddChip={addChip}
-                      onRemoveChip={removeChip}
-                      onSave={() => saveConfig(cfg.key)}
-                      onCancel={() => { setEditing(null); setJsonError(''); }}
-                      onToggleBool={() => toggleBool(cfg.key, cfg.value)}
-                    />
-                  ))}
+                  {opsCfgs.length > 0
+                    ? opsCfgs.map((cfg: any) => <ConfigRow key={cfg.key} {...cfgRowProps(cfg)} />)
+                    : <div className="px-5 py-4 text-sm text-content-tertiary">No operations keys in system_config.</div>}
                 </div>
               </div>
-            )
-          ))}
-
-          {/* Danger Zone */}
-          <div className="mb-8">
-            <h2 className="text-xs font-semibold text-status-error mb-3 flex items-center gap-2">
-              Danger Zone
-            </h2>
-            <div className="card border-status-error/30 bg-status-error/5 p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-content-primary">Clean Slate — Reset All Jobs</div>
-                  <div className="text-xs text-content-tertiary mt-1">
-                    Wipes all video history, job events, analytics, renders, and checkpoints.
-                    Preserves channels, brand profiles, config, prompts, and ML models.
-                    Dashboard returns to <span className="font-mono">0 delivered · 0 in-progress · 0 total</span>.
+              {otherCfgs.length > 0 && (
+                <div className="mb-6">
+                  <h2 className="text-xs font-semibold text-content-secondary mb-3">Other</h2>
+                  <div className={cn('card divide-y divide-border', systemStopped && 'lockdown-frost')}>
+                    {otherCfgs.map((cfg: any) => <ConfigRow key={cfg.key} {...cfgRowProps(cfg)} />)}
                   </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCleanSlateOpen(true)}
-                  disabled={systemStopped}
-                  className="shrink-0 bg-status-error/10 text-status-error border-status-error/30 hover:bg-status-error/20 hover:text-status-error"
-                >
-                  Clean Slate
-                </Button>
+              )}
+              <div className="mb-6">
+                <h2 className="text-xs font-semibold text-status-error mb-3">Danger Zone</h2>
+                <div className="card border-status-error/30 bg-status-error/5 p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-medium text-content-primary">Clean Slate — Reset All Jobs</div>
+                      <div className="text-xs text-content-tertiary mt-1">
+                        Wipes all video history, job events, analytics, renders, and checkpoints.
+                        Preserves channels, brand profiles, config, prompts, and ML models.
+                        Dashboard returns to <span className="font-mono">0 delivered · 0 in-progress · 0 total</span>.
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => setCleanSlateOpen(true)} disabled={systemStopped}
+                      className="shrink-0 bg-status-error/10 text-status-error border-status-error/30 hover:bg-status-error/20 hover:text-status-error">
+                      Clean Slate
+                    </Button>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            </TabsContent>
+
+            {/* ── Content Defaults tab ──────────────────────────────────── */}
+            <TabsContent value="content">
+              <p className="text-sm text-content-secondary mb-6">
+                These values set system-wide defaults for all content pipelines.
+                Workspace owners and individual channels can override any setting.
+                {' '}<span className="inline-flex items-center gap-1 text-xs text-content-tertiary"><Lock size={11} /> Locked settings cannot be overridden downstream.</span>
+              </p>
+              <div className="space-y-4">
+                {Object.entries(CONTENT_SCHEMA).map(([key, schema]) => (
+                  <EntitySettingRow key={key} esKey={key} schema={schema} value={esVal(key)} locked={esLocked(key)} saving={savingKey === key}
+                    onChange={v => setEsVal(key, v)} onLockedChange={l => setEsLocked(key, l)} onSave={() => saveEntitySetting(key)} />
+                ))}
+              </div>
+            </TabsContent>
+
+            {/* ── Budget tab ───────────────────────────────────────────── */}
+            <TabsContent value="budget">
+              <p className="text-sm text-content-secondary mb-6">
+                Default cost controls applied system-wide. Each workspace and channel can independently override these limits.
+              </p>
+              <div className="space-y-4">
+                {Object.entries(BUDGET_SCHEMA).map(([key, schema]) => (
+                  <EntitySettingRow key={key} esKey={key} schema={schema} value={esVal(key)} locked={esLocked(key)} saving={savingKey === key}
+                    onChange={v => setEsVal(key, v)} onLockedChange={l => setEsLocked(key, l)} onSave={() => saveEntitySetting(key)} />
+                ))}
+              </div>
+            </TabsContent>
+
+            {/* ── Notifications tab ────────────────────────────────────── */}
+            <TabsContent value="notifications">
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-xs font-semibold text-content-secondary">Notifications</h2>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <span className="text-xs text-content-tertiary">Edit Mode</span>
+                    <Switch checked={editMode && !systemStopped} onCheckedChange={v => !systemStopped && setEditMode(v)} disabled={systemStopped} aria-label="Toggle edit mode" />
+                  </label>
+                </div>
+                <div className="card divide-y divide-border">
+                  {notifCfgs.length > 0
+                    ? notifCfgs.map((cfg: any) => <ConfigRow key={cfg.key} {...cfgRowProps(cfg)} />)
+                    : <div className="px-5 py-4 text-sm text-content-tertiary">No notification keys in system_config.</div>}
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* ── Display tab ──────────────────────────────────────────── */}
+            <TabsContent value="display">
+              <DisplayPreferences />
+            </TabsContent>
+
+            {/* ── Directories tab ──────────────────────────────────────── */}
+            <TabsContent value="directories">
+              <p className="text-sm text-content-secondary mb-6">
+                Global reference data inherited by all workspaces. Superadmin-only.
+              </p>
+              <div className="space-y-3">
+                <Link href="/dashboard/lookup-values"
+                  className="card flex items-center justify-between gap-4 p-5 hover:bg-surface-1 transition-colors group">
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-md bg-accent/10 text-accent shrink-0">
+                      <Database size={16} />
+                    </span>
+                    <div>
+                      <div className="text-sm font-medium text-content-primary">Lookup Values</div>
+                      <div className="text-xs text-content-tertiary mt-0.5">
+                        Manage global dropdown options — niches, languages, geographies, content type tags, LUT presets, and more.
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronRight size={16} className="text-content-tertiary group-hover:text-content-primary shrink-0" />
+                </Link>
+                <Link href="/dashboard/settings/flags"
+                  className="card flex items-center justify-between gap-4 p-5 hover:bg-surface-1 transition-colors group">
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-md bg-accent/10 text-accent shrink-0">
+                      <Flag size={16} />
+                    </span>
+                    <div>
+                      <div className="text-sm font-medium text-content-primary">Feature Flags</div>
+                      <div className="text-xs text-content-tertiary mt-0.5">
+                        Toggle preview features and gradual rollouts across the platform.
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronRight size={16} className="text-content-tertiary group-hover:text-content-primary shrink-0" />
+                </Link>
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
 
-      {/* Clean Slate Confirmation Modal */}
-      <Dialog
-        open={cleanSlateOpen}
-        onOpenChange={(o) => { if (!o && !cleanSlateRunning) { setCleanSlateOpen(false); setCleanSlateInput(''); } }}
-      >
+      {/* Clean Slate Confirmation Dialog */}
+      <Dialog open={cleanSlateOpen} onOpenChange={o => { if (!o && !cleanSlateRunning) { setCleanSlateOpen(false); setCleanSlateInput(''); } }}>
         <DialogContent className="border-status-error/30">
           <DialogHeader>
             <div>
               <DialogTitle>This will delete ALL job history</DialogTitle>
               <DialogDescription>This action cannot be undone.</DialogDescription>
             </div>
-            <DialogCloseButton
-              onClick={() => { if (!cleanSlateRunning) { setCleanSlateOpen(false); setCleanSlateInput(''); } }}
-              disabled={cleanSlateRunning}
-            />
+            <DialogCloseButton onClick={() => { if (!cleanSlateRunning) { setCleanSlateOpen(false); setCleanSlateInput(''); } }} disabled={cleanSlateRunning} />
           </DialogHeader>
           <DialogBody>
             <div className="space-y-3 text-xs">
@@ -408,10 +528,8 @@ export default function SettingsPage() {
                 <div className="font-medium text-status-error mb-1">Will be wiped:</div>
                 <ul className="list-disc pl-5 text-content-secondary space-y-0.5">
                   <li>All videos, job events, and analytics records</li>
-                  <li>All feedback and experiment data</li>
-                  <li>All MinIO blobs (renders, checkpoints, assets)</li>
                   <li>All running Temporal workflows (terminated)</li>
-                  <li>All Redis channel locks</li>
+                  <li>All MinIO blobs (renders, checkpoints, assets)</li>
                 </ul>
               </div>
               <div>
@@ -422,43 +540,98 @@ export default function SettingsPage() {
                 </ul>
               </div>
             </div>
-            <div>
+            <div className="mt-3">
               <Label htmlFor="reset-confirm" className="text-xs text-content-secondary mb-1.5 block">
                 Type <span className="font-mono font-semibold text-status-error">RESET</span> to confirm:
               </Label>
-              <Input
-                id="reset-confirm"
-                type="text"
-                value={cleanSlateInput}
-                onChange={e => setCleanSlateInput(e.target.value)}
-                disabled={cleanSlateRunning}
-                placeholder="RESET"
-                className="font-mono"
-                autoFocus
-              />
+              <Input id="reset-confirm" type="text" value={cleanSlateInput} onChange={e => setCleanSlateInput(e.target.value)} disabled={cleanSlateRunning} placeholder="RESET" className="font-mono" autoFocus />
             </div>
             <DialogFooter>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => { setCleanSlateOpen(false); setCleanSlateInput(''); }}
-                disabled={cleanSlateRunning}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleCleanSlate}
-                disabled={cleanSlateInput !== 'RESET' || cleanSlateRunning}
-                loading={cleanSlateRunning}
-              >
+              <Button variant="ghost" size="sm" onClick={() => { setCleanSlateOpen(false); setCleanSlateInput(''); }} disabled={cleanSlateRunning}>Cancel</Button>
+              <Button variant="destructive" size="sm" onClick={handleCleanSlate} disabled={cleanSlateInput !== 'RESET' || cleanSlateRunning}>
                 {cleanSlateRunning ? 'Wiping…' : 'Clean Slate'}
               </Button>
             </DialogFooter>
           </DialogBody>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function EntitySettingRow({ esKey, schema, value, locked, saving, onChange, onLockedChange, onSave }: {
+  esKey: string;
+  schema: SettingSchema;
+  value: unknown;
+  locked: boolean;
+  saving: boolean;
+  onChange: (v: unknown) => void;
+  onLockedChange: (locked: boolean) => void;
+  onSave: () => void;
+}) {
+  return (
+    <div className="card p-5">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <div className="text-sm font-medium text-content-primary">{schema.label}</div>
+            {locked && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-status-warning bg-status-warning/10 px-1.5 py-0.5 rounded">
+                <Lock size={9} />Locked
+              </span>
+            )}
+          </div>
+          <div className="text-xs text-content-tertiary">{schema.description}</div>
+          <code className="text-[10px] text-content-tertiary/50 font-mono mt-1 block">{esKey}</code>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          {schema.type === 'toggle' ? (
+            <Switch
+              checked={value === true || value === 'true'}
+              onCheckedChange={v => onChange(v)}
+              aria-label={schema.label}
+            />
+          ) : schema.type === 'select' ? (
+            <Select value={String(value ?? '')} onValueChange={v => onChange(v)}>
+              <SelectTrigger className="w-40 h-8 text-xs">
+                <SelectValue placeholder="Select…" />
+              </SelectTrigger>
+              <SelectContent>
+                {schema.options?.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <Input
+                type="number"
+                value={value === null || value === undefined ? '' : String(value)}
+                onChange={e => onChange(e.target.value === '' ? null : Number(e.target.value))}
+                min={schema.min}
+                max={schema.max}
+                step={schema.step}
+                className="w-28 h-8 text-xs"
+              />
+              {schema.unit && <span className="text-xs text-content-tertiary">{schema.unit}</span>}
+            </div>
+          )}
+          <Button size="sm" onClick={onSave} disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
+        <Switch
+          checked={locked}
+          onCheckedChange={onLockedChange}
+          aria-label={`Lock ${schema.label}`}
+          className="scale-75 origin-left"
+        />
+        <span className="text-xs text-content-tertiary">
+          Lock — prevent workspace owners from overriding this setting
+        </span>
+      </div>
     </div>
   );
 }

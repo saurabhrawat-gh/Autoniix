@@ -1,0 +1,146 @@
+{
+  "common": {
+    "save": "सहेजें",
+    "saving": "सहेज रहे हैं…",
+    "cancel": "रद्द करें",
+    "delete": "हटाएं",
+    "deleting": "हटा रहे हैं…",
+    "confirm": "पुष्टि करें",
+    "close": "बंद करें",
+    "edit": "संपादित करें",
+    "view": "देखें",
+    "back": "वापस",
+    "next": "अगला",
+    "create": "बनाएं",
+    "update": "अपडेट करें",
+    "remove": "हटाएं",
+    "add": "जोड़ें",
+    "search": "खोजें",
+    "filter": "फ़िल्टर",
+    "loading": "लोड हो रहा है…",
+    "error": "कुछ गलत हो गया",
+    "retry": "पुनः प्रयास करें",
+    "empty": "अभी कोई आइटम नहीं",
+    "noResults": "कोई परिणाम नहीं मिला",
+    "required": "आवश्यक",
+    "optional": "वैकल्पिक",
+    "enabled": "सक्षम",
+    "disabled": "अक्षम",
+    "active": "सक्रिय",
+    "inactive": "निष्क्रिय",
+    "paused": "रोका गया",
+    "unknown": "अज्ञात",
+    "yes": "हाँ",
+    "no": "नहीं",
+    "copied": "कॉपी किया!",
+    "copyLink": "लिंक कॉपी करें",
+    "learnMore": "और जानें",
+    "seeAll": "सभी देखें",
+    "showMore": "और दिखाएं",
+    "showLess": "कम दिखाएं",
+    "refresh": "रिफ्रेश करें",
+    "download": "डाउनलोड करें",
+    "export": "निर्यात करें",
+    "import": "आयात करें"
+  },
+  "nav": {
+    "home": "होम",
+    "dashboard": "डैशबोर्ड",
+    "notifications": "सूचनाएं",
+    "channels": "चैनल",
+    "content": "कंटेंट",
+    "library": "लाइब्रेरी",
+    "queue": "कतार",
+    "progress": "प्रगति",
+    "jobs": "जॉब्स",
+    "review": "समीक्षा",
+    "analytics": "विश्लेषण",
+    "experiments": "प्रयोग",
+    "fleet": "फ्लीट",
+    "providers": "प्रदाता",
+    "teams": "टीमें",
+    "users": "उपयोगकर्ता",
+    "settings": "सेटिंग्स",
+    "debug": "डीबग",
+    "workspace": "वर्कस्पेस",
+    "schedule": "अनुसूची",
+    "collapse": "संकुचित करें",
+    "pillars": {
+      "create": "बनाएं",
+      "operate": "संचालित करें",
+      "measure": "मापें",
+      "configure": "कॉन्फ़िगर करें"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Autoniix में साइन इन करें",
+      "subtitle": "AI-संचालित कंटेंट ऑटोमेशन",
+      "email": "ईमेल पता",
+      "password": "पासवर्ड",
+      "submit": "साइन इन करें",
+      "submitting": "साइन इन हो रहा है…",
+      "forgotPassword": "पासवर्ड भूल गए?",
+      "noAccount": "खाता नहीं है?",
+      "register": "खाता बनाएं",
+      "error": {
+        "invalidCredentials": "गलत ईमेल या पासवर्ड",
+        "accountLocked": "खाता लॉक है। कृपया सहायता से संपर्क करें।",
+        "generic": "साइन इन विफल। कृपया पुनः प्रयास करें।"
+      }
+    },
+    "logout": "साइन आउट करें"
+  },
+  "header": {
+    "openMenu": "मेनू खोलें",
+    "brand": "Autoniix",
+    "searchCommandsTooltip": "खोज और कमांड (⌘K)",
+    "openCommandPalette": "कमांड पैलेट खोलें",
+    "keyboardShortcutsTooltip": "कीबोर्ड शॉर्टकट (?)",
+    "keyboardShortcutsLabel": "कीबोर्ड शॉर्टकट",
+    "yourWorkspaces": "आपके वर्कस्पेस",
+    "workspaceFallback": "वर्कस्पेस",
+    "switchWorkspace": "वर्कस्पेस बदलें",
+    "userMenu": "उपयोगकर्ता मेनू",
+    "profileSecurity": "प्रोफ़ाइल और सुरक्षा",
+    "signOut": "साइन आउट करें",
+    "workspaceSwitched": "वर्कस्पेस बदल गया",
+    "failedToSwitchWorkspace": "वर्कस्पेस बदलने में विफल",
+    "addChannel": "चैनल जोड़ें",
+    "addChannelTooltip": "नया चैनल बनाएं (n)",
+    "addChannelLabel": "चैनल जोड़ें",
+    "systemStoppedTooltip": "चैनल जोड़ने के लिए Settings से सिस्टम फिर शुरू करें",
+    "signOutDialog": {
+      "title": "साइन आउट करें?",
+      "description": "आपको लॉगिन पेज पर वापस ले जाया जाएगा।",
+      "confirm": "साइन आउट करें"
+    }
+  },
+  "locale": {
+    "label": "भाषा",
+    "en": "English",
+    "ja": "日本語",
+    "hi": "हिन्दी",
+    "es": "Español"
+  },
+  "theme": {
+    "light": "लाइट",
+    "dark": "डार्क",
+    "system": "सिस्टम"
+  },
+  "errors": {
+    "notFound": {
+      "title": "पेज नहीं मिला",
+      "description": "जो पेज आप ढूंढ रहे हैं वह मौजूद नहीं है।",
+      "action": "डैशबोर्ड पर जाएं"
+    },
+    "serverError": {
+      "title": "कुछ गलत हो गया",
+      "description": "एक अप्रत्याशित त्रुटि हुई। कृपया पुनः प्रयास करें।",
+      "action": "पुनः प्रयास करें"
+    },
+    "network": "नेटवर्क त्रुटि। अपना कनेक्शन जांचें और पुनः प्रयास करें।",
+    "timeout": "अनुरोध का समय समाप्त। कृपया पुनः प्रयास करें।",
+    "generic": "एक त्रुटि हुई: {message}"
+  }
+}

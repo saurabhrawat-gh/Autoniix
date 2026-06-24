@@ -162,10 +162,42 @@ jobs:
           PYTHON_DASHBOARD_URL: ""
         run: pytest tests/migration/ -v --tb=short -q
 
+  dashboard-frontend:
+    name: Dashboard — Vitest + Chromatic
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Unit tests (Vitest)
+        run: npm test
+
+      - name: Chromatic visual regression
+        if: ${{ env.CHROMATIC_PROJECT_TOKEN != '' }}
+        run: npm run chromatic
+        env:
+          CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+
   deploy:
     name: Deploy — VPS
     runs-on: self-hosted
-    needs: [rust, go-harness, python-harness]
+    needs: [rust, go-harness, python-harness, dashboard-frontend]
     steps:
       - name: Pull & restart
         env:

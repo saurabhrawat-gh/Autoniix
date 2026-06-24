@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { isLoggedIn, wsEvents } from '@/lib/api-v2';
 import { dashboardApi, contentApi } from '@/lib/api-v2';
+import { qk } from '@/lib/api/query-keys';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import { Skeleton } from '@/lib/components/Skeleton';
@@ -39,37 +41,37 @@ const sectionVariants = {
 export default function DashboardPage() {
   const router = useRouter();
   const { showToast } = useToast();
-  const [stats, setStats] = useState<any>(null);
-  const [jobs, setJobs] = useState<any[]>([]);
-  const [systemStopped, setSystemStopped] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const [wsFlash, setWsFlash] = useState(false);
   const reduce = useReducedMotion();
   const reviewBadgeRef = useRef<HTMLSpanElement>(null);
   const prevPendingRef = useRef(0);
 
-  const loadData = useCallback(async () => {
-    try {
-      const [s, j] = await Promise.all([
-        dashboardApi.stats(),
-        contentApi.list({ limit: 30 }).catch(() => null),
-      ]);
-      const d = s.data;
-      setStats(d);
-      setSystemStopped(!!d.emergency_stop);
-      const items = j ? (j.data.groups ?? []).flatMap((g: any) => g.items ?? []) : [];
-      setJobs(items);
-    } catch (e: any) {
-      showToast(e?.message || 'Failed to load', 'error');
-    }
-    setLoading(false);
-  }, [showToast]);
+  const { data: statsRes, isLoading: statsLoading, error: statsError } = useQuery({
+    queryKey: qk.dashboard.stats(),
+    queryFn: () => dashboardApi.stats(),
+    enabled: isLoggedIn(),
+  });
+
+  const { data: contentRes, isLoading: contentLoading } = useQuery({
+    queryKey: qk.content.list({ limit: 30 }),
+    queryFn: () => contentApi.list({ limit: 30 }),
+    enabled: isLoggedIn(),
+  });
+
+  const loading = statsLoading || contentLoading;
+  const stats = statsRes?.data ?? null;
+  const systemStopped = !!stats?.emergency_stop;
+  const jobs: any[] = (contentRes?.data?.groups ?? []).flatMap((g: any) => g.items ?? []);
 
   useEffect(() => {
-    if (!isLoggedIn()) { router.replace('/login'); return; }
-    loadData();
-  }, [router, loadData]);
+    if (!isLoggedIn()) { router.replace('/login'); }
+  }, [router]);
+
+  useEffect(() => {
+    if (statsError) showToast((statsError as any)?.message || 'Failed to load', 'error');
+  }, [statsError, showToast]);
 
   useEffect(() => {
     if (!wsFlash) return;
@@ -87,7 +89,13 @@ export default function DashboardPage() {
       try {
         ws = wsEvents();
         ws.onmessage = (ev) => {
-          try { if (JSON.parse(ev.data)?.type === 'job_update') { loadData(); setWsFlash(true); } } catch {}
+          try {
+            if (JSON.parse(ev.data)?.type === 'job_update') {
+              queryClient.invalidateQueries({ queryKey: qk.dashboard.stats() });
+              queryClient.invalidateQueries({ queryKey: qk.content.all });
+              setWsFlash(true);
+            }
+          } catch {}
         };
         ws.onclose = () => { if (alive) retry = setTimeout(connect, 5000); };
         ws.onerror = () => ws?.close();
@@ -95,11 +103,14 @@ export default function DashboardPage() {
     };
     connect();
     return () => { alive = false; clearTimeout(retry); ws?.close(); };
-  }, [loadData]);
+  }, [queryClient]);
 
   async function refresh() {
     setRefreshing(true);
-    await loadData();
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: qk.dashboard.stats() }),
+      queryClient.invalidateQueries({ queryKey: qk.content.all }),
+    ]);
     setRefreshing(false);
   }
 

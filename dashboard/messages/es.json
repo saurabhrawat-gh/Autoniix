@@ -1,0 +1,146 @@
+{
+  "common": {
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "deleting": "Eliminando…",
+    "confirm": "Confirmar",
+    "close": "Cerrar",
+    "edit": "Editar",
+    "view": "Ver",
+    "back": "Volver",
+    "next": "Siguiente",
+    "create": "Crear",
+    "update": "Actualizar",
+    "remove": "Quitar",
+    "add": "Añadir",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "loading": "Cargando…",
+    "error": "Algo salió mal",
+    "retry": "Reintentar",
+    "empty": "Sin elementos aún",
+    "noResults": "No se encontraron resultados",
+    "required": "Obligatorio",
+    "optional": "Opcional",
+    "enabled": "Habilitado",
+    "disabled": "Deshabilitado",
+    "active": "Activo",
+    "inactive": "Inactivo",
+    "paused": "Pausado",
+    "unknown": "Desconocido",
+    "yes": "Sí",
+    "no": "No",
+    "copied": "¡Copiado!",
+    "copyLink": "Copiar enlace",
+    "learnMore": "Saber más",
+    "seeAll": "Ver todo",
+    "showMore": "Mostrar más",
+    "showLess": "Mostrar menos",
+    "refresh": "Actualizar",
+    "download": "Descargar",
+    "export": "Exportar",
+    "import": "Importar"
+  },
+  "nav": {
+    "home": "Inicio",
+    "dashboard": "Panel",
+    "notifications": "Notificaciones",
+    "channels": "Canales",
+    "content": "Contenido",
+    "library": "Biblioteca",
+    "queue": "Cola",
+    "progress": "Progreso",
+    "jobs": "Trabajos",
+    "review": "Revisión",
+    "analytics": "Análisis",
+    "experiments": "Experimentos",
+    "fleet": "Flota",
+    "providers": "Proveedores",
+    "teams": "Equipos",
+    "users": "Usuarios",
+    "settings": "Configuración",
+    "debug": "Depurar",
+    "workspace": "Espacio de trabajo",
+    "schedule": "Horario",
+    "collapse": "Contraer",
+    "pillars": {
+      "create": "Crear",
+      "operate": "Operar",
+      "measure": "Medir",
+      "configure": "Configurar"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Iniciar sesión en Autoniix",
+      "subtitle": "Automatización de contenido con IA",
+      "email": "Correo electrónico",
+      "password": "Contraseña",
+      "submit": "Iniciar sesión",
+      "submitting": "Iniciando sesión…",
+      "forgotPassword": "¿Olvidaste tu contraseña?",
+      "noAccount": "¿No tienes cuenta?",
+      "register": "Crear cuenta",
+      "error": {
+        "invalidCredentials": "Correo o contraseña incorrectos",
+        "accountLocked": "Cuenta bloqueada. Contacta con soporte.",
+        "generic": "Error al iniciar sesión. Inténtalo de nuevo."
+      }
+    },
+    "logout": "Cerrar sesión"
+  },
+  "header": {
+    "openMenu": "Abrir menú",
+    "brand": "Autoniix",
+    "searchCommandsTooltip": "Buscar y comandos (⌘K)",
+    "openCommandPalette": "Abrir paleta de comandos",
+    "keyboardShortcutsTooltip": "Atajos de teclado (?)",
+    "keyboardShortcutsLabel": "Atajos de teclado",
+    "yourWorkspaces": "Tus espacios de trabajo",
+    "workspaceFallback": "Espacio de trabajo",
+    "switchWorkspace": "Cambiar espacio de trabajo",
+    "userMenu": "Menú de usuario",
+    "profileSecurity": "Perfil y seguridad",
+    "signOut": "Cerrar sesión",
+    "workspaceSwitched": "Espacio de trabajo cambiado",
+    "failedToSwitchWorkspace": "Error al cambiar espacio de trabajo",
+    "addChannel": "Añadir canal",
+    "addChannelTooltip": "Crear un nuevo canal (n)",
+    "addChannelLabel": "Añadir canal",
+    "systemStoppedTooltip": "Reanuda el sistema desde Configuración para añadir canales",
+    "signOutDialog": {
+      "title": "¿Cerrar sesión?",
+      "description": "Serás redirigido a la página de inicio de sesión.",
+      "confirm": "Cerrar sesión"
+    }
+  },
+  "locale": {
+    "label": "Idioma",
+    "en": "English",
+    "ja": "日本語",
+    "hi": "हिन्दी",
+    "es": "Español"
+  },
+  "theme": {
+    "light": "Claro",
+    "dark": "Oscuro",
+    "system": "Sistema"
+  },
+  "errors": {
+    "notFound": {
+      "title": "Página no encontrada",
+      "description": "La página que buscas no existe o se ha movido.",
+      "action": "Ir al panel"
+    },
+    "serverError": {
+      "title": "Algo salió mal",
+      "description": "Ocurrió un error inesperado. Por favor inténtalo de nuevo.",
+      "action": "Intentar de nuevo"
+    },
+    "network": "Error de red. Comprueba tu conexión e inténtalo de nuevo.",
+    "timeout": "La solicitud expiró. Por favor inténtalo de nuevo.",
+    "generic": "Ocurrió un error: {message}"
+  }
+}

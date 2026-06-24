@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sparkles, ChevronLeft, ChevronRight, Check, Save, Wand2, X, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { channelsApi } from '@/lib/api-v2';
+import { channelsApi, voiceApi, type ElevenLabsVoice } from '@/lib/api-v2';
+import { useLookupValues } from '@/lib/hooks/useLookupValues';
+import { LvSelect } from '@/lib/components/LvSelect';
 import {
   validateStep,
   computeAllValidity,
@@ -23,7 +25,7 @@ import {
 } from '@/lib/ui';
 import { cn } from '@/lib/utils';
 
-type Pillar = { name: string; description?: string; weight?: number; examples?: string[] };
+type Pillar = { name: string; description?: string; weight: number; examples: string[] };
 type Rule = { kind: string; value: string };
 type Reference = { kind: string; label?: string; uri?: string };
 
@@ -51,6 +53,7 @@ type FormState = {
   target_audience: string;
   content_mode: 'short' | 'long' | 'mixed';
   preset: string;
+  publish_cadence: string;
   content_type_tags: string[];
 
   mission: string;
@@ -94,7 +97,7 @@ type FormState = {
 const initialState: FormState = {
   channel_name: '', niche: '', sub_niche: '', platform: 'youtube', handle: '', description: '',
   primary_language: 'en', geography: '', target_age_group: '', target_audience: '',
-  content_mode: 'short', preset: '', content_type_tags: [],
+  content_mode: 'short', preset: '', publish_cadence: '', content_type_tags: [],
   mission: '', vision: '', brand_personality: '', tone: '',
   pillars: [], topic_rules: [],
   narration_style: '', music_style: '', humor_style: '', pacing_style: '',
@@ -148,7 +151,7 @@ export default function ChannelWizard() {
     setState(s => ({ ...s, [k]: v }));
 
   // AE-291 — per-step validation
-  const [touchedSteps, setTouchedSteps] = useState<Set<number>>(new Set([0]));
+  const [touchedSteps, setTouchedSteps] = useState<Set<number>>(new Set());
   const allValidity = useMemo(() => computeAllValidity(state), [state]);
   const currentKey = STEPS[step].key as StepKey;
   const currentResult = useMemo(() => validateStep(currentKey, state), [currentKey, state]);
@@ -380,70 +383,60 @@ async function aiSuggest(field: string, context: any, set: (v: string) => void) 
   } catch {/* ignore */}
 }
 
-// AE-240: platform registry — youtube is the only shipped platform
-const PLATFORM_OPTIONS = [
-  { value: 'youtube',   label: 'YouTube',     enabled: true  },
-  { value: 'instagram', label: 'Instagram',   enabled: false },
-  { value: 'tiktok',    label: 'TikTok',      enabled: false },
-  { value: 'x',         label: 'X (Twitter)', enabled: false },
-  { value: 'linkedin',  label: 'LinkedIn',    enabled: false },
-];
-
 // Step components
 function BasicsStep({ state, update, errors }: { state: FormState; update: any; errors: WizardErrors }) {
+  const niches     = useLookupValues('niche');
+  const subNiches  = useLookupValues('sub_niche', state.niche || undefined);
+  const languages  = useLookupValues('language');
+  const geos       = useLookupValues('geography');
+  const ageGroups  = useLookupValues('age_group');
+  const audTags    = useLookupValues('audience_tag');
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
       <Field label="Channel name" required hint="Public-facing name. You can change this later." error={errors.channel_name}>
         <Input value={state.channel_name}
           onChange={e => update('channel_name', e.target.value)} placeholder="The Curious Engineer" />
       </Field>
-      <Field label="Platform" hint="More platforms coming soon.">
-        <Select value={state.platform} onValueChange={(v: string) => update('platform', v)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {PLATFORM_OPTIONS.map(p => (
-              <SelectItem key={p.value} value={p.value} disabled={!p.enabled}>
-                <div className="flex items-center justify-between gap-4">
-                  <span>{p.label}</span>
-                  {!p.enabled && <span className="text-[10px] opacity-50">Coming soon</span>}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
-      <Field label="Handle" required hint="@thecuriousengineer" error={errors.handle}>
+      <Field label="Handle" required hint="Must start with @" error={errors.handle}>
         <Input value={state.handle} onChange={e => update('handle', e.target.value)} placeholder="@yourhandle" />
       </Field>
-      <Field label="Niche" required hint="The 1-2 word category. Used by research + topic generation." error={errors.niche}>
-        <Input value={state.niche} onChange={e => update('niche', e.target.value)} placeholder="science explainer" />
+      <Field label="Niche" required hint="Category used by research + topic generation." error={errors.niche}>
+        <LvSelect opts={niches} value={state.niche} onChange={v => { update('niche', v); update('sub_niche', ''); }} allowOther placeholder="— Select niche —" />
       </Field>
-      <Field label="Sub-niche">
-        <Input value={state.sub_niche} onChange={e => update('sub_niche', e.target.value)} placeholder="quantum mechanics for hobbyists" />
+      <Field label="Sub-niche" hint={state.niche ? '' : 'Select a niche first.'}>
+        <LvSelect opts={subNiches} value={state.sub_niche} onChange={v => update('sub_niche', v)} allowOther placeholder="— Select sub-niche —" />
       </Field>
       <Field label="Primary language" required error={errors.primary_language}>
-        <Select value={state.primary_language} onValueChange={(v: string) => update('primary_language', v)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {['en','es','hi','fr','de','pt','it','ja','ko','zh'].map(l => (
-              <SelectItem key={l} value={l}>{l}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <LvSelect opts={languages} value={state.primary_language} onChange={v => update('primary_language', v)} placeholder="— Select language —" />
       </Field>
       <Field label="Geography" hint="Where most viewers should be.">
-        <Input value={state.geography} onChange={e => update('geography', e.target.value)} placeholder="US / Global / EU" />
+        <LvSelect opts={geos} value={state.geography} onChange={v => update('geography', v)} allowOther placeholder="— Select region —" />
       </Field>
       <Field label="Target age group">
-        <Input value={state.target_age_group} onChange={e => update('target_age_group', e.target.value)} placeholder="18-34" />
+        <LvSelect opts={ageGroups} value={state.target_age_group} onChange={v => update('target_age_group', v)} placeholder="— Select age group —" />
       </Field>
-      <div className="md:col-span-2">
-        <Field label="Target audience" hint="One sentence on who this channel is for. Drives hook + tone choices."
-          suggest={() => aiSuggest('target_audience', { niche: state.niche, sub_niche: state.sub_niche, channel_name: state.channel_name }, v => update('target_audience', v))}>
-          <Input value={state.target_audience} onChange={e => update('target_audience', e.target.value)}
-            placeholder="Curious 25-34yo professionals who prefer 4-min reads over textbooks." />
-        </Field>
-      </div>
+      <Field label="Audience tags" hint="Select up to 3 personas that describe your viewers.">
+        <div className="flex flex-wrap gap-1.5">
+          {audTags.map(t => {
+            const active = (state.target_audience ?? '').split(',').map((s: string) => s.trim()).includes(t.value);
+            return (
+              <Button
+                key={t.value}
+                type="button"
+                variant={active ? 'primary' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  const tags = (state.target_audience ?? '').split(',').map((s: string) => s.trim()).filter(Boolean);
+                  const next = active ? tags.filter((x: string) => x !== t.value) : [...tags, t.value];
+                  update('target_audience', next.join(', '));
+                }}
+                className="h-7 px-2.5 rounded-full text-xs"
+              >{t.label}</Button>
+            );
+          })}
+        </div>
+      </Field>
       <div className="md:col-span-2">
         <Field label="Description"
           suggest={() => aiSuggest('description', { niche: state.niche, channel_name: state.channel_name }, v => update('description', v))}>
@@ -459,6 +452,11 @@ function StrategyStep({ state, update, presets, errors }: any) {
   const tags = ['faceless', 'commentary', 'storytelling', 'documentary', 'kids', 'podcast', 'trend-based', 'evergreen', 'character', 'persona'];
   return (
     <div className="space-y-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <Field label="Publish cadence" hint="e.g. 3x/week short, 1x/week long">
+          <Input value={state.publish_cadence} onChange={e => update('publish_cadence', e.target.value)} placeholder="3 shorts + 1 long form per week" />
+        </Field>
+      </div>
       <Field label="Content mode" required hint="Shorts, long-form, or both." error={errors?.content_mode}>
         <div className="flex gap-2">
           {(['short','long','mixed'] as const).map(m => (
@@ -510,7 +508,7 @@ function StrategyStep({ state, update, presets, errors }: any) {
 }
 
 function PillarsStep({ state, update, errors }: any) {
-  const addPillar = () => update('pillars', [...state.pillars, { name: '', description: '', weight: 1 }]);
+  const addPillar = () => update('pillars', [...state.pillars, { name: '', description: '', weight: 1, examples: [] }]);
   const removePillar = (i: number) => update('pillars', state.pillars.filter((_: any, j: number) => j !== i));
   const setPillar = (i: number, k: keyof Pillar, v: any) =>
     update('pillars', state.pillars.map((p: Pillar, j: number) => j === i ? { ...p, [k]: v } : p));
@@ -575,6 +573,14 @@ function PillarsStep({ state, update, errors }: any) {
                     value={p.description || ''}
                     onChange={e => setPillar(i, 'description', e.target.value)}
                   />
+                  <select
+                    value={p.weight ?? 1}
+                    onChange={e => setPillar(i, 'weight', Number(e.target.value))}
+                    className="h-9 rounded-md border border-border bg-surface-0 px-2 text-xs w-20 shrink-0"
+                    title="Pillar weight (priority)"
+                  >
+                    {[1,2,3,4,5].map(w => <option key={w} value={w}>W{w}</option>)}
+                  </select>
                   <Button
                     type="button"
                     variant="ghost"
@@ -592,6 +598,15 @@ function PillarsStep({ state, update, errors }: any) {
                     {descErr && <span>{descErr}</span>}
                   </div>
                 )}
+                <div className="pl-1">
+                  <div className="text-[10px] opacity-50 mb-1">Examples (one per line)</div>
+                  <Textarea
+                    className="h-14 text-xs"
+                    placeholder="Real Madrid documentary\nNASA mission breakdown"
+                    value={(p.examples || []).join('\n')}
+                    onChange={e => setPillar(i, 'examples', e.target.value.split('\n').filter(Boolean))}
+                  />
+                </div>
               </div>
             );
           })}
@@ -651,6 +666,44 @@ function RuleList({ kind, label, hint, rules, onAdd, onRemove, onSet }: any) {
 }
 
 function VoiceStep({ state, update, errors }: any) {
+  const [voices, setVoices]         = useState<ElevenLabsVoice[]>([]);
+  const [voicesLoading, setVLoding] = useState(false);
+  const [voicesWarn, setVWarn]      = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [previewErr, setPreviewErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    setVLoding(true);
+    voiceApi.listVoices()
+      .then(r => {
+        setVoices(r.data ?? []);
+        if (r.warning) setVWarn(r.warning);
+      })
+      .catch(() => setVWarn('Could not load voices — enter voice ID manually.'))
+      .finally(() => setVLoding(false));
+  }, []);
+
+  const handlePreview = async () => {
+    if (!state.elevenlabs_voice_id) return;
+    setPreviewing(true);
+    setPreviewErr(null);
+    setPreviewUrl(null);
+    try {
+      const r = await voiceApi.preview({
+        voice_id:        state.elevenlabs_voice_id,
+        stability:       state.voice_stability,
+        similarity_boost: state.voice_stability,
+        style:           state.voice_style,
+      });
+      setPreviewUrl(r.data_url);
+    } catch (e: any) {
+      setPreviewErr(e.message ?? 'Preview failed');
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
       <Field label="Narration style" required error={errors?.narration_style}
@@ -677,9 +730,83 @@ function VoiceStep({ state, update, errors }: any) {
           </SelectContent>
         </Select>
       </Field>
-      <Field label="ElevenLabs voice id" hint="(Optional) Force a specific voice id.">
-        <Input value={state.elevenlabs_voice_id} onChange={e => update('elevenlabs_voice_id', e.target.value)} />
-      </Field>
+
+      {/* Voice picker — spans both columns */}
+      <div className="md:col-span-2 space-y-3">
+        <div className="text-xs font-medium uppercase tracking-wide opacity-70">
+          ElevenLabs voice
+          {voicesWarn && <span className="ml-2 normal-case font-normal text-status-warning opacity-100">{voicesWarn}</span>}
+        </div>
+
+        {voicesLoading ? (
+          <div className="text-xs opacity-50 animate-pulse">Loading voices…</div>
+        ) : voices.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-56 overflow-y-auto pr-1">
+            {voices.map(v => {
+              const active = state.elevenlabs_voice_id === v.voice_id;
+              return (
+                <button
+                  key={v.voice_id}
+                  type="button"
+                  onClick={() => { update('elevenlabs_voice_id', v.voice_id); setPreviewUrl(null); }}
+                  className={cn(
+                    'text-left rounded-lg border px-3 py-2 text-sm transition-colors',
+                    active
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border hover:border-primary/50 hover:bg-surface-1'
+                  )}
+                >
+                  <div className="font-medium truncate">{v.name}</div>
+                  {v.category && <div className="text-[10px] opacity-50 capitalize">{v.category}</div>}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <div className="text-xs opacity-50">No voices loaded — enter ID manually.</div>
+            <Input
+              value={state.elevenlabs_voice_id}
+              onChange={e => update('elevenlabs_voice_id', e.target.value)}
+              placeholder="21m00Tcm4TlvDq8ikWAM"
+            />
+          </div>
+        )}
+
+        {/* Manual override when voices are loaded */}
+        {voices.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Input
+              className="flex-1 text-xs font-mono"
+              value={state.elevenlabs_voice_id}
+              onChange={e => update('elevenlabs_voice_id', e.target.value)}
+              placeholder="Or paste voice ID directly…"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!state.elevenlabs_voice_id || previewing}
+              onClick={handlePreview}
+            >
+              {previewing ? 'Generating…' : '▶ Preview'}
+            </Button>
+          </div>
+        )}
+
+        {previewErr && (
+          <div className="text-xs text-status-error">{previewErr}</div>
+        )}
+        {previewUrl && (
+          <audio
+            controls
+            autoPlay
+            src={previewUrl}
+            className="w-full h-9 mt-1"
+          />
+        )}
+      </div>
+
       <Field label="Emotion intensity (0-10)">
         <input type="range" min={0} max={10} value={state.emotion_intensity}
           onChange={e => update('emotion_intensity', Number(e.target.value))} className="w-full" />
@@ -716,9 +843,22 @@ function VisualStep({ state, update, errors }: any) {
       <Field label="Secondary color" required error={errors?.secondary_color}>
         <input type="color" value={state.secondary_color} onChange={e => update('secondary_color', e.target.value)} className="h-10 w-20 rounded" />
       </Field>
-      <Field label="LUT preference"
-        suggest={() => aiSuggest('lut_preference', { niche: state.niche }, v => update('lut_preference', v))}>
-        <Input value={state.lut_preference} onChange={e => update('lut_preference', e.target.value)} placeholder="Cinematic teal-orange, mild contrast" />
+      <Field label="LUT preference">
+        <Select value={state.lut_preference || '__none__'} onValueChange={(v: string) => update('lut_preference', v === '__none__' ? '' : v)}>
+          <SelectTrigger><SelectValue placeholder="— None —" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">— None —</SelectItem>
+            {[
+              { value: 'cinematic',    label: 'Cinematic — teal-orange, punchy contrast' },
+              { value: 'clean_bright', label: 'Clean & bright — neutral, vivid' },
+              { value: 'warm_gold',    label: 'Warm gold — cozy, warm highlights' },
+              { value: 'cool_blue',    label: 'Cool blue — desaturated, crisp' },
+              { value: 'vintage',      label: 'Vintage — faded, warm shadows' },
+              { value: 'documentary',  label: 'Documentary — flat, natural' },
+              { value: 'neon_dark',    label: 'Neon dark — high contrast, vivid' },
+            ].map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </Field>
       <Field label="Transition preference"
         suggest={() => aiSuggest('transition_preference', {}, v => update('transition_preference', v))}>
