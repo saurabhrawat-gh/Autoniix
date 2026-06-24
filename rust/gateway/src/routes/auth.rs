@@ -1,6 +1,6 @@
 use axum::{
     extract::State,
-    http::{header::SET_COOKIE, HeaderName, StatusCode},
+    http::{header::SET_COOKIE, HeaderMap, HeaderName, StatusCode},
     response::{AppendHeaders, IntoResponse},
     routing::{get, post, put},
     Json, Router,
@@ -9,9 +9,10 @@ use axum_extra::{headers::Cookie, TypedHeader};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    auth::AuthServiceImpl,
+    auth::{AuthServiceImpl, SignInResult},
     error::{ApiError, ApiResult},
     extractors::AuthUser,
+    middleware::{invite_rate_limit, InviteRateLimiter},
 };
 
 // Cookie lifetimes (seconds): access token 1h, refresh token 30d.
@@ -68,7 +69,29 @@ fn resolve_refresh_token(
         .or(body_token)
 }
 
+/// Extract the client IP from `X-Real-IP` (set by Traefik) or the first entry
+/// of `X-Forwarded-For`. Returns `None` when neither header is present.
+fn extract_ip(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("x-real-ip")
+        .or_else(|| headers.get("x-forwarded-for"))
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.split(',').next().unwrap_or(s).trim().to_string())
+}
+
+/// Extract the `User-Agent` string, or `None` when absent.
+fn extract_ua(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+}
+
 pub fn routes(auth_service: AuthServiceImpl) -> Router {
+    // Rate-limited endpoints get their own per-route middleware layer.
+    // The limiter state is separate from `auth_service` — axum resolves them independently.
+    let invite_limiter = InviteRateLimiter::new();
+
     Router::new()
         .route("/api/v2/auth/mode", get(auth_mode))
         .route("/api/v2/auth/signin", post(sign_in))
@@ -84,6 +107,15 @@ pub fn routes(auth_service: AuthServiceImpl) -> Router {
         .route("/api/v2/auth/reset", post(reset_password))
         .route("/api/v2/auth/mfa/setup", post(mfa_setup))
         .route("/api/v2/auth/mfa/verify", post(mfa_verify))
+        .route("/api/v2/auth/mfa/challenge", post(mfa_challenge))
+        .route("/api/v2/auth/mfa/disable", post(mfa_disable))
+        // IM-171: rate-limited — 5 attempts per IP per 15 min, returns 429 + Retry-After.
+        .route(
+            "/api/v2/auth/accept-invite",
+            post(accept_invite).layer(
+                axum::middleware::from_fn_with_state(invite_limiter, invite_rate_limit),
+            ),
+        )
         .with_state(auth_service)
 }
 
@@ -320,10 +352,89 @@ struct VerifyTokenResponse {
 
 async fn sign_in(
     State(auth_service): State<AuthServiceImpl>,
+    headers: HeaderMap,
     Json(req): Json<SignInRequest>,
 ) -> ApiResult<impl IntoResponse> {
+    let ip = extract_ip(&headers);
+    let ua = extract_ua(&headers);
+    match auth_service
+        .sign_in(
+            &req.email,
+            &req.password,
+            req.workspace_id,
+            ip.as_deref(),
+            ua.as_deref(),
+        )
+        .await?
+    {
+        // #666: MFA required — return pending token only, no session cookies.
+        SignInResult::MfaRequired { mfa_pending_token } => Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "status": "mfa_required",
+                "mfa_required": true,
+                "mfa_pending_token": mfa_pending_token,
+            })),
+        )
+            .into_response()),
+
+        SignInResult::Success {
+            access_token,
+            refresh_token,
+            user,
+            ws_role,
+            wid,
+        } => {
+            let workspace_id = if wid > 0 { Some(wid) } else { None };
+            let response = SignInResponse {
+                status: "ok".to_string(),
+                access_token: access_token.clone(),
+                expires_in: 3600,
+                user: SignInUser {
+                    id: user.id,
+                    email: user.email,
+                    role: ws_role,
+                    workspace_id,
+                },
+                setup_required: if workspace_id.is_none() {
+                    Some(true)
+                } else {
+                    None
+                },
+            };
+            Ok((
+                StatusCode::OK,
+                auth_cookies(&access_token, &refresh_token),
+                Json(response),
+            )
+                .into_response())
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct MfaChallengeRequest {
+    mfa_pending_token: String,
+    code: String,
+}
+
+/// POST /api/v2/auth/mfa/challenge — second factor for MFA-enabled accounts.
+/// Accepts the short-lived pending token from /signin plus the TOTP code.
+/// On success: issues full session tokens + auth cookies, identical to /signin.
+async fn mfa_challenge(
+    State(auth_service): State<AuthServiceImpl>,
+    headers: HeaderMap,
+    Json(req): Json<MfaChallengeRequest>,
+) -> ApiResult<impl IntoResponse> {
+    let ip = extract_ip(&headers);
+    let ua = extract_ua(&headers);
     let (access_token, refresh_token, user, ws_role, wid) = auth_service
-        .sign_in(&req.email, &req.password, req.workspace_id, None, None)
+        .complete_mfa_signin(
+            &req.mfa_pending_token,
+            &req.code,
+            ip.as_deref(),
+            ua.as_deref(),
+        )
         .await?;
 
     let workspace_id = if wid > 0 { Some(wid) } else { None };
@@ -337,11 +448,7 @@ async fn sign_in(
             role: ws_role,
             workspace_id,
         },
-        setup_required: if workspace_id.is_none() {
-            Some(true)
-        } else {
-            None
-        },
+        setup_required: None,
     };
 
     Ok((
@@ -349,6 +456,28 @@ async fn sign_in(
         auth_cookies(&access_token, &refresh_token),
         Json(response),
     ))
+}
+
+#[derive(Debug, Deserialize)]
+struct MfaDisableRequest {
+    code: String,
+}
+
+/// POST /api/v2/auth/mfa/disable — requires auth + valid TOTP code.
+/// Disables MFA on the account and clears the stored secret.
+async fn mfa_disable(
+    State(auth_service): State<AuthServiceImpl>,
+    AuthUser(principal): AuthUser,
+    Json(req): Json<MfaDisableRequest>,
+) -> ApiResult<impl IntoResponse> {
+    let user_id: i64 = principal
+        .user_id
+        .parse()
+        .map_err(|_| ApiError::Unauthorized)?;
+    auth_service.mfa_disable(user_id, &req.code).await?;
+    Ok(Json(StatusResponse {
+        status: "ok".to_string(),
+    }))
 }
 
 /// POST /api/v2/auth/register — public self-serve signup (#350).
@@ -382,6 +511,55 @@ async fn register(
     };
 
     Ok((StatusCode::CREATED, Json(response)))
+}
+
+#[derive(Debug, Deserialize)]
+struct AcceptInviteRequest {
+    token: String,
+    password: Option<String>,
+    display_name: Option<String>,
+}
+
+/// POST /api/v2/auth/accept-invite — accept a workspace invitation.
+/// For new users: `password` is required to set credentials.
+/// For existing users: `password` is ignored.
+/// On success: issues full session tokens + auth cookies (auto-login).
+async fn accept_invite(
+    State(auth_service): State<AuthServiceImpl>,
+    headers: HeaderMap,
+    Json(req): Json<AcceptInviteRequest>,
+) -> ApiResult<impl IntoResponse> {
+    let ip = extract_ip(&headers);
+    let ua = extract_ua(&headers);
+    let (access_token, refresh_token, user, ws_role, wid) = auth_service
+        .accept_invite(
+            &req.token,
+            req.password.as_deref(),
+            req.display_name.as_deref(),
+            ip.as_deref(),
+            ua.as_deref(),
+        )
+        .await?;
+
+    let workspace_id = if wid > 0 { Some(wid) } else { None };
+    let response = SignInResponse {
+        status: "ok".to_string(),
+        access_token: access_token.clone(),
+        expires_in: 3600,
+        user: SignInUser {
+            id: user.id,
+            email: user.email,
+            role: ws_role,
+            workspace_id,
+        },
+        setup_required: None,
+    };
+
+    Ok((
+        StatusCode::OK,
+        auth_cookies(&access_token, &refresh_token),
+        Json(response),
+    ))
 }
 
 async fn refresh_token(

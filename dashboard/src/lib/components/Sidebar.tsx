@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -32,6 +33,8 @@ import {
   Terminal,
   ChevronLeft,
   ChevronDown,
+  Database,
+  SlidersHorizontal,
 } from './Icon';
 
 const COLLAPSED_KEY = 'sidebar_collapsed_v1';
@@ -39,6 +42,7 @@ const COLLAPSED_KEY = 'sidebar_collapsed_v1';
 interface Leaf {
   href: string;
   label: string;
+  tKey: string;
   icon: LucideIcon;
   shortcut?: string;
   permission?: string;
@@ -53,8 +57,8 @@ interface Pillar {
 
 // Top leaves — meta-navigation that sits above all pillars, no group label.
 const TOP_LEAVES: Leaf[] = [
-  { href: '/dashboard',               label: 'Home',          icon: Home, shortcut: 'g d' },
-  { href: '/dashboard/notifications', label: 'Notifications', icon: Bell, shortcut: 'g n' },
+  { href: '/dashboard',               label: 'Home',          tKey: 'home',          icon: Home, shortcut: 'g d' },
+  { href: '/dashboard/notifications', label: 'Notifications', tKey: 'notifications', icon: Bell, shortcut: 'g n' },
 ];
 
 // Pillars — four flat groups of work surfaces (Create / Operate / Measure / Configure).
@@ -64,40 +68,42 @@ const PILLARS: Pillar[] = [
     id: 'create',
     label: 'Create',
     items: [
-      { href: '/dashboard/channels',         label: 'Channels', icon: Tv,           shortcut: 'g c' },
-      { href: '/dashboard/content',          label: 'Content',  icon: Clapperboard, shortcut: 'g v' },
-      { href: '/dashboard/library',          label: 'Library',  icon: Archive,      shortcut: 'g l', permission: 'project.view' },
-      { href: '/dashboard/content/calendar', label: 'Schedule', icon: CalendarDays, shortcut: 'g k' },
+      { href: '/dashboard/channels',         label: 'Channels', tKey: 'channels', icon: Tv,           shortcut: 'g c' },
+      { href: '/dashboard/content',          label: 'Content',  tKey: 'content',  icon: Clapperboard, shortcut: 'g v' },
+      { href: '/dashboard/library',          label: 'Library',  tKey: 'library',  icon: Archive,      shortcut: 'g l', permission: 'project.view' },
+      { href: '/dashboard/content/calendar', label: 'Schedule', tKey: 'schedule', icon: CalendarDays, shortcut: 'g k' },
     ],
   },
   {
     id: 'operate',
     label: 'Operate',
     items: [
-      { href: '/dashboard/queue',    label: 'Queue',    icon: ListChecks,     shortcut: 'g q' },
-      { href: '/dashboard/progress', label: 'Progress', icon: Activity,       shortcut: 'g p' },
-      { href: '/dashboard/review',   label: 'Review',   icon: ClipboardCheck, shortcut: 'g r' },
-      { href: '/dashboard/fleet',    label: 'Fleet',    icon: Cpu,            shortcut: 'g f', permission: 'workspace.settings.edit' },
+      { href: '/dashboard/queue',    label: 'Queue',    tKey: 'queue',    icon: ListChecks,     shortcut: 'g q' },
+      { href: '/dashboard/progress', label: 'Progress', tKey: 'progress', icon: Activity,       shortcut: 'g p' },
+      { href: '/dashboard/review',   label: 'Review',   tKey: 'review',   icon: ClipboardCheck, shortcut: 'g r' },
+      { href: '/dashboard/fleet',    label: 'Fleet',    tKey: 'fleet',    icon: Cpu,            shortcut: 'g f', permission: 'workspace.settings.edit' },
     ],
   },
   {
     id: 'measure',
     label: 'Measure',
     items: [
-      { href: '/dashboard/analytics',   label: 'Analytics',   icon: BarChart2,    shortcut: 'g a' },
-      { href: '/dashboard/experiments', label: 'Experiments', icon: FlaskConical, shortcut: 'g e', permission: 'workspace.settings.edit' },
+      { href: '/dashboard/analytics',   label: 'Analytics',   tKey: 'analytics',   icon: BarChart2,    shortcut: 'g a' },
+      { href: '/dashboard/experiments', label: 'Experiments', tKey: 'experiments', icon: FlaskConical, shortcut: 'g e', permission: 'workspace.settings.edit' },
     ],
   },
   {
     id: 'configure',
     label: 'Configure',
     items: [
-      { href: '/dashboard/workspace', label: 'Workspace', icon: Boxes,     shortcut: 'g w', permission: 'workspace.view' },
-      { href: '/dashboard/teams',     label: 'Teams',     icon: UserCheck, shortcut: 'g t', permission: 'workspace.members.view' },
-      { href: '/dashboard/users',     label: 'Users',     icon: Users,     shortcut: 'g u', requireGlobalRole: 'superadmin' },
-      { href: '/dashboard/providers', label: 'Providers', icon: Plug,      shortcut: 'g i', permission: 'credentials.view.labels' },
-      { href: '/dashboard/settings',  label: 'Settings',  icon: Settings,  shortcut: 'g s', permission: 'workspace.settings.edit' },
-      { href: '/dashboard/debug',     label: 'Debug',     icon: Terminal,  shortcut: 'g b', permission: 'workspace.settings.edit' },
+      { href: '/dashboard/workspace', label: 'Workspace', tKey: 'workspace', icon: Boxes,     shortcut: 'g w', permission: 'workspace.view' },
+      { href: '/dashboard/teams',     label: 'Teams',     tKey: 'teams',     icon: UserCheck, shortcut: 'g t', permission: 'workspace.members.view' },
+      { href: '/dashboard/users',          label: 'Users',         tKey: 'users',         icon: Users,    shortcut: 'g u', requireGlobalRole: 'superadmin' },
+      { href: '/dashboard/lookup-values',   label: 'Lookup Values', tKey: 'lookupValues',  icon: Database, requireGlobalRole: 'superadmin' },
+      { href: '/dashboard/providers',       label: 'Providers',     tKey: 'providers',     icon: Plug,     shortcut: 'g i', permission: 'credentials.view.labels' },
+      { href: '/dashboard/settings',        label: 'Settings',      tKey: 'settings',      icon: Settings, shortcut: 'g s', permission: 'workspace.settings.edit' },
+      { href: '/dashboard/customizations',  label: 'Customizations',tKey: 'customizations',icon: SlidersHorizontal,  permission: 'workspace.settings.edit' },
+      { href: '/dashboard/debug',     label: 'Debug',     tKey: 'debug',     icon: Terminal,  shortcut: 'g b', permission: 'workspace.settings.edit' },
     ],
   },
 ];
@@ -106,10 +112,12 @@ function LeafLink({
   leaf,
   active,
   collapsed,
+  displayLabel,
 }: {
   leaf: Leaf;
   active: boolean;
   collapsed: boolean;
+  displayLabel: string;
 }) {
   const Icon = leaf.icon;
   const link = (
@@ -132,7 +140,7 @@ function LeafLink({
       />
       {!collapsed && (
         <>
-          <span className="truncate flex-1">{leaf.label}</span>
+          <span className="truncate flex-1">{displayLabel}</span>
           {leaf.shortcut && (
             <span className="font-mono text-[10px] text-content-tertiary opacity-0 group-hover:opacity-100 transition-opacity">
               {leaf.shortcut}
@@ -144,7 +152,7 @@ function LeafLink({
   );
   if (collapsed) {
     return (
-      <Tip text={`${leaf.label}${leaf.shortcut ? ` · ${leaf.shortcut}` : ''}`} pos="right">
+      <Tip text={`${displayLabel}${leaf.shortcut ? ` · ${leaf.shortcut}` : ''}`} pos="right">
         {link}
       </Tip>
     );
@@ -153,6 +161,7 @@ function LeafLink({
 }
 
 export function Sidebar() {
+  const t = useTranslations('nav');
   const pathname = usePathname() || '';
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -233,7 +242,7 @@ export function Sidebar() {
           separate group from the identity rows. */}
       <div className={cn('shrink-0 space-y-px', collapsed ? 'px-1.5 pt-3' : 'px-2 pt-3')}>
         {TOP_LEAVES.filter(isItemVisible).map(item => (
-          <LeafLink key={item.href} leaf={item} active={isActive(item.href)} collapsed={collapsed} />
+          <LeafLink key={item.href} leaf={item} active={isActive(item.href)} collapsed={collapsed} displayLabel={t(item.tKey as Parameters<typeof t>[0])} />
         ))}
       </div>
 
@@ -257,13 +266,13 @@ export function Sidebar() {
                    trailed by a chevron so it reads as a "collapsible group"
                    (visual cue only at the moment). */
                 <div className="flex items-center gap-1 px-2.5 pb-1 text-[10px] font-medium text-content-tertiary/80 uppercase tracking-wider">
-                  <span>{pillar.label}</span>
+                  <span>{t(`pillars.${pillar.id}` as Parameters<typeof t>[0])}</span>
                   <ChevronDown size={9} className="opacity-60" aria-hidden />
                 </div>
               )}
               <div className="space-y-px">
                 {items.map(item => (
-                  <LeafLink key={item.href} leaf={item} active={isActive(item.href)} collapsed={collapsed} />
+                  <LeafLink key={item.href} leaf={item} active={isActive(item.href)} collapsed={collapsed} displayLabel={t(item.tKey as Parameters<typeof t>[0])} />
                 ))}
               </div>
             </div>
@@ -294,7 +303,7 @@ export function Sidebar() {
             aria-label="Collapse sidebar"
           >
             <ChevronLeft size={14} className="shrink-0 opacity-80" />
-            <span className="truncate flex-1 text-left">Collapse</span>
+            <span className="truncate flex-1 text-left">{t('collapse' as Parameters<typeof t>[0])}</span>
             <span className="font-mono text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">[</span>
           </button>
         )}

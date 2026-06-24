@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -54,6 +54,8 @@ jobs:
         env:
           PGPASSWORD: postgres
         run: |
+          echo "Applying base schema (init-db.sql)..."
+          psql -h localhost -U postgres -d autoniix_test -f scripts/init-db.sql -v ON_ERROR_STOP=1
           for f in $(ls scripts/migrations/*.sql | sort); do
             echo "Applying $f..."
             psql -h localhost -U postgres -d autoniix_test -f "$f" -v ON_ERROR_STOP=1
@@ -77,6 +79,13 @@ jobs:
         working-directory: rust
         run: cargo test -p harness
 
+      - name: Gateway integration tests
+        working-directory: rust
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
+          AUTH_JWT_SECRET: test-jwt-secret-for-ci
+        run: cargo test -p gateway --test gateway_harness_test
+
       - name: Build release binary
         working-directory: rust
         run: cargo build --release
@@ -98,10 +107,97 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  go-harness:
+    name: Go — harness tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: go/go.sum
+
+      - name: Go harness tests
+        working-directory: go
+        run: go test ./shared/testharness/... -v
+
+  python-harness:
+    name: Python — migration + contract tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: autoniix_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest pytest-asyncio
+
+      - name: Contract tests
+        env:
+          RUST_GATEWAY_URL: ""
+          PYTHON_DASHBOARD_URL: ""
+        run: pytest tests/contracts/ -v --tb=short -q
+
+      - name: Migration tests (offline — auto-skip if services not running)
+        env:
+          RUST_GATEWAY_URL: ""
+          PYTHON_DASHBOARD_URL: ""
+        run: pytest tests/migration/ -v --tb=short -q
+
+  dashboard-frontend:
+    name: Dashboard — Vitest + Chromatic
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Unit tests (Vitest)
+        run: npm test
+
+      - name: Chromatic visual regression
+        if: ${{ env.CHROMATIC_PROJECT_TOKEN != '' }}
+        run: npm run chromatic
+        env:
+          CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+
   deploy:
     name: Deploy — VPS
     runs-on: self-hosted
-    needs: [rust]
+    needs: [rust, go-harness, python-harness, dashboard-frontend]
     steps:
       - name: Pull & restart
         env:

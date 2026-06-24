@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { Save, Trash2 } from 'lucide-react';
 import { channelsApi, authApi } from '@/lib/api-v2';
+import { useLookupValues } from '@/lib/hooks/useLookupValues';
+import { LvSelect } from '@/lib/components/LvSelect';
 import { confirmDialog } from '@/lib/components/ConfirmDialog';
 import { useToast } from '@/lib/toast';
 import { Skeleton } from '@/lib/components/Skeleton';
@@ -169,31 +171,49 @@ export default function ChannelDetail() {
 
       <div className="rounded-xl border border-border bg-surface-0 p-6 space-y-4">
         {tab === 'Basics' && (
-          <Grid>
-            <Inp label="Name"     value={get('channel_name')} onChange={(v: any) => set('channel_name', v)} />
-            <Inp label="Niche"    value={get('niche')}        onChange={(v: any) => set('niche', v)} />
-            <Inp label="Sub-niche" value={get('sub_niche')}    onChange={(v: any) => set('sub_niche', v)} />
-            <div className="block">
-              <FieldLabel className="text-xs uppercase tracking-wide opacity-70 mb-1 block">Platform</FieldLabel>
-              <div className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-surface-2 text-sm font-medium">
-                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#FF0000' }} aria-hidden />
-                YouTube
-              </div>
-              <p className="text-xs opacity-60 mt-1">Autoniix v1 supports YouTube only.</p>
-            </div>
-            <Inp label="Handle"   value={get('handle') || ''}  onChange={(v: any) => set('handle', v)} />
-            <Inp label="Language" value={get('primary_language') || ''} onChange={(v: any) => set('primary_language', v)} />
-            <Inp label="Geography" value={get('geography') || ''} onChange={(v: any) => set('geography', v)} />
-            <Inp label="Age group" value={get('target_age_group') || ''} onChange={(v: any) => set('target_age_group', v)} />
-            <Inp label="Audience" wide value={get('target_audience') || ''} onChange={(v: any) => set('target_audience', v)} />
-            <Inp label="Description" wide multiline value={get('description') || ''} onChange={(v: any) => set('description', v)} />
-          </Grid>
+          <BasicsTabContent get={get} set={set} />
         )}
         {tab === 'Strategy' && (
           <Grid>
-            <Inp label="Content mode" value={get('content_mode')} onChange={(v: any) => set('content_mode', v)} />
+            <div className="block">
+              <FieldLabel className="text-xs uppercase tracking-wide opacity-70 mb-1 block">Content mode</FieldLabel>
+              <Select value={get('content_mode') || 'short'} onValueChange={(v: string) => set('content_mode', v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="short">Short</SelectItem>
+                  <SelectItem value="long">Long</SelectItem>
+                  <SelectItem value="mixed">Mixed (Short + Long)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Inp label="Publish cadence" value={get('publish_cadence') || ''} onChange={(v: any) => set('publish_cadence', v)} />
             <Inp label="Tone" value={get('tone') || ''} onChange={(v: any) => set('tone', v)} />
             <Inp label="Brand personality" wide value={get('brand_personality') || ''} onChange={(v: any) => set('brand_personality', v)} />
+            <div className="md:col-span-2 block">
+              <FieldLabel className="text-xs uppercase tracking-wide opacity-70 mb-1 block">Channel type tags</FieldLabel>
+              <div className="flex flex-wrap gap-1.5">
+                {['faceless','commentary','storytelling','documentary','kids','podcast','trend-based','evergreen','character','persona'].map(tag => {
+                  const active = (get('content_type_tags') || []).includes(tag);
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => set('content_type_tags', active
+                        ? (get('content_type_tags') || []).filter((x: string) => x !== tag)
+                        : [...(get('content_type_tags') || []), tag])}
+                      className={cn(
+                        'text-xs px-2.5 py-1 rounded-full border transition-colors',
+                        active
+                          ? 'bg-accent/10 text-accent border-accent/30'
+                          : 'bg-surface-2 text-content-tertiary border-border hover:border-accent/30'
+                      )}
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <Inp label="Mission" wide multiline value={get('mission') || ''} onChange={(v: any) => set('mission', v)} />
             <Inp label="Vision" wide multiline value={get('vision') || ''} onChange={(v: any) => set('vision', v)} />
           </Grid>
@@ -400,5 +420,44 @@ function ReferencesTab({ data, channel_id, onChange }: any) {
         }}>Add</Button>
       </div>
     </div>
+  );
+}
+
+// ── Basics tab with lookup_values dropdowns ───────────────────────────────────
+
+function BasicsTabContent({ get, set }: { get: (k: string) => any; set: (k: string, v: any) => void }) {
+  const niches    = useLookupValues('niche');
+  const subNiches = useLookupValues('sub_niche', get('niche') || undefined);
+  const languages = useLookupValues('language');
+  const geos      = useLookupValues('geography');
+  const ageGroups = useLookupValues('age_group');
+
+  return (
+    <Grid>
+      <Inp label="Name" value={get('channel_name')} onChange={(v: any) => set('channel_name', v)} />
+      <Inp label="Handle" value={get('handle') || ''} onChange={(v: any) => set('handle', v)} />
+      <div className="block">
+        <FieldLabel className="text-xs uppercase tracking-wide opacity-70 mb-1 block">Niche</FieldLabel>
+        <LvSelect opts={niches} value={get('niche') || ''} onChange={v => { set('niche', v); set('sub_niche', ''); }} allowOther placeholder="— Select niche —" />
+      </div>
+      <div className="block">
+        <FieldLabel className="text-xs uppercase tracking-wide opacity-70 mb-1 block">Sub-niche</FieldLabel>
+        <LvSelect opts={subNiches} value={get('sub_niche') || ''} onChange={v => set('sub_niche', v)} allowOther placeholder="— Select sub-niche —" />
+      </div>
+      <div className="block">
+        <FieldLabel className="text-xs uppercase tracking-wide opacity-70 mb-1 block">Language</FieldLabel>
+        <LvSelect opts={languages} value={get('primary_language') || ''} onChange={v => set('primary_language', v)} placeholder="— Select language —" />
+      </div>
+      <div className="block">
+        <FieldLabel className="text-xs uppercase tracking-wide opacity-70 mb-1 block">Geography</FieldLabel>
+        <LvSelect opts={geos} value={get('geography') || ''} onChange={v => set('geography', v)} allowOther placeholder="— Select region —" />
+      </div>
+      <div className="block">
+        <FieldLabel className="text-xs uppercase tracking-wide opacity-70 mb-1 block">Age group</FieldLabel>
+        <LvSelect opts={ageGroups} value={get('target_age_group') || ''} onChange={v => set('target_age_group', v)} placeholder="— Select age group —" />
+      </div>
+      <Inp label="Audience" wide value={get('target_audience') || ''} onChange={(v: any) => set('target_audience', v)} />
+      <Inp label="Description" wide multiline value={get('description') || ''} onChange={(v: any) => set('description', v)} />
+    </Grid>
   );
 }

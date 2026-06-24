@@ -1,33 +1,33 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, Suspense } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { authApi } from '@/lib/api-v2';
-import { Button, Input, Label, Card } from '@/lib/ui';
+import { Button, Input, Card } from '@/lib/ui';
+import { FormField } from '@/lib/components/FormField';
+import { resetPasswordSchema, type ResetPasswordValues } from '@/lib/schemas/auth';
 
 function ResetPasswordContent() {
   const params = useSearchParams();
   const token = params.get('token') || '';
 
-  const [newPassword, setNewPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
   const [stage, setStage] = useState<'form' | 'done'>('form');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [serverError, setServerError] = useState('');
 
-  async function handleReset(e: React.FormEvent) {
-    e.preventDefault();
-    if (newPassword !== confirm) { setError('Passwords do not match'); return; }
-    setLoading(true);
-    setError('');
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<ResetPasswordValues>({
+    resolver: zodResolver(resetPasswordSchema),
+  });
+
+  async function onSubmit(values: ResetPasswordValues) {
+    setServerError('');
     try {
-      await authApi.reset(token, newPassword);
+      await authApi.reset(token, values.password);
       setStage('done');
     } catch (err: any) {
-      setError(err.message || 'Reset failed — the link may have expired');
-    } finally {
-      setLoading(false);
+      setServerError(err.message || 'Reset failed — the link may have expired');
     }
   }
 
@@ -49,45 +49,20 @@ function ResetPasswordContent() {
         </p>
       </div>
 
-      {error && (
-        <div className="bg-status-error/10 text-status-error text-sm rounded-lg p-3 text-center">{error}</div>
+      {serverError && (
+        <div className="bg-status-error/10 text-status-error text-sm rounded-lg p-3 text-center">{serverError}</div>
       )}
 
       {stage === 'form' && (
-        <form onSubmit={handleReset} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="new-pw" required>New password</Label>
-            <Input
-              id="new-pw"
-              type="password"
-              value={newPassword}
-              onChange={e => setNewPassword(e.target.value)}
-              placeholder="At least 8 characters"
-              minLength={8}
-              required
-              autoFocus
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="confirm-pw" required>Confirm password</Label>
-            <Input
-              id="confirm-pw"
-              type="password"
-              value={confirm}
-              onChange={e => setConfirm(e.target.value)}
-              placeholder="Repeat your new password"
-              minLength={8}
-              required
-            />
-          </div>
-          <Button
-            type="submit"
-            size="lg"
-            className="w-full"
-            disabled={newPassword.length < 8 || confirm.length < 8}
-            loading={loading}
-          >
-            {loading ? 'Updating…' : 'Set new password'}
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <FormField id="rp-pw" label="New password" required error={errors.password}>
+            <Input id="rp-pw" type="password" placeholder="At least 8 characters" autoFocus {...register('password')} />
+          </FormField>
+          <FormField id="rp-confirm" label="Confirm password" required error={errors.confirm}>
+            <Input id="rp-confirm" type="password" placeholder="Repeat your new password" {...register('confirm')} />
+          </FormField>
+          <Button type="submit" size="lg" className="w-full" loading={isSubmitting}>
+            {isSubmitting ? 'Updating…' : 'Set new password'}
           </Button>
         </form>
       )}

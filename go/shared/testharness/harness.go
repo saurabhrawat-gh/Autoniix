@@ -30,7 +30,7 @@ const bufSize = 1024 * 1024 // 1 MiB in-memory buffer
 // ServiceHarness is an in-process gRPC test harness.
 // It starts a gRPC server over bufconn (no TCP port needed).
 type ServiceHarness struct {
-	t          *testing.T
+	t           *testing.T
 	ServiceName string
 
 	// Server is the in-process gRPC server.
@@ -68,8 +68,9 @@ func New(t *testing.T, serviceName string) *ServiceHarness {
 		}
 	}()
 
-	// Connect client via bufconn dialer
-	conn, err := grpc.NewClient(
+	// Connect client via bufconn dialer.
+	// grpc.Dial is used here for compatibility with grpc v1.62.
+	conn, err := grpc.Dial( //nolint:staticcheck
 		"passthrough:///bufnet",
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
 			return lis.DialContext(ctx)
@@ -111,7 +112,7 @@ type MockLLMProvider struct {
 func NewMockLLMProvider() *MockLLMProvider {
 	return &MockLLMProvider{
 		responses: map[string]string{
-			"default": `{"result": "mock_response", "score": 8.5, "pass": true}`,
+			"default":  `{"result": "mock_response", "score": 8.5, "pass": true}`,
 			"research": `{"selected_topic": "Mock Topic", "title_candidates": ["Title 1", "Title 2"], "key_facts": ["Fact 1", "Fact 2"]}`,
 			"script":   `{"title": "Mock Script", "segments": [{"id": "seg_1", "section": "hook", "text": "Mock hook.", "duration_s": 5}], "total_duration_s": 60}`,
 		},

@@ -9,6 +9,22 @@ use totp_rs::{Algorithm, Secret, TOTP};
 use super::{JwtManager, PasswordManager, Session, User, Workspace, WorkspaceMember};
 use crate::error::{ApiError, ApiResult};
 
+/// Result of a `sign_in()` call. When the user has MFA enabled the caller must
+/// exchange the `mfa_pending_token` via `POST /auth/mfa/challenge` instead of
+/// receiving full session tokens directly (#666).
+pub enum SignInResult {
+    Success {
+        access_token: String,
+        refresh_token: String,
+        user: User,
+        ws_role: String,
+        wid: i64,
+    },
+    MfaRequired {
+        mfa_pending_token: String,
+    },
+}
+
 fn generate_refresh_token() -> (String, String) {
     let mut rng = rand::thread_rng();
     let random_bytes: Vec<u8> = (0..48).map(|_| rng.gen()).collect();
@@ -328,6 +344,43 @@ impl AuthServiceImpl {
         Ok(())
     }
 
+    /// Disable MFA for the current user. Requires a valid TOTP code to confirm.
+    /// Clears `mfa_enabled` and `mfa_secret`. Mirrors the inverse of `mfa_verify`.
+    pub async fn mfa_disable(&self, user_id: i64, code: &str) -> ApiResult<()> {
+        let secret_b32: Option<String> =
+            sqlx::query_scalar("SELECT mfa_secret FROM users WHERE id = $1 AND mfa_enabled = TRUE")
+                .bind(user_id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(ApiError::Database)?;
+
+        let secret_b32 = secret_b32.ok_or_else(|| {
+            ApiError::Validation("MFA is not enabled on this account".to_string())
+        })?;
+
+        let secret_bytes = Secret::Encoded(secret_b32)
+            .to_bytes()
+            .map_err(|_| ApiError::Unauthorized)?;
+
+        let totp = TOTP::new(Algorithm::SHA1, 6, 1, 30, secret_bytes, None, String::new())
+            .map_err(|_| ApiError::Internal("Failed to parse TOTP secret".to_string()))?;
+
+        let timestamp = Utc::now().timestamp() as u64;
+        let valid = (-1i64..=1)
+            .any(|offset| totp.generate(timestamp.wrapping_add((offset * 30) as u64)) == code);
+        if !valid {
+            return Err(ApiError::Unauthorized);
+        }
+
+        sqlx::query("UPDATE users SET mfa_enabled = FALSE, mfa_secret = NULL WHERE id = $1")
+            .bind(user_id)
+            .execute(&self.pool)
+            .await
+            .map_err(ApiError::Database)?;
+
+        Ok(())
+    }
+
     pub async fn sign_in(
         &self,
         email: &str,
@@ -335,7 +388,7 @@ impl AuthServiceImpl {
         workspace_id: Option<i64>,
         ip: Option<&str>,
         user_agent: Option<&str>,
-    ) -> ApiResult<(String, String, User, String, i64)> {
+    ) -> ApiResult<SignInResult> {
         let user = User::find_by_email(&self.pool, email)
             .await
             .map_err(|e| {
@@ -355,15 +408,23 @@ impl AuthServiceImpl {
             return Err(ApiError::Unauthorized);
         }
 
+        let wid = workspace_id.unwrap_or_else(|| user.active_workspace_id.unwrap_or(0));
+
+        // #666: if MFA is enabled, issue a short-lived pending token instead of
+        // full session tokens. The client must call POST /auth/mfa/challenge.
+        if user.mfa_enabled.unwrap_or(false) {
+            let mfa_pending_token = self.jwt_manager.create_mfa_pending_token(
+                user.id.to_string(),
+                wid,
+                user.email.clone(),
+                user.role.clone(),
+            )?;
+            return Ok(SignInResult::MfaRequired { mfa_pending_token });
+        }
+
         User::update_last_login(&self.pool, user.id)
             .await
             .map_err(ApiError::Database)?;
-
-        let wid = if let Some(requested_wid) = workspace_id {
-            requested_wid
-        } else {
-            user.active_workspace_id.unwrap_or(0)
-        };
 
         let ws_role = if wid > 0 {
             User::get_workspace_role(&self.pool, user.id, wid)
@@ -399,8 +460,104 @@ impl AuthServiceImpl {
             ApiError::Database(e)
         })?;
 
-        // Return the workspace-scoped role and active workspace id so the route
-        // can build a Python-matching signin response (#646).
+        Ok(SignInResult::Success {
+            access_token,
+            refresh_token: refresh_raw,
+            user,
+            ws_role,
+            wid,
+        })
+    }
+
+    /// Complete sign-in after a successful MFA TOTP challenge (#666).
+    /// Validates the pending token, verifies the TOTP code, then creates a
+    /// session and issues full access + refresh tokens.
+    pub async fn complete_mfa_signin(
+        &self,
+        mfa_pending_token: &str,
+        code: &str,
+        ip: Option<&str>,
+        user_agent: Option<&str>,
+    ) -> ApiResult<(String, String, User, String, i64)> {
+        let pending = self
+            .jwt_manager
+            .verify_mfa_pending_token(mfa_pending_token)?;
+
+        let user_id: i64 = pending.sub.parse().map_err(|_| ApiError::Unauthorized)?;
+
+        let user = User::find_by_id(&self.pool, user_id)
+            .await
+            .map_err(ApiError::Database)?
+            .ok_or(ApiError::Unauthorized)?;
+
+        if user.disabled {
+            return Err(ApiError::Unauthorized);
+        }
+
+        // Verify TOTP code against stored secret.
+        let secret_b32: Option<String> =
+            sqlx::query_scalar("SELECT mfa_secret FROM users WHERE id = $1")
+                .bind(user_id)
+                .fetch_one(&self.pool)
+                .await
+                .map_err(ApiError::Database)?;
+
+        let secret_b32 =
+            secret_b32.ok_or_else(|| ApiError::Validation("MFA not configured".to_string()))?;
+
+        let secret_bytes = Secret::Encoded(secret_b32)
+            .to_bytes()
+            .map_err(|_| ApiError::Unauthorized)?;
+
+        let totp = TOTP::new(Algorithm::SHA1, 6, 1, 30, secret_bytes, None, String::new())
+            .map_err(|_| ApiError::Internal("Failed to parse TOTP secret".to_string()))?;
+
+        let timestamp = Utc::now().timestamp() as u64;
+        let valid = (-1i64..=1)
+            .any(|offset| totp.generate(timestamp.wrapping_add((offset * 30) as u64)) == code);
+        if !valid {
+            return Err(ApiError::Unauthorized);
+        }
+
+        User::update_last_login(&self.pool, user.id)
+            .await
+            .map_err(ApiError::Database)?;
+
+        let wid = pending.wid;
+        let ws_role = if wid > 0 {
+            User::get_workspace_role(&self.pool, user.id, wid)
+                .await
+                .map_err(ApiError::Database)?
+                .unwrap_or_else(|| "viewer".to_string())
+        } else {
+            "viewer".to_string()
+        };
+
+        let access_token = self.jwt_manager.create_access_token(
+            user.id.to_string(),
+            wid,
+            user.email.clone(),
+            ws_role.clone(),
+            user.role.clone(),
+        )?;
+
+        let (refresh_raw, refresh_hash) = generate_refresh_token();
+        let expires_at = Utc::now() + Duration::days(30);
+
+        Session::create(
+            &self.pool,
+            user.id,
+            &refresh_hash,
+            expires_at,
+            ip,
+            user_agent,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to create MFA session: {:?}", e);
+            ApiError::Database(e)
+        })?;
+
         Ok((access_token, refresh_raw, user, ws_role, wid))
     }
 
@@ -434,6 +591,25 @@ impl AuthServiceImpl {
             .fetch_one(&mut *tx)
             .await
             .map_err(ApiError::Database)?;
+
+        // #667: feature-flag controlled registration mode.
+        // When auth.register.invite_only = true, only the first user (bootstrap)
+        // may register. Default (flag absent or false) = open signup (#350).
+        if user_count > 0 {
+            let invite_only: bool = sqlx::query_scalar(
+                "SELECT enabled FROM feature_flags WHERE key = 'auth.register.invite_only'",
+            )
+            .fetch_optional(&mut *tx)
+            .await
+            .unwrap_or(None)
+            .unwrap_or(false);
+
+            if invite_only {
+                return Err(ApiError::ForbiddenWith(
+                    "Registration is closed".to_string(),
+                ));
+            }
+        }
 
         let global_role = if user_count == 0 {
             "superadmin"
@@ -497,6 +673,155 @@ impl AuthServiceImpl {
         // No tokens, no session — the frontend calls /login separately
         // after register, matching Python's flow.
         Ok((user.id, workspace.id, "owner".to_string()))
+    }
+
+    /// Accept a workspace invitation. For new users: creates an account with the
+    /// provided password. For existing users: adds them to the workspace. In both
+    /// cases auto-issues session tokens (mirrors Python `POST /auth/accept-invite`).
+    pub async fn accept_invite(
+        &self,
+        token: &str,
+        password: Option<&str>,
+        display_name: Option<&str>,
+        ip: Option<&str>,
+        user_agent: Option<&str>,
+    ) -> ApiResult<(String, String, User, String, i64)> {
+        let mut hasher = Sha256::new();
+        hasher.update(token.as_bytes());
+        let token_hash = format!("{:x}", hasher.finalize());
+
+        type InviteRow = (
+            i64,
+            i64,
+            String,
+            String,
+            chrono::DateTime<Utc>,
+            Option<chrono::DateTime<Utc>>,
+        );
+        let row: Option<InviteRow> = sqlx::query_as(
+            "SELECT id, workspace_id, email, role, expires_at, accepted_at \
+             FROM workspace_invitations WHERE token_hash = $1",
+        )
+        .bind(&token_hash)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(ApiError::Database)?;
+
+        let Some((invite_id, workspace_id, invite_email, invite_role, expires_at, accepted_at)) =
+            row
+        else {
+            return Err(ApiError::Validation(
+                "Invalid or expired invitation".to_string(),
+            ));
+        };
+
+        if accepted_at.is_some() || expires_at < Utc::now() {
+            return Err(ApiError::Validation(
+                "Invitation has already been used or has expired".to_string(),
+            ));
+        }
+
+        let existing_user = User::find_by_email(&self.pool, &invite_email)
+            .await
+            .map_err(ApiError::Database)?;
+
+        if let Some(ref u) = existing_user {
+            if u.disabled {
+                return Err(ApiError::Unauthorized);
+            }
+        }
+
+        let mut tx = self.pool.begin().await.map_err(ApiError::Database)?;
+
+        let user = match existing_user {
+            Some(u) => u,
+            None => {
+                let pw = password.ok_or_else(|| {
+                    ApiError::Validation(
+                        "password is required for new accounts accepting an invite".to_string(),
+                    )
+                })?;
+                if pw.len() < 8 {
+                    return Err(ApiError::Validation(
+                        "Password must be at least 8 characters".to_string(),
+                    ));
+                }
+                let pw_hash = PasswordManager::hash_password(pw)?;
+                User::create(&mut *tx, &invite_email, &pw_hash, display_name, "user")
+                    .await
+                    .map_err(ApiError::Database)?
+            }
+        };
+
+        // Upsert workspace membership (idempotent on re-accept).
+        sqlx::query(
+            "INSERT INTO workspace_members (workspace_id, user_id, role) \
+             VALUES ($1, $2, $3) \
+             ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = EXCLUDED.role",
+        )
+        .bind(workspace_id)
+        .bind(user.id)
+        .bind(&invite_role)
+        .execute(&mut *tx)
+        .await
+        .map_err(ApiError::Database)?;
+
+        // Point user's active workspace at the invited workspace if unset.
+        sqlx::query(
+            "UPDATE users SET active_workspace_id = $1 \
+             WHERE id = $2 AND active_workspace_id IS NULL",
+        )
+        .bind(workspace_id)
+        .bind(user.id)
+        .execute(&mut *tx)
+        .await
+        .map_err(ApiError::Database)?;
+
+        // Consume the invitation.
+        sqlx::query("UPDATE workspace_invitations SET accepted_at = NOW() WHERE id = $1")
+            .bind(invite_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(ApiError::Database)?;
+
+        tx.commit().await.map_err(ApiError::Database)?;
+
+        // Auto-login: issue full session tokens.
+        User::update_last_login(&self.pool, user.id)
+            .await
+            .map_err(ApiError::Database)?;
+
+        let ws_role = User::get_workspace_role(&self.pool, user.id, workspace_id)
+            .await
+            .map_err(ApiError::Database)?
+            .unwrap_or_else(|| invite_role.clone());
+
+        let access_token = self.jwt_manager.create_access_token(
+            user.id.to_string(),
+            workspace_id,
+            user.email.clone(),
+            ws_role.clone(),
+            user.role.clone(),
+        )?;
+
+        let (refresh_raw, refresh_hash) = generate_refresh_token();
+        let session_expires = Utc::now() + Duration::days(30);
+
+        Session::create(
+            &self.pool,
+            user.id,
+            &refresh_hash,
+            session_expires,
+            ip,
+            user_agent,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to create session for invite accept: {:?}", e);
+            ApiError::Database(e)
+        })?;
+
+        Ok((access_token, refresh_raw, user, ws_role, workspace_id))
     }
 
     pub async fn refresh_token(&self, refresh_token: &str) -> ApiResult<(String, String)> {

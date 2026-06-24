@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "Autoniix polyglot monorepo (Rust + Go + Python + TypeScript)",
   "scripts": {
+    "prepare": "husky",
     "proto:lint": "cd proto && buf lint",
     "proto:format": "cd proto && buf format -w",
     "proto:generate": "cd proto && buf generate",
@@ -19,6 +20,8 @@
     "clean": "turbo run clean && rm -rf gen node_modules rust/target"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.2",
     "turbo": "^2.0.0"
   },
   "workspaces": [
