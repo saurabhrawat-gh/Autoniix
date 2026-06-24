@@ -1,11 +1,17 @@
 import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
 import localFont from 'next/font/local';
 import { JetBrains_Mono } from 'next/font/google';
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale, getMessages } from 'next-intl/server';
 import { ThemeProvider } from '@/lib/theme';
 import { ToastProvider } from '@/lib/toast';
 import { AppStateProvider } from '@/lib/components/AppStateProvider';
 import { MotionProvider } from '@/lib/components/MotionProvider';
+import { QueryProvider } from '@/lib/components/QueryProvider';
+import { FeatureFlagProvider } from '@/lib/components/FeatureFlagProvider';
 import './globals.css';
+import './themes.css';
 
 const satoshi = localFont({
   src: [
@@ -37,17 +43,32 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="en" suppressHydrationWarning className={`${satoshi.variable} ${jetbrainsMono.variable}`}>
+    <html lang={locale} suppressHydrationWarning className={`${satoshi.variable} ${jetbrainsMono.variable}`}>
       <body className="min-h-screen font-sans">
-        <MotionProvider>
-          <ThemeProvider>
-            <ToastProvider>
-              <AppStateProvider>{children}</AppStateProvider>
-            </ToastProvider>
-          </ThemeProvider>
-        </MotionProvider>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[9999] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-surface-0 focus:border focus:border-accent focus:text-accent focus:text-sm focus:font-medium focus:shadow-elevated"
+        >
+          Skip to main content
+        </a>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <QueryProvider>
+            <FeatureFlagProvider>
+              <MotionProvider>
+                <ThemeProvider>
+                  <ToastProvider>
+                    <AppStateProvider>{children}</AppStateProvider>
+                  </ToastProvider>
+                </ThemeProvider>
+              </MotionProvider>
+            </FeatureFlagProvider>
+          </QueryProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

@@ -28,7 +28,7 @@ import { CommandPalette } from './CommandPalette';
 import { NotificationBell } from './NotificationBell';
 import { WsStatusPill } from './WsStatusPill';
 import { MobileDrawer } from './MobileDrawer';
-import { ThemeToggle } from '../theme';
+import { ThemeToggle, ThemePicker } from '../theme';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Tip } from './Tooltip';
 import {
@@ -151,6 +151,7 @@ export function ChromeBar() {
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
           </DropdownMenu.Root>
+          <ThemePicker />
           <ThemeToggle />
         </div>
       </header>

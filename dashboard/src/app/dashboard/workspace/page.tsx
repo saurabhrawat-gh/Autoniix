@@ -25,6 +25,9 @@ import {
   Link2,
   Clock,
   Check,
+  Bell,
+  Lock,
+  SlidersHorizontal,
 } from '@/lib/components/Icon';
 import {
   Button,
@@ -38,9 +41,13 @@ import {
   SelectValue,
   SelectContent,
   SelectItem,
+  Switch,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
 } from '@/lib/ui';
-import { workspaceApi, brandsApi, membersApi, invitesApi } from '@/lib/api-v2';
-import { Bell } from '@/lib/components/Icon';
+import { workspaceApi, brandsApi, membersApi, invitesApi, workspaceEntitySettingsApi } from '@/lib/api-v2';
 import { useToast } from '@/lib/toast';
 import { confirmDialog, promptDialog } from '@/lib/components/ConfirmDialog';
 
@@ -103,6 +110,64 @@ const ROLE_BADGE: Record<string, 'neutral' | 'success' | 'warning' | 'info' | 's
   viewer: 'secondary',
 };
 
+// ── entity_settings schema (workspace level) ────────────────────────────────
+type WsSettingSchema = {
+  label: string;
+  description: string;
+  type: 'select' | 'number' | 'toggle';
+  options?: { value: string; label: string }[];
+  min?: number; max?: number; step?: number; unit?: string;
+};
+const WS_CONTENT_SCHEMA: Record<string, WsSettingSchema> = {
+  'content.default_mode': {
+    label: 'Default Content Mode',
+    description: 'Default for all channels in this workspace unless overridden per-channel.',
+    type: 'select',
+    options: [
+      { value: 'short', label: 'Short-form' },
+      { value: 'long', label: 'Long-form' },
+      { value: 'mixed', label: 'Mixed' },
+    ],
+  },
+  'content.quality_threshold': {
+    label: 'Quality Threshold',
+    description: 'Minimum quality score (0–1.0) required for a video to pass QA.',
+    type: 'number', min: 0, max: 1, step: 0.01,
+  },
+  'content.human_review_required': {
+    label: 'Human Review Required',
+    description: 'Force all channels in this workspace through human review.',
+    type: 'toggle',
+  },
+  'content.auto_approve_threshold': {
+    label: 'Auto-Approve Threshold',
+    description: 'Quality score above which content auto-approves without human review.',
+    type: 'number', min: 0, max: 1, step: 0.01,
+  },
+  'content.max_daily_videos': {
+    label: 'Max Daily Videos',
+    description: 'Cap on videos published per day across all channels in this workspace.',
+    type: 'number', min: 0, max: 9999, step: 1, unit: 'videos/day',
+  },
+};
+const WS_BUDGET_SCHEMA: Record<string, WsSettingSchema> = {
+  'budget.per_video_usd': {
+    label: 'Per-Video Budget',
+    description: 'Maximum API and compute spend per video job in this workspace.',
+    type: 'number', min: 0, step: 0.01, unit: 'USD',
+  },
+  'budget.daily_limit_usd': {
+    label: 'Daily Cost Limit',
+    description: 'Hard ceiling on daily API/compute costs for this workspace.',
+    type: 'number', min: 0, step: 0.01, unit: 'USD',
+  },
+  'budget.monthly_limit_usd': {
+    label: 'Monthly Budget',
+    description: 'Soft monthly spend cap — triggers an alert when reached.',
+    type: 'number', min: 0, step: 0.01, unit: 'USD',
+  },
+};
+
 export default function WorkspacePage() {
   const { showToast } = useToast();
 
@@ -129,15 +194,22 @@ export default function WorkspacePage() {
   const [slackWebhook, setSlackWebhook] = useState('');
   const [savingSlack, setSavingSlack] = useState(false);
 
+  // Workspace entity_settings (Defaults tab)
+  const [entityMap, setEntityMap] = useState<Record<string, { value: unknown; locked: boolean }>>({});
+  const [entityEdits, setEntityEdits] = useState<Record<string, unknown>>({});
+  const [entityLocked, setEntityLocked] = useState<Record<string, boolean>>({});
+  const [savingEntityKey, setSavingEntityKey] = useState<string | null>(null);
+
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [w, m, b, inv, intg] = await Promise.all([
+      const [w, m, b, inv, intg, es] = await Promise.all([
         workspaceApi.get(),
         membersApi.list().catch(() => ({ data: [] as Member[] })),
         brandsApi.list().catch(() => ({ data: [] as Brand[] })),
         invitesApi.list().catch(() => ({ data: [] as Invite[] })),
         workspaceApi.getIntegrations().catch(() => ({ data: { slack_webhook_url: null } })),
+        workspaceEntitySettingsApi.get().catch(() => ({ data: [] as any[] })),
       ]);
       const wd: Workspace | null = (w as any).data;
       setWs(wd);
@@ -151,6 +223,9 @@ export default function WorkspacePage() {
       setBrands(((b as any).data || []) as Brand[]);
       setInvites(((inv as any).data || []) as Invite[]);
       setSlackWebhook((intg as any).data?.slack_webhook_url || '');
+      const esMap: Record<string, { value: unknown; locked: boolean }> = {};
+      for (const row of ((es as any).data || [])) esMap[row.key] = { value: row.value, locked: row.locked };
+      setEntityMap(esMap);
     } catch (e: any) {
       showToast(e?.message || 'Failed to load workspace', 'error');
     } finally {
@@ -265,6 +340,30 @@ export default function WorkspacePage() {
     }
   };
 
+  // Entity settings helpers
+  const esVal = (key: string): unknown =>
+    key in entityEdits ? entityEdits[key] : (entityMap[key]?.value ?? null);
+  const esLocked = (key: string): boolean =>
+    key in entityLocked ? entityLocked[key] : (entityMap[key]?.locked ?? false);
+  const setEsVal = (key: string, val: unknown) =>
+    setEntityEdits(prev => ({ ...prev, [key]: val }));
+  const setEsLocked = (key: string, locked: boolean) =>
+    setEntityLocked(prev => ({ ...prev, [key]: locked }));
+  const saveEntitySetting = async (key: string) => {
+    setSavingEntityKey(key);
+    try {
+      await workspaceEntitySettingsApi.set(key, esVal(key), esLocked(key));
+      setEntityMap(prev => ({ ...prev, [key]: { value: esVal(key), locked: esLocked(key) } }));
+      setEntityEdits(prev => { const n = { ...prev }; delete n[key]; return n; });
+      setEntityLocked(prev => { const n = { ...prev }; delete n[key]; return n; });
+      showToast('Setting saved', 'success');
+    } catch (e: any) {
+      showToast(e?.message || 'Save failed', 'error');
+    } finally {
+      setSavingEntityKey(null);
+    }
+  };
+
   // Brand actions
   const createBrand = async () => {
     const name = await promptDialog({
@@ -296,7 +395,7 @@ export default function WorkspacePage() {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-6 max-w-5xl mx-auto space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -312,6 +411,20 @@ export default function WorkspacePage() {
           Refresh
         </Button>
       </div>
+
+      <Tabs defaultValue="general">
+        <TabsList className="mb-4">
+          <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="members">Members</TabsTrigger>
+          <TabsTrigger value="brands">Brands</TabsTrigger>
+          <TabsTrigger value="integrations">Integrations</TabsTrigger>
+          <TabsTrigger value="defaults">
+            <SlidersHorizontal size={13} className="mr-1.5" />Defaults
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ── General ─────────────────────────────────────────────── */}
+        <TabsContent value="general">
 
       {/* Workspace info */}
       <Card variant="elevated" padding="lg" className="space-y-4">
@@ -359,7 +472,10 @@ export default function WorkspacePage() {
           </Button>
         </div>
       </Card>
+        </TabsContent>
 
+        {/* ── Members ─────────────────────────────────────────────── */}
+        <TabsContent value="members" className="space-y-4">
       {/* Members */}
       <Card variant="elevated" padding="lg" className="space-y-4">
         {(() => {
@@ -527,7 +643,10 @@ export default function WorkspacePage() {
           </div>
         )}
       </Card>
+        </TabsContent>
 
+        {/* ── Integrations ────────────────────────────────────────── */}
+        <TabsContent value="integrations">
       {/* Integrations */}
       <Card variant="elevated" padding="lg" className="space-y-4">
         <div className="flex items-center gap-2">
@@ -558,7 +677,10 @@ export default function WorkspacePage() {
           )}
         </div>
       </Card>
+        </TabsContent>
 
+        {/* ── Brands ──────────────────────────────────────────────── */}
+        <TabsContent value="brands">
       {/* Brands */}
       <Card variant="elevated" padding="lg" className="space-y-4">
         <div className="flex items-center justify-between">
@@ -603,6 +725,98 @@ export default function WorkspacePage() {
           </div>
         )}
       </Card>
+        </TabsContent>
+
+        {/* ── Defaults ────────────────────────────────────────────── */}
+        <TabsContent value="defaults" className="space-y-6">
+          <p className="text-sm text-content-secondary">
+            Set workspace-level defaults for content and budget. These override system defaults and can themselves
+            be overridden per-channel unless locked.
+            {' '}<span className="inline-flex items-center gap-1 text-xs text-content-tertiary">
+              <Lock size={11} /> Locking a setting blocks channel-level overrides.
+            </span>
+          </p>
+          <div>
+            <h2 className="text-xs font-semibold text-content-secondary mb-3">Content</h2>
+            <div className="space-y-3">
+              {Object.entries(WS_CONTENT_SCHEMA).map(([key, schema]) => (
+                <WsEntitySettingRow key={key} esKey={key} schema={schema}
+                  value={esVal(key)} locked={esLocked(key)} saving={savingEntityKey === key}
+                  onChange={v => setEsVal(key, v)} onLockedChange={l => setEsLocked(key, l)}
+                  onSave={() => saveEntitySetting(key)} />
+              ))}
+            </div>
+          </div>
+          <div>
+            <h2 className="text-xs font-semibold text-content-secondary mb-3">Budget</h2>
+            <div className="space-y-3">
+              {Object.entries(WS_BUDGET_SCHEMA).map(([key, schema]) => (
+                <WsEntitySettingRow key={key} esKey={key} schema={schema}
+                  value={esVal(key)} locked={esLocked(key)} saving={savingEntityKey === key}
+                  onChange={v => setEsVal(key, v)} onLockedChange={l => setEsLocked(key, l)}
+                  onSave={() => saveEntitySetting(key)} />
+              ))}
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function WsEntitySettingRow({ esKey, schema, value, locked, saving, onChange, onLockedChange, onSave }: {
+  esKey: string;
+  schema: WsSettingSchema;
+  value: unknown;
+  locked: boolean;
+  saving: boolean;
+  onChange: (v: unknown) => void;
+  onLockedChange: (locked: boolean) => void;
+  onSave: () => void;
+}) {
+  return (
+    <div className="card p-5">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <div className="text-sm font-medium text-content-primary">{schema.label}</div>
+            {locked && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-status-warning bg-status-warning/10 px-1.5 py-0.5 rounded">
+                <Lock size={9} />Locked
+              </span>
+            )}
+          </div>
+          <div className="text-xs text-content-tertiary">{schema.description}</div>
+          <code className="text-[10px] text-content-tertiary/50 font-mono mt-1 block">{esKey}</code>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          {schema.type === 'toggle' ? (
+            <Switch checked={value === true || value === 'true'} onCheckedChange={v => onChange(v)} aria-label={schema.label} />
+          ) : schema.type === 'select' ? (
+            <Select value={String(value ?? '')} onValueChange={v => onChange(v)}>
+              <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="Select…" /></SelectTrigger>
+              <SelectContent>
+                {schema.options?.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <Input type="number"
+                value={value === null || value === undefined ? '' : String(value)}
+                onChange={e => onChange(e.target.value === '' ? null : Number(e.target.value))}
+                min={schema.min} max={schema.max} step={schema.step}
+                className="w-28 h-8 text-xs"
+              />
+              {schema.unit && <span className="text-xs text-content-tertiary">{schema.unit}</span>}
+            </div>
+          )}
+          <Button size="sm" onClick={onSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
+        <Switch checked={locked} onCheckedChange={onLockedChange} aria-label={`Lock ${schema.label}`} className="scale-75 origin-left" />
+        <span className="text-xs text-content-tertiary">Lock — prevent channels from overriding this setting</span>
+      </div>
     </div>
   );
 }

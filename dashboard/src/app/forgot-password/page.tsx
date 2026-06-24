@@ -1,48 +1,51 @@
 'use client';
 
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import Link from 'next/link';
 import { authApi } from '@/lib/api-v2';
-import { Button, Input, Label, Card } from '@/lib/ui';
+import { Button, Input, Card } from '@/lib/ui';
+import { FormField } from '@/lib/components/FormField';
+
+const requestSchema = z.object({ email: z.string().email('Invalid email') });
+const resetSchema = z.object({
+  token: z.string().min(1, 'Token is required'),
+  password: z.string().min(8, 'At least 8 characters'),
+});
+type RequestValues = z.infer<typeof requestSchema>;
+type ResetValues = z.infer<typeof resetSchema>;
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState('');
-  const [resetToken, setResetToken] = useState('');
-  const [newPassword, setNewPassword] = useState('');
   const [stage, setStage] = useState<'request' | 'reset' | 'slack' | 'done'>('request');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [serverError, setServerError] = useState('');
 
-  async function handleRequest(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+  const reqForm = useForm<RequestValues>({ resolver: zodResolver(requestSchema) });
+  const resetForm = useForm<ResetValues>({ resolver: zodResolver(resetSchema), defaultValues: { token: '' } });
+
+  async function handleRequest(values: RequestValues) {
+    setServerError('');
     try {
-      const res = await authApi.forgot(email);
+      const res = await authApi.forgot(values.email);
       if (res.reset_token) {
-        setResetToken(res.reset_token);
+        resetForm.setValue('token', res.reset_token);
         setStage('reset');
       } else {
         setStage('slack');
       }
     } catch (err: any) {
-      setError(err.message || 'Request failed');
-    } finally {
-      setLoading(false);
+      setServerError(err.message || 'Request failed');
     }
   }
 
-  async function handleReset(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+  async function handleReset(values: ResetValues) {
+    setServerError('');
     try {
-      await authApi.reset(resetToken, newPassword);
+      await authApi.reset(values.token, values.password);
       setStage('done');
     } catch (err: any) {
-      setError(err.message || 'Reset failed');
-    } finally {
-      setLoading(false);
+      setServerError(err.message || 'Reset failed');
     }
   }
 
@@ -60,70 +63,31 @@ export default function ForgotPasswordPage() {
             </p>
           </div>
 
-          {error && (
-            <div className="bg-status-error/10 text-status-error text-sm rounded-lg p-3 text-center">{error}</div>
+          {serverError && (
+            <div className="bg-status-error/10 text-status-error text-sm rounded-lg p-3 text-center">{serverError}</div>
           )}
 
           {stage === 'request' && (
-            <form onSubmit={handleRequest} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email" required>Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  required
-                  autoFocus
-                />
-              </div>
-              <Button
-                type="submit"
-                size="lg"
-                className="w-full"
-                disabled={!email}
-                loading={loading}
-              >
-                {loading ? 'Sending…' : 'Send reset link'}
+            <form onSubmit={reqForm.handleSubmit(handleRequest)} className="space-y-4">
+              <FormField id="fp-email" label="Email" required error={reqForm.formState.errors.email}>
+                <Input id="fp-email" type="email" placeholder="you@example.com" autoFocus {...reqForm.register('email')} />
+              </FormField>
+              <Button type="submit" size="lg" className="w-full" loading={reqForm.formState.isSubmitting}>
+                {reqForm.formState.isSubmitting ? 'Sending…' : 'Send reset link'}
               </Button>
             </form>
           )}
 
           {stage === 'reset' && (
-            <form onSubmit={handleReset} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="token" required>Reset token</Label>
-                <Input
-                  id="token"
-                  type="text"
-                  value={resetToken}
-                  onChange={e => setResetToken(e.target.value)}
-                  placeholder="Paste token from email"
-                  required
-                  className="font-mono"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-pw" required>New password</Label>
-                <Input
-                  id="new-pw"
-                  type="password"
-                  value={newPassword}
-                  onChange={e => setNewPassword(e.target.value)}
-                  placeholder="At least 8 characters"
-                  minLength={8}
-                  required
-                />
-              </div>
-              <Button
-                type="submit"
-                size="lg"
-                className="w-full"
-                disabled={!resetToken || newPassword.length < 8}
-                loading={loading}
-              >
-                {loading ? 'Updating…' : 'Set new password'}
+            <form onSubmit={resetForm.handleSubmit(handleReset)} className="space-y-4">
+              <FormField id="fp-token" label="Reset token" required error={resetForm.formState.errors.token}>
+                <Input id="fp-token" type="text" placeholder="Paste token from email" className="font-mono" {...resetForm.register('token')} />
+              </FormField>
+              <FormField id="fp-pw" label="New password" required error={resetForm.formState.errors.password}>
+                <Input id="fp-pw" type="password" placeholder="At least 8 characters" {...resetForm.register('password')} />
+              </FormField>
+              <Button type="submit" size="lg" className="w-full" loading={resetForm.formState.isSubmitting}>
+                {resetForm.formState.isSubmitting ? 'Updating…' : 'Set new password'}
               </Button>
             </form>
           )}
