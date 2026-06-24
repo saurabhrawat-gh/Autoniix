@@ -735,6 +735,40 @@ services:
         limits:
           memory: 256M
 
+  # Rust API Gateway — /api/v2/* routes (auth, users, channels, workspace)
+  # Local dev: http://localhost:8081    Production: https://${GW_DOMAIN}
+  # Add GW_DOMAIN=gw.yourdomain.com to .env to enable TLS routing.
+  rust-gateway:
+    build:
+      context: .
+      dockerfile: rust/gateway/Dockerfile
+    env_file: .env
+    environment:
+      # Use Docker-network hostname; overrides any localhost URL from .env
+      - DATABASE_URL=postgresql://${DB_USER:-app}:${DB_PASSWORD:-changeme}@postgres-app:5432/${DB_NAME:-autoniix}
+      - PORT=8080
+      - RUST_LOG=${RUST_LOG:-info}
+    ports:
+      - "127.0.0.1:8081:8080"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gw.rule=Host(`${GW_DOMAIN:-gw.localhost}`)"
+      - "traefik.http.routers.gw.entrypoints=websecure"
+      - "traefik.http.routers.gw.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.gw.middlewares=secureHeaders@file"
+      - "traefik.http.services.gw.loadbalancer.server.port=8080"
+    networks: [autoniix-net]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/live"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    depends_on:
+      postgres-app: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 128M } } }
+
   # Marketing landing page — autoniix.com / www.autoniix.com
   # Caddy (host systemd) reverse-proxies the apex domain to localhost:3002.
   landing-ui:

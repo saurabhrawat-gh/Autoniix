@@ -124,7 +124,7 @@ down: ## Stop and remove all containers
 health: ## Run end-to-end health check on every service
 	@bash scripts/check-stack.sh
 
-APP_SVCS := dashboard-bff dashboard-ui admin worker-production worker-scheduler \
+APP_SVCS := rust-gateway dashboard-bff dashboard-ui admin worker-production worker-scheduler \
             research script voice assets thumbnail direction assembly \
             delivery analytics brand editor sheets-sync
 
