@@ -311,27 +311,25 @@ Only after user confirms the summary in Step 16.
 ### Issue Title Format (mandatory for all issues this agent creates)
 
 ```
-[Type] | [Env - bugs only] | [Layer] | Description
+[Area] | Description
 ```
 
 | Field | Values |
 |---|---|
-| Type | `feat` `bug` `task` `story` `epic` |
-| Env (bugs only) | `QA` (found locally) or `Prod` (found in production) |
-| Layer | `UI` `Gateway` `Service` `DB` `Auth` `Worker` `Infra` `Test` |
+| Area | `Gateway` `Dashboard` `Service` `Worker` `Infra` |
 | Description | Plain English, one line |
+
+> **Area mapping:** `UI`/`FE` → `Dashboard` · `Service`/`DB` → `Service` · `Gateway`/`Auth` → `Gateway` · `Worker` → `Worker` · `Infra` → `Infra`
 
 **Title examples:**
 ```
-feat | UI | Add workspace settings page
-task | DB | Migrate provider catalog to new schema
-story | Auth | HttpOnly Cookie Auth
-epic | | Auth & Authorization
-bug | QA | Gateway | OAuth token refresh fails on expired session
-bug | Prod | Service | Video render crashes on empty script
+Dashboard | Add workspace settings page
+Service | Migrate provider catalog to new schema
+Gateway | HttpOnly Cookie Auth
+Gateway | Auth & Authorization
+Gateway | OAuth token refresh fails on expired session
+Service | Video render crashes on empty script
 ```
-
-Note: for `epic` and `story`, the Layer field is optional — use the primary layer if one is dominant.
 
 ### Issues to create
 

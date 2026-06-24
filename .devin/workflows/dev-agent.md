@@ -49,7 +49,7 @@ Before anything else, check for open hotfix issues:
 - Pick the highest-priority open issue that is NOT a `hotfix` or `bug:production`
 - Read the full issue body: Summary, Use Cases, Acceptance Criteria, Impacted Files, DoD
 - Note the linked test-case issue number from the "Test Plan" section
-- Note the issue title format: `[Type] | [Layer] | Description` — confirm the layer before starting
+- Note the issue title format: `[Area] | Description` — confirm the area before starting
 
 ### 1a. Read Research Notes
 - Search the issue comments for a comment containing `## Research Notes`

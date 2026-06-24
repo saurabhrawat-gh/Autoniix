@@ -511,3 +511,188 @@ async fn test_list_channels_excludes_archived_by_default() {
     cleanup_channel(&h, &channel_id).await;
     h.cleanup().await;
 }
+
+// ── AE-603: content_type_tags + resolve endpoints ────────────────────────────
+
+#[tokio::test]
+async fn test_content_type_tags_roundtrip() {
+    let h = common::harness::GatewayHarness::new().await;
+    let email = common::harness::GatewayHarness::unique_email("ch-tags");
+    let token = h.signup_and_get_token(&email, "Test1234!").await;
+
+    let resp = h
+        .post_auth(
+            "/api/v2/channels",
+            json!({
+                "channel_name": "Tags Roundtrip",
+                "niche": "science",
+                "platform": "youtube",
+                "content_type_tags": ["faceless", "storytelling"],
+            }),
+            &token,
+        )
+        .await;
+    assert_eq!(resp.status(), 200, "create with content_type_tags should return 200");
+    let body: serde_json::Value = resp.json().await.unwrap();
+    let channel_id = body["channel_id"].as_str().unwrap().to_string();
+
+    let get: serde_json::Value = h
+        .get_auth(&format!("/api/v2/channels/{channel_id}"), &token)
+        .await
+        .json()
+        .await
+        .unwrap();
+
+    let tags = get["data"]["channel"]["content_type_tags"]
+        .as_array()
+        .expect("content_type_tags should be an array");
+    assert_eq!(tags.len(), 2, "should persist both tags");
+    assert!(tags.iter().any(|t| t == "faceless"), "should contain 'faceless'");
+    assert!(tags.iter().any(|t| t == "storytelling"), "should contain 'storytelling'");
+
+    cleanup_channel(&h, &channel_id).await;
+    h.cleanup().await;
+}
+
+#[tokio::test]
+async fn test_content_type_tags_patchable() {
+    let h = common::harness::GatewayHarness::new().await;
+    let email = common::harness::GatewayHarness::unique_email("ch-tags-patch");
+    let token = h.signup_and_get_token(&email, "Test1234!").await;
+
+    let create: serde_json::Value = h
+        .post_auth(
+            "/api/v2/channels",
+            json!({
+                "channel_name": "Tags Patch",
+                "niche": "tech",
+                "platform": "youtube",
+                "content_type_tags": ["commentary"],
+            }),
+            &token,
+        )
+        .await
+        .json()
+        .await
+        .unwrap();
+    let channel_id = create["channel_id"].as_str().unwrap().to_string();
+
+    let patch = h
+        .client
+        .put(format!("{}/api/v2/channels/{channel_id}", h.base_url))
+        .bearer_auth(&token)
+        .json(&json!({ "content_type_tags": ["faceless", "commentary", "viral_style"] }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(patch.status(), 200, "patch content_type_tags should return 200");
+
+    let get: serde_json::Value = h
+        .get_auth(&format!("/api/v2/channels/{channel_id}"), &token)
+        .await
+        .json()
+        .await
+        .unwrap();
+    let tags = get["data"]["channel"]["content_type_tags"]
+        .as_array()
+        .expect("content_type_tags should be an array after patch");
+    assert_eq!(tags.len(), 3, "should have 3 tags after patch");
+
+    cleanup_channel(&h, &channel_id).await;
+    h.cleanup().await;
+}
+
+#[tokio::test]
+async fn test_resolve_config_smoke() {
+    let h = common::harness::GatewayHarness::new().await;
+    let email = common::harness::GatewayHarness::unique_email("ch-resolve");
+    let token = h.signup_and_get_token(&email, "Test1234!").await;
+
+    let create: serde_json::Value = h
+        .post_auth(
+            "/api/v2/channels",
+            json!({ "channel_name": "Resolve Test", "niche": "finance", "platform": "youtube" }),
+            &token,
+        )
+        .await
+        .json()
+        .await
+        .unwrap();
+    let channel_id = create["channel_id"].as_str().unwrap().to_string();
+
+    // Without content_mode
+    let resp = h
+        .get_auth(&format!("/api/v2/channels/{channel_id}/resolve-config"), &token)
+        .await;
+    assert_eq!(resp.status(), 200, "resolve-config should return 200");
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["channel_id"], channel_id, "channel_id echoed back");
+    assert!(body["resolved"].is_object(), "resolved should be an object");
+
+    // With content_mode=short
+    let resp2 = h
+        .get_auth(
+            &format!("/api/v2/channels/{channel_id}/resolve-config?content_mode=short"),
+            &token,
+        )
+        .await;
+    assert_eq!(resp2.status(), 200);
+    let body2: serde_json::Value = resp2.json().await.unwrap();
+    assert_eq!(body2["content_mode"], "short");
+
+    cleanup_channel(&h, &channel_id).await;
+    h.cleanup().await;
+}
+
+#[tokio::test]
+async fn test_resolve_config_unknown_channel_is_404() {
+    let h = common::harness::GatewayHarness::new().await;
+    let email = common::harness::GatewayHarness::unique_email("ch-resolve-404");
+    let token = h.signup_and_get_token(&email, "Test1234!").await;
+
+    let resp = h
+        .get_auth("/api/v2/channels/nonexistent-channel-xyz/resolve-config", &token)
+        .await;
+    assert_eq!(resp.status(), 404, "unknown channel should return 404");
+
+    h.cleanup().await;
+}
+
+#[tokio::test]
+async fn test_resolve_provider_chain_smoke() {
+    let h = common::harness::GatewayHarness::new().await;
+    let email = common::harness::GatewayHarness::unique_email("ch-chain");
+    let token = h.signup_and_get_token(&email, "Test1234!").await;
+
+    // No provider_chains_v2 rows for this workspace — chain should be empty, not an error
+    let resp = h
+        .get_auth("/api/v2/workspace/resolve-provider-chain?category=llm", &token)
+        .await;
+    assert_eq!(resp.status(), 200, "resolve-provider-chain should return 200 even with no chain");
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["category"], "llm");
+    assert!(body["chain"].is_array(), "chain should be an array");
+
+    h.cleanup().await;
+}
+
+#[tokio::test]
+async fn test_resolve_provider_chain_with_content_mode() {
+    let h = common::harness::GatewayHarness::new().await;
+    let email = common::harness::GatewayHarness::unique_email("ch-chain-mode");
+    let token = h.signup_and_get_token(&email, "Test1234!").await;
+
+    let resp = h
+        .get_auth(
+            "/api/v2/workspace/resolve-provider-chain?category=tts&content_mode=short",
+            &token,
+        )
+        .await;
+    assert_eq!(resp.status(), 200);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["category"], "tts");
+    assert_eq!(body["content_mode"], "short");
+    assert!(body["chain"].is_array());
+
+    h.cleanup().await;
+}

@@ -49,6 +49,14 @@ pub fn routes(pool: PgPool) -> Router {
             get(get_environment).put(set_environment),
         )
         .route("/api/v2/system/clean-slate", post(clean_slate))
+        .route(
+            "/api/v2/system/entity-settings",
+            get(list_system_entity_settings).put(upsert_system_entity_setting),
+        )
+        .route(
+            "/api/v2/workspace/entity-settings",
+            get(list_workspace_entity_settings).put(upsert_workspace_entity_setting),
+        )
         .with_state(pool)
 }
 
@@ -491,6 +499,160 @@ async fn clean_slate(
 
     let body = result?;
     Ok((StatusCode::OK, Json(body)))
+}
+
+// ── Entity settings ────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct EntitySettingUpsert {
+    key: String,
+    value: Value,
+    #[serde(default)]
+    locked: bool,
+}
+
+/// `GET /api/v2/system/entity-settings` — owner/member.
+/// Returns all entity_settings rows at scope='system', scope_id='global'.
+async fn list_system_entity_settings(
+    AuthUser(principal): AuthUser,
+    State(pool): State<PgPool>,
+) -> ApiResult<impl IntoResponse> {
+    require_owner_or_member(&principal)?;
+
+    use sqlx::Row;
+    let rows = sqlx::query(
+        "SELECT key, value, locked FROM entity_settings \
+         WHERE scope = 'system' AND scope_id = 'global' ORDER BY key",
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(ApiError::Database)?;
+
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "key":    r.try_get::<String, _>("key").unwrap_or_default(),
+                "value":  r.try_get::<Option<Value>, _>("value").ok().flatten(),
+                "locked": r.try_get::<bool, _>("locked").unwrap_or(false),
+            })
+        })
+        .collect();
+
+    Ok((StatusCode::OK, Json(json!({"status": "ok", "data": data}))))
+}
+
+/// `PUT /api/v2/system/entity-settings` — owner/member.
+/// Upserts one entity_setting at scope='system', scope_id='global'.
+async fn upsert_system_entity_setting(
+    AuthUser(principal): AuthUser,
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+    Json(body): Json<EntitySettingUpsert>,
+) -> ApiResult<impl IntoResponse> {
+    require_owner_or_member(&principal)?;
+
+    sqlx::query(
+        "INSERT INTO entity_settings (scope, scope_id, key, value, locked) \
+         VALUES ('system', 'global', $1, $2, $3) \
+         ON CONFLICT (scope, scope_id, key) DO UPDATE \
+         SET value = $2, locked = $3, updated_at = NOW()",
+    )
+    .bind(&body.key)
+    .bind(&body.value)
+    .bind(body.locked)
+    .execute(&pool)
+    .await
+    .map_err(ApiError::Database)?;
+
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(format!("system/global/{}", body.key)),
+            after: Some(json!({"value": body.value, "locked": body.locked})),
+            headers: Some(&headers),
+            ..AuditCtx::new(&principal, "system.entity_settings.upsert", "entity_settings")
+        },
+    )
+    .await;
+
+    Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
+}
+
+/// `GET /api/v2/workspace/entity-settings` — owner/member.
+/// Returns all entity_settings rows for the caller's workspace.
+async fn list_workspace_entity_settings(
+    AuthUser(principal): AuthUser,
+    State(pool): State<PgPool>,
+) -> ApiResult<impl IntoResponse> {
+    require_owner_or_member(&principal)?;
+
+    use sqlx::Row;
+    let scope_id = principal.wid.to_string();
+    let rows = sqlx::query(
+        "SELECT key, value, locked FROM entity_settings \
+         WHERE scope = 'workspace' AND scope_id = $1 ORDER BY key",
+    )
+    .bind(&scope_id)
+    .fetch_all(&pool)
+    .await
+    .map_err(ApiError::Database)?;
+
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "key":    r.try_get::<String, _>("key").unwrap_or_default(),
+                "value":  r.try_get::<Option<Value>, _>("value").ok().flatten(),
+                "locked": r.try_get::<bool, _>("locked").unwrap_or(false),
+            })
+        })
+        .collect();
+
+    Ok((StatusCode::OK, Json(json!({"status": "ok", "data": data}))))
+}
+
+/// `PUT /api/v2/workspace/entity-settings` — owner/member.
+/// Upserts one entity_setting at the caller's workspace scope.
+async fn upsert_workspace_entity_setting(
+    AuthUser(principal): AuthUser,
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+    Json(body): Json<EntitySettingUpsert>,
+) -> ApiResult<impl IntoResponse> {
+    require_owner_or_member(&principal)?;
+
+    let scope_id = principal.wid.to_string();
+    sqlx::query(
+        "INSERT INTO entity_settings (scope, scope_id, key, value, locked) \
+         VALUES ('workspace', $1, $2, $3, $4) \
+         ON CONFLICT (scope, scope_id, key) DO UPDATE \
+         SET value = $3, locked = $4, updated_at = NOW()",
+    )
+    .bind(&scope_id)
+    .bind(&body.key)
+    .bind(&body.value)
+    .bind(body.locked)
+    .execute(&pool)
+    .await
+    .map_err(ApiError::Database)?;
+
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(format!("workspace/{}/{}", scope_id, body.key)),
+            after: Some(json!({"value": body.value, "locked": body.locked})),
+            headers: Some(&headers),
+            ..AuditCtx::new(
+                &principal,
+                "workspace.entity_settings.upsert",
+                "entity_settings",
+            )
+        },
+    )
+    .await;
+
+    Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
 }
 
 #[cfg(test)]
