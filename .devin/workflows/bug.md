@@ -83,18 +83,23 @@ If unclear from description, pick the closest one and note it in the issue body.
 
 ## Step 4 — Build the issue title
 
-**Format:** `bug | {Env} | {Layer} | {description}`
+**Format:** `{Area} | {description}`
 
-| Bug type | Env value |
+> The bug type (QA/Production) is conveyed by the `bug:normal` / `bug:production` label — do not add it to the title.
+
+| Area | Maps from |
 |---|---|
-| `bug:normal` (QA) | `QA` |
-| `bug:production` (Prod) | `Prod` |
+| `Gateway` | auth, routing, Rust gateway, API gateway |
+| `Dashboard` | UI, frontend, Next.js |
+| `Service` | Python backend, DB, API service |
+| `Worker` | Temporal, background jobs |
+| `Infra` | Docker, CI/CD, infrastructure |
 
 **Examples:**
 ```
-bug | QA | Gateway | OAuth token refresh fails on expired session
-bug | Prod | Service | Video render hangs on empty script field
-bug | QA | UI | Login page crashes with special chars in email
+Gateway | OAuth token refresh fails on expired session
+Service | Video render hangs on empty script field
+Dashboard | Login page crashes with special chars in email
 ```
 
 ---

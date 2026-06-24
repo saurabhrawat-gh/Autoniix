@@ -12,6 +12,7 @@ use crate::{
     auth::{AuthServiceImpl, SignInResult},
     error::{ApiError, ApiResult},
     extractors::AuthUser,
+    middleware::{invite_rate_limit, InviteRateLimiter},
 };
 
 // Cookie lifetimes (seconds): access token 1h, refresh token 30d.
@@ -87,6 +88,10 @@ fn extract_ua(headers: &HeaderMap) -> Option<String> {
 }
 
 pub fn routes(auth_service: AuthServiceImpl) -> Router {
+    // Rate-limited endpoints get their own per-route middleware layer.
+    // The limiter state is separate from `auth_service` — axum resolves them independently.
+    let invite_limiter = InviteRateLimiter::new();
+
     Router::new()
         .route("/api/v2/auth/mode", get(auth_mode))
         .route("/api/v2/auth/signin", post(sign_in))
@@ -104,7 +109,13 @@ pub fn routes(auth_service: AuthServiceImpl) -> Router {
         .route("/api/v2/auth/mfa/verify", post(mfa_verify))
         .route("/api/v2/auth/mfa/challenge", post(mfa_challenge))
         .route("/api/v2/auth/mfa/disable", post(mfa_disable))
-        .route("/api/v2/auth/accept-invite", post(accept_invite))
+        // IM-171: rate-limited — 5 attempts per IP per 15 min, returns 429 + Retry-After.
+        .route(
+            "/api/v2/auth/accept-invite",
+            post(accept_invite).layer(
+                axum::middleware::from_fn_with_state(invite_limiter, invite_rate_limit),
+            ),
+        )
         .with_state(auth_service)
 }
 

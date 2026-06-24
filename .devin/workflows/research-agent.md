@@ -27,7 +27,7 @@ The Research Agent runs before any Dev work begins. Its job is to read the issue
 
 1. Call `mcp0_get_issue` to read the full issue body
 2. Extract: Summary, Use Cases, Acceptance Criteria, Impacted Files section
-3. Note the issue title format: `[Type] | [Layer] | Description` — understand which layer is primary
+3. Note the issue title format: `[Area] | Description` — understand which area it belongs to
 4. Check if a test-case issue already exists (linked in issue body as `**Test Plan:** #{N}`)
 5. Print: "Research starting for #N: {title}"
 

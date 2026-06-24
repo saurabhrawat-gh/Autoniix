@@ -60,6 +60,9 @@ pub fn routes(pool: PgPool) -> Router {
             get(get_draft).put(save_draft),
         )
         .route("/api/v2/channels/ai/field-suggest", post(field_suggest))
+        // Config resolution (F2 + F3)
+        .route("/api/v2/channels/:channel_id/resolve-config", get(resolve_config))
+        .route("/api/v2/workspace/resolve-provider-chain", get(resolve_provider_chain))
         // CRUD
         .route("/api/v2/channels", get(list_channels).post(create_channel))
         .route(
@@ -2627,4 +2630,238 @@ async fn proxy_put_brand_kit(
     )
     .await;
     Ok(result)
+}
+
+// ── F2: Cascade config resolution ────────────────────────────────────────────
+//
+// GET /api/v2/channels/:channel_id/resolve-config?content_mode=short
+//
+// Returns merged entity_settings for the 4-level hierarchy:
+//   system → workspace → channel → content_mode
+// Most-specific value wins (content_mode overrides channel overrides workspace
+// overrides system). The response is a flat key→{value,scope} map.
+
+#[derive(Debug, Deserialize)]
+struct ResolveConfigQuery {
+    content_mode: Option<String>,
+}
+
+async fn resolve_config(
+    AuthUser(principal): AuthUser,
+    State(pool): State<PgPool>,
+    Path(channel_id): Path<String>,
+    Query(q): Query<ResolveConfigQuery>,
+) -> ApiResult<impl IntoResponse> {
+    // Verify channel belongs to this workspace
+    let exists = sqlx::query(
+        "SELECT 1 FROM channels WHERE channel_id=$1 AND workspace_id=$2",
+    )
+    .bind(&channel_id)
+    .bind(principal.wid)
+    .fetch_optional(&pool)
+    .await
+    .map_err(ApiError::Database)?;
+
+    if exists.is_none() {
+        return Err(ApiError::NotFound("Channel not found".to_string()));
+    }
+
+    let content_mode_scope_id = q
+        .content_mode
+        .as_deref()
+        .map(|cm| format!("{}:{}", channel_id, cm));
+
+    // Query all 4 scope levels in one pass, ordered by specificity (system=0 … content_mode=3)
+    let scope_id_str = principal.wid.to_string();
+    let rows = sqlx::query(
+        r#"SELECT key, value,
+                  CASE scope
+                      WHEN 'system'       THEN 0
+                      WHEN 'workspace'    THEN 1
+                      WHEN 'channel'      THEN 2
+                      WHEN 'content_mode' THEN 3
+                      ELSE 1
+                  END AS priority,
+                  scope
+             FROM entity_settings
+            WHERE (scope = 'system'       AND scope_id = 'global')
+               OR (scope = 'workspace'    AND scope_id = $1)
+               OR (scope = 'channel'      AND scope_id = $2)
+               OR (scope = 'content_mode' AND scope_id = $3)
+            ORDER BY priority ASC"#,
+    )
+    .bind(&scope_id_str)
+    .bind(&channel_id)
+    .bind(content_mode_scope_id.as_deref().unwrap_or("__none__"))
+    .fetch_all(&pool)
+    .await
+    .map_err(ApiError::Database)?;
+
+    // Merge: later rows (higher priority) overwrite earlier ones
+    let mut resolved: std::collections::HashMap<String, Value> =
+        std::collections::HashMap::new();
+
+    for row in &rows {
+        use sqlx::Row;
+        let key: String = row.get("key");
+        let value: Value = row.get("value");
+        let scope: String = row.get("scope");
+        resolved.insert(key, json!({ "value": value, "scope": scope }));
+    }
+
+    Ok(Json(json!({
+        "channel_id":   channel_id,
+        "content_mode": q.content_mode,
+        "resolved":     resolved,
+    })))
+}
+
+// ── F3: System-level provider chain resolver ──────────────────────────────────
+//
+// GET /api/v2/workspace/resolve-provider-chain?category=llm&content_mode=short
+//
+// Returns the effective ordered provider chain for a given (category, content_mode)
+// respecting the fallback hierarchy:
+//   content_mode-scoped channel chain
+//     → channel-scoped chain
+//     → workspace chain
+//     → system chain (F3 addition — ultimate fallback)
+
+#[derive(Debug, Deserialize)]
+struct ResolveChainQuery {
+    category: String,
+    content_mode: Option<String>,
+    channel_id: Option<String>,
+}
+
+async fn resolve_provider_chain(
+    AuthUser(principal): AuthUser,
+    State(pool): State<PgPool>,
+    Query(q): Query<ResolveChainQuery>,
+) -> ApiResult<impl IntoResponse> {
+    // Build candidate queries from most-specific to least-specific.
+    // We pick the first scope level that has at least one row.
+
+    struct ScopeAttempt {
+        scope: &'static str,
+        scope_id: Option<String>,
+        workspace_id: Option<i64>,
+        content_mode: Option<String>,
+    }
+
+    let attempts: Vec<ScopeAttempt> = {
+        let mut v = Vec::new();
+
+        // 1. channel + content_mode (most specific)
+        if let (Some(ref cid), Some(ref cm)) = (&q.channel_id, &q.content_mode) {
+            v.push(ScopeAttempt {
+                scope: "channel",
+                scope_id: Some(cid.clone()),
+                workspace_id: Some(principal.wid),
+                content_mode: Some(cm.clone()),
+            });
+        }
+        // 2. channel-only
+        if let Some(ref cid) = q.channel_id {
+            v.push(ScopeAttempt {
+                scope: "channel",
+                scope_id: Some(cid.clone()),
+                workspace_id: Some(principal.wid),
+                content_mode: None,
+            });
+        }
+        // 3. workspace + content_mode
+        if let Some(ref cm) = q.content_mode {
+            v.push(ScopeAttempt {
+                scope: "workspace",
+                scope_id: None,
+                workspace_id: Some(principal.wid),
+                content_mode: Some(cm.clone()),
+            });
+        }
+        // 4. workspace-only
+        v.push(ScopeAttempt {
+            scope: "workspace",
+            scope_id: None,
+            workspace_id: Some(principal.wid),
+            content_mode: None,
+        });
+        // 5. system + content_mode  (F3)
+        if let Some(ref cm) = q.content_mode {
+            v.push(ScopeAttempt {
+                scope: "system",
+                scope_id: None,
+                workspace_id: None,
+                content_mode: Some(cm.clone()),
+            });
+        }
+        // 6. system-only  (F3 ultimate fallback)
+        v.push(ScopeAttempt {
+            scope: "system",
+            scope_id: None,
+            workspace_id: None,
+            content_mode: None,
+        });
+        v
+    };
+
+    for attempt in &attempts {
+        let rows = sqlx::query(
+            r#"SELECT cv2.id, pc.provider, pc.model, cv2.position, cv2.fallback_strategy,
+                      cv2.scope, cv2.content_mode, cv2.is_enabled
+                 FROM provider_chains_v2 cv2
+                 JOIN provider_credentials pc ON pc.id = cv2.credential_id
+                WHERE cv2.category    = $1
+                  AND cv2.scope       = $2
+                  AND (cv2.scope_id       IS NOT DISTINCT FROM $3)
+                  AND (cv2.workspace_id   IS NOT DISTINCT FROM $4)
+                  AND (cv2.content_mode   IS NOT DISTINCT FROM $5)
+                  AND cv2.is_enabled  = TRUE
+                  AND pc.enabled      = TRUE
+                ORDER BY cv2.position ASC"#,
+        )
+        .bind(&q.category)
+        .bind(attempt.scope)
+        .bind(&attempt.scope_id)
+        .bind(attempt.workspace_id)
+        .bind(&attempt.content_mode)
+        .fetch_all(&pool)
+        .await
+        .map_err(ApiError::Database)?;
+
+        if rows.is_empty() {
+            continue;
+        }
+
+        use sqlx::Row;
+        let chain: Vec<Value> = rows
+            .iter()
+            .map(|r| {
+                json!({
+                    "id":               r.get::<i64, _>("id"),
+                    "provider":         r.get::<String, _>("provider"),
+                    "model":            r.get::<Option<String>, _>("model"),
+                    "position":         r.get::<i32, _>("position"),
+                    "fallback_strategy":r.get::<String, _>("fallback_strategy"),
+                    "scope":            r.get::<String, _>("scope"),
+                    "content_mode":     r.get::<Option<String>, _>("content_mode"),
+                })
+            })
+            .collect();
+
+        return Ok(Json(json!({
+            "category":     q.category,
+            "content_mode": q.content_mode,
+            "scope_used":   attempt.scope,
+            "chain":        chain,
+        })));
+    }
+
+    // No chain found at any scope level
+    Ok(Json(json!({
+        "category":     q.category,
+        "content_mode": q.content_mode,
+        "scope_used":   null,
+        "chain":        [],
+    })))
 }
