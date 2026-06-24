@@ -29,8 +29,7 @@ fn eleven_key() -> Option<String> {
 }
 
 fn eleven_model() -> String {
-    std::env::var("ELEVENLABS_MODEL_ID")
-        .unwrap_or_else(|_| "eleven_multilingual_v2".to_string())
+    std::env::var("ELEVENLABS_MODEL_ID").unwrap_or_else(|_| "eleven_multilingual_v2".to_string())
 }
 
 pub fn routes(pool: PgPool) -> Router {
@@ -59,7 +58,9 @@ async fn list_voices(
     State(_pool): State<PgPool>,
 ) -> ApiResult<impl IntoResponse> {
     let Some(api_key) = eleven_key() else {
-        return Ok(Json(json!({ "data": [], "warning": "ELEVENLABS_API_KEY not configured" })));
+        return Ok(Json(
+            json!({ "data": [], "warning": "ELEVENLABS_API_KEY not configured" }),
+        ));
     };
 
     let client = reqwest::Client::builder()
@@ -96,10 +97,7 @@ async fn list_voices(
                     Some(VoiceItem {
                         voice_id: v.get("voice_id")?.as_str()?.to_string(),
                         name: v.get("name")?.as_str()?.to_string(),
-                        category: v
-                            .get("category")
-                            .and_then(Value::as_str)
-                            .map(String::from),
+                        category: v.get("category").and_then(Value::as_str).map(String::from),
                         preview_url: v
                             .get("preview_url")
                             .and_then(Value::as_str)
@@ -188,10 +186,7 @@ async fn preview_voice(
         .await
         .map_err(|e| ApiError::Internal(format!("ElevenLabs audio read error: {e}")))?;
 
-    let data_url = format!(
-        "data:audio/mpeg;base64,{}",
-        B64.encode(&audio_bytes)
-    );
+    let data_url = format!("data:audio/mpeg;base64,{}", B64.encode(&audio_bytes));
 
     Ok(Json(json!({
         "voice_id":  body.voice_id,

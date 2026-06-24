@@ -49,7 +49,11 @@ async fn test_list_lookup_values_requires_auth() {
         .await
         .unwrap();
 
-    assert_eq!(resp.status(), 401, "unauthenticated request should return 401");
+    assert_eq!(
+        resp.status(),
+        401,
+        "unauthenticated request should return 401"
+    );
 
     h.cleanup().await;
 }
@@ -67,17 +71,31 @@ async fn test_list_lookup_values_returns_seeded_global_data() {
     let data = body["data"].as_array().expect("data should be an array");
 
     // Migration 202606230002 seeds languages — at least 'en' should be present
-    let has_en = data.iter().any(|v| v["type"] == "language" && v["value"] == "en");
+    let has_en = data
+        .iter()
+        .any(|v| v["type"] == "language" && v["value"] == "en");
     assert!(has_en, "seeded 'en' language value should be present");
 
     // All rows have required fields
     for row in data {
         assert!(row["id"].is_number(), "each row should have numeric id");
         assert!(row["type"].is_string(), "each row should have string type");
-        assert!(row["value"].is_string(), "each row should have string value");
-        assert!(row["label"].is_string(), "each row should have string label");
-        assert!(row["is_active"].is_boolean(), "each row should have boolean is_active");
-        assert!(row["is_custom"].is_boolean(), "each row should have boolean is_custom");
+        assert!(
+            row["value"].is_string(),
+            "each row should have string value"
+        );
+        assert!(
+            row["label"].is_string(),
+            "each row should have string label"
+        );
+        assert!(
+            row["is_active"].is_boolean(),
+            "each row should have boolean is_active"
+        );
+        assert!(
+            row["is_custom"].is_boolean(),
+            "each row should have boolean is_custom"
+        );
     }
 
     h.cleanup().await;
@@ -89,15 +107,23 @@ async fn test_list_lookup_values_filtered_by_type() {
     let email = common::harness::GatewayHarness::unique_email("lv-filter");
     let token = h.signup_and_get_token(&email, "Test1234!").await;
 
-    let resp = h.get_auth("/api/v2/lookup-values?type=language", &token).await;
+    let resp = h
+        .get_auth("/api/v2/lookup-values?type=language", &token)
+        .await;
     assert_eq!(resp.status(), 200);
 
     let body: serde_json::Value = resp.json().await.unwrap();
     let data = body["data"].as_array().unwrap();
 
-    assert!(!data.is_empty(), "filtered language list should not be empty");
+    assert!(
+        !data.is_empty(),
+        "filtered language list should not be empty"
+    );
     for row in data {
-        assert_eq!(row["type"], "language", "filtered rows should all be type=language");
+        assert_eq!(
+            row["type"], "language",
+            "filtered rows should all be type=language"
+        );
     }
 
     h.cleanup().await;
@@ -122,7 +148,11 @@ async fn test_create_global_value_requires_superadmin() {
         )
         .await;
 
-    assert_eq!(resp.status(), 403, "non-superadmin should not be able to create global values");
+    assert_eq!(
+        resp.status(),
+        403,
+        "non-superadmin should not be able to create global values"
+    );
 
     h.cleanup().await;
 }
@@ -134,7 +164,9 @@ async fn test_create_global_value_as_superadmin() {
     let password = "Test1234!";
 
     // register() returns user_id; signin() does not
-    let reg: serde_json::Value = h.register(&email, password, "SA User", "SA Workspace").await;
+    let reg: serde_json::Value = h
+        .register(&email, password, "SA User", "SA Workspace")
+        .await;
     let uid: i64 = reg["user_id"]
         .as_i64()
         .expect("register should return user_id");
@@ -158,11 +190,18 @@ async fn test_create_global_value_as_superadmin() {
         )
         .await;
 
-    assert_eq!(resp.status(), 201, "superadmin should be able to create global values");
+    assert_eq!(
+        resp.status(),
+        201,
+        "superadmin should be able to create global values"
+    );
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["type"], "niche");
     assert_eq!(body["value"], "lv_harness_global_test");
-    assert!(body["workspace_id"].is_null(), "global value should have null workspace_id");
+    assert!(
+        body["workspace_id"].is_null(),
+        "global value should have null workspace_id"
+    );
     assert_eq!(body["is_active"], true);
 
     cleanup_lookup_values(&h, "LV Harness Global Test").await;
@@ -187,7 +226,11 @@ async fn test_create_workspace_value_as_owner() {
         )
         .await;
 
-    assert_eq!(resp.status(), 201, "owner should be able to create workspace-private values");
+    assert_eq!(
+        resp.status(),
+        201,
+        "owner should be able to create workspace-private values"
+    );
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["value"], "lv_ws_custom_niche");
     assert!(
@@ -254,7 +297,10 @@ async fn test_workspace_value_is_scoped_to_owner_workspace() {
     let sees_own = data_a
         .iter()
         .any(|v| v["value"] == "lv_private_workspace_a");
-    assert!(sees_own, "workspace A should see its own private lookup value");
+    assert!(
+        sees_own,
+        "workspace A should see its own private lookup value"
+    );
 
     cleanup_lookup_values(&h, "LV Private Workspace A").await;
     h.cleanup().await;
@@ -292,7 +338,11 @@ async fn test_update_workspace_value_as_owner() {
         .send()
         .await
         .unwrap();
-    assert_eq!(patch.status(), 200, "owner should be able to update their workspace value");
+    assert_eq!(
+        patch.status(),
+        200,
+        "owner should be able to update their workspace value"
+    );
     let patch_body: serde_json::Value = patch.json().await.unwrap();
     assert_eq!(patch_body["status"], "updated");
     assert_eq!(patch_body["id"], id);

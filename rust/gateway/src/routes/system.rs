@@ -571,7 +571,11 @@ async fn upsert_system_entity_setting(
             target_id: Some(format!("system/global/{}", body.key)),
             after: Some(json!({"value": body.value, "locked": body.locked})),
             headers: Some(&headers),
-            ..AuditCtx::new(&principal, "system.entity_settings.upsert", "entity_settings")
+            ..AuditCtx::new(
+                &principal,
+                "system.entity_settings.upsert",
+                "entity_settings",
+            )
         },
     )
     .await;

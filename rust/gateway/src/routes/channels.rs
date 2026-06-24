@@ -61,8 +61,14 @@ pub fn routes(pool: PgPool) -> Router {
         )
         .route("/api/v2/channels/ai/field-suggest", post(field_suggest))
         // Config resolution (F2 + F3)
-        .route("/api/v2/channels/:channel_id/resolve-config", get(resolve_config))
-        .route("/api/v2/workspace/resolve-provider-chain", get(resolve_provider_chain))
+        .route(
+            "/api/v2/channels/:channel_id/resolve-config",
+            get(resolve_config),
+        )
+        .route(
+            "/api/v2/workspace/resolve-provider-chain",
+            get(resolve_provider_chain),
+        )
         // CRUD
         .route("/api/v2/channels", get(list_channels).post(create_channel))
         .route(
@@ -2653,14 +2659,12 @@ async fn resolve_config(
     Query(q): Query<ResolveConfigQuery>,
 ) -> ApiResult<impl IntoResponse> {
     // Verify channel belongs to this workspace
-    let exists = sqlx::query(
-        "SELECT 1 FROM channels WHERE channel_id=$1 AND workspace_id=$2",
-    )
-    .bind(&channel_id)
-    .bind(principal.wid)
-    .fetch_optional(&pool)
-    .await
-    .map_err(ApiError::Database)?;
+    let exists = sqlx::query("SELECT 1 FROM channels WHERE channel_id=$1 AND workspace_id=$2")
+        .bind(&channel_id)
+        .bind(principal.wid)
+        .fetch_optional(&pool)
+        .await
+        .map_err(ApiError::Database)?;
 
     if exists.is_none() {
         return Err(ApiError::NotFound("Channel not found".to_string()));
@@ -2698,8 +2702,7 @@ async fn resolve_config(
     .map_err(ApiError::Database)?;
 
     // Merge: later rows (higher priority) overwrite earlier ones
-    let mut resolved: std::collections::HashMap<String, Value> =
-        std::collections::HashMap::new();
+    let mut resolved: std::collections::HashMap<String, Value> = std::collections::HashMap::new();
 
     for row in &rows {
         use sqlx::Row;

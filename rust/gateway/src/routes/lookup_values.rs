@@ -28,9 +28,18 @@ use crate::{
 
 pub fn routes(pool: PgPool) -> Router {
     Router::new()
-        .route("/api/v2/lookup-values", get(list_lookup_values).post(create_global_value))
-        .route("/api/v2/lookup-values/:id", patch(update_lookup_value).delete(deactivate_lookup_value))
-        .route("/api/v2/workspace/lookup-values", post(create_workspace_value))
+        .route(
+            "/api/v2/lookup-values",
+            get(list_lookup_values).post(create_global_value),
+        )
+        .route(
+            "/api/v2/lookup-values/:id",
+            patch(update_lookup_value).delete(deactivate_lookup_value),
+        )
+        .route(
+            "/api/v2/workspace/lookup-values",
+            post(create_workspace_value),
+        )
         .with_state(pool)
 }
 

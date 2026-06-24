@@ -532,7 +532,11 @@ async fn test_content_type_tags_roundtrip() {
             &token,
         )
         .await;
-    assert_eq!(resp.status(), 200, "create with content_type_tags should return 200");
+    assert_eq!(
+        resp.status(),
+        200,
+        "create with content_type_tags should return 200"
+    );
     let body: serde_json::Value = resp.json().await.unwrap();
     let channel_id = body["channel_id"].as_str().unwrap().to_string();
 
@@ -547,8 +551,14 @@ async fn test_content_type_tags_roundtrip() {
         .as_array()
         .expect("content_type_tags should be an array");
     assert_eq!(tags.len(), 2, "should persist both tags");
-    assert!(tags.iter().any(|t| t == "faceless"), "should contain 'faceless'");
-    assert!(tags.iter().any(|t| t == "storytelling"), "should contain 'storytelling'");
+    assert!(
+        tags.iter().any(|t| t == "faceless"),
+        "should contain 'faceless'"
+    );
+    assert!(
+        tags.iter().any(|t| t == "storytelling"),
+        "should contain 'storytelling'"
+    );
 
     cleanup_channel(&h, &channel_id).await;
     h.cleanup().await;
@@ -585,7 +595,11 @@ async fn test_content_type_tags_patchable() {
         .send()
         .await
         .unwrap();
-    assert_eq!(patch.status(), 200, "patch content_type_tags should return 200");
+    assert_eq!(
+        patch.status(),
+        200,
+        "patch content_type_tags should return 200"
+    );
 
     let get: serde_json::Value = h
         .get_auth(&format!("/api/v2/channels/{channel_id}"), &token)
@@ -622,7 +636,10 @@ async fn test_resolve_config_smoke() {
 
     // Without content_mode
     let resp = h
-        .get_auth(&format!("/api/v2/channels/{channel_id}/resolve-config"), &token)
+        .get_auth(
+            &format!("/api/v2/channels/{channel_id}/resolve-config"),
+            &token,
+        )
         .await;
     assert_eq!(resp.status(), 200, "resolve-config should return 200");
     let body: serde_json::Value = resp.json().await.unwrap();
@@ -651,7 +668,10 @@ async fn test_resolve_config_unknown_channel_is_404() {
     let token = h.signup_and_get_token(&email, "Test1234!").await;
 
     let resp = h
-        .get_auth("/api/v2/channels/nonexistent-channel-xyz/resolve-config", &token)
+        .get_auth(
+            "/api/v2/channels/nonexistent-channel-xyz/resolve-config",
+            &token,
+        )
         .await;
     assert_eq!(resp.status(), 404, "unknown channel should return 404");
 
@@ -666,9 +686,16 @@ async fn test_resolve_provider_chain_smoke() {
 
     // No provider_chains_v2 rows for this workspace — chain should be empty, not an error
     let resp = h
-        .get_auth("/api/v2/workspace/resolve-provider-chain?category=llm", &token)
+        .get_auth(
+            "/api/v2/workspace/resolve-provider-chain?category=llm",
+            &token,
+        )
         .await;
-    assert_eq!(resp.status(), 200, "resolve-provider-chain should return 200 even with no chain");
+    assert_eq!(
+        resp.status(),
+        200,
+        "resolve-provider-chain should return 200 even with no chain"
+    );
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["category"], "llm");
     assert!(body["chain"].is_array(), "chain should be an array");

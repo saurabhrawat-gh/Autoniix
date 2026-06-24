@@ -112,9 +112,10 @@ pub fn routes(auth_service: AuthServiceImpl) -> Router {
         // IM-171: rate-limited — 5 attempts per IP per 15 min, returns 429 + Retry-After.
         .route(
             "/api/v2/auth/accept-invite",
-            post(accept_invite).layer(
-                axum::middleware::from_fn_with_state(invite_limiter, invite_rate_limit),
-            ),
+            post(accept_invite).layer(axum::middleware::from_fn_with_state(
+                invite_limiter,
+                invite_rate_limit,
+            )),
         )
         .with_state(auth_service)
 }
