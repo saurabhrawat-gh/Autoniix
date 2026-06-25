@@ -82,7 +82,16 @@ def mock_pool():
     for _name, _mod in list(sys.modules.items()):
         if _mod is None or _name == "src.db":
             continue
-        if getattr(_mod, "get_pool", None) is original:
+        # Some modules use PEP 562 ``__getattr__`` for lazy imports; calling
+        # ``getattr`` can trigger imports that fail when optional deps
+        # (torchvision, sentence-transformers, etc.) are not installed.
+        # Skip any module whose attribute access raises rather than failing
+        # the whole fixture setup.
+        try:
+            _candidate = getattr(_mod, "get_pool", None)
+        except Exception:
+            continue
+        if _candidate is original:
             targets.append(f"{_name}.get_pool")
     started = []
     for _t in targets:

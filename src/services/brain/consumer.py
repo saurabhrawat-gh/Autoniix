@@ -36,7 +36,6 @@ _SOURCE = "brain-service"
 
 
 async def handle_pipeline_event(envelope: dict) -> None:
-<<<<<<< HEAD
     """Dispatch handler for both video.complete and video.failed topics.
 
     When ``brain.memory_recall.enabled`` is TRUE we route through
@@ -44,9 +43,6 @@ async def handle_pipeline_event(envelope: dict) -> None:
     enriches the reasoning field. When FALSE we keep the legacy
     analyse → evaluate sequence — bit-for-bit identical behaviour.
     """
-=======
-    """Dispatch handler for both video.complete and video.failed topics."""
->>>>>>> feat/story1-ai-phase-animations
     payload = envelope.get("payload", {})
     channel_id = envelope.get("scope_id") or payload.get("channel_id", "")
     content_id = payload.get("content_id")
@@ -63,7 +59,6 @@ async def handle_pipeline_event(envelope: dict) -> None:
         content_id=content_id,
     )
 
-<<<<<<< HEAD
     use_agent = await get_flag("brain.memory_recall.enabled", default=False)
     if use_agent:
         # Agent path: framework owns observe→recall→reason→decide→act.
@@ -74,8 +69,7 @@ async def handle_pipeline_event(envelope: dict) -> None:
         )
         return
 
-=======
->>>>>>> feat/story1-ai-phase-animations
+
     signals = await analyse_channel(channel_id)
     decision = await evaluate(signals, content_id=content_id)
 

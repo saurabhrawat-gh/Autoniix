@@ -187,10 +187,13 @@ class TestPromptCompressor:
     @pytest.mark.asyncio
     async def test_fast_tier_prunes(self):
         comp = PromptCompressor(tier="fast", enable_cache_markers=False)
+        # Need >= MIN_TOKENS_FOR_COMPRESSION (200) total tokens to trigger
+        # the compression pipeline; otherwise compress() returns early.
+        long_text = "Line 1\n\n\n\nLine 2\n\n\nLine 3 " + ("filler word " * 200)
         req = LLMRequest(
             messages=[
                 {"role": "system", "content": "Be helpful."},
-                {"role": "user", "content": "Line 1\n\n\n\nLine 2\n\n\nLine 3"},
+                {"role": "user", "content": long_text},
             ],
         )
         result, stats = await comp.compress(req)
@@ -313,18 +316,18 @@ class TestRouterCompressionIntegration:
         ProviderRegistry.register("llm", "fake_ok", _FakeOK)
 
         # Stub the DB helpers so the router doesn't need Postgres.
-        monkeypatch.setattr(
-            "src.llm.router._cap_for", lambda *a, **kw: 0.0
-        )
-        monkeypatch.setattr(
-            "src.llm.router._spent_today", lambda *a, **kw: 0.0
-        )
-        monkeypatch.setattr(
-            "src.llm.router._db_chain_pairs", lambda *a, **kw: []
-        )
-        monkeypatch.setattr(
-            "src.llm.router._record_usage", lambda *a, **kw: None
-        )
+        async def _async_cap(*a, **kw):
+            return 0.0
+        async def _async_spent(*a, **kw):
+            return 0.0
+        async def _async_chain_pairs(*a, **kw):
+            return []
+        async def _async_record(*a, **kw):
+            return None
+        monkeypatch.setattr("src.llm.router._cap_for", _async_cap)
+        monkeypatch.setattr("src.llm.router._spent_today", _async_spent)
+        monkeypatch.setattr("src.llm.router._db_chain_pairs", _async_chain_pairs)
+        monkeypatch.setattr("src.llm.router._record_usage", _async_record)
 
         router = Router()
         req = LLMRequest(
@@ -365,10 +368,18 @@ class TestRouterCompressionIntegration:
 
         ProviderRegistry.register("llm", "fake_ok2", _FakeOK)
 
-        monkeypatch.setattr("src.llm.router._cap_for", lambda *a, **kw: 0.0)
-        monkeypatch.setattr("src.llm.router._spent_today", lambda *a, **kw: 0.0)
-        monkeypatch.setattr("src.llm.router._db_chain_pairs", lambda *a, **kw: [])
-        monkeypatch.setattr("src.llm.router._record_usage", lambda *a, **kw: None)
+        async def _async_cap(*a, **kw):
+            return 0.0
+        async def _async_spent(*a, **kw):
+            return 0.0
+        async def _async_chain_pairs(*a, **kw):
+            return []
+        async def _async_record(*a, **kw):
+            return None
+        monkeypatch.setattr("src.llm.router._cap_for", _async_cap)
+        monkeypatch.setattr("src.llm.router._spent_today", _async_spent)
+        monkeypatch.setattr("src.llm.router._db_chain_pairs", _async_chain_pairs)
+        monkeypatch.setattr("src.llm.router._record_usage", _async_record)
 
         router = Router()
         req = LLMRequest(

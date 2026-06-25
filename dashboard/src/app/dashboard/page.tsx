@@ -1,11 +1,7 @@
 'use client';
 
-<<<<<<< HEAD
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-=======
-import { useEffect, useRef, useState, useCallback } from 'react';
->>>>>>> feat/story1-ai-phase-animations
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { isLoggedIn, wsEvents } from '@/lib/api-v2';
@@ -99,7 +95,6 @@ export default function DashboardPage() {
       try {
         ws = wsEvents();
         ws.onmessage = (ev) => {
-<<<<<<< HEAD
           try {
             if (JSON.parse(ev.data)?.type === 'job_update') {
               queryClient.invalidateQueries({ queryKey: qk.dashboard.stats() });
@@ -107,9 +102,6 @@ export default function DashboardPage() {
               setWsFlash(true);
             }
           } catch {}
-=======
-          try { if (JSON.parse(ev.data)?.type === 'job_update') { loadData(); setWsFlash(true); } } catch {}
->>>>>>> feat/story1-ai-phase-animations
         };
         ws.onclose = () => { if (alive) retry = setTimeout(connect, 5000); };
         ws.onerror = () => ws?.close();

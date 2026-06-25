@@ -21,8 +21,8 @@ import pytest
 
 from tests.migration.harnesses.equivalence_harness import EquivalenceHarness
 
-PYTHON_URL = os.getenv("PYTHON_DASHBOARD_URL", "http://localhost:8000")
-RUST_URL = os.getenv("RUST_GATEWAY_URL", "http://localhost:8080")
+PYTHON_URL = os.getenv("PYTHON_DASHBOARD_URL") or "http://localhost:8000"
+RUST_URL = os.getenv("RUST_GATEWAY_URL") or "http://localhost:8080"
 
 
 def unique_email(label: str = "equiv") -> str:

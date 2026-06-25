@@ -162,7 +162,7 @@ class TestInvitePreview:
         pool.fetchrow.side_effect = [
             FakeRecord(
                 email="invitee@test.com", role="member",
-                workspace_id=42, accepted_at=None, expires_at=_future(),
+                workspace_id=42, accepted_at=None, cancelled_at=None, expires_at=_future(),
             ),
             FakeRecord(name="Awesome Workspace"),
         ]
@@ -220,7 +220,7 @@ class TestAcceptHappyPaths:
         # Outer pool.fetchrow: invite lookup, workspace check, then user_row for JWT
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="newbie@test.com",
-                       role="member", accepted_at=None, expires_at=_future()),
+                       role="member", accepted_at=None, cancelled_at=None, expires_at=_future()),
             FakeRecord(id=42),  # workspace exists
             FakeRecord(id=999, email="newbie@test.com", role="viewer"),  # post-insert user_row
         ]
@@ -280,7 +280,7 @@ class TestAcceptHappyPaths:
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="returning@test.com",
-                       role="viewer", accepted_at=None, expires_at=_future()),
+                       role="viewer", accepted_at=None, cancelled_at=None, expires_at=_future()),
             FakeRecord(id=42),  # workspace exists
             FakeRecord(id=777, email="returning@test.com", role="viewer"),
         ]
@@ -317,7 +317,7 @@ class TestAcceptHappyPaths:
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="upgraded@test.com",
-                       role="member", accepted_at=None, expires_at=_future()),  # invite says 'member'
+                       role="member", accepted_at=None, cancelled_at=None, expires_at=_future()),  # invite says 'member'
             FakeRecord(id=42),  # workspace exists
             FakeRecord(id=555, email="upgraded@test.com", role="viewer"),
         ]
@@ -361,7 +361,7 @@ class TestAcceptHappyPaths:
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
             FakeRecord(id=2, workspace_id=42, email="idem@test.com",
-                       role="viewer", accepted_at=None, expires_at=_future()),
+                       role="viewer", accepted_at=None, cancelled_at=None, expires_at=_future()),
             FakeRecord(id=42),  # workspace exists
             FakeRecord(id=300, email="idem@test.com", role="viewer"),
         ]
@@ -396,7 +396,7 @@ class TestAcceptErrorPaths:
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="disabled@test.com",
-                       role="member", accepted_at=None, expires_at=_future()),
+                       role="member", accepted_at=None, cancelled_at=None, expires_at=_future()),
             FakeRecord(id=42),  # workspace exists
         ]
         pool.conn.fetchrow.return_value = FakeRecord(
@@ -458,7 +458,7 @@ class TestAcceptErrorPaths:
         pool = FakeTxnPool()
         pool.fetchrow.return_value = FakeRecord(
             id=1, workspace_id=42, email="x@test.com", role="viewer",
-            accepted_at=None, expires_at=_past(),
+            accepted_at=None, cancelled_at=None, expires_at=_past(),
         )
 
         with _pool_ctx(pool):
@@ -478,7 +478,7 @@ class TestAcceptErrorPaths:
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="brand-new@test.com",
-                       role="viewer", accepted_at=None, expires_at=_future()),
+                       role="viewer", accepted_at=None, cancelled_at=None, expires_at=_future()),
             FakeRecord(id=42),  # workspace exists
         ]
         pool.conn.fetchrow.return_value = None  # user doesn't exist
@@ -523,7 +523,7 @@ class TestAcceptErrorPaths:
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="MIXED.case@TEST.com",
-                       role="viewer", accepted_at=None, expires_at=_future()),
+                       role="viewer", accepted_at=None, cancelled_at=None, expires_at=_future()),
             FakeRecord(id=42),  # workspace exists
             FakeRecord(id=42, email="mixed.case@test.com", role="viewer"),
         ]
@@ -574,7 +574,7 @@ class TestPrivilegeEscalationRegression:
         pool.fetchrow.side_effect = [
             # Invite says role='member' — this is the WORKSPACE role.
             FakeRecord(id=1, workspace_id=42, email="new@test.com",
-                       role="member", accepted_at=None, expires_at=_future()),
+                       role="member", accepted_at=None, cancelled_at=None, expires_at=_future()),
             FakeRecord(id=42),  # workspace exists
             FakeRecord(id=1234, email="new@test.com", role="viewer"),
         ]
@@ -661,7 +661,7 @@ class TestCrossInviteTampering:
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="b@test.com",
-                       role="viewer", accepted_at=None, expires_at=_future()),
+                       role="viewer", accepted_at=None, cancelled_at=None, expires_at=_future()),
             FakeRecord(id=42),  # workspace exists
             FakeRecord(id=2, email="b@test.com", role="viewer"),
         ]
@@ -705,7 +705,7 @@ class TestDeferredToTestcontainer:
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=99, email="invited@test.com",
-                       role="member", accepted_at=None, expires_at=_future()),
+                       role="member", accepted_at=None, cancelled_at=None, expires_at=_future()),
             None,  # workspace lookup returns nothing — workspace was deleted
         ]
 
