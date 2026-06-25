@@ -217,10 +217,11 @@ class TestAcceptHappyPaths:
         from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
 
         pool = FakeTxnPool()
-        # Outer pool.fetchrow: invite lookup, then user_row for JWT
+        # Outer pool.fetchrow: invite lookup, workspace check, then user_row for JWT
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="newbie@test.com",
                        role="member", accepted_at=None, expires_at=_future()),
+            FakeRecord(id=42),  # workspace exists
             FakeRecord(id=999, email="newbie@test.com", role="viewer"),  # post-insert user_row
         ]
         # Inside transaction:
@@ -280,6 +281,7 @@ class TestAcceptHappyPaths:
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="returning@test.com",
                        role="viewer", accepted_at=None, expires_at=_future()),
+            FakeRecord(id=42),  # workspace exists
             FakeRecord(id=777, email="returning@test.com", role="viewer"),
         ]
         # Inside transaction: user EXISTS
@@ -316,6 +318,7 @@ class TestAcceptHappyPaths:
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="upgraded@test.com",
                        role="member", accepted_at=None, expires_at=_future()),  # invite says 'member'
+            FakeRecord(id=42),  # workspace exists
             FakeRecord(id=555, email="upgraded@test.com", role="viewer"),
         ]
         pool.conn.fetchrow.return_value = FakeRecord(
@@ -359,6 +362,7 @@ class TestAcceptHappyPaths:
         pool.fetchrow.side_effect = [
             FakeRecord(id=2, workspace_id=42, email="idem@test.com",
                        role="viewer", accepted_at=None, expires_at=_future()),
+            FakeRecord(id=42),  # workspace exists
             FakeRecord(id=300, email="idem@test.com", role="viewer"),
         ]
         pool.conn.fetchrow.return_value = FakeRecord(
@@ -393,6 +397,7 @@ class TestAcceptErrorPaths:
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="disabled@test.com",
                        role="member", accepted_at=None, expires_at=_future()),
+            FakeRecord(id=42),  # workspace exists
         ]
         pool.conn.fetchrow.return_value = FakeRecord(
             id=666, email="disabled@test.com", role="viewer", disabled=True,
@@ -474,6 +479,7 @@ class TestAcceptErrorPaths:
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="brand-new@test.com",
                        role="viewer", accepted_at=None, expires_at=_future()),
+            FakeRecord(id=42),  # workspace exists
         ]
         pool.conn.fetchrow.return_value = None  # user doesn't exist
 
@@ -518,6 +524,7 @@ class TestAcceptErrorPaths:
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="MIXED.case@TEST.com",
                        role="viewer", accepted_at=None, expires_at=_future()),
+            FakeRecord(id=42),  # workspace exists
             FakeRecord(id=42, email="mixed.case@test.com", role="viewer"),
         ]
         # Inside txn: existing user matched case-insensitively
@@ -568,6 +575,7 @@ class TestPrivilegeEscalationRegression:
             # Invite says role='member' — this is the WORKSPACE role.
             FakeRecord(id=1, workspace_id=42, email="new@test.com",
                        role="member", accepted_at=None, expires_at=_future()),
+            FakeRecord(id=42),  # workspace exists
             FakeRecord(id=1234, email="new@test.com", role="viewer"),
         ]
         pool.conn.fetchrow.return_value = None  # brand-new
@@ -654,6 +662,7 @@ class TestCrossInviteTampering:
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="b@test.com",
                        role="viewer", accepted_at=None, expires_at=_future()),
+            FakeRecord(id=42),  # workspace exists
             FakeRecord(id=2, email="b@test.com", role="viewer"),
         ]
         pool.conn.fetchrow.return_value = FakeRecord(
@@ -687,9 +696,28 @@ class TestDeferredToTestcontainer:
     They are tracked under AE-273 (Plan limits + isolation + concurrency)
     where testcontainer infrastructure already lands."""
 
-    @pytest.mark.skip(reason="WS-ACC-12: requires Postgres FK constraint; tracked in AE-273")
-    def test_ws_acc_12_workspace_deleted_between_invite_and_accept(self):
-        ...
+    @pytest.mark.asyncio
+    async def test_ws_acc_12_workspace_deleted_between_invite_and_accept(self):
+        """WS-ACC-12 — Workspace deleted after invite creation but before acceptance
+        → 410 Gone with descriptive message (application-level check, no FK reliance)."""
+        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+
+        pool = FakeTxnPool()
+        pool.fetchrow.side_effect = [
+            FakeRecord(id=1, workspace_id=99, email="invited@test.com",
+                       role="member", accepted_at=None, expires_at=_future()),
+            None,  # workspace lookup returns nothing — workspace was deleted
+        ]
+
+        with _pool_ctx(pool):
+            with pytest.raises(HTTPException) as exc:
+                await accept_invite(
+                    body=AcceptInviteIn(token="raw"),
+                    request=_request(), response=_response(),
+                )
+
+        assert exc.value.status_code == 410
+        assert "workspace has been removed" in exc.value.detail.lower()
 
     @pytest.mark.skip(reason="WS-ACC-15: requires rate-limit middleware in test app; "
                               "if no limiter exists today, file a security bug. "
