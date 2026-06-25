@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Autoniix polyglot monorepo (Rust + Go + Python + TypeScript)",
   "scripts": {
-    "prepare": "husky",
+    "prepare": "husky || true",
     "proto:lint": "cd proto && buf lint",
     "proto:format": "cd proto && buf format -w",
     "proto:generate": "cd proto && buf generate",
