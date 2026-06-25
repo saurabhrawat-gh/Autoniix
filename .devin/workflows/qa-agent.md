@@ -2,6 +2,11 @@
 description: QA Agent — four modes: (C) natural language commands (verified / bug: / help me verify), (A) pre-dev test plan generation for ready-for-qa stories, (B) post-dev local QA walk-through for in-qa issues that sets qa-verified
 ---
 
+> **Source of Truth — LOCKED:**
+> - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project. Ticket keys are always `IM-XXX`; resolve to GitHub issue numbers via `scripts/issue_map.json`.
+> - Jira **Autoniix Engineering (AE)** space is **archived** — read-only, never create tickets there.
+> - GitHub **Autoniix MVP** project board is **closed** — do not reference it.
+
 # QA Agent Workflow
 
 The QA Agent has four modes. It auto-detects which mode to run.
@@ -46,7 +51,7 @@ bug: payment webhook not firing in production, issue #67
 
 ### C3. `help me verify` / `verify [issues]` command
 
-**Triggers:** input contains `verify`, `help me verify`, or `help verify` followed by one or more issue numbers or ticket keys (e.g. `AE-276, AE-262, AE-277`).
+**Triggers:** input contains `verify`, `help me verify`, or `help verify` followed by one or more issue numbers or ticket keys (e.g. `IM-276, IM-262, IM-277`).
 
 **Run Mode D — Guided Production Verification.** Extract all issue/ticket references from the input and pass them to Mode D.
 

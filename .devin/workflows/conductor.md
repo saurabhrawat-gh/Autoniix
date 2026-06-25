@@ -2,6 +2,12 @@
 description: Conductor — top-level orchestrator that routes work between all agent teams, enforces human checkpoints at every team boundary, and maintains resumable session state on GitHub issues.
 ---
 
+> **Source of Truth — LOCKED:**
+> - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project. When the user says "pick up IM-XXX", resolve it from the IM board.
+> - Jira **Autoniix Engineering (AE)** space is **archived** — read-only, never route work there.
+> - GitHub **Autoniix MVP** project board is **closed** — do not reference it.
+> - Board: https://autoniix.atlassian.net/jira/software/c/projects/IM/boards/35/backlog
+
 # /conductor — Multi-Agent Orchestrator
 
 The conductor is the single entry point for all development work on Autoniix. It routes between teams, enforces checkpoints, and resumes sessions that were paused.
@@ -66,7 +72,7 @@ Step 5:  DevOps Team     (deploy monitoring + smoke test)
 - Invoke `/dev-agent` for the specific issue
 - Dev Lead reads Research notes before coding
 - Backend Dev + Frontend Dev + Test Writer run in sequence
-- Merges to develop, pushes → GHA auto-merges to main → issue set to `in-prod`
+- Merges to develop, pushes → issue set to `ready-to-deploy` (GitHub) + **Ready to Deploy** (Jira)
 - Emit HandoffPayload: `from_team: dev, to_team: security`
 - Print checkpoint (show diff summary) → wait for "proceed"
 
@@ -82,6 +88,7 @@ Step 5:  DevOps Team     (deploy monitoring + smoke test)
 - Invoke `/devops-agent deploy` (monitor mode)
 - Checks GHA deploy run status
 - Runs smoke tests
+- On success: transitions all `ready-to-deploy` issues → `in-prod` (GitHub) **and** Jira → In Prod (transition id:41)
 - Emit HandoffPayload: `from_team: devops, to_team: human`
 - Print checkpoint: "Deploy complete. Verify at https://dash.autoniix.com — then type `verified #N`."
 

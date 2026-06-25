@@ -2,6 +2,12 @@
 description: Project Manager — sprint planning, milestone progress report, and velocity tracking for the Autoniix MVP
 ---
 
+> **Source of Truth — LOCKED:**
+> - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project. All sprints and tickets go here.
+> - Jira **Autoniix Engineering (AE)** space is **archived** — read-only, never create sprints or tickets there.
+> - GitHub **Autoniix MVP** project board is **closed** — do not reference it for sprint planning.
+> - Board: https://autoniix.atlassian.net/jira/software/c/projects/IM/boards/35/backlog
+
 # Project Manager Workflow
 
 Use this workflow to **plan what to work on next** and **get a progress report** against the Autoniix MVP milestone.
@@ -15,7 +21,8 @@ Run it at the start of each week or sprint, or whenever you need a status overvi
 Pass a mode when invoking:
 - `/pm-agent plan` — sprint planning: decide which issues to pull into active work
 - `/pm-agent report` — status report: current progress, velocity, risk items
-- `/pm-agent` (no arg) — run both
+- `/pm-agent deploy-watch` — check production deployment health and auto-advance tickets from Ready To Deploy → In Prod
+- `/pm-agent` (no arg) — run both `plan` and `report`
 
 ---
 
@@ -27,14 +34,14 @@ Pass a mode when invoking:
    - Determine the sprint number by calling:
      ```
      curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-       "https://api.atlassian.com/ex/jira/73672c49-7089-4f35-adde-e3fa0d1e438f/rest/agile/1.0/board?projectKeyOrId=AE" \
+       "https://api.atlassian.com/ex/jira/73672c49-7089-4f35-adde-e3fa0d1e438f/rest/agile/1.0/board?projectKeyOrId=IM" \
        | python3 -c "import sys,json; boards=json.load(sys.stdin)['values']; print(boards[0]['id'])"
      ```
      Store the board ID. Then list existing sprints to determine the next sprint number:
      ```
      curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
        "https://api.atlassian.com/ex/jira/73672c49-7089-4f35-adde-e3fa0d1e438f/rest/agile/1.0/board/{BOARD_ID}/sprint?state=active,closed" \
-       | python3 -c "import sys,json; sprints=json.load(sys.stdin).get('values',[]); print(len(sprints)+1)"
+       | python3 -c "import sys,json; sprints=json.load(sys.stdin).get('values',[]); print(len(sprints)+1)"   # Board ID is the IM board (35)
      ```
    - Derive the sprint theme from the dominant epic/label of issues being pulled in (e.g. "Providers Rebuild", "Pipeline Quality", "Dashboard UX")
    - Sprint name format: `Sprint {N} — {Theme} — {YYYY-MM-DD}` (e.g. `Sprint 3 — Providers Rebuild — 2026-06-12`)
@@ -173,6 +180,85 @@ Pass a mode when invoking:
 
 ---
 
+### MODE: `deploy-watch` — Production Deployment Promotion
+
+Run this after a deploy has been triggered (or on a schedule). Checks whether production is green and automatically promotes all "Ready To Deploy" tickets to "In Prod".
+
+1. **Check production health**
+   - Hit the production health endpoint:
+     ```bash
+     curl -sf https://dash.autoniix.com/api/health
+     ```
+   - If the response is non-200 or request fails: **STOP**. Print:
+     ```
+     ⚠️  Production health check FAILED — not promoting any tickets.
+     Response: {status_code} {body}
+     Investigate before re-running deploy-watch.
+     ```
+   - If 200 and body contains `"status": "ok"` (or equivalent healthy signal): proceed.
+
+2. **Fetch all Ready To Deploy tickets in Jira**
+   - Call `mcp0_searchJiraIssuesUsingJql` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`:
+     ```
+     jql: project = IM AND status = "Ready To Deploy" ORDER BY updated ASC
+     fields: ["summary", "status"]
+     ```
+   - If no tickets found: print `✅ No tickets in Ready To Deploy — nothing to promote.` and stop.
+
+3. **Promote each ticket to In Prod**
+   - For each ticket returned in step 2:
+     - Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = ticket key, transition id `6` (→ In Prod)
+     - Call `mcp1_list_issues` on `saurabhrawat-gh/Autoniix` to find the matching GitHub issue via `scripts/issue_map.json` reverse-lookup
+     - If GitHub issue found: call `mcp1_update_issue` to remove label `ready-to-deploy`, add label `in-prod`
+   - Print one line per ticket: `✅ {KEY} → In Prod — {summary}`
+
+4. **Print promotion summary**
+   ```
+   ── DEPLOY-WATCH ── {datetime} ─────────────────────
+   Production health: ✅ GREEN (https://dash.autoniix.com/api/health)
+
+   Promoted to In Prod ({N} tickets):
+     ✅ IM-39  Login page
+     ✅ IM-40  Register page
+     ...
+
+   ACTION: Type `verified #N` in Windsurf for each ticket after manual smoke test.
+   ```
+
+5. **Auto-close completed Epics**
+
+   After promoting tickets in step 3, check every Epic that owns any of the just-promoted stories:
+
+   - For each unique `sprint:*` label or Epic link found on the promoted tickets, fetch the parent Epic from Jira:
+     ```
+     mcp0_searchJiraIssuesUsingJql:
+       jql: project = IM AND issuetype = Epic AND status != Done
+       fields: ["summary", "status", "subtasks", "labels"]
+     ```
+   - For each open Epic, fetch all its child stories:
+     ```
+     mcp0_searchJiraIssuesUsingJql:
+       jql: project = IM AND "Epic Link" = {EPIC_KEY} OR parent = {EPIC_KEY}
+       fields: ["summary", "status"]
+     ```
+     *(Also check stories sharing the epic's sprint label if Epic Link is unavailable.)*
+   - **If ALL child stories have status `Done`** (and the Epic itself is not already `Done`):
+     - Call `mcp0_transitionJiraIssue` with transition id `51` (→ Done)
+     - Find the matching GitHub Epic issue via `scripts/issue_map.json` reverse-lookup
+     - Call `mcp1_update_issue` to close it (state: `closed`) and add label `epic-done`
+     - Print: `✅ EPIC {KEY} auto-closed — all child stories are Done ({N} stories)`
+   - **If some child stories are still open**: skip — do not close the Epic
+   - **If no child stories exist** (empty Epic): skip — do not auto-close, flag as an empty Epic warning
+
+6. **Print epic closure summary**
+   ```
+   EPIC AUTO-CLOSE:
+     ✅ IM-1  Core 1: Auth & Platform Foundation — all 11 stories Done → Epic closed
+     ⏳ IM-2  Workspace Epic — 3/5 stories done, 2 still open → not closed
+   ```
+
+---
+
 ## Rules
 
 - **Sprint creation is mandatory at the start of every `plan` run** — always create a new named sprint on Jira before planning
@@ -180,11 +266,15 @@ Pass a mode when invoking:
 - Sprint duration: 2 weeks (14 days) from the planning date
 - Never move issues between labels — read-only in both modes
 - In `plan` mode, only add a sprint-focus comment — do NOT change lifecycle labels
-- Lifecycle transitions are handled by Dev Agent, QA Agent, and GitHub Actions — not this workflow
+- Lifecycle transitions in `plan` and `report` modes are read-only — do NOT modify labels or statuses in those modes
+- `deploy-watch` mode is the **only** mode that writes Jira transitions or GitHub labels
+- `deploy-watch` must NEVER promote tickets if the production health check fails — health gate is non-negotiable
 - WIP limit is **3 stories maximum** in active states (`in-progress` + `in-qa` + `in-prod`)
 - If WIP ≥ 3, recommend finishing existing work before starting anything new
 - Epics and test-case issues are excluded from velocity and WIP counting
 - An Epic is NOT done until ALL its child stories are closed
 - A Story is NOT done until ALL its child tasks are closed AND it is `prod-verified`
+- **When ALL child stories of an Epic are `Done`, the Epic is automatically transitioned to `Done` in `deploy-watch` mode — no manual action needed**
+- Empty Epics (no child stories) are never auto-closed — flag them as a warning instead
 - `bug:production` issues are always recommended first, above any backlog priority ordering
 - Always recommend the highest-priority unblocked story from the backlog

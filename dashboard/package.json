@@ -39,8 +39,11 @@
     "@radix-ui/react-visually-hidden": "^1.1.0",
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
+<<<<<<< HEAD
     "@tanstack/react-query": "^5.101.1",
     "@tanstack/react-query-devtools": "^5.101.1",
+=======
+>>>>>>> feat/story1-ai-phase-animations
     "canvas-confetti": "^1.9.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -54,6 +57,7 @@
     "react-hook-form": "^7.80.0",
     "react-hotkeys-hook": "^5.3.2",
     "tailwind-merge": "^2.3.0",
+<<<<<<< HEAD
     "three": "^0.169.0",
     "zod": "^4.4.3"
   },
@@ -74,13 +78,21 @@
     "@testing-library/jest-dom": "^6.5.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.5.2",
+=======
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+>>>>>>> feat/story1-ai-phase-animations
     "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@types/three": "^0.184.1",
+<<<<<<< HEAD
     "@vitejs/plugin-react": "^6.0.3",
     "@vitest/coverage-v8": "^4.1.9",
+=======
+>>>>>>> feat/story1-ai-phase-animations
     "autoprefixer": "^10.4.19",
     "chromatic": "^17.5.0",
     "eslint": "^8.57.1",

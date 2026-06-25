@@ -61,10 +61,13 @@ Deploys are **fully automated**. When `qa-verified` is added to an issue:
       If not: mcp0_create_pull_request(head=develop, base=main, title="Release: deploy ready-to-deploy stories")
       mcp0_merge_pull_request(pull_number=N, merge_method='merge')
 
-4. On deploy success — update GitHub issues (if GHA didn't already):
+4. On deploy success — update GitHub issues AND Jira (if GHA didn't already):
    - Fetch all issues with label `ready-to-deploy` (if GHA didn't set in-prod yet)
-   - For each: mcp0_update_issue — remove `ready-to-deploy`, add `in-prod`
-   - Comment: "Deployed to production. When you have verified, type `verified #N` in Windsurf — agent will tick all ACs and close automatically."
+   - For each:
+     a. `mcp0_update_issue` — remove `ready-to-deploy`, add `in-prod`
+     b. Look up the Jira key from `scripts/issue_map.json` (key = GitHub issue number)
+     c. `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = Jira key, transition id `41` (→ In Prod)
+     d. Post comment: "Deployed to production. When you have verified, type `verified #N` in Windsurf — agent will tick all ACs and close automatically."
 
 5. Emit HandoffPayload:
 ```yaml
@@ -300,20 +303,21 @@ Use when a deploy causes production issues.
      ↓
 /qa-agent      → Walks test cases with you  (label: qa-verified on pass)
      ↓
-[GHA AUTO]     → qa-verified → ready-to-deploy → develop→main PR merged → in-prod
+[GHA AUTO]     → qa-verified → ready-to-deploy → develop→main PR merged
+               Jira: In Progress → Ready to Deploy
      ↓
-You            → verify on https://dash.autoniix.com → tick all AC checkboxes
+[GHA/DevOps]   → Deploy succeeds → in-prod (GitHub) + In Prod (Jira transition id:41)
      ↓
-You            → add prod-verified label
+You            → verify on https://dash.autoniix.com
      ↓
-[GHA AUTO]     → all ACs checked → issue CLOSED
+You            → type `verified #N` → agent ticks ACs, transitions Jira → Done, closes issue
 
 HOTFIX PATH:
-/dev-agent     → Implements → merges to main directly  (label: in-prod)
+/dev-agent     → Implements → merges to main directly  (label: in-prod, Jira: In Prod id:41)
      ↓
 [GHA AUTO]     → CI deploys
      ↓
-You            → verify → add prod-verified → GHA closes
+You            → verify → `verified #N` → GHA closes
 
 /devops-agent  → Monitors deploys, handles incidents, infra changes, rollbacks
                → Called when: deploy fails, service goes down, DNS change needed, scale needed

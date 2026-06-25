@@ -137,4 +137,6 @@ export {
   Mail,
   ClipboardList,
   DollarSign,
+  Monitor,
+  Smartphone,
 } from 'lucide-react';

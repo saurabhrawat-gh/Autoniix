@@ -19,6 +19,8 @@ use crate::{
 pub fn routes(pool: PgPool) -> Router {
     Router::new()
         .route("/api/v2/me", get(get_current_user))
+        .route("/api/v2/me/sessions", get(list_sessions))
+        .route("/api/v2/me/sessions/:session_id", delete(revoke_session))
         .route("/api/v2/users", get(list_users))
         .route(
             "/api/v2/users/transfer-superadmin/:target_user_id",
@@ -445,6 +447,105 @@ async fn delete_user(
     .await;
 
     Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
+}
+
+/// Response item for a single active session.
+#[derive(Debug, Serialize)]
+struct SessionItem {
+    id: i64,
+    ip: Option<String>,
+    user_agent: Option<String>,
+    created_at: DateTime<Utc>,
+    last_seen_at: DateTime<Utc>,
+    expires_at: DateTime<Utc>,
+}
+
+/// `GET /api/v2/me/sessions` — list all active (non-revoked, non-rotated,
+/// non-expired) sessions for the authenticated user.
+async fn list_sessions(
+    AuthUser(principal): AuthUser,
+    State(pool): State<PgPool>,
+) -> ApiResult<impl IntoResponse> {
+    let user_id: i64 = principal
+        .user_id
+        .parse()
+        .map_err(|_| ApiError::Unauthorized)?;
+
+    #[allow(clippy::type_complexity)]
+    let rows: Vec<(
+        i64,
+        Option<String>,
+        Option<String>,
+        DateTime<Utc>,
+        DateTime<Utc>,
+        DateTime<Utc>,
+    )> = sqlx::query_as(
+        "SELECT id, ip, user_agent, created_at, last_seen_at, expires_at \
+             FROM sessions \
+             WHERE user_id = $1 \
+               AND revoked_at IS NULL \
+               AND rotated_at IS NULL \
+               AND expires_at > NOW() \
+             ORDER BY last_seen_at DESC",
+    )
+    .bind(user_id)
+    .fetch_all(&pool)
+    .await
+    .map_err(ApiError::Database)?;
+
+    let sessions: Vec<SessionItem> = rows
+        .into_iter()
+        .map(
+            |(id, ip, user_agent, created_at, last_seen_at, expires_at)| SessionItem {
+                id,
+                ip,
+                user_agent,
+                created_at,
+                last_seen_at,
+                expires_at,
+            },
+        )
+        .collect();
+
+    Ok((StatusCode::OK, Json(json!({ "data": sessions }))))
+}
+
+/// `DELETE /api/v2/me/sessions/:session_id` — revoke a specific session.
+/// Returns 403 if the session does not belong to the authenticated user.
+async fn revoke_session(
+    AuthUser(principal): AuthUser,
+    State(pool): State<PgPool>,
+    Path(session_id): Path<i64>,
+) -> ApiResult<impl IntoResponse> {
+    let user_id: i64 = principal
+        .user_id
+        .parse()
+        .map_err(|_| ApiError::Unauthorized)?;
+
+    // Verify ownership before mutating.
+    let owner_id: Option<i64> = sqlx::query_scalar("SELECT user_id FROM sessions WHERE id = $1")
+        .bind(session_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(ApiError::Database)?;
+
+    match owner_id {
+        None => return Err(ApiError::NotFound("Session not found".to_string())),
+        Some(oid) if oid != user_id => {
+            return Err(ApiError::ForbiddenWith(
+                "You can only revoke your own sessions".to_string(),
+            ))
+        }
+        _ => {}
+    }
+
+    sqlx::query("UPDATE sessions SET revoked_at = NOW() WHERE id = $1")
+        .bind(session_id)
+        .execute(&pool)
+        .await
+        .map_err(ApiError::Database)?;
+
+    Ok((StatusCode::OK, Json(json!({ "status": "ok" }))))
 }
 
 /// Derive user initials: first + last initial of `display_name`, else the first

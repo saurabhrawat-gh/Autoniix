@@ -17,6 +17,7 @@ export type MeResponse = {
     display_name: string | null;
     initials: string;
     permissions: string[];
+    mfa_enabled: boolean;
   };
 };
 
@@ -75,6 +76,10 @@ export const authApi = {
   mfaSetup: () => request<{ data: { otpauth_url: string; secret: string } }>('/api/v2/auth/mfa/setup', { method: 'POST' }),
   mfaVerify: (code: string) =>
     request('/api/v2/auth/mfa/verify', { method: 'POST', body: JSON.stringify({ code }) }),
+  mfaChallenge: (mfa_pending_token: string, code: string) =>
+    request<{ access_token: string }>('/api/v2/auth/mfa/challenge', { method: 'POST', body: JSON.stringify({ mfa_pending_token, code }) }),
+  mfaDisable: (code: string) =>
+    request<{ status: string }>('/api/v2/auth/mfa/disable', { method: 'POST', body: JSON.stringify({ code }) }),
   updateProfile: (data: { display_name?: string; current_password?: string; new_password?: string }) =>
     request<{ status: string; message: string }>('/api/v2/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
   deleteAccount: (password: string) =>
@@ -96,4 +101,10 @@ export const authApi = {
       '/api/v2/auth/create-workspace',
       { method: 'POST', body: JSON.stringify({ workspace_name }) }
     ),
+  listSessions: () =>
+    request<{ data: Array<{ id: number; ip: string | null; user_agent: string | null; created_at: string; last_seen_at: string; expires_at: string }> }>(
+      '/api/v2/me/sessions'
+    ),
+  revokeSession: (session_id: number) =>
+    request<{ status: string }>(`/api/v2/me/sessions/${session_id}`, { method: 'DELETE' }),
 };

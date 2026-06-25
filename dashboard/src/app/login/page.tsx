@@ -23,6 +23,7 @@ export default function LoginPage() {
   const [mode, setMode] = useState<AuthMode>('loading');
   const [step, setStep] = useState<Step>('credentials');
   const [serverError, setServerError] = useState('');
+  const [mfaPendingToken, setMfaPendingToken] = useState('');
 
   const credForm = useForm<LoginValues>({ resolver: zodResolver(loginSchema) });
   const mfaForm = useForm<MfaValues>({ resolver: zodResolver(mfaSchema) });
@@ -53,21 +54,23 @@ export default function LoginPage() {
   async function handleCredentials(values: LoginValues) {
     setServerError('');
     try {
-      const data = await authApi.login(values.email, values.password);
-      router.push((data as any).setup_required ? '/onboarding' : '/dashboard');
+      const data = await authApi.login(values.email, values.password) as any;
+      if (data?.status === 'mfa_required' && data?.mfa_pending_token) {
+        setMfaPendingToken(data.mfa_pending_token);
+        setStep('mfa');
+        return;
+      }
+      router.push(data?.setup_required ? '/onboarding' : '/dashboard');
     } catch (err: any) {
-      const msg: string = err.message || 'Login failed';
-      if (msg.toLowerCase().includes('mfa')) { setStep('mfa'); }
-      else { setServerError(msg); }
+      setServerError(err.message || 'Login failed');
     }
   }
 
   async function handleMfa(values: MfaValues) {
     setServerError('');
-    const { email, password } = credForm.getValues();
     try {
-      const data = await authApi.login(email, password, values.code);
-      router.push((data as any).setup_required ? '/onboarding' : '/dashboard');
+      await authApi.mfaChallenge(mfaPendingToken, values.code);
+      router.push('/dashboard');
     } catch (err: any) {
       setServerError(err.message || 'Verification failed');
     }

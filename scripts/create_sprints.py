@@ -50,6 +50,7 @@ SPRINTS = [
         "IM-1",
         "IM-39","IM-40","IM-41","IM-42","IM-43","IM-44","IM-45","IM-46",
         "IM-171","IM-172","IM-173",   # bugs: rate-limit, timing-attack, FK orphan
+        "IM-180","IM-181","IM-182","IM-183",  # workspace deletion: cascade endpoint, grace period, member notify, orphaned user
     ]),
     ("Core 2: Rust Gateway", [
         "IM-2",
@@ -67,6 +68,7 @@ SPRINTS = [
     ("Core 5: Temporal Engine", [
         "IM-5",
         "IM-68","IM-69","IM-70","IM-71",
+        "IM-184",                     # workspace deletion: cancel active Temporal workflows
     ]),
     ("Core 6: Brain & Agents", [
         "IM-6",
@@ -167,6 +169,7 @@ SPRINTS = [
     ("Feature: Workspace", [
         "IM-33",
         "IM-146","IM-147",
+        "IM-185",                     # workspace deletion: Danger Zone UI + name-confirm modal
     ]),
     ("Feature: Teams", [
         "IM-34",
@@ -202,6 +205,7 @@ SPRINTS = [
         "IM-19",
         "IM-165","IM-166","IM-167",
         "IM-176",                     # bug: ffmpeg missing from CI
+        "IM-186",                     # workspace deletion: async S3 storage purge job
     ]),
     ("Infra: Testing", [
         "IM-20",

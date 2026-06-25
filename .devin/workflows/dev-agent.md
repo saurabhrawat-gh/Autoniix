@@ -2,6 +2,12 @@
 description: Dev Agent — pick up the oldest ready-for-dev GitHub Issue and implement it end-to-end
 ---
 
+> **Source of Truth — LOCKED:**
+> - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project. All new tickets go here.
+> - Jira **Autoniix Engineering (AE)** space is **archived** — read-only, never create tickets there.
+> - GitHub **Autoniix MVP** project board is **closed** — do not reference it.
+> - Board: https://autoniix.atlassian.net/jira/software/c/projects/IM/boards/35/backlog
+
 # Dev Agent Workflow
 
 Use this workflow to implement a feature from a GitHub Issue marked `ready-for-dev`.
@@ -12,15 +18,15 @@ There are two paths depending on issue type:
 
 ---
 
-## Step 0.A — Manual invocation by Jira key (NEW — takes precedence)
+## Step 0.A — Manual invocation by Jira key (takes precedence)
 
-If the user invoked this workflow with a Jira key (e.g. `/dev-agent AE-227`, or any message containing a `AE-\d+` pattern as the explicit target):
+If the user invoked this workflow with a Jira key (e.g. `/dev-agent IM-227`, or any message containing a `IM-\d+` pattern as the explicit target):
 
 1. **Resolve the Jira key to a GitHub issue number** via reverse-lookup in `scripts/issue_map.json`:
    ```bash
-   python3 -c "import json; m={v:int(k) for k,v in json.load(open('scripts/issue_map.json')).items()}; print(m['AE-227'])"
+   python3 -c "import json; m={v:int(k) for k,v in json.load(open('scripts/issue_map.json')).items()}; print(m['IM-227'])"
    ```
-2. **If no mapping found** → STOP. Report to the user: "AE-XXX has no GitHub mirror. Create the mirror first (use `/tmp/mirror_jira_to_gh.py` as template) and update `scripts/issue_map.json` before invoking `/dev-agent`."
+2. **If no mapping found** → STOP. Report to the user: "IM-XXX has no GitHub mirror. Create the GitHub mirror issue first and update `scripts/issue_map.json` before invoking `/dev-agent`."
 3. **If mapping found** → set `{N}` = resolved GH issue number, then **skip Step 0 and Step 1**. Read the GH issue body directly via `mcp1_get_issue` and jump to Step 1a (Read Research Notes).
 4. **Path selection** — inspect the GH issue's labels:
    - Has `bug:production` or `hotfix` → take the **Hotfix Path** starting at H2.
@@ -58,8 +64,11 @@ Before anything else, check for open hotfix issues:
 - If NOT found: proceed (Research Team may not have run yet — follow existing patterns)
 
 ### 2. Label as in-progress
+
+> **MANDATORY — do this BEFORE writing a single line of code or creating a branch.**
+
+- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = the Jira key for this issue (look up in `scripts/issue_map.json`), transition id `4` (→ In Progress)
 - Call `mcp0_update_issue`: remove `ready-for-dev`, add `in-progress`
-- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = the Jira key for this issue (look up in `scripts/issue_map.json`), transition id `21` (→ In Progress)
 - Call `mcp0_editJiraIssue` to assign to Dev Agent: `{"assignee": {"accountId": "712020:863fd585-7c67-4cac-86c6-8885e80502b3"}}`
 - Post comment: "Starting implementation of #{issue_number}."
 
@@ -156,7 +165,7 @@ If red: fix before push. If green: proceed to step 11.
 - If `git branch -d` refuses (unmerged), STOP and report — do not force-delete without product-owner approval
 - The only branches that ever exist on `origin` are `main` and `develop`
 
-### 11. Set issue to ready-to-deploy, update Jira, push develop (GHA auto-merges to main)
+### 11. Set issue to ready-to-deploy, update Jira, push develop
 
 **HARD GATE — do not push to `origin/develop` unless BOTH of these are true:**
 1. Step 7 (pre-merge) finished with `✅ CI MIRROR PASSED` (or `✅ ALL CHECKS PASSED` if optional flags used)
@@ -166,17 +175,16 @@ If either was red at any point, you must NOT have reached this step. Go back and
 
 - Call `mcp0_update_issue` on the issue: remove `in-progress`, add `ready-to-deploy`
 - Look up the Jira key for this issue via `scripts/issue_map.json`
-- Call `mcp0_transitionJiraIssue` with transition id `41` (→ Dev Done) on the Story's Jira key
+- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = Jira key, transition id `5` (→ Ready To Deploy)
 - Call `mcp0_add_issue_comment`:
   ```
   ✅ Implementation complete. Merged to `develop`.
   Local CI passed (scripts/ci-local.sh) before push.
 
-  Pushing to `develop` — GitHub Actions will automatically:
-  1. Merge `develop → main`
-  2. Set this issue to `in-prod` after deploy
+  Issue is now **Ready to Deploy**.
+  Once DevOps deploys to production, this will be moved to `in-prod`.
 
-  Once it is in production, verify at https://dash.autoniix.com and type `verified #N` in Windsurf.
+  After deploy: verify at https://dash.autoniix.com and type `verified #N` in Windsurf.
   If you find a bug, type `bug: description, issue #N` to file it automatically.
   ```
 - Push develop to remote:
@@ -212,9 +220,12 @@ Use this path ONLY for issues labelled `hotfix` or `bug:production`. These skip 
 - Read the full issue body
 
 ### H2. Label as in-progress
-- Call `mcp0_update_issue`: remove `ready-for-dev`, add `in-progress`
+
+> **MANDATORY — do this BEFORE writing a single line of code or creating a branch.**
+
 - Look up the Jira key via `scripts/issue_map.json`
-- Call `mcp0_transitionJiraIssue` with transition id `21` (→ In Progress)
+- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = Jira key, transition id `4` (→ In Progress)
+- Call `mcp0_update_issue`: remove `ready-for-dev`, add `in-progress`
 - Call `mcp0_editJiraIssue` to assign to Dev Agent: `{"assignee": {"accountId": "712020:863fd585-7c67-4cac-86c6-8885e80502b3"}}`
 
 ### H3. Create branch from main
@@ -264,7 +275,7 @@ git branch -d hotfix/issue-{number}-{short-slug}
 
 ### H8. Set issue to in-prod
 - Call `mcp0_update_issue`: remove `in-progress`, add `in-prod`
-- Call `mcp0_transitionJiraIssue` with transition id `3` (→ In Prod)
+- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = Jira key, transition id `6` (→ In Prod)
 - Call `mcp0_add_issue_comment`:
   ```
   🔥 Hotfix deployed directly to `main`.
@@ -310,4 +321,5 @@ handoff:
 - Always emit the HandoffPayload comment at the end of implementation (Step 12 / H9)
 - When creating bug issues, always use the standard format: `bug | {QA/Prod} | {Layer} | description`
 - Read Research Notes (if present) before writing a single line of code — the approach is already decided
-- **Jira ↔ GitHub sync is mandatory**: When a GitHub issue is created, create a Jira mirror and update `scripts/issue_map.json`. When a GitHub issue is closed, transition the Jira mirror to Done (transition id `5`). Jira cloudId: `73672c49-7089-4f35-adde-e3fa0d1e438f`, project key: `AE`. If no Jira mirror exists for a GH issue, create one before proceeding
+- **Jira ↔ GitHub sync is mandatory**: When a GitHub issue is created, create a Jira mirror in the **IM** project and update `scripts/issue_map.json`. When a GitHub issue is closed, transition the Jira mirror to Done (transition id `51`). Jira cloudId: `73672c49-7089-4f35-adde-e3fa0d1e438f`, project key: `IM`. If no Jira mirror exists for a GH issue, create one in the IM project before proceeding
+- **Jira IM transition IDs (confirmed):** Start Working (To Do→In Progress)=`4`, Deploy Sprint (In Progress→Ready To Deploy)=`5`, Deployed (Ready To Deploy→In Prod)=`6`, Prod Verified/Close (In Prod→Done)=`7`, Defer (→Backlog)=`3`, Prod Bug (In Prod→To Do)=`8`. cloudId: `73672c49-7089-4f35-adde-e3fa0d1e438f`

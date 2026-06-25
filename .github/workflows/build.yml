@@ -84,7 +84,7 @@ jobs:
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
           AUTH_JWT_SECRET: test-jwt-secret-for-ci
-        run: cargo test -p gateway --test gateway_harness_test
+        run: cargo test -p gateway --test gateway_harness_test -- --test-threads=1
 
       - name: Middleware + auth integration tests (IM-171 IM-172)
         working-directory: rust

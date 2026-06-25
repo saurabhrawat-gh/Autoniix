@@ -412,11 +412,13 @@ async def logout(request: Request, response: Response, body: RefreshIn | None = 
 async def me(p: Principal = Depends(principal_dep)):
     from ._permissions import PermissionMatrixUnavailable, get_permissions_for_role
     display_name = None
+    mfa_enabled = False
     if p.user_id:
         pool = await get_pool()
-        row = await pool.fetchrow("SELECT display_name FROM users WHERE id=$1", p.user_id)
+        row = await pool.fetchrow("SELECT display_name, mfa_enabled FROM users WHERE id=$1", p.user_id)
         if row:
             display_name = row["display_name"]
+            mfa_enabled = bool(row["mfa_enabled"])
     initials = ''
     if display_name:
         parts = display_name.strip().split()
@@ -445,6 +447,7 @@ async def me(p: Principal = Depends(principal_dep)):
         "display_name": display_name,
         "initials": initials,
         "permissions": permissions,
+        "mfa_enabled": mfa_enabled,
     }}
 
 
@@ -794,13 +797,15 @@ async def invite_info(token: str):
     h = hashlib.sha256(token.encode()).hexdigest()
     pool = await get_pool()
     invite = await pool.fetchrow(
-        "SELECT email, role, workspace_id, accepted_at, expires_at FROM workspace_invitations WHERE token_hash=$1",
+        "SELECT email, role, workspace_id, accepted_at, expires_at, cancelled_at FROM workspace_invitations WHERE token_hash=$1",
         h,
     )
     if not invite:
         raise HTTPException(400, "Invalid invitation token")
     if invite["accepted_at"] is not None:
         raise HTTPException(400, "Invitation already used")
+    if invite["cancelled_at"] is not None:
+        raise HTTPException(400, "Invitation has been cancelled")
     if invite["expires_at"] < datetime.now(timezone.utc):
         raise HTTPException(400, "Invitation has expired")
     user_exists = bool(await pool.fetchval(
@@ -821,7 +826,7 @@ async def accept_invite(body: AcceptInviteIn, request: Request, response: Respon
     h = hashlib.sha256(body.token.encode()).hexdigest()
     pool = await get_pool()
     invite = await pool.fetchrow(
-        """SELECT id, workspace_id, email, role, accepted_at, expires_at
+        """SELECT id, workspace_id, email, role, accepted_at, expires_at, cancelled_at
              FROM workspace_invitations WHERE token_hash=$1""",
         h,
     )
@@ -829,8 +834,17 @@ async def accept_invite(body: AcceptInviteIn, request: Request, response: Respon
         raise HTTPException(400, "Invalid invitation token")
     if invite["accepted_at"] is not None:
         raise HTTPException(400, "Invitation already used")
+    if invite["cancelled_at"] is not None:
+        raise HTTPException(400, "Invitation has been cancelled")
     if invite["expires_at"] < datetime.now(timezone.utc):
         raise HTTPException(400, "Invitation has expired")
+
+    # Verify workspace still exists (may have been deleted after invite was created).
+    workspace = await pool.fetchrow(
+        "SELECT id FROM workspaces WHERE id=$1", invite["workspace_id"]
+    )
+    if not workspace:
+        raise HTTPException(410, "This invitation is no longer valid — the workspace has been removed.")
 
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -906,18 +920,20 @@ async def mfa_setup(p: Principal = Depends(principal_dep)):
     return {"data": {"otpauth_url": uri, "secret": secret}}
 
 
-@router.delete("/workspaces/{workspace_id}")
+@router.delete("/workspaces/{workspace_id}", status_code=204)
 async def delete_workspace(
     workspace_id: int,
     request: Request,
     response: Response,
     p: Principal = Depends(principal_dep),
 ):
-    """Delete a workspace and all its data.
+    """Soft-delete a workspace (IM-180).
 
     Rules:
       - Only the workspace owner (or superadmin) may delete.
-      - Cannot delete if it is the caller's only workspace.
+      - Cannot delete if it is the caller's only workspace (last_workspace 400).
+      - Sets deleted_at = NOW() (soft-delete) — hard-delete is a scheduled job (IM-181).
+      - All pending invitations are cancelled atomically.
       - All sessions for every member of the workspace are revoked.
       - Members' active_workspace_id is healed to any remaining workspace they belong to.
     """
@@ -925,16 +941,19 @@ async def delete_workspace(
         raise HTTPException(403, "Cannot delete workspace on a legacy session")
     pool = await get_pool()
 
-    # Ownership check
+    # Ownership + already-deleted check
     ws = await pool.fetchrow(
-        "SELECT id, name, owner_user_id FROM workspaces WHERE id=$1", workspace_id
+        "SELECT id, name, owner_user_id, deleted_at FROM workspaces WHERE id=$1",
+        workspace_id,
     )
     if not ws:
         raise HTTPException(404, "Workspace not found")
+    if ws["deleted_at"] is not None:
+        raise HTTPException(409, "Workspace deletion is already in progress")
     if p.global_role != "superadmin" and ws["owner_user_id"] != p.user_id:
         raise HTTPException(403, "Only the workspace owner may delete it")
 
-    # Prevent deleting last workspace
+    # Prevent deleting last workspace — return structured error code for the client
     other_count = await pool.fetchval(
         """SELECT COUNT(*) FROM workspace_members
             WHERE user_id=$1 AND workspace_id != $2""",
@@ -943,12 +962,28 @@ async def delete_workspace(
     if not other_count:
         raise HTTPException(
             400,
-            "Cannot delete your only workspace. Create another workspace first.",
+            detail={"code": "last_workspace",
+                    "message": "Cannot delete your only workspace. Create another workspace first."},
         )
 
     async with pool.acquire() as conn:
         async with conn.transaction():
-            # Revoke all active sessions for every member
+            # 1. Soft-delete the workspace
+            await conn.execute(
+                "UPDATE workspaces SET deleted_at=NOW(), updated_at=NOW() WHERE id=$1",
+                workspace_id,
+            )
+            # 2. Cancel all pending invitations atomically
+            await conn.execute(
+                """UPDATE workspace_invitations
+                      SET cancelled_at=NOW()
+                    WHERE workspace_id=$1
+                      AND accepted_at IS NULL
+                      AND cancelled_at IS NULL
+                      AND expires_at > NOW()""",
+                workspace_id,
+            )
+            # 3. Revoke all active sessions for every member
             member_ids = await conn.fetch(
                 "SELECT user_id FROM workspace_members WHERE workspace_id=$1", workspace_id
             )
@@ -959,7 +994,7 @@ async def delete_workspace(
                     "WHERE user_id = ANY($1::bigint[]) AND revoked_at IS NULL",
                     uid_list,
                 )
-            # Heal active_workspace_id for affected users
+            # 4. Heal active_workspace_id for affected users
             for row in member_ids:
                 uid = row["user_id"]
                 fallback = await conn.fetchval(
@@ -972,12 +1007,18 @@ async def delete_workspace(
                     "UPDATE users SET active_workspace_id=$1 WHERE id=$2 AND active_workspace_id=$3",
                     fallback, uid, workspace_id,
                 )
-            # Delete workspace — FK cascades handle members, credentials, chains, settings
-            await conn.execute("DELETE FROM workspaces WHERE id=$1", workspace_id)
+
+    await audit(
+        actor=p, action="workspace.delete", target_type="workspace",
+        target_id=str(workspace_id),
+        after={"workspace_id": workspace_id, "workspace_name": ws["name"]},
+        request=request,
+    )
 
     # Clear the caller's auth cookies since their active workspace is now gone
     _clear_auth_cookies(response)
-    return {"status": "ok", "deleted_workspace_id": workspace_id}
+    # 204 No Content
+    return None
 
 
 @router.post("/mfa/verify")

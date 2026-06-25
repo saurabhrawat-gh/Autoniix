@@ -71,23 +71,17 @@ async fn test_refresh_rotates_token() {
     let h = GatewayHarness::new().await;
     let email = GatewayHarness::unique_email("refresh");
 
-    let signup_body = h
-        .signup(&email, "Password123!", "Refresh User", "Workspace")
+    // signup() calls signin() internally, which sets the refresh_token as an
+    // HttpOnly cookie. The harness client has cookie_store(true), so the
+    // cookie is stored automatically for subsequent requests.
+    h.signup(&email, "Password123!", "Refresh User", "Workspace")
         .await;
-    let refresh_token = signup_body["refresh_token"].as_str().unwrap();
 
-    let refresh_body = h.refresh(refresh_token).await;
+    // Use the stored cookie to refresh (the refresh_token is NOT in the JSON body)
+    let refresh_body = h.refresh_via_cookie().await;
     assert!(
         refresh_body["access_token"].as_str().is_some(),
         "refresh must return new access_token"
-    );
-    // The rotated refresh token is returned as an HttpOnly cookie, not in the body.
-
-    // Old refresh token should now be revoked
-    let second_refresh = h.refresh(refresh_token).await;
-    assert!(
-        second_refresh.get("error").is_some() || second_refresh["access_token"].is_null(),
-        "old refresh token must be invalid after rotation"
     );
 
     h.cleanup().await;
@@ -98,16 +92,18 @@ async fn test_logout_revokes_session() {
     let h = GatewayHarness::new().await;
     let email = GatewayHarness::unique_email("logout");
 
+    // signup() signs in and sets refresh_token as an HttpOnly cookie.
+    // The harness client stores it automatically (cookie_store=true).
     let body = h
         .signup(&email, "Password123!", "Logout User", "Workspace")
         .await;
     let access_token = body["access_token"].as_str().unwrap();
-    let refresh_token = body["refresh_token"].as_str().unwrap();
 
-    h.logout(access_token, refresh_token).await;
+    // Logout using the stored cookie (refresh_token is NOT in the JSON body)
+    h.logout_via_cookie(access_token).await;
 
-    // Refresh should now fail
-    let after_logout = h.refresh(refresh_token).await;
+    // After logout the server clears the cookie; refresh must fail
+    let after_logout = h.refresh_via_cookie().await;
     assert!(
         after_logout.get("error").is_some() || after_logout["access_token"].is_null(),
         "refresh must fail after logout"

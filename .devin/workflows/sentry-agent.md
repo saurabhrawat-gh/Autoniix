@@ -2,6 +2,11 @@
 description: Sentry Agent — monitors Slack for Sentry errors, triages into Jira bugs, and auto-fixes via PR
 ---
 
+> **Source of Truth — LOCKED:**
+> - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project. All auto-created bugs use `projectKey: IM`; branches use `sentry/im-XXX-autofix`.
+> - Jira **Autoniix Engineering (AE)** space is **archived** — never create tickets there.
+> - GitHub **Autoniix MVP** project board is **closed** — do not reference it.
+
 ## Overview
 The Sentry Agent is a persistent Docker service (`services/sentry-agent/`).
 It listens to two Slack channels via Socket Mode and runs a fully autonomous fix pipeline.
@@ -21,7 +26,7 @@ It listens to two Slack channels via Socket Mode and runs a fully autonomous fix
 4. Detects layer from stack trace paths (UI / Service / Worker / DB / Auth / Infra)
 5. Creates Jira bug `bug | Prod|QA | {Layer} | {title}` with `ready-for-dev` label
 6. LLM (gpt-4o-mini) reads the culprit file + stack trace → proposes minimal fix
-7. If confidence ≥ medium: creates branch `sentry/ae-XXX-autofix`, commits fix, opens PR → `develop`
+7. If confidence ≥ medium: creates branch `sentry/im-XXX-autofix`, commits fix, opens PR → `develop`
 8. Posts PR link back to the Slack thread and as a Jira comment
 9. You review the PR → merge (or close if wrong)
 
