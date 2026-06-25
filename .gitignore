@@ -47,3 +47,4 @@ rust/gateway/src/generated/
 rust/target/
 rust/**/target/
 *.pdb
+tests/fixtures/providers/
