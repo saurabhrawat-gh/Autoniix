@@ -33,7 +33,10 @@ async fn hard_delete_cron(pool: sqlx::PgPool) {
         };
 
         for (workspace_id,) in expired {
-            tracing::info!(workspace_id, "hard_delete_cron: grace period expired, deleting");
+            tracing::info!(
+                workspace_id,
+                "hard_delete_cron: grace period expired, deleting"
+            );
             hard_delete_workspace(&pool, workspace_id).await;
         }
     }

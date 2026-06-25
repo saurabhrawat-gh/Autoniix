@@ -471,31 +471,40 @@ async fn list_sessions(
         .parse()
         .map_err(|_| ApiError::Unauthorized)?;
 
-    let rows: Vec<(i64, Option<String>, Option<String>, DateTime<Utc>, DateTime<Utc>, DateTime<Utc>)> =
-        sqlx::query_as(
-            "SELECT id, ip, user_agent, created_at, last_seen_at, expires_at \
+    #[allow(clippy::type_complexity)]
+    let rows: Vec<(
+        i64,
+        Option<String>,
+        Option<String>,
+        DateTime<Utc>,
+        DateTime<Utc>,
+        DateTime<Utc>,
+    )> = sqlx::query_as(
+        "SELECT id, ip, user_agent, created_at, last_seen_at, expires_at \
              FROM sessions \
              WHERE user_id = $1 \
                AND revoked_at IS NULL \
                AND rotated_at IS NULL \
                AND expires_at > NOW() \
              ORDER BY last_seen_at DESC",
-        )
-        .bind(user_id)
-        .fetch_all(&pool)
-        .await
-        .map_err(ApiError::Database)?;
+    )
+    .bind(user_id)
+    .fetch_all(&pool)
+    .await
+    .map_err(ApiError::Database)?;
 
     let sessions: Vec<SessionItem> = rows
         .into_iter()
-        .map(|(id, ip, user_agent, created_at, last_seen_at, expires_at)| SessionItem {
-            id,
-            ip,
-            user_agent,
-            created_at,
-            last_seen_at,
-            expires_at,
-        })
+        .map(
+            |(id, ip, user_agent, created_at, last_seen_at, expires_at)| SessionItem {
+                id,
+                ip,
+                user_agent,
+                created_at,
+                last_seen_at,
+                expires_at,
+            },
+        )
         .collect();
 
     Ok((StatusCode::OK, Json(json!({ "data": sessions }))))
@@ -514,12 +523,11 @@ async fn revoke_session(
         .map_err(|_| ApiError::Unauthorized)?;
 
     // Verify ownership before mutating.
-    let owner_id: Option<i64> =
-        sqlx::query_scalar("SELECT user_id FROM sessions WHERE id = $1")
-            .bind(session_id)
-            .fetch_optional(&pool)
-            .await
-            .map_err(ApiError::Database)?;
+    let owner_id: Option<i64> = sqlx::query_scalar("SELECT user_id FROM sessions WHERE id = $1")
+        .bind(session_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(ApiError::Database)?;
 
     match owner_id {
         None => return Err(ApiError::NotFound("Session not found".to_string())),
