@@ -55,10 +55,15 @@ impl GatewayHarness {
             axum::serve(listener, app).await.ok();
         });
 
+        let client = reqwest::Client::builder()
+            .cookie_store(true)
+            .build()
+            .expect("GatewayHarness: failed to build reqwest client");
+
         Self {
             pool,
             base_url,
-            client: reqwest::Client::new(),
+            client,
             _server_handle: server_handle,
         }
     }
@@ -152,7 +157,8 @@ impl GatewayHarness {
             .to_string()
     }
 
-    /// Refresh an access token. Returns the full JSON response.
+    /// Refresh an access token using an explicit token in the request body.
+    /// Returns the full JSON response.
     pub async fn refresh(&self, refresh_token: &str) -> Value {
         let resp = self
             .client
@@ -165,6 +171,21 @@ impl GatewayHarness {
         resp.json().await.expect("refresh response is not JSON")
     }
 
+    /// Refresh using the HttpOnly cookie set by a previous sign-in/refresh.
+    /// Works because the harness client has cookie_store(true) enabled.
+    pub async fn refresh_via_cookie(&self) -> Value {
+        let resp = self
+            .client
+            .post(format!("{}/api/v2/auth/refresh", self.base_url))
+            .send()
+            .await
+            .expect("refresh_via_cookie request failed");
+
+        resp.json()
+            .await
+            .expect("refresh_via_cookie response is not JSON")
+    }
+
     /// Logout (revoke session). Requires authentication (Bearer access token);
     /// the refresh token to revoke is sent in the body (or read from a cookie).
     pub async fn logout(&self, access_token: &str, refresh_token: &str) {
@@ -175,6 +196,17 @@ impl GatewayHarness {
             .send()
             .await
             .expect("logout request failed");
+    }
+
+    /// Logout relying on the stored HttpOnly refresh_token cookie (no body).
+    /// Works because the harness client has cookie_store(true) enabled.
+    pub async fn logout_via_cookie(&self, access_token: &str) {
+        self.client
+            .post(format!("{}/api/v2/auth/logout", self.base_url))
+            .bearer_auth(access_token)
+            .send()
+            .await
+            .expect("logout_via_cookie request failed");
     }
 
     // ── Authenticated helpers ───────────────────────────────────────────────

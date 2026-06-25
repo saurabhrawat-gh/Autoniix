@@ -71,7 +71,7 @@ SOFT_FAILURES=()
 soft_fail() { SOFT_FAILURES+=("$1"); echo -e "${RED}❌  $1${NC}"; }
 
 # ─── 1. Start postgres (same image as CI) ────────────────────────────────────
-step "[1/10] Start pgvector/pgvector:pg16"
+step "[1/13] Start pgvector/pgvector:pg16"
 cleanup
 docker run -d --name "$PG_CONTAINER" \
     -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=autoniix_test \
@@ -85,24 +85,24 @@ docker exec "$PG_CONTAINER" pg_isready -U postgres >/dev/null 2>&1 \
 pass "Postgres ready"
 
 # ─── 2. cargo fmt ────────────────────────────────────────────────────────────
-step "[2/10] cargo fmt --all -- --check"
+step "[2/13] cargo fmt --all -- --check"
 (cd "$ROOT/rust" && cargo fmt --all -- --check) || fail "cargo fmt"
 pass "cargo fmt clean"
 
 # ─── 3. cargo clippy ─────────────────────────────────────────────────────────
-step "[3/10] cargo clippy --all-targets --all-features -- -D warnings"
+step "[3/13] cargo clippy --all-targets --all-features -- -D warnings"
 (cd "$ROOT/rust" && cargo clippy --all-targets --all-features -- -D warnings) || fail "cargo clippy"
 pass "cargo clippy clean"
 
 # ─── 4. Apply init-db.sql ────────────────────────────────────────────────────
-step "[4/10] Apply scripts/init-db.sql"
+step "[4/13] Apply scripts/init-db.sql"
 docker exec -i "$PG_CONTAINER" psql -U postgres -d autoniix_test -v ON_ERROR_STOP=1 \
     < "$ROOT/scripts/init-db.sql" >/dev/null \
     || fail "init-db.sql"
 pass "Base schema applied"
 
 # ─── 5. Apply incremental migrations ─────────────────────────────────────────
-step "[5/10] Apply scripts/migrations/*.sql"
+step "[5/13] Apply scripts/migrations/*.sql"
 for f in $(ls "$ROOT/scripts/migrations/"*.sql | sort); do
     docker exec -i "$PG_CONTAINER" psql -U postgres -d autoniix_test -v ON_ERROR_STOP=1 \
         < "$f" >/dev/null \
@@ -111,7 +111,7 @@ done
 pass "All migrations applied"
 
 # ─── 6. Unit tests ───────────────────────────────────────────────────────────
-step "[6/10] cargo test -p gateway --lib"
+step "[6/13] cargo test -p gateway --lib"
 (cd "$ROOT/rust" && \
     TEST_DATABASE_URL="$DB_URL" \
     AUTH_JWT_SECRET="test-jwt-secret-for-ci" \
@@ -119,7 +119,7 @@ step "[6/10] cargo test -p gateway --lib"
 pass "gateway unit tests pass"
 
 # ─── 7. Schema compatibility tests ───────────────────────────────────────────
-step "[7/10] cargo test -p gateway --test schema_compatibility_test"
+step "[7/13] cargo test -p gateway --test schema_compatibility_test"
 (cd "$ROOT/rust" && \
     TEST_DATABASE_URL="$DB_URL" \
     AUTH_JWT_SECRET="test-jwt-secret-for-ci" \
@@ -127,19 +127,27 @@ step "[7/10] cargo test -p gateway --test schema_compatibility_test"
 pass "schema compat tests pass"
 
 # ─── 8. Harness tests ────────────────────────────────────────────────────────
-step "[8/12] cargo test -p harness"
+step "[8/13] cargo test -p harness"
 (cd "$ROOT/rust" && cargo test -p harness) || fail "harness tests"
 pass "harness tests pass"
 
-# ─── 9. Middleware + auth integration tests (IM-171 IM-172) ──────────────────
-step "[9/12] cargo test -p gateway --test middleware_test"
+# ─── 9. Gateway integration tests (sequential — cleanup race guard) ─────────
+step "[9/13] cargo test -p gateway --test gateway_harness_test -- --test-threads=1"
+(cd "$ROOT/rust" && \
+    TEST_DATABASE_URL="$DB_URL" \
+    AUTH_JWT_SECRET="test-jwt-secret-for-ci" \
+    cargo test -p gateway --test gateway_harness_test -- --test-threads=1) || fail "gateway integration tests"
+pass "gateway integration tests pass"
+
+# ─── 10. Middleware + auth integration tests (IM-171 IM-172) ─────────────────
+step "[10/13] cargo test -p gateway --test middleware_test"
 (cd "$ROOT/rust" && \
     TEST_DATABASE_URL="$DB_URL" \
     AUTH_JWT_SECRET="test-jwt-secret-for-ci" \
     cargo test -p gateway --test middleware_test) || fail "middleware integration tests"
 pass "middleware integration tests pass"
 
-step "[10/12] cargo test -p gateway --test auth_test"
+step "[11/13] cargo test -p gateway --test auth_test"
 (cd "$ROOT/rust" && \
     TEST_DATABASE_URL="$DB_URL" \
     AUTH_JWT_SECRET="test-jwt-secret-for-ci" \
@@ -147,12 +155,12 @@ step "[10/12] cargo test -p gateway --test auth_test"
 pass "auth integration tests pass"
 
 # ─── 11. Release build ───────────────────────────────────────────────────────
-step "[11/12] cargo build --release"
+step "[12/13] cargo build --release"
 (cd "$ROOT/rust" && cargo build --release) || fail "cargo build --release"
 pass "release binary built"
 
 # ─── 12. Docker build (matches docker/build-push-action) ─────────────────────
-step "[12/12] docker build -f rust/gateway/Dockerfile ."
+step "[13/13] docker build -f rust/gateway/Dockerfile ."
 (cd "$ROOT" && docker build -f rust/gateway/Dockerfile -t autoniix/gateway:ci-local . >/dev/null 2>&1) \
     || fail "docker build (run manually for full log: docker build -f rust/gateway/Dockerfile .)"
 pass "docker image built"
@@ -169,6 +177,9 @@ if $RUN_PYTHON; then
     else
         PY="python3"; PIP="pip3"
         [ -f "$ROOT/.venv/bin/python" ] && { PY="$ROOT/.venv/bin/python"; PIP="$ROOT/.venv/bin/pip"; }
+
+        echo "  → pip install -r requirements.txt"
+        $PIP install --quiet -r "$ROOT/requirements.txt" 2>&1 | tail -3 || soft_fail "pip install requirements.txt"
 
         echo "  → installing tools (ruff, mypy, pytest)..."
         $PIP install --quiet ruff mypy pytest pytest-asyncio 2>&1 | tail -2
@@ -210,6 +221,9 @@ if $RUN_NODE; then
         echo "  → tsc --noEmit"
         (cd "$ROOT/dashboard" && npx tsc --noEmit 2>&1) || soft_fail "dashboard tsc"
 
+        echo "  → npm test (vitest)"
+        (cd "$ROOT/dashboard" && npm test 2>&1 | tail -10) || soft_fail "dashboard vitest"
+
         echo "  → next lint"
         (cd "$ROOT/dashboard" && npx next lint 2>&1 | tail -10) || soft_fail "dashboard eslint"
 
@@ -240,7 +254,7 @@ if $RUN_PROTO; then
         echo "  → buf lint"
         (cd "$ROOT/proto" && buf lint 2>&1) || soft_fail "buf lint"
         echo "  → buf breaking --against .git#branch=main"
-        (cd "$ROOT/proto" && buf breaking --against '.git#branch=main' 2>&1) \
+        (cd "$ROOT/proto" && buf breaking --against '../.git#branch=main' 2>&1) \
             || soft_fail "buf breaking"
         pass "proto checks done"
     fi

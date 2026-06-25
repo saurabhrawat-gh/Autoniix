@@ -13,9 +13,8 @@
     "jsx": "preserve",
     "incremental": true,
     "plugins": [{ "name": "next" }, { "name": "next-intl" }],
-    "paths": { "@/*": ["./src/*"] },
-    "typeRoots": ["./node_modules/@types"]
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "src/generated"]
 }
