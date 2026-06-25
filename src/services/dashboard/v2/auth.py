@@ -412,11 +412,13 @@ async def logout(request: Request, response: Response, body: RefreshIn | None = 
 async def me(p: Principal = Depends(principal_dep)):
     from ._permissions import PermissionMatrixUnavailable, get_permissions_for_role
     display_name = None
+    mfa_enabled = False
     if p.user_id:
         pool = await get_pool()
-        row = await pool.fetchrow("SELECT display_name FROM users WHERE id=$1", p.user_id)
+        row = await pool.fetchrow("SELECT display_name, mfa_enabled FROM users WHERE id=$1", p.user_id)
         if row:
             display_name = row["display_name"]
+            mfa_enabled = bool(row["mfa_enabled"])
     initials = ''
     if display_name:
         parts = display_name.strip().split()
@@ -445,6 +447,7 @@ async def me(p: Principal = Depends(principal_dep)):
         "display_name": display_name,
         "initials": initials,
         "permissions": permissions,
+        "mfa_enabled": mfa_enabled,
     }}
 
 

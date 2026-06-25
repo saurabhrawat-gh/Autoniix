@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { authApi } from '@/lib/api-v2';
 import { useToast } from '@/lib/toast';
-import { UserCircle, Lock, ShieldCheck, Eye, EyeOff, Check, Trash2, Monitor, Loader2, X } from '@/lib/components/Icon';
+import { UserCircle, Lock, ShieldCheck, Eye, EyeOff, Check, Trash2, Monitor, Loader2, X, Smartphone } from '@/lib/components/Icon';
 import { Button, Input, Label } from '@/lib/ui';
 
 interface UserData {
@@ -13,6 +13,7 @@ interface UserData {
   source: string;
   display_name: string | null;
   initials: string;
+  mfa_enabled: boolean;
 }
 
 interface SessionItem {
@@ -48,6 +49,14 @@ export default function ProfilePage() {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [revokingId, setRevokingId] = useState<number | null>(null);
+
+  type MfaStep = 'idle' | 'setup' | 'verify' | 'disable';
+  const [mfaStep, setMfaStep] = useState<MfaStep>('idle');
+  const [mfaQr, setMfaQr] = useState('');
+  const [mfaSecret, setMfaSecret] = useState('');
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaBusy, setMfaBusy] = useState(false);
+  const [mfaErr, setMfaErr] = useState<string | null>(null);
 
   useEffect(() => {
     authApi.me().then((res: any) => {
@@ -140,6 +149,47 @@ export default function ProfilePage() {
       setPwBusy(false);
     }
   }
+
+  async function startMfaSetup() {
+    setMfaErr(null); setMfaBusy(true);
+    try {
+      const res = await authApi.mfaSetup() as any;
+      setMfaQr(res?.data?.otpauth_url ?? '');
+      setMfaSecret(res?.data?.secret ?? '');
+      setMfaStep('verify');
+    } catch (e: any) {
+      setMfaErr(e?.message || 'Failed to start MFA setup');
+      setMfaStep('setup');
+    } finally { setMfaBusy(false); }
+  }
+
+  async function completeMfaVerify() {
+    if (mfaCode.length !== 6) { setMfaErr('Enter the 6-digit code'); return; }
+    setMfaErr(null); setMfaBusy(true);
+    try {
+      await authApi.mfaVerify(mfaCode);
+      setUser(u => u ? { ...u, mfa_enabled: true } : u);
+      setMfaStep('idle'); setMfaCode(''); setMfaQr(''); setMfaSecret('');
+      showToast('MFA enabled successfully', 'success');
+    } catch (e: any) {
+      setMfaErr(e?.message || 'Invalid code — try again');
+    } finally { setMfaBusy(false); }
+  }
+
+  async function completeMfaDisable() {
+    if (mfaCode.length !== 6) { setMfaErr('Enter your current 6-digit code'); return; }
+    setMfaErr(null); setMfaBusy(true);
+    try {
+      await authApi.mfaDisable(mfaCode);
+      setUser(u => u ? { ...u, mfa_enabled: false } : u);
+      setMfaStep('idle'); setMfaCode('');
+      showToast('MFA disabled', 'success');
+    } catch (e: any) {
+      setMfaErr(e?.message || 'Invalid code — try again');
+    } finally { setMfaBusy(false); }
+  }
+
+  function cancelMfa() { setMfaStep('idle'); setMfaCode(''); setMfaQr(''); setMfaSecret(''); setMfaErr(null); }
 
   const isLegacy = user?.source === 'legacy';
   const pwStrength = newPw.length === 0 ? null : newPw.length < 8 ? 'weak' : newPw.length < 12 ? 'fair' : 'strong';
@@ -312,6 +362,152 @@ export default function ProfilePage() {
           </>
         )}
       </section>
+
+      {/* Two-Factor Authentication */}
+      {!isLegacy && (
+        <section className="bg-surface-1 border border-border rounded-xl p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Smartphone size={16} className="text-content-secondary" />
+              <h2 className="text-sm font-semibold text-content-primary">Two-Factor Authentication</h2>
+            </div>
+            <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+              user?.mfa_enabled
+                ? 'bg-status-success/15 text-status-success'
+                : 'bg-surface-3 text-content-tertiary'
+            }`}>
+              {user?.mfa_enabled ? 'Enabled' : 'Disabled'}
+            </span>
+          </div>
+
+          {mfaErr && (
+            <div className="text-sm text-status-error bg-status-error/10 border border-status-error/20 rounded-lg px-3 py-2">
+              {mfaErr}
+            </div>
+          )}
+
+          {mfaStep === 'idle' && !user?.mfa_enabled && (
+            <div className="space-y-3">
+              <p className="text-sm text-content-secondary">
+                Add an extra layer of security. You'll need an authenticator app (e.g. Google Authenticator, Authy).
+              </p>
+              <Button onClick={() => { setMfaStep('setup'); setMfaErr(null); }} leftIcon={<Smartphone size={14} />}>
+                Enable MFA
+              </Button>
+            </div>
+          )}
+
+          {mfaStep === 'idle' && user?.mfa_enabled && (
+            <div className="space-y-3">
+              <p className="text-sm text-content-secondary">
+                MFA is active. Your account requires a TOTP code on every sign-in.
+              </p>
+              <Button
+                variant="outline"
+                className="text-status-error border-status-error/40 hover:bg-status-error/10"
+                onClick={() => { setMfaStep('disable'); setMfaErr(null); }}
+              >
+                Disable MFA
+              </Button>
+            </div>
+          )}
+
+          {mfaStep === 'setup' && (
+            <div className="space-y-3">
+              <p className="text-sm text-content-secondary">
+                Click below to generate your QR code. Scan it with your authenticator app, then enter the 6-digit code to confirm.
+              </p>
+              <div className="flex gap-2">
+                <Button onClick={startMfaSetup} loading={mfaBusy} leftIcon={<Check size={14} />}>
+                  Generate QR code
+                </Button>
+                <Button variant="ghost" onClick={cancelMfa}>Cancel</Button>
+              </div>
+            </div>
+          )}
+
+          {mfaStep === 'verify' && (
+            <div className="space-y-4">
+              <p className="text-sm text-content-secondary">
+                Scan this QR code with your authenticator app, then enter the 6-digit code to activate MFA.
+              </p>
+              {mfaQr && (
+                <div className="flex flex-col items-center gap-3 p-4 bg-white rounded-xl border border-border w-fit">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(mfaQr)}`}
+                    alt="MFA QR code"
+                    width={160}
+                    height={160}
+                    className="rounded"
+                  />
+                  {mfaSecret && (
+                    <p className="text-xs text-content-tertiary font-mono break-all max-w-[160px] text-center select-all">
+                      {mfaSecret}
+                    </p>
+                  )}
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <Label htmlFor="mfa-verify-code">Verification code</Label>
+                <Input
+                  id="mfa-verify-code"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="000000"
+                  value={mfaCode}
+                  onChange={e => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onKeyDown={e => e.key === 'Enter' && completeMfaVerify()}
+                  className="text-center tracking-widest font-mono max-w-[140px]"
+                  autoFocus
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={completeMfaVerify} loading={mfaBusy} disabled={mfaCode.length !== 6} leftIcon={<Check size={14} />}>
+                  Activate MFA
+                </Button>
+                <Button variant="ghost" onClick={cancelMfa}>Cancel</Button>
+              </div>
+            </div>
+          )}
+
+          {mfaStep === 'disable' && (
+            <div className="space-y-3">
+              <p className="text-sm text-content-secondary">
+                Enter your current authenticator code to confirm disabling MFA.
+              </p>
+              <div className="space-y-1.5">
+                <Label htmlFor="mfa-disable-code">Current authenticator code</Label>
+                <Input
+                  id="mfa-disable-code"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="000000"
+                  value={mfaCode}
+                  onChange={e => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onKeyDown={e => e.key === 'Enter' && completeMfaDisable()}
+                  className="text-center tracking-widest font-mono max-w-[140px]"
+                  autoFocus
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="text-status-error border-status-error/40 hover:bg-status-error/10"
+                  onClick={completeMfaDisable}
+                  loading={mfaBusy}
+                  disabled={mfaCode.length !== 6}
+                >
+                  Confirm disable MFA
+                </Button>
+                <Button variant="ghost" onClick={cancelMfa}>Cancel</Button>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Active Sessions */}
       {!isLegacy && (
