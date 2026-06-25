@@ -2,6 +2,7 @@ mod audit;
 mod auth;
 mod config;
 mod db;
+pub mod email;
 mod error;
 mod extractors;
 mod health;
