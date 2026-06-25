@@ -36,6 +36,9 @@ jobs:
           # the docker smoke job below.
           grep -vE '^(sentence-transformers|opencv-python-headless|librosa|spacy|nltk|textstat|soundfile|pydub|google-generativeai|anthropic|elevenlabs|edge-tts|gspread|google-auth|google-api-python-client|wikipedia|pytrends)' requirements.txt > requirements-ci.txt
           pip install -r requirements-ci.txt
+          # Test-collection deps that aren't in requirements.txt (imported at
+          # import-time by tests/harnesses/ and tests/migration/).
+          pip install grpcio grpcio-tools psycopg2-binary
           pip install ruff mypy
 
       - name: Lint
@@ -176,12 +179,15 @@ jobs:
       - name: Install protoc
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
 
-      - name: Apply test DB migrations
+      - name: Apply test DB schema (init + migrations)
         env:
           PGPASSWORD: postgres
         run: |
+          # init-db.sql seeds the base tables (channels, etc.) that the
+          # squashed init migration assumes already exist.
+          psql -h localhost -U postgres -d autoniix_test -f scripts/init-db.sql -v ON_ERROR_STOP=1
           for f in scripts/migrations/*.sql; do
-            psql -h localhost -U postgres -d autoniix_test -f "$f" -v ON_ERROR_STOP=1 || true
+            psql -h localhost -U postgres -d autoniix_test -f "$f" -v ON_ERROR_STOP=1
           done
 
       - name: Run unit tests
@@ -255,14 +261,15 @@ jobs:
 
       - name: Install deps
         run: |
-          pip install httpx pytest psycopg2-binary pyjwt structlog
+          pip install httpx pytest psycopg2-binary pyjwt structlog asyncpg
 
-      - name: Apply test DB migrations
+      - name: Apply test DB schema (init + migrations)
         env:
           PGPASSWORD: postgres
         run: |
+          psql -h localhost -U postgres -d autoniix_test -f scripts/init-db.sql -v ON_ERROR_STOP=1
           for f in scripts/migrations/*.sql; do
-            psql -h localhost -U postgres -d autoniix_test -f "$f" -v ON_ERROR_STOP=1 || true
+            psql -h localhost -U postgres -d autoniix_test -f "$f" -v ON_ERROR_STOP=1
           done
 
       - name: Run schema compatibility tests
