@@ -1,11 +1,12 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{delete, get, post},
     Json, Router,
 };
 use chrono::{DateTime, Utc};
+use serde::Deserialize;
 use serde_json::json;
 use sqlx::PgPool;
 
@@ -29,6 +30,11 @@ pub fn routes(pool: PgPool) -> Router {
         .with_state(pool)
 }
 
+#[derive(Deserialize, Default)]
+struct DeleteWorkspaceParams {
+    force: Option<bool>,
+}
+
 /// `DELETE /api/v2/workspaces/:id`
 ///
 /// Initiates workspace soft-delete with a configurable grace period
@@ -39,23 +45,30 @@ pub fn routes(pool: PgPool) -> Router {
 /// - Suspends all pending invitations (restorable; `suspended_at` not `cancelled_at`)
 /// - Revokes all active sessions for every workspace member
 ///
-/// Returns `last_workspace: true` when the owner would be left with no other
-/// workspace, so the client can show a warning before proceeding.
+/// **Orphan guard (IM-183):** If the requesting user is the owner AND this is
+/// their only workspace, the delete is blocked with HTTP 400
+/// `last_workspace_deletion` unless a superadmin passes `?force=true`.
+/// When force-deleted by a superadmin the user is flagged
+/// `needs_workspace_setup = true` so the onboarding wizard is shown on next
+/// login.
 async fn delete_workspace(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     headers: HeaderMap,
     Path(workspace_id): Path<i64>,
+    Query(params): Query<DeleteWorkspaceParams>,
 ) -> ApiResult<impl IntoResponse> {
-    let user_id: i64 = principal.user_id.parse().map_err(|_| ApiError::Unauthorized)?;
+    let user_id: i64 = principal
+        .user_id
+        .parse()
+        .map_err(|_| ApiError::Unauthorized)?;
 
-    let row: Option<(Option<DateTime<Utc>>, String, i64)> = sqlx::query_as(
-        "SELECT deleted_at, status, owner_user_id FROM workspaces WHERE id = $1",
-    )
-    .bind(workspace_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(ApiError::Database)?;
+    let row: Option<(Option<DateTime<Utc>>, String, i64)> =
+        sqlx::query_as("SELECT deleted_at, status, owner_user_id FROM workspaces WHERE id = $1")
+            .bind(workspace_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(ApiError::Database)?;
 
     let (deleted_at, _status, owner_user_id) = match row {
         None => return Err(ApiError::NotFound("Workspace not found".to_string())),
@@ -90,6 +103,28 @@ async fn delete_workspace(
     .map_err(ApiError::Database)?;
 
     let last_workspace = remaining == 0;
+    let force = params.force.unwrap_or(false);
+
+    // IM-183: Block owner from deleting their only workspace unless a
+    // superadmin is overriding with ?force=true.
+    if last_workspace && !is_superadmin {
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "error":   "last_workspace_deletion",
+                "message": "This is your only workspace. Transfer ownership or delete your account before deleting this workspace."
+            })),
+        ));
+    }
+    if last_workspace && is_superadmin && !force {
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "error":   "last_workspace_deletion",
+                "message": "This is the owner's only workspace. Pass ?force=true to override and flag the user for re-onboarding."
+            })),
+        ));
+    }
 
     let grace_days: i64 = std::env::var("WORKSPACE_DELETION_GRACE_DAYS")
         .ok()
@@ -138,6 +173,19 @@ async fn delete_workspace(
     .await
     .map_err(ApiError::Database)?;
 
+    // IM-183: When superadmin force-deletes the owner's last workspace, flag
+    // the owner for re-onboarding so the wizard is shown on next login.
+    if last_workspace && is_superadmin && force {
+        sqlx::query(
+            "UPDATE users SET needs_workspace_setup = TRUE \
+             WHERE id = (SELECT owner_user_id FROM workspaces WHERE id = $1)",
+        )
+        .bind(workspace_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(ApiError::Database)?;
+    }
+
     tx.commit().await.map_err(ApiError::Database)?;
 
     audit_log(
@@ -171,17 +219,20 @@ async fn cancel_deletion(
     headers: HeaderMap,
     Path(workspace_id): Path<i64>,
 ) -> ApiResult<impl IntoResponse> {
-    let user_id: i64 = principal.user_id.parse().map_err(|_| ApiError::Unauthorized)?;
+    let user_id: i64 = principal
+        .user_id
+        .parse()
+        .map_err(|_| ApiError::Unauthorized)?;
 
-    let row: Option<(Option<DateTime<Utc>>, Option<DateTime<Utc>>, String, i64)> =
-        sqlx::query_as(
-            "SELECT deleted_at, delete_scheduled_at, status, owner_user_id \
+    #[allow(clippy::type_complexity)]
+    let row: Option<(Option<DateTime<Utc>>, Option<DateTime<Utc>>, String, i64)> = sqlx::query_as(
+        "SELECT deleted_at, delete_scheduled_at, status, owner_user_id \
              FROM workspaces WHERE id = $1",
-        )
-        .bind(workspace_id)
-        .fetch_optional(&pool)
-        .await
-        .map_err(ApiError::Database)?;
+    )
+    .bind(workspace_id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(ApiError::Database)?;
 
     let (deleted_at, delete_scheduled_at, status, owner_user_id) = match row {
         None => return Err(ApiError::NotFound("Workspace not found".to_string())),
@@ -257,7 +308,10 @@ async fn deletion_status(
     State(pool): State<PgPool>,
     Path(workspace_id): Path<i64>,
 ) -> ApiResult<impl IntoResponse> {
-    let user_id: i64 = principal.user_id.parse().map_err(|_| ApiError::Unauthorized)?;
+    let user_id: i64 = principal
+        .user_id
+        .parse()
+        .map_err(|_| ApiError::Unauthorized)?;
 
     let is_superadmin = principal.role == "superadmin";
     if !is_superadmin {
@@ -277,15 +331,15 @@ async fn deletion_status(
         }
     }
 
-    let row: Option<(Option<DateTime<Utc>>, Option<DateTime<Utc>>, String)> =
-        sqlx::query_as(
-            "SELECT deleted_at, delete_scheduled_at, status \
+    #[allow(clippy::type_complexity)]
+    let row: Option<(Option<DateTime<Utc>>, Option<DateTime<Utc>>, String)> = sqlx::query_as(
+        "SELECT deleted_at, delete_scheduled_at, status \
              FROM workspaces WHERE id = $1",
-        )
-        .bind(workspace_id)
-        .fetch_optional(&pool)
-        .await
-        .map_err(ApiError::Database)?;
+    )
+    .bind(workspace_id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(ApiError::Database)?;
 
     let (deleted_at, scheduled_at, status) = match row {
         None => return Err(ApiError::NotFound("Workspace not found".to_string())),

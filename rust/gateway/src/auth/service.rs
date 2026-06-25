@@ -722,13 +722,12 @@ impl AuthServiceImpl {
         }
 
         // Verify workspace still exists — it may have been deleted after the invite was created.
-        let workspace_exists = sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS(SELECT 1 FROM workspaces WHERE id = $1)",
-        )
-        .bind(workspace_id)
-        .fetch_one(&self.pool)
-        .await
-        .map_err(ApiError::Database)?;
+        let workspace_exists =
+            sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM workspaces WHERE id = $1)")
+                .bind(workspace_id)
+                .fetch_one(&self.pool)
+                .await
+                .map_err(ApiError::Database)?;
 
         if !workspace_exists {
             return Err(ApiError::Gone(
