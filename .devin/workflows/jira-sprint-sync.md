@@ -2,6 +2,11 @@
 description: Create or re-sync all IM Jira sprints and assign issues to them
 ---
 
+> **Source of Truth — LOCKED:**
+> - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project. This workflow only operates on the IM board.
+> - Jira **Autoniix Engineering (AE)** space is **archived** — do not sync or create sprints there.
+> - GitHub **Autoniix MVP** project board is **closed** — do not reference it.
+
 ## Prerequisites
 - `requests` installed: `pip install requests`
 - Jira API token from https://id.atlassian.com/manage-profile/security/api-tokens

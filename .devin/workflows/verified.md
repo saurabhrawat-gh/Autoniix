@@ -2,6 +2,11 @@
 description: Verified command — mark one or all tested issues as verified in production (in-prod → prod-verified + auto-tick ACs + close).
 ---
 
+> **Source of Truth — LOCKED:**
+> - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project. Jira transitions use `IM-XXX` keys looked up from `scripts/issue_map.json`.
+> - Jira **Autoniix Engineering (AE)** space is **archived** — read-only.
+> - GitHub **Autoniix MVP** project board is **closed** — do not reference it.
+
 # /verified — Issue Verification Command
 
 Use this workflow when you have finished testing on production and want to mark an issue as verified.

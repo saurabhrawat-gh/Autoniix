@@ -2,6 +2,12 @@
 description: Project Manager — sprint planning, milestone progress report, and velocity tracking for the Autoniix MVP
 ---
 
+> **Source of Truth — LOCKED:**
+> - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project. All sprints and tickets go here.
+> - Jira **Autoniix Engineering (AE)** space is **archived** — read-only, never create sprints or tickets there.
+> - GitHub **Autoniix MVP** project board is **closed** — do not reference it for sprint planning.
+> - Board: https://autoniix.atlassian.net/jira/software/c/projects/IM/boards/35/backlog
+
 # Project Manager Workflow
 
 Use this workflow to **plan what to work on next** and **get a progress report** against the Autoniix MVP milestone.
@@ -27,14 +33,14 @@ Pass a mode when invoking:
    - Determine the sprint number by calling:
      ```
      curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-       "https://api.atlassian.com/ex/jira/73672c49-7089-4f35-adde-e3fa0d1e438f/rest/agile/1.0/board?projectKeyOrId=AE" \
+       "https://api.atlassian.com/ex/jira/73672c49-7089-4f35-adde-e3fa0d1e438f/rest/agile/1.0/board?projectKeyOrId=IM" \
        | python3 -c "import sys,json; boards=json.load(sys.stdin)['values']; print(boards[0]['id'])"
      ```
      Store the board ID. Then list existing sprints to determine the next sprint number:
      ```
      curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
        "https://api.atlassian.com/ex/jira/73672c49-7089-4f35-adde-e3fa0d1e438f/rest/agile/1.0/board/{BOARD_ID}/sprint?state=active,closed" \
-       | python3 -c "import sys,json; sprints=json.load(sys.stdin).get('values',[]); print(len(sprints)+1)"
+       | python3 -c "import sys,json; sprints=json.load(sys.stdin).get('values',[]); print(len(sprints)+1)"   # Board ID is the IM board (35)
      ```
    - Derive the sprint theme from the dominant epic/label of issues being pulled in (e.g. "Providers Rebuild", "Pipeline Quality", "Dashboard UX")
    - Sprint name format: `Sprint {N} — {Theme} — {YYYY-MM-DD}` (e.g. `Sprint 3 — Providers Rebuild — 2026-06-12`)

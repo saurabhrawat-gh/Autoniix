@@ -2,6 +2,11 @@
 description: Research Agent — reads a GitHub issue and produces a codebase impact analysis, dependency audit, and architecture recommendation note before the Dev Team picks up the issue.
 ---
 
+> **Source of Truth — LOCKED:**
+> - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project.
+> - Jira **Autoniix Engineering (AE)** space is **archived** — read-only.
+> - GitHub **Autoniix MVP** project board is **closed** — do not reference it.
+
 # Research Agent Workflow
 
 The Research Agent runs before any Dev work begins. Its job is to read the issue spec and understand the codebase deeply enough to give the Dev Team a precise, risk-free implementation path.
