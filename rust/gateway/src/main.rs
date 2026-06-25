@@ -6,6 +6,50 @@ use gateway::{create_app, create_pool, Config};
 
 mod observability;
 
+/// Polls every hour for workspaces whose `delete_scheduled_at` is between
+/// 47 and 48 hours away and sends a final-warning email to all members.
+async fn deletion_warning_cron(pool: sqlx::PgPool) {
+    use gateway::email::{fire_workspace_deletion_emails, DeletionEmailEvent};
+    use tokio::time::{interval, Duration};
+
+    let mut ticker = interval(Duration::from_secs(3600));
+    loop {
+        ticker.tick().await;
+        let rows: Vec<(i64, String, chrono::DateTime<chrono::Utc>)> = match sqlx::query_as(
+            "SELECT id, name, delete_scheduled_at \
+             FROM workspaces \
+             WHERE deleted_at IS NOT NULL \
+               AND delete_scheduled_at IS NOT NULL \
+               AND delete_scheduled_at > NOW() + INTERVAL '47 hours' \
+               AND delete_scheduled_at <= NOW() + INTERVAL '48 hours' \
+               AND status = 'pending_deletion'",
+        )
+        .fetch_all(&pool)
+        .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::warn!("deletion_warning_cron: query failed: {:?}", e);
+                continue;
+            }
+        };
+
+        for (workspace_id, name, scheduled_at) in rows {
+            tracing::info!(
+                workspace_id,
+                "deletion_warning_cron: sending 48h warning emails"
+            );
+            fire_workspace_deletion_emails(
+                pool.clone(),
+                workspace_id,
+                name,
+                DeletionEmailEvent::Warning48h,
+                Some(scheduled_at),
+            );
+        }
+    }
+}
+
 /// Polls every hour for workspaces whose grace period has expired and
 /// performs a full FK-safe cascade delete on each one.
 async fn hard_delete_cron(pool: sqlx::PgPool) {
@@ -57,6 +101,8 @@ async fn main() -> Result<()> {
 
     tokio::spawn(hard_delete_cron(pool.clone()));
     info!("Workspace hard-delete cron task started (interval: 1 hour)");
+    tokio::spawn(deletion_warning_cron(pool.clone()));
+    info!("Workspace deletion 48h-warning cron task started (interval: 1 hour)");
 
     // Schema ownership remains with the Python dashboard during the migration
     // (see HARNESS-ENGINEERING-PLAN.md Section 13). The gateway reads/writes

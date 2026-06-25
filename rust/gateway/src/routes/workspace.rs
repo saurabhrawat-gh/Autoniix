@@ -12,6 +12,7 @@ use sqlx::PgPool;
 
 use crate::{
     audit::{audit_log, AuditCtx},
+    email::{fire_workspace_deletion_emails, DeletionEmailEvent},
     error::{ApiError, ApiResult},
     extractors::AuthUser,
 };
@@ -63,14 +64,16 @@ async fn delete_workspace(
         .parse()
         .map_err(|_| ApiError::Unauthorized)?;
 
-    let row: Option<(Option<DateTime<Utc>>, String, i64)> =
-        sqlx::query_as("SELECT deleted_at, status, owner_user_id FROM workspaces WHERE id = $1")
-            .bind(workspace_id)
-            .fetch_optional(&pool)
-            .await
-            .map_err(ApiError::Database)?;
+    #[allow(clippy::type_complexity)]
+    let row: Option<(Option<DateTime<Utc>>, String, i64, String)> = sqlx::query_as(
+        "SELECT deleted_at, status, owner_user_id, name FROM workspaces WHERE id = $1",
+    )
+    .bind(workspace_id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(ApiError::Database)?;
 
-    let (deleted_at, _status, owner_user_id) = match row {
+    let (deleted_at, _status, owner_user_id, workspace_name) = match row {
         None => return Err(ApiError::NotFound("Workspace not found".to_string())),
         Some(r) => r,
     };
@@ -188,6 +191,15 @@ async fn delete_workspace(
 
     tx.commit().await.map_err(ApiError::Database)?;
 
+    // IM-182: fire-and-forget deletion notification emails to all members.
+    fire_workspace_deletion_emails(
+        pool.clone(),
+        workspace_id,
+        workspace_name,
+        DeletionEmailEvent::SoftDelete,
+        Some(chrono::Utc::now() + chrono::Duration::days(grace_days)),
+    );
+
     audit_log(
         &pool,
         AuditCtx {
@@ -225,8 +237,14 @@ async fn cancel_deletion(
         .map_err(|_| ApiError::Unauthorized)?;
 
     #[allow(clippy::type_complexity)]
-    let row: Option<(Option<DateTime<Utc>>, Option<DateTime<Utc>>, String, i64)> = sqlx::query_as(
-        "SELECT deleted_at, delete_scheduled_at, status, owner_user_id \
+    let row: Option<(
+        Option<DateTime<Utc>>,
+        Option<DateTime<Utc>>,
+        String,
+        i64,
+        String,
+    )> = sqlx::query_as(
+        "SELECT deleted_at, delete_scheduled_at, status, owner_user_id, name \
              FROM workspaces WHERE id = $1",
     )
     .bind(workspace_id)
@@ -234,7 +252,7 @@ async fn cancel_deletion(
     .await
     .map_err(ApiError::Database)?;
 
-    let (deleted_at, delete_scheduled_at, status, owner_user_id) = match row {
+    let (deleted_at, delete_scheduled_at, status, owner_user_id, workspace_name) = match row {
         None => return Err(ApiError::NotFound("Workspace not found".to_string())),
         Some(r) => r,
     };
@@ -285,6 +303,15 @@ async fn cancel_deletion(
     .map_err(ApiError::Database)?;
 
     tx.commit().await.map_err(ApiError::Database)?;
+
+    // IM-182: notify members that deletion was cancelled.
+    fire_workspace_deletion_emails(
+        pool.clone(),
+        workspace_id,
+        workspace_name,
+        DeletionEmailEvent::Cancelled,
+        None,
+    );
 
     audit_log(
         &pool,
