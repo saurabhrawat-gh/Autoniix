@@ -7,7 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# --retries/--timeout harden against transient pypi/CDN drops mid-download
+# of large ML wheels (transformers, torch) on the VPS network.
+RUN pip install --no-cache-dir --retries 5 --timeout 120 -r requirements.txt
 
 RUN python -m spacy download en_core_web_sm \
     && python -c "import nltk; nltk.download('wordnet', quiet=True); nltk.download('omw-1.4', quiet=True)"
