@@ -138,4 +138,5 @@ export {
   ClipboardList,
   DollarSign,
   Monitor,
+  Smartphone,
 } from 'lucide-react';
