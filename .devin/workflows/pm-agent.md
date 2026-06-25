@@ -225,6 +225,38 @@ Run this after a deploy has been triggered (or on a schedule). Checks whether pr
    ACTION: Type `verified #N` in Windsurf for each ticket after manual smoke test.
    ```
 
+5. **Auto-close completed Epics**
+
+   After promoting tickets in step 3, check every Epic that owns any of the just-promoted stories:
+
+   - For each unique `sprint:*` label or Epic link found on the promoted tickets, fetch the parent Epic from Jira:
+     ```
+     mcp0_searchJiraIssuesUsingJql:
+       jql: project = IM AND issuetype = Epic AND status != Done
+       fields: ["summary", "status", "subtasks", "labels"]
+     ```
+   - For each open Epic, fetch all its child stories:
+     ```
+     mcp0_searchJiraIssuesUsingJql:
+       jql: project = IM AND "Epic Link" = {EPIC_KEY} OR parent = {EPIC_KEY}
+       fields: ["summary", "status"]
+     ```
+     *(Also check stories sharing the epic's sprint label if Epic Link is unavailable.)*
+   - **If ALL child stories have status `Done`** (and the Epic itself is not already `Done`):
+     - Call `mcp0_transitionJiraIssue` with transition id `51` (→ Done)
+     - Find the matching GitHub Epic issue via `scripts/issue_map.json` reverse-lookup
+     - Call `mcp1_update_issue` to close it (state: `closed`) and add label `epic-done`
+     - Print: `✅ EPIC {KEY} auto-closed — all child stories are Done ({N} stories)`
+   - **If some child stories are still open**: skip — do not close the Epic
+   - **If no child stories exist** (empty Epic): skip — do not auto-close, flag as an empty Epic warning
+
+6. **Print epic closure summary**
+   ```
+   EPIC AUTO-CLOSE:
+     ✅ IM-1  Core 1: Auth & Platform Foundation — all 11 stories Done → Epic closed
+     ⏳ IM-2  Workspace Epic — 3/5 stories done, 2 still open → not closed
+   ```
+
 ---
 
 ## Rules
@@ -242,5 +274,7 @@ Run this after a deploy has been triggered (or on a schedule). Checks whether pr
 - Epics and test-case issues are excluded from velocity and WIP counting
 - An Epic is NOT done until ALL its child stories are closed
 - A Story is NOT done until ALL its child tasks are closed AND it is `prod-verified`
+- **When ALL child stories of an Epic are `Done`, the Epic is automatically transitioned to `Done` in `deploy-watch` mode — no manual action needed**
+- Empty Epics (no child stories) are never auto-closed — flag them as a warning instead
 - `bug:production` issues are always recommended first, above any backlog priority ordering
 - Always recommend the highest-priority unblocked story from the backlog
