@@ -96,4 +96,10 @@ export const authApi = {
       '/api/v2/auth/create-workspace',
       { method: 'POST', body: JSON.stringify({ workspace_name }) }
     ),
+  listSessions: () =>
+    request<{ data: Array<{ id: number; ip: string | null; user_agent: string | null; created_at: string; last_seen_at: string; expires_at: string }> }>(
+      '/api/v2/me/sessions'
+    ),
+  revokeSession: (session_id: number) =>
+    request<{ status: string }>(`/api/v2/me/sessions/${session_id}`, { method: 'DELETE' }),
 };
