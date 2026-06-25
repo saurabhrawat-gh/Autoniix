@@ -39,6 +39,9 @@ pub enum ApiError {
 
     #[error("Conflict: {0}")]
     Conflict(String),
+
+    #[error("{0}")]
+    Gone(String),
 }
 
 impl IntoResponse for ApiError {
@@ -72,6 +75,7 @@ impl IntoResponse for ApiError {
                 self.to_string(),
             ),
             ApiError::Conflict(_) => (StatusCode::CONFLICT, "CONFLICT", self.to_string()),
+            ApiError::Gone(_) => (StatusCode::GONE, "GONE", self.to_string()),
         };
 
         let body = Json(json!({

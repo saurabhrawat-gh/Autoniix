@@ -832,6 +832,13 @@ async def accept_invite(body: AcceptInviteIn, request: Request, response: Respon
     if invite["expires_at"] < datetime.now(timezone.utc):
         raise HTTPException(400, "Invitation has expired")
 
+    # Verify workspace still exists (may have been deleted after invite was created).
+    workspace = await pool.fetchrow(
+        "SELECT id FROM workspaces WHERE id=$1", invite["workspace_id"]
+    )
+    if not workspace:
+        raise HTTPException(410, "This invitation is no longer valid — the workspace has been removed.")
+
     async with pool.acquire() as conn:
         async with conn.transaction():
             # Find or create the user

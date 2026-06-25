@@ -33,6 +33,9 @@
     "674": { "jira": "AE-586", "status": "done",   "title": "H.4 — Migration validation: Python ↔ Rust equivalence + rollback tests" },
     "676": { "jira": "AE-588", "status": "in-prod", "title": "Channels BE: 4 data-loss bugs — content_type_tags, publish_cadence, uploaded_by, content_mode patch" },
     "677": { "jira": "AE-589", "status": "in-prod", "title": "Channels FE: wrong badge, broken redirect, handle not required" },
-    "678": { "jira": "AE-590", "status": "in-prod", "title": "Channels BE: missing list endpoints + trigger cooldown guard" }
+    "678": { "jira": "AE-590", "status": "in-prod", "title": "Channels BE: missing list endpoints + trigger cooldown guard" },
+    "689": { "jira": "IM-173", "status": "open", "title": "Core1: Workspace deleted between invite+acceptance causes FK orphan" },
+    "690": { "jira": "IM-177", "status": "open", "title": "Core1: Active sessions list + manual revocation" },
+    "691": { "jira": "IM-179", "status": "open", "title": "Core1: Onboarding wizard — verify completion and workspace setup steps" }
   }
 }
