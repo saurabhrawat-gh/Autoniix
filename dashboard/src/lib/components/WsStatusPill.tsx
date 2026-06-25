@@ -6,6 +6,12 @@ import { useAppState } from './AppStateProvider';
 import { Tip } from './Tooltip';
 import { cn } from '../utils';
 
+const LABEL: Record<string, string> = {
+  live:       'Connected',
+  connecting: 'Connecting',
+  offline:    'Offline',
+};
+
 const TIP: Record<string, string> = {
   live:       'Realtime updates active',
   connecting: 'Establishing realtime connection…',
@@ -16,13 +22,6 @@ const RECONNECTING = 'Reconnecting...';
 
 export function WsStatusPill() {
   const { wsStatus } = useAppState();
-<<<<<<< HEAD
-  const color =
-    wsStatus === 'live' ? 'bg-status-success'
-      : wsStatus === 'connecting' ? 'bg-status-warning'
-      : 'bg-status-error';
-  // Dot-only indicator. Tooltip carries the verbose label.
-=======
   const reduce = useReducedMotion();
   const prevStatus = useRef(wsStatus);
   const [flash, setFlash] = useState(false);
@@ -43,18 +42,13 @@ export function WsStatusPill() {
 
   const isReconnecting = wsStatus === 'connecting' || wsStatus === 'offline';
 
->>>>>>> feat/story1-ai-phase-animations
   return (
     <Tip text={`${LABEL[wsStatus]} — ${TIP[wsStatus]}`} pos="bottom">
       <span
-<<<<<<< HEAD
-        className="inline-flex items-center justify-center w-7 h-7"
-=======
         className={cn(
           'inline-flex items-center gap-1.5 h-7 px-2 rounded-full bg-surface-1 border border-border text-[10px] font-medium transition-colors',
           flash ? 'text-status-success border-status-success/30' : 'text-content-secondary',
         )}
->>>>>>> feat/story1-ai-phase-animations
         aria-live="polite"
         aria-label={`Realtime status: ${wsStatus}`}
       >
