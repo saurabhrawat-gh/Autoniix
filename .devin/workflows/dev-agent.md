@@ -64,8 +64,11 @@ Before anything else, check for open hotfix issues:
 - If NOT found: proceed (Research Team may not have run yet — follow existing patterns)
 
 ### 2. Label as in-progress
+
+> **MANDATORY — do this BEFORE writing a single line of code or creating a branch.**
+
+- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = the Jira key for this issue (look up in `scripts/issue_map.json`), transition id `4` (→ In Progress)
 - Call `mcp0_update_issue`: remove `ready-for-dev`, add `in-progress`
-- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = the Jira key for this issue (look up in `scripts/issue_map.json`), transition id `21` (→ In Progress)
 - Call `mcp0_editJiraIssue` to assign to Dev Agent: `{"assignee": {"accountId": "712020:863fd585-7c67-4cac-86c6-8885e80502b3"}}`
 - Post comment: "Starting implementation of #{issue_number}."
 
@@ -172,8 +175,7 @@ If either was red at any point, you must NOT have reached this step. Go back and
 
 - Call `mcp0_update_issue` on the issue: remove `in-progress`, add `ready-to-deploy`
 - Look up the Jira key for this issue via `scripts/issue_map.json`
-- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = Jira key, transition id `{READY_TO_DEPLOY_TRANSITION_ID}` (→ Ready to Deploy)
-  > ⚠️ **TODO**: Replace `{READY_TO_DEPLOY_TRANSITION_ID}` with the actual transition ID once the "Ready to Deploy" status is added to the IM workflow in Jira Project Settings. Run `mcp0_getTransitionsForJiraIssue` on any IM issue to find the new ID.
+- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = Jira key, transition id `5` (→ Ready To Deploy)
 - Call `mcp0_add_issue_comment`:
   ```
   ✅ Implementation complete. Merged to `develop`.
@@ -218,9 +220,12 @@ Use this path ONLY for issues labelled `hotfix` or `bug:production`. These skip 
 - Read the full issue body
 
 ### H2. Label as in-progress
-- Call `mcp0_update_issue`: remove `ready-for-dev`, add `in-progress`
+
+> **MANDATORY — do this BEFORE writing a single line of code or creating a branch.**
+
 - Look up the Jira key via `scripts/issue_map.json`
-- Call `mcp0_transitionJiraIssue` with transition id `21` (→ In Progress)
+- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = Jira key, transition id `4` (→ In Progress)
+- Call `mcp0_update_issue`: remove `ready-for-dev`, add `in-progress`
 - Call `mcp0_editJiraIssue` to assign to Dev Agent: `{"assignee": {"accountId": "712020:863fd585-7c67-4cac-86c6-8885e80502b3"}}`
 
 ### H3. Create branch from main
@@ -270,7 +275,7 @@ git branch -d hotfix/issue-{number}-{short-slug}
 
 ### H8. Set issue to in-prod
 - Call `mcp0_update_issue`: remove `in-progress`, add `in-prod`
-- Call `mcp0_transitionJiraIssue` with transition id `3` (→ In Prod)
+- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = Jira key, transition id `6` (→ In Prod)
 - Call `mcp0_add_issue_comment`:
   ```
   🔥 Hotfix deployed directly to `main`.
@@ -317,4 +322,4 @@ handoff:
 - When creating bug issues, always use the standard format: `bug | {QA/Prod} | {Layer} | description`
 - Read Research Notes (if present) before writing a single line of code — the approach is already decided
 - **Jira ↔ GitHub sync is mandatory**: When a GitHub issue is created, create a Jira mirror in the **IM** project and update `scripts/issue_map.json`. When a GitHub issue is closed, transition the Jira mirror to Done (transition id `51`). Jira cloudId: `73672c49-7089-4f35-adde-e3fa0d1e438f`, project key: `IM`. If no Jira mirror exists for a GH issue, create one in the IM project before proceeding
-- **Jira IM transition IDs (confirmed):** Backlog=11, To Do=21, In Progress=31, Ready to Deploy=`{READY_TO_DEPLOY_TRANSITION_ID}` (fill in after creating status in admin), In Prod=41, Done=51
+- **Jira IM transition IDs (confirmed):** Start Working (To Do→In Progress)=`4`, Deploy Sprint (In Progress→Ready To Deploy)=`5`, Deployed (Ready To Deploy→In Prod)=`6`, Prod Verified/Close (In Prod→Done)=`7`, Defer (→Backlog)=`3`, Prod Bug (In Prod→To Do)=`8`. cloudId: `73672c49-7089-4f35-adde-e3fa0d1e438f`

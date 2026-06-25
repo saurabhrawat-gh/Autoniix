@@ -21,7 +21,8 @@ Run it at the start of each week or sprint, or whenever you need a status overvi
 Pass a mode when invoking:
 - `/pm-agent plan` — sprint planning: decide which issues to pull into active work
 - `/pm-agent report` — status report: current progress, velocity, risk items
-- `/pm-agent` (no arg) — run both
+- `/pm-agent deploy-watch` — check production deployment health and auto-advance tickets from Ready To Deploy → In Prod
+- `/pm-agent` (no arg) — run both `plan` and `report`
 
 ---
 
@@ -179,6 +180,53 @@ Pass a mode when invoking:
 
 ---
 
+### MODE: `deploy-watch` — Production Deployment Promotion
+
+Run this after a deploy has been triggered (or on a schedule). Checks whether production is green and automatically promotes all "Ready To Deploy" tickets to "In Prod".
+
+1. **Check production health**
+   - Hit the production health endpoint:
+     ```bash
+     curl -sf https://dash.autoniix.com/api/health
+     ```
+   - If the response is non-200 or request fails: **STOP**. Print:
+     ```
+     ⚠️  Production health check FAILED — not promoting any tickets.
+     Response: {status_code} {body}
+     Investigate before re-running deploy-watch.
+     ```
+   - If 200 and body contains `"status": "ok"` (or equivalent healthy signal): proceed.
+
+2. **Fetch all Ready To Deploy tickets in Jira**
+   - Call `mcp0_searchJiraIssuesUsingJql` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`:
+     ```
+     jql: project = IM AND status = "Ready To Deploy" ORDER BY updated ASC
+     fields: ["summary", "status"]
+     ```
+   - If no tickets found: print `✅ No tickets in Ready To Deploy — nothing to promote.` and stop.
+
+3. **Promote each ticket to In Prod**
+   - For each ticket returned in step 2:
+     - Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = ticket key, transition id `6` (→ In Prod)
+     - Call `mcp1_list_issues` on `saurabhrawat-gh/Autoniix` to find the matching GitHub issue via `scripts/issue_map.json` reverse-lookup
+     - If GitHub issue found: call `mcp1_update_issue` to remove label `ready-to-deploy`, add label `in-prod`
+   - Print one line per ticket: `✅ {KEY} → In Prod — {summary}`
+
+4. **Print promotion summary**
+   ```
+   ── DEPLOY-WATCH ── {datetime} ─────────────────────
+   Production health: ✅ GREEN (https://dash.autoniix.com/api/health)
+
+   Promoted to In Prod ({N} tickets):
+     ✅ IM-39  Login page
+     ✅ IM-40  Register page
+     ...
+
+   ACTION: Type `verified #N` in Windsurf for each ticket after manual smoke test.
+   ```
+
+---
+
 ## Rules
 
 - **Sprint creation is mandatory at the start of every `plan` run** — always create a new named sprint on Jira before planning
@@ -186,7 +234,9 @@ Pass a mode when invoking:
 - Sprint duration: 2 weeks (14 days) from the planning date
 - Never move issues between labels — read-only in both modes
 - In `plan` mode, only add a sprint-focus comment — do NOT change lifecycle labels
-- Lifecycle transitions are handled by Dev Agent, QA Agent, and GitHub Actions — not this workflow
+- Lifecycle transitions in `plan` and `report` modes are read-only — do NOT modify labels or statuses in those modes
+- `deploy-watch` mode is the **only** mode that writes Jira transitions or GitHub labels
+- `deploy-watch` must NEVER promote tickets if the production health check fails — health gate is non-negotiable
 - WIP limit is **3 stories maximum** in active states (`in-progress` + `in-qa` + `in-prod`)
 - If WIP ≥ 3, recommend finishing existing work before starting anything new
 - Epics and test-case issues are excluded from velocity and WIP counting

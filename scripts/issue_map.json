@@ -36,6 +36,9 @@
     "678": { "jira": "AE-590", "status": "in-prod", "title": "Channels BE: missing list endpoints + trigger cooldown guard" },
     "689": { "jira": "IM-173", "status": "open", "title": "Core1: Workspace deleted between invite+acceptance causes FK orphan" },
     "690": { "jira": "IM-177", "status": "open", "title": "Core1: Active sessions list + manual revocation" },
-    "691": { "jira": "IM-179", "status": "open", "title": "Core1: Onboarding wizard — verify completion and workspace setup steps" }
+    "691": { "jira": "IM-179", "status": "open", "title": "Core1: Onboarding wizard — verify completion and workspace setup steps" },
+    "696": { "jira": "IM-178", "status": "in-progress", "title": "Core1: MFA frontend UI — setup wizard, verification prompt, and disable flow" },
+    "697": { "jira": "IM-182", "status": "in-progress", "title": "Core1: Notify all workspace members by email on deletion initiation and before hard-delete" },
+    "698": { "jira": "IM-183", "status": "in-progress", "title": "Core1: Orphaned user protection — user with zero remaining workspaces after deletion" }
   }
 }
