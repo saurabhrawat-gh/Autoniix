@@ -7,7 +7,7 @@ mod extractors;
 mod health;
 mod middleware;
 mod observability;
-mod routes;
+pub mod routes;
 
 pub use auth::{AuthServiceImpl, JwtManager};
 pub use config::Config;
@@ -32,6 +32,7 @@ pub async fn create_app(pool: sqlx::PgPool, jwt_secret: String) -> Router {
         .merge(routes::channels::routes(pool.clone()))
         .merge(routes::lookup_values::routes(pool.clone()))
         .merge(routes::voice::routes(pool.clone()))
+        .merge(routes::workspace::routes(pool.clone()))
         .layer(axum_middleware::from_fn(
             middleware::require_auth_middleware,
         ));

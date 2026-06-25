@@ -6,6 +6,7 @@ pub mod notifications;
 pub mod system;
 pub mod user;
 pub mod voice;
+pub mod workspace;
 
 use axum::{routing::get, Json, Router};
 use serde_json::json;
