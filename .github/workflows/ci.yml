@@ -261,7 +261,7 @@ jobs:
 
       - name: Install deps
         run: |
-          pip install httpx pytest psycopg2-binary pyjwt structlog asyncpg
+          pip install httpx pytest psycopg2-binary pyjwt structlog asyncpg pydantic-settings
 
       - name: Apply test DB schema (init + migrations)
         env:
