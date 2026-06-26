@@ -142,7 +142,7 @@ def _set_auth_cookies(response: Response, access: str, refresh: str) -> None:
     response.set_cookie(
         key="auth_status", value="1",
         httponly=False, secure=secure, samesite="lax",
-        max_age=3600, path="/",
+        max_age=2592000, path="/",
     )
 
 

@@ -60,7 +60,18 @@ export async function rawRequest<T = any>(path: string, opts: RequestInit = {}, 
       const refreshed = await refreshOnce();
       if (refreshed) return rawRequest<T>(path, opts, true);
     }
-    if (typeof window !== 'undefined') window.location.href = '/login';
+    if (typeof window !== 'undefined') {
+      // Clear stale session hints so the edge middleware doesn't bounce us
+      // back to /dashboard in an infinite loop. The HttpOnly access/refresh
+      // cookies are owned by the backend; the `auth_status=1` hint is the
+      // only thing the middleware looks at.
+      document.cookie = 'auth_status=; Path=/; Max-Age=0; SameSite=Lax; Secure';
+      clearToken();
+      // Avoid re-loop if we're already on /login (e.g. /login itself calls API).
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
+    }
     throw new Error('Unauthorized');
   }
   if (res.status === 403) {
@@ -81,6 +92,8 @@ export async function rawRequest<T = any>(path: string, opts: RequestInit = {}, 
           }
         }
       } catch {}
+      document.cookie = 'auth_status=; Path=/; Max-Age=0; SameSite=Lax; Secure';
+      clearToken();
       window.location.href = '/login?reason=no_workspace_access';
       throw new Error('workspace_access_revoked');
     }

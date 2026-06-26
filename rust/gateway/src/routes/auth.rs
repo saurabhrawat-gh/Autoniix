@@ -43,7 +43,7 @@ fn auth_cookies(access: &str, refresh: &str) -> AppendHeaders<[(HeaderName, Stri
         ),
         (
             SET_COOKIE,
-            build_cookie("auth_status", "1", ACCESS_MAX_AGE, false),
+            build_cookie("auth_status", "1", REFRESH_MAX_AGE, false),
         ),
     ])
 }
