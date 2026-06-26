@@ -1,6 +1,6 @@
 {
   "_comment": "GitHub ↔ Jira issue mapping for cross-system sync",
-  "_updated": "2026-06-21",
+  "_updated": "2026-06-26",
   "_note": "H.1-H.4 = Harness Phase 0 stories (all code pre-existing, tickets retroactively filed and closed)",
   "mappings": {
     "638": { "jira": "AE-571", "status": "open",   "title": "Epic: Multi-Language Backend Migration" },
@@ -37,8 +37,9 @@
     "689": { "jira": "IM-173", "status": "open", "title": "Core1: Workspace deleted between invite+acceptance causes FK orphan" },
     "690": { "jira": "IM-177", "status": "open", "title": "Core1: Active sessions list + manual revocation" },
     "691": { "jira": "IM-179", "status": "open", "title": "Core1: Onboarding wizard — verify completion and workspace setup steps" },
-    "696": { "jira": "IM-178", "status": "in-progress", "title": "Core1: MFA frontend UI — setup wizard, verification prompt, and disable flow" },
-    "697": { "jira": "IM-182", "status": "in-progress", "title": "Core1: Notify all workspace members by email on deletion initiation and before hard-delete" },
-    "698": { "jira": "IM-183", "status": "in-progress", "title": "Core1: Orphaned user protection — user with zero remaining workspaces after deletion" }
+    "696": { "jira": "IM-178", "status": "done", "title": "Core1: MFA frontend UI — setup wizard, verification prompt, and disable flow" },
+    "697": { "jira": "IM-182", "status": "done", "title": "Core1: Notify all workspace members by email on deletion initiation and before hard-delete" },
+    "698": { "jira": "IM-183", "status": "done", "title": "Core1: Orphaned user protection — user with zero remaining workspaces after deletion" },
+    "700": { "jira": "IM-49", "status": "in-progress", "title": "Core-Gateway: Per-workspace rate limiting — configurable threshold + 429 response" }
   }
 }
