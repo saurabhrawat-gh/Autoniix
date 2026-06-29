@@ -108,8 +108,6 @@ async fn delete_workspace(
     let last_workspace = remaining == 0;
     let force = params.force.unwrap_or(false);
 
-    // IM-183: Block owner from deleting their only workspace unless a
-    // superadmin is overriding with ?force=true.
     if last_workspace && !is_superadmin {
         return Ok((
             StatusCode::BAD_REQUEST,
@@ -176,8 +174,6 @@ async fn delete_workspace(
     .await
     .map_err(ApiError::Database)?;
 
-    // IM-183: When superadmin force-deletes the owner's last workspace, flag
-    // the owner for re-onboarding so the wizard is shown on next login.
     if last_workspace && is_superadmin && force {
         sqlx::query(
             "UPDATE users SET needs_workspace_setup = TRUE \
@@ -191,7 +187,6 @@ async fn delete_workspace(
 
     tx.commit().await.map_err(ApiError::Database)?;
 
-    // IM-182: fire-and-forget deletion notification emails to all members.
     fire_workspace_deletion_emails(
         pool.clone(),
         workspace_id,
@@ -304,7 +299,6 @@ async fn cancel_deletion(
 
     tx.commit().await.map_err(ApiError::Database)?;
 
-    // IM-182: notify members that deletion was cancelled.
     fire_workspace_deletion_emails(
         pool.clone(),
         workspace_id,

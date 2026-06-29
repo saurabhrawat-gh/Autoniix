@@ -11,8 +11,6 @@ fn cache() -> ProviderCache {
     ProviderCache::new(tempdir().unwrap().keep(), true)
 }
 
-// ── OpenAI ──────────────────────────────────────────────────────────────────
-
 #[test]
 fn test_openai_chat_completion() {
     let c = cache();
@@ -71,8 +69,6 @@ fn test_openai_cache_hit_returns_same_id() {
     assert_eq!(r1.id, r2.id);
 }
 
-// ── Anthropic ────────────────────────────────────────────────────────────────
-
 #[test]
 fn test_anthropic_message() {
     let c = cache();
@@ -93,8 +89,6 @@ fn test_anthropic_message() {
     assert!(!resp.content[0].text.is_empty());
 }
 
-// ── Fish Audio ───────────────────────────────────────────────────────────────
-
 #[test]
 fn test_fish_audio_returns_valid_wav() {
     let c = cache();
@@ -109,8 +103,6 @@ fn test_fish_audio_returns_valid_wav() {
     assert_eq!(&wav[8..12], b"WAVE", "WAV must contain WAVE");
     assert!(wav.len() > 44, "WAV must have audio data beyond header");
 }
-
-// ── DALL-E ───────────────────────────────────────────────────────────────────
 
 #[test]
 fn test_dalle_url_format() {
@@ -147,8 +139,6 @@ fn test_dalle_b64_format_decodes() {
     assert!(!decoded.is_empty());
 }
 
-// ── Pexels ───────────────────────────────────────────────────────────────────
-
 #[test]
 fn test_pexels_search() {
     let c = cache();
@@ -164,8 +154,6 @@ fn test_pexels_search() {
     assert!(!resp.photos[0].photographer.is_empty());
 }
 
-// ── Pixabay ──────────────────────────────────────────────────────────────────
-
 #[test]
 fn test_pixabay_search() {
     let c = cache();
@@ -180,8 +168,6 @@ fn test_pixabay_search() {
     assert_eq!(resp.hits[0].kind, "photo");
     assert!(resp.total_hits > 0);
 }
-
-// ── SerpAPI ──────────────────────────────────────────────────────────────────
 
 #[test]
 fn test_serpapi_search() {
@@ -199,8 +185,6 @@ fn test_serpapi_search() {
     assert!(resp.organic_results[0].link.starts_with("https://"));
     assert!(!resp.organic_results[0].snippet.is_empty());
 }
-
-// ── YouTube ──────────────────────────────────────────────────────────────────
 
 #[test]
 fn test_youtube_search() {
@@ -230,8 +214,6 @@ fn test_youtube_video_details() {
     assert!(resp.items[0]["statistics"]["viewCount"].is_string());
 }
 
-// ── Gemini ───────────────────────────────────────────────────────────────────
-
 #[test]
 fn test_gemini_generate_content() {
     let c = cache();
@@ -250,8 +232,6 @@ fn test_gemini_generate_content() {
     assert!(!resp.candidates[0].content.parts.is_empty());
     assert!(resp.usage_metadata.total_token_count > 0);
 }
-
-// ── Cache disabled ────────────────────────────────────────────────────────────
 
 #[test]
 fn test_cache_disabled_writes_no_files() {

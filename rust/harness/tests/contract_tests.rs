@@ -30,7 +30,6 @@ fn rust_validator() -> Option<ContractValidator> {
         .join("openapi")
         .join("rust-gateway.yaml");
 
-    // Fallback to JSON if YAML not yet supported
     let json_path = schema_path.with_extension("json");
 
     if json_path.exists() {
@@ -42,14 +41,11 @@ fn rust_validator() -> Option<ContractValidator> {
     }
 }
 
-// ── Live endpoint tests (skipped if service not running) ─────────────────────
-
 #[tokio::test]
 async fn test_signup_contract() {
     let validator = match rust_validator() {
         Some(v) => v,
         None => {
-            eprintln!("SKIP: no OpenAPI schema found");
             return;
         }
     };
@@ -82,9 +78,7 @@ async fn test_signup_contract() {
                 "signup must return refresh_token"
             );
         }
-        Err(harness::contract::ContractError::Request(_)) => {
-            eprintln!("SKIP: Rust gateway not running at {}", rust_gateway_url());
-        }
+        Err(harness::contract::ContractError::Request(_)) => {}
         Err(e) => panic!("Contract validation failed: {e}"),
     }
 }
@@ -94,7 +88,6 @@ async fn test_signin_contract() {
     let validator = match rust_validator() {
         Some(v) => v,
         None => {
-            eprintln!("SKIP: no OpenAPI schema found");
             return;
         }
     };
@@ -102,7 +95,6 @@ async fn test_signin_contract() {
     let unique = format!("signin-test-{}", chrono::Utc::now().timestamp());
     let email = format!("{unique}@example.com");
 
-    // Sign up first
     let _ = validator
         .validate_endpoint(
             &rust_gateway_url(),
@@ -129,14 +121,10 @@ async fn test_signin_contract() {
         Ok(body) => {
             assert!(body.get("access_token").is_some());
         }
-        Err(harness::contract::ContractError::Request(_)) => {
-            eprintln!("SKIP: Rust gateway not running");
-        }
+        Err(harness::contract::ContractError::Request(_)) => {}
         Err(e) => panic!("Contract validation failed: {e}"),
     }
 }
-
-// ── Schema unit tests (no live service needed) ───────────────────────────────
 
 #[test]
 fn test_schema_field_resolution() {
@@ -165,7 +153,6 @@ fn test_schema_field_resolution() {
         }
     }));
 
-    // ContractValidator::from_value always succeeds
     drop(validator);
 }
 

@@ -19,8 +19,6 @@ use serde_json::json;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
-// ── Shared setup ─────────────────────────────────────────────────────────────
-
 struct BenchState {
     base_url: String,
     client: reqwest::Client,
@@ -59,8 +57,6 @@ async fn setup() -> BenchState {
     let email = format!("bench-seed-{ts}@bench.test");
     let password = "BenchPassword123!";
 
-    // Seed a user via /register (#350: no tokens returned), then /signin to
-    // get tokens for the signin-dependent benchmarks (/me, refresh, verify).
     let register_resp = client
         .post(format!("{base_url}/api/v2/auth/register"))
         .json(&json!({
@@ -92,8 +88,6 @@ async fn setup() -> BenchState {
         .as_str()
         .expect("bench seed signin missing access_token")
         .to_string();
-    // Refresh token is returned via HttpOnly cookie; for the bench we fetch
-    // it from the Set-Cookie header on a second signin call.
     let signin_for_cookie = client
         .post(format!("{base_url}/api/v2/auth/signin"))
         .json(&json!({ "email": email, "password": password }))
@@ -122,8 +116,6 @@ async fn setup() -> BenchState {
         seeded_access_token: access_token,
     }
 }
-
-// ── Benchmarks ────────────────────────────────────────────────────────────────
 
 fn bench_register(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
@@ -239,14 +231,8 @@ fn bench_refresh(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(10));
     group.sample_size(30);
 
-    // We need a fresh refresh token per iteration because /refresh rotates
-    // (revokes) the previous one. We sign in once per iteration to mint one
-    // — this is the closest we can get without modeling the actual refresh
-    // request in isolation. The signin cost dominates and is reported in
-    // bench_signin; this measures the refresh roundtrip itself.
     group.bench_function("refresh", |b| {
         b.to_async(&rt).iter(|| async {
-            // Mint a fresh refresh token by signing in
             let signin = state
                 .client
                 .post(format!("{}/api/v2/auth/signin", state.base_url))

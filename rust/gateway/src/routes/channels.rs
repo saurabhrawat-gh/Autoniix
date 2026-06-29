@@ -33,8 +33,6 @@ use crate::{
     middleware::Principal,
 };
 
-// ── Trigger cooldown guard ────────────────────────────────────────────────────
-
 const TRIGGER_COOLDOWN_SECS: u64 = 600;
 
 static TRIGGER_COOLDOWN: OnceLock<Mutex<HashMap<String, Instant>>> = OnceLock::new();
@@ -43,12 +41,8 @@ fn trigger_cooldown_map() -> &'static Mutex<HashMap<String, Instant>> {
     TRIGGER_COOLDOWN.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-// ── Route table ─────────────────────────────────────────────────────────────
-
 pub fn routes(pool: PgPool) -> Router {
     Router::new()
-        // Static paths must be registered before /{channel_id} or Axum will
-        // try to parse e.g. "presets" as a channel_id path segment.
         .route("/api/v2/channels/presets", get(list_presets))
         .route("/api/v2/channels/stats", get(get_stats))
         .route(
@@ -60,7 +54,6 @@ pub fn routes(pool: PgPool) -> Router {
             get(get_draft).put(save_draft),
         )
         .route("/api/v2/channels/ai/field-suggest", post(field_suggest))
-        // Config resolution (F2 + F3)
         .route(
             "/api/v2/channels/:channel_id/resolve-config",
             get(resolve_config),
@@ -69,7 +62,6 @@ pub fn routes(pool: PgPool) -> Router {
             "/api/v2/workspace/resolve-provider-chain",
             get(resolve_provider_chain),
         )
-        // CRUD
         .route("/api/v2/channels", get(list_channels).post(create_channel))
         .route(
             "/api/v2/channels/:channel_id",
@@ -77,12 +69,10 @@ pub fn routes(pool: PgPool) -> Router {
         )
         .route("/api/v2/channels/:channel_id/profile", put(upsert_profile))
         .route("/api/v2/channels/:channel_id/export", get(export_channel))
-        // Status actions
         .route("/api/v2/channels/:channel_id/enable", put(enable_channel))
         .route("/api/v2/channels/:channel_id/disable", put(disable_channel))
         .route("/api/v2/channels/:channel_id/archive", put(archive_channel))
         .route("/api/v2/channels/:channel_id/restore", put(restore_channel))
-        // Sub-resources
         .route(
             "/api/v2/channels/:channel_id/pillars",
             get(list_pillars).post(add_pillar),
@@ -111,7 +101,6 @@ pub fn routes(pool: PgPool) -> Router {
             "/api/v2/channels/:channel_id/memory",
             get(list_memory).post(add_memory),
         )
-        // Proxy endpoints (Temporal + brand service)
         .route("/api/v2/channels/:channel_id/trigger", post(proxy_trigger))
         .route("/api/v2/channels/:channel_id/clone", post(proxy_clone))
         .route(
@@ -132,8 +121,6 @@ pub fn routes(pool: PgPool) -> Router {
         )
         .with_state(pool)
 }
-
-// ── Request / response types ─────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
 struct ChannelCreate {
@@ -364,8 +351,6 @@ fn default_enrich() -> bool {
     true
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
 fn require_owner_or_member(p: &Principal) -> ApiResult<()> {
     if p.role == "owner" || p.role == "member" {
         Ok(())
@@ -427,8 +412,6 @@ fn completeness(profile: &Value) -> i32 {
 fn bff_base() -> String {
     std::env::var("PYTHON_BFF_URL").unwrap_or_else(|_| "http://localhost:8020".to_string())
 }
-
-// ── List channels ─────────────────────────────────────────────────────────────
 
 async fn list_channels(
     AuthUser(principal): AuthUser,
@@ -513,7 +496,6 @@ async fn enrich_channel_list(pool: &PgPool, channels: &mut [Value]) {
         return;
     }
 
-    // Stats
     let stat_rows = sqlx::query(
         r#"SELECT channel_id,
                   COUNT(*) FILTER (WHERE status IN ('delivered','test_delivered')) AS delivered,
@@ -538,7 +520,6 @@ async fn enrich_channel_list(pool: &PgPool, channels: &mut [Value]) {
         stats_map.insert(cid, (d, ip, t));
     }
 
-    // Weekly usage
     let weekly_rows = sqlx::query(
         r#"SELECT channel_id,
                   COUNT(*) FILTER (WHERE content_mode = 'short'
@@ -564,7 +545,6 @@ async fn enrich_channel_list(pool: &PgPool, channels: &mut [Value]) {
         weekly_map.insert(cid, (s, l));
     }
 
-    // Active jobs
     let job_rows = sqlx::query(
         r#"SELECT DISTINCT ON (channel_id, content_mode)
                   channel_id, content_id, status, content_mode
@@ -629,8 +609,6 @@ async fn enrich_channel_list(pool: &PgPool, channels: &mut [Value]) {
     }
 }
 
-// ── Presets ───────────────────────────────────────────────────────────────────
-
 async fn list_presets(
     AuthUser(_): AuthUser,
     State(pool): State<PgPool>,
@@ -658,8 +636,6 @@ async fn list_presets(
 
     Ok((StatusCode::OK, Json(json!({"data": data}))))
 }
-
-// ── Stats ─────────────────────────────────────────────────────────────────────
 
 async fn get_stats(
     AuthUser(principal): AuthUser,
@@ -746,8 +722,6 @@ async fn get_stats(
     ))
 }
 
-// ── Create channel ────────────────────────────────────────────────────────────
-
 async fn create_channel(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
@@ -777,7 +751,6 @@ async fn create_channel(
         .clone()
         .unwrap_or_else(|| new_channel_id(&body.channel_name));
 
-    // Load preset if specified
     let preset_payload: Value = if let Some(ref preset_name) = body.preset {
         sqlx::query("SELECT payload FROM channel_presets WHERE name=$1")
             .bind(preset_name)
@@ -812,7 +785,6 @@ async fn create_channel(
 
     let mut tx = pool.begin().await.map_err(ApiError::Database)?;
 
-    // Check for duplicate
     let exists: Option<i64> = sqlx::query_scalar("SELECT 1 FROM channels WHERE channel_id=$1")
         .bind(&channel_id)
         .fetch_optional(&mut *tx)
@@ -896,7 +868,6 @@ async fn create_channel(
     .await
     .map_err(ApiError::Database)?;
 
-    // Build profile payload from body fields
     let mut profile_payload = match body.extra {
         Value::Object(ref m) => m.clone(),
         _ => serde_json::Map::new(),
@@ -994,7 +965,6 @@ async fn create_channel(
     .await
     .map_err(ApiError::Database)?;
 
-    // Pillars
     for (i, p) in body.pillars.iter().enumerate() {
         sqlx::query(
             r#"INSERT INTO channel_pillars (channel_id, name, description, weight, examples, position)
@@ -1011,7 +981,6 @@ async fn create_channel(
         .map_err(ApiError::Database)?;
     }
 
-    // Topic rules
     for r in &body.topic_rules {
         let kind = r.get("kind").and_then(|v| v.as_str()).unwrap_or("");
         let value = r.get("value").and_then(|v| v.as_str()).unwrap_or("");
@@ -1030,7 +999,6 @@ async fn create_channel(
         }
     }
 
-    // References
     for r in &body.references {
         let kind = r.get("kind").and_then(|v| v.as_str()).unwrap_or("");
         if !kind.is_empty() {
@@ -1074,8 +1042,6 @@ async fn create_channel(
         Json(json!({"status": "ok", "channel_id": channel_id})),
     ))
 }
-
-// ── Get channel ───────────────────────────────────────────────────────────────
 
 async fn get_channel(
     AuthUser(principal): AuthUser,
@@ -1195,8 +1161,6 @@ async fn get_channel(
     ))
 }
 
-// ── Patch channel ─────────────────────────────────────────────────────────────
-
 async fn patch_channel(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
@@ -1206,7 +1170,6 @@ async fn patch_channel(
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&principal)?;
 
-    // Build a dynamic UPDATE from only non-null fields
     let update_body = serde_json::to_value(&body).unwrap_or(Value::Null);
     let has_updates = update_body
         .as_object()
@@ -1217,7 +1180,6 @@ async fn patch_channel(
         return Ok((StatusCode::OK, Json(json!({"status": "noop"}))));
     }
 
-    // Fetch before state for audit log + 404 guard
     let before_row = sqlx::query(
         "SELECT channel_name, niche, sub_niche, status, auto_upload, human_review_required, \
                 handle, description, tone, brand_personality FROM channels \
@@ -1248,7 +1210,6 @@ async fn patch_channel(
         })
     };
 
-    // Build query with COALESCE-based selective update for all patchable columns
     sqlx::query(
         r#"UPDATE channels SET
             channel_name         = COALESCE($2, channel_name),
@@ -1346,8 +1307,6 @@ async fn patch_channel(
     Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
 }
 
-// ── Upsert profile ────────────────────────────────────────────────────────────
-
 async fn upsert_profile(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
@@ -1400,8 +1359,6 @@ async fn upsert_profile(
         Json(json!({"status": "ok", "completeness_score": score})),
     ))
 }
-
-// ── Status actions ────────────────────────────────────────────────────────────
 
 async fn set_channel_status(
     pool: &PgPool,
@@ -1517,8 +1474,6 @@ async fn restore_channel(
     .await
 }
 
-// ── Hard delete ───────────────────────────────────────────────────────────────
-
 async fn delete_channel(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
@@ -1539,7 +1494,6 @@ async fn delete_channel(
         .parse()
         .map_err(|_| ApiError::ForbiddenWith("No user context".to_string()))?;
 
-    // Re-verify password
     let user = sqlx::query("SELECT password_hash FROM users WHERE id=$1")
         .bind(user_id)
         .fetch_optional(&pool)
@@ -1554,7 +1508,6 @@ async fn delete_channel(
         return Err(ApiError::ForbiddenWith("wrong_password".to_string()));
     }
 
-    // Workspace isolation
     let channel = sqlx::query(
         r#"SELECT channel_id, channel_name, niche, platform, status, workspace_id, created_at
              FROM channels WHERE channel_id=$1"#,
@@ -1570,7 +1523,6 @@ async fn delete_channel(
         return Err(ApiError::NotFound("channel_not_found".to_string()));
     }
 
-    // Block if videos exist
     let video_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM videos WHERE channel_id=$1")
         .bind(&channel_id)
         .fetch_one(&pool)
@@ -1582,7 +1534,6 @@ async fn delete_channel(
         )));
     }
 
-    // Check YouTube linkage
     let yt_linked: Option<i64> = sqlx::query_scalar(
         "SELECT 1 FROM provider_credentials WHERE channel_id=$1 AND category='youtube' LIMIT 1",
     )
@@ -1639,8 +1590,6 @@ async fn delete_channel(
         Json(json!({"status": "ok", "data": {"deleted": true, "channel_id": channel_id}})),
     ))
 }
-
-// ── Pillars ───────────────────────────────────────────────────────────────────
 
 async fn add_pillar(
     AuthUser(principal): AuthUser,
@@ -1754,8 +1703,6 @@ async fn delete_pillar(
     Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
 }
 
-// ── Topic rules ───────────────────────────────────────────────────────────────
-
 async fn add_topic_rule(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
@@ -1831,8 +1778,6 @@ async fn delete_topic_rule(
     Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
 }
 
-// ── References ────────────────────────────────────────────────────────────────
-
 async fn add_reference(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
@@ -1903,8 +1848,6 @@ async fn delete_reference(
     Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
 }
 
-// ── Memory ────────────────────────────────────────────────────────────────────
-
 async fn add_memory(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
@@ -1939,8 +1882,6 @@ async fn add_memory(
 
     Ok((StatusCode::OK, Json(json!({"status": "ok", "id": mid}))))
 }
-
-// ── Drafts ────────────────────────────────────────────────────────────────────
 
 async fn create_draft(
     AuthUser(principal): AuthUser,
@@ -2019,8 +1960,6 @@ async fn get_draft(
         })),
     ))
 }
-
-// ── Sub-resource list endpoints ───────────────────────────────────────────────
 
 async fn list_pillars(
     AuthUser(principal): AuthUser,
@@ -2207,8 +2146,6 @@ async fn list_drafts(
     Ok((StatusCode::OK, Json(json!({"data": data}))))
 }
 
-// ── Export ────────────────────────────────────────────────────────────────────
-
 async fn export_channel(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
@@ -2305,11 +2242,6 @@ async fn export_channel(
     ))
 }
 
-// ── Field suggest (heuristic) ─────────────────────────────────────────────────
-//
-// Divergence: Python calls the LLM router. Rust returns heuristics only.
-// Tracked in divergence_registry: channels.field_suggest.llm_vs_heuristic
-
 async fn field_suggest(
     AuthUser(_): AuthUser,
     Json(body): Json<FieldSuggestIn>,
@@ -2356,8 +2288,6 @@ fn heuristic_suggest(field: &str, niche: &str, name: &str) -> String {
         ),
     }
 }
-
-// ── Proxy helpers ─────────────────────────────────────────────────────────────
 
 async fn proxy_post(
     url: &str,
@@ -2418,8 +2348,6 @@ async fn proxy_put(
     Ok((status, Json(body)))
 }
 
-// ── Proxy endpoints ───────────────────────────────────────────────────────────
-
 async fn proxy_trigger(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
@@ -2429,7 +2357,6 @@ async fn proxy_trigger(
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&principal)?;
 
-    // Per-channel cooldown: reject if same channel was triggered within TRIGGER_COOLDOWN_SECS
     let cooldown_key = format!(
         "{}:{}",
         channel_id,
@@ -2638,15 +2565,6 @@ async fn proxy_put_brand_kit(
     Ok(result)
 }
 
-// ── F2: Cascade config resolution ────────────────────────────────────────────
-//
-// GET /api/v2/channels/:channel_id/resolve-config?content_mode=short
-//
-// Returns merged entity_settings for the 4-level hierarchy:
-//   system → workspace → channel → content_mode
-// Most-specific value wins (content_mode overrides channel overrides workspace
-// overrides system). The response is a flat key→{value,scope} map.
-
 #[derive(Debug, Deserialize)]
 struct ResolveConfigQuery {
     content_mode: Option<String>,
@@ -2658,7 +2576,6 @@ async fn resolve_config(
     Path(channel_id): Path<String>,
     Query(q): Query<ResolveConfigQuery>,
 ) -> ApiResult<impl IntoResponse> {
-    // Verify channel belongs to this workspace
     let exists = sqlx::query("SELECT 1 FROM channels WHERE channel_id=$1 AND workspace_id=$2")
         .bind(&channel_id)
         .bind(principal.wid)
@@ -2675,7 +2592,6 @@ async fn resolve_config(
         .as_deref()
         .map(|cm| format!("{}:{}", channel_id, cm));
 
-    // Query all 4 scope levels in one pass, ordered by specificity (system=0 … content_mode=3)
     let scope_id_str = principal.wid.to_string();
     let rows = sqlx::query(
         r#"SELECT key, value,
@@ -2701,7 +2617,6 @@ async fn resolve_config(
     .await
     .map_err(ApiError::Database)?;
 
-    // Merge: later rows (higher priority) overwrite earlier ones
     let mut resolved: std::collections::HashMap<String, Value> = std::collections::HashMap::new();
 
     for row in &rows {
@@ -2719,17 +2634,6 @@ async fn resolve_config(
     })))
 }
 
-// ── F3: System-level provider chain resolver ──────────────────────────────────
-//
-// GET /api/v2/workspace/resolve-provider-chain?category=llm&content_mode=short
-//
-// Returns the effective ordered provider chain for a given (category, content_mode)
-// respecting the fallback hierarchy:
-//   content_mode-scoped channel chain
-//     → channel-scoped chain
-//     → workspace chain
-//     → system chain (F3 addition — ultimate fallback)
-
 #[derive(Debug, Deserialize)]
 struct ResolveChainQuery {
     category: String,
@@ -2742,9 +2646,6 @@ async fn resolve_provider_chain(
     State(pool): State<PgPool>,
     Query(q): Query<ResolveChainQuery>,
 ) -> ApiResult<impl IntoResponse> {
-    // Build candidate queries from most-specific to least-specific.
-    // We pick the first scope level that has at least one row.
-
     struct ScopeAttempt {
         scope: &'static str,
         scope_id: Option<String>,
@@ -2755,7 +2656,6 @@ async fn resolve_provider_chain(
     let attempts: Vec<ScopeAttempt> = {
         let mut v = Vec::new();
 
-        // 1. channel + content_mode (most specific)
         if let (Some(ref cid), Some(ref cm)) = (&q.channel_id, &q.content_mode) {
             v.push(ScopeAttempt {
                 scope: "channel",
@@ -2764,7 +2664,6 @@ async fn resolve_provider_chain(
                 content_mode: Some(cm.clone()),
             });
         }
-        // 2. channel-only
         if let Some(ref cid) = q.channel_id {
             v.push(ScopeAttempt {
                 scope: "channel",
@@ -2773,7 +2672,6 @@ async fn resolve_provider_chain(
                 content_mode: None,
             });
         }
-        // 3. workspace + content_mode
         if let Some(ref cm) = q.content_mode {
             v.push(ScopeAttempt {
                 scope: "workspace",
@@ -2782,14 +2680,12 @@ async fn resolve_provider_chain(
                 content_mode: Some(cm.clone()),
             });
         }
-        // 4. workspace-only
         v.push(ScopeAttempt {
             scope: "workspace",
             scope_id: None,
             workspace_id: Some(principal.wid),
             content_mode: None,
         });
-        // 5. system + content_mode  (F3)
         if let Some(ref cm) = q.content_mode {
             v.push(ScopeAttempt {
                 scope: "system",
@@ -2798,7 +2694,6 @@ async fn resolve_provider_chain(
                 content_mode: Some(cm.clone()),
             });
         }
-        // 6. system-only  (F3 ultimate fallback)
         v.push(ScopeAttempt {
             scope: "system",
             scope_id: None,
@@ -2860,7 +2755,6 @@ async fn resolve_provider_chain(
         })));
     }
 
-    // No chain found at any scope level
     Ok(Json(json!({
         "category":     q.category,
         "content_mode": q.content_mode,

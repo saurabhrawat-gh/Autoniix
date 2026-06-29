@@ -56,7 +56,6 @@ async fn send_deletion_emails(
     event: DeletionEmailEvent,
     scheduled_at: Option<DateTime<Utc>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Idempotency check — skip if we already sent this event.
     let already_sent: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM workspace_deletion_notifications \
          WHERE workspace_id = $1 AND event_type = $2)",
@@ -75,7 +74,6 @@ async fn send_deletion_emails(
         return Ok(());
     }
 
-    // Collect member emails.
     let members: Vec<(String,)> = sqlx::query_as(
         "SELECT u.email \
          FROM workspace_members wm \
@@ -146,7 +144,6 @@ async fn send_deletion_emails(
         }
     }
 
-    // Record the send so retries are idempotent.
     sqlx::query(
         "INSERT INTO workspace_deletion_notifications (workspace_id, event_type) \
          VALUES ($1, $2) \

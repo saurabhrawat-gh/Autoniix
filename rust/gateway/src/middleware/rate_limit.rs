@@ -22,7 +22,7 @@ use axum::{
 };
 
 const MAX_ATTEMPTS: usize = 5;
-const WINDOW: Duration = Duration::from_secs(15 * 60); // 15 minutes
+const WINDOW: Duration = Duration::from_secs(15 * 60);
 
 #[derive(Clone, Default)]
 pub struct InviteRateLimiter {
@@ -44,7 +44,6 @@ impl InviteRateLimiter {
 
         let attempts = map.entry(ip.to_string()).or_default();
 
-        // Prune timestamps that have fallen outside the sliding window.
         attempts.retain(|t| now.duration_since(*t) < WINDOW);
 
         if attempts.len() >= MAX_ATTEMPTS {

@@ -98,7 +98,6 @@ fn generate_content(req: &ChatRequest) -> String {
         .join(" ")
         .to_lowercase();
 
-    // JSON format requested
     if req
         .response_format
         .as_ref()

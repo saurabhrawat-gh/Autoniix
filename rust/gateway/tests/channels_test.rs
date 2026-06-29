@@ -8,8 +8,6 @@ mod common;
 
 use serde_json::json;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 async fn cleanup_channel(h: &common::harness::GatewayHarness, channel_id: &str) {
     let _ = sqlx::query("DELETE FROM channel_memory WHERE channel_id=$1")
         .bind(channel_id)
@@ -37,15 +35,12 @@ async fn cleanup_channel(h: &common::harness::GatewayHarness, channel_id: &str) 
         .await;
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
-
 #[tokio::test]
 async fn test_create_and_list_channels() {
     let h = common::harness::GatewayHarness::new().await;
     let email = common::harness::GatewayHarness::unique_email("ch-create");
     let token = h.signup_and_get_token(&email, "Test1234!").await;
 
-    // Create
     let resp = h
         .post_auth(
             "/api/v2/channels",
@@ -63,7 +58,6 @@ async fn test_create_and_list_channels() {
     assert_eq!(body["status"], "ok");
     let channel_id = body["channel_id"].as_str().unwrap().to_string();
 
-    // List
     let list_resp = h.get_auth("/api/v2/channels", &token).await;
     assert_eq!(list_resp.status(), 200);
     let list: serde_json::Value = list_resp.json().await.unwrap();
@@ -83,7 +77,6 @@ async fn test_get_channel_full_bundle() {
     let email = common::harness::GatewayHarness::unique_email("ch-get");
     let token = h.signup_and_get_token(&email, "Test1234!").await;
 
-    // Create with pillar and topic rule
     let create = h
         .post_auth(
             "/api/v2/channels",
@@ -100,7 +93,6 @@ async fn test_get_channel_full_bundle() {
     let create_body: serde_json::Value = create.json().await.unwrap();
     let channel_id = create_body["channel_id"].as_str().unwrap().to_string();
 
-    // Get full bundle
     let resp = h
         .get_auth(&format!("/api/v2/channels/{channel_id}"), &token)
         .await;
@@ -139,7 +131,6 @@ async fn test_patch_channel() {
         .unwrap();
     let channel_id = create["channel_id"].as_str().unwrap().to_string();
 
-    // Patch
     let patch = h
         .client
         .put(format!("{}/api/v2/channels/{channel_id}", h.base_url))
@@ -152,7 +143,6 @@ async fn test_patch_channel() {
     let patch_body: serde_json::Value = patch.json().await.unwrap();
     assert_eq!(patch_body["status"], "ok");
 
-    // Verify
     let get: serde_json::Value = h
         .get_auth(&format!("/api/v2/channels/{channel_id}"), &token)
         .await
@@ -235,7 +225,6 @@ async fn test_pillars_crud() {
         .unwrap();
     let channel_id = create["channel_id"].as_str().unwrap().to_string();
 
-    // Add pillar
     let add: serde_json::Value = h
         .post_auth(
             &format!("/api/v2/channels/{channel_id}/pillars"),
@@ -249,7 +238,6 @@ async fn test_pillars_crud() {
     assert_eq!(add["status"], "ok");
     let pillar_id = add["id"].as_i64().unwrap();
 
-    // Update pillar
     let upd = h
         .client
         .put(format!(
@@ -263,7 +251,6 @@ async fn test_pillars_crud() {
         .unwrap();
     assert_eq!(upd.status(), 200);
 
-    // Delete pillar
     let del = h
         .client
         .delete(format!(
@@ -298,7 +285,6 @@ async fn test_topic_rules_and_references() {
         .unwrap();
     let channel_id = create["channel_id"].as_str().unwrap().to_string();
 
-    // Topic rule
     let rule: serde_json::Value = h
         .post_auth(
             &format!("/api/v2/channels/{channel_id}/topic-rules"),
@@ -324,7 +310,6 @@ async fn test_topic_rules_and_references() {
         .unwrap();
     assert_eq!(del_rule.status(), 200);
 
-    // Reference
     let reference: serde_json::Value = h
         .post_auth(
             &format!("/api/v2/channels/{channel_id}/references"),
@@ -360,7 +345,6 @@ async fn test_drafts_lifecycle() {
     let email = common::harness::GatewayHarness::unique_email("ch-drafts");
     let token = h.signup_and_get_token(&email, "Test1234!").await;
 
-    // Create draft
     let create: serde_json::Value = h
         .post_auth(
             "/api/v2/channels/drafts",
@@ -374,7 +358,6 @@ async fn test_drafts_lifecycle() {
     assert_eq!(create["status"], "ok");
     let draft_id = create["id"].as_i64().unwrap();
 
-    // Save draft
     let save = h
         .client
         .put(format!("{}/api/v2/channels/drafts/{draft_id}", h.base_url))
@@ -385,7 +368,6 @@ async fn test_drafts_lifecycle() {
         .unwrap();
     assert_eq!(save.status(), 200);
 
-    // Get draft
     let get: serde_json::Value = h
         .get_auth(&format!("/api/v2/channels/drafts/{draft_id}"), &token)
         .await
@@ -398,7 +380,6 @@ async fn test_drafts_lifecycle() {
         "Draft Channel Step 2"
     );
 
-    // Cleanup draft
     let _ = sqlx::query("DELETE FROM channel_drafts WHERE id=$1")
         .bind(draft_id)
         .execute(&h.pool)
@@ -471,7 +452,6 @@ async fn test_list_channels_excludes_archived_by_default() {
         .unwrap();
     let channel_id = create["channel_id"].as_str().unwrap().to_string();
 
-    // Archive it
     h.client
         .put(format!(
             "{}/api/v2/channels/{channel_id}/archive",
@@ -482,7 +462,6 @@ async fn test_list_channels_excludes_archived_by_default() {
         .await
         .unwrap();
 
-    // Default list should NOT include it
     let list: serde_json::Value = h
         .get_auth("/api/v2/channels", &token)
         .await
@@ -495,7 +474,6 @@ async fn test_list_channels_excludes_archived_by_default() {
         "archived channel should be hidden from default list"
     );
 
-    // include_archived=true should include it
     let list_all: serde_json::Value = h
         .get_auth("/api/v2/channels?include_archived=true", &token)
         .await
@@ -511,8 +489,6 @@ async fn test_list_channels_excludes_archived_by_default() {
     cleanup_channel(&h, &channel_id).await;
     h.cleanup().await;
 }
-
-// ── AE-603: content_type_tags + resolve endpoints ────────────────────────────
 
 #[tokio::test]
 async fn test_content_type_tags_roundtrip() {
@@ -634,7 +610,6 @@ async fn test_resolve_config_smoke() {
         .unwrap();
     let channel_id = create["channel_id"].as_str().unwrap().to_string();
 
-    // Without content_mode
     let resp = h
         .get_auth(
             &format!("/api/v2/channels/{channel_id}/resolve-config"),
@@ -646,7 +621,6 @@ async fn test_resolve_config_smoke() {
     assert_eq!(body["channel_id"], channel_id, "channel_id echoed back");
     assert!(body["resolved"].is_object(), "resolved should be an object");
 
-    // With content_mode=short
     let resp2 = h
         .get_auth(
             &format!("/api/v2/channels/{channel_id}/resolve-config?content_mode=short"),
@@ -684,7 +658,6 @@ async fn test_resolve_provider_chain_smoke() {
     let email = common::harness::GatewayHarness::unique_email("ch-chain");
     let token = h.signup_and_get_token(&email, "Test1234!").await;
 
-    // No provider_chains_v2 rows for this workspace — chain should be empty, not an error
     let resp = h
         .get_auth(
             "/api/v2/workspace/resolve-provider-chain?category=llm",
