@@ -38,17 +38,8 @@ from src.services.brain.reflector import run_reflector_loop
 from src.services.brain.resolver import run_resolver_loop
 from src.services.brain.scorer import run_scorer_loop
 
-# Register BrainAgent with the agentic framework at import time so any
-# component that asks ``AgentRegistry.get("brain")`` gets a working instance.
 AgentRegistry.register(BrainAgent())
-# CriticAgent rides along in the Brain process so the critique phase
-# in BaseAgent.run() finds it via the registry. It costs nothing when
-# the ``critic.enabled`` / ``brain.critic_review.enabled`` flags are off.
 AgentRegistry.register(CriticAgent())
-# PreventorAgent — pre-execution risk gate. No-op while
-# ``preventor.enabled`` is FALSE (default), so cohabiting in the
-# Brain process is free; a future P2 split-out can move it to its own
-# service without touching callers (registry lookup is unchanged).
 AgentRegistry.register(PreventorAgent())
 
 logger = structlog.get_logger()
@@ -57,9 +48,6 @@ _HEALTH_PORT = int(os.getenv("BRAIN_PORT", "8015"))
 _RESOLVER_INTERVAL_S = int(os.getenv("BRAIN_RESOLVER_INTERVAL_S", "3600"))
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Health endpoint
-# ─────────────────────────────────────────────────────────────────────────────
 
 health_app = FastAPI(title="Brain Service", version="0.1.0")
 
@@ -121,9 +109,6 @@ async def resolve_decision(decision_id: int, reason: str = "manual"):
     return {"resolved": True, "decision_id": row["id"]}
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Main runner
-# ─────────────────────────────────────────────────────────────────────────────
 
 async def _run_all() -> None:
     stop_event = asyncio.Event()
@@ -157,16 +142,9 @@ async def _run_all() -> None:
         await run_resolver_loop(interval_s=_RESOLVER_INTERVAL_S, stop_event=stop_event)
 
     async def _run_reflector():
-        # Interval is read from the ``brain.reflector.interval_hours``
-        # flag each loop so operators can speed up tuning without
-        # restarting the service. The reflector itself no-ops when
-        # ``brain.reflector.enabled`` is FALSE (default).
         await run_reflector_loop(stop_event=stop_event)
 
     async def _run_scorer():
-        # OutcomeScorer back-fills brain_decisions.outcome_score so the
-        # Reflector has data to mine. No-op when
-        # ``brain.scorer.enabled`` is FALSE (default).
         await run_scorer_loop(stop_event=stop_event)
 
     async def _shutdown_health():

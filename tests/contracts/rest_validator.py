@@ -78,12 +78,10 @@ class RESTValidator:
             )
             return None
         
-        # Extract schema from response definition
         content = response_def.get("content", {})
         json_content = content.get("application/json", {})
         schema = json_content.get("schema", {})
         
-        # Resolve $ref if present
         if "$ref" in schema:
             schema = self._resolve_ref(schema["$ref"])
         

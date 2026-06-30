@@ -9,7 +9,6 @@ from src.providers.registry import ProviderRegistry
 
 logger = structlog.get_logger()
 
-# Unsplash API: Free tier (50 requests/hour)
 COST_PER_SEARCH = 0.0
 
 
@@ -27,7 +26,6 @@ class UnsplashStock(StockProvider):
         }
 
         endpoint = "/search/photos" if request.media_type == "image" else None
-        # Unsplash doesn't have a video search API in the free tier
 
         if not endpoint:
             return StockResult(

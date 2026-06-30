@@ -36,7 +36,6 @@ PYTHON_URL = os.getenv("PYTHON_DASHBOARD_URL") or "http://localhost:8000"
 
 
 def unique_email(label: str) -> str:
-    # Use ns precision + a label to keep emails unique across parametrize runs
     return f"{label}-{time.time_ns()}@rollback.test"
 
 
@@ -71,7 +70,6 @@ def skip_unless_both_up(rust: httpx.Client, py: httpx.Client) -> None:
     _skip_if_unavailable(py, PYTHON_URL, "/health")
 
 
-# ── Helpers: register + signin via each service ───────────────────────────────
 
 WS_NAME = "Rollback WS"
 
@@ -134,7 +132,6 @@ def _python_login(client: httpx.Client, email: str, password: str) -> dict:
     return body
 
 
-# ── TC-RB-01: Rust-created user can log in via Python (Rust → Python rollback) ──
 
 def test_rust_user_can_login_via_python(rust_client, python_client):
     """User registered via Rust must be able to log in via Python after a
@@ -155,7 +152,6 @@ def test_rust_user_can_login_via_python(rust_client, python_client):
     )
 
 
-# ── TC-RB-02: Python-created user can sign in via Rust (forward migration) ──
 
 def test_python_user_can_signin_via_rust(rust_client, python_client):
     """User registered via Python must be able to sign in via Rust after
@@ -175,7 +171,6 @@ def test_python_user_can_signin_via_rust(rust_client, python_client):
     )
 
 
-# ── TC-RB-03: Rust-issued JWT accepted by Python /me (shared secret) ─────────
 
 def test_rust_jwt_accepted_by_python_me(rust_client, python_client):
     """JWT issued by Rust /signin must be accepted by Python /me.
@@ -206,7 +201,6 @@ def test_rust_jwt_accepted_by_python_me(rust_client, python_client):
     )
 
 
-# ── TC-RB-04: Python-issued JWT accepted by Rust /me (reverse direction) ────
 
 def test_python_jwt_accepted_by_rust_me(rust_client, python_client):
     """JWT issued by Python /login must be accepted by Rust /me. During
@@ -238,7 +232,6 @@ def test_python_jwt_accepted_by_rust_me(rust_client, python_client):
     )
 
 
-# ── TC-RB-05: Refresh token issued by Rust can be rotated via Python ───────
 
 def test_rust_refresh_token_rotates_via_python(rust_client, python_client):
     """Opaque refresh tokens written to the sessions table by Rust must be
@@ -278,7 +271,6 @@ def test_rust_refresh_token_rotates_via_python(rust_client, python_client):
     assert body.get("access_token"), "Python /refresh must return a new access_token"
 
 
-# ── TC-RB-06: Feature flag flip is observable via /auth/mode ──────────────
 
 def test_auth_mode_endpoint_reports_flag_state(rust_client, python_client):
     """The kill-switch flag (auth.v2.enabled) must be queryable via
@@ -302,8 +294,6 @@ def test_auth_mode_endpoint_reports_flag_state(rust_client, python_client):
     assert "v2_enabled" in py_body
     assert "legacy_enabled" in py_body
 
-    # Both services read from the same feature_flags table — their view
-    # of the kill-switch must be identical at any point in time.
     assert rust_body["v2_enabled"] == py_body["v2_enabled"], (
         f"Rust and Python disagree on auth.v2.enabled: "
         f"rust={rust_body['v2_enabled']} python={py_body['v2_enabled']}. "

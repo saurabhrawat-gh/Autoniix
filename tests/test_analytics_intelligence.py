@@ -9,8 +9,6 @@ from unittest.mock import AsyncMock
 
 from tests.conftest import FakeRecord
 
-# Pattern miner functions are all async and DB-dependent.
-# We test the logic by mocking the DB pool responses.
 
 from src.services.analytics.pattern_miner import mine_performance_patterns
 

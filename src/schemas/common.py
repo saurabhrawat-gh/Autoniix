@@ -8,7 +8,6 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
-# Enums
 
 class ContentMode(str, Enum):
     long_form = "long_form"
@@ -36,7 +35,6 @@ class VideoStatus(str, Enum):
     rejected = "rejected"
 
 
-# Pydantic Models (API boundaries)
 
 class ServiceResponse(BaseModel):
     status: str = "success"
@@ -70,7 +68,6 @@ class ResearchResponse(BaseModel):
     competitor_analysis: dict = {}
 
 
-# Dataclasses (Temporal payloads — native serialization)
 
 @dataclass
 class VideoParams:

@@ -35,7 +35,6 @@ from src.observability.metrics import instrument_app
 from src.observability.sentry import init_sentry
 from src.services.dashboard._limiter import limiter
 
-# Initialize Sentry as early as possible. No-op when SENTRY_DSN is unset.
 init_sentry("dashboard-bff")
 
 logger = structlog.get_logger()
@@ -94,7 +93,6 @@ def _public_url(video_url: str) -> str:
     """
     if not video_url:
         return ""
-    # External URL (e.g. YouTube) → return as-is
     if "minio:9000" not in video_url and "://minio" not in video_url \
        and "localhost:9000" not in video_url:
         return video_url
@@ -110,39 +108,22 @@ def _public_url(video_url: str) -> str:
         except Exception as exc:
             logger.warning("dashboard.presign_failed", key=key, error=str(exc))
 
-    # Fallback: best-effort host substitution (requires public bucket policy)
     if settings.s3_public_base_url:
         return f"{settings.s3_public_base_url.rstrip('/')}/{key}"
     return video_url.replace("minio:9000", "localhost:9000")
 
 
-# Backwards-compat alias
 _generate_download_url = _public_url
 
 
 app = FastAPI(title="Dashboard BFF", version="1.0.0")
 instrument_app(app, service_name="dashboard")
 
-# Register all provider classes (openai, claude, gemini, fish-audio, …)
-# at boot so the /providers/models endpoint and credential creation
-# flow see the live registry instead of an empty one. Without this,
-# the UI shows "PROVIDER NOT REGISTERED" badges and validation falls
-# open. Lazy-imported in some endpoints, but doing it here removes
-# the surprise.
 import src.providers.boot  # noqa: E402, F401
 
-# Rate limiter — uses client IP extracted by get_remote_address.
-# In production behind Traefik, set X-Forwarded-For so the real
-# client IP is used instead of the proxy IP.
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Mount v2 router (Phase 0+ revamp). Strictly additive: every existing
-# /api/... endpoint below keeps its contract.
-#
-# In non-prod we re-raise so import failures (missing deps, syntax errors,
-# wrong port maps) fail the boot loudly — the previous silent ``warning``
-# trap hid two real bugs in May 2026 and cost ~30 min of debugging each.
 _v2_router_loaded = False
 try:
     from src.services.dashboard.v2 import router as _v2_router
@@ -151,9 +132,6 @@ try:
 except Exception as _exc:
     logger.warning("dashboard.v2_router_disabled", error=str(_exc))
 
-# CORS allowlist — never use wildcard with allow_credentials=True
-# (browsers reject it and it's a real CSRF surface). Configure per-deploy
-# via ALLOWED_ORIGINS="https://app.example.com,https://staging.example.com".
 _allowed_origins = [
     o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
     if o.strip()
@@ -168,7 +146,6 @@ app.add_middleware(
 
 security = HTTPBearer(auto_error=False)
 
-# Production secret guard
 _INSECURE_SECRET_DEFAULTS: frozenset[str] = frozenset({
     "change_me_to_64_char_random_string_here_now",
     "dev-insecure-change-me",
@@ -212,12 +189,10 @@ async def _check_production_secrets() -> None:
     logger.info("startup.secrets_ok")
 
 
-# Session store (in-memory, single user)
-_sessions: dict[str, float] = {}  # token -> expiry_timestamp
+_sessions: dict[str, float] = {}
 SESSION_TTL_HOURS = 24
 
 
-# Helpers
 
 _temporal_client_cache: TemporalClient | None = None
 _temporal_client_lock = asyncio.Lock()
@@ -274,7 +249,6 @@ async def verify_token(creds: HTTPAuthorizationCredentials | None = Depends(secu
     if creds is None:
         raise HTTPException(status_code=401, detail="Missing authorization header")
     token = creds.credentials
-    # Accept v2 JWTs (forwarded by the v2 proxy layer for cookie-auth users)
     if token.count(".") == 2 and token.startswith("ey"):
         try:
             import jwt as _jwt
@@ -283,7 +257,6 @@ async def verify_token(creds: HTTPAuthorizationCredentials | None = Depends(secu
             return token
         except Exception:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
-    # Legacy in-memory session token
     expiry = _sessions.get(token)
     if expiry is None or expiry < time.time():
         _sessions.pop(token, None)
@@ -291,7 +264,6 @@ async def verify_token(creds: HTTPAuthorizationCredentials | None = Depends(secu
     return token
 
 
-# Pydantic Models
 
 class LoginRequest(BaseModel):
     password: str
@@ -314,7 +286,6 @@ class ChannelCreateRequest(BaseModel):
     schedule_enabled: bool = True
     human_review_required: str = "first_10"
     max_daily_api_spend: float = 5.00
-    # Brand DNA (optional — generated via /generate-brand-dna or filled by user)
     belief_territory: str | None = None
     intellectual_lens: str | None = None
     topic_domain: str | None = None
@@ -327,10 +298,6 @@ class ChannelCreateRequest(BaseModel):
     thumbnail_style: str | None = None
     primary_color: str | None = None
     forbidden_words: str | None = None
-    # Phase 5 — niche-template wizard can seed a starter topics queue.
-    # Stored as a comma-separated string in the legacy `topics_queue`
-    # column (TEXT) to match the existing schema; downstream services
-    # already split on commas.
     starter_topics: list[str] | None = None
 
 class BrandDnaRequest(BaseModel):
@@ -368,7 +335,6 @@ class R(BaseModel):
     error: str | None = None
 
 
-# Health
 
 async def _probe_db(timeout_s: float = 1.0) -> bool:
     try:
@@ -495,7 +461,6 @@ async def deploy_status():
     }
 
 
-# Auth
 
 @app.post("/api/auth/login", response_model=LoginResponse)
 @limiter.limit("10/minute")
@@ -520,7 +485,6 @@ async def me(token: str = Depends(verify_token)):
     return R(status="ok", data={"user": "admin"})
 
 
-# Channels
 
 @app.get("/api/channels", deprecated=True)
 async def list_channels(
@@ -539,19 +503,15 @@ async def list_channels(
         f"human_review_required, max_daily_api_spend, environment, "
         f"created_at FROM channels {status_filter} ORDER BY channel_id"
     )
-    # Batch-query Temporal for paused state — bounded so a slow Temporal
-    # cluster cannot stall the channels list endpoint.
     _paused_wf_map = await _list_paused_workflows(timeout_s=2.0)
 
     channels = []
     for r in rows:
-        # Get latest video for this channel
         last_video = await pool.fetchrow(
             "SELECT content_id, status, title, total_cost, created_at "
             "FROM videos WHERE channel_id = $1 ORDER BY created_at DESC LIMIT 1",
             r["channel_id"],
         )
-        # Get counts
         counts = await pool.fetchrow(
             "SELECT COUNT(*) FILTER (WHERE status IN ('delivered','test_delivered')) as delivered, "
             "COUNT(*) FILTER (WHERE status NOT IN ('delivered','test_delivered','failed','stopped','superseded','rejected')) as in_progress, "
@@ -559,7 +519,6 @@ async def list_channels(
             "FROM videos WHERE channel_id = $1",
             r["channel_id"],
         )
-        # Weekly usage: how many videos produced this week per content mode
         weekly = await pool.fetchrow(
             "SELECT "
             "COUNT(*) FILTER (WHERE content_mode = 'short' AND status NOT IN ('failed','stopped','superseded','rejected')) as short_used, "
@@ -569,7 +528,6 @@ async def list_channels(
             "FROM videos WHERE channel_id = $1 AND created_at >= date_trunc('week', NOW())",
             r["channel_id"],
         )
-        # Check for all currently in-progress jobs (one per content_mode)
         active_job_rows = await pool.fetch(
             "SELECT DISTINCT ON (content_mode) content_id, status, content_mode "
             "FROM videos WHERE channel_id = $1 "
@@ -577,7 +535,6 @@ async def list_channels(
             "ORDER BY content_mode, created_at DESC",
             r["channel_id"],
         )
-        # Parse schedule_config
         sched_raw = r["schedule_config"]
         sched = json.loads(sched_raw) if isinstance(sched_raw, str) else (sched_raw or {})
         schedule_enabled = sched.get("enabled", True) if sched else True
@@ -631,9 +588,6 @@ async def list_channels(
 @app.post("/api/channels", deprecated=True)
 async def create_channel(req: ChannelCreateRequest, _: str = Depends(verify_token)):
     pool = await get_pool()
-    # Comma-join starter topics into the legacy topics_queue TEXT column.
-    # Empty string when no starter topics — matches the existing
-    # "no preset chosen" case so downstream code paths don't change.
     topics_queue = ",".join(t.strip() for t in (req.starter_topics or []) if t and t.strip())
     try:
         sched_json = json.dumps({"enabled": req.schedule_enabled})
@@ -731,7 +685,6 @@ async def generate_brand_dna(req: BrandDnaRequest, _: str = Depends(verify_token
             parsed = json.loads(result.content)
         except (json.JSONDecodeError, TypeError):
             parsed = {}
-        # Merge: parsed values take precedence, fallback fills any missing keys
         dna = {k: (parsed.get(k) or v) for k, v in fallback.items()}
         return R(status="ok", data={
             "dna": dna,
@@ -740,7 +693,6 @@ async def generate_brand_dna(req: BrandDnaRequest, _: str = Depends(verify_token
             "cost_usd": round(result.cost_usd, 6),
         })
     except Exception as exc:
-        # No LLM provider configured / network error — return fallback so UI still works
         return R(status="ok", data={
             "dna": fallback,
             "source": "fallback",
@@ -748,7 +700,6 @@ async def generate_brand_dna(req: BrandDnaRequest, _: str = Depends(verify_token
         })
 
 
-# Phase 5 — Niche templates & self-learning insights
 
 
 @app.get("/api/niche-templates", deprecated=True)
@@ -778,10 +729,8 @@ async def channel_learning_insights(channel_id: str, _: str = Depends(verify_tok
 
     pool = await get_pool()
 
-    # 1. Performance memory text — same string the LLMs receive.
     perf_text = await build_performance_context(channel_id)
 
-    # 2. Bandit state — which arms are winning?
     try:
         niche_row = await pool.fetchrow(
             "SELECT niche FROM channels WHERE channel_id = $1", channel_id,
@@ -810,7 +759,6 @@ async def channel_learning_insights(channel_id: str, _: str = Depends(verify_tok
         logger.warning("learning_insights.bandit_failed", error=str(exc))
         bandits = []
 
-    # 3. Drift status — best-effort; the table may not exist on fresh installs.
     try:
         drift_row = await pool.fetchrow(
             "SELECT model_name, last_trained_at, last_auc, current_auc, "
@@ -825,7 +773,6 @@ async def channel_learning_insights(channel_id: str, _: str = Depends(verify_tok
     except Exception:
         drift = None
 
-    # 4. Tier distribution over the last 30 days.
     tiers: dict[str, int] = {"S": 0, "A": 0, "B": 0, "C": 0, "D": 0}
     try:
         rows = await pool.fetch(
@@ -842,7 +789,7 @@ async def channel_learning_insights(channel_id: str, _: str = Depends(verify_tok
 
     return R(status="ok", data={
         "channel_id": channel_id,
-        "performance_memory": perf_text,            # Plain text, ready for display.
+        "performance_memory": perf_text,
         "performance_memory_attached": bool(perf_text),
         "bandits": bandits,
         "drift": drift,
@@ -911,7 +858,6 @@ async def enable_channel(channel_id: str, _: str = Depends(verify_token)):
     )
     if "UPDATE 0" in result:
         raise HTTPException(status_code=404, detail="Channel not found")
-    # Resume any paused workflows for this channel
     resumed = await _signal_running_workflows(channel_id, "resume_workflow", None)
     return R(status="ok", data={"channel_id": channel_id, "status": "active", "resumed_workflows": resumed})
 
@@ -925,7 +871,6 @@ async def disable_channel(channel_id: str, _: str = Depends(verify_token)):
     )
     if "UPDATE 0" in result:
         raise HTTPException(status_code=404, detail="Channel not found")
-    # Pause any running workflows for this channel (don't kill)
     paused = await _signal_running_workflows(channel_id, "pause_workflow", None)
     return R(status="ok", data={"channel_id": channel_id, "status": "disabled", "paused_workflows": paused})
 
@@ -939,7 +884,6 @@ async def archive_channel(channel_id: str, _: str = Depends(verify_token)):
         raise HTTPException(status_code=404, detail="Channel not found")
     if ch["status"] == "archived":
         raise HTTPException(status_code=400, detail="Channel is already archived")
-    # Pause running workflows first
     paused = await _signal_running_workflows(channel_id, "pause_workflow", None)
     await pool.execute(
         "UPDATE channels SET status = 'archived', updated_at = NOW() WHERE channel_id = $1",
@@ -975,7 +919,6 @@ async def clone_channel(channel_id: str, _: str = Depends(verify_token)):
     )
     if not ch:
         raise HTTPException(status_code=404, detail="Channel not found")
-    # Generate new ID
     ts = datetime.utcnow().strftime("%m%d%H%M")
     new_id = f"{channel_id[:12]}_C{ts}"
     try:
@@ -1006,7 +949,7 @@ async def clone_channel(channel_id: str, _: str = Depends(verify_token)):
             ch["caption_style"], ch["pacing_style"], ch["elevenlabs_voice_id"],
             ch["voice_stability"], ch["voice_similarity"], ch["voice_style"],
             ch["competitor_channels"], ch["forbidden_words"],
-            ch.get("environment", "test"),  # $34 — inherit source channel's environment
+            ch.get("environment", "test"),
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Clone failed: {exc}")
@@ -1037,7 +980,6 @@ async def export_channel(channel_id: str, _: str = Depends(verify_token)):
     return R(status="ok", data=export_data)
 
 
-# Workflow Control
 
 @app.post("/api/channels/{channel_id}/trigger", deprecated=True)
 async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depends(verify_token)):
@@ -1049,7 +991,6 @@ async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depe
     if ch["status"] != "active":
         raise HTTPException(status_code=400, detail="Channel is disabled — enable it first")
 
-    # Budget checks: global daily + per-channel daily
     global_limit_row = await pool.fetchrow(
         "SELECT config_value FROM system_config WHERE config_key = 'daily_budget_limit'"
     )
@@ -1074,7 +1015,6 @@ async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depe
 
     content_mode = req.content_mode or ch["content_mode"]
 
-    # Prevent duplicate: check for already-running jobs for this channel + mode
     running_count = await pool.fetchval(
         "SELECT COUNT(*) FROM videos WHERE channel_id = $1 AND content_mode = $2 "
         "AND status NOT IN ('delivered', 'test_delivered', 'failed', 'stopped', 'superseded', 'rejected', 'retrying')",
@@ -1087,7 +1027,6 @@ async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depe
     content_id = f"VID_{channel_id}_{ts}"
     workflow_id = f"manual-{content_id}"
 
-    # Mark all older failed/stopped jobs for this channel+mode as superseded
     await pool.execute(
         "UPDATE videos SET status = 'superseded', updated_at = NOW() "
         "WHERE channel_id = $1 AND content_mode = $2 AND status IN ('failed', 'stopped')",
@@ -1116,7 +1055,6 @@ async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depe
             task_queue="video-production",
         )
     except Exception as exc:
-        # Clean up the pre-created video record on failure
         await pool.execute("DELETE FROM videos WHERE content_id = $1", content_id)
         raise HTTPException(status_code=500, detail=f"Failed to start workflow: {exc}")
 
@@ -1189,7 +1127,6 @@ async def _terminate_channel_workflows(channel_id: str) -> list[str]:
     except Exception as list_exc:
         logger.warning("workflow.list.failed", error=str(list_exc))
 
-    # Mark all in-progress videos for this channel as stopped (not failed)
     if terminated:
         await pool.execute(
             "UPDATE videos SET status = 'stopped', error_message = 'Stopped by user', updated_at = NOW() "
@@ -1199,7 +1136,6 @@ async def _terminate_channel_workflows(channel_id: str) -> list[str]:
     return terminated
 
 
-# Jobs (Videos)
 
 @app.get("/api/channels/{channel_id}/jobs", deprecated=True)
 async def list_jobs(
@@ -1254,12 +1190,10 @@ async def job_progress(content_id: str, _: str = Depends(verify_token)):
         "FROM job_events WHERE content_id = $1 ORDER BY created_at ASC",
         content_id,
     )
-    # Also get current video status
     video = await pool.fetchrow(
         "SELECT status, total_cost, checkpoint, error_message, channel_id FROM videos WHERE content_id = $1", content_id
     )
 
-    # Try to get live status from Temporal
     live_status = None
     try:
         client = await _get_temporal_client()
@@ -1313,7 +1247,6 @@ async def job_metadata(content_id: str, _: str = Depends(verify_token)):
     delivery = json.loads(row["delivery_result"]) if row["delivery_result"] else {}
     thumbnails = json.loads(row["thumbnail_variants_urls"]) if row["thumbnail_variants_urls"] else []
 
-    # Resolve category_id to name
     CATEGORY_NAMES = {
         "22": "People & Blogs", "26": "How-to & Style", "27": "Education",
         "28": "Science & Technology", "24": "Entertainment", "20": "Gaming",
@@ -1401,7 +1334,6 @@ async def stream_video(content_id: str, request: Request):
     key = _extract_s3_key(row["rendered_video_url"])
     safe_title = (row["title"] or content_id).replace('"', "").replace("\n", " ")[:80]
 
-    # Forward Range header so seeking works in the browser.
     fwd_headers: dict[str, str] = {}
     rng = request.headers.get("range") or request.headers.get("Range")
     if rng:
@@ -1409,15 +1341,9 @@ async def stream_video(content_id: str, request: Request):
 
     upstream_url = f"{settings.s3_endpoint.rstrip('/')}/{settings.s3_bucket}/{key}"
 
-    # Sign the upstream request via boto3-style signing? Simpler: MinIO with
-    # the default minioadmin creds requires auth for private objects. Use the
-    # already-cached presign client to build a short-lived signed URL we can
-    # GET in-cluster. We request *non-public* signing here intentionally.
     try:
         from minio import Minio  # type: ignore
         from datetime import timedelta as _td
-        # In-cluster client signs against the internal host, which is what we
-        # actually fetch — keeps the host:signature pair consistent.
         from urllib.parse import urlparse as _urlparse
         ep = settings.s3_endpoint
         ep_parsed = _urlparse(ep if "://" in ep else f"http://{ep}")
@@ -1436,7 +1362,6 @@ async def stream_video(content_id: str, request: Request):
 
     import httpx as _httpx
 
-    # HEAD to capture status + length/range headers without downloading body.
     async with _httpx.AsyncClient(timeout=10.0) as probe:
         try:
             head = await probe.request("HEAD", upstream_url, headers=fwd_headers)
@@ -1491,7 +1416,6 @@ async def job_presigned(content_id: str, _: str = Depends(verify_token)):
     return R(status="ok", data={"presigned_url": url, "expires_in_seconds": 600})
 
 
-# Job Approval / Rejection
 
 @app.post("/api/jobs/{content_id}/approve", deprecated=True)
 async def approve_job(content_id: str, _: str = Depends(verify_token)):
@@ -1542,7 +1466,6 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
 
     content_mode = video["content_mode"] or "short"
 
-    # Prevent duplicate: check for in-progress jobs for this channel + mode
     running = await pool.fetchval(
         "SELECT COUNT(*) FROM videos WHERE channel_id = $1 AND content_mode = $2 "
         "AND status NOT IN ('delivered', 'test_delivered', 'failed', 'stopped', 'superseded', 'rejected', 'retrying')",
@@ -1551,7 +1474,6 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
     if running and int(running) > 0:
         raise HTTPException(status_code=409, detail=f"Channel already has an in-progress {content_mode} job")
 
-    # Mark ALL older failed/stopped jobs for this channel+mode as superseded
     await pool.execute(
         "UPDATE videos SET status = 'superseded', updated_at = NOW() "
         "WHERE channel_id = $1 AND content_mode = $2 AND status IN ('failed', 'stopped')",
@@ -1562,7 +1484,6 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
     new_content_id = f"VID_{video['channel_id']}_{ts}"
     workflow_id = f"retry-{new_content_id}"
 
-    # Create new video row (fresh start); original is now 'superseded'
     await pool.execute(
         "INSERT INTO videos (content_id, channel_id, status, content_mode, environment, updated_at) "
         "VALUES ($1, $2, 'researching', $3, 'production', NOW()) "
@@ -1583,7 +1504,6 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
             task_queue="video-production",
         )
     except Exception as exc:
-        # Clean up the new video record on failure
         await pool.execute("DELETE FROM videos WHERE content_id = $1", new_content_id)
         raise HTTPException(status_code=500, detail=f"Failed to start retry workflow: {exc}")
     await _broadcast_job_event(new_content_id, "researching", video["channel_id"])
@@ -1612,7 +1532,6 @@ async def restart_job(content_id: str, _: str = Depends(verify_token)):
 
     content_mode = video["content_mode"] or "short"
 
-    # Prevent duplicate: check for in-progress jobs for this channel + mode (excluding self)
     running = await pool.fetchval(
         "SELECT COUNT(*) FROM videos WHERE channel_id = $1 AND content_mode = $2 "
         "AND content_id != $3 "
@@ -1625,7 +1544,6 @@ async def restart_job(content_id: str, _: str = Depends(verify_token)):
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     workflow_id = f"restart-{content_id}-{ts}"
 
-    # Reset video status to the checkpoint phase
     await pool.execute(
         "UPDATE videos SET status = $1, error_message = NULL, updated_at = NOW() "
         "WHERE content_id = $2",
@@ -1647,7 +1565,6 @@ async def restart_job(content_id: str, _: str = Depends(verify_token)):
             task_queue="video-production",
         )
     except Exception as exc:
-        # Revert status on failure
         await pool.execute(
             "UPDATE videos SET status = 'stopped', error_message = 'Restart failed', updated_at = NOW() "
             "WHERE content_id = $1",
@@ -1662,7 +1579,6 @@ async def restart_job(content_id: str, _: str = Depends(verify_token)):
     })
 
 
-# Per-Job Control (pause / resume / stop by content_id) ─
 
 async def _find_workflow_for_job(content_id: str) -> str | None:
     """Find the Temporal workflow ID for a given content_id."""
@@ -1693,9 +1609,6 @@ async def pause_job(content_id: str, _: str = Depends(verify_token)):
     """Pause a specific running job."""
     wf_id = await _find_workflow_for_job(content_id)
     if not wf_id:
-        # Phantom job: DB still says in-progress but the workflow has been
-        # terminated / garbage-collected. Pause is meaningless — tell the
-        # caller they should Stop it instead so it gets cleaned up.
         raise HTTPException(
             status_code=409,
             detail="This job has no running workflow (orphaned state). Click Stop to clean it up.",
@@ -1746,9 +1659,7 @@ async def stop_job(content_id: str, _: str = Depends(verify_token)):
             await handle.terminate("Stopped by user")
             terminated = True
         except Exception as exc:
-            # Workflow exists but terminate failed — still update DB
             logger.warning("stop_job.terminate_failed", content_id=content_id, error=str(exc))
-    # Update DB immediately — mark as stopped, not failed
     pool = await get_pool()
     await pool.execute(
         "UPDATE videos SET status = 'stopped', error_message = 'Stopped by user', updated_at = NOW() "
@@ -1765,7 +1676,6 @@ async def stop_job(content_id: str, _: str = Depends(verify_token)):
     })
 
 
-# Active Jobs (all in-progress across channels)
 
 @app.get("/api/jobs/active", deprecated=True)
 async def active_jobs(_: str = Depends(verify_token)):
@@ -1787,8 +1697,6 @@ async def active_jobs(_: str = Depends(verify_token)):
         "ORDER BY v.created_at DESC"
     )
 
-    # Batch-query Temporal for paused state — bounded by timeout so a slow
-    # Temporal cluster cannot stall the Progress page.
     paused_workflows = await _list_paused_workflows(timeout_s=2.0)
 
     jobs = []
@@ -1797,7 +1705,6 @@ async def active_jobs(_: str = Depends(verify_token)):
         ch_id = r["channel_id"] or ""
         mode = r["content_mode"] or "short"
 
-        # Determine paused state: check if workflow for this content_id is paused
         is_paused = False
         for wf_id, wf_paused in paused_workflows.items():
             if cid in wf_id:
@@ -1823,7 +1730,6 @@ async def active_jobs(_: str = Depends(verify_token)):
     return R(status="ok", data=jobs)
 
 
-# Workflow Status (per channel)
 
 @app.get("/api/channels/{channel_id}/workflow-status", deprecated=True)
 async def workflow_status(channel_id: str, _: str = Depends(verify_token)):
@@ -1858,7 +1764,6 @@ async def workflow_status(channel_id: str, _: str = Depends(verify_token)):
     })
 
 
-# System Config
 
 @app.get("/api/config", deprecated=True)
 async def get_config(_: str = Depends(verify_token)):
@@ -1895,7 +1800,6 @@ async def emergency_stop(_: str = Depends(verify_token)):
         "UPDATE system_config SET config_value = 'true', updated_at = NOW() "
         "WHERE config_key = 'emergency_stop'"
     )
-    # Pause (not kill) all running workflows to preserve progress and cost
     paused_count = 0
     try:
         client = await _get_temporal_client()
@@ -1920,7 +1824,6 @@ async def emergency_resume(_: str = Depends(verify_token)):
         "UPDATE system_config SET config_value = 'false', updated_at = NOW() "
         "WHERE config_key = 'emergency_stop'"
     )
-    # Resume all paused workflows
     resumed_count = 0
     try:
         client = await _get_temporal_client()
@@ -1962,7 +1865,6 @@ async def cleanup_test_data(_: str = Depends(verify_token)):
     """Delete all test data from DB and storage."""
     pool = await get_pool()
 
-    # Delete in correct FK order
     feedback_del = await pool.execute(
         "DELETE FROM feedback_loop WHERE environment = 'test'"
     )
@@ -1973,7 +1875,6 @@ async def cleanup_test_data(_: str = Depends(verify_token)):
         "DELETE FROM videos WHERE environment = 'test'"
     )
 
-    # Clean up MinIO test/ prefix
     storage_deleted = 0
     try:
         from src.providers.storage.minio_provider import MinIOStorage
@@ -2013,7 +1914,6 @@ async def clean_slate(req: CleanSlateRequest, _: str = Depends(verify_token)):
         "redis_keys_deleted": 0,
     }
 
-    # 1. Cancel / terminate all running Temporal workflows (VideoProduction + DailyScheduler)
     try:
         client = await _get_temporal_client()
         for wf_type in ("VideoProductionWorkflow", "DailySchedulerWorkflow"):
@@ -2028,7 +1928,6 @@ async def clean_slate(req: CleanSlateRequest, _: str = Depends(verify_token)):
     except Exception as exc:
         logger.warning("clean_slate.temporal_scan_failed", error=str(exc))
 
-    # 2. Truncate job tables (CASCADE handles FK deps). Order-independent with TRUNCATE CASCADE.
     pool = await get_pool()
     tables = [
         "videos", "job_events", "analytics_records", "feedback_loop",
@@ -2040,10 +1939,8 @@ async def clean_slate(req: CleanSlateRequest, _: str = Depends(verify_token)):
             await pool.execute(f"TRUNCATE TABLE {t} RESTART IDENTITY CASCADE")
             results["tables_truncated"].append(t)
         except Exception as exc:
-            # Table may not exist in all environments
             logger.warning("clean_slate.truncate_failed", table=t, error=str(exc))
 
-    # 3. Wipe MinIO test/ and prod/ prefixes
     try:
         from src.providers.storage.minio_provider import MinIOStorage
         storage = MinIOStorage()
@@ -2055,7 +1952,6 @@ async def clean_slate(req: CleanSlateRequest, _: str = Depends(verify_token)):
     except Exception as exc:
         logger.warning("clean_slate.storage_init_failed", error=str(exc))
 
-    # 4. Clear Redis locks and progress keys
     try:
         from src.redis_client import get_redis
         r = await get_redis()
@@ -2074,7 +1970,6 @@ async def clean_slate(req: CleanSlateRequest, _: str = Depends(verify_token)):
     except Exception as exc:
         logger.warning("clean_slate.redis_init_failed", error=str(exc))
 
-    # 5. Broadcast to connected dashboards so open tabs refresh to zero state
     try:
         await _event_broadcaster.broadcast({
             "type": "clean_slate",
@@ -2087,15 +1982,8 @@ async def clean_slate(req: CleanSlateRequest, _: str = Depends(verify_token)):
     return R(status="ok", data=results)
 
 
-# Phase 6 — Fleet health
 
 
-# Service hosts — kept here (not in config) because the dashboard BFF is
-# already the only place that needs the full topology. Each entry maps a
-# friendly name to its in-cluster /health URL.
-# Ports must match docker-compose.yml. Prometheus has the same map in
-# observability/prometheus.yml — keep the two in sync. ``music`` is NOT a
-# real service (functionality lives inside ``assets``), so it is omitted.
 _FLEET_SERVICES: dict[str, str] = {
     "research":   "http://research:8001/health",
     "script":     "http://script:8002/health",
@@ -2152,7 +2040,6 @@ async def fleet_health(_: str = Depends(verify_token)):
     import httpx as _httpx
     from src.db import get_pool_stats
 
-    # 1. Fan-out service probes in parallel, bounded per-call timeout.
     probes = await _asyncio.gather(*[
         _probe_service(name, url, timeout_s=3.0)
         for name, url in _FLEET_SERVICES.items()
@@ -2160,14 +2047,12 @@ async def fleet_health(_: str = Depends(verify_token)):
     services_ok = sum(1 for p in probes if p["ok"])
     services_total = len(probes)
 
-    # 2. DB pool snapshot — local to this process; useful as a sanity gauge.
     db_stats = get_pool_stats()
     pool_pressure = (
         round(db_stats["size"] / db_stats["max_size"], 2)
         if db_stats.get("max_size") else None
     )
 
-    # 3. Remotion queue (single source of truth for render capacity).
     remotion: dict
     try:
         async with _httpx.AsyncClient(timeout=3.0) as cli:
@@ -2186,9 +2071,6 @@ async def fleet_health(_: str = Depends(verify_token)):
     except Exception as exc:
         remotion = {"ok": False, "error": type(exc).__name__}
 
-    # 4. Recent quality-gate blocks + LLM router-budget exhaustions —
-    #    stored in our own DB as audit rows, so a quick count is enough
-    #    to show "system pushing back" pressure on the dashboard.
     pool = await get_pool()
     try:
         gate_blocks_24h = await pool.fetchval(
@@ -2205,8 +2087,6 @@ async def fleet_health(_: str = Depends(verify_token)):
     except Exception:
         recent_failures = None
 
-    # 6. Phase 8 — niche-pulse freshness. How recently has the
-    #    saturation scorer's input been refreshed, across how many niches.
     pulse: dict
     try:
         from src.services.research.saturation import get_pulse_freshness
@@ -2215,12 +2095,6 @@ async def fleet_health(_: str = Depends(verify_token)):
     except Exception as exc:
         pulse = {"ok": False, "error": type(exc).__name__}
 
-    # 8. Phase 10 — diversity-floor activity. Surface how many forced
-    #    explorations the floor has triggered in the last 7 days and
-    #    the lowest current per-channel entropy across active bandits.
-    #    Persistent low entropy without any forces means the bandits
-    #    are exploring naturally; persistent high force-rate means
-    #    we're fighting collapse — both are operator-relevant.
     diversity_health: dict
     try:
         forced_row = await pool.fetchrow(
@@ -2245,20 +2119,11 @@ async def fleet_health(_: str = Depends(verify_token)):
     except Exception as exc:
         diversity_health = {"ok": False, "error": type(exc).__name__}
 
-    # 9. Phase 11 — prediction calibration health. Brier score and
-    #    Expected Calibration Error over the last 30 days of scored
-    #    predictions. Brier ~0.21 is the random-baseline floor for a
-    #    balanced binary problem; lower is better. ECE > 0.15 means
-    #    the model's confidence is meaningfully miscalibrated.
     calibration_health: dict
     try:
         from src.intelligence.prediction_calibration import get_calibration_metrics
         cal_metrics = await get_calibration_metrics(model_kind="topic_success")
         calibration_health = {"ok": True, **cal_metrics}
-        # Surface how aggressively the loop is steering training too.
-        # The mean_sample_weight on the latest active model is the
-        # most direct read on "is the calibration loop actually doing
-        # anything yet."
         try:
             ml_row = await pool.fetchrow(
                 """
@@ -2279,11 +2144,6 @@ async def fleet_health(_: str = Depends(verify_token)):
     except Exception as exc:
         calibration_health = {"ok": False, "error": type(exc).__name__}
 
-    # 7. Phase 9 — retention-curve coverage. Of delivered videos in
-    #    the curve-stable window (7-30 days old), what fraction have
-    #    a fetched curve? Low coverage means the calibrator is mostly
-    #    falling back to tier labels — surfacing this lets the
-    #    operator notice when the daily fetch workflow is wedged.
     retention_cov: dict
     try:
         cov_row = await pool.fetchrow(
@@ -2319,9 +2179,6 @@ async def fleet_health(_: str = Depends(verify_token)):
     except Exception as exc:
         retention_cov = {"ok": False, "error": type(exc).__name__}
 
-    # 5. Phase 7 — gate calibration status. Aggregate counts are enough
-    #    for the dashboard pill; per-niche detail lives in a separate
-    #    endpoint for the gate-thresholds drawer.
     gate_calib: dict
     try:
         row = await pool.fetchrow(
@@ -2341,11 +2198,8 @@ async def fleet_health(_: str = Depends(verify_token)):
             "last_run":          row["last_run"].isoformat() if row["last_run"] else None,
         }
     except Exception as exc:
-        # Table may not exist on a fresh install yet — that's fine,
-        # surface a clear "not yet" rather than a hard error.
         gate_calib = {"ok": False, "error": type(exc).__name__}
 
-    # Overall status — green if every probe and Remotion succeeded.
     overall_ok = (services_ok == services_total) and remotion.get("ok") is True
 
     payload: dict = {
@@ -2360,7 +2214,7 @@ async def fleet_health(_: str = Depends(verify_token)):
             "idle":     db_stats.get("idle"),
             "min_size": db_stats.get("min_size"),
             "max_size": db_stats.get("max_size"),
-            "pressure": pool_pressure,        # 0..1, where 1 == saturated
+            "pressure": pool_pressure,
         },
         "remotion": remotion,
         "scale_config": {
@@ -2379,9 +2233,6 @@ async def fleet_health(_: str = Depends(verify_token)):
         "calibration":        calibration_health,
     }
 
-    # Phase 12 — collapse the 8 subsystem cards into one weighted
-    # health score with traffic-light band + per-subsystem breakdown.
-    # Pure-function aggregation off the existing payload; no new I/O.
     try:
         from src.intelligence.system_health import aggregate_health
         payload["health"] = aggregate_health(payload)
@@ -2392,7 +2243,6 @@ async def fleet_health(_: str = Depends(verify_token)):
     return R(status="ok", data=payload)
 
 
-# Dashboard Stats
 
 @app.get("/api/stats", deprecated=True)
 async def dashboard_stats(_: str = Depends(verify_token)):
@@ -2440,7 +2290,6 @@ async def dashboard_stats(_: str = Depends(verify_token)):
     })
 
 
-# WebSocket: Global Event Broadcast (cross-tab sync)
 
 class EventBroadcaster:
     """Manages global WebSocket connections for cross-tab sync."""
@@ -2488,7 +2337,6 @@ async def ws_events(websocket: WebSocket):
     await _event_broadcaster.connect(websocket)
     try:
         while True:
-            # Keep connection alive by waiting for client pings/messages
             await websocket.receive_text()
     except WebSocketDisconnect:
         pass
@@ -2498,7 +2346,6 @@ async def ws_events(websocket: WebSocket):
         _event_broadcaster.disconnect(websocket)
 
 
-# WebSocket: Real-time Progress
 
 @app.websocket("/api/ws/progress/{content_id}")
 async def ws_progress(websocket: WebSocket, content_id: str):
@@ -2509,7 +2356,6 @@ async def ws_progress(websocket: WebSocket, content_id: str):
 
     try:
         while True:
-            # Fetch new events since last check
             events = await pool.fetch(
                 "SELECT id, phase, status, detail, cost_usd, created_at "
                 "FROM job_events WHERE content_id = $1 AND id > $2 "
@@ -2527,7 +2373,6 @@ async def ws_progress(websocket: WebSocket, content_id: str):
                     "timestamp": ev["created_at"].isoformat() if ev["created_at"] else None,
                 })
 
-            # Check if job is done
             video = await pool.fetchrow(
                 "SELECT status FROM videos WHERE content_id = $1", content_id
             )
@@ -2549,7 +2394,6 @@ async def ws_progress(websocket: WebSocket, content_id: str):
             pass
 
 
-# Startup
 
 if __name__ == "__main__":
     import uvicorn

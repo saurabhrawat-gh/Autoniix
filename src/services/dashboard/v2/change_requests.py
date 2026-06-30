@@ -30,9 +30,6 @@ logger = structlog.get_logger()
 router = APIRouter()
 
 
-# ---------------------------------------------------------------------------
-# Pydantic models
-# ---------------------------------------------------------------------------
 
 class ChangeRequestIn(BaseModel):
     request_type: str = Field(
@@ -50,18 +47,12 @@ class ReviewIn(BaseModel):
     note: str | None = None
 
 
-# ---------------------------------------------------------------------------
-# Notification stub (to be replaced once #79 lands)
-# ---------------------------------------------------------------------------
 
 async def _notify_stub(event: str, data: dict) -> None:
     """Placeholder notification delivery. Replace with real #79 integration."""
     logger.info("change_request.notification_stub", event=event, **data)
 
 
-# ---------------------------------------------------------------------------
-# Auto-apply helper — executes the approved change via internal logic
-# ---------------------------------------------------------------------------
 
 async def _auto_apply(pool: Any, request_row: Any) -> None:
     """Execute the approved change from an owner-approved request."""
@@ -82,7 +73,6 @@ async def _auto_apply(pool: Any, request_row: Any) -> None:
             scope_id = payload.get("scope_id")
             content_mode = payload.get("content_mode")
             cred_ids = payload.get("credential_ids", [])
-            # Delete existing chain and re-insert with new order
             await pool.execute(
                 "DELETE FROM provider_chains_v2 WHERE category=$1 AND scope=$2 AND "
                 "(scope_id=$3 OR ($3 IS NULL AND scope_id IS NULL)) AND "
@@ -107,8 +97,6 @@ async def _auto_apply(pool: Any, request_row: Any) -> None:
                     model, cred_id,
                 )
 
-        # add_credential and rotate_credential require the full wizard/rotation
-        # logic — those are flagged back to the owner to complete manually for now.
         else:
             logger.info(
                 "change_request.auto_apply_manual",
@@ -125,9 +113,6 @@ async def _auto_apply(pool: Any, request_row: Any) -> None:
                      request_id=request_row["id"])
 
 
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
 
 @router.get("")
 async def list_change_requests(
@@ -292,7 +277,6 @@ async def owner_review(
     )
     if not row:
         raise HTTPException(404, "Change request not found")
-    # Owner can review from pending_admin or pending_owner
     if row["status"] not in ("pending_admin", "pending_owner"):
         raise HTTPException(409, f"Request is not pending review (status={row['status']})")
 

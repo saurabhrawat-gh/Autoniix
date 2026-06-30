@@ -31,9 +31,6 @@ from src.agents.critic import CriticAgent
 from src.agents.registry import AgentRegistry
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Fixtures / helpers
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 def _decision(
@@ -95,9 +92,6 @@ class _PeerAgent(BaseAgent):
         return None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CriticAgent.rule_review
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestCriticRuleReview:
@@ -130,9 +124,6 @@ class TestCriticRuleReview:
         assert "directive" in v.reasoning.lower()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CriticAgent.review (orchestration: LLM-vs-rules + persistence)
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestCriticReview:
@@ -154,7 +145,6 @@ class TestCriticReview:
             )
         assert verdict.verdict == "VETO"
         persist.assert_awaited_once()
-        # reasoning_path passed to persistence is "rules" when flag off.
         assert persist.await_args.kwargs["reasoning_path"] == "rules"
 
     async def test_review_falls_back_to_rules_on_llm_failure(self):
@@ -176,7 +166,6 @@ class TestCriticReview:
                 observation=_observation(),
                 peer_agent_name="brain",
             )
-        # Rules say VETO low-conf HALT.
         assert verdict.verdict == "VETO"
         assert persist.await_args.kwargs["reasoning_path"] == "rules"
 
@@ -229,9 +218,6 @@ class TestCriticReview:
         assert verdict.verdict in {"APPROVE", "VETO", "MODIFY"}
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# BaseAgent.run() critique-phase wiring
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 @pytest.fixture
@@ -254,7 +240,6 @@ def _flag_map(flags: dict[str, bool]):
 class TestBaseAgentCritiqueWiring:
     async def test_critique_skipped_when_flags_off(self, fresh_registry):
         peer = _PeerAgent()
-        # No critic registered + flags default off → original decision flows.
         with patch(
             "src.flags.get_flag",
             new=AsyncMock(return_value=False),
@@ -289,7 +274,7 @@ class TestBaseAgentCritiqueWiring:
             decision = await peer.run({})
 
         assert decision is None
-        assert peer.acted_with is None  # act() never called
+        assert peer.acted_with is None
 
     async def test_critique_modify_substitutes_decision(self, fresh_registry):
         peer = _PeerAgent()
@@ -368,7 +353,6 @@ class TestBaseAgentCritiqueWiring:
         ):
             decision = await peer.run({})
 
-        # Fail-open: original decision proceeds despite critic crashing.
         assert decision is original
         assert peer.acted_with is original
 
@@ -377,7 +361,6 @@ class TestBaseAgentCritiqueWiring:
     ):
         peer = _PeerAgent()
         original = peer._decision
-        # Both flags ON but no critic in registry → warn + pass through.
         with patch(
             "src.flags.get_flag",
             side_effect=_flag_map({
@@ -396,8 +379,6 @@ class TestBaseAgentCritiqueWiring:
         flag reads."""
         critic = CriticAgent()
 
-        # Sanity: directly invoking _run_critique on a critic returns
-        # the decision unchanged without consulting flags or registry.
         decision = _decision()
         with patch(
             "src.flags.get_flag",

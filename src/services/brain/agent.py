@@ -49,7 +49,6 @@ class BrainAgent(BaseAgent):
     _SOURCE = "brain-agent"
     _ALLOWED_DECISIONS = {"HALT", "HOLD", "NUDGE", "RESUME", "ADVISE", "NONE"}
 
-    # ── observe ──────────────────────────────────────────────────────────
 
     async def observe(self, context: dict[str, Any]) -> AgentObservation | None:
         channel_id = (context or {}).get("channel_id")
@@ -60,7 +59,6 @@ class BrainAgent(BaseAgent):
         content_id = context.get("content_id")
         signals: ChannelSignals = await analyse_channel(channel_id)
 
-        # Carry the full ChannelSignals dict so reason()/decide() have it.
         facts: dict[str, Any] = asdict(signals)
         facts["content_id"] = content_id
 
@@ -70,7 +68,6 @@ class BrainAgent(BaseAgent):
             facts=facts,
         )
 
-    # ── reason ───────────────────────────────────────────────────────────
 
     async def reason(
         self,
@@ -81,7 +78,6 @@ class BrainAgent(BaseAgent):
         facts = dict(observation.facts)
         content_id = facts.pop("content_id", None)
 
-        # Recreate the dataclass so the engine's thresholds work unchanged.
         signals = ChannelSignals(**{
             k: v for k, v in facts.items()
             if k in ChannelSignals.__dataclass_fields__
@@ -93,7 +89,6 @@ class BrainAgent(BaseAgent):
             "memories": memories,
         }
 
-    # ── decide ───────────────────────────────────────────────────────────
 
     async def decide(self, state: dict[str, Any]) -> AgentDecision | None:
         """Pick the decision path: LLM reasoning if the flag is on,
@@ -109,14 +104,11 @@ class BrainAgent(BaseAgent):
             llm_decision = await _llm_decide_impl(self, signals, content_id, memories)
             if llm_decision is not None:
                 return llm_decision
-            # LLMReasoner returned None — already logged. Fall through to rules.
             logger.info(
                 "brain_agent.llm_decide_fallback_to_rules",
                 channel_id=signals.channel_id,
             )
 
-        # Delegate the threshold logic to the existing engine. Translate
-        # its dict output (or None) back into an AgentDecision.
         raw = await _evaluate(signals, content_id)
         if raw is None:
             return None
@@ -142,7 +134,6 @@ class BrainAgent(BaseAgent):
             },
         )
 
-    # ── act ──────────────────────────────────────────────────────────────
 
     async def act(self, decision: AgentDecision) -> dict[str, Any]:
         """The legacy engine has already persisted the row inside decide();
@@ -190,11 +181,7 @@ class BrainAgent(BaseAgent):
 
         return {"id": decision_id}
 
-    # ── remember ─────────────────────────────────────────────────────────
 
-    # The legacy engine path already calls embed_and_store inside
-    # _write_decision, so the default remember() in BaseAgent would
-    # double-embed. Override to a no-op until the legacy path is retired.
     async def remember(
         self,
         decision: AgentDecision,
@@ -203,9 +190,6 @@ class BrainAgent(BaseAgent):
         return None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Helpers
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 async def _llm_decide_impl(
@@ -240,7 +224,6 @@ async def _llm_decide_impl(
 
     decision_type = parsed["decision_type"]
     if decision_type == "NONE":
-        # LLM concluded no action needed — same effect as rules returning None.
         logger.info(
             "brain_agent.llm_decided_none",
             channel_id=signals.channel_id,
@@ -256,8 +239,6 @@ async def _llm_decide_impl(
     scope = "video" if content_id else "channel"
     scope_id = content_id or signals.channel_id
 
-    # Persist via the same path the rule engine uses so the row schema,
-    # embedding pipeline, and trigger_source convention stay identical.
     written = await _write_decision(
         signals=signals,
         content_id=content_id,

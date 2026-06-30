@@ -38,8 +38,6 @@ from src.db import get_pool
 
 logger = structlog.get_logger()
 
-# Asset columns returned by the resolver. Mirrors /library/dam/search to
-# avoid making the UI maintain two row shapes.
 _SELECT_COLS = (
     "a.id, a.scope, a.scope_id, a.kind, a.display_name, a.mime_type, a.bytes, "
     "a.thumbnail_key, a.storage_key, a.origin, a.tags, a.metadata, a.created_at"
@@ -141,7 +139,6 @@ async def resolve_smart_collection(
         )
         return [dict(r) for r in rows]
 
-    # smart path
     q = _parse_query(col["query"])
     scope = col["scope"]
     scope_id = col["scope_id"]
@@ -188,14 +185,10 @@ async def resolve_smart_collection(
         tag_param = f"${len(args)}"
         args.append(min_conf)
         conf_param = f"${len(args)}"
-        # ai_tags is JSONB shaped like {tag: confidence}; lookup the key
-        # and compare its numeric value.
         where.append(f"COALESCE((a.ai_tags ->> {tag_param})::float, 0) >= {conf_param}")
 
     semantic_query = (q.get("semantic") or "").strip()
     if semantic_query:
-        # Fetch a larger candidate set and intersect; the structural WHERE is
-        # the authority, semantic just re-ranks within it.
         sem_ids = await _semantic_ids(
             semantic_query, scope, scope_id, top_k=max(limit * 3, 60)
         )

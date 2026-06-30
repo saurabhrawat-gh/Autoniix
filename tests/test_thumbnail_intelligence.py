@@ -13,7 +13,6 @@ from src.services.thumbnail.ctr_predictor import (
 )
 
 
-# CTR Predictor Features
 
 class TestExtractThumbnailFeatures:
     @pytest.mark.asyncio

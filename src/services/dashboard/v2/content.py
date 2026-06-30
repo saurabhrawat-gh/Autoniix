@@ -29,7 +29,7 @@ _GROUP_TRUNC = {
 
 
 class BulkActionIn(BaseModel):
-    action: str  # archive|retry|approve|reject|regenerate|delete
+    action: str
     ids: list[str]
     note: str | None = None
 
@@ -84,7 +84,6 @@ async def list_content(
     has_more = len(rows) > limit
     rows = rows[:limit]
 
-    # Group in Python — keep DB simple
     from collections import OrderedDict
     grouped: "OrderedDict[str, list[dict]]" = OrderedDict()
     for r in rows:
@@ -233,7 +232,6 @@ async def bulk_action(
     return {"status": "ok", "affected": affected}
 
 
-# Wave 4: detail, stats, trigger, series listing
 
 
 @router.get("/triggers/history")
@@ -293,7 +291,6 @@ async def content_stats(
         """,
         *args,
     )
-    # Channel breakdown
     chan_rows = await pool.fetch(
         f"""
         SELECT channel_id,
@@ -305,7 +302,7 @@ async def content_stats(
         WHERE {' AND '.join(where)}
         GROUP BY channel_id
         """,
-        *args[:-1],  # exclude period arg
+        *args[:-1],
     )
     return {
         "data": {
@@ -337,7 +334,6 @@ async def get_content_detail(
     if not row:
         raise HTTPException(404, "Content not found")
 
-    # Phase timeline
     events = await pool.fetch(
         """
         SELECT phase, status, started_at, completed_at, duration_ms, error_message
@@ -348,7 +344,6 @@ async def get_content_detail(
         content_id,
     )
 
-    # Review session (latest)
     review = await pool.fetchrow(
         """
         SELECT rs.id, rs.state, rs.created_at, rs.due_at,
@@ -375,7 +370,7 @@ class TriggerIn(BaseModel):
     channel_id: str
     content_mode: str = Field("long_form", pattern="^(short|long_form)$")
     topic_hint: str | None = None
-    scheduled_for: str | None = None  # ISO datetime, None = immediate
+    scheduled_for: str | None = None
 
 
 @router.post("/trigger")
@@ -387,7 +382,6 @@ async def trigger_content(
     """Queue a content generation job for a channel."""
     pool = await get_pool()
 
-    # Record trigger in DB (best-effort — table may not exist yet)
     trigger_id: int | None = None
     if await _table_exists(pool, "content_triggers"):
         trigger_id = await pool.fetchval(
@@ -404,7 +398,6 @@ async def trigger_content(
             actor.user_id,
         )
 
-    # Attempt to kick off via legacy trigger endpoint internally
     import httpx
     bff_base = "http://localhost:8020"
     try:
@@ -421,7 +414,6 @@ async def trigger_content(
         triggered = False
         content_id = None
 
-    # Update trigger row
     if trigger_id and await _table_exists(pool, "content_triggers"):
         await pool.execute(
             """
@@ -446,7 +438,6 @@ async def trigger_content(
     }
 
 
-# helpers
 
 async def _table_exists(pool: Any, table: str) -> bool:
     return bool(await pool.fetchval(

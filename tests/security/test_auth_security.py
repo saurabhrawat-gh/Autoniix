@@ -58,7 +58,6 @@ def python_available(client: httpx.Client):
     skip_if_unavailable(client, PYTHON_URL, "Python dashboard")
 
 
-# ── A03: Injection (SQL injection) ──────────────────────────────────────────
 
 
 class TestSQLInjection:
@@ -124,7 +123,6 @@ class TestSQLInjection:
             )
 
 
-# ── A02: Cryptographic Failures (JWT) ───────────────────────────────────────
 
 
 class TestJWTSecurity:
@@ -184,7 +182,6 @@ class TestJWTSecurity:
         database, not from the JWT claim, when making authorization
         decisions. Documents the expected behavior so a regression that
         trusts the JWT role is caught."""
-        # Create a normal user via #350 register flow
         email = unique_email("privesc")
         register = client.post(
             f"{RUST_URL}/api/v2/auth/register",
@@ -199,9 +196,6 @@ class TestJWTSecurity:
             pytest.skip("Cannot create test user via /register")
         user_id = register.json()["user_id"]
 
-        # Forge a token with superadmin role using the correct secret.
-        # The role claim is whatever the attacker controls; the wid is
-        # the user's actual workspace.
         forged = jwt.encode(
             {
                 "sub": str(user_id),
@@ -215,8 +209,6 @@ class TestJWTSecurity:
             JWT_SECRET,
             algorithm=JWT_ALGORITHM,
         )
-        # /me MUST report the DB role, not the JWT role. If the server
-        # echoes back "superadmin", that's a privilege-escalation bug.
         resp = client.get(
             f"{RUST_URL}/api/v2/me",
             headers={"Authorization": f"Bearer {forged}"},
@@ -232,7 +224,6 @@ class TestJWTSecurity:
         )
 
 
-# ── A07: Identification and Authentication Failures ─────────────────────────
 
 
 class TestBruteForce:
@@ -274,7 +265,6 @@ class TestBruteForce:
         """Login with wrong password should take similar time regardless of email validity."""
         import time as _time
 
-        # Non-existent email
         start = _time.monotonic()
         client.post(
             f"{RUST_URL}/api/v2/auth/signin",
@@ -282,7 +272,6 @@ class TestBruteForce:
         )
         nonexistent_time = _time.monotonic() - start
 
-        # Existing email, wrong password
         email = unique_email("timing")
         client.post(
             f"{RUST_URL}/api/v2/auth/register",
@@ -300,8 +289,6 @@ class TestBruteForce:
         )
         existing_time = _time.monotonic() - start
 
-        # Times should be similar (within 500ms) to prevent user enumeration
-        # Argon2 verification should dominate timing for both cases
         diff = abs(existing_time - nonexistent_time)
         if diff > 0.5:
             print(
@@ -313,7 +300,6 @@ class TestBruteForce:
             print(f"✓ Timing attack resistant (diff={diff:.3f}s)")
 
 
-# ── A05: Security Misconfiguration ──────────────────────────────────────────
 
 
 class TestSecurityHeaders:
@@ -324,7 +310,6 @@ class TestSecurityHeaders:
         """Rust gateway should return security headers."""
         resp = client.get(f"{RUST_URL}/health")
 
-        # Recommended security headers (warn if missing, don't fail)
         recommended = [
             "x-content-type-options",
             "x-frame-options",
@@ -337,7 +322,6 @@ class TestSecurityHeaders:
             print("✓ All recommended security headers present")
 
 
-# ── A08: Software and Data Integrity Failures ───────────────────────────────
 
 
 class TestPasswordPolicy:
@@ -348,7 +332,7 @@ class TestPasswordPolicy:
         """Rust /register should reject passwords shorter than 8 chars.
         Documents the current policy (Plan §14: "min 8 chars + complexity"
         — we only enforce length so far; complexity is a follow-up)."""
-        weak_passwords = ["", "x", "123", "abc", "1234567"]  # all <8
+        weak_passwords = ["", "x", "123", "abc", "1234567"]
         for pw in weak_passwords:
             resp = client.post(
                 f"{RUST_URL}/api/v2/auth/register",

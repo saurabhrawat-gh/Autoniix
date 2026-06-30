@@ -37,7 +37,6 @@ def _principal(user_id: int | None = 1, workspace_id: int = 1, role: str = "owne
     )
 
 
-# ── TC-222-01: legacy seed account → onboarding_completed = False ───────────
 
 
 @pytest.mark.asyncio
@@ -76,14 +75,12 @@ async def test_list_workspaces_legacy_default_workspace_marks_onboarding_incompl
             }
         ]
     }
-    # Verify the SQL actually LEFT JOINs entity_settings on the onboarding key.
     sql_executed = pool.fetch.call_args[0][0]
     assert "LEFT JOIN entity_settings" in sql_executed
     assert "onboarding" in sql_executed
     assert "onboarding_completed" in sql_executed
 
 
-# ── TC-222-02: onboarded workspace → onboarding_completed = True ─────────────
 
 
 @pytest.mark.asyncio
@@ -111,7 +108,6 @@ async def test_list_workspaces_onboarded_workspace_marks_onboarding_complete():
     assert result["data"][0]["name"] == "Acme Studios"
 
 
-# ── TC-222-03: anonymous principal → empty list (AE-217 guarantee) ───────────
 
 
 @pytest.mark.asyncio
@@ -121,7 +117,7 @@ async def test_list_workspaces_no_user_returns_empty_data():
     from src.services.dashboard.v2.auth import list_workspaces
 
     pool = FakePool()
-    pool.fetch = AsyncMock(return_value=[])  # never reached
+    pool.fetch = AsyncMock(return_value=[])
 
     with _pool_ctx(pool):
         result = await list_workspaces(p=_principal(user_id=None))

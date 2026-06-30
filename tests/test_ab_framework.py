@@ -26,7 +26,6 @@ class TestDeterministicVariant:
         for i in range(100):
             v = _deterministic_variant("exp1", f"content_{i:04d}", ["control", "treatment"])
             results.add(v)
-        # Both variants should appear in 100 assignments
         assert len(results) == 2
 
     def test_respects_weights(self):
@@ -34,7 +33,6 @@ class TestDeterministicVariant:
         for i in range(1000):
             v = _deterministic_variant("exp_w", f"c_{i}", ["a", "b"], [0.9, 0.1])
             counts[v] += 1
-        # With 90/10 split, "a" should be dominant
         assert counts["a"] > counts["b"] * 3
 
     def test_single_variant(self):

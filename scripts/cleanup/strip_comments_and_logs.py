@@ -584,6 +584,16 @@ def process_file(path: Path, *, dry_run: bool) -> int:
     new_text, removed = handler(original, path)
     if removed == 0 or new_text == original:
         return 0
+    if path.suffix == ".py":
+        import ast
+
+        try:
+            ast.parse(new_text, str(path))
+        except (SyntaxError, IndentationError) as exc:
+            sys.stderr.write(
+                f"warn: skipping {path} — cleanup would break syntax ({exc.msg} at line {exc.lineno})\n"
+            )
+            return 0
     if not dry_run:
         path.write_text(new_text, encoding="utf-8")
     return removed

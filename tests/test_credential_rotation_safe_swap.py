@@ -17,7 +17,6 @@ from zoneinfo import ZoneInfo
 import pytest
 
 
-# ── _rotation_status_dict ────────────────────────────────────────────────────
 
 def _make_row(rotated_at=None, created_at=None, days_ago: int | None = None) -> dict:
     now = datetime.datetime.now(tz=ZoneInfo("UTC"))
@@ -86,7 +85,6 @@ def test_rotation_status_dict_fields():
     assert "warn_after_days" in result
 
 
-# ── RotateIn model ───────────────────────────────────────────────────────────
 
 def test_rotate_in_has_hint():
     from src.services.dashboard.v2.providers import RotateIn
@@ -103,7 +101,6 @@ def test_rotate_in_hint_optional():
     assert r.hint is None
 
 
-# ── ROTATION_WARN_DAYS constant ──────────────────────────────────────────────
 
 def test_rotation_warn_days_defined():
     from src.services.dashboard.v2.providers import ROTATION_WARN_DAYS
@@ -112,7 +109,6 @@ def test_rotation_warn_days_defined():
     assert ROTATION_WARN_DAYS > 0
 
 
-# ── Safe-swap logic (unit) ───────────────────────────────────────────────────
 
 def test_safe_swap_health_check_abort_logic():
     """When health check returns False, rotation must be aborted (422)."""
@@ -160,23 +156,18 @@ def test_safe_swap_fall_open_on_unregistered_provider():
     assert "skipping verification" in health_error
 
 
-# ── Integration-style: rotate_credential safe-swap via mocked deps ────────────
 
 @pytest.mark.asyncio
 async def test_rotate_credential_aborts_on_failed_health(monkeypatch):
     """rotate_credential returns 422 when staged key fails health_check."""
     from fastapi import HTTPException
 
-    # Simulate the safe-swap guard:
-    # 1. put_secret_at succeeds for staging
-    # 2. health_check returns False
-    # 3. HTTPException 422 raised before promoting key
 
     class FakeProvider:
         api_key: str = ""
 
         async def health_check(self) -> bool:
-            return False   # new key is bad
+            return False
 
     health_ok = False
     health_error = None
@@ -210,7 +201,7 @@ async def test_rotate_credential_promotes_on_passing_health():
         api_key: str = ""
 
         async def health_check(self) -> bool:
-            return True   # new key is good
+            return True
 
     health_ok = False
     test_inst = FakeProvider()
@@ -221,7 +212,7 @@ async def test_rotate_credential_promotes_on_passing_health():
     health_ok = bool(res)
 
     if health_ok:
-        promoted["called"] = True  # simulate put_secret_at to live path
+        promoted["called"] = True
 
     assert promoted["called"] is True
     assert health_ok is True

@@ -44,7 +44,6 @@ async def test_resolve_returns_manual_member_list(mock_pool):
     ]
     rows = await resolve_smart_collection(1)
     assert len(rows) == 3
-    # Manual path uses ANY($1) preserving order via array_position
     sql = mock_pool.fetch.await_args.args[0]
     assert "array_position" in sql
 
@@ -66,7 +65,6 @@ async def test_resolve_smart_translates_query_to_sql(mock_pool):
     mock_pool.fetch.return_value = []
     await resolve_smart_collection(2)
     sql = mock_pool.fetch.await_args.args[0]
-    # Every clause from the query JSONB lands in the SQL.
     assert "a.kind = ANY" in sql
     assert "a.tags && " in sql
     assert "a.tags @> " in sql
@@ -109,6 +107,5 @@ async def test_resolve_smart_degrades_when_semantic_unavailable(mock_pool):
     ):
         await resolve_smart_collection(4)
     sql = mock_pool.fetch.await_args.args[0]
-    # Structural filter is present, semantic id list is NOT.
     assert "a.kind = ANY" in sql
     assert "a.id = ANY" not in sql

@@ -37,43 +37,19 @@ from src.quality.gate import PRODUCTION_THRESHOLDS, WEIGHTS, _composite
 logger = structlog.get_logger()
 
 
-# Tunables
 
 
-# Minimum joined samples per (niche, dimension) before we trust the fit.
-# Below this we keep the static default. 20 is the smallest number that
-# makes per-tier proportions roughly stable.
 MIN_SAMPLES = 20
 
-# We want the gate to be a *precision* device: of scripts that pass,
-# 70%+ should turn into wins. Below this we'd rather not block anything.
 TARGET_PRECISION = 0.70
 
-# Hard absolute bounds — never drop below "obviously broken" or jack
-# above "even your best work won't always score this".
 ABSOLUTE_FLOOR = 5.0
 ABSOLUTE_CEILING = 9.5
 
-# Tiers. Treat S/A as success, D as failure, B/C as ignored — they're
-# the noisy middle and including them would smear every threshold.
 WIN_TIERS = {"S", "A"}
 FLOP_TIERS = {"D"}
 
 
-# Phase 9: per-dim retention labels
-#
-# For dimensions that have a direct measured proxy in the audience-
-# retention curve, label samples by the *measured* behaviour instead of
-# the noisy compound ``performance_tier``. Where a dim has no curve
-# proxy, fall back to the tier-based labelling (Phase 7 behaviour).
-#
-# Both proxies are "lower is better" (less dropoff = better hook /
-# pacing). The thresholding logic in :func:`_classify_by_retention`
-# uses the niche-wide median: anything *below* the median is a win
-# (better than typical) and *above* is a flop. This keeps the win/flop
-# split balanced regardless of niche-absolute retention norms — a
-# 12% hook-dropoff might be excellent in one niche and average in
-# another.
 DIM_TO_RETENTION_FEATURE: dict[str, str] = {
     "hook_retention_score":   "hook_dropoff_30s",
     "script_structure_score": "mid_video_decay",
@@ -81,7 +57,6 @@ DIM_TO_RETENTION_FEATURE: dict[str, str] = {
 RETENTION_LOWER_IS_BETTER = {"hook_dropoff_30s", "mid_video_decay"}
 
 
-# Public types
 
 
 @dataclass
@@ -99,9 +74,6 @@ class Sample:
     """
     score: float
     tier: str
-    # Phase 9 — None = no curve data, fall back to tier; True = measured
-    # win; False = measured flop. Set by :func:`_samples_by_dimension`
-    # for the dims listed in ``DIM_TO_RETENTION_FEATURE``.
     retention_label: bool | None = None
 
     @property
@@ -109,7 +81,7 @@ class Sample:
         if self.retention_label is True:
             return True
         if self.retention_label is False:
-            return False  # explicit retention-flop; not a win
+            return False
         return self.tier in WIN_TIERS
 
     @property
@@ -117,7 +89,7 @@ class Sample:
         if self.retention_label is False:
             return True
         if self.retention_label is True:
-            return False  # explicit retention-win; not a flop
+            return False
         return self.tier in FLOP_TIERS
 
 
@@ -128,8 +100,7 @@ class CalibrationResult:
     n_samples: int
     win_rate_at_floor: float | None
     s_tier_preserved: float | None
-    # ``status`` records *why* we got this value, so ops can audit.
-    status: str = "auto"   # auto | insufficient_samples | no_threshold_meets_precision
+    status: str = "auto"
     note: str = ""
 
     def as_dict(self) -> dict:
@@ -150,7 +121,6 @@ class CalibrationResult:
         }
 
 
-# Pure-function core (testable, no DB)
 
 
 def _candidate_thresholds(samples: list[Sample]) -> list[float]:
@@ -161,7 +131,7 @@ def _candidate_thresholds(samples: list[Sample]) -> list[float]:
     samples. Sorted ascending.
     """
     grid = {round(s.score, 1) for s in samples}
-    grid.add(ABSOLUTE_FLOOR)  # ensure we always evaluate the floor
+    grid.add(ABSOLUTE_FLOOR)
     return sorted(grid)
 
 
@@ -188,8 +158,6 @@ def calibrate_dimension(
     wins  = [s for s in samples if s.is_win]
     flops = [s for s in samples if s.is_flop]
 
-    # We need at least *some* of each class to learn from, otherwise the
-    # data has no positive vs negative signal.
     if not wins or not flops:
         return CalibrationResult(
             dimension=dimension, floor=default_floor, n_samples=n,
@@ -201,30 +169,23 @@ def calibrate_dimension(
     s_tier = [s for s in samples if s.tier == "S"]
     min_s_tier_score = min(s.score for s in s_tier) if s_tier else None
 
-    # Search lowest acceptable threshold. "Acceptable" = precision
-    # (win-rate of passing samples) ≥ TARGET_PRECISION.
-    best: tuple[float, float, float] | None = None  # (t, precision, s_preserved)
+    best: tuple[float, float, float] | None = None
     for t in _candidate_thresholds(samples):
         passing = [s for s in samples if s.score >= t]
         if not passing:
             continue
-        # Among passing samples, what fraction are wins?
         n_wins_pass = sum(1 for s in passing if s.is_win)
         precision = n_wins_pass / len(passing)
         if precision < TARGET_PRECISION:
             continue
-        # Track the *first* (lowest) threshold that meets precision.
         s_preserved = (
             sum(1 for s in s_tier if s.score >= t) / len(s_tier)
             if s_tier else 1.0
         )
         best = (t, precision, s_preserved)
-        break  # candidates are sorted ascending; first hit wins
+        break
 
     if best is None:
-        # No threshold meets precision target — keep default and flag it.
-        # This usually means the niche has no signal yet (too uniform a
-        # tier mix) or genuinely no score predicts performance.
         return CalibrationResult(
             dimension=dimension, floor=default_floor, n_samples=n,
             win_rate_at_floor=None, s_tier_preserved=None,
@@ -234,14 +195,8 @@ def calibrate_dimension(
 
     t, precision, s_preserved = best
 
-    # Monotonicity guard
-    # Never set a threshold above any S-tier observation. A 9.0 floor
-    # that would block a known S-tier video (score=8.7) is wrong by
-    # construction.
     if min_s_tier_score is not None and t > min_s_tier_score:
         t = min_s_tier_score
-        # Recompute the metrics at the clamped value so the persisted
-        # numbers describe the value we actually wrote, not the rejected one.
         passing = [s for s in samples if s.score >= t]
         if passing:
             precision = sum(1 for s in passing if s.is_win) / len(passing)
@@ -250,7 +205,6 @@ def calibrate_dimension(
                 if s_tier else 1.0
             )
 
-    # Sanity clamp
     floor = max(ABSOLUTE_FLOOR, min(ABSOLUTE_CEILING, t))
 
     return CalibrationResult(
@@ -268,8 +222,6 @@ def calibrate_all_dimensions(
     out = []
     for dim, default in PRODUCTION_THRESHOLDS.items():
         if dim == "composite_score":
-            # Composite is calibrated separately because its samples are
-            # the *weighted sum*, not a stored sub-score.
             continue
         out.append(calibrate_dimension(dim, samples_by_dim.get(dim, []),
                                         default_floor=default))
@@ -289,7 +241,6 @@ def calibrate_composite(samples: list[Sample]) -> CalibrationResult:
     )
 
 
-# DB layer
 
 
 async def _fetch_samples_for_niche(niche: str, lookback_days: int = 90) -> list[dict]:
@@ -351,7 +302,7 @@ def _classify_by_retention(
     if feature_value is None or median is None:
         return None
     if abs(feature_value - median) < 1e-9:
-        return None  # exactly at the boundary; defer to tier
+        return None
     if lower_is_better:
         return feature_value < median
     return feature_value > median
@@ -370,9 +321,6 @@ def _samples_by_dimension(rows: list[dict]) -> tuple[dict[str, list[Sample]], li
     lacks the relevant curve feature, the sample falls through to the
     tier-based label exactly as in Phase 7.
     """
-    # Phase 9 — precompute niche medians for each retention feature,
-    # using only rows where the feature is not NULL. Done once per
-    # call so every sample for a given dim uses the same threshold.
     retention_medians: dict[str, float | None] = {
         feature: _niche_median([r.get(feature) for r in rows])
         for feature in set(DIM_TO_RETENTION_FEATURE.values())
@@ -384,7 +332,6 @@ def _samples_by_dimension(rows: list[dict]) -> tuple[dict[str, list[Sample]], li
         tier = (r.get("performance_tier") or "").strip().upper()
         if tier not in WIN_TIERS and tier not in FLOP_TIERS and tier not in {"B", "C"}:
             continue
-        # sub_scores is JSONB → asyncpg returns str; decode defensively.
         sub = r.get("sub_scores") or {}
         if isinstance(sub, str):
             try:
@@ -399,7 +346,6 @@ def _samples_by_dimension(rows: list[dict]) -> tuple[dict[str, list[Sample]], li
                 score = float(v)
             except (TypeError, ValueError):
                 continue
-            # Phase 9: per-dim measured-retention label, when applicable.
             retention_label: bool | None = None
             feature = DIM_TO_RETENTION_FEATURE.get(dim)
             if feature is not None:
@@ -460,8 +406,6 @@ async def calibrate_niche(niche: str) -> list[CalibrationResult]:
             int(r.n_samples),
             float(r.win_rate_at_floor) if r.win_rate_at_floor is not None else None,
             float(r.s_tier_preserved)  if r.s_tier_preserved  is not None else None,
-            # Insufficient-sample rows get marked as 'default' so the
-            # /fleet panel can show "still using static value, awaiting data".
             "default" if r.status == "insufficient_samples" else "auto",
         )
 
@@ -482,7 +426,7 @@ async def load_thresholds_for_niche(niche: str) -> dict[str, float]:
     ``PRODUCTION_THRESHOLDS`` populated, so the evaluator never has to
     null-handle.
     """
-    out = dict(PRODUCTION_THRESHOLDS)  # start from defaults
+    out = dict(PRODUCTION_THRESHOLDS)
     try:
         from src.db import get_pool
         pool = await get_pool()

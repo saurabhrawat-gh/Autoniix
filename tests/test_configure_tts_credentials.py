@@ -17,7 +17,6 @@ def test_edge_tts_default_voice_attribute():
 
     inst = EdgeTTSProvider()
     assert inst.voice == ""
-    # voice attribute is settable (for chain _instantiate)
     inst.voice = "en-GB-RyanNeural"
     assert inst.voice == "en-GB-RyanNeural"
 
@@ -108,9 +107,8 @@ def test_instantiate_sets_api_key_when_settings_empty(monkeypatch):
 
     from src.providers.tts.fish_audio import FishAudioTTS
     inst = FishAudioTTS()
-    assert inst.api_key == ""  # settings shim returned empty
+    assert inst.api_key == ""
 
-    # Simulate what chain._instantiate does after cls()
     vault_api_key = "fish-test-key-xyz"
     if vault_api_key and hasattr(inst, "api_key") and not getattr(inst, "api_key", None):
         inst.api_key = vault_api_key
@@ -133,9 +131,7 @@ def test_chain_instantiate_api_key_patch():
     from unittest.mock import patch
     import src.providers.boot  # noqa: F401
 
-    # Mock get_secret_at to return a key
     with patch("src.providers.chain.get_secret_at", return_value="secret-tts-key"):
-        # Use edge_tts which has no settings-driven api_key (should not crash)
         inst = _instantiate(
             "edge_tts", "providers/tts/edge_tts/default",
             {}, None, {"edge_tts": __import__(

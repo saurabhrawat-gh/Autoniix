@@ -38,7 +38,6 @@ def _good_payload(dim: int = EMBEDDING_DIM) -> dict:
     }
 
 
-# Helpers
 
 
 def test_format_vector_emits_pgvector_literal():
@@ -46,7 +45,7 @@ def test_format_vector_emits_pgvector_literal():
 
 
 def test_safe_identifier_rejects_quotes_and_spaces():
-    _assert_safe_identifier("brain_decisions")  # ok
+    _assert_safe_identifier("brain_decisions")
     with pytest.raises(ValueError):
         _assert_safe_identifier("brain decisions")
     with pytest.raises(ValueError):
@@ -55,7 +54,6 @@ def test_safe_identifier_rejects_quotes_and_spaces():
         _assert_safe_identifier("")
 
 
-# embed_text
 
 
 @pytest.mark.asyncio
@@ -83,7 +81,6 @@ async def test_embed_text_returns_vector_and_records_cost(mock_pool):
         vec = await embed_text("hello world")
 
     assert len(vec) == EMBEDDING_DIM
-    # api_usage cost row was written.
     mock_pool.execute.assert_awaited()
 
 
@@ -135,10 +132,9 @@ async def test_embed_text_does_not_retry_on_4xx(mock_pool):
         with pytest.raises(EmbeddingError):
             await embed_text("permanent fail")
 
-    assert attempts["n"] == 1  # 4xx is permanent — no retry
+    assert attempts["n"] == 1
 
 
-# embed_and_store + semantic_search
 
 
 @pytest.mark.asyncio
@@ -159,15 +155,13 @@ async def test_embed_and_store_updates_target_row(mock_pool):
             column="embedding",
         )
 
-    # The most recent execute() call is the UPDATE — and it carries a
-    # pgvector literal as the first param and id=42 as the second.
     update_calls = [c for c in mock_pool.execute.await_args_list
                     if "UPDATE" in (c.args[0] if c.args else "")]
     assert update_calls, "expected at least one UPDATE call"
     last = update_calls[-1]
     assert "brain_decisions" in last.args[0]
-    assert last.args[2] == 42  # row_id
-    assert last.args[1].startswith("[")  # vector literal
+    assert last.args[2] == 42
+    assert last.args[1].startswith("[")
 
 
 @pytest.mark.asyncio
@@ -199,4 +193,4 @@ async def test_semantic_search_calls_db_with_vector_param(mock_pool):
     sql, *params = mock_pool.fetch.await_args.args
     assert "FROM brain_decisions" in sql
     assert "LIMIT 5" in sql
-    assert params[0].startswith("[")  # vector literal
+    assert params[0].startswith("[")

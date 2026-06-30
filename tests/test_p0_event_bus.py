@@ -12,7 +12,6 @@ from src.events.bus import subscribe
 from src.events.topics import ALL_TOPICS
 
 
-# Topic registry
 
 
 def test_all_12_topics_are_registered():
@@ -29,7 +28,6 @@ def test_unknown_topic_is_rejected():
     assert not Topic.is_known("brain.unknown.topic")
 
 
-# Envelope validation
 
 
 def _good_envelope(**overrides):
@@ -83,7 +81,6 @@ def test_confidence_above_one_is_rejected():
         validate_envelope(_good_envelope(confidence=1.5))
 
 
-# Publish + subscribe round trip
 
 
 @pytest.mark.asyncio
@@ -100,7 +97,6 @@ async def test_publish_validates_envelope_and_returns_event_id():
             confidence=0.8,
         )
     assert isinstance(event_id, str) and len(event_id) > 0
-    # Redis.publish was called with the right topic and JSON-encoded envelope.
     args, _ = fake_redis.publish.call_args
     assert args[0] == Topic.BRAIN_DIRECTIVE.value
     sent = json.loads(args[1])
@@ -117,7 +113,7 @@ async def test_publish_rejects_bad_envelope_before_redis_call():
         with pytest.raises(EnvelopeError):
             await publish(
                 Topic.BRAIN_DIRECTIVE,
-                scope="universe",  # invalid
+                scope="universe",
                 scope_id="x",
                 payload={},
                 source_service="the-brain",
@@ -130,7 +126,6 @@ async def test_subscribe_drops_invalid_messages_and_dispatches_valid_ones():
     """A subscriber must survive a poisoned producer."""
     good = _good_envelope(payload={"action": "HOLD"})
     bad = {"missing": "fields"}
-    # Build a fake pubsub stream yielding one invalid and one valid message.
     stream = [
         {"type": "subscribe"},
         {"type": "message", "channel": Topic.BRAIN_DIRECTIVE.value, "data": "{not-json"},
@@ -154,13 +149,10 @@ async def test_subscribe_drops_invalid_messages_and_dispatches_valid_ones():
 
     async def handler(env):
         received.append(env)
-        # Stop the loop after the first valid message.
         raise StopIteration
 
     with patch("src.events.bus.get_redis", AsyncMock(return_value=fake_redis)), \
          patch("src.events.bus.get_pubsub_redis", AsyncMock(return_value=fake_redis)):
-        # The handler StopIteration is caught by subscribe (handler isolation)
-        # so we need a different exit. Use a stop_event triggered by handler.
         import asyncio
         stop = asyncio.Event()
 

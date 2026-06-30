@@ -21,14 +21,13 @@ from typing import Any
 
 import structlog
 
-from src.db import get_pool  # re-exported at module level so tests can monkeypatch
+from src.db import get_pool
 
 logger = structlog.get_logger()
 
 _TTL_SECONDS = 30.0
 CHANNEL_NAME = "membership.revoked"
 
-# Cache: (user_id, workspace_id) → (is_member: bool, expires_at: float)
 _cache: dict[tuple[int, int], tuple[bool, float]] = {}
 
 _subscriber_task: asyncio.Task[Any] | None = None
@@ -65,7 +64,7 @@ async def check_membership(user_id: int, workspace_id: int) -> bool:
     except Exception as exc:
         logger.warning("membership.cache.db_error",
                        user_id=user_id, workspace_id=workspace_id, error=str(exc))
-        return True  # fail-open: don't revoke on DB error
+        return True
 
     _cache[(user_id, workspace_id)] = (is_member, time.monotonic() + _TTL_SECONDS)
     return is_member

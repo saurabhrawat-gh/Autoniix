@@ -37,13 +37,12 @@ from src.services.assets.semantic_ranker import ScoredCandidate
 
 logger = structlog.get_logger()
 
-# Provider-health (in-process, rolling 5-min)
 
 
 @dataclass
 class _ProviderStats:
     events: deque = field(default_factory=lambda: deque(maxlen=60))
-    skipped_until: float = 0.0  # epoch seconds
+    skipped_until: float = 0.0
 
     def record(self, ok: bool) -> None:
         self.events.append((time.time(), ok))
@@ -88,7 +87,6 @@ def provider_health_snapshot() -> dict[str, dict]:
     }
 
 
-# Candidate schema
 
 
 def _normalise_candidate(*, source: str, **kw) -> dict:
@@ -108,7 +106,6 @@ def _normalise_candidate(*, source: str, **kw) -> dict:
     }
 
 
-# Providers
 
 
 async def _pexels(query: str, k: int = 10) -> list[dict]:
@@ -193,9 +190,6 @@ async def _local_library(query: str, k: int = 10) -> list[dict]:
     try:
         from src.db import get_pool
         pool = await get_pool()
-        # Cheap path: keyword match on tags / query_text. Embedding-based
-        # nearest neighbour is added in Phase 5 when the curate script
-        # actually populates query_embedding.
         rows = await pool.fetch(
             """
             SELECT provider, asset_url, minio_key, asset_type, duration_s,
@@ -238,7 +232,6 @@ async def _local_library(query: str, k: int = 10) -> list[dict]:
         return []
 
 
-# Chain orchestration
 
 
 @dataclass

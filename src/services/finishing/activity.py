@@ -71,7 +71,6 @@ def _storage():
 async def _download_source(video_url: str, dest_path: str) -> None:
     """Fetch the raw render to a local path (http(s) URL or s3:// key)."""
     if video_url.startswith("s3://"):
-        # s3://bucket/key — strip scheme + bucket, download by object key.
         key = video_url.split("/", 3)[-1]
         data = await _storage().download(key)
         with open(dest_path, "wb") as fh:
@@ -95,7 +94,6 @@ async def _resolve_lut(preset_key: str, dest_path: str) -> str:
     except Exception as exc:
         logger.warning("finishing.lut_download_failed_generating",
                        preset=preset_key, key=cube_key, error=str(exc))
-        # Self-heal: generate the .cube on the fly so finishing still applies a grade.
         from scripts.seeds.lut_presets.generate_luts import write_cube
         write_cube(preset_key, dest_path)
         return dest_path
@@ -175,7 +173,7 @@ async def finishing_activity(params: dict) -> dict:
             try:
                 activity.heartbeat(f"finishing attempt {attempt}")
             except Exception:
-                pass  # heartbeat is a no-op outside an activity context (tests)
+                pass
             try:
                 await run_finishing(raw_path, finished_path, lut_path, cfg)
                 last_err = None
@@ -186,9 +184,7 @@ async def finishing_activity(params: dict) -> dict:
                                attempt=attempt, error=str(exc))
 
         if last_err is not None:
-            # All attempts failed.
             if require_resolve:
-                # Caller demands a real finish — surface to Temporal for retry.
                 raise last_err
             logger.warning("finishing.skipped_after_retries", content_id=content_id)
             await _mark_db(content_id, preset=None, prores_path=None, skipped=True)
@@ -215,7 +211,6 @@ async def finishing_activity(params: dict) -> dict:
                 "data": {"finished_url": finished_url, "prores_path": prores_path,
                          "skipped": False, "preset_used": cfg.color_grade_preset}}
     finally:
-        # Best-effort temp cleanup.
         try:
             import shutil
             shutil.rmtree(tmpdir, ignore_errors=True)

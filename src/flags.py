@@ -39,7 +39,6 @@ logger = structlog.get_logger()
 
 _TTL_SECONDS = 30.0
 
-# (value, expires_at) tuples
 _cache: dict[str, tuple[Any, float]] = {}
 _cache_lock = asyncio.Lock()
 
@@ -88,7 +87,6 @@ async def get_flag(key: str, default: Any = None) -> Any:
         return cached[0]
 
     async with _cache_lock:
-        # Re-check inside the lock to avoid a thundering herd on cache expiry.
         cached = _cache.get(key)
         if cached is not None and _is_fresh(cached[1]):
             return cached[0]

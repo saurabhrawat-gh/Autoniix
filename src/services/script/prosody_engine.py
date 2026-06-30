@@ -30,7 +30,6 @@ from src.services.script.script_analyzer import (
 
 logger = structlog.get_logger()
 
-# Section-to-Prosody Defaults
 SECTION_PROSODY = {
     "hook": {
         "base_speed": 1.15, "stability": 0.40, "style": 0.70,
@@ -59,7 +58,6 @@ SECTION_PROSODY = {
     },
 }
 
-# Emotion-to-TTS Parameter Mapping
 EMOTION_TTS_MAP = {
     "curiosity": {"stability": 0.45, "style": 0.55, "speed_mod": 1.05, "pitch": "medium"},
     "surprise": {"stability": 0.35, "style": 0.70, "speed_mod": 1.10, "pitch": "high"},
@@ -72,7 +70,6 @@ EMOTION_TTS_MAP = {
     "neutral": {"stability": 0.55, "style": 0.40, "speed_mod": 1.00, "pitch": "medium"},
 }
 
-# Pause Rules
 PAUSE_RULES = {
     "period": 400,
     "exclamation": 300,
@@ -86,7 +83,6 @@ PAUSE_RULES = {
 }
 
 
-# SENTENCE-LEVEL PROSODY
 
 async def analyze_sentence_prosody(
     sentence: str,
@@ -103,13 +99,11 @@ async def analyze_sentence_prosody(
     emotion = emotions["dominant_emotion"]
     emotion_params = EMOTION_TTS_MAP.get(emotion, EMOTION_TTS_MAP["neutral"])
 
-    # Compute TTS parameters by blending section defaults + emotion
     speed = section_defaults["base_speed"] * emotion_params["speed_mod"]
     stability = (section_defaults["stability"] * 0.5 + emotion_params["stability"] * 0.5)
     style = (section_defaults["style"] * 0.4 + emotion_params["style"] * 0.6)
     similarity_boost = section_defaults["similarity_boost"]
 
-    # Adjust speed for sentence length (short sentences = slower for impact)
     word_count = len(sentence.split())
     if word_count <= 5:
         speed *= 0.85
@@ -118,7 +112,6 @@ async def analyze_sentence_prosody(
 
     speed = round(min(2.0, max(0.5, speed)), 2)
 
-    # Determine pause after this sentence
     pause_ms = section_defaults["pause_after_ms"]
     if sentence.rstrip().endswith("?"):
         pause_ms = max(pause_ms, PAUSE_RULES["question"])
@@ -127,18 +120,15 @@ async def analyze_sentence_prosody(
     elif sentence.rstrip().endswith("..."):
         pause_ms = max(pause_ms, PAUSE_RULES["ellipsis"])
 
-    # Emotion transition pause (longer pause when emotion changes)
     if emotion != prev_emotion and prev_emotion != "neutral":
         pause_ms += 200
 
-    # Volume shift
     volume = section_defaults["base_volume"]
     if emotion in ("urgency", "anger", "surprise"):
         volume = "louder"
     elif emotion in ("empathy", "hope") and section == "outro":
         volume = "softer"
 
-    # Duration estimate
     duration_s = estimate_speaking_duration(sentence, wpm=int(150 * speed))
 
     return {
@@ -167,7 +157,6 @@ def generate_ssml_sentence(prosody_data: dict) -> str:
     emphasis_words = set(prosody_data.get("emphasis_words", []))
     pause_ms = prosody_data["pause_after_ms"]
 
-    # Map speed to SSML rate
     if speed <= 0.75:
         rate = "slow"
     elif speed <= 0.95:
@@ -177,7 +166,6 @@ def generate_ssml_sentence(prosody_data: dict) -> str:
     else:
         rate = "fast"
 
-    # Build SSML with emphasis on key words
     words = text.split()
     ssml_words = []
     for word in words:
@@ -196,7 +184,6 @@ def generate_ssml_sentence(prosody_data: dict) -> str:
     return ssml
 
 
-# SEGMENT-LEVEL PROSODY
 
 async def generate_segment_voice(segment: dict, segment_index: int = 0) -> dict[str, Any]:
     """Generate full voice markup for a script segment.
@@ -207,7 +194,6 @@ async def generate_segment_voice(segment: dict, segment_index: int = 0) -> dict[
     section = segment.get("section", "body")
     segment_id = segment.get("id", f"s{segment_index + 1}")
 
-    # Split into sentences
     sentences = re.split(r"(?<=[.!?])\s+", narration)
     sentences = [s.strip() for s in sentences if s.strip()]
 
@@ -226,11 +212,9 @@ async def generate_segment_voice(segment: dict, segment_index: int = 0) -> dict[
         total_duration += prosody["duration_s"] + (prosody["pause_after_ms"] / 1000)
         prev_emotion = prosody["emotion"]
 
-    # Composite SSML
     ssml_body = "\n    ".join(ssml_parts)
     full_ssml = f'<speak>\n  <mark name="{segment_id}_start"/>\n    {ssml_body}\n  <mark name="{segment_id}_end"/>\n</speak>'
 
-    # Aggregate TTS params (weighted average across sentences, biased by word count)
     if sentence_prosody:
         weights = [len(sp["text"].split()) for sp in sentence_prosody]
         total_w = max(sum(weights), 1)
@@ -244,12 +228,10 @@ async def generate_segment_voice(segment: dict, segment_index: int = 0) -> dict[
     else:
         avg_params = {"stability": 0.55, "similarity_boost": 0.80, "style": 0.45, "speed": 1.0}
 
-    # Collect all emphasis words
     all_emphasis = []
     for sp in sentence_prosody:
         all_emphasis.extend(sp["emphasis_words"])
 
-    # Dominant emotion for segment
     emotion_counts: dict[str, int] = {}
     for sp in sentence_prosody:
         e = sp["emotion"]
@@ -269,7 +251,6 @@ async def generate_segment_voice(segment: dict, segment_index: int = 0) -> dict[
     }
 
 
-# FULL SCRIPT VOICE VERSION (v1)
 
 async def generate_script_voice(segments: list[dict], channel: dict | None = None) -> dict[str, Any]:
     """Generate complete Script v1 (Voice Over version).
@@ -283,18 +264,15 @@ async def generate_script_voice(segments: list[dict], channel: dict | None = Non
     for i, seg in enumerate(segments):
         voice_seg = await generate_segment_voice(seg, i)
 
-        # Add absolute timing
         voice_seg["start_time_s"] = round(cumulative_time, 2)
         cumulative_time += voice_seg["total_duration_s"]
         voice_seg["end_time_s"] = round(cumulative_time, 2)
 
         voice_segments.append(voice_seg)
 
-    # Full-script SSML (concatenated)
     full_ssml_parts = [vs["ssml"] for vs in voice_segments]
     full_ssml = "\n".join(full_ssml_parts)
 
-    # Emotion curve for the entire script
     emotion_curve = [
         {
             "segment_id": vs["segment_id"],
@@ -305,7 +283,6 @@ async def generate_script_voice(segments: list[dict], channel: dict | None = Non
         for vs in voice_segments
     ]
 
-    # Coverage metric: how many sentences have complete prosody data
     total_sentences = sum(vs["sentence_count"] for vs in voice_segments)
     complete_sentences = sum(
         1 for vs in voice_segments

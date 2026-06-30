@@ -9,7 +9,6 @@ from src.providers.registry import ProviderRegistry
 
 logger = structlog.get_logger()
 
-# ElevenLabs Pro plan: $0.30 per 1K characters
 COST_PER_1K_CHARS = 0.30
 
 
@@ -23,10 +22,9 @@ class ElevenLabsTTS(TTSProvider):
             logger.warning("elevenlabs.no_api_key")
 
     async def synthesize(self, request: TTSRequest) -> TTSResult:
-        voice_id = request.voice_id or "21m00Tcm4TlvDq8ikWAM"  # default Rachel
+        voice_id = request.voice_id or "21m00Tcm4TlvDq8ikWAM"
         word_count = len(request.text.split())
 
-        # Build voice settings
         voice_settings = {
             "stability": 0.50,
             "similarity_boost": 0.75,
@@ -55,7 +53,6 @@ class ElevenLabsTTS(TTSProvider):
 
         chars = len(request.text)
         cost = (chars / 1000) * COST_PER_1K_CHARS
-        # Rough duration estimate: ~150 WPM
         estimated_duration = (word_count / 150) * 60
 
         logger.info(

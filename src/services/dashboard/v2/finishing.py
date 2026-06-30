@@ -27,7 +27,6 @@ logger = structlog.get_logger()
 
 router = APIRouter()
 
-# Columns returned by GET / accepted (subset) by PUT.
 _CONFIG_COLUMNS = (
     "channel_id",
     "require_resolve_finish",
@@ -42,7 +41,6 @@ _CONFIG_COLUMNS = (
     "updated_at",
 )
 
-# Editable fields (everything except the PK + updated_at).
 _EDITABLE = (
     "require_resolve_finish",
     "color_grade_preset",
@@ -108,7 +106,6 @@ class FinishingConfigUpdate(BaseModel):
 
 def _serialise(row) -> dict:
     out = dict(row)
-    # Decimals → float for JSON; timestamps → ISO.
     for k in ("audio_loudness_lufs", "audio_true_peak_dbtps"):
         if out.get(k) is not None:
             out[k] = float(out[k])
@@ -132,7 +129,6 @@ async def _get_or_create_config(pool, channel_id: str):
     )
     if row is not None:
         return row
-    # No row yet (channel created after the seed migration) — create the default.
     await pool.execute(
         "INSERT INTO channel_finishing_config (channel_id) VALUES ($1) "
         "ON CONFLICT (channel_id) DO NOTHING",

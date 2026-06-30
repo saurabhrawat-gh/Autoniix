@@ -45,9 +45,6 @@ from src.providers.llm.base import LLMRequest
 
 logger = structlog.get_logger()
 
-# ---------------------------------------------------------------------------
-# Compression tier constants
-# ---------------------------------------------------------------------------
 
 COMPRESSION_TIERS = ("off", "fast", "max")
 DEFAULT_TIER: str = os.getenv("LLM_COMPRESSION", "off")
@@ -56,9 +53,6 @@ PRUNE_MAX_CONTEXT_TOKENS = int(os.getenv("LLM_PRUNE_MAX_TOKENS", "8000"))
 LLMLINGUA_TARGET_RATIO = float(os.getenv("LLM_LLMLINGUA_RATIO", "0.35"))
 MIN_TOKENS_FOR_COMPRESSION = int(os.getenv("LLM_COMPRESS_MIN_TOKENS", "200"))
 
-# ---------------------------------------------------------------------------
-# Stats database (local SQLite — zero telemetry, fully offline)
-# ---------------------------------------------------------------------------
 
 _STATS_DB_PATH = Path.home() / ".autoniix" / "compression_stats.db"
 
@@ -168,9 +162,6 @@ def get_savings_report(days: int = 7, breakdown: bool = False) -> dict:
         return {"error": str(exc)}
 
 
-# ---------------------------------------------------------------------------
-# Fast token estimator
-# ---------------------------------------------------------------------------
 
 _CHARS_PER_TOKEN: dict[str, float] = {
     "gpt-4": 3.2, "gpt-3.5": 3.2, "claude": 3.5,
@@ -200,9 +191,6 @@ def _estimate_request_tokens(request: LLMRequest) -> int:
     return total
 
 
-# ---------------------------------------------------------------------------
-# Context pruning (fast tier — always applied)
-# ---------------------------------------------------------------------------
 
 _COLLAPSE_WS_RE = re.compile(r"\n{3,}")
 _COLLAPSE_SPACE_RE = re.compile(r"[ \t]{2,}")
@@ -242,9 +230,6 @@ def _prune_context(request: LLMRequest, max_tokens: int = PRUNE_MAX_CONTEXT_TOKE
     return replace(request, messages=pruned_messages)
 
 
-# ---------------------------------------------------------------------------
-# Engine 1: LLMLingua-2 (Microsoft Research, MIT license)
-# ---------------------------------------------------------------------------
 
 _llmlingua_available: bool | None = None
 _llmlingua_model: Any = None
@@ -316,9 +301,6 @@ async def _compress_with_llmlingua(request: LLMRequest) -> LLMRequest:
     return replace(request, messages=compressed_messages)
 
 
-# ---------------------------------------------------------------------------
-# Prompt caching markers
-# ---------------------------------------------------------------------------
 
 def _add_cache_markers(request: LLMRequest) -> LLMRequest:
     model = (request.model or "").lower()
@@ -340,9 +322,6 @@ def _add_cache_markers(request: LLMRequest) -> LLMRequest:
     return replace(request, messages=messages)
 
 
-# ---------------------------------------------------------------------------
-# Main compressor
-# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -410,11 +389,9 @@ class PromptCompressor:
 
         compressed = request
 
-        # Stage 1: Context pruning (always applied).
         compressed = _prune_context(compressed)
         stats.strategies_applied.append("prune")
 
-        # Stage 2: Semantic compression (max tier).
         if self.tier == "max":
             llmlingua_result = await _compress_with_llmlingua(compressed)
             if llmlingua_result is not compressed:
@@ -422,7 +399,6 @@ class PromptCompressor:
                 stats.engine = "llmlingua"
                 stats.strategies_applied.append("llmlingua")
 
-        # Stage 3: Prompt caching markers.
         if self.enable_cache_markers:
             compressed = _add_cache_markers(compressed)
             stats.strategies_applied.append("cache_markers")
@@ -452,9 +428,6 @@ class PromptCompressor:
         return compressed, stats
 
 
-# ---------------------------------------------------------------------------
-# Module-level convenience
-# ---------------------------------------------------------------------------
 
 _compressor: PromptCompressor | None = None
 

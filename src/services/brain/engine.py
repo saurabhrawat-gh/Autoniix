@@ -34,15 +34,12 @@ logger = structlog.get_logger()
 _SOURCE = "brain-engine"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Threshold defaults  (overridable via feature_flags payload)
-# ─────────────────────────────────────────────────────────────────────────────
 
 _DEFAULTS: dict[str, Any] = {
     "brain.threshold.halt.consecutive_failures": 3,
     "brain.threshold.halt.min_quality_score": 5.0,
     "brain.threshold.hold.cost_spike_factor": 3.0,
-    "brain.threshold.hold.budget_pct_remaining": 0.05,  # 5% left → HOLD
+    "brain.threshold.hold.budget_pct_remaining": 0.05,
     "brain.threshold.nudge.avg_quality_score": 7.0,
 }
 
@@ -51,9 +48,6 @@ async def _threshold(key: str) -> Any:
     return await get_flag(key, default=_DEFAULTS.get(key))
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Public API
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 async def evaluate(signals: ChannelSignals, content_id: str | None = None) -> dict | None:
@@ -78,7 +72,6 @@ async def _evaluate(signals: ChannelSignals, content_id: str | None) -> dict | N
         logger.debug("brain.engine.skip_new_channel", channel_id=signals.channel_id)
         return None
 
-    # ── 1. HALT: consecutive failures
     halt_consec = await _threshold("brain.threshold.halt.consecutive_failures")
     if signals.consecutive_failures >= int(halt_consec):
         return await _write_decision(
@@ -98,12 +91,11 @@ async def _evaluate(signals: ChannelSignals, content_id: str | None) -> dict | N
             ),
         )
 
-    # ── 2. HALT: quality floor breach
     halt_quality = await _threshold("brain.threshold.halt.min_quality_score")
     if (
         signals.recent_scores
         and signals.avg_composite_score < float(halt_quality)
-        and len(signals.recent_scores) >= 3  # need enough data
+        and len(signals.recent_scores) >= 3
     ):
         return await _write_decision(
             signals=signals,
@@ -123,7 +115,6 @@ async def _evaluate(signals: ChannelSignals, content_id: str | None) -> dict | N
             ),
         )
 
-    # ── 3. HOLD: cost spike
     hold_spike = await _threshold("brain.threshold.hold.cost_spike_factor")
     if signals.cost_spike_factor >= float(hold_spike):
         return await _write_decision(
@@ -145,7 +136,6 @@ async def _evaluate(signals: ChannelSignals, content_id: str | None) -> dict | N
             ),
         )
 
-    # ── 4. HOLD: budget nearly exhausted
     hold_budget_pct = await _threshold("brain.threshold.hold.budget_pct_remaining")
     if signals.daily_budget_limit > 0:
         pct_remaining = signals.daily_budget_remaining / signals.daily_budget_limit
@@ -170,7 +160,6 @@ async def _evaluate(signals: ChannelSignals, content_id: str | None) -> dict | N
                 ),
             )
 
-    # ── 5. NUDGE: quality below target (but above halt floor)
     nudge_quality = await _threshold("brain.threshold.nudge.avg_quality_score")
     if (
         signals.recent_scores
@@ -245,7 +234,6 @@ async def _write_decision(
 
     decision_id = row["id"]
 
-    # Best-effort embedding — never blocks the decision from being written.
     try:
         await embed_and_store(
             embed_text,

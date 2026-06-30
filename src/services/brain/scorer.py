@@ -61,9 +61,6 @@ from src.flags import get_flag
 logger = structlog.get_logger()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Public API
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 async def score_once(*, dry_run: bool = False) -> int:
@@ -128,9 +125,6 @@ async def run_scorer_loop(
     logger.info("brain.scorer.stopped")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Internals
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 async def _score_pass(*, dry_run: bool) -> int:
@@ -227,7 +221,6 @@ async def _score_decision(
     return None
 
 
-# ── HALT ─────────────────────────────────────────────────────────────────────
 
 
 async def _score_halt(
@@ -241,20 +234,14 @@ async def _score_halt(
         resolved_at=row["resolved_at"],
         window_days=window_days,
     )
-    # No videos at all post-resume = channel stayed cold; treat HALT
-    # as having achieved its protective purpose.
     if not scores:
         return 8.0, {
             "scoring_method": "halt.no_post_resume_videos",
             "window_days": window_days,
         }
-    # Not enough signal yet — defer.
     if len(scores) < min_videos:
         return None
     avg = sum(scores) / len(scores)
-    # Inversion: low post-resume quality validates the HALT (high
-    # outcome_score). High post-resume quality means HALT was a false
-    # positive (low outcome_score). avg is on a 0-10 scale.
     score = max(0.0, min(10.0, 10.0 - avg))
     return round(score, 2), {
         "scoring_method": "halt.inverted_post_resume_quality",
@@ -264,7 +251,6 @@ async def _score_halt(
     }
 
 
-# ── HOLD ─────────────────────────────────────────────────────────────────────
 
 
 async def _score_hold(
@@ -283,14 +269,11 @@ async def _score_hold(
         content_id,
     )
     if video is None:
-        # Video record missing — score conservatively rather than
-        # leave the row pending forever.
         return 5.0, {"scoring_method": "hold.video_not_found"}
     status = video["status"]
     if status == "delivered":
         final = video["final_composite_score"]
         if final is None:
-            # Delivered but unscored — neutral.
             return 5.0, {"scoring_method": "hold.delivered_no_score"}
         return round(float(final), 2), {
             "scoring_method": "hold.delivered_score",
@@ -298,11 +281,9 @@ async def _score_hold(
         }
     if status == "failed":
         return 3.0, {"scoring_method": "hold.video_failed_after_hold"}
-    # Still in flight — defer.
     return None
 
 
-# ── NUDGE ────────────────────────────────────────────────────────────────────
 
 
 async def _score_nudge(
@@ -355,7 +336,6 @@ async def _score_nudge(
     }
 
 
-# ── RESUME ───────────────────────────────────────────────────────────────────
 
 
 async def _score_resume(
@@ -370,11 +350,8 @@ async def _score_resume(
         window_days=window_days,
     )
     if len(scores) < min_videos:
-        # No measurable channel activity after RESUME — defer.
         return None
     avg = sum(scores) / len(scores)
-    # RESUME is the inverse of HALT: high post-resume quality
-    # validates the RESUME → high outcome_score.
     score = max(0.0, min(10.0, avg))
     return round(score, 2), {
         "scoring_method": "resume.post_resume_quality",
@@ -384,7 +361,6 @@ async def _score_resume(
     }
 
 
-# ── ADVISE ───────────────────────────────────────────────────────────────────
 
 
 def _score_advise(row: dict[str, Any]) -> tuple[float, dict[str, Any]]:
@@ -393,7 +369,6 @@ def _score_advise(row: dict[str, Any]) -> tuple[float, dict[str, Any]]:
     return 5.0, {"scoring_method": "advise.neutral_default"}
 
 
-# ── Shared helpers ───────────────────────────────────────────────────────────
 
 
 async def _post_resolve_scores(

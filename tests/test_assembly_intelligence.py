@@ -73,14 +73,13 @@ class TestEstimateRenderDuration:
 
     def test_zero_complexity(self):
         duration = estimate_render_duration({"complexity": 0, "risk": "low"})
-        assert duration > 0  # Should have a minimum
+        assert duration > 0
 
 
 class TestSimplifyDirectionForRetry:
     def test_removes_visual_effects(self, sample_direction_v3):
         simplified = simplify_direction_for_retry(sample_direction_v3)
         for seg in simplified.get("segments", []):
-            # Should have reduced or empty visual effects
             assert len(seg.get("visual_effects", [])) <= len(
                 sample_direction_v3["segments"][0].get("visual_effects", []))
 

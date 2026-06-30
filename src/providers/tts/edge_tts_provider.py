@@ -19,7 +19,6 @@ from src.providers.tts.base import TTSProvider, TTSRequest, TTSResult
 
 logger = structlog.get_logger()
 
-# Default voice — natural-sounding English
 DEFAULT_VOICE = "en-US-AriaNeural"
 
 
@@ -27,7 +26,7 @@ class EdgeTTSProvider(TTSProvider):
     """Free TTS using Microsoft Edge voices via edge-tts package."""
 
     def __init__(self) -> None:
-        self.voice: str = ""  # configurable via extra_config (wizard field)
+        self.voice: str = ""
         try:
             import edge_tts  # noqa: F401
             self._available = True
@@ -36,7 +35,6 @@ class EdgeTTSProvider(TTSProvider):
             self._available = False
 
     async def synthesize(self, request: TTSRequest) -> TTSResult:
-        # Priority: per-request voice_id > credential extra_config.voice > DEFAULT_VOICE
         voice = request.voice_id or self.voice or DEFAULT_VOICE
         return await self.synthesize_with_params(
             text=request.text,
@@ -59,7 +57,6 @@ class EdgeTTSProvider(TTSProvider):
 
         voice = voice_id if voice_id and not voice_id.startswith("REPLACE_") else DEFAULT_VOICE
 
-        # Map speed to edge-tts rate string: +50% / -50% etc.
         rate_pct = int((speed - 1.0) * 100)
         rate_str = f"{rate_pct:+d}%"
 
@@ -102,7 +99,6 @@ class EdgeTTSProvider(TTSProvider):
         """Return a minimal valid MP3-like silence if edge-tts is unavailable."""
         word_count = len(text.split())
         duration = (word_count / 150) * 60
-        # Minimal WAV header for silence (44 bytes + small buffer)
         silence = self._generate_silence_wav(duration)
 
         logger.info("edge_tts.silence_fallback", words=word_count, duration_s=round(duration, 2))
@@ -120,7 +116,7 @@ class EdgeTTSProvider(TTSProvider):
         """Generate a minimal WAV file of silence."""
         sample_rate = 22050
         num_samples = int(sample_rate * min(duration_s, 300))
-        data_size = num_samples * 2  # 16-bit mono
+        data_size = num_samples * 2
 
         buf = io.BytesIO()
         buf.write(b"RIFF")

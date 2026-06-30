@@ -18,7 +18,6 @@ from src.db import get_pool
 
 logger = structlog.get_logger()
 
-# Pacing profiles per section
 SECTION_PACING: dict[str, dict] = {
     "hook": {"min_duration_ms": 1500, "max_duration_ms": 5000, "preferred_camera": "zoom_in"},
     "intro": {"min_duration_ms": 3000, "max_duration_ms": 10000, "preferred_camera": "slow_pan"},
@@ -46,13 +45,11 @@ def merge_script_direction_with_assets(script_v3_hint: dict,
     hint_segments = script_v3_hint.get("segments", [])
     hint_lookup = {s.get("id"): s for s in hint_segments}
 
-    # Build asset lookup
     asset_lookup = {}
     for item in asset_manifest:
         seg_id = item.get("segment_id", "")
         asset_lookup[seg_id] = item
 
-    # Build voice segment lookup
     segment_urls = voice_manifest.get("segment_urls", {})
     full_audio_url = voice_manifest.get("audio_url", "")
 
@@ -72,16 +69,13 @@ def merge_script_direction_with_assets(script_v3_hint: dict,
         duration_s = seg.get("duration_s", 10)
         duration_ms = int(duration_s * 1000)
 
-        # Get actual asset
         seg_asset = asset_lookup.get(seg_id, {})
         assets = seg_asset.get("assets", [])
         bg_url = assets[0]["url"] if assets else ""
         asset_type = seg_asset.get("type", "none")
 
-        # Get voice audio
         voice_url = segment_urls.get(seg_id, "")
 
-        # Use hint scene_preset or determine from asset type
         scene_preset = hint.get("scene_preset", "")
         if not scene_preset:
             if asset_type == "stock_video":
@@ -91,7 +85,6 @@ def merge_script_direction_with_assets(script_v3_hint: dict,
             else:
                 scene_preset = "scene.kinetic_typography"
 
-        # Merge camera from hint
         hint_camera = hint.get("camera", {})
         camera = {
             "type": hint_camera.get("type", "static"),
@@ -100,7 +93,6 @@ def merge_script_direction_with_assets(script_v3_hint: dict,
             "end_position": hint_camera.get("end_position", ""),
         }
 
-        # Merge text strategy
         hint_text = hint.get("text_strategy", {})
         text_overlay = seg.get("text_overlay", "")
         text_strategy = {
@@ -112,7 +104,6 @@ def merge_script_direction_with_assets(script_v3_hint: dict,
             "emphasis_words": hint_text.get("emphasis_words", seg.get("emphasis_words", [])),
         }
 
-        # Background strategy (override with actual asset URL)
         hint_bg = hint.get("background_strategy", {})
         background_strategy = {
             "type": "asset" if bg_url else hint_bg.get("type", "gradient"),
@@ -121,20 +112,17 @@ def merge_script_direction_with_assets(script_v3_hint: dict,
             "blur_amount": hint_bg.get("blur_amount", 0),
         }
 
-        # Motion design from hint
         hint_motion = hint.get("motion_design", {})
         motion_design = {
             "elements": hint_motion.get("elements", []),
         }
 
-        # Audio cues from hint
         hint_audio = hint.get("audio_cues", {})
         audio_cues = {
             "sfx": hint_audio.get("sfx", []),
             "music_shift": hint_audio.get("music_shift", "none"),
         }
 
-        # Transition from hint
         hint_transition = hint.get("transition_in", {})
         transition_type = hint_transition.get("type", seg.get("transition", "cut"))
 
@@ -225,27 +213,23 @@ def score_merged_direction(direction_v3: dict) -> dict:
     score = 10.0
     issues = []
 
-    # Background coverage
     missing_bg = sum(1 for s in segments if not s.get("scene_overrides", {}).get("background_url"))
     if missing_bg > 0:
         penalty = min(2.0, missing_bg * 0.5)
         score -= penalty
         issues.append(f"{missing_bg} segments missing background")
 
-    # Camera variety
     camera_types = set(s.get("camera", {}).get("type", "static") for s in segments)
     if len(camera_types) <= 1 and len(segments) > 2:
         score -= 1.0
         issues.append("No camera variety")
 
-    # Scene preset variety
     presets = [s.get("scene_preset", "") for s in segments]
     consecutive = sum(1 for i in range(1, len(presets)) if presets[i] == presets[i-1])
     if consecutive > 0:
         score -= consecutive * 0.3
         issues.append(f"{consecutive} consecutive preset repeats")
 
-    # Text strategy presence
     missing_text = sum(1 for s in segments if not s.get("text_strategy", {}).get("primary_text"))
     if missing_text > 0:
         score -= missing_text * 0.3

@@ -83,23 +83,16 @@ async def main() -> None:
             get_eligible_channels,
             acquire_channel_lock,
             send_notification,
-            # Model maintenance activities
             check_model_freshness,
             check_model_drift,
             retrain_model,
             update_model_health_activity,
-            # Phase 7 — gate calibration activities
             list_niches_with_outcomes_activity,
             calibrate_gate_for_niche_activity,
-            # Phase 8 — niche pulse activities (re-uses
-            # list_niches_with_outcomes_activity from Phase 7)
             refresh_niche_pulse_activity,
-            # Phase 9 — retention-curve fetch activities
             list_videos_needing_retention_activity,
             fetch_retention_for_video_activity,
-            # AE-75 — provider health beat
             check_all_provider_health,
-            # AE-76 — change request expiry
             expire_stale_change_requests,
         ],
         max_concurrent_activities=settings.temporal_scheduler_max_activities,

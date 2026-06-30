@@ -41,7 +41,6 @@ def harness():
     h.close()
 
 
-# ── Register equivalence (post-#350) ────────────────────────────────────────
 
 
 def test_register_responses_equivalent(harness: EquivalenceHarness):
@@ -73,8 +72,6 @@ def test_register_returns_required_fields(harness: EquivalenceHarness):
             f"Rust register missing field: {field_name}"
         )
 
-    # Tokens MUST NOT be returned (would defeat the email-verification flow
-    # implied by onboarding_required=true).
     for forbidden in ["access_token", "refresh_token"]:
         assert result.python_body.get(forbidden) is None, (
             f"Python register must not return {forbidden} (post-#350)"
@@ -84,7 +81,6 @@ def test_register_returns_required_fields(harness: EquivalenceHarness):
         )
 
 
-# ── Signin equivalence ──────────────────────────────────────────────────────
 
 
 def test_signin_responses_equivalent(harness: EquivalenceHarness):
@@ -92,8 +88,6 @@ def test_signin_responses_equivalent(harness: EquivalenceHarness):
     email = unique_email("signin-equiv")
     password = "Password123!"
 
-    # Pre-register via both services (each gets its own row — user_id
-    # differs but the email/password verification logic is what's under test)
     body = {
         "email": email,
         "password": password,
@@ -110,7 +104,6 @@ def test_signin_responses_equivalent(harness: EquivalenceHarness):
     )
 
 
-# ── /me endpoint equivalence ────────────────────────────────────────────────
 
 
 def test_me_endpoint_cross_service(harness: EquivalenceHarness):
@@ -141,7 +134,6 @@ def test_me_endpoint_cross_service(harness: EquivalenceHarness):
     rust_token = signin.json().get("access_token", "")
     assert rust_token, "Rust signin must return access_token"
 
-    # Use Rust token on Python /api/v2/auth/me
     me_resp = harness.client.get(
         f"{PYTHON_URL}/api/v2/auth/me",
         headers={"Authorization": f"Bearer {rust_token}"},
@@ -157,7 +149,6 @@ def test_me_endpoint_cross_service(harness: EquivalenceHarness):
     )
 
 
-# ── Error handling equivalence ──────────────────────────────────────────────
 
 
 def test_signin_invalid_password_returns_same_error(harness: EquivalenceHarness):
@@ -174,7 +165,6 @@ def test_signin_invalid_password_returns_same_error(harness: EquivalenceHarness)
     harness.client.post(f"{PYTHON_URL}/api/v2/auth/register", json=body)
     harness.client.post(f"{RUST_URL}/api/v2/auth/register", json=body)
 
-    # Try login with wrong password
     result = harness.compare_signin(email=email, password="WrongPassword!")
     assert result.status_match, (
         f"Error status mismatch for invalid password: "
@@ -199,12 +189,9 @@ def test_register_duplicate_email_returns_same_error(harness: EquivalenceHarness
         "workspace_name": "WS",
     }
 
-    # First registration on each service (one DB row per service in shared DB,
-    # but the duplicate-detection lookup is what's under test)
     harness.client.post(f"{PYTHON_URL}/api/v2/auth/register", json=payload)
     harness.client.post(f"{RUST_URL}/api/v2/auth/register", json=payload)
 
-    # Duplicate attempt should return 409 on both
     py_resp = harness.client.post(f"{PYTHON_URL}/api/v2/auth/register", json=payload)
     rs_resp = harness.client.post(f"{RUST_URL}/api/v2/auth/register", json=payload)
 

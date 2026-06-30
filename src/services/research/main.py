@@ -16,13 +16,11 @@ from src.db import close_pool, get_pool
 from src.redis_client import close_redis, get_redis
 from src.schemas.common import HealthResponse, ServiceResponse
 
-# Import providers to trigger auto-registration
 import src.providers.boot  # noqa: F401
 
 from src.providers.registry import ProviderRegistry
 from src.providers.llm.base import LLMRequest
 
-# Research Intelligence Modules
 from src.services.research.trend_collector import collect_trends
 from src.services.research.competitor_insights import collect_competitor_insights
 from src.services.research.similarity import (
@@ -44,17 +42,11 @@ from src.observability.metrics import instrument_app
 logger = structlog.get_logger()
 
 
-# Request Models
 
 class ResearchRequest(BaseModel):
     channel_id: str
     content_mode: str = "short"
     topic_candidates: list[str] = Field(default_factory=list)
-    # Phase 11: workflow-issued content_id. Optional for backward
-    # compatibility — when omitted we synthesize one as before. Passing
-    # it through lets `research_features.content_id` and the new
-    # `prediction_log.content_id` actually match the delivered video's
-    # id, so downstream training joins work.
     content_id: str | None = None
     budget_guard: dict = Field(default_factory=lambda: {"max_cost_usd": 2.50, "accrued_cost_usd": 0.0})
 
@@ -64,7 +56,6 @@ class IdeationRequest(BaseModel):
     research_data: dict = Field(default_factory=dict)
 
 
-# Helpers
 
 def _safe_format(template: str, **kwargs) -> str:
     """Replace {key} placeholders without failing on unknown/literal braces."""
@@ -137,7 +128,6 @@ async def _load_prompt(prompt_id: str) -> dict:
     return dict(row) if row else {}
 
 
-# Multi-Source Research
 
 async def _search_youtube(topic: str, niche: str) -> list[dict]:
     """Search YouTube Data API for trending/relevant videos."""
@@ -291,7 +281,6 @@ async def _search_wikipedia(topic: str) -> list[dict]:
         return []
 
 
-# Core Research Pipeline
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -321,7 +310,6 @@ async def research(req: ResearchRequest):
     total_cost = 0.0
 
     try:
-        # Load Channel DNA
         channel = await _load_channel_dna(req.channel_id)
         if not channel:
             raise HTTPException(status_code=404, detail=f"Channel {req.channel_id} not found")
@@ -332,13 +320,11 @@ async def research(req: ResearchRequest):
         belief_territory = channel.get("belief_territory", "")
         intellectual_lens = channel.get("intellectual_lens", "")
 
-        # Build search queries from topic candidates + channel domain
         queries = req.topic_candidates[:3] if req.topic_candidates else []
         if topic_domain and not queries:
             queries = [t.strip() for t in topic_domain.split(",")[:3]]
         primary_topic = queries[0] if queries else niche
 
-        # Step 1: Multi-source search (parallel)
         import asyncio
         youtube_task = _search_youtube(primary_topic, niche)
         serpapi_task = _search_serpapi([f"{q} {niche}" for q in queries])
@@ -355,15 +341,9 @@ async def research(req: ResearchRequest):
                      youtube=len(youtube_results), serp=len(serp_results),
                      reddit=len(reddit_results), news=len(news_results), wiki=len(wiki_results))
 
-        # Step 2: LLM Research Synthesis (via router)
-        # The router handles per-channel daily cost cap + provider-ladder
-        # fallback (gemini → openai → claude). We keep the existing
-        # _log_usage call below for richer service-label telemetry, so the
-        # router itself is told record_usage=False to avoid double-counting.
         from src.llm import route as _route, BudgetExceeded as _BudgetExceeded
         prompt = await _load_prompt("PRM_B1_RESEARCH_SYNTH")
 
-        # Build source context strings
         yt_text = "\n".join(f"- [{r['title']}]({r['url']}) by {r.get('channel','')}" for r in youtube_results[:8])
         serp_text = "\n".join(f"- {r['title']}: {r.get('snippet','')}" for r in serp_results[:8])
         reddit_text = "\n".join(f"- r/{r.get('subreddit','')}: {r['title']} (score: {r.get('score',0)})" for r in reddit_results[:8])
@@ -399,7 +379,6 @@ async def research(req: ResearchRequest):
                                  "title_candidates": [], "sources": [], "fact_claims": [],
                                  "trend_data": {}, "competitor_analysis": {}, "audience_pain_points": []}
 
-            # Quality Gate: research_depth_score >= 8.0
             depth_score = float(research_data.get("research_depth_score", 0))
             if depth_score >= 8.0:
                 logger.info("research.quality_gate_passed", score=depth_score, attempt=attempt)
@@ -413,7 +392,6 @@ async def research(req: ResearchRequest):
             else:
                 logger.warning("research.quality_gate_failed", score=depth_score)
 
-        # Step 3: Fact-Check Claims
         fact_claims = research_data.get("fact_claims", [])
         if fact_claims:
             fc_prompt = await _load_prompt("PRM_B1_FACT_CHECK")
@@ -452,7 +430,6 @@ async def research(req: ResearchRequest):
                 fc_data = _parse_json(fc_result.content)
                 research_data["verified_claims"] = fc_data.get("verified_claims", [])
                 research_data["removed_claims"] = fc_data.get("removed_claims", [])
-                # Replace fact_claims with only verified ones
                 research_data["fact_claims"] = [
                     c for c in fc_data.get("verified_claims", [])
                     if c.get("confidence", 0) >= 0.7
@@ -463,10 +440,8 @@ async def research(req: ResearchRequest):
                 logger.warning("research.factcheck_json_failed")
                 research_data["fact_confidence_score"] = 5.0
 
-        # Step 4: Intelligence Layer (zero API cost)
         selected_topic = research_data.get("selected_topic", primary_topic)
 
-        # 4a. Collect trend signals (parallel)
         try:
             trend_data = await collect_trends(niche, queries[:5])
             research_data["trend_signals"] = {
@@ -478,7 +453,6 @@ async def research(req: ResearchRequest):
             logger.warning("research.trends_failed", error=str(e))
             trend_data = {}
 
-        # 4b. Competitor insights (parallel)
         try:
             competitor_yt_ids = [
                 c.strip() for c in (channel.get("competitor_channels") or "").split(",") if c.strip()
@@ -493,7 +467,6 @@ async def research(req: ResearchRequest):
             logger.warning("research.competitors_failed", error=str(e))
             comp_data = {}
 
-        # 4c. Burst detection
         try:
             bursts = await detect_bursts(niche)
             bursting = [b for b in bursts if b.get("is_burst")]
@@ -502,7 +475,6 @@ async def research(req: ResearchRequest):
             logger.warning("research.bursts_failed", error=str(e))
             bursting = []
 
-        # 4d. Phrase mining
         try:
             phrases = await mine_phrases(niche)
             rising_phrases = [p for p in phrases if p.get("is_rising")]
@@ -511,7 +483,6 @@ async def research(req: ResearchRequest):
             logger.warning("research.phrases_failed", error=str(e))
             rising_phrases = []
 
-        # 4e. Similarity / duplicate check
         try:
             sim_result = await check_similarity(selected_topic, text_type="topic")
             research_data["similarity_check"] = {
@@ -523,7 +494,6 @@ async def research(req: ResearchRequest):
             logger.warning("research.similarity_failed", error=str(e))
             sim_result = {"novelty_score": 0.7}
 
-        # 4f. Freshness score
         try:
             trend_momentum = 0.0
             momentum_data = trend_data.get("google_trends", {}).get("momentum", {})
@@ -536,24 +506,17 @@ async def research(req: ResearchRequest):
             logger.warning("research.freshness_failed", error=str(e))
             fresh = {"freshness_score": 0.5}
 
-        # 4g. Phrase novelty
         try:
             phrase_nov = await compute_phrase_novelty(selected_topic, niche)
         except Exception:
             phrase_nov = 0.5
 
-        # 4h. Seasonality
         try:
             season = await compute_advanced_seasonality(selected_topic, niche)
             research_data["seasonality"] = season
         except Exception:
             season = {"seasonality_score": 0.3}
 
-        # 4h-bis. Phase 8 — external niche saturation pulse.
-        # Forward-looking: how crowded is this topic in the niche
-        # *right now*, weighted by recency and view velocity? Cold-start
-        # safe — returns saturation_gap=1.0 (no penalty) when there's
-        # no embedded data for the niche yet.
         try:
             from src.services.research.saturation import compute_saturation
             sat = await compute_saturation(selected_topic, niche)
@@ -568,7 +531,6 @@ async def research(req: ResearchRequest):
             logger.warning("research.saturation_failed", error=str(e))
             sat = None
 
-        # 4i. Opportunity score
         try:
             features = {
                 "freshness_score": fresh.get("freshness_score", 0.5),
@@ -579,8 +541,6 @@ async def research(req: ResearchRequest):
                 "trend_volume_index": next(
                     (m.get("current_index", 50) for m in momentum_data.values()), 50
                 ) if momentum_data else 50,
-                # Phase 8: pass the saturation_gap so the scorer
-                # down-weights candidates already covered by competitors.
                 "saturation_gap": sat.saturation_gap if sat is not None else 1.0,
             }
             opp = await score_opportunity(selected_topic, niche=niche, features=features)
@@ -590,17 +550,10 @@ async def research(req: ResearchRequest):
             logger.warning("research.scoring_failed", error=str(e))
             opp = {"opportunity_score": 0.5, "features": {}}
 
-        # Phase 11: synthesize/adopt one content_id for this research
-        # call and reuse it across prediction logging, embedding store,
-        # and feature store so all three tables share a join key.
-        # When the workflow passes its own content_id, prefer that —
-        # research_features.content_id then matches the delivered
-        # video's content_id and the train_model JOIN actually works.
         content_id_for_pred = req.content_id or (
             f"research-{req.channel_id}-{datetime.utcnow().strftime('%Y%m%d%H%M')}"
         )
 
-        # 4j. ML prediction (if model exists)
         try:
             ml_pred = await predict_success(
                 opp.get("features", {}),
@@ -611,10 +564,6 @@ async def research(req: ResearchRequest):
         except Exception:
             ml_pred = {"predicted_probability": 0.5}
 
-        # 4k. Thompson Sampling (if topic clusters available)
-        # Phase 10: pass channel_id so the diversity floor can check
-        # this channel's recent topic-cluster picks and force exploration
-        # when entropy drops below threshold.
         try:
             topic_clusters = research_data.get("title_candidates", [])
             if topic_clusters and len(topic_clusters) >= 2:
@@ -625,9 +574,6 @@ async def research(req: ResearchRequest):
         except Exception:
             pass
 
-        # 4l. Store topic embedding for future dedup
-        # Phase 11: reuse the same content_id used for prediction +
-        # research_features so all three tables share a join key.
         try:
             await store_topic_embedding(
                 content_id_for_pred,
@@ -636,7 +582,6 @@ async def research(req: ResearchRequest):
         except Exception:
             pass
 
-        # 4m. Store research features for ML training
         try:
             await store_research_features(
                 content_id=content_id_for_pred,
@@ -649,7 +594,6 @@ async def research(req: ResearchRequest):
         except Exception:
             pass
 
-        # Duplicate hard gate
         if research_data.get("similarity_check", {}).get("is_duplicate"):
             research_data["_warning"] = "HIGH_SIMILARITY_DETECTED"
             logger.warning("research.duplicate_detected",
@@ -678,7 +622,6 @@ async def research(req: ResearchRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-# Ideation Pipeline
 
 @app.post("/ideate", response_model=ServiceResponse)
 async def ideate(req: IdeationRequest):
@@ -694,7 +637,6 @@ async def ideate(req: IdeationRequest):
         beliefs = await _load_beliefs(req.channel_id)
         used_topics = await _load_used_topics(req.channel_id)
 
-        # Pick an available belief (not cooling, least used)
         today = date.today()
         available_beliefs = [
             b for b in beliefs
@@ -703,13 +645,9 @@ async def ideate(req: IdeationRequest):
         ]
         selected_belief = available_beliefs[0] if available_beliefs else (beliefs[0] if beliefs else None)
 
-        # Step 1: Generate 10 ideas
         prompt = await _load_prompt("PRM_B1_IDEATION")
         llm = ProviderRegistry.get("llm.ideation")
 
-        # Close the analytics → ideation loop: inject what's worked and
-        # what's flopped on this channel before. Empty string for new
-        # channels, no-op for the prompt either way.
         from src.intelligence import build_performance_context
         perf_context = await build_performance_context(req.channel_id)
 
@@ -731,8 +669,6 @@ async def ideate(req: IdeationRequest):
         ideation_data = None
 
         for attempt in range(1, max_retries + 2):
-            # Prepend channel-specific performance memory only if we have
-            # any. Keeps prompts unchanged for cold-start channels.
             user_with_memory = (
                 f"{perf_context}\n\n{user_prompt}" if perf_context else user_prompt
             )
@@ -759,16 +695,13 @@ async def ideate(req: IdeationRequest):
 
             ideas = ideation_data.get("ideas", [])
 
-            # Step 2: Score ideas
             for idea in ideas:
                 curiosity = float(idea.get("curiosity_score", 5))
                 novelty = float(idea.get("novelty_score", 5))
                 emotion = float(idea.get("emotion_score", 5))
-                # Composite: algo 30% + research context 30% + audience appeal 40%
                 composite = (curiosity * 0.3 + novelty * 0.3 + emotion * 0.4)
                 idea["composite_score"] = round(composite, 2)
 
-            # Step 3: Novelty check vs used topics
             for idea in ideas:
                 title_lower = idea.get("title", "").lower()
                 is_novel = not any(
@@ -777,11 +710,9 @@ async def ideate(req: IdeationRequest):
                 )
                 idea["is_novel"] = is_novel
 
-            # Filter to novel ideas and sort by composite score
             novel_ideas = [i for i in ideas if i.get("is_novel", True)]
             novel_ideas.sort(key=lambda x: x.get("composite_score", 0), reverse=True)
 
-            # Quality Gate: top idea >= 7.5
             top_score = novel_ideas[0].get("composite_score", 0) if novel_ideas else 0
             if top_score >= 7.5:
                 logger.info("ideation.quality_gate_passed", score=top_score, attempt=attempt, ideas=len(novel_ideas))
@@ -795,7 +726,6 @@ async def ideate(req: IdeationRequest):
             else:
                 logger.warning("ideation.quality_gate_failed", score=top_score)
 
-        # Select winner
         winner = novel_ideas[0] if novel_ideas else (ideas[0] if ideas else {"title": "Unknown", "hook": ""})
 
         result = {
@@ -824,7 +754,6 @@ async def ideate(req: IdeationRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-# Intelligence API Endpoints
 
 
 class FeedbackRequest(BaseModel):

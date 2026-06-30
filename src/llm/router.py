@@ -59,12 +59,9 @@ from src.providers.registry import ProviderRegistry
 
 logger = structlog.get_logger()
 
-# Compression tier — resolved once at import time from env, then
-# overridable per-call via the feature-flag system.
 _DEFAULT_COMPRESSION_TIER: str = os.getenv("LLM_COMPRESSION", "off")
 
 
-# Public exceptions
 
 
 class BudgetExceeded(RuntimeError):
@@ -92,14 +89,13 @@ class LadderExhausted(RuntimeError):
         self.attempts = attempts
 
 
-# Prometheus metrics (no-op if prometheus_client missing)
 
 try:  # pragma: no cover
     from prometheus_client import Counter, Histogram
     LLM_REQUESTS_TOTAL = Counter(
         "llm_requests_total",
         "LLM call outcomes routed via the central router.",
-        labelnames=("category", "provider", "outcome"),  # outcome: ok | fail | budget | breaker
+        labelnames=("category", "provider", "outcome"),
     )
     LLM_COST_USD_TOTAL = Counter(
         "llm_cost_usd_total",
@@ -120,7 +116,6 @@ except Exception:  # pragma: no cover
     LLM_REQUESTS_TOTAL = LLM_COST_USD_TOTAL = LLM_DURATION_SECONDS = _Noop()  # type: ignore
 
 
-# Circuit breaker (process-local)
 
 
 @dataclass
@@ -143,10 +138,7 @@ class _Breaker:
         return False
 
 
-# Ladder configuration
 
-# Default ladder per category. Env overrides via ``LLM_<CATEGORY>_LADDER``
-# (uppercased, dots → underscores), e.g. ``LLM_SCRIPT_LADDER=claude,openai``.
 _DEFAULT_LADDERS: dict[str, list[str]] = {
     "llm":           ["deepseek", "openai", "claude", "gemini"],
     "llm.research":  ["gemini", "deepseek", "openai", "claude"],
@@ -169,7 +161,6 @@ def _ladder_for(category: str) -> list[str]:
     return list(_DEFAULT_LADDERS.get(category, _DEFAULT_LADDERS["llm"]))
 
 
-# Cost rollup (Postgres-backed)
 
 
 async def _spent_today(channel_id: str) -> float:
@@ -278,7 +269,6 @@ async def _record_usage(*, content_id: str, channel_id: str,
         logger.warning("router.usage_log_failed", error=str(exc))
 
 
-# Transient-vs-permanent error classifier
 
 
 def _is_transient(exc: BaseException) -> bool:
@@ -290,7 +280,6 @@ def _is_transient(exc: BaseException) -> bool:
     return False
 
 
-# Router
 
 
 class Router:
@@ -318,7 +307,6 @@ class Router:
         record_usage: bool = True,
         compression_tier: str | None = None,
     ) -> LLMResult:
-        # 1. Budget check (DB-authoritative).
         cap = await _cap_for(channel_id)
         if cap > 0:
             spent = await _spent_today(channel_id)
@@ -330,13 +318,9 @@ class Router:
                                channel_id=channel_id, spent=spent, cap=cap)
                 raise BudgetExceeded(channel_id, spent, cap)
 
-        # 2. Resolve content_mode if the caller didn't pass it (cheap
-        #    lookup; DB chain key includes mode so this matters).
         if content_mode is None and content_id:
             content_mode = await _content_mode_for(content_id)
 
-        # 3. Ladder. The DB chain (scope+mode aware) wins when configured;
-        #    fall back to the env-driven ladder for back-compat.
         if ladder:
             candidates: list[tuple[str, Any | None, str | None]] = [
                 (p, None, None) for p in ladder
@@ -351,8 +335,6 @@ class Router:
             else:
                 candidates = [(p, None, None) for p in _ladder_for(category)]
 
-        # 3.5. Compress the request before sending to providers.
-        #       This is transparent — agents don't need to know about it.
         call_request, compression_stats = await self._compress(
             request, compression_tier=compression_tier,
             category=category, model=request.model or "",
@@ -377,12 +359,9 @@ class Router:
                         content_mode=content_mode,
                     )
                 except Exception as exc:
-                    # Provider not registered for this category — silently skip.
                     attempts.append((prov_name, f"unregistered: {exc}"))
                     continue
 
-            # Honor the credential's pinned model when the caller didn't
-            # explicitly set one. Per-call request.model still wins.
             effective_model = pinned_model or getattr(provider, "_pinned_model", None)
             if effective_model and not call_request.model:
                 call_request = replace(call_request, model=effective_model)
@@ -405,7 +384,6 @@ class Router:
                     continue
                 logger.error("router.permanent_error",
                              provider=prov_name, error=str(exc))
-                # Permanent — don't waste budget on the rest of the ladder.
                 raise
 
             br.record(True)
@@ -424,7 +402,6 @@ class Router:
                     content_id=content_id, channel_id=channel_id,
                     category=category, result=result,
                 )
-            # Attach compression stats so callers can log savings.
             result.compression = compression_stats
             return result
 
@@ -467,7 +444,6 @@ class Router:
             return request, None
 
 
-# Process-wide singleton.
 _ROUTER: Router | None = None
 
 

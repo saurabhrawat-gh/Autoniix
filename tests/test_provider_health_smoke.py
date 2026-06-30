@@ -16,12 +16,11 @@ REQUIRED_CATEGORIES = {"llm", "tts", "storage", "search"}
 TEST_MODE_PROVIDERS = [
     ("llm", "mock_llm"),
     ("tts", "edge_tts"),
-    ("storage", "minio"),         # no API key required internally for unit
+    ("storage", "minio"),
     ("search", "mock_search"),
 ]
 
 
-# ── Registry gate ─────────────────────────────────────────────────────────────
 
 def test_required_categories_registered():
     """All pipeline-critical categories must have at least one registered provider."""
@@ -45,7 +44,6 @@ def test_every_provider_has_health_check():
             )
 
 
-# ── Test-mode provider health ─────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_mock_llm_health_check():
@@ -63,7 +61,6 @@ async def test_edge_tts_health_check():
 
     inst = EdgeTTSProvider()
     result = await inst.health_check()
-    # edge_tts returns True only if the package is installed
     assert isinstance(result, bool)
 
 
@@ -102,7 +99,6 @@ async def test_placeholder_image_health_check():
     assert result is True
 
 
-# ── health_check return type contract ────────────────────────────────────────
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("category,provider_name", TEST_MODE_PROVIDERS)
@@ -116,7 +112,6 @@ async def test_test_mode_provider_health_check_returns_bool(category, provider_n
     if cls is None:
         pytest.skip(f"{category}/{provider_name} not registered")
 
-    # Patch Minio to avoid real connection for storage
     with patch("minio.Minio", MagicMock(return_value=MagicMock(bucket_exists=MagicMock(return_value=True)))):
         inst = cls()
 
@@ -129,7 +124,6 @@ async def test_test_mode_provider_health_check_returns_bool(category, provider_n
     )
 
 
-# ── resolve_chain signature gate ─────────────────────────────────────────────
 
 def test_resolve_chain_callable_for_all_categories():
     """resolve_chain must be importable and callable for all categories."""

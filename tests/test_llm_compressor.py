@@ -24,25 +24,21 @@ from src.llm.compressor import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Token estimation
-# ---------------------------------------------------------------------------
 
 class TestTokenEstimation:
     def test_estimate_tokens_basic(self):
         text = "Hello world, this is a test sentence."
         tokens = _estimate_tokens(text)
         assert tokens > 0
-        assert tokens < len(text)  # Tokens are fewer than characters.
+        assert tokens < len(text)
 
     def test_estimate_tokens_empty(self):
-        assert _estimate_tokens("") == 1  # Minimum 1 token.
+        assert _estimate_tokens("") == 1
 
     def test_estimate_tokens_model_hint(self):
         text = "x" * 1000
         gpt_tokens = _estimate_tokens(text, "gpt-4o")
         claude_tokens = _estimate_tokens(text, "claude-3-5-sonnet")
-        # Different models have different char/token ratios.
         assert gpt_tokens != claude_tokens
 
     def test_estimate_request_tokens(self):
@@ -69,12 +65,8 @@ class TestTokenEstimation:
         )
         tokens = _estimate_request_tokens(req)
         assert tokens > 0
-        # Should only count the text part, not the image.
 
 
-# ---------------------------------------------------------------------------
-# Context pruning (fast tier)
-# ---------------------------------------------------------------------------
 
 class TestContextPruning:
     def test_prune_collapses_whitespace(self):
@@ -101,7 +93,7 @@ class TestContextPruning:
         assert pruned.messages[0]["content"] == sys_prompt
 
     def test_prune_truncates_long_user_message(self):
-        long_text = "word " * 5000  # ~5000 words, many tokens
+        long_text = "word " * 5000
         req = LLMRequest(
             messages=[
                 {"role": "system", "content": "Be concise."},
@@ -109,7 +101,6 @@ class TestContextPruning:
             ],
         )
         pruned = _prune_context(req, max_tokens=100)
-        # The user message should be truncated.
         assert len(pruned.messages[1]["content"]) < len(long_text)
 
     def test_prune_does_not_mutate_original(self):
@@ -118,13 +109,9 @@ class TestContextPruning:
             messages=[{"role": "user", "content": original_content}],
         )
         _prune_context(req, max_tokens=10000)
-        # Original request should be unchanged.
         assert req.messages[0]["content"] == original_content
 
 
-# ---------------------------------------------------------------------------
-# Cache markers
-# ---------------------------------------------------------------------------
 
 class TestCacheMarkers:
     def test_add_cache_markers_claude(self):
@@ -136,10 +123,8 @@ class TestCacheMarkers:
             model="claude-3-5-sonnet-20241022",
         )
         marked = _add_cache_markers(req)
-        # System message should have cache_control.
         assert "cache_control" in marked.messages[0]
         assert marked.messages[0]["cache_control"] == {"type": "ephemeral"}
-        # Last user message should have cache_control.
         assert "cache_control" in marked.messages[1]
         assert marked.messages[1]["cache_control"] == {"type": "ephemeral"}
 
@@ -152,7 +137,6 @@ class TestCacheMarkers:
             model="gpt-4o",
         )
         marked = _add_cache_markers(req)
-        # OpenAI handles caching automatically — no markers needed.
         assert "cache_control" not in marked.messages[0]
         assert "cache_control" not in marked.messages[1]
 
@@ -164,13 +148,9 @@ class TestCacheMarkers:
             model="claude-3-5-sonnet-20241022",
         )
         marked = _add_cache_markers(req)
-        # Only the last user message gets marked.
         assert "cache_control" in marked.messages[0]
 
 
-# ---------------------------------------------------------------------------
-# PromptCompressor
-# ---------------------------------------------------------------------------
 
 class TestPromptCompressor:
     @pytest.mark.asyncio
@@ -180,15 +160,13 @@ class TestPromptCompressor:
             messages=[{"role": "user", "content": "Hello world"}],
         )
         result, stats = await comp.compress(req)
-        assert result is req  # Same object returned.
+        assert result is req
         assert stats.tier == "off"
         assert stats.savings_pct == 0.0
 
     @pytest.mark.asyncio
     async def test_fast_tier_prunes(self):
         comp = PromptCompressor(tier="fast", enable_cache_markers=False)
-        # Need >= MIN_TOKENS_FOR_COMPRESSION (200) total tokens to trigger
-        # the compression pipeline; otherwise compress() returns early.
         long_text = "Line 1\n\n\n\nLine 2\n\n\nLine 3 " + ("filler word " * 200)
         req = LLMRequest(
             messages=[
@@ -199,7 +177,6 @@ class TestPromptCompressor:
         result, stats = await comp.compress(req)
         assert stats.tier == "fast"
         assert "prune" in stats.strategies_applied
-        # Whitespace should be collapsed.
         assert "\n\n\n" not in result.messages[1]["content"]
 
     @pytest.mark.asyncio
@@ -215,7 +192,6 @@ class TestPromptCompressor:
         result, stats = await comp.compress(req)
         assert stats.tier == "max"
         assert "prune" in stats.strategies_applied
-        # llmlingua may or may not be installed — either way, no crash.
         assert stats.original_estimated_tokens > 0
 
     @pytest.mark.asyncio
@@ -226,7 +202,6 @@ class TestPromptCompressor:
             messages=[{"role": "user", "content": "Hi"}],
         )
         result, stats = await comp.compress(req)
-        # Should be unchanged since the prompt is tiny.
         assert stats.savings_pct == 0.0
 
     @pytest.mark.asyncio
@@ -235,9 +210,6 @@ class TestPromptCompressor:
         assert comp.tier == "off"
 
 
-# ---------------------------------------------------------------------------
-# CompressionStats
-# ---------------------------------------------------------------------------
 
 class TestCompressionStats:
     def test_reduction_ratio(self):
@@ -260,9 +232,6 @@ class TestCompressionStats:
         assert stats.savings_pct == 0.0
 
 
-# ---------------------------------------------------------------------------
-# Module-level convenience
-# ---------------------------------------------------------------------------
 
 class TestCompressRequest:
     @pytest.mark.asyncio
@@ -287,9 +256,6 @@ class TestCompressRequest:
         assert stats.savings_pct >= 0
 
 
-# ---------------------------------------------------------------------------
-# Router integration smoke test
-# ---------------------------------------------------------------------------
 
 class TestRouterCompressionIntegration:
     """Verify the router applies compression transparently."""
@@ -315,7 +281,6 @@ class TestRouterCompressionIntegration:
 
         ProviderRegistry.register("llm", "fake_ok", _FakeOK)
 
-        # Stub the DB helpers so the router doesn't need Postgres.
         async def _async_cap(*a, **kw):
             return 0.0
         async def _async_spent(*a, **kw):
@@ -342,7 +307,6 @@ class TestRouterCompressionIntegration:
             ladder=["fake_ok"],
             compression_tier="fast",
         )
-        # Result should carry compression stats.
         assert result.compression is not None
         assert result.compression.tier == "fast"
         assert "prune" in result.compression.strategies_applied

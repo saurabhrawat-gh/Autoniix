@@ -32,10 +32,6 @@ RETRY_LIGHT = RetryPolicy(
 )
 
 
-# Bound the per-run batch so a single failed run doesn't accumulate
-# weeks of arrears in one wedge. With a daily cron and a 50-video
-# batch, even a 5-channel fleet shipping 7 videos/week each won't fall
-# behind.
 DEFAULT_BATCH_LIMIT = 50
 
 
@@ -48,7 +44,6 @@ class RetentionFetchWorkflow:
         params = params or {}
         limit = int(params.get("limit", DEFAULT_BATCH_LIMIT))
 
-        # 1. Find candidates.
         content_ids: list[str] = await workflow.execute_activity(
             "list_videos_needing_retention",
             args=[limit],
@@ -62,22 +57,17 @@ class RetentionFetchWorkflow:
                 summary = await workflow.execute_activity(
                     "fetch_retention_for_video",
                     args=[content_id],
-                    # Single-video fetch is fast (~1s) but a slow YT
-                    # response could push it; 30s is generous.
                     start_to_close_timeout=timedelta(seconds=30),
                     retry_policy=RETRY_LIGHT,
                 )
                 results.append(summary)
             except Exception as exc:
-                # One bad video must not poison the rest of the batch.
                 results.append({
                     "content_id": content_id,
                     "status":     "error",
                     "error":      str(exc),
                 })
 
-        # Aggregate counts so the workflow's return value is small and
-        # log-friendly.
         status_counts: dict[str, int] = {}
         for r in results:
             s = r.get("status", "unknown")

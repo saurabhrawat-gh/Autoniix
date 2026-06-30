@@ -81,9 +81,6 @@ async def _consume(pubsub: Any) -> None:
             chain_mod.invalidate(
                 category=category, channel_id=channel_id, content_mode=content_mode,
             )
-            # The instance cache is keyed identically; clearing the
-            # whole map is cheaper than precise eviction and only happens
-            # in response to operator actions.
             ProviderRegistry.reset()
             logger.info("providers.invalidate.applied",
                         category=category, channel_id=channel_id,

@@ -36,7 +36,7 @@ async def extract_thumbnail_features(content_id: str, channel_id: str,
     features = {
         "has_face": features_data.get("has_face", False),
         "face_area_ratio": features_data.get("face_area_ratio", 0),
-        "text_area_ratio": 0.0,  # Estimated from text overlay
+        "text_area_ratio": 0.0,
         "color_contrast_score": features_data.get("contrast", 3.0),
         "brightness_score": features_data.get("brightness", 0.5),
         "saturation_score": features_data.get("saturation", 0.3),
@@ -45,11 +45,9 @@ async def extract_thumbnail_features(content_id: str, channel_id: str,
         "local_composition_score": composition.get("composition_score", 5.0),
     }
 
-    # Estimate text area ratio from word count
     if features["text_word_count"] > 0:
         features["text_area_ratio"] = min(0.4, features["text_word_count"] * 0.06)
 
-    # Dominant color
     dominant_colors = features_data.get("dominant_colors", [])
     dominant_rgb = str(dominant_colors[0]["rgb"]) if dominant_colors else ""
 
@@ -107,7 +105,6 @@ async def ingest_ctr_outcome(content_id: str, channel_id: str,
     try:
         pool = await get_pool()
 
-        # Compute percentile from channel history
         avg_row = await pool.fetchrow("""
             SELECT AVG(actual_ctr) as avg_ctr FROM thumbnail_outcomes
             WHERE channel_id = $1 AND actual_ctr IS NOT NULL

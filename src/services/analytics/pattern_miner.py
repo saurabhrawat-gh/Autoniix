@@ -46,7 +46,6 @@ async def mine_performance_patterns(channel_id: str, niche: str = "") -> dict:
 
         patterns = {}
 
-        # Pattern 1: Score → Performance Correlation
         for score_key in ["idea_score", "script_score", "thumbnail_score",
                           "hook_retention_score", "final_score"]:
             scores = [float(v.get(score_key) or 0) for v in videos if v.get(score_key)]
@@ -61,14 +60,12 @@ async def mine_performance_patterns(channel_id: str, niche: str = "") -> dict:
                         "samples": len(scores),
                     }
 
-        # Pattern 2: Performance Tier Distribution
         tier_counts = {}
         for v in videos:
             tier = v.get("performance_tier", "D")
             tier_counts[tier] = tier_counts.get(tier, 0) + 1
         patterns["tier_distribution"] = tier_counts
 
-        # Pattern 3: High-Performers Common Traits
         high_perf = [v for v in videos if v.get("performance_tier") in ("S", "A")]
         low_perf = [v for v in videos if v.get("performance_tier") in ("D",)]
 
@@ -91,7 +88,6 @@ async def mine_performance_patterns(channel_id: str, niche: str = "") -> dict:
                 "count": len(low_perf),
             }
 
-        # Pattern 4: Anomaly Detection
         views_list = [int(v.get("yt_views") or 0) for v in videos]
         if len(views_list) >= 5:
             mean_views = np.mean(views_list)
@@ -110,7 +106,6 @@ async def mine_performance_patterns(channel_id: str, niche: str = "") -> dict:
                         })
             patterns["anomalies"] = anomalies
 
-        # Pattern 5: Content Fatigue Detection
         recent_30d = [v for v in videos
                      if v.get("created_at") and
                      v["created_at"] > datetime.utcnow() - timedelta(days=30)]
@@ -131,7 +126,6 @@ async def mine_performance_patterns(channel_id: str, niche: str = "") -> dict:
                     "older_avg_views": round(older_avg),
                 }
 
-        # Store discovered patterns
         for pattern_key, pattern_data in patterns.items():
             try:
                 confidence = 0.5 + min(0.5, len(videos) / 100)

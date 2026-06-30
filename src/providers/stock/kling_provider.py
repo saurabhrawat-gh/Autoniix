@@ -9,7 +9,6 @@ from src.providers.registry import ProviderRegistry
 
 logger = structlog.get_logger()
 
-# Kling AI pricing: ~$0.05 per video generation
 COST_PER_SEARCH = 0.05
 
 
@@ -22,8 +21,6 @@ class KlingStock(StockProvider):
             logger.warning("kling.no_api_key")
 
     async def search(self, request: StockRequest) -> StockResult:
-        # Kling AI is primarily a generative AI, not a stock search
-        # This is a placeholder implementation for future integration
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",

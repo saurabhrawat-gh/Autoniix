@@ -22,7 +22,6 @@ from src.db import get_pool
 logger = structlog.get_logger()
 
 
-# BURST DETECTION (Kleinberg-inspired rolling z-score)
 
 async def detect_bursts(niche: str, lookback_days: int = 14, z_threshold: float = 2.0) -> list[dict]:
     """Detect bursting keywords in a niche.
@@ -45,7 +44,6 @@ async def detect_bursts(niche: str, lookback_days: int = 14, z_threshold: float 
     if not rows:
         return []
 
-    # Group by keyword
     kw_series: dict[str, list[float]] = {}
     kw_latest: dict[str, dict] = {}
     for r in rows:
@@ -64,11 +62,11 @@ async def detect_bursts(niche: str, lookback_days: int = 14, z_threshold: float 
         arr = np.array(series)
         mean = arr[:-1].mean() if len(arr) > 1 else arr.mean()
         std = arr[:-1].std() if len(arr) > 1 else 1.0
-        std = max(std, 0.01)  # Avoid division by zero
+        std = max(std, 0.01)
 
         latest = arr[-1]
         z = (latest - mean) / std
-        burst_score = max(0.0, float(z) / 4.0)  # Normalize to ~0-1 range
+        burst_score = max(0.0, float(z) / 4.0)
 
         is_burst = z >= z_threshold
 
@@ -96,15 +94,12 @@ async def detect_bursts(niche: str, lookback_days: int = 14, z_threshold: float 
     return bursts
 
 
-# PHRASE MINER (rising terms from competitor content)
 
 def _extract_phrases(text: str, min_len: int = 2, max_len: int = 4) -> list[str]:
     """Extract n-gram phrases from text."""
-    # Clean and tokenize
     text = re.sub(r"[^\w\s]", "", text.lower())
     tokens = text.split()
 
-    # Remove stopwords (minimal set)
     stops = {
         "the", "a", "an", "is", "are", "was", "were", "be", "been",
         "in", "on", "at", "to", "for", "of", "with", "by", "from",
@@ -136,13 +131,11 @@ async def mine_phrases(niche: str, days: int = 14, top_n: int = 30) -> list[dict
     """
     pool = await get_pool()
 
-    # Recent period
     recent = await pool.fetch("""
         SELECT title, description FROM competitor_videos
         WHERE niche = $1 AND published_at > NOW() - ($2 || ' days')::interval
     """, niche, str(days))
 
-    # Previous period (for comparison)
     older = await pool.fetch("""
         SELECT title, description FROM competitor_videos
         WHERE niche = $1
@@ -150,7 +143,6 @@ async def mine_phrases(niche: str, days: int = 14, top_n: int = 30) -> list[dict
           AND published_at <= NOW() - ($3 || ' days')::interval
     """, niche, str(days * 2), str(days))
 
-    # Extract phrases
     recent_phrases = Counter()
     for r in recent:
         text = f"{r['title'] or ''} {(r['description'] or '')[:200]}"
@@ -163,7 +155,6 @@ async def mine_phrases(niche: str, days: int = 14, top_n: int = 30) -> list[dict
         for p in _extract_phrases(text):
             older_phrases[p] += 1
 
-    # Find rising phrases (appeared more recently than before)
     results = []
     for phrase, freq in recent_phrases.most_common(top_n * 3):
         if freq < 2:
@@ -183,7 +174,6 @@ async def mine_phrases(niche: str, days: int = 14, top_n: int = 30) -> list[dict
     results.sort(key=lambda x: (x["is_rising"], x["growth_rate"]), reverse=True)
     results = results[:top_n]
 
-    # Store in phrase_bank
     today = date.today()
     for r in results:
         try:
@@ -217,7 +207,6 @@ async def get_rising_phrases(niche: str, limit: int = 15) -> list[str]:
     return [r["phrase"] for r in rows]
 
 
-# PHRASE NOVELTY
 
 async def compute_phrase_novelty(topic: str, niche: str) -> float:
     """How much does a topic use rising/novel phrases vs saturated ones?
@@ -246,16 +235,13 @@ async def compute_phrase_novelty(topic: str, niche: str) -> float:
 
     n = len(topic_phrases)
     novelty = (rising_hits * 2 - saturated_hits) / max(n, 1)
-    novelty = max(0.0, min(1.0, (novelty + 1) / 2))  # Normalize to 0-1
+    novelty = max(0.0, min(1.0, (novelty + 1) / 2))
 
     return round(novelty, 4)
 
 
-# SEASONALITY ENGINE
 
-# Extended seasonal events calendar
 SEASONAL_EVENTS = {
-    # Month: [(event_name, keywords, boost)]
     1: [
         ("new_year", ["new year", "resolution", "fresh start", "2025", "2026"], 0.9),
         ("winter", ["winter", "cold", "snow", "cozy"], 0.6),
@@ -326,22 +312,19 @@ async def compute_advanced_seasonality(topic: str, niche: str) -> dict:
     text = topic.lower()
 
     matched = []
-    max_boost = 0.3  # Default (evergreen)
+    max_boost = 0.3
 
-    # Check current month
     for event_name, keywords, boost in SEASONAL_EVENTS.get(month, []):
         if any(kw in text for kw in keywords):
             matched.append({"event": event_name, "boost": boost, "timing": "current"})
             max_boost = max(max_boost, boost)
 
-    # Check next month (planning ahead)
     next_month = (month % 12) + 1
     for event_name, keywords, boost in SEASONAL_EVENTS.get(next_month, []):
         if any(kw in text for kw in keywords):
             matched.append({"event": event_name, "boost": boost * 0.8, "timing": "upcoming"})
             max_boost = max(max_boost, boost * 0.8)
 
-    # Check historical performance correlation for this niche + month
     pool = await get_pool()
     hist_row = await pool.fetchrow("""
         SELECT AVG(CASE WHEN po.is_success THEN 1.0 ELSE 0.0 END) AS success_rate
@@ -354,7 +337,6 @@ async def compute_advanced_seasonality(topic: str, niche: str) -> dict:
 
     hist_boost = 0.0
     if hist_row and hist_row["success_rate"] is not None:
-        # If this month historically has above-average success, boost seasonality
         hist_boost = max(0.0, float(hist_row["success_rate"]) - 0.5) * 0.5
 
     final_score = min(1.0, max_boost + hist_boost)

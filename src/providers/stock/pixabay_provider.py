@@ -9,7 +9,6 @@ from src.providers.registry import ProviderRegistry
 
 logger = structlog.get_logger()
 
-# Pixabay API: Free tier (5000 requests/month)
 COST_PER_SEARCH = 0.0
 
 
@@ -33,7 +32,6 @@ class PixabayStock(StockProvider):
             "max_video_duration": request.duration_max,
         }
 
-        # Remove None values
         params = {k: v for k, v in params.items() if v is not None}
 
         async with httpx.AsyncClient(timeout=30.0) as client:

@@ -62,7 +62,6 @@ from ._deps import Principal, audit, principal_dep, require_permission, require_
 
 router = APIRouter()
 
-# Plan member limits (None = unlimited)
 _PLAN_MEMBER_LIMITS: dict[str, int | None] = {
     "starter":    3,
     "growth":     10,
@@ -80,7 +79,6 @@ async def _notify_slack(webhook_url: str, message: str) -> None:
         pass
 
 
-# Pydantic models
 
 class WorkspacePatch(BaseModel):
     name: str | None = None
@@ -197,7 +195,6 @@ class EntitySettingUpsert(BaseModel):
     locked: bool = False
 
 
-# Workspace
 
 @router.get("")
 async def get_workspace(p: Principal = Depends(principal_dep)):
@@ -240,7 +237,6 @@ async def update_workspace(
     return {"status": "ok"}
 
 
-# Brands
 
 @router.get("/brands")
 async def list_brands(p: Principal = Depends(principal_dep)):
@@ -315,7 +311,6 @@ async def update_brand(
     return {"status": "ok"}
 
 
-# Series
 
 @router.get("/series")
 async def list_series(
@@ -402,7 +397,6 @@ async def delete_series(
     return {"status": "ok"}
 
 
-# Campaigns
 
 @router.get("/campaigns")
 async def list_campaigns(
@@ -477,7 +471,6 @@ async def update_campaign(
     return {"status": "ok"}
 
 
-# Projects
 
 @router.get("/projects")
 async def list_projects(
@@ -558,12 +551,10 @@ async def get_project(project_id: int, _: Principal = Depends(principal_dep)):
     )
     if not row:
         raise HTTPException(404, "Project not found")
-    # Fetch child branches
     branches = await pool.fetch(
         "SELECT id, branch_label, status, title FROM projects WHERE parent_project_id = $1",
         project_id,
     )
-    # Fetch linked videos
     videos = await pool.fetch(
         "SELECT content_id, title, status, created_at FROM videos WHERE project_id = $1 ORDER BY created_at DESC LIMIT 20",
         project_id,
@@ -626,7 +617,6 @@ async def delete_project(
     return {"status": "ok"}
 
 
-# Members
 
 @router.get("/members")
 async def list_members(p: Principal = Depends(principal_dep)):
@@ -654,9 +644,6 @@ async def set_member_role(
     VALID_ROLES = {"owner", "member", "viewer"}
     if body.role not in VALID_ROLES:
         raise HTTPException(400, f"Invalid role. Must be one of: {', '.join(sorted(VALID_ROLES))}")
-    # AE-285: prevent self-role-change. Owners must use POST /transfer-ownership
-    # to hand off (atomic + password-verified). This avoids the lockout where an
-    # owner demotes themselves and then cannot re-promote.
     if actor.user_id == user_id:
         raise HTTPException(
             403,
@@ -664,7 +651,6 @@ async def set_member_role(
         )
     if body.role == "owner" and actor.role != "owner":
         raise HTTPException(403, "Only an owner can assign the owner role")
-    # Prevent demoting the last owner
     if body.role != "owner":
         current = await pool.fetchval(
             "SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
@@ -724,10 +710,8 @@ async def remove_member(
         raise HTTPException(404, "Member not found")
     await audit(actor=actor, action="member.remove", target_type="workspace_member",
                 target_id=str(user_id), request=request)
-    # Invalidate membership cache immediately via Redis pub/sub
     from ._membership import publish_revoked
     await publish_revoked(user_id, actor.workspace_id)
-    # member-removed email (fire-and-forget)
     if removed_user and removed_user["email"]:
         from ._resend import send_email as _resend_send
         _resend_send("member-removed", removed_user["email"], {
@@ -737,7 +721,6 @@ async def remove_member(
     return {"status": "ok"}
 
 
-# Invitations
 
 VALID_INVITE_ROLES = {"member", "viewer"}
 
@@ -770,7 +753,6 @@ async def create_invite(
     if body.role not in VALID_INVITE_ROLES:
         raise HTTPException(400, f"Invalid role. Choose from: {', '.join(sorted(VALID_INVITE_ROLES))}")
     pool = await get_pool()
-    # Read plan + mode outside the lock — idempotent, no mutation.
     ws_row = await pool.fetchrow(
         "SELECT plan, mode FROM workspaces WHERE id=$1", actor.workspace_id
     )
@@ -780,20 +762,14 @@ async def create_invite(
             "This workspace is in solo mode. Switch to teams mode in Workspace Settings before inviting members.",
         )
     plan = (ws_row["plan"] if ws_row else "starter") or "starter"
-    limit = _PLAN_MEMBER_LIMITS.get(plan)  # None = unlimited
+    limit = _PLAN_MEMBER_LIMITS.get(plan)
 
-    # AE-277 race-condition hotfix: take an advisory transaction lock keyed on
-    # workspace_id so that concurrent invite requests for the same workspace are
-    # serialized.  This prevents multiple requests from both seeing
-    # (current + pending) < limit and inserting more rows than the plan allows.
-    # pg_advisory_xact_lock is released automatically when the transaction ends.
     raw = secrets.token_urlsafe(32)
     h = hashlib.sha256(raw.encode()).hexdigest()
     expires = datetime.utcnow() + timedelta(days=body.expires_days)
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute("SELECT pg_advisory_xact_lock($1)", actor.workspace_id)
-            # Plan limit check (inside lock — counts are now authoritative)
             if limit is not None:
                 member_count = await conn.fetchval(
                     "SELECT COUNT(*) FROM workspace_members WHERE workspace_id=$1",
@@ -814,7 +790,6 @@ async def create_invite(
                     else:
                         msg += "Upgrade your plan to invite more members."
                     raise HTTPException(402, msg)
-            # Check member doesn't already exist
             existing = await conn.fetchval(
                 """SELECT wm.user_id FROM workspace_members wm
                      JOIN users u ON u.id = wm.user_id
@@ -823,7 +798,6 @@ async def create_invite(
             )
             if existing:
                 raise HTTPException(409, "User is already a member of this workspace")
-            # Check no pending invite already exists for this email
             pending_inv = await conn.fetchval(
                 """SELECT id FROM workspace_invitations
                     WHERE workspace_id=$1 AND lower(email)=lower($2)
@@ -842,8 +816,6 @@ async def create_invite(
                 target_id=str(inv_id), after={"email": body.email, "role": body.role}, request=request)
     frontend_url = os.getenv("FRONTEND_URL", "")
     invite_link = f"{frontend_url}/accept-invite?token={raw}" if frontend_url else f"/accept-invite?token={raw}"
-    # Resend invite email (fire-and-forget). Skip the extra lookups when
-    # Resend isn't configured to save DB roundtrips and keep tests deterministic.
     from ._resend import send_email as _resend_send, is_configured as _resend_configured
     if _resend_configured():
         ws_info = await pool.fetchrow("SELECT name FROM workspaces WHERE id=$1", actor.workspace_id)
@@ -857,7 +829,6 @@ async def create_invite(
             "invite_url": invite_link,
             "expires_days": body.expires_days,
         })
-    # Slack DM notification (best-effort)
     integration = await pool.fetchrow(
         "SELECT slack_webhook_url FROM workspace_integrations WHERE workspace_id=$1",
         actor.workspace_id,
@@ -892,7 +863,6 @@ async def revoke_invite(
     return {"status": "ok"}
 
 
-# Workspace integrations (Slack webhook, etc.)
 
 class IntegrationPatch(BaseModel):
     slack_webhook_url: str | None = None
@@ -932,12 +902,7 @@ async def update_integrations(
     return {"status": "ok"}
 
 
-# Entity settings
 
-# Tenant-isolation hotfix (AE-276): every entity_settings access must verify
-# that the (scope, scope_id) pair belongs to the caller's workspace.  The
-# previous implementation accepted any scope_id and exposed both READ and
-# WRITE to other workspaces' settings — a tenant-isolation breach.
 
 _SETTINGS_TENANT_SCOPES: frozenset[str] = frozenset(
     {"workspace", "brand", "channel", "series", "campaign", "project"}
@@ -966,7 +931,6 @@ async def _assert_settings_scope_in_workspace(
             f"Invalid scope. Must be one of: {', '.join(sorted(_SETTINGS_VALID_SCOPES))}",
         )
 
-    # Workspace scope: scope_id is the workspace id itself.
     if scope == "workspace":
         try:
             target_ws = int(scope_id)
@@ -976,8 +940,6 @@ async def _assert_settings_scope_in_workspace(
             raise HTTPException(403, "Cross-workspace access denied")
         return
 
-    # Channel scope: channels.channel_id is a TEXT primary key (e.g. 'UC...'),
-    # so we look it up directly.
     if scope == "channel":
         owner = await pool.fetchval(
             "SELECT workspace_id FROM channels WHERE channel_id=$1", scope_id
@@ -988,8 +950,6 @@ async def _assert_settings_scope_in_workspace(
             raise HTTPException(403, "Cross-workspace access denied")
         return
 
-    # Other tenant scopes use BIGINT primary keys; resolve workspace_id via the
-    # appropriate JOIN where the table doesn't carry workspace_id directly.
     try:
         sid = int(scope_id)
     except (TypeError, ValueError):
@@ -1066,7 +1026,6 @@ async def upsert_setting(
     return {"status": "ok"}
 
 
-# Ownership Transfer
 
 class TransferOwnershipIn(BaseModel):
     new_owner_user_id: int
@@ -1084,7 +1043,6 @@ async def transfer_ownership(
     if body.new_owner_user_id == actor.user_id:
         raise HTTPException(400, "Cannot transfer ownership to yourself")
     pool = await get_pool()
-    # Verify current password
     current_user = await pool.fetchrow(
         "SELECT password_hash, display_name, email FROM users WHERE id=$1", actor.user_id
     )
@@ -1093,7 +1051,6 @@ async def transfer_ownership(
     from .auth import _verify_pw
     if not _verify_pw(body.current_password, current_user["password_hash"] or ""):
         raise HTTPException(401, "Password is incorrect")
-    # Verify new owner is an existing member
     new_owner_member = await pool.fetchrow(
         """SELECT wm.role, u.display_name, u.email
              FROM workspace_members wm JOIN users u ON u.id = wm.user_id
@@ -1106,7 +1063,6 @@ async def transfer_ownership(
     workspace_name = ws_info["name"] if ws_info else "your workspace"
     old_owner_name = current_user["display_name"] or current_user["email"] or ""
     new_owner_name = new_owner_member["display_name"] or new_owner_member["email"] or ""
-    # Atomic role swap
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute(
@@ -1126,7 +1082,6 @@ async def transfer_ownership(
         after={"owner_user_id": body.new_owner_user_id},
         request=request,
     )
-    # Emails — fire-and-forget
     from ._resend import send_email as _resend_send
     if new_owner_member["email"]:
         _resend_send("ownership-transferred-new", new_owner_member["email"], {

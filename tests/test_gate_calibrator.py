@@ -20,14 +20,12 @@ from src.quality.calibrator import (
 from src.quality.gate import PRODUCTION_THRESHOLDS
 
 
-# Helper
 
 
 def _samples(spec: list[tuple[float, str]]) -> list[Sample]:
     return [Sample(score=s, tier=t) for s, t in spec]
 
 
-# Insufficient data → falls back to default
 
 
 def test_insufficient_samples_returns_default():
@@ -56,7 +54,6 @@ def test_zero_flops_returns_default():
     assert res.floor == 7.5
 
 
-# Happy path: clean separation
 
 
 def test_finds_lowest_threshold_meeting_precision():
@@ -71,7 +68,6 @@ def test_finds_lowest_threshold_meeting_precision():
     samples = (
         _samples([(s, "S") for s in [8.0, 8.2, 8.5, 8.7, 9.0, 8.1, 8.3, 8.6]])
         + _samples([(s, "A") for s in [8.4]])
-        # 16 flops below 7.1 dominate the low band.
         + _samples([(s, "D") for s in [
             5.0, 5.2, 5.5, 5.8, 6.0, 6.2, 6.4, 6.5,
             6.6, 6.7, 6.8, 6.9, 7.0, 5.3, 6.1, 6.3,
@@ -79,11 +75,8 @@ def test_finds_lowest_threshold_meeting_precision():
     )
     res = calibrate_dimension("hook_retention_score", samples, default_floor=7.5)
     assert res.status == "auto"
-    # Contract: floor is the *lowest* t such that precision ≥ TARGET.
-    # Verify the contract directly rather than guessing the value.
     assert res.win_rate_at_floor is not None
     assert res.win_rate_at_floor >= 0.70
-    # And no *lower* threshold also meets precision: we picked the floor.
     lower = res.floor - 0.1
     passing_at_lower = [s for s in samples if s.score >= lower]
     if passing_at_lower:
@@ -92,8 +85,6 @@ def test_finds_lowest_threshold_meeting_precision():
             f"calibrator left precision on the table: at t={lower:.1f} "
             f"precision={precision_at_lower:.2f} also meets target"
         )
-    # And the floor stays well below the win cluster (8.0+) — never
-    # silly-strict.
     assert res.floor <= 8.0, f"floor={res.floor} unnecessarily strict"
 
 
@@ -108,23 +99,19 @@ def test_lowest_acceptable_not_highest_precision():
     )
     res = calibrate_dimension("hook_retention_score", samples, default_floor=7.5)
     assert res.status == "auto"
-    # 7.5 already passes precision; we shouldn't pick 8.0+.
     assert res.floor <= 8.0
 
 
-# Monotonicity guard: the headline safety property
 
 
 def test_monotonicity_guard_clamps_to_min_s_tier():
     """If the algorithm would set t=8.5 but an S-tier video scored 8.3,
     we clamp to 8.3. We never block proven winners."""
-    # Lots of wins above 8.5, lots of flops below 7. One S-tier outlier
-    # at 8.3 — ordinary algorithm might pick 8.4.
     samples = (
         _samples([(s, "S") for s in [8.5, 8.7, 8.9, 9.0, 8.6, 8.8, 9.1, 9.2]])
         + _samples([(s, "A") for s in [8.0, 8.1, 8.2, 8.4]])
         + _samples([(s, "D") for s in [5.0, 5.5, 6.0, 6.5, 7.0, 6.2, 6.8]])
-        + [Sample(score=8.3, tier="S")]   # the outlier the guard protects
+        + [Sample(score=8.3, tier="S")]
     )
     res = calibrate_dimension("hook_retention_score", samples, default_floor=7.5)
     assert res.status == "auto"
@@ -145,17 +132,12 @@ def test_monotonicity_guard_recomputes_metrics_at_clamped_value():
     )
     res = calibrate_dimension("hook_retention_score", samples, default_floor=7.5)
     assert res.floor <= 7.8
-    # s_tier_preserved at clamped value should be 1.0 (every S passes,
-    # by construction — we clamped to the min S-tier observation).
     assert res.s_tier_preserved == pytest.approx(1.0, abs=1e-6)
 
 
-# Sanity clamps
 
 
 def test_floor_is_clamped_to_absolute_bounds():
-    # Pathological case: every win is at 9.9 and every flop at 9.5.
-    # Algorithm might want t=9.6 — clamp to the ceiling.
     samples = (
         _samples([(9.9, "S")] * 15)
         + _samples([(9.5, "D")] * 10)
@@ -167,20 +149,15 @@ def test_floor_is_clamped_to_absolute_bounds():
 def test_no_threshold_meets_precision_returns_default():
     """If wins and flops are interleaved at every level, no threshold
     achieves the precision target. We return the default + status flag."""
-    # Alternating: every score has equal probability of W or F.
     samples = []
     for s in [6.0, 6.5, 7.0, 7.5, 8.0, 8.5]:
         for _ in range(5):
             samples.append(Sample(score=s, tier="S"))
             samples.append(Sample(score=s, tier="D"))
     res = calibrate_dimension("hook_retention_score", samples, default_floor=7.5)
-    # Either status is acceptable: "auto" if precision target was met
-    # at the highest threshold, or "no_threshold_meets_precision" if not.
-    # Either way, the floor must remain bounded.
     assert ABSOLUTE_FLOOR <= res.floor <= ABSOLUTE_CEILING
 
 
-# Convenience wrapper covers every dimension
 
 
 def test_calibrate_all_dimensions_covers_every_threshold_dim():
@@ -193,7 +170,6 @@ def test_calibrate_all_dimensions_covers_every_threshold_dim():
     assert all(r.status == "insufficient_samples" for r in out)
 
 
-# CalibrationResult serialisation contract
 
 
 def test_result_as_dict_is_json_safe():
@@ -203,8 +179,6 @@ def test_result_as_dict_is_json_safe():
     )
     res = calibrate_dimension("hook_retention_score", samples, default_floor=7.5)
     d = res.as_dict()
-    # Every value must be a JSON-encodable scalar, no Decimals or
-    # numpy floats from a future refactor.
     import json
     json.dumps(d)
     assert d["dimension"] == "hook_retention_score"

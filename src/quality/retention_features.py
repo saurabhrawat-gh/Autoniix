@@ -35,26 +35,24 @@ from dataclasses import dataclass
 from typing import Iterable
 
 
-# Public types
 
 
 @dataclass
 class CurvePoint:
     """One sample on the audience-retention curve."""
-    elapsed_ratio: float    # in [0, 1]
-    watch_ratio:   float    # in [0, 1] (informally — YT can report >1 in edge cases)
+    elapsed_ratio: float
+    watch_ratio:   float
 
 
 @dataclass
 class RetentionFeatures:
     """The three derived features the Phase 9 calibrator consumes."""
-    hook_dropoff_30s: float | None     # 0..1 — how much we lost in first 30s
-    mid_video_decay:  float | None     # 0..1 — drop from 30s to 60%
-    end_retention:    float | None     # 0..1 — avg over last 20%
-    valid:            bool             # False if curve too sparse / malformed
+    hook_dropoff_30s: float | None
+    mid_video_decay:  float | None
+    end_retention:    float | None
+    valid:            bool
 
 
-# Curve sampling helpers
 
 
 def _interpolate_at(curve: list[CurvePoint], at: float) -> float | None:
@@ -66,14 +64,10 @@ def _interpolate_at(curve: list[CurvePoint], at: float) -> float | None:
     """
     if not curve:
         return None
-    # Already at an endpoint? Fast path.
     if at <= curve[0].elapsed_ratio:
         return curve[0].watch_ratio
     if at >= curve[-1].elapsed_ratio:
         return curve[-1].watch_ratio
-    # Find the bracketing pair. The curve is sorted by construction
-    # (YT returns it in ascending elapsed_ratio order); we still binary
-    # search defensively for stability.
     lo, hi = 0, len(curve) - 1
     while lo + 1 < hi:
         mid = (lo + hi) // 2
@@ -98,7 +92,6 @@ def _avg_over_range(curve: list[CurvePoint], lo: float, hi: float) -> float | No
     """
     if hi <= lo or not curve:
         return None
-    # Build the segment by clipping the curve to [lo, hi].
     seg: list[CurvePoint] = []
     lo_val = _interpolate_at(curve, lo)
     if lo_val is not None:
@@ -111,8 +104,6 @@ def _avg_over_range(curve: list[CurvePoint], lo: float, hi: float) -> float | No
         seg.append(CurvePoint(hi, hi_val))
     if len(seg) < 2:
         return None
-    # Trapezoidal area / total width. Width is hi - lo by construction
-    # (we clipped both ends), but compute from points to be robust.
     area = 0.0
     width = 0.0
     for a, b in zip(seg[:-1], seg[1:]):
@@ -126,7 +117,6 @@ def _avg_over_range(curve: list[CurvePoint], lo: float, hi: float) -> float | No
     return area / width
 
 
-# Public API
 
 
 def parse_curve(raw: Iterable) -> list[CurvePoint]:
@@ -183,33 +173,22 @@ def compute_features(
     if len(curve) < 5:
         return RetentionFeatures(None, None, None, valid=False)
 
-    # End retention is independent of duration — it's a ratio over a
-    # ratio. Always computable.
     end = _avg_over_range(curve, 0.80, 1.00)
 
     if duration_seconds is None or duration_seconds <= 0:
         return RetentionFeatures(None, None, end, valid=end is not None)
 
-    # Map the 30-second mark into elapsed_ratio space. For a 60s video
-    # this is 0.5; for a 600s video it's 0.05. Clamp to [0, 1] so a
-    # very short video doesn't push us past the curve end.
     t30 = max(0.0, min(1.0, 30.0 / duration_seconds))
 
     watch_at_30s = _interpolate_at(curve, t30)
     if watch_at_30s is None:
         return RetentionFeatures(None, None, end, valid=end is not None)
 
-    # Hook dropoff = 1 - watch_at_30s. Anchor at t=0 watch_ratio
-    # (should be 1.0; sometimes YT reports slightly less due to its
-    # own normalisation). Use the actual t=0 value for safety.
     watch_at_start = curve[0].watch_ratio if curve[0].elapsed_ratio < 1e-3 else 1.0
     if watch_at_start <= 0:
         watch_at_start = 1.0
     hook_drop = max(0.0, min(1.0, 1.0 - watch_at_30s / watch_at_start))
 
-    # Mid-video decay = drop between t=30s and t=60% of video.
-    # If t30 ≥ 0.60 (very short video where 30s is past the 60% mark),
-    # the metric is meaningless — return None for that one feature.
     if t30 >= 0.60:
         mid_decay = None
     else:
@@ -217,7 +196,6 @@ def compute_features(
         if watch_at_60 is None:
             mid_decay = None
         else:
-            # Both relative to start to keep units consistent.
             r_30 = watch_at_30s / watch_at_start
             r_60 = watch_at_60 / watch_at_start
             mid_decay = max(0.0, r_30 - r_60)

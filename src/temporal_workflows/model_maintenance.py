@@ -27,7 +27,6 @@ RETRY_LIGHT = RetryPolicy(
     maximum_interval=timedelta(seconds=30),
 )
 
-# Service endpoints for training
 TRAINABLE_MODELS = [
     {
         "model_name": "voice_style_gbm",
@@ -80,7 +79,6 @@ class ModelMaintenanceWorkflow:
             model_name = model_cfg["model_name"]
 
             try:
-                # Step 1: Check data freshness
                 freshness = await workflow.execute_activity(
                     "check_model_freshness",
                     args=[model_cfg],
@@ -98,7 +96,6 @@ class ModelMaintenanceWorkflow:
                     }
                     continue
 
-                # Step 2: Drift detection (if endpoint exists)
                 drift_detected = False
                 if model_cfg.get("drift_endpoint"):
                     drift_result = await workflow.execute_activity(
@@ -109,7 +106,6 @@ class ModelMaintenanceWorkflow:
                     )
                     drift_detected = drift_result.get("drift_detected", False)
 
-                # Step 3: Retrain
                 train_result = await workflow.execute_activity(
                     "retrain_model",
                     args=[model_cfg],
@@ -117,7 +113,6 @@ class ModelMaintenanceWorkflow:
                     retry_policy=RETRY_LIGHT,
                 )
 
-                # Step 4: Update model health
                 await workflow.execute_activity(
                     "update_model_health",
                     args=[{

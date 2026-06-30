@@ -26,14 +26,10 @@ async def update_video_status(content_id: str, status: str,
         env = "production"
         pool = await get_pool()
 
-        # Terminal statuses should NOT update checkpoint
         terminal_statuses = {'delivered', 'test_delivered', 'failed', 'stopped', 'superseded', 'rejected'}
         is_active_phase = status not in terminal_statuses
 
         if is_active_phase:
-            # If the existing row is in a terminal failed/stopped state and we're re-animating
-            # it (restart-from-checkpoint case), wipe stale job_events so the timeline doesn't
-            # show mixed old+new phase events.
             prev = await pool.fetchrow(
                 "SELECT status FROM videos WHERE content_id = $1", content_id
             )
@@ -53,9 +49,6 @@ async def update_video_status(content_id: str, status: str,
                 "updated_at = NOW()",
                 content_id, channel_id, status, title, content_mode, env,
             )
-            # When a fresh workflow kicks off (first phase), supersede older failed/stopped
-            # jobs for the same channel+mode so they disappear from the progress page.
-            # Covers scheduler-triggered workflows which bypass the dashboard /trigger endpoint.
             if channel_id and content_mode and status == "researching":
                 await pool.execute(
                     "UPDATE videos SET status = 'superseded', updated_at = NOW() "
@@ -76,8 +69,6 @@ async def update_video_status(content_id: str, status: str,
                 "updated_at = NOW()",
                 content_id, channel_id, status, title, content_mode, env,
             )
-            # When a job transitions to failed/stopped, supersede any OLDER failed/stopped
-            # rows for the same channel+mode so only the latest failure is visible.
             if status in ("failed", "stopped"):
                 row = await pool.fetchrow(
                     "SELECT channel_id, content_mode FROM videos WHERE content_id = $1",
@@ -177,10 +168,8 @@ async def get_eligible_channels() -> list[dict]:
             sched = json.loads(sched_raw) if isinstance(sched_raw, str) else (sched_raw or {})
             if not sched.get("enabled", True):
                 continue
-            # Determine which modes this channel supports
             mode_raw = r["content_mode"] or "short"
             modes = ["short", "long_form"] if mode_raw == "both" else [m.strip() for m in mode_raw.split(",")]
-            # Skip channels that already have a running job
             running = await pool.fetchval(
                 "SELECT COUNT(*) FROM videos WHERE channel_id = $1 "
                 "AND status NOT IN ('delivered', 'test_delivered', 'failed', 'stopped', 'superseded', 'rejected')",
@@ -188,7 +177,6 @@ async def get_eligible_channels() -> list[dict]:
             )
             if (running or 0) > 0:
                 continue
-            # Pick ONE eligible mode (short first — higher frequency)
             picked_mode = None
             for mode in modes:
                 limit = r["videos_per_week_short"] if mode == "short" else r["videos_per_week_long"]
@@ -226,7 +214,7 @@ async def acquire_channel_lock(channel_id: str) -> bool:
             f"lock:channel:{channel_id}",
             "locked",
             nx=True,
-            ex=3600,  # 1 hour TTL
+            ex=3600,
         )
         return bool(acquired)
     except Exception as exc:

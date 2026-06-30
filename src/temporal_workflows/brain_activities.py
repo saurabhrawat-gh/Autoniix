@@ -27,7 +27,6 @@ from src.flags import get_flag
 
 logger = structlog.get_logger()
 
-# Decision types that mean "stop the pipeline." Anything else is informational.
 HALTING_ACTIONS: frozenset[str] = frozenset({"HALT", "HOLD"})
 
 
@@ -51,11 +50,8 @@ async def brain_directive_check_activity(
     """
     try:
         if await get_flag("brain.advisory_mode", default=True):
-            # Advisory-mode is the safe default: Brain decisions are logged
-            # only, never enforced. Return early without touching the DB.
             return {}
     except Exception as exc:
-        # If we can't even read the flag, behave as if advisory mode is ON.
         logger.warning(
             "brain_directive_check.flag_read_failed",
             channel_id=channel_id,
@@ -65,8 +61,6 @@ async def brain_directive_check_activity(
 
     try:
         pool = await get_pool()
-        # Most specific scope first → least specific. The first hit wins so
-        # a per-video HALT overrides a channel-wide HOLD.
         row = await pool.fetchrow(
             """
             SELECT id, decision_type, scope, scope_id, directive, reasoning, confidence
@@ -99,8 +93,6 @@ async def brain_directive_check_activity(
 
     action = (row["decision_type"] or "").upper()
     if action not in HALTING_ACTIONS:
-        # Non-halting decision types (ADVISE, NUDGE, RESUME) shouldn't stop
-        # the pipeline; they're returned only so callers can log them.
         return {
             "action": action,
             "decision_id": row["id"],

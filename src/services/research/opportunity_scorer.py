@@ -17,15 +17,6 @@ from src.db import get_pool
 
 logger = structlog.get_logger()
 
-# Default weights (overridden from system_config or ML model).
-#
-# Phase 8 added ``saturation_gap`` — the inverse of niche saturation
-# (high gap == uncrowded topic). It's weighted 0.10 by default,
-# rebalancing freshness/novelty/trend_momentum down by ~0.03 each so the
-# total stays at 1.0. The rebalance reflects the fact that an external
-# saturation signal is more predictive of YouTube algorithm behaviour
-# than internal novelty alone — internal novelty asks "is this new for
-# *us*?", saturation asks "is this new for *the platform*?"
 DEFAULT_WEIGHTS = {
     "freshness": 0.16,
     "novelty": 0.13,
@@ -44,7 +35,6 @@ async def _load_weights(niche: str | None = None) -> dict:
     """Load scoring weights from system_config or ML model store."""
     pool = await get_pool()
 
-    # Try niche-specific learned weights first
     if niche:
         row = await pool.fetchrow("""
             SELECT metrics FROM ml_models
@@ -56,7 +46,6 @@ async def _load_weights(niche: str | None = None) -> dict:
             if "weights" in learned:
                 return learned["weights"]
 
-    # Fall back to system_config global weights
     row = await pool.fetchrow("""
         SELECT config_value FROM system_config WHERE config_key = 'opportunity_weights'
     """)
@@ -69,7 +58,6 @@ async def _load_weights(niche: str | None = None) -> dict:
     return DEFAULT_WEIGHTS.copy()
 
 
-# Hookability Heuristics
 
 def compute_hookability(title: str, hook: str = "") -> float:
     """Score hookability of a title/hook based on heuristics.
@@ -81,7 +69,6 @@ def compute_hookability(title: str, hook: str = "") -> float:
     score = 0.0
     checks = 0
 
-    # Curiosity gap patterns
     curiosity_patterns = [
         "why", "how", "what if", "secret", "hidden", "truth",
         "nobody", "no one", "revealed", "shocking", "surprising",
@@ -90,37 +77,31 @@ def compute_hookability(title: str, hook: str = "") -> float:
         score += 1.0
     checks += 1
 
-    # Numbers (listicles, specifics)
     import re
     if re.search(r"\d+", text):
         score += 0.8
     checks += 1
 
-    # Question format (drives curiosity)
     if "?" in text:
         score += 0.7
     checks += 1
 
-    # Controversy / debate signals
     controversy = ["myth", "wrong", "lie", "debate", "controversial", "unpopular", "overrated"]
     if any(p in text for p in controversy):
         score += 0.9
     checks += 1
 
-    # Emotional intensity words
     emotional = ["amazing", "incredible", "terrifying", "beautiful", "insane",
                  "genius", "brilliant", "devastating", "powerful", "mind-blowing"]
     if any(p in text for p in emotional):
         score += 0.8
     checks += 1
 
-    # Power words (urgency/exclusivity)
     power = ["ultimate", "complete", "essential", "proven", "guaranteed", "exclusive", "urgent"]
     if any(p in text for p in power):
         score += 0.7
     checks += 1
 
-    # Length check: good titles are 40-70 chars
     if 40 <= len(title) <= 70:
         score += 0.6
     checks += 1
@@ -128,7 +109,6 @@ def compute_hookability(title: str, hook: str = "") -> float:
     return round(min(1.0, score / max(checks * 0.5, 1)), 4)
 
 
-# Supply-Demand Gap
 
 async def compute_supply_demand_gap(
     topic: str,
@@ -141,7 +121,6 @@ async def compute_supply_demand_gap(
     """
     pool = await get_pool()
 
-    # Supply: count recent competitor videos with similar titles
     supply_count = await pool.fetchval("""
         SELECT COUNT(*) FROM competitor_videos
         WHERE niche = $1
@@ -149,17 +128,14 @@ async def compute_supply_demand_gap(
           AND published_at > NOW() - INTERVAL '30 days'
     """, niche, topic[:50])
 
-    # Demand proxy: trend volume index (0-100 from Google Trends)
     demand = min(1.0, trend_volume / 100.0) if trend_volume > 0 else 0.5
 
-    # Supply penalty: more supply = lower gap
     supply_penalty = min(1.0, supply_count / 10.0) if supply_count else 0.0
 
     gap = max(0.0, demand - supply_penalty * 0.6)
     return round(gap, 4)
 
 
-# Seasonality
 
 def compute_seasonality(topic: str) -> float:
     """Basic seasonality scoring based on calendar signals.
@@ -171,7 +147,6 @@ def compute_seasonality(topic: str) -> float:
     month = today.month
     text = topic.lower()
 
-    # Monthly themes
     monthly_themes = {
         1: ["new year", "resolution", "fresh start", "winter"],
         2: ["valentine", "love", "relationship"],
@@ -191,16 +166,14 @@ def compute_seasonality(topic: str) -> float:
     if any(t in text for t in themes):
         return 0.85
 
-    # Also check next month for planning ahead
     next_month = (month % 12) + 1
     next_themes = monthly_themes.get(next_month, [])
     if any(t in text for t in next_themes):
         return 0.65
 
-    return 0.3  # Evergreen default
+    return 0.3
 
 
-# Main Scorer
 
 async def score_opportunity(
     topic: str,
@@ -225,7 +198,6 @@ async def score_opportunity(
     features = features or {}
     weights = await _load_weights(niche)
 
-    # Compute missing features
     freshness = features.get("freshness_score", 0.5)
     novelty = features.get("novelty_score", 0.5)
     trend_momentum = features.get("trend_momentum", 0.0)
@@ -237,18 +209,12 @@ async def score_opportunity(
     trend_vol = int(features.get("trend_volume_index", 50))
     sdg = await compute_supply_demand_gap(topic, niche, trend_vol)
 
-    # Competitor gap: derived from novelty + supply-demand
     comp_gap = min(1.0, (novelty + sdg) / 2)
 
     seasonality = compute_seasonality(topic)
 
-    # Phase 8 — niche saturation. Defaults to 1.0 (no penalty) on cold
-    # start so missing data never blocks a topic. Caller in
-    # services/research/main.py is expected to pass this in features
-    # via ``compute_saturation``; if absent we fall back gracefully.
     saturation_gap = features.get("saturation_gap", 1.0)
 
-    # Build feature vector
     feature_vec = {
         "freshness": freshness,
         "novelty": novelty,
@@ -262,12 +228,10 @@ async def score_opportunity(
         "saturation_gap": max(0.0, min(1.0, saturation_gap)),
     }
 
-    # Weighted sum
     opportunity = sum(
         feature_vec.get(k, 0) * weights.get(k, 0)
         for k in weights
     )
-    # Clamp to [0, 1]
     opportunity = round(max(0.0, min(1.0, opportunity)), 4)
 
     result = {

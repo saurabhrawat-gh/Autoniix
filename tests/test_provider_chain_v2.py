@@ -27,7 +27,6 @@ class _FakeConn:
         self.fetchrow_calls: list[tuple] = []
 
     async def fetch(self, sql: str, *args: Any) -> list[dict]:
-        # Match `_load_layer`: (scope, category, scope_id, content_mode, pipeline_mode)
         if "FROM provider_chains_v2" in sql:
             scope, category, sid, mode = args[0], args[1], args[2], args[3]
             key = (scope, sid, mode, category)
@@ -98,7 +97,6 @@ async def test_resolution_order_is_most_specific_first():
     ids = [r["id"] for r in rows]
     assert ids == [1, 2, 3, 4, 5], f"unexpected order: {ids}"
 
-    # Origin labels should match the layer each row came from.
     origins = [r["__origin__"] for r in rows]
     assert origins == ["channel+mode", "channel", "workspace+mode", "workspace", "system"]
 
@@ -107,7 +105,7 @@ async def test_resolution_order_is_most_specific_first():
 async def test_partial_channel_override_inherits_workspace_tail():
     """A channel override with one extra row still inherits the workspace chain."""
     layers = {
-        ("channel",   "CH1", None, "llm.script"): [_row(10)],   # one extra primary
+        ("channel",   "CH1", None, "llm.script"): [_row(10)],
         ("workspace", None,  None, "llm.script"): [_row(20), _row(30)],
         ("system",    None,  None, "llm.script"): [],
     }
@@ -171,12 +169,10 @@ async def test_mode_specific_only_queried_when_mode_given():
         await chain_mod._load_chain(
             "llm.script", channel_id=None, content_mode=None,
         )
-    # Only the workspace + system layers should have been queried.
     scopes_queried = [c[0] for c in conn.fetch_calls]
     assert scopes_queried == ["workspace", "system"]
 
 
-# Enabled / disabled filtering
 
 
 @pytest.mark.asyncio
@@ -222,7 +218,6 @@ def test_no_provider_configured_message_includes_hint():
     assert "/dashboard/providers" in msg
 
 
-# invalidate()
 
 def test_invalidate_wildcard_clears_everything():
     chain_mod._chain_cache[("CH1", "short", "llm.script")] = ("x", 9e9)

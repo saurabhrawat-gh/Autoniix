@@ -49,10 +49,8 @@ SAMPLER_INTERVAL_S = float(os.getenv("SAMPLER_INTERVAL_S", "60"))
 SAMPLER_TOKEN = os.getenv("SAMPLER_TOKEN", "")
 DIVERGENCE_LOG = os.getenv("DIVERGENCE_LOG", "logs/prod_divergences.jsonl")
 SENTRY_DSN = os.getenv("SENTRY_DSN", "")
-ALERT_THRESHOLD = float(os.getenv("SAMPLER_ALERT_THRESHOLD", "0.005"))  # 0.5%
+ALERT_THRESHOLD = float(os.getenv("SAMPLER_ALERT_THRESHOLD", "0.005"))
 
-# Read-only endpoints eligible for sampling.
-# These are safe to fire in production — they never mutate state.
 SAMPLE_ENDPOINTS: list[dict[str, Any]] = [
     {
         "method": "GET",
@@ -73,7 +71,7 @@ SAMPLE_ENDPOINTS: list[dict[str, Any]] = [
         "python_path": "/health",
         "rust_path": "/health/live",
         "auth": False,
-        "compare_fields": [],  # status code only
+        "compare_fields": [],
     },
 ]
 
@@ -181,7 +179,6 @@ class ProductionEquivalenceSampler:
     async def __aexit__(self, *_: Any) -> None:
         await self._client.aclose()
 
-    # ── Main loop ────────────────────────────────────────────────────────────
 
     async def run_forever(self) -> None:
         """Run sampling loop indefinitely. Cancel the task to stop."""
@@ -210,7 +207,6 @@ class ProductionEquivalenceSampler:
     def stop(self) -> None:
         self._running = False
 
-    # ── Sampling round ───────────────────────────────────────────────────────
 
     async def _sample_round(self) -> None:
         tasks = []
@@ -309,7 +305,6 @@ class ProductionEquivalenceSampler:
         self.stats.record(python_path, diverged=run.diverged, python_ms=py_ms, rust_ms=rust_ms)
         return run
 
-    # ── HTTP helpers ─────────────────────────────────────────────────────────
 
     async def _timed_get(
         self,
@@ -324,7 +319,6 @@ class ProductionEquivalenceSampler:
         except Exception as exc:
             return exc, (time.monotonic() - t0) * 1000
 
-    # ── Alerting + logging ───────────────────────────────────────────────────
 
     def _log_divergence(self, run: SamplerRun) -> None:
         record = json.dumps(run.to_dict())
@@ -365,7 +359,6 @@ class ProductionEquivalenceSampler:
             logger.debug("sampler: sentry alert failed: %s", exc)
 
 
-# ── Utilities ────────────────────────────────────────────────────────────────
 
 def _now() -> str:
     return datetime.now(tz=timezone.utc).isoformat()
@@ -380,7 +373,6 @@ def _nested_get(obj: Any, key: str) -> Any:
     return obj
 
 
-# ── Standalone entrypoint ────────────────────────────────────────────────────
 
 async def _main() -> None:
     logging.basicConfig(

@@ -103,7 +103,6 @@ def _insert_role_arg(conn) -> str:
     for call in conn.fetchval.await_args_list:
         sql = call.args[0] if call.args else ""
         if "INSERT INTO users" in sql:
-            # args = (sql, email, display_name, pw_hash, role, verify_token)
             return call.args[4]
     raise AssertionError("INSERT INTO users was never called")
 
@@ -117,7 +116,6 @@ def _workspace_member_role_arg(conn) -> str:
     raise AssertionError("INSERT INTO workspace_members was never called")
 
 
-# ── TC-264-01 ──────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_first_user_registration_assigns_owner_role():
@@ -142,7 +140,6 @@ async def test_first_user_registration_assigns_owner_role():
     assert result["status"] == "ok"
 
 
-# ── TC-264-02 ──────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_second_user_registration_gets_user_role():
@@ -167,7 +164,6 @@ async def test_second_user_registration_gets_user_role():
     assert result["status"] == "ok"
 
 
-# ── TC-264-03 ──────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("existing_count", [2, 3, 10, 1_000])
@@ -189,7 +185,6 @@ async def test_nth_user_registration_gets_user_role(existing_count: int):
     assert result["status"] == "ok"
 
 
-# ── TC-264-04 ──────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_duplicate_email_raises_409_and_inserts_nothing():
@@ -208,7 +203,6 @@ async def test_duplicate_email_raises_409_and_inserts_nothing():
         await register(body=body, request=_make_request())
 
     assert exc.value.status_code == 409
-    # No INSERT INTO users should have happened
     insert_user_calls = [
         c for c in conn.fetchval.await_args_list
         if c.args and "INSERT INTO users" in c.args[0]
@@ -216,7 +210,6 @@ async def test_duplicate_email_raises_409_and_inserts_nothing():
     assert insert_user_calls == [], "Duplicate email path must not insert"
 
 
-# ── TC-264-05 ──────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_workspace_member_role_is_always_owner_for_own_workspace():
@@ -226,7 +219,7 @@ async def test_workspace_member_role_is_always_owner_for_own_workspace():
     Regression guard so we never accidentally weaken this."""
     from src.services.dashboard.v2.auth import register, RegisterIn
 
-    pool, conn = _build_pool(existing_user_count=5)  # not first user
+    pool, conn = _build_pool(existing_user_count=5)
     body = RegisterIn(
         email="member@example.com",
         password="strong-pass-1234",

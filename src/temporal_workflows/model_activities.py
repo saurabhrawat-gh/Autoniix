@@ -25,7 +25,6 @@ async def check_model_freshness(model_cfg: dict) -> dict:
     table = model_cfg["min_new_rows_table"]
     model_name = model_cfg["model_name"]
 
-    # Get last trained timestamp
     row = await pool.fetchrow("""
         SELECT last_trained_at FROM model_health
         WHERE model_name = $1 LIMIT 1
@@ -110,7 +109,6 @@ async def update_model_health_activity(params: dict) -> dict:
     status = "trained" if train_result.get("status") == "success" else "error"
     accuracy = train_result.get("data", {}).get("accuracy", 0)
 
-    # Get all niches for this model
     pool = await get_pool()
     niches = await pool.fetch("""
         SELECT DISTINCT niche FROM channels WHERE status = 'active'

@@ -17,7 +17,6 @@ import pytest
 from fastapi import HTTPException
 
 
-# ── _membership module ─────────────────────────────────────────────────────
 
 class TestMembershipCache:
 
@@ -34,7 +33,7 @@ class TestMembershipCache:
         from src.services.dashboard.v2 import _membership as mm
 
         mock_pool = AsyncMock()
-        mock_pool.fetchval.return_value = 1  # row found → is_member
+        mock_pool.fetchval.return_value = 1
 
         with patch("src.services.dashboard.v2._membership.get_pool", AsyncMock(return_value=mock_pool)):
             result = await mm.check_membership(42, 7)
@@ -48,7 +47,7 @@ class TestMembershipCache:
         from src.services.dashboard.v2 import _membership as mm
 
         mock_pool = AsyncMock()
-        mock_pool.fetchval.return_value = None  # no row → not a member
+        mock_pool.fetchval.return_value = None
 
         with patch("src.services.dashboard.v2._membership.get_pool", AsyncMock(return_value=mock_pool)):
             result = await mm.check_membership(99, 7)
@@ -73,10 +72,10 @@ class TestMembershipCache:
     async def test_expired_entry_reloads(self):
         from src.services.dashboard.v2 import _membership as mm
 
-        mm._cache[(10, 2)] = (True, time.monotonic() - 1.0)  # expired
+        mm._cache[(10, 2)] = (True, time.monotonic() - 1.0)
 
         mock_pool = AsyncMock()
-        mock_pool.fetchval.return_value = None  # now not a member
+        mock_pool.fetchval.return_value = None
         with patch("src.services.dashboard.v2._membership.get_pool", AsyncMock(return_value=mock_pool)):
             result = await mm.check_membership(10, 2)
 
@@ -107,7 +106,6 @@ class TestMembershipCache:
         assert (2, 1) in mm._cache
 
 
-# ── principal_dep revocation ───────────────────────────────────────────────
 
 class TestPrincipalDepRevocation:
 

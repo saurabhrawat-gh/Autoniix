@@ -28,7 +28,6 @@ async def test_resolve_returns_empty_on_db_error(mock_pool):
 @pytest.mark.asyncio
 async def test_resolve_expands_asset_ids_to_urls(mock_pool):
     mock_pool.fetchrow.side_effect = [
-        # First call: the channels JOIN dam_brand_kits row
         {
             "kit_id": 5,
             "name": "Beast Mode v2",
@@ -41,16 +40,12 @@ async def test_resolve_expands_asset_ids_to_urls(mock_pool):
             "voice_sample_id": None,
             "motion_presets": {},
         },
-        # Subsequent fetchrow calls inside _asset_url(s) — one row per asset id
         {"storage_key": "dam/x/y/logo/10.png"},
         {"storage_key": "dam/x/y/logo/11.svg"},
         {"storage_key": "dam/x/y/font/20.woff2"},
         {"storage_key": "dam/x/y/lut/30.cube"},
     ]
 
-    # Stub the storage provider so signed URLs are deterministic.
-    # ProviderRegistry is imported inside `_asset_url`, so we patch at the
-    # source module rather than via the resolver namespace.
     storage = MagicMock()
     storage.get_signed_url = AsyncMock(side_effect=lambda key: f"https://cdn.test/{key}")
     with patch("src.providers.registry.ProviderRegistry.get", return_value=storage):
@@ -91,5 +86,4 @@ async def test_unbind_passes_null(mock_pool):
     mock_pool.execute.return_value = "UPDATE 1"
     updated = await bind_channel_brand_kit("CH_x", None)
     assert updated is True
-    # When kit_id is None we should NOT check kit existence first.
     assert mock_pool.fetchval.await_count == 0

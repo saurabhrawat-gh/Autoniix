@@ -7,7 +7,6 @@ import structlog
 
 logger = structlog.get_logger()
 
-# Maps category → env var name
 _ENV_MAP: dict[str, str] = {
     "tts": "TTS_PROVIDER",
     "llm": "LLM_PROVIDER",
@@ -50,18 +49,9 @@ class ProviderRegistry:
         content_mode: str | None = None,
         pipeline_mode: str = "production",
     ) -> Any:
-        # 1) Explicit override always wins
         if override:
             name = override
         else:
-            # 2) Try the DB-driven priority chain. Three outcomes:
-            #      • FallbackProvider — DB chain resolved, use it.
-            #      • EMPTY_CHAIN     — DB reachable, no enabled creds.
-            #                          Raise NoProviderConfigured so the
-            #                          UI surfaces a clear error instead
-            #                          of a silent env-var "ghost" provider.
-            #      • None            — DB unreachable / flag off, fall
-            #                          back to env-var resolution.
             from src.providers.chain import EMPTY_CHAIN, NoProviderConfigured
             chain = cls._try_db_chain(
                 category, channel_id=channel_id, content_mode=content_mode,
@@ -81,8 +71,6 @@ class ProviderRegistry:
                 category, channel_id=channel_id, content_mode=content_mode,
             )
 
-        # Cache key includes the resolution axes so that two channels
-        # with different overrides can't poison each other's instance.
         cache_key = f"{category}:{name}:{channel_id or ''}:{content_mode or ''}"
         if cache_key in cls._instances:
             return cls._instances[cache_key]
@@ -121,14 +109,11 @@ class ProviderRegistry:
             try:
                 loop = _asyncio.get_running_loop()
             except RuntimeError:
-                # No running loop — safe to run synchronously
                 return _asyncio.run(resolve_chain(
                     category, registry,
                     channel_id=channel_id, content_mode=content_mode,
                     pipeline_mode=pipeline_mode,
                 ))
-            # We're inside an event loop; schedule and wait on a
-            # background thread to keep the call signature sync.
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
                 fut = ex.submit(_asyncio.run, resolve_chain(

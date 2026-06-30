@@ -39,10 +39,9 @@ def client():
 def skip_if_unavailable(client: httpx.Client, url: str, label: str) -> None:
     try:
         r = client.get(f"{url}/health", timeout=3.0)
-        # Reject HTML responses (e.g. Temporal UI on port 8080)
         if "html" in r.headers.get("content-type", ""):
             pytest.skip(f"{label} not running at {url} (got HTML, expected JSON API)")
-        r.json()  # Must be JSON
+        r.json()
     except (httpx.ConnectError, httpx.TimeoutException):
         pytest.skip(f"{label} not running at {url}")
     except Exception:
@@ -55,7 +54,6 @@ def _check_services(client: httpx.Client):
     skip_if_unavailable(client, RUST_URL, "Rust gateway")
 
 
-# ── Token structure validation ──────────────────────────────────────────────
 
 
 def test_rust_jwt_claims_match_python_schema(client: httpx.Client):
@@ -63,7 +61,6 @@ def test_rust_jwt_claims_match_python_schema(client: httpx.Client):
     email = unique_email("rust-claims")
     password = "Password123!"
 
-    # Register via Rust (post-#350: no auto-login, need explicit signin)
     register = client.post(
         f"{RUST_URL}/api/v2/auth/register",
         json={
@@ -84,26 +81,22 @@ def test_rust_jwt_claims_match_python_schema(client: httpx.Client):
     token = signin.json()["access_token"]
     claims = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
 
-    # Required fields per Python schema
     assert "sub" in claims, "JWT missing 'sub' claim"
     assert "email" in claims, "JWT missing 'email' claim"
     assert "role" in claims, "JWT missing 'role' claim"
     assert "wid" in claims, "JWT missing 'wid' claim"
     assert "exp" in claims, "JWT missing 'exp' claim"
 
-    # sub must be parseable as int (Python does int(claims["sub"]))
     sub = claims["sub"]
     if isinstance(sub, str):
-        int(sub)  # Must not raise
+        int(sub)
     elif isinstance(sub, int):
         pass
     else:
         pytest.fail(f"JWT 'sub' must be int or stringified int, got {type(sub)}")
 
-    # wid must be int
     assert isinstance(claims["wid"], int), f"JWT 'wid' must be int, got {type(claims['wid'])}"
 
-    # role must be string (not array)
     assert isinstance(claims["role"], str), f"JWT 'role' must be string, got {type(claims['role'])}"
 
     assert claims["email"] == email, "JWT email must match signup email"
@@ -114,7 +107,6 @@ def test_python_jwt_claims_match_rust_schema(client: httpx.Client):
     email = unique_email("py-claims")
     password = "Password123!"
 
-    # Register via Python, then login (post-#350: register returns no tokens)
     register = client.post(
         f"{PYTHON_URL}/api/v2/auth/register",
         json={
@@ -135,22 +127,19 @@ def test_python_jwt_claims_match_rust_schema(client: httpx.Client):
     token = login.json()["access_token"]
     claims = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
 
-    # Rust expects: sub (string), email, role, global_role, wid (i64)
     assert "sub" in claims, "Python JWT missing 'sub'"
     assert "email" in claims, "Python JWT missing 'email'"
     assert "wid" in claims, "Python JWT missing 'wid'"
 
-    # Rust reads sub as string then parses — Python sends int, Rust should handle it
     sub = claims["sub"]
     if isinstance(sub, int):
-        str(sub)  # Rust will do user_id.to_string()
+        str(sub)
     elif isinstance(sub, str):
-        int(sub)  # Must be parseable
+        int(sub)
 
     print(f"✓ Python JWT claims compatible with Rust schema: {list(claims.keys())}")
 
 
-# ── Cross-service token acceptance ──────────────────────────────────────────
 
 
 def test_rust_token_accepted_by_python(client: httpx.Client):
@@ -158,7 +147,6 @@ def test_rust_token_accepted_by_python(client: httpx.Client):
     email = unique_email("rust-to-py")
     password = "Password123!"
 
-    # Register + signin via Rust (post-#350)
     register = client.post(
         f"{RUST_URL}/api/v2/auth/register",
         json={
@@ -176,7 +164,6 @@ def test_rust_token_accepted_by_python(client: httpx.Client):
     assert signin.status_code == 200, f"Rust signin failed: {signin.text}"
     rust_token = signin.json()["access_token"]
 
-    # Use Rust token on Python /api/v2/auth/me
     me_resp = client.get(
         f"{PYTHON_URL}/api/v2/auth/me",
         headers={"Authorization": f"Bearer {rust_token}"},
@@ -184,7 +171,6 @@ def test_rust_token_accepted_by_python(client: httpx.Client):
 
     if me_resp.status_code == 200:
         body = me_resp.json()
-        # /me wraps its payload in a top-level `data` object
         assert body.get("data", {}).get("email") == email, "Python /me must return same email as Rust token"
         print("✓ Rust-issued JWT accepted by Python")
     else:
@@ -199,7 +185,6 @@ def test_python_token_accepted_by_rust(client: httpx.Client):
     email = unique_email("py-to-rust")
     password = "Password123!"
 
-    # Register via Python, then login to get a token (post-#350)
     register = client.post(
         f"{PYTHON_URL}/api/v2/auth/register",
         json={
@@ -217,7 +202,6 @@ def test_python_token_accepted_by_rust(client: httpx.Client):
     assert login.status_code == 200, f"Python login failed: {login.text}"
     python_token = login.json()["access_token"]
 
-    # Use Python token on Rust /api/v2/me
     me_resp = client.get(
         f"{RUST_URL}/api/v2/me",
         headers={"Authorization": f"Bearer {python_token}"},
@@ -225,7 +209,6 @@ def test_python_token_accepted_by_rust(client: httpx.Client):
 
     if me_resp.status_code == 200:
         body = me_resp.json()
-        # /me wraps its payload in a top-level `data` object
         assert body.get("data", {}).get("email") == email, "Rust /me must return same email as Python token"
         print("✓ Python-issued JWT accepted by Rust")
     else:
@@ -235,7 +218,6 @@ def test_python_token_accepted_by_rust(client: httpx.Client):
         )
 
 
-# ── Token forgery rejection ─────────────────────────────────────────────────
 
 
 def test_forged_token_rejected_by_rust(client: httpx.Client):
@@ -268,7 +250,6 @@ def test_forged_token_rejected_by_python(client: httpx.Client):
 
 def test_none_algorithm_rejected(client: httpx.Client):
     """Both services must reject 'none' algorithm tokens."""
-    # PyJWT raises on 'none' by default, but test anyway
     try:
         forged = jwt.encode(
             {"sub": "1", "email": "hacker@evil.com", "role": "superadmin", "wid": 1},

@@ -15,9 +15,6 @@ from src.agents.llm_reasoner import (
 from src.providers.llm.base import LLMResult
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# LLMReasoner.reason
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 def _llm_result(content: str) -> LLMResult:
@@ -80,7 +77,6 @@ class TestLLMReasonerReason:
     async def test_returns_none_on_missing_required_field(self, reasoner):
         bad = {
             "decision_type": "HALT",
-            # directive missing
             "reasoning": "x",
             "confidence": 0.5,
         }
@@ -180,9 +176,6 @@ class TestLLMReasonerReason:
         assert out is None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# BrainAgent LLM decide path
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestBrainAgentLLMDecide:
@@ -303,7 +296,6 @@ class TestBrainAgentLLMDecide:
             "confidence": 0.5,
             "context_summary": "ctx",
         }
-        # The fake LLM raises so any accidental call would blow up.
         with (
             patch(
                 "src.services.brain.agent.get_flag",

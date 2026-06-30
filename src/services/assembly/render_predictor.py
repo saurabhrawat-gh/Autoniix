@@ -32,13 +32,11 @@ def compute_direction_complexity(direction_v3: dict) -> dict:
     score = 0.0
     risk_factors = []
 
-    # Segment count impact
     seg_count = len(segments)
     score += seg_count * 0.3
     if seg_count > 15:
         risk_factors.append(f"High segment count: {seg_count}")
 
-    # Motion design complexity
     motion_count = sum(
         len(s.get("motion_design", {}).get("elements", []))
         for s in segments
@@ -47,29 +45,24 @@ def compute_direction_complexity(direction_v3: dict) -> dict:
     if motion_count > 20:
         risk_factors.append(f"Many motion elements: {motion_count}")
 
-    # Visual effects
     vfx_count = sum(len(s.get("visual_effects", [])) for s in segments)
     score += vfx_count * 0.3
 
-    # Unique scene presets (more variety = more template switches)
     unique_presets = len(set(s.get("scene_preset", "") for s in segments))
     score += unique_presets * 0.2
 
-    # Total duration
     total_ms = sum(s.get("duration_ms", 0) for s in segments)
     duration_min = total_ms / 60000
     score += duration_min * 0.5
     if duration_min > 10:
         risk_factors.append(f"Long video: {duration_min:.1f} minutes")
 
-    # SFX count
     sfx_count = sum(
         len(s.get("audio_cues", {}).get("sfx", []))
         for s in segments
     )
     score += sfx_count * 0.2
 
-    # Global overlays
     overlays = len(direction_v3.get("global_overlays", []))
     score += overlays * 0.3
 
@@ -89,11 +82,10 @@ def compute_direction_complexity(direction_v3: dict) -> dict:
 
 def estimate_render_duration(complexity: dict) -> float:
     """Estimate render duration in seconds based on complexity."""
-    base = 30  # Minimum 30 seconds
-    per_segment = 10  # ~10s per segment
-    per_minute_video = 20  # 20s per minute of video
+    base = 30
+    per_segment = 10
+    per_minute_video = 20
 
-    # Use per-field detail when available; fall back to top-level complexity score.
     complexity_score = complexity.get("complexity", 0)
     estimate = (
         base +
@@ -101,7 +93,7 @@ def estimate_render_duration(complexity: dict) -> float:
         complexity.get("total_duration_min", 0) * per_minute_video +
         complexity.get("motion_elements", 0) * 3 +
         complexity.get("vfx_count", 0) * 5 +
-        complexity_score * 2  # raw score contribution when detail keys are absent
+        complexity_score * 2
     )
 
     risk_factor = {"high": 1.5, "medium": 1.2, "low": 1.0}.get(
@@ -115,21 +107,16 @@ def simplify_direction_for_retry(direction_v3: dict) -> dict:
     
     Removes complex elements that might cause rendering issues.
     """
-    simplified = json.loads(json.dumps(direction_v3))  # Deep copy
+    simplified = json.loads(json.dumps(direction_v3))
     segments = simplified.get("segments", [])
 
     for seg in segments:
-        # Simplify motion design
         seg["motion_design"] = {"elements": []}
-        # Remove visual effects
         seg["visual_effects"] = []
-        # Simplify transitions to cuts
         seg["transition_in"] = {"type": "cut", "preset": "trans.cut", "duration_ms": 0}
-        # Simplify camera to static
         seg["camera"] = {"type": "static", "speed": "medium",
                          "start_position": "center", "end_position": ""}
 
-    # Remove complex overlays
     simplified["global_overlays"] = [
         o for o in simplified.get("global_overlays", [])
         if o.get("type") in ("vignette",)

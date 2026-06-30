@@ -45,8 +45,6 @@ def test_bandit_sampled_before_script_generation(src: str):
     formatting (Phase 10 added a ``channel_id`` kwarg which split the
     call across lines).
     """
-    # Find the pre-generation sampling block by its distinctive log
-    # label — this is more durable than pattern-matching the call args.
     bandit_idx = _first_index(src, "script.bandit_pre_generation")
     route_idx  = _first_index(src, 'category="llm.script"')
     assert bandit_idx >= 0, "expected pre-generation bandit sampling"
@@ -55,8 +53,6 @@ def test_bandit_sampled_before_script_generation(src: str):
         "Bandit must be sampled before the router call so its choice "
         "actually steers the prompt."
     )
-    # Belt-and-braces: the thompson_sample call for hook_style must
-    # exist somewhere before the router call.
     hook_idx = _first_index(src, '"hook_style"')
     assert 0 <= hook_idx < route_idx, (
         "hook_style bandit must be invoked before the router"

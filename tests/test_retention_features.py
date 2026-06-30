@@ -18,7 +18,6 @@ from src.quality.retention_features import (
 )
 
 
-# Curve helpers
 
 
 def _flat_curve(value: float, n: int = 20) -> list[CurvePoint]:
@@ -37,7 +36,6 @@ def _linear_decay(start: float, end: float, n: int = 20) -> list[CurvePoint]:
     ]
 
 
-# parse_curve
 
 
 def test_parse_curve_accepts_pairs():
@@ -66,7 +64,7 @@ def test_parse_curve_drops_malformed_silently():
         [0.5, 0.7],
     ]
     out = parse_curve(raw)
-    assert len(out) == 2     # the two valid entries
+    assert len(out) == 2
     assert all(isinstance(p, CurvePoint) for p in out)
 
 
@@ -76,11 +74,10 @@ def test_parse_curve_sorts_by_elapsed():
     assert [p.elapsed_ratio for p in out] == [0.0, 0.5, 1.0]
 
 
-# compute_features: cold paths
 
 
 def test_compute_features_too_sparse_returns_invalid():
-    curve = _flat_curve(0.8, n=3)  # below MIN_POINTS=5
+    curve = _flat_curve(0.8, n=3)
     f = compute_features(curve, duration_seconds=120)
     assert f.valid is False
     assert f.hook_dropoff_30s is None
@@ -98,7 +95,6 @@ def test_compute_features_no_duration_still_returns_end_retention():
     assert f.end_retention == pytest.approx(0.6, abs=0.01)
 
 
-# compute_features: hook_dropoff_30s
 
 
 def test_hook_dropoff_zero_for_perfect_retention():
@@ -111,8 +107,6 @@ def test_hook_dropoff_high_when_steep_initial_drop():
     """Curve drops from 1.0 at t=0 to 0.5 at t=0.5 (the 30s mark of a 60s video)."""
     curve = _linear_decay(1.0, 0.5)
     f = compute_features(curve, duration_seconds=60)
-    # At t=0.5 (= 30s for 60s video), watch_ratio interpolates to 0.75.
-    # Hook dropoff = 1 - 0.75 = 0.25.
     assert f.hook_dropoff_30s == pytest.approx(0.25, abs=0.02)
 
 
@@ -121,21 +115,17 @@ def test_hook_dropoff_clamped_to_zero_for_increasing_curves():
     clamp the resulting dropoff to ≥ 0 so we never penalise a video
     for *gaining* viewers in the first 30s."""
     curve = [CurvePoint(0.0, 1.0)] + _flat_curve(1.05, n=19)
-    # Force the start point to anchor the math.
     curve = sorted(curve, key=lambda p: p.elapsed_ratio)
     f = compute_features(curve, duration_seconds=120)
     assert f.hook_dropoff_30s is not None
     assert f.hook_dropoff_30s == 0.0
 
 
-# compute_features: mid_video_decay
 
 
 def test_mid_decay_zero_for_flat_middle():
     curve = _flat_curve(0.7)
     f = compute_features(curve, duration_seconds=120)
-    # 30s mark is at elapsed=0.25 for a 120s video. Watch_ratio is
-    # constant 0.7 throughout. Mid decay = 0.
     assert f.mid_video_decay == pytest.approx(0.0, abs=0.001)
 
 
@@ -156,18 +146,14 @@ def test_mid_decay_none_for_short_video_where_30s_past_60pct():
     curve = _flat_curve(0.5)
     f = compute_features(curve, duration_seconds=40)
     assert f.mid_video_decay is None
-    # But hook and end should still be computed.
     assert f.hook_dropoff_30s is not None
     assert f.end_retention is not None
 
 
-# compute_features: end_retention
 
 
 def test_end_retention_averages_last_20pct():
     """End retention = trapezoidal mean of watch_ratio over [0.8, 1.0]."""
-    # Linear decay 1.0 → 0.0. Mean over [0.8, 1.0] is the average of
-    # endpoints by linearity: (0.2 + 0.0) / 2 = 0.1.
     curve = _linear_decay(1.0, 0.0)
     f = compute_features(curve, duration_seconds=120)
     assert f.end_retention == pytest.approx(0.1, abs=0.02)
@@ -176,16 +162,13 @@ def test_end_retention_averages_last_20pct():
 def test_end_retention_uses_last_segment_not_endpoint():
     """If the very last point dips, end_retention should still reflect
     the *average* across [0.8, 1.0], not just the last value."""
-    # Mostly 0.5 with a final dip to 0.0 at t=1.0.
     curve = [CurvePoint(i / 19, 0.5) for i in range(19)]
     curve.append(CurvePoint(1.0, 0.0))
     f = compute_features(curve, duration_seconds=120)
-    # Average is dominated by the 0.5 plateau, not the single dip.
     assert f.end_retention is not None
     assert 0.4 < f.end_retention < 0.5
 
 
-# Integration: feature shape
 
 
 def test_features_are_serializable_floats_or_none():

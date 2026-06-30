@@ -9,7 +9,6 @@ from src.providers.registry import ProviderRegistry
 
 logger = structlog.get_logger()
 
-# Cartesia pricing: $0.25 per 1K characters (approximate)
 COST_PER_1K_CHARS = 0.25
 
 
@@ -29,7 +28,7 @@ class CartesiaTTS(TTSProvider):
             "text": request.text,
             "voice": {
                 "mode": "id",
-                "id": request.voice_id or "79a125e8-cd45-4c13-8a67-188112f4dd22",  # default voice
+                "id": request.voice_id or "79a125e8-cd45-4c13-8a67-188112f4dd22",
             },
             "output_format": {
                 "container": "mp3",
@@ -54,7 +53,6 @@ class CartesiaTTS(TTSProvider):
 
         chars = len(request.text)
         cost = (chars / 1000) * COST_PER_1K_CHARS
-        # Rough duration estimate: ~150 WPM
         estimated_duration = (word_count / 150) * 60
 
         logger.info(
@@ -99,7 +97,6 @@ class CartesiaTTS(TTSProvider):
                 "sample_rate": 44100,
                 "bit_rate": 128000,
             },
-            # Map abstract params to Cartesia's native params if available
             "speed": speed,
         }
 

@@ -19,33 +19,28 @@ from src.db import get_pool
 
 logger = structlog.get_logger()
 
-_RECENT_VIDEOS = 10   # rolling window for quality / cost averages
-_FAILURE_WINDOW_H = 48  # look-back for consecutive failures
+_RECENT_VIDEOS = 10
+_FAILURE_WINDOW_H = 48
 
 
 @dataclass
 class ChannelSignals:
     channel_id: str
 
-    # Quality
     avg_composite_score: float = 0.0
     min_composite_score: float = 0.0
     recent_scores: list[float] = field(default_factory=list)
 
-    # Cost
     avg_cost_per_video: float = 0.0
     latest_cost: float = 0.0
-    cost_spike_factor: float = 1.0   # latest / avg  (>3.0 = spike)
+    cost_spike_factor: float = 1.0
 
-    # Failures
     consecutive_failures: int = 0
     total_recent_failures: int = 0
 
-    # Volume
     total_delivered: int = 0
     total_failed: int = 0
 
-    # Budget
     daily_budget_limit: float = 0.0
     daily_spend_today: float = 0.0
     daily_budget_remaining: float = 0.0
@@ -162,7 +157,6 @@ async def _fetch_failures(pool, channel_id: str) -> tuple[int, int]:
     statuses = [r["status"] for r in rows]
     total_fail = sum(1 for s in statuses if s == "failed")
 
-    # Count leading consecutive failures (most-recent first)
     consec = 0
     for s in statuses:
         if s == "failed":

@@ -9,7 +9,6 @@ from src.providers.registry import ProviderRegistry
 
 logger = structlog.get_logger()
 
-# Pexels API: Free tier (200 requests/month)
 COST_PER_SEARCH = 0.0
 
 
