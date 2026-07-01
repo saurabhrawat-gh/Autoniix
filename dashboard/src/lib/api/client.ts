@@ -60,7 +60,7 @@ export async function rawRequest<T = any>(path: string, opts: RequestInit = {}, 
       if (refreshed) return rawRequest<T>(path, opts, true);
     }
     if (typeof window !== 'undefined') {
-      document.cookie = 'auth_status=; Path=/; Max-Age=0; SameSite=Lax; Secure';
+      document.cookie = 'auth_status=; Path=/; Max-Age=0; SameSite=Lax';
       clearToken();
       if (!window.location.pathname.startsWith('/login')) {
         window.location.href = '/login';
@@ -86,7 +86,7 @@ export async function rawRequest<T = any>(path: string, opts: RequestInit = {}, 
           }
         }
       } catch {}
-      document.cookie = 'auth_status=; Path=/; Max-Age=0; SameSite=Lax; Secure';
+      document.cookie = 'auth_status=; Path=/; Max-Age=0; SameSite=Lax';
       clearToken();
       window.location.href = '/login?reason=no_workspace_access';
       throw new Error('workspace_access_revoked');
