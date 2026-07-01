@@ -55,7 +55,6 @@ class AgentMemory:
         mem = AgentMemory(agent_name="brain", table="brain_decisions")
         result = await mem.recall_for_observation(obs, top_k=3)
         for r in result.rows:
-            print(r["decision_type"], r["score"], r["reasoning"])
     """
 
     DEFAULT_TOP_K = 3
@@ -72,7 +71,6 @@ class AgentMemory:
         self.table = table
         self.embedding_column = embedding_column
 
-    # ── Public API ───────────────────────────────────────────────────────
 
     async def recall(
         self,
@@ -134,9 +132,6 @@ class AgentMemory:
                 rows=[], query_text=query, skipped_reason="embedding_failed"
             )
 
-        # Filter to rows that meaningfully match — anything below the
-        # threshold is noise and would dilute the precedent the caller
-        # uses in reasoning.
         filtered = [r for r in rows if float(r.get("score") or 0) >= threshold]
         return MemoryRecallResult(rows=filtered, query_text=query)
 
@@ -213,7 +208,6 @@ class AgentMemory:
                 error=str(exc),
             )
 
-    # ── Internals ────────────────────────────────────────────────────────
 
     @staticmethod
     def _build_scope_filter(
@@ -222,7 +216,6 @@ class AgentMemory:
         if scope_id is None:
             return None, None
         if scope is None:
-            # scope_id alone is enough to keep us in the right channel/video
             return "scope_id = $2", (scope_id,)
         return "scope = $2 AND scope_id = $3", (scope, scope_id)
 

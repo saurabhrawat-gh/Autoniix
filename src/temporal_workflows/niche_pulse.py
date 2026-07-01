@@ -37,9 +37,6 @@ class NichePulseRefreshWorkflow:
 
     @workflow.run
     async def run(self, params: dict | None = None) -> dict:
-        # 1. Enumerate active niches. Re-uses the same activity the gate
-        #    calibrator uses — single source of truth for "which niches
-        #    are we serving."
         niches: list[str] = await workflow.execute_activity(
             "list_niches_with_outcomes",
             start_to_close_timeout=timedelta(seconds=30),
@@ -52,15 +49,11 @@ class NichePulseRefreshWorkflow:
                 summary = await workflow.execute_activity(
                     "refresh_niche_pulse",
                     args=[niche],
-                    # YouTube API + embedding compute can be slow when
-                    # the niche has many channels. 5 minutes is the
-                    # 99p ceiling we've measured in similar workflows.
                     start_to_close_timeout=timedelta(minutes=5),
                     retry_policy=RETRY_LIGHT,
                 )
                 results[niche] = summary
             except Exception as exc:
-                # One bad niche must not poison the rest of the fleet.
                 results[niche] = {"action": "error", "error": str(exc)}
 
         return {"niches_processed": len(niches), "results": results}

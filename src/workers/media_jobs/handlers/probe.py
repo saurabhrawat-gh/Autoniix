@@ -31,7 +31,6 @@ async def run(pool: Any, asset: dict, job: dict) -> dict:
     if asset_kind == "image":
         return await _probe_image(pool, asset, storage_key)
     if asset_kind == "font":
-        # Fonts: only declare existence — no parsing needed in this iteration.
         return {"status": "done", "result": {"probed": True, "kind": "font"}}
     if asset_kind in {"video", "audio"}:
         return {
@@ -65,7 +64,6 @@ async def _probe_image(pool: Any, asset: dict, storage_key: str) -> dict:
     except Exception as exc:
         return {"status": "failed", "reason": f"image probe failed: {exc!s}"}
 
-    # Merge into dam_assets.metadata without clobbering other keys.
     await pool.execute(
         """
         UPDATE dam_assets

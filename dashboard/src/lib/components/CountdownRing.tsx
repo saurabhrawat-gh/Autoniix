@@ -3,7 +3,7 @@
 import { motion, useReducedMotion } from 'framer-motion';
 
 const RADIUS = 9;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS; // ≈ 56.55
+const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 interface CountdownRingProps {
   /** Countdown duration in ms */

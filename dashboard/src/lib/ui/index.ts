@@ -1,7 +1,3 @@
-// Autoniix Dashboard UI Kit — barrel
-// All primitives are themed via the CSS variables defined in app/globals.css.
-// They render identically in light and dark; theme is toggled by adding
-// `class="dark"` on <html>.
 
 export { cn } from './cn';
 

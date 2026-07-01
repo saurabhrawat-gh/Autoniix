@@ -50,7 +50,6 @@ export default function ReviewQueuePage() {
   useEffect(() => { channelsApi.list(false).then(r => setChannels(r.data || [])); }, []);
   useEffect(() => { load(tab); }, [tab, selChannel, load]);
 
-  // Fetch all-state counts in parallel for the header stats
   useEffect(() => {
     Promise.all(
       STATE_TABS.map(t =>
@@ -77,11 +76,6 @@ export default function ReviewQueuePage() {
   const channelName = (v: any) =>
     channels.find(c => c.channel_id === v.channel_id)?.channel_name || v.channel_id || '—';
 
-  // AE-368 fix: backend expects review_state values ('approved' | 'rejected'),
-  // not the action verbs ('approve' | 'reject'). Previously we sent the verbs
-  // and the backend returned 400, but the success toast still fired — every
-  // quick-approve silently failed. Send the state directly and surface
-  // errors via the existing catch path.
   const quickDecide = async (v: any, decision: 'approved' | 'rejected') => {
     try {
       await reviewApi.decide(v.content_id, decision);

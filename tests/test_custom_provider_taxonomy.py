@@ -12,7 +12,6 @@ Pure unit tests — no DB required. They cover:
 from __future__ import annotations
 
 
-# ─── JSONB string hardening (SS10 root cause) ─────────────────────────────────
 
 def test_as_json_parses_string_list():
     from src.services.dashboard.v2.providers import _as_json
@@ -32,7 +31,6 @@ def test_as_json_none_and_garbage_fall_back_to_default():
     assert _as_json("", {"k": 1}) == {"k": 1}
 
 
-# ─── slug derivation ──────────────────────────────────────────────────────────
 
 def test_slugify_basic():
     from src.services.dashboard.v2.providers import _slugify
@@ -52,7 +50,6 @@ def test_slugify_respects_maxlen():
     assert len(_slugify("x" * 100, maxlen=20)) <= 20
 
 
-# ─── default config schema for custom providers ───────────────────────────────
 
 def test_default_config_schema_with_key():
     from src.services.dashboard.v2.providers import _default_config_schema
@@ -70,7 +67,6 @@ def test_default_config_schema_without_key():
     assert "api_key" not in names and "model" in names
 
 
-# ─── request models ───────────────────────────────────────────────────────────
 
 def test_kind_in_defaults():
     from src.services.dashboard.v2.providers import KindIn
@@ -92,7 +88,6 @@ def test_marketplace_provider_in_defaults():
     assert p.supported_models == []
 
 
-# ─── migration sanity ─────────────────────────────────────────────────────────
 
 def test_taxonomy_migration_exists_and_has_key_statements():
     import os

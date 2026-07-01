@@ -70,7 +70,6 @@ async def test_every_valid_decision_value_is_accepted(value):
     body = DecisionIn(decision=value)
     with patch("src.services.dashboard.v2.review.get_pool", AsyncMock(return_value=pool)), \
          patch("src.services.dashboard.v2.review.audit", AsyncMock()):
-        # No HTTPException allowed for the four valid values.
         try:
             await decide("VID_x", body, _request(), _principal())
         except HTTPException as exc:
@@ -88,7 +87,5 @@ async def test_invalid_decision_returns_400_with_clear_message(bad):
         with pytest.raises(HTTPException) as exc:
             await decide("VID_x", body, _request(), _principal())
         assert exc.value.status_code == 400
-        # Error must name the valid alternatives so a misbehaving client
-        # can self-correct from the response body.
         assert "approved" in exc.value.detail
         assert "rejected" in exc.value.detail

@@ -37,7 +37,6 @@ from src.observability.metrics import instrument_app
 logger = structlog.get_logger()
 
 
-# Request Models
 
 class ScriptRequest(BaseModel):
     channel_id: str
@@ -77,7 +76,6 @@ class PackagingRequest(BaseModel):
     script_data: dict = Field(default_factory=dict)
 
 
-# Helpers
 
 def _safe_format(template: str, **kwargs) -> str:
     """Replace {key} placeholders without failing on unknown/literal braces."""
@@ -119,7 +117,6 @@ async def _log_usage(content_id: str, service: str, provider: str, model: str,
         logger.warning("script.db_log_failed", error=str(e))
 
 
-# App
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -141,7 +138,6 @@ async def health():
     return HealthResponse(service="script")
 
 
-# Full Script Pipeline
 
 @app.post("/generate-script", response_model=ServiceResponse)
 async def generate_script(req: ScriptRequest):
@@ -154,27 +150,18 @@ async def generate_script(req: ScriptRequest):
         if not channel:
             raise HTTPException(status_code=404, detail=f"Channel {req.channel_id} not found")
 
-        # Determine targets from Channel DNA
         is_long = req.content_mode == "long_form"
         word_target = channel.get("words_per_video_long", 1100) if is_long else channel.get("words_per_video_short", 80)
         duration_target = channel.get("long_form_duration", 480) if is_long else channel.get("short_form_duration", 45)
         seg_count = "8-12" if is_long else "3-4"
         forbidden = channel.get("forbidden_words", "")
 
-        # Step 0: Bandit-driven prompt steering (Phase 5 polish) ─
-        # Sample winning hook style + pacing strategy *before* script
-        # generation so the v1 prompt is actually steered by what's
-        # working. The original Step-5 sampling (further down) wrote the
-        # arm choice to DB without ever using it — that's now a no-op.
         niche_for_bandit = channel.get("niche", "")
         hook_styles = ["shocking_stat", "open_loop", "pattern_interrupt",
                        "story_hook", "authority_challenge", "contrarian", "outcome_promise"]
         pacing_strategies = ["slow_build", "fast_punchy", "wave_rhythm",
                              "escalating", "conversational"]
         try:
-            # Phase 10: pass channel_id so the diversity floor can
-            # check this channel's recent hook/pacing picks and force
-            # exploration when entropy collapses.
             hook_bandit = await thompson_sample(
                 niche_for_bandit, "hook_style", hook_styles,
                 channel_id=req.channel_id,
@@ -194,17 +181,8 @@ async def generate_script(req: ScriptRequest):
             selected_hook_style = "open_loop"
             selected_pacing = "wave_rhythm"
 
-        # Step 1: Generate Script v1 (via router)
-        # Router enforces per-channel daily cost cap and falls back through
-        # the LLM_SCRIPT_LADDER (default: claude → openai → gemini) on
-        # transient provider failures. Existing _log_usage calls below are
-        # kept (richer service labels) so the router runs with
-        # record_usage=False to avoid double-counting.
         from src.llm import route as _route, BudgetExceeded as _BudgetExceeded
         from src.intelligence import build_performance_context
-        # Phase 5 — close the analytics → script loop. Empty for cold-start
-        # channels; for established channels the model sees concrete examples
-        # of which titles/structures earned views and which flopped.
         perf_context = await build_performance_context(req.channel_id)
         prompt = await _load_prompt("PRM_B1_SCRIPT_V1")
 
@@ -215,10 +193,6 @@ async def generate_script(req: ScriptRequest):
             emotional_contract=channel.get("emotional_contract", ""),
             content_mode=req.content_mode,
         )
-        # Append bandit guidance — verbose, explicit, and *appended* (not
-        # interpolated) so we don't depend on the seeded prompt template
-        # carrying placeholders. The Thompson sampler picks these from
-        # learned win-rates per niche, so this is the loop closing.
         system_prompt += (
             f"\n\nBANDIT GUIDANCE (use these — they are winning on this niche):"
             f"\n- HOOK STYLE: {selected_hook_style}"
@@ -267,7 +241,6 @@ async def generate_script(req: ScriptRequest):
         except json.JSONDecodeError:
             raise HTTPException(status_code=500, detail="LLM returned invalid JSON for script")
 
-        # Step 2: Validation
         segments = script_data.get("segments", [])
         actual_words = sum(len(s.get("narration", "").split()) for s in segments)
         validation = {
@@ -279,7 +252,6 @@ async def generate_script(req: ScriptRequest):
             "has_outro": any(s.get("section") == "outro" for s in segments),
         }
 
-        # Forbidden words check
         forbidden_list = [w.strip().lower() for w in forbidden.split(",") if w.strip()]
         full_narration = " ".join(s.get("narration", "") for s in segments).lower()
         found_forbidden = [w for w in forbidden_list if w in full_narration]
@@ -288,7 +260,6 @@ async def generate_script(req: ScriptRequest):
 
         script_data["validation"] = validation
 
-        # Step 3: Script Critique (via router — llm.qc category)
         critique_prompt = await _load_prompt("PRM_B1_SCRIPT_CRITIQUE")
 
         crit_system = _safe_format(critique_prompt.get("system_prompt",
@@ -333,7 +304,6 @@ async def generate_script(req: ScriptRequest):
         script_data["critique"] = critique_data
         weak_dims = critique_data.get("weak_dimensions", [])
 
-        # Step 4: Rewrite Loop (max 3 retries, target score 9.0) ─
         rewrite_count = 0
         target_overall_score = 9.0
         overall_score = critique_data.get("overall_score", 7.0)
@@ -374,7 +344,6 @@ async def generate_script(req: ScriptRequest):
                     record_usage=False,
                 )
             except _BudgetExceeded as exc:
-                # Mid-loop budget bust — stop rewriting, return current best.
                 logger.warning("script.rewrite_budget_exceeded", error=str(exc))
                 break
             total_cost += rw_result.cost_usd
@@ -388,7 +357,6 @@ async def generate_script(req: ScriptRequest):
                 logger.warning("script.rewrite_json_failed", attempt=rewrite_count)
                 break
 
-            # Re-critique with updated script
             updated_crit_user = _safe_format(critique_prompt.get("user_prompt_template",
                 "Script: {script_json}\nVoice: {brand_voice}"),
                 script_json=json.dumps(script_data)[:4000],
@@ -431,22 +399,13 @@ async def generate_script(req: ScriptRequest):
         script_data["rewrite_count"] = rewrite_count
         script_data["script_structure_score"] = overall_score
 
-        # SCRIPT INTELLIGENCE PIPELINE (zero LLM cost)
         segments = script_data.get("segments", [])
         niche = channel.get("niche", "")
         pacing_style = channel.get("pacing_style", "dynamic")
         brand_voice = channel.get("brand_voice", "")
 
-        # Step 5: Bandit selection — moved upstream to Step 0
-        # The bandit pick now happens BEFORE script generation (see Step 0
-        # above) so the chosen arms actually steer the v1 prompt. The
-        # variables `selected_hook_style` and `selected_pacing` are
-        # already set by that earlier block; nothing to do here. The
-        # downstream feature-store + reward update paths read those
-        # variables unchanged.
         pass
 
-        # Step 6: Humanize script
         try:
             humanized = humanize_full_script(segments, pacing_style, brand_voice)
             segments = humanized["segments"]
@@ -459,7 +418,6 @@ async def generate_script(req: ScriptRequest):
             logger.warning("script.humanize_failed", error=str(e))
             humanizer_metrics = {"composite_score": 0.5, "contraction_rate": 0.0}
 
-        # Step 7: NLP analysis
         try:
             script_analysis = await analyze_full_script(segments)
             logger.info("script.analyzed",
@@ -469,7 +427,6 @@ async def generate_script(req: ScriptRequest):
             logger.warning("script.analysis_failed", error=str(e))
             script_analysis = {"total_word_count": 0, "segment_analyses": []}
 
-        # Step 8: Retention scoring
         try:
             retention = await compute_retention_score(segments)
             script_data["retention_score"] = retention
@@ -479,7 +436,6 @@ async def generate_script(req: ScriptRequest):
             logger.warning("script.retention_failed", error=str(e))
             retention = {"composite_score": 0.5, "dimensions": {}}
 
-        # Step 9: Generate Script v1 — Voice (prosody)
         try:
             script_voice = await generate_script_voice(segments, channel)
             logger.info("script.v1_voice_generated",
@@ -489,7 +445,6 @@ async def generate_script(req: ScriptRequest):
             logger.warning("script.v1_voice_failed", error=str(e))
             script_voice = {"version": "v1_voice", "segments": [], "error": str(e)}
 
-        # Step 10: Generate Script v2 — Assets
         try:
             script_assets = await generate_script_assets(segments, channel, req.video_style)
             logger.info("script.v2_assets_generated",
@@ -498,7 +453,6 @@ async def generate_script(req: ScriptRequest):
             logger.warning("script.v2_assets_failed", error=str(e))
             script_assets = {"version": "v2_assets", "segments": [], "error": str(e)}
 
-        # Step 11: Generate Script v3 — Direction
         try:
             voice_segs = script_voice.get("segments", []) if isinstance(script_voice, dict) else []
             asset_segs = script_assets.get("segments", []) if isinstance(script_assets, dict) else []
@@ -512,7 +466,6 @@ async def generate_script(req: ScriptRequest):
             logger.warning("script.v3_direction_failed", error=str(e))
             script_direction = {"version": "v3_direction", "segments": [], "error": str(e)}
 
-        # Step 12: Extract features + predict success
         content_id = req.content_id or f"script-{req.channel_id}-{req.topic[:20]}"
         try:
             features = await extract_script_features(
@@ -535,7 +488,6 @@ async def generate_script(req: ScriptRequest):
         except Exception as e:
             logger.warning("script.features_failed", error=str(e))
 
-        # Step 13: Multi-view QC
         qc_report = {
             "humanization": humanizer_metrics.get("composite_score", 0),
             "retention": retention.get("composite_score", 0),
@@ -577,7 +529,6 @@ async def generate_script(req: ScriptRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-# Hook Engine
 
 @app.post("/generate-hooks", response_model=ServiceResponse)
 async def generate_hooks(req: HookRequest):
@@ -651,7 +602,6 @@ async def generate_hooks(req: HookRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-# Packaging (Titles, Description, Tags, Chapters)
 
 @app.post("/package", response_model=ServiceResponse)
 async def package(req: PackagingRequest):
@@ -700,7 +650,6 @@ async def package(req: PackagingRequest):
         except json.JSONDecodeError:
             pkg_data = {"titles": [req.title], "description": "", "tags": [], "chapters": []}
 
-        # Compliance check
         niche = channel.get("niche", "")
         disclaimers = {
             "health": "This content is for informational purposes only and is not medical advice. Consult a healthcare professional before making any health decisions.",
@@ -710,7 +659,6 @@ async def package(req: PackagingRequest):
         disclaimer = disclaimers.get(niche, "")
         if disclaimer:
             pkg_data["niche_disclaimer"] = disclaimer
-            # Inject into description
             desc = pkg_data.get("description", "")
             if disclaimer not in desc:
                 pkg_data["description"] = f"{desc}\n\n---\n{disclaimer}"
@@ -730,7 +678,6 @@ async def package(req: PackagingRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-# Script Intelligence Endpoints
 
 @app.post("/script-feedback", response_model=ServiceResponse)
 async def script_feedback(req: ScriptFeedbackRequest):

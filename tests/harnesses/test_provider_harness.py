@@ -51,7 +51,6 @@ class TestOpenAIMock:
         response = harness.openai_mock(request)
         content = response["choices"][0]["message"]["content"]
         
-        # Should be valid JSON
         data = json.loads(content)
         assert isinstance(data, dict)
     
@@ -65,7 +64,6 @@ class TestOpenAIMock:
         response1 = harness.openai_mock(request)
         response2 = harness.openai_mock(request)
         
-        # Should return identical responses
         assert response1 == response2
 
 
@@ -103,10 +101,9 @@ class TestFishAudioMock:
         
         audio_bytes = harness.fish_audio_mock(request)
         
-        # Check WAV header
         assert audio_bytes[:4] == b'RIFF'
         assert audio_bytes[8:12] == b'WAVE'
-        assert len(audio_bytes) > 44  # Header + data
+        assert len(audio_bytes) > 44
 
 
 class TestDALLEMock:
@@ -138,7 +135,6 @@ class TestDALLEMock:
         assert "data" in response
         assert "b64_json" in response["data"][0]
         
-        # Should be valid base64
         import base64
         b64_data = response["data"][0]["b64_json"]
         decoded = base64.b64decode(b64_data)
@@ -253,19 +249,15 @@ class TestCaching:
     
     def test_cache_persistence(self, harness, tmp_path):
         """Test that cache persists across harness instances."""
-        # Override fixtures dir for this test
         harness.fixtures_dir = tmp_path
         
         request = {"model": "gpt-4o", "messages": [{"role": "user", "content": "test"}]}
         
-        # First call
         response1 = harness.openai_mock(request)
         
-        # Create new harness instance with same cache dir
         harness2 = ProviderMockHarness(cache_enabled=True)
         harness2.fixtures_dir = tmp_path
         
-        # Second call should hit cache
         response2 = harness2.openai_mock(request)
         
         assert response1 == response2
@@ -279,6 +271,5 @@ class TestCaching:
         
         harness.openai_mock(request)
         
-        # Cache dir should be empty
         cache_files = list(tmp_path.glob("*.json"))
         assert len(cache_files) == 0

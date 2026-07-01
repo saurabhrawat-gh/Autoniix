@@ -62,7 +62,6 @@ export default function FeatureFlagsPage() {
 
   async function toggle(flag: Flag, next: boolean) {
     setPending((prev) => new Set(prev).add(flag.key));
-    // Optimistic update
     setFlags((prev) =>
       prev.map((f) => (f.key === flag.key ? { ...f, enabled: next } : f)),
     );
@@ -70,7 +69,6 @@ export default function FeatureFlagsPage() {
       await flagsApi.set(flag.key, next, flag.payload || {});
       showToast(`${friendlyName(flag.key)} ${next ? 'enabled' : 'disabled'}`, 'success');
     } catch (e: any) {
-      // Roll back optimistic update on failure
       setFlags((prev) =>
         prev.map((f) => (f.key === flag.key ? { ...f, enabled: !next } : f)),
       );

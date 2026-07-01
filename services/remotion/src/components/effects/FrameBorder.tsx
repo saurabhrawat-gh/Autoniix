@@ -4,7 +4,7 @@ import { AbsoluteFill } from "remotion";
 export interface FrameBorderProps {
   color?: string;
   widthPx?: number;
-  inset?: number; // margin from edge
+  inset?: number;
   radius?: number;
   shadow?: boolean;
 }

@@ -16,7 +16,6 @@ export const ChromaticAberration: React.FC<ChromaticAberrationProps> = ({
   children,
 }) => {
   if (!children) {
-    // Overlay mode — render a faint RGB-split vignette around edges via gradient
     return (
       <AbsoluteFill
         style={{

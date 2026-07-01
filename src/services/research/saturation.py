@@ -39,47 +39,34 @@ import structlog
 logger = structlog.get_logger()
 
 
-# Tunables
 
 
-# How far back to look for "currently saturated." 14 days roughly maps
-# to the YouTube algorithm's recent-favouritism window.
 DEFAULT_LOOKBACK_DAYS = 14
 
-# Cosine similarity below this is treated as "not the same topic" and
-# contributes 0. 0.55 was chosen so paraphrases of the same idea match
-# (typical sentence-transformer paraphrase pairs sit at 0.6-0.8) but
-# loosely-related niche videos don't.
 COSINE_THRESHOLD = 0.55
 
-# How many top matches to integrate over. More than this is diminishing
-# returns — saturation is dominated by the top few overlaps.
 TOP_K = 20
 
-# Velocity normaliser: views/hour above this saturates the contribution
-# at 1.0. Picked so a 100k-view-in-24h video (≈4170 v/h) reads as
-# saturated, while a typical 5k-view-in-24h video reads as ~5%.
 VELOCITY_REFERENCE = 4_000.0
 
 
-# Pure-function core (testable, no DB)
 
 
 @dataclass
 class _PulseRow:
     """Minimal shape the scorer needs from each competitor video."""
-    similarity: float           # cosine, in [-1, 1]; we'll clip to [0, 1]
-    view_velocity: float        # views per hour over the window
-    age_days: float             # days since published; for recency decay
+    similarity: float
+    view_velocity: float
+    age_days: float
 
 
 @dataclass
 class SaturationResult:
-    saturation: float            # 0..1, where 1 == fully saturated
-    saturation_gap: float        # 1 - saturation; for opportunity scorer
-    n_matches: int               # rows above COSINE_THRESHOLD
-    top_match_similarity: float  # highest similarity observed
-    cold_start: bool             # true if no embedded data was available
+    saturation: float
+    saturation_gap: float
+    n_matches: int
+    top_match_similarity: float
+    cold_start: bool
 
 
 def _recency_decay(age_days: float, half_life_days: float = 7.0) -> float:
@@ -103,7 +90,6 @@ def _velocity_factor(view_velocity: float) -> float:
     """
     if view_velocity <= 0:
         return 0.0
-    # log1p so 0 maps to 0; reference value maps to ~1.0.
     return min(1.0, math.log1p(view_velocity) / math.log1p(VELOCITY_REFERENCE))
 
 
@@ -113,8 +99,6 @@ def compute_saturation_from_pulse(rows: list[_PulseRow]) -> SaturationResult:
     Public for tests; the DB-going wrapper is :func:`compute_saturation`.
     """
     if not rows:
-        # No data at all — typical on a fresh niche, before the first
-        # weekly pulse refresh has run. Return the most permissive value.
         return SaturationResult(
             saturation=0.0,
             saturation_gap=1.0,
@@ -123,11 +107,8 @@ def compute_saturation_from_pulse(rows: list[_PulseRow]) -> SaturationResult:
             cold_start=True,
         )
 
-    # Filter to rows actually similar to the candidate.
     matches = [r for r in rows if r.similarity >= COSINE_THRESHOLD]
     if not matches:
-        # Niche has data, but nothing matches our candidate. The candidate
-        # is in unexplored territory — maximally good for opportunity.
         return SaturationResult(
             saturation=0.0,
             saturation_gap=1.0,
@@ -136,7 +117,6 @@ def compute_saturation_from_pulse(rows: list[_PulseRow]) -> SaturationResult:
             cold_start=False,
         )
 
-    # Sum weighted contributions over top-K matches.
     matches.sort(key=lambda r: r.similarity, reverse=True)
     matches = matches[:TOP_K]
 
@@ -145,9 +125,6 @@ def compute_saturation_from_pulse(rows: list[_PulseRow]) -> SaturationResult:
         sim = max(0.0, min(1.0, r.similarity))
         contribution += sim * _recency_decay(r.age_days) * _velocity_factor(r.view_velocity)
 
-    # Empirical normalisation: a single perfect-match recent viral
-    # video contributes ~1.0; we want saturation to saturate (sic) at
-    # roughly 5 such videos. So divide by 5 and clip.
     saturation = min(1.0, contribution / 5.0)
     return SaturationResult(
         saturation=round(saturation, 4),
@@ -158,7 +135,6 @@ def compute_saturation_from_pulse(rows: list[_PulseRow]) -> SaturationResult:
     )
 
 
-# DB layer
 
 
 def _format_vector(emb: list[float]) -> str:
@@ -196,8 +172,6 @@ async def compute_saturation(
     try:
         from src.db import get_pool
         pool = await get_pool()
-        # pgvector cosine distance: 1 - cosine_similarity.
-        # We pull distance, then convert to similarity in Python.
         rows = await pool.fetch(
             """
             SELECT

@@ -17,7 +17,6 @@ async def test_grpc_harness_context_manager():
     harness = GRPCServiceHarness("cleanup_test")
     async with harness as h:
         port = h.bound_port
-    # After exit, server is stopped — just verify no exceptions were raised
 
 
 def test_mock_llm_servicer_default_response():

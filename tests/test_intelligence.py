@@ -16,7 +16,6 @@ from src.intelligence import niche_templates as nt
 from src.intelligence.performance_feedback import _format_for_tests
 
 
-# Niche templates
 
 
 def test_list_templates_returns_nonempty_list():
@@ -71,7 +70,6 @@ def test_list_templates_returns_copies_not_internal_state():
     assert b[0]["label"] != "MUTATED"
 
 
-# Performance feedback formatter
 
 
 def test_format_empty_returns_empty_string():
@@ -123,7 +121,6 @@ def test_format_truncates_long_titles():
                  "engagement_rate": 5.0, "performance_tier": "A"}],
         "worst": [], "stats": {},
     })
-    # 120-char cap on titles keeps prompt context bounded.
     assert "x" * 500 not in out
     assert "x" * 100 in out
 
@@ -135,7 +132,6 @@ def test_format_handles_none_fields_gracefully():
                  "engagement_rate": None, "performance_tier": None}],
         "worst": [], "stats": {},
     })
-    # We still produce a section, just with zeros / empty title.
     assert "WHAT WORKS" in out
     assert "0 views" in out
 

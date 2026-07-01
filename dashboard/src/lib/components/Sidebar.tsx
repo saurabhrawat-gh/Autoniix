@@ -55,14 +55,11 @@ interface Pillar {
   items: Leaf[];
 }
 
-// Top leaves — meta-navigation that sits above all pillars, no group label.
 const TOP_LEAVES: Leaf[] = [
   { href: '/dashboard',               label: 'Home',          tKey: 'home',          icon: Home, shortcut: 'g d' },
   { href: '/dashboard/notifications', label: 'Notifications', tKey: 'notifications', icon: Bell, shortcut: 'g n' },
 ];
 
-// Pillars — four flat groups of work surfaces (Create / Operate / Measure / Configure).
-// Per §9.4, pillars are NEVER expandable — every leaf is always visible.
 const PILLARS: Pillar[] = [
   {
     id: 'create',
@@ -194,7 +191,6 @@ export function Sidebar() {
     return true;
   };
 
-  // Keyboard sequence shortcuts (`g <letter>`)
   useHotkeys('g', () => { setGPressed(true); setTimeout(() => setGPressed(false), 1200); }, []);
   const shortcuts: Record<string, string> = {
     d: '/dashboard',

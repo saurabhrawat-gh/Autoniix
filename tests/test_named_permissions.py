@@ -17,7 +17,6 @@ import pytest
 from fastapi import HTTPException
 
 
-# ── helpers ────────────────────────────────────────────────────────────────
 
 def _make_principal(role: str, workspace_id: int = 1):
     from src.services.dashboard.v2._deps import Principal
@@ -25,7 +24,6 @@ def _make_principal(role: str, workspace_id: int = 1):
                      workspace_id=workspace_id, source="v2_jwt")
 
 
-# ── _permissions module ────────────────────────────────────────────────────
 
 class TestPermissionCache:
     """Unit-tests for the in-process TTL cache in _permissions.py."""
@@ -46,7 +44,6 @@ class TestPermissionCache:
         mock_pool.fetch.return_value = [{"permission": "workspace.view"}, {"permission": "channel.view"}]
 
         with patch("src.services.dashboard.v2._permissions.get_pool", return_value=AsyncMock(return_value=mock_pool)):
-            # Manually call the pool fixture
             pm._cache.clear()
             mock_get_pool = AsyncMock(return_value=mock_pool)
             with patch("src.services.dashboard.v2._permissions.get_pool", mock_get_pool):
@@ -59,7 +56,6 @@ class TestPermissionCache:
     async def test_cache_hit_skips_db(self):
         from src.services.dashboard.v2 import _permissions as pm
 
-        # Prime the cache
         pm._cache["owner"] = (frozenset(["workspace.view", "workspace.billing.manage"]),
                                time.monotonic() + 30.0)
 
@@ -74,7 +70,6 @@ class TestPermissionCache:
     async def test_expired_cache_reloads(self):
         from src.services.dashboard.v2 import _permissions as pm
 
-        # Insert an already-expired entry
         pm._cache["member"] = (frozenset(["workspace.view"]), time.monotonic() - 1.0)
 
         mock_pool = AsyncMock()
@@ -108,7 +103,6 @@ class TestPermissionCache:
         assert len(pm._cache) == 0
 
 
-# ── require_permission dependency ──────────────────────────────────────────
 
 class TestRequirePermission:
     """Tests for the require_permission() dependency factory in _deps.py."""
@@ -122,7 +116,6 @@ class TestRequirePermission:
         principal = _make_principal("owner")
 
         checker = require_permission("workspace.ownership.transfer")
-        # Inject the principal directly
         with patch("src.services.dashboard.v2._deps.principal_dep", return_value=principal):
             result = await checker(p=principal)
         assert result is principal
@@ -157,7 +150,6 @@ class TestRequirePermission:
         assert exc_info.value.detail == "Permission denied: workspace.integrations.view"
 
 
-# ── non-owner-cannot-assign-owner guard ────────────────────────────────────
 
 class TestNonOwnerCannotAssignOwner:
     """The set_member_role endpoint must block non-owners from assigning owner role."""
@@ -168,7 +160,6 @@ class TestNonOwnerCannotAssignOwner:
         from src.services.dashboard.v2.workspace import set_member_role
         from src.services.dashboard.v2 import _permissions as pm
 
-        # Member has workspace.members.role.change permission via the new RBAC seed
         pm._cache["member"] = (frozenset(["workspace.members.role.change"]), time.monotonic() + 30.0)
         actor = _make_principal("member")
 
@@ -182,7 +173,6 @@ class TestNonOwnerCannotAssignOwner:
         assert "owner" in exc_info.value.detail.lower()
 
 
-# ── invalid role validation ────────────────────────────────────────────────
 
 class TestInvalidRoleValidation:
     """Legacy role strings (analyst, reviewer) must still return HTTP 400."""

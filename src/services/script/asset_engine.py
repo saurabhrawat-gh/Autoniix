@@ -30,7 +30,6 @@ from src.services.script.script_analyzer import (
 
 logger = structlog.get_logger()
 
-# NLTK WordNet lazy loader
 _wordnet_ready = False
 _wn_lock = asyncio.Lock()
 
@@ -75,7 +74,6 @@ def _get_synonyms(word: str, max_syns: int = 3) -> list[str]:
         return []
 
 
-# Negative Keywords (overused stock footage clichés)
 NEGATIVE_KEYWORDS = {
     "handshake", "business meeting", "happy family", "light bulb",
     "puzzle pieces", "road fork", "thumbs up", "high five",
@@ -85,7 +83,6 @@ NEGATIVE_KEYWORDS = {
     "woman typing laptop", "man thinking", "sunrise motivation",
 }
 
-# Shot Type Rules
 SHOT_TYPE_MAP = {
     "hook": "close_up",
     "intro": "medium_shot",
@@ -94,7 +91,6 @@ SHOT_TYPE_MAP = {
     "outro": "wide_shot",
 }
 
-# Emotion-to-Visual Mood
 EMOTION_MOOD_MAP = {
     "curiosity": {"mood": "mysterious", "lighting": "dim warm", "color_tone": "amber"},
     "surprise": {"mood": "dramatic", "lighting": "high contrast", "color_tone": "vivid"},
@@ -107,7 +103,6 @@ EMOTION_MOOD_MAP = {
     "neutral": {"mood": "neutral", "lighting": "natural", "color_tone": "balanced"},
 }
 
-# Video Style Recipes
 STYLE_RECIPES = {
     "stock_footage": {
         "primary_source": "stock_video",
@@ -136,7 +131,6 @@ STYLE_RECIPES = {
 }
 
 
-# QUERY GENERATION
 
 async def extract_asset_queries(
     segment: dict,
@@ -154,28 +148,23 @@ async def extract_asset_queries(
     scene_direction = segment.get("scene_direction", "")
     text_overlay = segment.get("text_overlay", "")
 
-    # Entity-based queries
     entities = analysis["entities"]
     noun_phrases = analysis["noun_phrases"]
     key_verbs = analysis["key_verbs"]
     emotions = analysis["emotions"]
     dominant_emotion = emotions["dominant_emotion"]
 
-    # Primary query: most important noun phrase + action
     primary_parts = []
-    # Filter relevant entities (PERSON, ORG, GPE, EVENT, PRODUCT)
     relevant_ents = [e["text"] for e in entities if e["label"] in ("PERSON", "ORG", "GPE", "EVENT", "PRODUCT", "WORK_OF_ART")]
     if relevant_ents:
         primary_parts.extend(relevant_ents[:2])
     elif noun_phrases:
-        # Use most specific noun phrase (longest)
         sorted_nps = sorted(noun_phrases, key=len, reverse=True)
         primary_parts.append(sorted_nps[0])
 
     if key_verbs:
         primary_parts.append(key_verbs[0])
 
-    # Add scene direction keywords if available
     if scene_direction:
         scene_nouns = re.findall(r"\b(?:room|office|lab|street|city|forest|ocean|space|desk|"
                                   r"screen|phone|brain|body|heart|blood|cell|dna|book|"
@@ -185,11 +174,9 @@ async def extract_asset_queries(
 
     primary_query = " ".join(primary_parts[:4]) if primary_parts else narration[:50]
 
-    # Alternate queries (synonym expansion)
     await _ensure_wordnet()
     alternate_queries = []
 
-    # Synonym-expanded versions
     for np in noun_phrases[:3]:
         core_word = np.split()[-1] if np.split() else np
         syns = await asyncio.to_thread(_get_synonyms, core_word, 2)
@@ -197,17 +184,14 @@ async def extract_asset_queries(
             alt = np.replace(core_word, syn) if core_word in np else f"{syn} {np}"
             alternate_queries.append(alt.strip())
 
-    # Emotion-based query
     mood = EMOTION_MOOD_MAP.get(dominant_emotion, EMOTION_MOOD_MAP["neutral"])
     mood_query = f"{mood['mood']} {mood['lighting']} {primary_parts[0] if primary_parts else 'abstract'}"
     alternate_queries.append(mood_query)
 
-    # B-roll keywords from segment
     b_roll = segment.get("b_roll_keywords", [])
     if b_roll:
         alternate_queries.extend(b_roll[:3])
 
-    # Deduplicate
     seen = {primary_query.lower()}
     unique_alts = []
     for q in alternate_queries:
@@ -217,18 +201,15 @@ async def extract_asset_queries(
             unique_alts.append(q_clean)
     alternate_queries = unique_alts[:5]
 
-    # Shot type
     shot_type = SHOT_TYPE_MAP.get(section, "medium_shot")
     if any(e["label"] in ("PERSON",) for e in entities):
         shot_type = "close_up"
     elif any(e["label"] in ("GPE", "LOC") for e in entities):
         shot_type = "wide_shot"
 
-    # Negative keywords (avoid clichés)
     neg_keywords = list(NEGATIVE_KEYWORDS & set(w.lower() for w in narration.split()))
     neg_keywords.extend(["generic", "clip art", "cartoon"])
 
-    # Style recipe
     recipe = STYLE_RECIPES.get(video_style, STYLE_RECIPES["stock_footage"])
     animation_recipe = None
 
@@ -255,7 +236,6 @@ async def extract_asset_queries(
             "material_style": "realistic",
         }
 
-    # Query scoring
     query_score = _score_query(primary_query, entities, noun_phrases, key_verbs)
 
     return {
@@ -283,25 +263,20 @@ def _score_query(query: str, entities: list, noun_phrases: list, verbs: list) ->
     score = 0.0
     words = query.split()
 
-    # Has enough words (2-5 is ideal for stock search)
     if 2 <= len(words) <= 5:
         score += 0.3
     elif 1 <= len(words) <= 7:
         score += 0.15
 
-    # Contains an entity (more specific)
     if any(e["text"].lower() in query.lower() for e in entities):
         score += 0.25
 
-    # Contains a noun phrase (semantic unit)
     if any(np.lower() in query.lower() for np in noun_phrases):
         score += 0.2
 
-    # Contains an action verb (more dynamic results)
     if any(v.lower() in query.lower() for v in verbs):
         score += 0.15
 
-    # Not too generic
     generic_terms = {"thing", "stuff", "people", "way", "something", "everything"}
     if not any(g in query.lower().split() for g in generic_terms):
         score += 0.1
@@ -309,7 +284,6 @@ def _score_query(query: str, entities: list, noun_phrases: list, verbs: list) ->
     return round(min(1.0, score), 3)
 
 
-# FULL SCRIPT ASSET VERSION (v2)
 
 async def generate_script_assets(
     segments: list[dict],
@@ -327,17 +301,14 @@ async def generate_script_assets(
         asset_data = await extract_asset_queries(seg, channel, video_style)
         asset_segments.append(asset_data)
 
-    # Coverage metric
     total_segs = len(asset_segments)
     viable_segs = sum(1 for a in asset_segments if a["query_score"] >= 0.3)
     coverage = viable_segs / max(total_segs, 1)
 
-    # Unique queries (avoid fetching the same footage)
     all_queries = [a["primary_query"] for a in asset_segments]
     unique_queries = len(set(q.lower() for q in all_queries))
     query_diversity = unique_queries / max(total_segs, 1)
 
-    # Avg query score
     avg_query_score = sum(a["query_score"] for a in asset_segments) / max(total_segs, 1)
 
     return {

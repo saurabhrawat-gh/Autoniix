@@ -46,7 +46,7 @@ export type MaskShape =
       right: number;
       top: number;
       bottom: number;
-      cornerRadius?: number; // 0..1, default 0
+      cornerRadius?: number;
     }
   | {
       kind: "ellipse";
@@ -62,14 +62,14 @@ export type MaskShape =
     }
   | {
       kind: "luma";
-      threshold: number;       // 0..1
-      softness: number;        // 0..1
+      threshold: number;
+      softness: number;
     }
   | {
       kind: "chroma";
-      keyColor: [number, number, number]; // 0..1 linear-RGB
-      tolerance: number; // 0..1
-      spill: number;     // 0..1
+      keyColor: [number, number, number];
+      tolerance: number;
+      spill: number;
     };
 
 export interface MaskKey {
@@ -144,8 +144,6 @@ function lerp(a: number, b: number, t: number): number {
 
 function lerpShape(a: MaskShape, b: MaskShape, t: number): MaskShape {
   if (a.kind !== b.kind) {
-    // Snap to whichever side we're closer to in time. Caller passes `t<0.5`
-    // → a, otherwise b. Documented "no cross-kind morph".
     return t < 0.5 ? a : b;
   }
   switch (a.kind) {
@@ -173,15 +171,12 @@ function lerpShape(a: MaskShape, b: MaskShape, t: number): MaskShape {
     }
     case "bezier_path": {
       const bb = b as Extract<MaskShape, { kind: "bezier_path" }>;
-      // Equal-segment-count required for smooth morph. If lengths disagree,
-      // snap to the active key.
       if (a.segments.length !== bb.segments.length) {
         return t < 0.5 ? a : b;
       }
       const segs: BezierSegment[] = a.segments.map((sa, i) => {
         const sb = bb.segments[i]!;
         if (sa.cmd !== sb.cmd || sa.points.length !== sb.points.length) {
-          // Mismatched commands — snap.
           return t < 0.5 ? sa : sb;
         }
         return {
@@ -232,7 +227,6 @@ export function maskAtTime(track: MaskTrack, tLocalMs: number): MaskFrame {
   if (tLocalMs >= last.tMs) {
     return { shape: last.shape, featherPx: last.featherPx ?? 0, invert: !!last.invert };
   }
-  // Find the surrounding pair via linear scan (key counts are tiny).
   for (let i = 0; i < keys.length - 1; i++) {
     const a = keys[i]!;
     const b = keys[i + 1]!;
@@ -245,7 +239,6 @@ export function maskAtTime(track: MaskTrack, tLocalMs: number): MaskFrame {
       };
     }
   }
-  // Should be unreachable.
   return { shape: last.shape, featherPx: last.featherPx ?? 0, invert: !!last.invert };
 }
 
@@ -290,14 +283,10 @@ export function shapeToSvgPath(
       ].join(" ");
     }
     case "ellipse": {
-      // Approximate rotated ellipse via an SVG arc command. For non-rotated
-      // ellipses use two arcs.
       const cx = shape.cx * w;
       const cy = shape.cy * h;
       const rx = shape.rx * w;
       const ry = shape.ry * h;
-      // Two arcs trick (rotation handled by transform on the wrapper, not
-      // baked into the path — rotated SVG arcs don't blend smoothly).
       return [
         `M${cx - rx} ${cy}`,
         `A${rx} ${ry} 0 1 0 ${cx + rx} ${cy}`,
@@ -333,6 +322,6 @@ export function shapeToSvgPath(
     }
     case "luma":
     case "chroma":
-      return null; // shader path
+      return null;
   }
 }

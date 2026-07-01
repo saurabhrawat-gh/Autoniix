@@ -25,7 +25,6 @@ from src.observability.metrics import instrument_app
 logger = structlog.get_logger()
 
 
-# Request Models
 
 class AssemblyRequest(BaseModel):
     content_id: str
@@ -41,7 +40,6 @@ class RenderStatusRequest(BaseModel):
     render_id: str
 
 
-# Helpers
 
 async def _load_channel(channel_id: str) -> dict:
     pool = await get_pool()
@@ -168,7 +166,6 @@ async def _render_diagnostic_via_remotion(
         return None
 
 
-# App
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -204,10 +201,8 @@ async def assemble(req: AssemblyRequest):
         is_test_mode = req.environment != "production"
         segments = direction_v3.get("segments", [])
 
-        # Pre-Render Sync Validation
         sync_issues = []
 
-        # 1. Timeline continuity: no gaps or overlaps
         for i, seg in enumerate(segments):
             if i == 0:
                 if seg.get("start_ms", 0) != 0:
@@ -222,7 +217,6 @@ async def assemble(req: AssemblyRequest):
                         f"expected start_ms={expected_start}, got {actual_start}"
                     )
 
-        # 2. Voice-text alignment: every segment with narration must have audio_url
         for seg in segments:
             narration = seg.get("narration", {})
             if isinstance(narration, dict):
@@ -233,24 +227,20 @@ async def assemble(req: AssemblyRequest):
                 if audio_url and not text:
                     sync_issues.append(f"Segment {seg.get('id')}: has audio_url but no narration text")
 
-        # 3. Asset coverage: check background_url or background_strategy
         for seg in segments:
             bg_url = seg.get("scene_overrides", {}).get("background_url", "")
             bg_strategy = seg.get("background_strategy", {}).get("type", "")
             if not bg_url and bg_strategy not in ("gradient", "solid"):
                 sync_issues.append(f"Segment {seg.get('id')}: no background asset and no fallback strategy")
 
-        # 4. Text strategy presence
         missing_text_strategy = sum(1 for s in segments if not s.get("text_strategy", {}).get("primary_text"))
         if missing_text_strategy > 0:
             sync_issues.append(f"{missing_text_strategy} segments missing text_strategy.primary_text")
 
-        # 5. Audio master validation
         audio_master = direction_v3.get("audio_master", {})
         if not audio_master.get("narration_url"):
             sync_issues.append("No master narration_url in audio_master")
 
-        # 6. Duration sanity
         total_duration_ms = sum(s.get("duration_ms", 0) for s in segments)
         target_duration_s = direction_v3.get("meta", {}).get("duration_target_seconds", 0)
         if target_duration_s and abs(total_duration_ms / 1000 - target_duration_s) > target_duration_s * 0.2:
@@ -269,7 +259,6 @@ async def assemble(req: AssemblyRequest):
         else:
             direction_v3["sync_validation"] = {"passed": True, "issues": [], "issue_count": 0}
 
-        # Intelligence: Complexity Analysis
         complexity = compute_direction_complexity(direction_v3)
         estimated_render_s = estimate_render_duration(complexity)
         logger.info("assembly.complexity",
@@ -281,7 +270,6 @@ async def assemble(req: AssemblyRequest):
             logger.warning("assembly.high_complexity",
                            risk_factors=complexity.get("risk_factors", []))
 
-        # Step 1: Submit render job to Remotion API
         remotion_url = settings.remotion_base_url
         render_quality = "preview" if is_test_mode else "high"
         composition = "ShortFormVideo" if req.content_mode == "short" else "MainVideo"
@@ -303,12 +291,9 @@ async def assemble(req: AssemblyRequest):
                 resp.raise_for_status()
                 render_data = resp.json()
         except Exception as remotion_err:
-            # Production: hard fail. Never silently produce a fake render.
             if not is_test_mode:
                 raise HTTPException(status_code=503,
                                     detail=f"Remotion service unreachable: {remotion_err}")
-            # Test mode: render the DiagnosticScene via Remotion so we still
-            # exercise the full pipeline (bundle → render → QC → upload).
             logger.warning("assembly.remotion_unreachable_diagnostic_fallback",
                            error=str(remotion_err), content_id=req.content_id)
             total_ms = sum(s.get("duration_ms", 0) for s in segments)
@@ -362,8 +347,7 @@ async def assemble(req: AssemblyRequest):
 
         logger.info("assembly.render_submitted", render_id=render_id)
 
-        # Step 2: Poll for render completion
-        max_wait_s = 600  # 10 minutes max
+        max_wait_s = 600
         poll_interval_s = 5
         elapsed = 0
         render_result = None
@@ -393,7 +377,6 @@ async def assemble(req: AssemblyRequest):
                 logger.warning("assembly.poll_error", error=str(poll_err))
 
         if not render_result or render_result.get("status") != "completed":
-            # Intelligence: Try simplified direction on failure
             logger.warning("assembly.render_failed_trying_simplified")
             await log_render_attempt(
                 req.content_id, req.channel_id, render_id,
@@ -432,12 +415,8 @@ async def assemble(req: AssemblyRequest):
                 await log_render_attempt(
                     req.content_id, req.channel_id, render_id,
                     complexity, success=False, retry_count=1, error_category="timeout_retry")
-                # Production: hard fail so the workflow surfaces the error.
                 if not is_test_mode:
                     raise HTTPException(status_code=504, detail="Render timed out after retry")
-                # Test mode: render the diagnostic composition so the dashboard
-                # still has a playable artefact and operators can see the
-                # exact failure reason inline.
                 logger.warning("assembly.render_timeout_diagnostic_fallback",
                                content_id=req.content_id)
                 total_ms = sum(s.get("duration_ms", 0) for s in segments)
@@ -484,7 +463,6 @@ async def assemble(req: AssemblyRequest):
         video_url = render_result.get("outputUrl", render_result.get("url", ""))
         render_duration = render_result.get("renderDuration", 0)
 
-        # Step 3: Production QC
         production_score = 8.0
         production_issues = []
 
@@ -498,7 +476,6 @@ async def assemble(req: AssemblyRequest):
             production_score -= 2.0
             production_issues.append("No output URL from render")
 
-        # Step 4: Update DB
         try:
             pool = await get_pool()
             await pool.execute(
@@ -508,7 +485,6 @@ async def assemble(req: AssemblyRequest):
         except Exception as e:
             logger.warning("assembly.db_update_failed", error=str(e))
 
-        # Intelligence: Log successful render
         await log_render_attempt(
             req.content_id, req.channel_id, render_id,
             complexity, success=True,

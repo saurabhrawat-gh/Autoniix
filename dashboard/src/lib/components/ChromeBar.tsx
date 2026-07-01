@@ -57,7 +57,6 @@ export function ChromeBar() {
   const { setPaletteOpen, helpOpen, setHelpOpen } = useAppState();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // Global hotkeys are bound here because ChromeBar is mounted layout-wide.
   useHotkeys('shift+slash', (e) => { e.preventDefault(); setHelpOpen(!helpOpen); }, [helpOpen, setHelpOpen]);
   useHotkeys('escape', () => setHelpOpen(false), [setHelpOpen]);
   useHotkeys('mod+k', (e) => { e.preventDefault(); setPaletteOpen(true); }, [setPaletteOpen]);

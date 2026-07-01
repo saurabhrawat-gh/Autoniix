@@ -94,13 +94,10 @@ const ROLES = ['owner', 'member', 'viewer'] as const;
 const INVITE_ROLES = ['member', 'viewer'] as const;
 const roleLabel = (r: string) => r.charAt(0).toUpperCase() + r.slice(1);
 
-// Mirror of backend plan seat limits (src/api/billing/plans.py).
-// Update both sides if plan tiers change. AE-23 enforcement is deferred;
-// this is informational only.
 const PLAN_SEAT_LIMITS: Record<string, number | null> = {
   starter: 3,
   growth: 10,
-  scale: null, // unlimited
+  scale: null,
 };
 const planLabel = (p: string) => p.charAt(0).toUpperCase() + p.slice(1);
 
@@ -110,7 +107,6 @@ const ROLE_BADGE: Record<string, 'neutral' | 'success' | 'warning' | 'info' | 's
   viewer: 'secondary',
 };
 
-// ── entity_settings schema (workspace level) ────────────────────────────────
 type WsSettingSchema = {
   label: string;
   description: string;
@@ -182,7 +178,6 @@ export default function WorkspacePage() {
   const [inviting, setInviting] = useState(false);
   const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
 
-  // Editable workspace fields
   const [name, setName] = useState('');
   const [timezone, setTimezone] = useState('');
   const [monthlyBudget, setMonthlyBudget] = useState<string>('');
@@ -190,11 +185,9 @@ export default function WorkspacePage() {
   const [savingWs, setSavingWs] = useState(false);
   const [savingMode, setSavingMode] = useState(false);
 
-  // Integrations
   const [slackWebhook, setSlackWebhook] = useState('');
   const [savingSlack, setSavingSlack] = useState(false);
 
-  // Workspace entity_settings (Defaults tab)
   const [entityMap, setEntityMap] = useState<Record<string, { value: unknown; locked: boolean }>>({});
   const [entityEdits, setEntityEdits] = useState<Record<string, unknown>>({});
   const [entityLocked, setEntityLocked] = useState<Record<string, boolean>>({});
@@ -235,7 +228,6 @@ export default function WorkspacePage() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  // Workspace save
   const saveWorkspace = async () => {
     setSavingWs(true);
     try {
@@ -259,7 +251,6 @@ export default function WorkspacePage() {
     }
   };
 
-  // Member actions
   const updateRole = async (userId: number, role: string) => {
     try {
       await membersApi.setRole(userId, role);
@@ -287,7 +278,6 @@ export default function WorkspacePage() {
     }
   };
 
-  // Invite actions
   const sendInvite = async () => {
     if (!inviteEmail.trim()) return;
     setInviting(true);
@@ -327,7 +317,6 @@ export default function WorkspacePage() {
     navigator.clipboard.writeText(full).then(() => showToast('Invite link copied', 'success'));
   };
 
-  // Slack integration
   const saveSlack = async () => {
     setSavingSlack(true);
     try {
@@ -340,7 +329,6 @@ export default function WorkspacePage() {
     }
   };
 
-  // Entity settings helpers
   const esVal = (key: string): unknown =>
     key in entityEdits ? entityEdits[key] : (entityMap[key]?.value ?? null);
   const esLocked = (key: string): boolean =>
@@ -364,7 +352,6 @@ export default function WorkspacePage() {
     }
   };
 
-  // Brand actions
   const createBrand = async () => {
     const name = await promptDialog({
       title: 'Create new brand',
@@ -383,7 +370,6 @@ export default function WorkspacePage() {
     }
   };
 
-  // Render
   if (loading) {
     return (
       <div className="p-6 max-w-5xl mx-auto space-y-6">

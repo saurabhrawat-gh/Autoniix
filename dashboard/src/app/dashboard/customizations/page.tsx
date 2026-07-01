@@ -11,7 +11,6 @@ import {
 import { Plus, Edit2, PowerOff, Check, X } from '@/lib/components/Icon';
 import { cn } from '@/lib/utils';
 
-// ── Owner-managed types only (creative / workspace-specific values) ────────────
 
 const OWNER_TYPES = [
   { value: 'niche',            label: 'Niche' },
@@ -28,17 +27,14 @@ export default function CustomizationsPage() {
   const [rows, setRows] = useState<LookupValue[]>([]);
   const [fetching, setFetching] = useState(false);
 
-  // Split into global (read-only) and workspace-custom (editable)
   const globalRows = rows.filter(r => r.workspace_id === null);
   const customRows = rows.filter(r => r.workspace_id !== null);
 
-  // Add form state
   const [addValue, setAddValue] = useState('');
   const [addLabel, setAddLabel] = useState('');
   const [addParent, setAddParent] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Inline edit state
   const [editId, setEditId] = useState<number | null>(null);
   const [editLabel, setEditLabel] = useState('');
 
@@ -100,7 +96,6 @@ export default function CustomizationsPage() {
 
   if (loading) return null;
 
-  // Non-owners (members, viewers) can view but not modify
   const canEdit = role === 'owner';
 
   return (
@@ -205,7 +200,6 @@ export default function CustomizationsPage() {
   );
 }
 
-// ── Reusable table component ──────────────────────────────────────────────────
 
 interface ValueTableProps {
   rows: LookupValue[];

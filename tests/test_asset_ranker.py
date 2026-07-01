@@ -60,8 +60,6 @@ def test_irrelevant_query_is_rejected():
         motion_intent="dynamic",
         target_duration_s=8.0,
     )
-    # Semantic = 0 in fallback mode; license + duration + resolution carry
-    # weight but the cap should still be below the 0.55 threshold.
     assert out[0].rejected is True
     assert out[0].final < 0.55, out[0].as_dict()
 
@@ -117,7 +115,6 @@ def test_motion_intent_still_prefers_long_clips():
 
 
 def test_best_candidate_skips_rejected():
-    # Force every candidate-side text to be irrelevant so semantic falls to 0.
     rejected_only = _candidate(
         tags="totally unrelated stuff",
         title="totally unrelated stuff",

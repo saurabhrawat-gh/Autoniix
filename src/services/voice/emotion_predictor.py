@@ -15,7 +15,6 @@ import structlog
 
 logger = structlog.get_logger()
 
-# Emotion → TTS param mapping (mirrors prosody_engine.py in script service)
 EMOTION_TTS_MAP: dict[str, dict] = {
     "curiosity": {"stability": 0.45, "similarity_boost": 0.70, "style": 0.50, "speed": 1.05},
     "excitement": {"stability": 0.35, "similarity_boost": 0.65, "style": 0.70, "speed": 1.15},
@@ -31,7 +30,6 @@ EMOTION_TTS_MAP: dict[str, dict] = {
     "neutral": {"stability": 0.50, "similarity_boost": 0.75, "style": 0.40, "speed": 1.00},
 }
 
-# Section-based pacing defaults
 SECTION_PACING: dict[str, dict] = {
     "hook": {"speed_modifier": 1.05, "pause_after_ms": 400, "emphasis_boost": True},
     "intro": {"speed_modifier": 1.00, "pause_after_ms": 350, "emphasis_boost": False},
@@ -41,7 +39,6 @@ SECTION_PACING: dict[str, dict] = {
     "cta": {"speed_modifier": 1.05, "pause_after_ms": 200, "emphasis_boost": True},
 }
 
-# Keyword-based emotion detection
 EMOTION_KEYWORDS: dict[str, list[str]] = {
     "curiosity": ["why", "how", "what if", "wonder", "imagine", "secret", "hidden", "mystery", "question"],
     "excitement": ["amazing", "incredible", "breakthrough", "revolutionary", "game-changing", "exciting"],
@@ -64,7 +61,6 @@ def detect_sentence_emotion(text: str) -> str:
             scores[emotion] = count
 
     if not scores:
-        # Check punctuation cues
         if text.endswith("?"):
             return "curiosity"
         if text.endswith("!"):
@@ -82,18 +78,15 @@ def detect_emphasis_words(text: str) -> list[str]:
         clean = re.sub(r'[^\w]', '', word)
         if not clean:
             continue
-        # ALL CAPS words
         if clean.isupper() and len(clean) > 1:
             emphasis.append(clean)
-        # Numbers and statistics
         elif any(c.isdigit() for c in clean):
             emphasis.append(clean)
-        # Words with strong emotional connotation
         elif clean.lower() in {"never", "always", "every", "only", "most", "worst", "best",
                                 "critical", "dangerous", "shocking", "proven", "secret",
                                 "exactly", "specifically", "absolutely", "guaranteed"}:
             emphasis.append(clean)
-    return emphasis[:5]  # Max 5 emphasis words per sentence
+    return emphasis[:5]
 
 
 def predict_volume_shift(emotion: str, section: str) -> str:
@@ -151,15 +144,12 @@ def predict_emotions_for_sentences(sentences: list[dict], channel: dict) -> list
         prosody_hint = sent.get("prosody_hint", {})
 
         if prosody_hint and prosody_hint.get("tts_params"):
-            # Use prosody hints from script intelligence (highest quality)
             emotion_data = map_prosody_hints_to_emotion(prosody_hint)
         else:
-            # Local NLP fallback
             emotion = detect_sentence_emotion(text)
             emphasis = detect_emphasis_words(text)
             tts = EMOTION_TTS_MAP.get(emotion, EMOTION_TTS_MAP["neutral"])
 
-            # Apply section pacing
             section_pacing = SECTION_PACING.get(section, SECTION_PACING["body"])
             speed = tts["speed"] * section_pacing["speed_modifier"]
 
@@ -174,7 +164,6 @@ def predict_emotions_for_sentences(sentences: list[dict], channel: dict) -> list
                 "volume_shift": predict_volume_shift(emotion, section),
             }
 
-        # Blend with channel defaults (30% channel identity, 70% predicted)
         emotion_data["stability"] = round(
             emotion_data["stability"] * 0.7 + default_stability * 0.3, 3)
         emotion_data["similarity_boost"] = round(

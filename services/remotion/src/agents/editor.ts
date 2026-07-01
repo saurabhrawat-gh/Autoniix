@@ -60,12 +60,8 @@ export class EditorAgent implements Agent<EditorInput, EditorOutput> {
     let captionFixes = 0;
 
     if (videoTrack) {
-      // Working copy of clips that reflects ops emitted earlier in this run.
-      // The orchestrator commits the resulting Patch through applyPatch; here
-      // we just keep our internal view consistent across passes.
       const working: SceneClip[] = (videoTrack.clips.filter((c) => c.kind === "scene") as SceneClip[]).map((c) => ({ ...c }));
 
-      // Pass 1 — animation defaults.
       for (let i = 0; i < working.length; i++) {
         const clip = working[i]!;
         if ((clip.animationsIn?.length ?? 0) === 0) {
@@ -81,9 +77,6 @@ export class EditorAgent implements Agent<EditorInput, EditorOutput> {
         }
       }
 
-      // Pass 2 — pacing. Walk the timeline; when uninterrupted run exceeds
-      // MAX_NO_INTERRUPT_MS, attach a pattern-interrupt transition_out to the
-      // longest scene in that run.
       let runStartMs = working[0]?.range[0] ?? 0;
       let runIdx: number[] = [];
       const flushRun = () => {
@@ -92,9 +85,6 @@ export class EditorAgent implements Agent<EditorInput, EditorOutput> {
         const runDuration = working[lastIdx]!.range[1] - runStartMs;
         if (runDuration > MAX_NO_INTERRUPT_MS) {
           const limit = runStartMs + MAX_NO_INTERRUPT_MS;
-          // Prefer the scene whose end is closest to but ≤ limit. This
-          // splits the run so the first half is ≤ MAX and the second half
-          // is re-evaluated as a fresh run (often itself ≤ MAX).
           const candidates = runIdx
             .map((i) => ({ i, c: working[i]! }))
             .filter(({ c }) => !c.transitionOut || !PATTERN_INTERRUPT_TRANSITIONS.has(c.transitionOut.preset));
@@ -127,7 +117,6 @@ export class EditorAgent implements Agent<EditorInput, EditorOutput> {
       }
       flushRun();
 
-      // Pass 3 — caption hints for Shorts niche.
       if (ctx.niche.toLowerCase() === "shorts") {
         for (const clip of working) {
           const overrides = clip.sceneOverrides ?? {};

@@ -11,7 +11,6 @@ from PIL import Image
 from src.workers.media_jobs.handlers import autotag, embed, probe
 
 
-# probe
 
 
 @pytest.mark.asyncio
@@ -36,7 +35,6 @@ async def test_probe_handler_writes_image_metadata(mock_pool):
     assert out["result"]["width"] == 321
     assert out["result"]["height"] == 123
     assert out["result"]["format"] == "png"
-    # UPDATE was issued
     sql = mock_pool.execute.await_args.args[0]
     assert "UPDATE dam_assets" in sql
 
@@ -56,7 +54,6 @@ async def test_probe_skips_video_until_ffmpeg(mock_pool):
     assert "ffprobe" in out["reason"]
 
 
-# embed
 
 
 @pytest.mark.asyncio
@@ -101,7 +98,6 @@ async def test_embed_handler_marks_failed_on_embedding_error(mock_pool):
     assert out["status"] == "failed"
 
 
-# autotag
 
 
 @pytest.mark.asyncio

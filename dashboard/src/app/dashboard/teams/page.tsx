@@ -8,8 +8,6 @@ import {
 } from '@/lib/ui';
 import { ExternalLink, Plus, ShieldCheck } from '@/lib/components/Icon';
 
-// AE-237: all surfaces show exactly 3 options; Owner is always disabled
-// (assign only via Transfer Ownership — atomic + password-verified, AE-285).
 const ROLE_OPTIONS = [
   { value: 'owner',  label: 'Owner',  desc: 'Full control — assign via Transfer Ownership', disabled: true  },
   { value: 'member', label: 'Member', desc: 'Create and manage content',                    disabled: false },

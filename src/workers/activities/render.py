@@ -24,7 +24,6 @@ async def render_activity(params: dict) -> dict:
     logger.info("activity.render.started", content_id=content_id, base_url=base_url)
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        # Step 1: Health check
         try:
             health_resp = await client.get(f"{base_url}/api/health")
             health_data = health_resp.json()
@@ -36,7 +35,6 @@ async def render_activity(params: dict) -> dict:
             raise RuntimeError(f"Cannot reach Remotion at {base_url}")
 
     async with httpx.AsyncClient(timeout=600.0) as client:
-        # Step 2: Submit render
         render_body = {
             "composition": "MainVideo",
             "inputProps": {"direction": direction_v3},
@@ -52,8 +50,7 @@ async def render_activity(params: dict) -> dict:
 
         logger.info("activity.render.submitted", render_id=render_id)
 
-        # Step 3: Poll until done (heartbeat every 30s)
-        max_polls = 120  # 60 minutes max
+        max_polls = 120
         for i in range(max_polls):
             activity.heartbeat(f"Polling render {render_id}: attempt {i+1}")
             await asyncio.sleep(30)
@@ -80,6 +77,5 @@ async def render_activity(params: dict) -> dict:
                 error = status_data.get("error", "Unknown render error")
                 raise RuntimeError(f"Render failed: {error}")
 
-            # Continue polling...
 
         raise RuntimeError(f"Render timed out after {max_polls * 30}s")

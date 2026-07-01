@@ -18,9 +18,6 @@ import pytest
 from src.services.brain.analyser import ChannelSignals
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ChannelSignals helpers
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestChannelSignals:
@@ -65,9 +62,6 @@ class TestChannelSignals:
         assert s.budget_exhausted is False
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Decision engine
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 def _make_signals(**kwargs) -> ChannelSignals:
@@ -169,7 +163,7 @@ class TestDecisionEngine:
         from src.services.brain.engine import _evaluate
         s = _make_signals(
             avg_composite_score=3.0,
-            recent_scores=[3.0, 2.5],  # only 2 — not enough
+            recent_scores=[3.0, 2.5],
         )
         result = await _evaluate(s, None)
         assert result is None
@@ -192,7 +186,7 @@ class TestDecisionEngine:
         s = _make_signals(
             daily_budget_limit=10.0,
             daily_spend_today=9.6,
-            daily_budget_remaining=0.4,  # 4% left < 5% threshold
+            daily_budget_remaining=0.4,
         )
         result = await _evaluate(s, None)
         assert result == _FAKE_DECISION
@@ -216,25 +210,20 @@ class TestDecisionEngine:
         from src.services.brain.engine import _evaluate
         s = _make_signals(
             avg_composite_score=6.5,
-            recent_scores=[6.5, 6.0, 7.0, 6.5],  # only 4
+            recent_scores=[6.5, 6.0, 7.0, 6.5],
         )
         result = await _evaluate(s, None)
         assert result is None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Consumer
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestConsumer:
     @pytest.fixture(autouse=True)
     def patch_deps(self):
         async def _flag(key, default=None):
-            # Force the legacy (non-agent) consumer path for these tests.
             if key == "brain.memory_recall.enabled":
                 return False
-            # advisory_mode TRUE keeps Temporal signalling disabled.
             return True
 
         with (
@@ -289,9 +278,6 @@ class TestConsumer:
         assert call_kwargs["payload"]["decision_type"] == "HALT"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Resolver
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestResolver:

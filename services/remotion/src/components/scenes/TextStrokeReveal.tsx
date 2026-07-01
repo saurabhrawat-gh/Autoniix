@@ -44,7 +44,6 @@ export const TextStrokeReveal: React.FC<TextStrokeRevealProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   
-  // Stroke reveal progress (0 to 1)
   const strokeProgress = spring({
     frame,
     fps,
@@ -54,7 +53,6 @@ export const TextStrokeReveal: React.FC<TextStrokeRevealProps> = ({
     durationInFrames: revealDuration,
   });
   
-  // Fill opacity (appears after stroke)
   const fillOpacity = interpolate(
     frame,
     [fillDelay, fillDelay + 20],
@@ -62,7 +60,6 @@ export const TextStrokeReveal: React.FC<TextStrokeRevealProps> = ({
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
   
-  // SVG stroke-dasharray animation
   const strokeDashoffset = (1 - strokeProgress) * 1000;
   
   return (

@@ -56,8 +56,6 @@ pub fn routes(pool: PgPool) -> Router {
         .with_state(pool)
 }
 
-// ── Shared helpers ─────────────────────────────────────────────────────────
-
 /// Workspace-scoped owner/member gate, used by every write endpoint and the
 /// read endpoints that surface platform operator data (routes, deliveries).
 /// Mirrors Python's `require_role("owner", "member")`.
@@ -76,8 +74,6 @@ fn principal_user_id(principal: &Principal) -> ApiResult<i64> {
         .parse()
         .map_err(|_| ApiError::Unauthorized)
 }
-
-// ── Notifications ──────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 struct NotificationRow {
@@ -125,8 +121,6 @@ async fn list_notifications(
     State(pool): State<PgPool>,
     Query(q): Query<ListNotificationsQuery>,
 ) -> ApiResult<impl IntoResponse> {
-    // Compose the dynamic WHERE clause + arg list in parallel so the
-    // placeholder indices stay in lockstep with the binds below.
     let mut clauses: Vec<String> = vec!["1=1".to_string()];
     let mut next_idx = 1;
 
@@ -301,8 +295,6 @@ async fn mark_read(
 
     Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
 }
-
-// ── Routes ────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 struct NotificationRouteRow {
@@ -489,8 +481,6 @@ async fn delete_route(
 
     Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
 }
-
-// ── Deliveries ────────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 struct DeliveryRow {

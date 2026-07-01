@@ -20,8 +20,8 @@ export type Shard = {
   startMs: number;
   endMs: number;
   startFrame: number;
-  endFrame: number; // exclusive
-  clipIds: string[]; // scene clips fully contained in this shard
+  endFrame: number;
+  clipIds: string[];
   /** Stable hash for diff-cache lookup (P0.3). */
   hash: string;
 };
@@ -60,11 +60,8 @@ export function planShards(graph: SceneGraph, opts: ShardOptions = {}): ShardPla
     throw new Error("sharder: video track has no scene clips");
   }
 
-  // Candidate cut points: start of each scene + end of last scene.
   const allBoundaries = sceneClips.map((c) => c.range[0]);
   allBoundaries.push(sceneClips[sceneClips.length - 1]!.range[1]);
-  // Greedy bucketing: walk boundaries, accumulate until ≥ idealMs OR we've
-  // consumed our share of the remaining boundaries.
   const totalDurationMs = graph.meta.durationMs;
   const idealShardMs = Math.max(cfg.minShardMs, Math.floor(totalDurationMs / cfg.targetShards));
 
@@ -109,7 +106,6 @@ export function planShards(graph: SceneGraph, opts: ShardOptions = {}): ShardPla
 }
 
 export function msToFrames(ms: number, fps: number): number {
-  // Round-half-up, deterministic for any (ms, fps).
   return Math.round((ms / 1000) * fps);
 }
 

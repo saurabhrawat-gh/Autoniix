@@ -33,8 +33,6 @@ class GateCalibrationWorkflow:
 
     @workflow.run
     async def run(self, params: dict | None = None) -> dict:
-        # Step 1: enumerate niches that have at least one delivered video.
-        # Niches with zero outcomes have nothing to learn from yet.
         niches: list[str] = await workflow.execute_activity(
             "list_niches_with_outcomes",
             start_to_close_timeout=timedelta(seconds=30),
@@ -52,7 +50,6 @@ class GateCalibrationWorkflow:
                 )
                 results[niche] = niche_result
             except Exception as exc:
-                # One bad niche must not poison the others.
                 results[niche] = {"action": "error", "error": str(exc)}
 
         return {"niches_processed": len(niches), "results": results}

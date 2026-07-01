@@ -62,14 +62,7 @@ export function PhaseStepper({
 }: PhaseStepperProps) {
   const currentIdx = currentPhase ? PHASE_ORDER.indexOf(currentPhase) : -1;
   const N = PHASE_ORDER.length;
-  // Each phase occupies an equal flex-1 column; the dot is centered inside it.
-  // Aligning the track endpoints to dot centers means insetting both sides by
-  // half a column width — so the line truly *touches* the first and last dots
-  // when fully filled.
-  const insetPct = 50 / N; // half a column, in %
-  // Fill fraction across the dot-to-dot span (0..1). For an in-progress phase
-  // we fill halfway into its column; for a fully-complete run (currentIdx=N-1)
-  // fillFrac=1 → bar reaches last dot center exactly.
+  const insetPct = 50 / N;
   const fillFrac =
     currentIdx < 0
       ? 0

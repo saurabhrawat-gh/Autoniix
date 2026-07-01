@@ -21,14 +21,13 @@ from src.services.research.saturation import (
 )
 
 
-# Cold-start: empty data
 
 
 def test_empty_pulse_returns_cold_start():
     res = compute_saturation_from_pulse([])
     assert res.cold_start is True
     assert res.saturation == 0.0
-    assert res.saturation_gap == 1.0   # no penalty when there's no data
+    assert res.saturation_gap == 1.0
     assert res.n_matches == 0
 
 
@@ -46,7 +45,6 @@ def test_pulse_with_no_matches_returns_zero_saturation():
     assert res.saturation_gap == 1.0
 
 
-# Saturation: high overlap → high score
 
 
 def test_single_perfect_match_with_viral_velocity_pushes_saturation_up():
@@ -57,8 +55,6 @@ def test_single_perfect_match_with_viral_velocity_pushes_saturation_up():
     ]
     res = compute_saturation_from_pulse(rows)
     assert res.n_matches == 1
-    # One viral perfect match contributes ~1 unit; normaliser is /5.
-    # Expect roughly 0.18-0.22 saturation.
     assert 0.10 <= res.saturation <= 0.30
     assert res.saturation_gap == round(1 - res.saturation, 4)
 
@@ -75,7 +71,6 @@ def test_many_perfect_matches_saturate():
     assert res.n_matches == min(8, TOP_K)
 
 
-# Recency decay: old videos count less
 
 
 def test_old_matches_contribute_less_than_recent():
@@ -86,7 +81,6 @@ def test_old_matches_contribute_less_than_recent():
     fresh_res = compute_saturation_from_pulse(fresh)
     old_res   = compute_saturation_from_pulse(old)
     assert fresh_res.saturation > old_res.saturation
-    # 14 days = 2 half-lives → roughly 4× attenuation.
     assert fresh_res.saturation >= old_res.saturation * 3.0
 
 
@@ -96,11 +90,9 @@ def test_recency_decay_monotone_decreasing():
         cur = _recency_decay(d)
         assert cur <= last
         last = cur
-    # Half life sanity: ~0.5 at 7 days
     assert 0.45 < _recency_decay(7.0) < 0.55
 
 
-# Velocity factor: log-scaled
 
 
 def test_velocity_factor_log_scaled():
@@ -110,7 +102,6 @@ def test_velocity_factor_log_scaled():
     mid  = _velocity_factor(1_000)
     high = _velocity_factor(10_000)
     assert low < mid < high
-    # Each 10× step should be a sub-linear bump, not an order of magnitude.
     assert (mid - low) < 0.6
     assert (high - mid) < 0.6
 
@@ -118,12 +109,9 @@ def test_velocity_factor_log_scaled():
 def test_zero_velocity_contributes_zero():
     rows = [_PulseRow(similarity=0.99, view_velocity=0, age_days=0.0)]
     res = compute_saturation_from_pulse(rows)
-    # Even a near-perfect match with no velocity is a dead video; don't
-    # let it inflate saturation.
     assert res.saturation == 0.0
 
 
-# Cosine threshold: below it, contribution is zero
 
 
 def test_below_cosine_threshold_treated_as_no_match():
@@ -148,7 +136,6 @@ def test_just_above_cosine_threshold_starts_contributing():
     assert res.saturation > 0.0
 
 
-# Output contract
 
 
 def test_saturation_gap_is_one_minus_saturation():
@@ -173,7 +160,6 @@ def test_top_match_similarity_reflects_actual_top():
     assert res.top_match_similarity == 0.91
 
 
-# Integration with opportunity scorer DEFAULT_WEIGHTS
 
 
 def test_opportunity_weights_include_saturation_gap_and_sum_to_one():

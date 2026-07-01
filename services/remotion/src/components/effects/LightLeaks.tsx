@@ -22,7 +22,6 @@ void main() {
   vec2 uv = v_uv;
   float t = u_time * u_speed;
 
-  // Two moving blobs
   vec2 a = vec2(0.5 + 0.45 * sin(t * 0.7), 0.5 + 0.3 * cos(t * 0.9));
   vec2 b = vec2(0.5 + 0.5 * cos(t * 0.5 + 2.0), 0.5 + 0.4 * sin(t * 0.6 + 1.2));
 
@@ -30,7 +29,6 @@ void main() {
   float leakB = smoothstep(0.6, 0.0, distance(uv, b));
   float leak = leakA * 0.6 + leakB * 0.5;
 
-  // Subtle banding
   float band = 0.9 + 0.1 * sin(uv.y * 60.0 + t * 10.0);
 
   vec3 col = u_color * leak * band * u_intensity;

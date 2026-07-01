@@ -14,8 +14,8 @@ export interface AudioMixerProps {
   voiceoverVolumeDb?: number;
   ducking?: {
     enabled: boolean;
-    duckingDb?: number; // default -12
-    fadeFrames?: number; // default 6
+    duckingDb?: number;
+    fadeFrames?: number;
   };
 }
 
@@ -57,7 +57,6 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
       .catch((err) => cancelRender(err));
   }, [voiceoverSrtUrl, voiceoverSrt, ducking.enabled]);
 
-  // Wait for SRT (if requested) before rendering the music track so ducking is correct.
   if (ducking.enabled && (voiceoverSrtUrl || voiceoverSrt) && cues === null) {
     return null;
   }

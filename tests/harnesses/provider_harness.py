@@ -28,7 +28,6 @@ import structlog
 
 logger = structlog.get_logger()
 
-# Fixtures directory for cached responses
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "providers"
 FIXTURES_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -76,7 +75,6 @@ class ProviderMockHarness:
         cache_file.write_text(json.dumps(response, indent=2))
         logger.info("provider_mock.cached", key=cache_key)
     
-    # OpenAI Mock (~100 LOC)
     def openai_mock(self, request: dict[str, Any]) -> dict[str, Any]:
         """
         Mock OpenAI API responses.
@@ -101,10 +99,8 @@ class ProviderMockHarness:
         messages = request.get("messages", [])
         max_tokens = request.get("max_tokens", 1000)
         
-        # Generate mock response based on prompt
         content = self._generate_openai_content(messages, request.get("response_format"))
         
-        # Calculate mock token usage
         prompt_tokens = sum(len(str(m.get("content", "")).split()) for m in messages) * 1.3
         completion_tokens = len(content.split()) * 1.3
         
@@ -136,10 +132,8 @@ class ProviderMockHarness:
     
     def _generate_openai_content(self, messages: list[dict], response_format: dict | None) -> str:
         """Generate mock content based on messages."""
-        # Extract prompt context
         prompt_text = " ".join(str(m.get("content", "")) for m in messages).lower()
         
-        # If JSON format requested, return structured data
         if response_format and response_format.get("type") == "json_object":
             if "research" in prompt_text:
                 return json.dumps({
@@ -165,10 +159,8 @@ class ProviderMockHarness:
             else:
                 return json.dumps({"result": "mock_response", "status": "success"})
         
-        # Text response
         return "This is a mock response from the OpenAI harness. The actual API was not called."
     
-    # Anthropic Mock (~60 LOC)
     def anthropic_mock(self, request: dict[str, Any]) -> dict[str, Any]:
         """
         Mock Anthropic Claude API responses.
@@ -188,7 +180,6 @@ class ProviderMockHarness:
         messages = request.get("messages", [])
         max_tokens = request.get("max_tokens", 1000)
         
-        # Generate mock content
         prompt_text = " ".join(str(m.get("content", "")) for m in messages)
         content = f"Mock Claude response: {prompt_text[:100]}..."
         
@@ -214,7 +205,6 @@ class ProviderMockHarness:
         logger.info("anthropic_mock.generated", model=model)
         return response
     
-    # Fish Audio Mock (~40 LOC)
     def fish_audio_mock(self, request: dict[str, Any]) -> bytes:
         """
         Mock Fish Audio TTS API responses.
@@ -232,7 +222,6 @@ class ProviderMockHarness:
             logger.info("fish_audio_mock.cache_hit", key=cache_key)
             return cache_file.read_bytes()
         
-        # Generate silent WAV file (44 bytes header + 1 second of silence at 44.1kHz)
         audio_bytes = self._generate_silent_wav(duration_seconds=1)
         
         if self.cache_enabled:
@@ -245,29 +234,26 @@ class ProviderMockHarness:
     def _generate_silent_wav(self, duration_seconds: int = 1, sample_rate: int = 44100) -> bytes:
         """Generate a silent WAV file."""
         num_samples = duration_seconds * sample_rate
-        data_size = num_samples * 2  # 16-bit samples
+        data_size = num_samples * 2
         
-        # WAV header
         header = b'RIFF'
         header += (data_size + 36).to_bytes(4, 'little')
         header += b'WAVE'
         header += b'fmt '
-        header += (16).to_bytes(4, 'little')  # fmt chunk size
-        header += (1).to_bytes(2, 'little')   # audio format (PCM)
-        header += (1).to_bytes(2, 'little')   # num channels (mono)
+        header += (16).to_bytes(4, 'little')
+        header += (1).to_bytes(2, 'little')
+        header += (1).to_bytes(2, 'little')
         header += sample_rate.to_bytes(4, 'little')
-        header += (sample_rate * 2).to_bytes(4, 'little')  # byte rate
-        header += (2).to_bytes(2, 'little')   # block align
-        header += (16).to_bytes(2, 'little')  # bits per sample
+        header += (sample_rate * 2).to_bytes(4, 'little')
+        header += (2).to_bytes(2, 'little')
+        header += (16).to_bytes(2, 'little')
         header += b'data'
         header += data_size.to_bytes(4, 'little')
         
-        # Silent audio data (all zeros)
         audio_data = b'\x00' * data_size
         
         return header + audio_data
     
-    # DALL-E Mock (~50 LOC)
     def dalle_mock(self, request: dict[str, Any]) -> dict[str, Any]:
         """
         Mock DALL-E image generation API.
@@ -287,7 +273,6 @@ class ProviderMockHarness:
         size = request.get("size", "1024x1024")
         response_format = request.get("response_format", "url")
         
-        # Generate 1x1 pixel PNG (smallest valid image)
         image_bytes = self._generate_placeholder_image()
         
         if response_format == "b64_json":
@@ -301,7 +286,6 @@ class ProviderMockHarness:
                 ],
             }
         else:
-            # Return mock URL
             response = {
                 "created": int(time.time()),
                 "data": [
@@ -317,12 +301,10 @@ class ProviderMockHarness:
     
     def _generate_placeholder_image(self) -> bytes:
         """Generate a 1x1 pixel transparent PNG."""
-        # 1x1 transparent PNG (smallest valid PNG)
         return base64.b64decode(
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
         )
     
-    # Pexels/Pixabay Mock (~80 LOC)
     def pexels_pixabay_mock(self, request: dict[str, Any], provider: str = "pexels") -> dict[str, Any]:
         """
         Mock Pexels and Pixabay stock media APIs.
@@ -342,9 +324,8 @@ class ProviderMockHarness:
         query = request.get("query", "nature")
         per_page = request.get("per_page", 15)
         
-        # Generate mock results
         results = []
-        for i in range(min(per_page, 5)):  # Return up to 5 mock results
+        for i in range(min(per_page, 5)):
             if provider == "pexels":
                 results.append({
                     "id": f"mock_{i}",
@@ -359,7 +340,7 @@ class ProviderMockHarness:
                         "medium": f"https://images.pexels.com/photos/mock-{i}/pexels-photo-mock-{i}.jpeg?w=1280",
                     },
                 })
-            else:  # pixabay
+            else:
                 results.append({
                     "id": f"mock_{i}",
                     "pageURL": f"https://pixabay.com/photos/mock-{i}/",
@@ -380,7 +361,7 @@ class ProviderMockHarness:
                 "photos": results,
                 "total_results": 1000,
             }
-        else:  # pixabay
+        else:
             response = {
                 "total": 1000,
                 "totalHits": 500,
@@ -391,7 +372,6 @@ class ProviderMockHarness:
         logger.info(f"{provider}_mock.generated", query=query, results=len(results))
         return response
     
-    # SerpAPI Mock (~60 LOC)
     def serpapi_mock(self, request: dict[str, Any]) -> dict[str, Any]:
         """
         Mock SerpAPI web search responses.
@@ -410,7 +390,6 @@ class ProviderMockHarness:
         query = request.get("q", "")
         num_results = request.get("num", 10)
         
-        # Generate mock search results
         organic_results = []
         for i in range(min(num_results, 5)):
             organic_results.append({
@@ -440,7 +419,6 @@ class ProviderMockHarness:
         logger.info("serpapi_mock.generated", query=query, results=len(organic_results))
         return response
     
-    # YouTube API Mock (~40 LOC)
     def youtube_api_mock(self, request: dict[str, Any], endpoint: str = "search") -> dict[str, Any]:
         """
         Mock YouTube Data API v3 responses.
@@ -519,7 +497,6 @@ class ProviderMockHarness:
         logger.info(f"youtube_{endpoint}_mock.generated")
         return response
     
-    # Gemini Mock (~60 LOC)
     def gemini_mock(self, request: dict[str, Any]) -> dict[str, Any]:
         """
         Mock Google Gemini API responses.
@@ -537,14 +514,12 @@ class ProviderMockHarness:
         
         contents = request.get("contents", [])
         
-        # Extract prompt text
         prompt_text = ""
         for content in contents:
             for part in content.get("parts", []):
                 if "text" in part:
                     prompt_text += part["text"] + " "
         
-        # Generate mock response
         response_text = f"Mock Gemini response for: {prompt_text[:100]}..."
         
         response = {

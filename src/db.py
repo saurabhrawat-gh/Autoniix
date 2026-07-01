@@ -20,8 +20,6 @@ async def _init_connection(conn: asyncpg.Connection) -> None:
     caller might forget.
     """
     timeout_ms = max(1, int(settings.db_statement_timeout_ms))
-    # statement_timeout takes a string like '30000ms' or '30s'. Use ms
-    # because that's the unit we config in.
     await conn.execute(f"SET statement_timeout = {timeout_ms}")
 
 
@@ -55,9 +53,6 @@ def get_pool_stats() -> dict:
     """
     if _pool is None:
         return {"size": 0, "idle": 0, "min_size": 0, "max_size": 0}
-    # asyncpg exposes these via private attrs; documented enough that
-    # several production codebases depend on them. Wrap defensively in
-    # case a future asyncpg release renames them.
     try:
         return {
             "size":     _pool.get_size(),

@@ -65,14 +65,13 @@ class EnvelopeError(ValueError):
     """Raised when an envelope fails schema validation at publish time."""
 
 
-# Prometheus metrics — best-effort, no-op when client missing.
 try:  # pragma: no cover - import guard
     from prometheus_client import Counter
 
     EVENTS_INVALID_TOTAL = Counter(
         "events_invalid_total",
         "Envelopes that failed schema validation by topic and direction.",
-        labelnames=("topic", "direction"),  # direction: publish | subscribe
+        labelnames=("topic", "direction"),
     )
     EVENTS_PUBLISHED_TOTAL = Counter(
         "events_published_total",
@@ -101,8 +100,6 @@ def validate_envelope(envelope: dict) -> None:
     if not Topic.is_known(envelope["topic"]):
         raise EnvelopeError(f"unknown topic: {envelope['topic']!r}")
     if envelope["scope"] == "global" and envelope.get("scope_id") is not None:
-        # Soft policy: 'global' must not carry an id. Catching this early
-        # prevents subscribers from misrouting fan-out events.
         raise EnvelopeError("scope='global' must have scope_id=null")
 
 
@@ -182,7 +179,7 @@ async def subscribe(
             pubsub = redis.pubsub()
             await pubsub.subscribe(*topic_values)
             logger.info("events.subscribed", topics=topic_values)
-            reconnect_delay = _RECONNECT_BASE  # reset on successful connect
+            reconnect_delay = _RECONNECT_BASE
 
             async for message in pubsub.listen():
                 if stop_event is not None and stop_event.is_set():

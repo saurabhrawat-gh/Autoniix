@@ -57,7 +57,6 @@ export const AdvancedKineticText: React.FC<AdvancedKineticTextProps> = ({
     
     switch (style) {
       case "cascade": {
-        // Slide in from top with spring physics
         const y = spring({
           frame: progress,
           fps,
@@ -78,7 +77,6 @@ export const AdvancedKineticText: React.FC<AdvancedKineticTextProps> = ({
       }
       
       case "elastic": {
-        // Elastic bounce with overshoot
         const scale = spring({
           frame: progress,
           fps,
@@ -99,7 +97,6 @@ export const AdvancedKineticText: React.FC<AdvancedKineticTextProps> = ({
       }
       
       case "typewriter": {
-        // Appear instantly with slight scale pop
         const visible = progress >= 0;
         const scale = spring({
           frame: progress,
@@ -114,7 +111,6 @@ export const AdvancedKineticText: React.FC<AdvancedKineticTextProps> = ({
       }
       
       case "glitch": {
-        // Glitch effect with RGB split and shake
         const glitchIntensity = interpolate(progress, [0, 5, 10], [10, 0, 0], { extrapolateRight: "clamp" });
         const offsetX = (Math.random() - 0.5) * glitchIntensity;
         const offsetY = (Math.random() - 0.5) * glitchIntensity;
@@ -125,7 +121,6 @@ export const AdvancedKineticText: React.FC<AdvancedKineticTextProps> = ({
       }
       
       case "wave": {
-        // Sine wave motion
         const waveOffset = Math.sin((frame - startFrame) * 0.2 + index * 0.5) * 20;
         const scale = spring({
           frame: progress,
@@ -140,7 +135,6 @@ export const AdvancedKineticText: React.FC<AdvancedKineticTextProps> = ({
       }
       
       case "explode": {
-        // Explode from center with random trajectories
         const angle = (index / words.length) * Math.PI * 2;
         const distance = spring({
           frame: progress,
@@ -164,7 +158,6 @@ export const AdvancedKineticText: React.FC<AdvancedKineticTextProps> = ({
       }
     }
     
-    // Add motion blur for fast movements
     if (motionBlur && progress < 20) {
       const blurAmount = interpolate(progress, [0, 10, 20], [5, 2, 0], { extrapolateRight: "clamp" });
       filter += ` blur(${blurAmount}px)`;

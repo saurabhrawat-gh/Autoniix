@@ -117,7 +117,6 @@ async def check_quota_before_upload(scope: str, scope_id: str | None,
         scope_id or "",
     )
     if row is None:
-        # No quota row yet; treat as unlimited but signal it.
         return {
             "ok": True,
             "quota_bytes": 0,

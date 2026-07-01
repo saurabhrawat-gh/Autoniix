@@ -105,7 +105,6 @@ export const EFFECT_PRESETS: PresetRegistry = {
     tags: ["letterbox", "cinematic"],
   },
 
-  // Phase 2: extra LUTs
   "fx.grade.warm_sunset": {
     id: "fx.grade.warm_sunset", component: ColorGrade,
     defaultProps: { lut: "warm_sunset" }, category: "effect", tags: ["grade", "warm"],
@@ -147,7 +146,6 @@ export const EFFECT_PRESETS: PresetRegistry = {
     defaultProps: { lut: "cyberpunk_magenta" }, category: "effect", tags: ["grade", "cyberpunk"],
   },
 
-  // Phase 2: ChromaticAberration
   "fx.chromab.subtle": {
     id: "fx.chromab.subtle", component: ChromaticAberration,
     defaultProps: { strengthPx: 2 }, category: "effect", tags: ["chromab", "stylized"],
@@ -157,7 +155,6 @@ export const EFFECT_PRESETS: PresetRegistry = {
     defaultProps: { strengthPx: 6 }, category: "effect", tags: ["chromab", "glitch"],
   },
 
-  // Phase 2: Bloom
   "fx.bloom.soft": {
     id: "fx.bloom.soft", component: Bloom,
     defaultProps: { intensity: 0.35, blurPx: 24 }, category: "effect", tags: ["bloom"],
@@ -167,13 +164,11 @@ export const EFFECT_PRESETS: PresetRegistry = {
     defaultProps: { intensity: 0.7, blurPx: 40 }, category: "effect", tags: ["bloom", "dreamy"],
   },
 
-  // Phase 2: TiltShift
   "fx.tiltshift.miniature": {
     id: "fx.tiltshift.miniature", component: TiltShift,
     defaultProps: { blurPx: 18, focusHeightPct: 28 }, category: "effect", tags: ["tiltshift"],
   },
 
-  // Phase 2: MotionBlur
   "fx.motionblur.horizontal": {
     id: "fx.motionblur.horizontal", component: MotionBlur,
     defaultProps: { axis: "x", amount: 10 }, category: "effect", tags: ["motionblur"],
@@ -183,7 +178,6 @@ export const EFFECT_PRESETS: PresetRegistry = {
     defaultProps: { axis: "y", amount: 10 }, category: "effect", tags: ["motionblur"],
   },
 
-  // Phase 2: Duotone
   "fx.duotone.red_navy": {
     id: "fx.duotone.red_navy", component: Duotone,
     defaultProps: { shadow: "#1b1e3f", highlight: "#ff3b30" }, category: "effect", tags: ["duotone"],
@@ -197,7 +191,6 @@ export const EFFECT_PRESETS: PresetRegistry = {
     defaultProps: { shadow: "#0e2a38", highlight: "#ff9a3c" }, category: "effect", tags: ["duotone"],
   },
 
-  // Phase 2: FrameBorder
   "fx.frame.thin_white": {
     id: "fx.frame.thin_white", component: FrameBorder,
     defaultProps: { color: "#FFFFFF", widthPx: 4, inset: 36 }, category: "effect", tags: ["frame"],
@@ -208,7 +201,6 @@ export const EFFECT_PRESETS: PresetRegistry = {
     tags: ["frame", "polaroid"],
   },
 
-  // Phase 2: Glow
   "fx.glow.yellow_soft": {
     id: "fx.glow.yellow_soft", component: Glow,
     defaultProps: { color: "#FFD60A", intensity: 0.4, spreadPct: 30 }, category: "effect", tags: ["glow"],
@@ -218,7 +210,6 @@ export const EFFECT_PRESETS: PresetRegistry = {
     defaultProps: { color: "#00E0FF", intensity: 0.7, spreadPct: 50 }, category: "effect", tags: ["glow", "neon"],
   },
 
-  // Phase 3: Premium shader-based effects
   "fx.vhs.subtle": {
     id: "fx.vhs.subtle", component: VHS,
     defaultProps: { intensity: 0.3, scanlineStrength: 0.3 }, category: "effect", tags: ["vhs", "premium", "retro"],
@@ -268,7 +259,6 @@ export const EFFECT_PRESETS: PresetRegistry = {
     category: "effect", tags: ["scanlines", "premium"],
   },
 
-  // Phase 4: Premium real-footage grain overlays
   "fx.grain.real.35mm_fine": {
     id: "fx.grain.real.35mm_fine", component: FilmGrainOverlay,
     defaultProps: { src: staticFile("assets/grain/envato/35mm_cinematic_fine_01.mp4"), blendMode: "overlay", opacity: 0.25 },
@@ -305,7 +295,6 @@ export const EFFECT_PRESETS: PresetRegistry = {
     category: "effect", tags: ["grain", "premium", "clean", "subtle", "real"],
   },
 
-  // Phase 4: 3D LUT color grading presets
   "fx.lut.cinematic_teal_orange": {
     id: "fx.lut.cinematic_teal_orange", component: LUTGrade,
     defaultProps: { lutSrc: staticFile("assets/luts/envato/cinematic_teal_orange_01.cube"), intensity: 0.85 },
@@ -347,7 +336,6 @@ export const EFFECT_PRESETS: PresetRegistry = {
     category: "effect", tags: ["lut", "grade", "premium", "bw"],
   },
 
-  // Premium WebGL LUT Grading (95%+ accuracy)
   "fx.lut.webgl.cinematic_teal_orange": {
     id: "fx.lut.webgl.cinematic_teal_orange", component: LUTGradeWebGL,
     defaultProps: { lutSrc: staticFile("assets/luts/envato/cinematic_teal_orange_01.cube"), intensity: 1.0 },
@@ -359,7 +347,6 @@ export const EFFECT_PRESETS: PresetRegistry = {
     category: "effect", tags: ["lut", "grade", "premium", "webgl", "moody"],
   },
 
-  // Particle Systems
   "fx.particles.dust": {
     id: "fx.particles.dust", component: ParticleSystem,
     defaultProps: { type: "dust", count: 100, color: "#FFFFFF", sizeRange: [1, 4], gravity: 0.2 },
@@ -381,7 +368,6 @@ export const EFFECT_PRESETS: PresetRegistry = {
     category: "effect", tags: ["particles", "snow", "premium", "winter"],
   },
 
-  // Camera Shake
   "fx.shake.subtle": {
     id: "fx.shake.subtle", component: CameraShake,
     defaultProps: { intensity: 5, frequency: 0.5, rotationIntensity: 1 },
@@ -393,7 +379,6 @@ export const EFFECT_PRESETS: PresetRegistry = {
     category: "effect", tags: ["shake", "camera", "premium", "impact"],
   },
 
-  // Glitch Effects
   "fx.glitch.subtle": {
     id: "fx.glitch.subtle", component: GlitchEffect,
     defaultProps: { intensity: 0.3, frequency: 0.05, rgbSplit: true, scanLines: false, displacement: true },
@@ -405,7 +390,6 @@ export const EFFECT_PRESETS: PresetRegistry = {
     category: "effect", tags: ["glitch", "premium", "intense", "digital"],
   },
 
-  // Depth of Field
   "fx.dof.center": {
     id: "fx.dof.center", component: DepthOfField,
     defaultProps: { blurAmount: 15, focusRegion: "center", softness: 0.5 },
@@ -417,7 +401,6 @@ export const EFFECT_PRESETS: PresetRegistry = {
     category: "effect", tags: ["dof", "blur", "premium", "vignette"],
   },
 
-  // PREMIUM Film Grain (100% Quality - WebGL Generated)
   "fx.grain.premium.35mm": {
     id: "fx.grain.premium.35mm", component: PremiumFilmGrain,
     defaultProps: { filmStock: "35mm", intensity: 0.15, grainSize: 1, colorGrain: 0.3, opacity: 0.5 },
@@ -444,7 +427,6 @@ export const EFFECT_PRESETS: PresetRegistry = {
     category: "effect", tags: ["grain", "premium", "100%", "digital", "webgl", "subtle"],
   },
 
-  // ADVANCED Particle Systems (100% Quality - 1000+ particles)
   "fx.particles.advanced.energy": {
     id: "fx.particles.advanced.energy", component: AdvancedParticleSystem,
     defaultProps: { preset: "energy", count: 1000, glow: 1, trails: 0.7, depth3D: 0.8 },
@@ -476,7 +458,6 @@ export const EFFECT_PRESETS: PresetRegistry = {
     category: "effect", tags: ["particles", "premium", "100%", "rain", "advanced", "weather"],
   },
 
-  // LIQUID MORPH (100% Quality - SVG Path Morphing)
   "fx.morph.liquid.blob": {
     id: "fx.morph.liquid.blob", component: LiquidMorph,
     defaultProps: { preset: "blob", color: "#4ECDC4", colorSecondary: "#FF6B6B", liquidIntensity: 15 },
@@ -503,7 +484,6 @@ export const EFFECT_PRESETS: PresetRegistry = {
     category: "effect", tags: ["morph", "premium", "100%", "liquid", "melt"],
   },
 
-  // ADVANCED SHAPES (100% Quality - Geometric Patterns)
   "fx.shapes.kaleidoscope": {
     id: "fx.shapes.kaleidoscope", component: AdvancedShapes,
     defaultProps: { preset: "kaleidoscope", count: 12, colors: ["#4ECDC4", "#FF6B6B", "#FFE66D"], complexity: 3 },

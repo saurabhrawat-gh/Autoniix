@@ -28,7 +28,6 @@ import structlog
 
 logger = structlog.get_logger()
 
-# Weights (must sum to 1.0)
 W_SEMANTIC = 0.40
 W_MOTION = 0.20
 W_COLOR = 0.15
@@ -37,7 +36,6 @@ W_DURATION = 0.10
 W_RESOLUTION = 0.05
 SCORE_REJECT_THRESHOLD = 0.55
 
-# SBERT model cache (one model per process)
 _MODEL = None
 _MODEL_LOCK = threading.Lock()
 
@@ -58,11 +56,10 @@ def _get_model():
             logger.info("semantic_ranker.model_loaded", model="MiniLM-L6-v2")
         except Exception as exc:  # pragma: no cover - optional dep
             logger.warning("semantic_ranker.model_unavailable", error=str(exc))
-            _MODEL = False  # sentinel: tried and failed
+            _MODEL = False
     return _MODEL or None
 
 
-# Public types
 
 
 @dataclass
@@ -92,7 +89,6 @@ class ScoredCandidate:
         }
 
 
-# Sub-scores
 
 
 def _semantic_sim(query: str, candidate_text: str, model) -> float:
@@ -102,7 +98,6 @@ def _semantic_sim(query: str, candidate_text: str, model) -> float:
     q = query.lower().strip()
     c = candidate_text.lower().strip()
     if model is None:
-        # Keyword Jaccard as a degraded proxy.
         qs = set(q.split())
         cs = set(c.split())
         if not qs or not cs:
@@ -111,10 +106,9 @@ def _semantic_sim(query: str, candidate_text: str, model) -> float:
         union = len(qs | cs)
         return inter / union if union else 0.0
     try:
-        import numpy as np  # local — avoids hard dep if model missing
+        import numpy as np
         vecs = model.encode([q, c], normalize_embeddings=True)
         sim = float(np.dot(vecs[0], vecs[1]))
-        # Cosine on normalised vectors lies in [-1, 1]. Squash to [0, 1].
         return max(0.0, (sim + 1.0) / 2.0)
     except Exception as exc:
         logger.warning("semantic_ranker.sbert_failed", error=str(exc))
@@ -137,7 +131,6 @@ def _motion_score(intent: str, clip: dict) -> float:
         return 1.0 if dur >= 8 else max(0.3, dur / 8.0)
     if intent == "frenetic":
         return 1.0 if dur <= 4 else max(0.3, 1.0 - (dur - 4) / 16.0)
-    # dynamic / default
     if 4 <= dur <= 12:
         return 1.0
     return max(0.4, 1.0 - abs(dur - 8) / 16.0)
@@ -156,7 +149,7 @@ def _hex_to_rgb(h: str) -> tuple[int, int, int] | None:
 def _palette_distance(c1: tuple[int, int, int], c2: tuple[int, int, int]) -> float:
     """Normalised Euclidean colour distance in 0–1."""
     d = math.sqrt(sum((a - b) ** 2 for a, b in zip(c1, c2)))
-    return min(1.0, d / 441.673)  # sqrt(255^2 * 3)
+    return min(1.0, d / 441.673)
 
 
 def _color_score(brand_palette: Iterable[str] | None, clip: dict) -> float:
@@ -172,7 +165,6 @@ def _color_score(brand_palette: Iterable[str] | None, clip: dict) -> float:
     clip_rgb = [rgb for rgb in (_hex_to_rgb(c) for c in clip_colors) if rgb]
     if not clip_rgb:
         return 0.5
-    # Best (min distance) brand–clip pair, then map to similarity.
     best_dist = min(
         _palette_distance(b, c) for b in brand_rgb for c in clip_rgb
     )
@@ -197,7 +189,6 @@ def _duration_score(target_seconds: float, clip: dict) -> float:
     dur = float(clip.get("duration", 0) or 0)
     if dur <= 0:
         return 0.4
-    # 1.0 at exact match, 0.0 at >2x or <0.5x of target.
     if dur >= target_seconds:
         return max(0.0, 1.0 - (dur - target_seconds) / target_seconds)
     return max(0.0, 1.0 - (target_seconds - dur) / target_seconds)
@@ -214,7 +205,6 @@ def _resolution_score(clip: dict, prefer_1080p: bool = True) -> float:
     return 0.2
 
 
-# Top-level scorer
 
 
 def _candidate_text(clip: dict) -> str:

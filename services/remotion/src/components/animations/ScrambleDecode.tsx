@@ -56,7 +56,6 @@ export const ScrambleDecode: React.FC<ScrambleDecodeProps> = ({
     tLocalMs,
   );
 
-  // Use a fixed-width-ish span to prevent layout shift while glyphs change.
   return (
     <span style={{ fontVariantNumeric: "tabular-nums", ...style }}>{visible}</span>
   );

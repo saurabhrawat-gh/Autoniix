@@ -45,9 +45,6 @@ def _row(
     }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# score_once / flag gating
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestScoreOnce:
@@ -66,9 +63,6 @@ class TestScoreOnce:
         assert written == 0
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Per-type scorers
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestScoreHALT:
@@ -106,7 +100,6 @@ class TestScoreHALT:
             )
         assert result is not None
         score, outcome = result
-        # post_avg = 3.0 → score = 10 - 3 = 7.0
         assert score == 7.0
         assert outcome["scoring_method"] == "halt.inverted_post_resume_quality"
         assert outcome["post_resume_avg_score"] == 3.0
@@ -123,7 +116,6 @@ class TestScoreHALT:
             )
         assert result is not None
         score, _ = result
-        # post_avg = 9.0 → 10 - 9 = 1.0
         assert score == 1.0
 
     async def test_missing_scope_id_returns_none(self):
@@ -195,7 +187,6 @@ class TestScoreHOLD:
 class TestScoreNUDGE:
     async def test_positive_delta_high_score(self):
         pool = MagicMock()
-        # pre_avg = 5.0, post_avg = 8.0 → delta=3 → 5+6=11→clamped to 10
         pool.fetch = AsyncMock(side_effect=[
             [{"final_composite_score": 5.0}, {"final_composite_score": 5.0}],
             [
@@ -216,7 +207,6 @@ class TestScoreNUDGE:
 
     async def test_negative_delta_low_score(self):
         pool = MagicMock()
-        # pre_avg = 8.0, post_avg = 5.0 → delta=-3 → 5-6=-1→clamped to 0
         pool.fetch = AsyncMock(side_effect=[
             [{"final_composite_score": 8.0}, {"final_composite_score": 8.0}],
             [
@@ -238,7 +228,7 @@ class TestScoreNUDGE:
         pool = MagicMock()
         pool.fetch = AsyncMock(side_effect=[
             [{"final_composite_score": 5.0}],
-            [{"final_composite_score": 6.0}],  # only 1 post-sample, min is 3
+            [{"final_composite_score": 6.0}],
         ])
         with patch.object(S, "get_pool", new=AsyncMock(return_value=pool)):
             result = await S._score_nudge(
@@ -290,9 +280,6 @@ class TestScoreDispatch:
         assert result is None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Persistence
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestPersistScore:
@@ -310,9 +297,6 @@ class TestPersistScore:
         assert "outcome_score" in sql
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Full pass
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestScorePass:
@@ -383,9 +367,6 @@ class TestScorePass:
         persist.assert_not_awaited()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Loop control
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestRunScorerLoop:

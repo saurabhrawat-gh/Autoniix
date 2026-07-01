@@ -99,7 +99,6 @@ class E2EHarness:
                 ["docker-compose", "-f", str(COMPOSE_FILE), "up", "-d"],
                 check=True,
             )
-            # Wait for both services
             rust_ready = await self.rust.wait_healthy()
             python_ready = await self.python.wait_healthy()
             if not (rust_ready and python_ready):
@@ -116,7 +115,6 @@ class E2EHarness:
                 check=False,
             )
 
-    # ── Auth helpers ────────────────────────────────────────────────────────
 
     async def rust_register(
         self,
@@ -137,7 +135,6 @@ class E2EHarness:
             },
         )
 
-    # Backward-compat alias — /signup is a deprecated alias for /register in Rust.
     async def rust_signup(self, *args: Any, **kwargs: Any) -> httpx.Response:
         return await self.rust_register(*args, **kwargs)
 

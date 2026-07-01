@@ -53,8 +53,6 @@ impl<'a> AuditCtx<'a> {
 /// — never raised — so a write error to `audit_log_v2` can't bubble up and
 /// turn a successful 200 into a 500.
 pub async fn audit_log(pool: &PgPool, ctx: AuditCtx<'_>) {
-    // The JWT `sub` claim is a string; parse to bigint for the FK column.
-    // If it fails we still want to record the row, just with a NULL actor_id.
     let actor_user_id: Option<i64> = ctx.actor.user_id.parse().ok();
     let actor_label = if ctx.actor.email.is_empty() {
         "unknown".to_string()
@@ -62,8 +60,6 @@ pub async fn audit_log(pool: &PgPool, ctx: AuditCtx<'_>) {
         ctx.actor.email.clone()
     };
 
-    // Match Python's source detection: explicit `x-source: ui` header => "ui",
-    // anything else (including no header at all) => "api".
     let source = match ctx.headers.and_then(|h| h.get("x-source")) {
         Some(v) if v.to_str().map(|s| s == "ui").unwrap_or(false) => "ui",
         _ => "api",
@@ -74,9 +70,6 @@ pub async fn audit_log(pool: &PgPool, ctx: AuditCtx<'_>) {
         .and_then(|h| h.get("x-request-id"))
         .and_then(|v| v.to_str().ok())
         .map(str::to_owned);
-    // We don't have direct access to client IP at this layer; ConnectInfo would
-    // need to be threaded through. Skip for now — Python's helper also falls
-    // back to NULL when no request is in scope.
     let ip: Option<String> = None;
     let user_agent = ctx
         .headers

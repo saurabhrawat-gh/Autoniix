@@ -91,23 +91,21 @@ async def test_activity_never_raises_on_db_error(mock_pool):
     assert result == {}
 
 
-# Workflow signal handler / helper — tested without Temporal runtime by
-# constructing the workflow class directly.
 
 def test_check_brain_directive_noop_when_directive_empty():
     from src.temporal_workflows.video_production import VideoProductionWorkflow
     wf = VideoProductionWorkflow()
     wf._brain_directive = None
-    wf._check_brain_directive()  # must not raise
+    wf._check_brain_directive()
     wf._brain_directive = {}
-    wf._check_brain_directive()  # must not raise
+    wf._check_brain_directive()
 
 
 def test_check_brain_directive_noop_for_non_halting_actions():
     from src.temporal_workflows.video_production import VideoProductionWorkflow
     wf = VideoProductionWorkflow()
     wf._brain_directive = {"action": "ADVISE", "reasoning": "fyi"}
-    wf._check_brain_directive()  # must not raise
+    wf._check_brain_directive()
 
 
 def test_check_brain_directive_raises_application_error_on_halt():
@@ -117,8 +115,6 @@ def test_check_brain_directive_raises_application_error_on_halt():
 
     wf = VideoProductionWorkflow()
     wf._brain_directive = {"action": "HALT", "reasoning": "policy violation"}
-    # workflow.logger.warning() raises outside a Temporal event loop; replace
-    # it with a benign stub so the helper logic can be tested in isolation.
     with patch(
         "src.temporal_workflows.video_production.workflow.logger.warning",
         lambda *a, **k: None,

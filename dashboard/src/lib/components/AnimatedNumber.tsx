@@ -17,7 +17,7 @@ export function AnimatedNumber({
   decimals = 2,
   prefix = '',
   suffix = '',
-  duration = 0.15, // kept for API compat; spring physics are used instead
+  duration = 0.15,
   className,
 }: AnimatedNumberProps) {
   const reduce = useReducedMotion();

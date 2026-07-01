@@ -46,8 +46,6 @@ const SEGMENT_LABELS: Record<string, string> = {
   onboarding: 'Onboarding',
 };
 
-// Maps the first segment after /dashboard to the pillar it belongs to.
-// Top-level pages (Home, Notifications) are not pillared.
 const SEGMENT_TO_PILLAR: Record<string, string> = {
   channels: 'Create',
   content: 'Create',
@@ -97,7 +95,6 @@ export function PageBreadcrumb() {
   if (segs.length === 0 || segs[0] !== 'dashboard') return null;
 
   const sub = segs.slice(1);
-  // Build the chain that follows "Workspace ›".
   type Crumb = { label: string; href?: string };
   const chain: Crumb[] = [];
 
@@ -107,7 +104,6 @@ export function PageBreadcrumb() {
     const firstSeg = sub[0];
     const pillar = SEGMENT_TO_PILLAR[firstSeg];
     if (pillar) {
-      // Pillar label is purely contextual — not a route.
       chain.push({ label: pillar });
     }
     let href = '/dashboard';

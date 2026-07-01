@@ -7,8 +7,8 @@ import { AbsoluteFill } from "remotion";
  */
 export interface TiltShiftProps {
   blurPx?: number;
-  focusHeightPct?: number; // height of in-focus band in % of comp height
-  focusCenterPct?: number; // vertical center of the focus band (0..100)
+  focusHeightPct?: number;
+  focusCenterPct?: number;
 }
 
 export const TiltShift: React.FC<TiltShiftProps> = ({

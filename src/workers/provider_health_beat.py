@@ -27,9 +27,6 @@ from typing import Any
 from temporalio import activity, workflow
 from temporalio.exceptions import ApplicationError
 
-# Imports below are not deterministic (structlog -> rich.style calls
-# random.getrandbits at module load). Pass them through so the Temporal
-# workflow sandbox does not try to validate them.
 with workflow.unsafe.imports_passed_through():
     import structlog
 
@@ -41,9 +38,6 @@ logger = structlog.get_logger()
 HEALTH_PUBSUB_CHANNEL = "provider:health:changed"
 
 
-# ---------------------------------------------------------------------------
-# Redis pub/sub helper
-# ---------------------------------------------------------------------------
 
 async def publish_health_change(
     credential_id: int,
@@ -73,9 +67,6 @@ async def publish_health_change(
         logger.warning("provider.health.publish_failed", error=str(exc))
 
 
-# ---------------------------------------------------------------------------
-# Per-credential health check helper (shared with the /test endpoint)
-# ---------------------------------------------------------------------------
 
 async def _run_one_credential_check(
     credential_id: int,
@@ -117,9 +108,6 @@ async def _run_one_credential_check(
     return ok, error, latency_ms
 
 
-# ---------------------------------------------------------------------------
-# Temporal activity
-# ---------------------------------------------------------------------------
 
 @activity.defn
 async def check_all_provider_health() -> dict[str, Any]:
@@ -153,16 +141,13 @@ async def check_all_provider_health() -> dict[str, Any]:
 
         results[str(cred_id)] = ok
 
-        # Emit metrics
         if not ok:
             PROVIDER_HEALTH_UNHEALTHY.labels(category=category).inc()
 
-        # Read previous status before writing so we can detect changes
         prev_ok = await pool.fetchval(
             "SELECT last_health_ok FROM provider_credentials WHERE id=$1", cred_id
         )
 
-        # Write result
         await pool.execute(
             """UPDATE provider_credentials
                   SET last_health_ok=$1, last_health_at=NOW(), last_latency_ms=$2
@@ -175,7 +160,6 @@ async def check_all_provider_health() -> dict[str, Any]:
             cred_id, ok, latency_ms, error,
         )
 
-        # Collect status changes for pub/sub
         if prev_ok != ok:
             changed.append({
                 "credential_id": cred_id,
@@ -191,7 +175,6 @@ async def check_all_provider_health() -> dict[str, Any]:
                 now=ok,
             )
 
-    # Publish all changes concurrently (best-effort)
     if changed:
         await asyncio.gather(
             *(
@@ -218,9 +201,6 @@ async def check_all_provider_health() -> dict[str, Any]:
     return {"total": total, "healthy": healthy, "unhealthy": total - healthy, "results": results}
 
 
-# ---------------------------------------------------------------------------
-# Temporal workflow
-# ---------------------------------------------------------------------------
 
 @workflow.defn
 class HealthBeatWorkflow:

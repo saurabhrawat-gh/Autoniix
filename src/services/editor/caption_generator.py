@@ -17,7 +17,6 @@ import structlog
 
 logger = structlog.get_logger()
 
-# Caption style templates
 CAPTION_STYLES: dict[str, dict] = {
     "word_highlight": {
         "animation": "highlight",
@@ -81,12 +80,10 @@ def generate_captions(direction_v3: dict, caption_style: str = "word_highlight")
         if not emphasis_words:
             emphasis_words = seg.get("text_strategy", {}).get("emphasis_words", [])
 
-        # Generate word timings
         words = text.split()
         if not words:
             continue
 
-        # Calculate per-word duration (evenly distributed with emphasis boost)
         word_duration_ms = duration_ms / len(words)
         word_timings = []
         current_ms = start_ms
@@ -95,7 +92,6 @@ def generate_captions(direction_v3: dict, caption_style: str = "word_highlight")
             clean_word = re.sub(r'[^\w\'-]', '', word)
             is_emphasis = clean_word.lower() in [w.lower() for w in emphasis_words]
 
-            # Emphasis words get slightly longer display
             this_duration = word_duration_ms * 1.3 if is_emphasis else word_duration_ms
 
             word_timings.append({
@@ -104,10 +100,9 @@ def generate_captions(direction_v3: dict, caption_style: str = "word_highlight")
                 "end_ms": round(current_ms + this_duration),
                 "is_emphasis": is_emphasis,
             })
-            current_ms += word_duration_ms  # Advance by base duration (overlap for emphasis)
+            current_ms += word_duration_ms
             total_words += 1
 
-        # Group words into lines
         lines = []
         max_per_line = style.get("max_words_per_line", 6)
         for i in range(0, len(word_timings), max_per_line):
@@ -142,7 +137,6 @@ def generate_audio_mix_config(direction_v3: dict, duck_db: float = -12) -> dict:
     segments = direction_v3.get("segments", [])
     audio_master = direction_v3.get("audio_master", {})
 
-    # Determine ducking points
     duck_regions = []
     for seg in segments:
         narration = seg.get("narration", {})
@@ -155,7 +149,6 @@ def generate_audio_mix_config(direction_v3: dict, duck_db: float = -12) -> dict:
                 "transition_ms": 200,
             })
 
-    # SFX placement
     sfx_placements = []
     for seg in segments:
         audio_cues = seg.get("audio_cues", {})

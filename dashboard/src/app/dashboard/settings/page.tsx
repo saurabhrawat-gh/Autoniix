@@ -23,7 +23,6 @@ import {
   DialogCloseButton, DialogTitle, DialogDescription,
 } from '@/lib/ui';
 
-// ── system_config helpers ─────────────────────────────────────────────────
 
 const FRIENDLY_LABELS: Record<string, string> = {
   dashboard_admin_password: 'Admin Password',
@@ -64,7 +63,6 @@ function isJsonObject(val: string): boolean {
   return t.startsWith('{') && t.endsWith('}');
 }
 
-// ── entity_settings schema ─────────────────────────────────────────────────
 
 type SettingSchema = {
   label: string;
@@ -148,7 +146,6 @@ export default function SettingsPage() {
   const router = useRouter();
   const { showToast } = useToast();
 
-  // ── system_config state ────────────────────────────────────────────────
   const [configs, setConfigs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [configError, setConfigError] = useState<string | null>(null);
@@ -162,7 +159,6 @@ export default function SettingsPage() {
   const [cleanSlateInput, setCleanSlateInput] = useState('');
   const [cleanSlateRunning, setCleanSlateRunning] = useState(false);
 
-  // ── entity_settings state ──────────────────────────────────────────────
   const [entityMap, setEntityMap] = useState<Record<string, { value: unknown; locked: boolean }>>({});
   const [entityEdits, setEntityEdits] = useState<Record<string, unknown>>({});
   const [entityLocked, setEntityLocked] = useState<Record<string, boolean>>({});
@@ -269,7 +265,6 @@ export default function SettingsPage() {
     }
   }
 
-  // ── entity_settings helpers ────────────────────────────────────────────
   function esVal(key: string): unknown {
     return key in entityEdits ? entityEdits[key] : (entityMap[key]?.value ?? null);
   }
@@ -651,7 +646,6 @@ function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
   const isJson = isJsonObject(cfg.value);
   const isArr = isJsonArray(cfg.value);
 
-  // Display value
   let displayValue = cfg.value || '—';
   if (sensitive && !isEditing) displayValue = '••••••••';
   if (isJson && !isEditing) {
@@ -807,7 +801,6 @@ function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
   );
 }
 
-// Display Preferences card — theme + density
 function DisplayPreferences() {
   const { theme, setTheme } = useTheme();
   const { density, setDensity } = useAppState();

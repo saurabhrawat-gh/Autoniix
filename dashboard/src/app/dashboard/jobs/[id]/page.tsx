@@ -39,7 +39,6 @@ export default function JobDetailPage() {
     if (p) setProgress(p.data);
     if (o) {
       setOutput(o.data);
-      // Check if already approved/rejected
       if (o.data?.status === 'rejected') setReviewAction('rejected');
     }
     if (m) setMetadata(m.data);

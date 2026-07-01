@@ -35,7 +35,6 @@ class SecretBackend(Protocol):
     def health(self) -> bool: ...
 
 
-# Env backend
 class EnvBackend:
     """Reads ``{PROVIDER}_{KEY}`` from process env (uppercased).
 
@@ -54,14 +53,12 @@ class EnvBackend:
         return None
 
     def put(self, path: str, key: str, value: str) -> None:
-        # Env is read-only for our purposes.
         raise NotImplementedError("EnvBackend is read-only")
 
     def health(self) -> bool:
         return True
 
 
-# Vault backend (KV v2)
 class VaultBackend:
     name = "vault"
 
@@ -108,7 +105,6 @@ class VaultBackend:
             return False
 
 
-# DB backend (Fernet-encrypted, in-postgres)
 class DBBackend:
     """Self-hosted secret store: AES-GCM/Fernet ciphertext in postgres.
 
@@ -122,7 +118,6 @@ class DBBackend:
     """
     name = "db"
 
-    # Cache the Fernet cipher per-process. The migration is idempotent.
     _cipher = None  # type: ignore[var-annotated]
     _bootstrapped = False
 
@@ -246,7 +241,6 @@ class DBBackend:
             return False
 
 
-# Infisical backend
 class InfisicalBackend:
     name = "infisical"
 
@@ -294,16 +288,12 @@ class InfisicalBackend:
             return None
 
     def put(self, path: str, key: str, value: str) -> None:
-        # Implementation kept thin; UI-driven writes typically go through
-        # Infisical's own API or admin scripts. Left as a no-op placeholder.
         raise NotImplementedError("Use Infisical UI/API for writes")
 
     def health(self) -> bool:
-        # The SDK doesn't expose a ping — trust the client init.
         return True
 
 
-# Resolver
 @lru_cache(maxsize=1)
 def _backends() -> list[SecretBackend]:
     primary = os.getenv("SECRETS_BACKEND", "env").strip().lower()

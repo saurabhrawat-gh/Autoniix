@@ -122,7 +122,6 @@ def _parse_response(payload: dict) -> tuple[str, list[str]]:
     try:
         parsed = json.loads(content)
     except json.JSONDecodeError:
-        # Sometimes vision wraps JSON in prose; salvage anything we can.
         m = re.search(r"\{.*\}", content, re.DOTALL)
         if not m:
             return "", []

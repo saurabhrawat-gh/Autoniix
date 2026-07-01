@@ -33,8 +33,6 @@ from pydantic import BaseModel, Field
 
 ModelKind = Literal["rife", "scunet", "real-esrgan", "ddcolor"]
 
-# Model versions are part of the cache key so a model bump invalidates
-# stale outputs. Bump these strings whenever the underlying weights change.
 MODEL_VERSIONS: Dict[ModelKind, str] = {
     "rife": "rife-v4.13",
     "scunet": "scunet-color-real_psnr",
@@ -45,9 +43,6 @@ MODEL_VERSIONS: Dict[ModelKind, str] = {
 OUTPUT_BUCKET_URL = os.environ.get("MODEL_OUTPUT_BUCKET_URL", "http://minio:9000/derived")
 
 
-# ---------------------------------------------------------------------- #
-# Schemas                                                                #
-# ---------------------------------------------------------------------- #
 
 
 class JobRequest(BaseModel):
@@ -66,9 +61,6 @@ class JobResponse(BaseModel):
     progress: Optional[float] = None
 
 
-# ---------------------------------------------------------------------- #
-# In-process job table (replace with Redis stream for HA)                #
-# ---------------------------------------------------------------------- #
 
 
 @dataclass
@@ -86,7 +78,7 @@ class _Job:
 
 
 _jobs: Dict[str, _Job] = {}
-_cache: Dict[str, _Job] = {}  # cache_key → completed _Job
+_cache: Dict[str, _Job] = {}
 
 
 def _compute_cache_key(req: JobRequest) -> str:
@@ -100,9 +92,6 @@ def _compute_cache_key(req: JobRequest) -> str:
     return hashlib.sha256(blob).hexdigest()
 
 
-# ---------------------------------------------------------------------- #
-# Stub model runners (replace with real GPU code)                        #
-# ---------------------------------------------------------------------- #
 
 
 async def _run_stub(kind: ModelKind, req: JobRequest) -> tuple[str, str]:
@@ -115,7 +104,6 @@ async def _run_stub(kind: ModelKind, req: JobRequest) -> tuple[str, str]:
       3. Hash the output, upload it to MinIO at derived/<sha>.mp4.
       4. Return the public URL + sha.
     """
-    # Simulate work proportional to "kind" so progress events look real.
     durations = {"rife": 4.0, "scunet": 2.5, "real-esrgan": 3.5, "ddcolor": 5.0}
     await asyncio.sleep(durations.get(kind, 2.0))
     pseudo_sha = hashlib.sha256(
@@ -138,9 +126,6 @@ async def _process_job(job: _Job) -> None:
         job.error = str(e)
 
 
-# ---------------------------------------------------------------------- #
-# FastAPI app                                                             #
-# ---------------------------------------------------------------------- #
 
 
 app = FastAPI(title="model-server", version="0.1.0")
@@ -156,7 +141,6 @@ async def submit_job(req: JobRequest) -> JobResponse:
     cache_key = _compute_cache_key(req)
     cached = _cache.get(cache_key)
     if cached:
-        # Cache hit — return terminal state synchronously.
         return JobResponse(
             jobId=cached.job_id,
             status=cached.status,  # type: ignore[arg-type]

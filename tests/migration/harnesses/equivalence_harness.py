@@ -21,16 +21,12 @@ import structlog
 
 logger = structlog.get_logger()
 
-# Fields that must match between Python and Rust REGISTER responses
-# (post-#350: register returns onboarding metadata only, no tokens)
 REGISTER_FIELDS_TO_COMPARE = [
     "status",
     "role",
     "onboarding_required",
 ]
-# Fields that must match between Python and Rust SIGNIN responses
 SIGNIN_FIELDS_TO_COMPARE = ["access_token", "refresh_token", "user"]
-# Fields allowed to differ across services (instance-specific values)
 AUTH_FIELDS_IGNORE = [
     "expires_in",
     "token_type",
@@ -92,7 +88,6 @@ class EquivalenceHarness:
     def close(self) -> None:
         self.client.close()
 
-    # ── Helpers ────────────────────────────────────────────────────────────
 
     @staticmethod
     def unique_email(label: str = "equiv") -> str:
@@ -110,14 +105,11 @@ class EquivalenceHarness:
             r = self.client.get(f"{url}/health", timeout=3.0)
             if r.status_code >= 500:
                 return False
-            # Verify it's JSON (Temporal UI returns HTML)
             content_type = r.headers.get("content-type", "")
             if "html" in content_type:
                 return False
-            # Try parsing as JSON
             try:
                 body = r.json()
-                # Rust gateway health returns JSON with status field
                 if expected == "rust" and isinstance(body, dict):
                     return "status" in body or "ok" in str(body).lower()
                 if expected == "python" and isinstance(body, dict):
@@ -156,11 +148,9 @@ class EquivalenceHarness:
             py_val = python_body.get(field_name)
             rs_val = rust_body.get(field_name)
 
-            # Both missing = OK
             if py_val is None and rs_val is None:
                 continue
 
-            # One missing = mismatch
             if py_val is None or rs_val is None:
                 mismatches.append(
                     f"Field '{field_name}': Python={'present' if py_val else 'missing'} "
@@ -169,14 +159,12 @@ class EquivalenceHarness:
                 body_match = False
                 continue
 
-            # For token fields, just check presence (values will always differ)
             if field_name in ("access_token", "refresh_token"):
                 if not py_val or not rs_val:
                     mismatches.append(f"Field '{field_name}': one or both values empty")
                     body_match = False
                 continue
 
-            # For nested objects, compare key sets
             if isinstance(py_val, dict) and isinstance(rs_val, dict):
                 py_keys = set(py_val.keys())
                 rs_keys = set(rs_val.keys())
@@ -194,7 +182,6 @@ class EquivalenceHarness:
                     body_match = False
                 continue
 
-            # Direct comparison
             if py_val != rs_val:
                 mismatches.append(
                     f"Field '{field_name}': Python={py_val!r} vs Rust={rs_val!r}"
@@ -213,7 +200,6 @@ class EquivalenceHarness:
             mismatches=mismatches,
         )
 
-    # ── Auth endpoint comparisons ──────────────────────────────────────────
 
     def compare_register(
         self,
@@ -253,7 +239,6 @@ class EquivalenceHarness:
             endpoint="register",
         )
 
-    # Backward-compat alias: callers using the old method name still work.
     def compare_signup(self, *args: Any, **kwargs: Any) -> ComparisonResult:
         return self.compare_register(*args, **kwargs)
 
@@ -285,8 +270,6 @@ class EquivalenceHarness:
         python_resp = self.client.get(f"{self.python_url}/api/v2/auth/me", headers=headers)
         rust_resp = self.client.get(f"{self.rust_url}/api/v2/me", headers=headers)
 
-        # Both services wrap the payload in a top-level `data` object; comparing
-        # `data` triggers the nested key-set comparison in `_compare`.
         return self._compare(
             python_resp,
             rust_resp,
@@ -312,7 +295,6 @@ class EquivalenceHarness:
             endpoint="refresh",
         )
 
-    # ── Generic endpoint comparison ─────────────────────────────────────────
 
     def compare_endpoint(
         self,

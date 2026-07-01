@@ -12,16 +12,11 @@ from src.providers.registry import ProviderRegistry
 logger = structlog.get_logger()
 
 PRICING: dict[str, dict[str, float]] = {
-    # Claude 3.5 Sonnet family (current flagship)
     "claude-3-5-sonnet-20241022": {"input": 3.00 / 1_000_000, "output": 15.00 / 1_000_000},
     "claude-3-5-sonnet-20240620": {"input": 3.00 / 1_000_000, "output": 15.00 / 1_000_000},
-    # Claude 3.5 Haiku family (fast, budget)
     "claude-3-5-haiku-20241022": {"input": 0.80 / 1_000_000, "output": 4.00 / 1_000_000},
-    # Claude 3 Opus family (previous top model)
     "claude-3-opus-20240229": {"input": 15.00 / 1_000_000, "output": 75.00 / 1_000_000},
-    # Claude 3 Sonnet family (balanced)
     "claude-3-sonnet-20240229": {"input": 3.00 / 1_000_000, "output": 15.00 / 1_000_000},
-    # Claude 3 Haiku family (fast, budget)
     "claude-3-haiku-20240307": {"input": 0.25 / 1_000_000, "output": 1.25 / 1_000_000},
 }
 
@@ -39,15 +34,12 @@ class ClaudeLLM(LLMProvider):
         model = request.model or self.default_model()
         start = time.monotonic()
 
-        # Separate system from user/assistant messages.
-        # Preserve cache_control markers for Anthropic prompt caching.
         system_text = ""
         system_cache_control = None
         messages = []
         for msg in request.messages:
             if msg["role"] == "system":
                 system_text = msg["content"]
-                # Propagate cache_control if the compressor added it.
                 if "cache_control" in msg:
                     system_cache_control = msg["cache_control"]
             else:
@@ -56,7 +48,6 @@ class ClaudeLLM(LLMProvider):
                     entry["cache_control"] = msg["cache_control"]
                 messages.append(entry)
 
-        # Ensure alternating user/assistant (Claude requirement)
         if not messages or messages[0]["role"] != "user":
             messages.insert(0, {"role": "user", "content": "Please proceed."})
 
@@ -86,25 +77,20 @@ class ClaudeLLM(LLMProvider):
             response.raise_for_status()
             data = response.json()
 
-        # Extract content
         content_blocks = data.get("content", [])
         content = "".join(b.get("text", "") for b in content_blocks if b.get("type") == "text")
 
-        # Extract usage — account for prompt caching discount.
-        # Cache reads are billed at 10% of normal input price.
         usage = data.get("usage", {})
         tokens_in = usage.get("input_tokens", 0)
         tokens_out = usage.get("output_tokens", 0)
         cache_read = usage.get("cache_read_input_tokens", 0)
         cache_create = usage.get("cache_creation_input_tokens", 0)
-        # Non-cached input = total input - cached reads - cache writes
-        # (cache writes are billed at full price, reads at 10%)
         non_cached_in = tokens_in - cache_read - cache_create
         pricing = PRICING.get(model, PRICING["claude-3-5-sonnet-20241022"])
         cost = (
             non_cached_in * pricing["input"]
             + cache_create * pricing["input"]
-            + cache_read * pricing["input"] * 0.10  # 90% discount on cache reads
+            + cache_read * pricing["input"] * 0.10
             + tokens_out * pricing["output"]
         )
         latency = int((time.monotonic() - start) * 1000)
@@ -146,7 +132,6 @@ class ClaudeLLM(LLMProvider):
                         "anthropic-version": self.API_VERSION,
                     },
                 )
-                # 405 Method Not Allowed means the API is up
                 return resp.status_code in (200, 405)
         except Exception:
             return False

@@ -6,8 +6,8 @@ import { AbsoluteFill } from "remotion";
  */
 export interface GlowProps {
   color?: string;
-  intensity?: number; // 0..1
-  spreadPct?: number; // 0..100
+  intensity?: number;
+  spreadPct?: number;
 }
 
 export const Glow: React.FC<GlowProps> = ({

@@ -35,29 +35,15 @@ import structlog
 logger = structlog.get_logger()
 
 
-# Tunables
 
 
-# How many recent picks per (channel, bandit_type) to consider when
-# scoring diversity. 20 is a good balance: small enough to react to
-# recent collapse within a couple of weeks, large enough not to be
-# noise-dominated.
 DEFAULT_LOOKBACK_N = 20
 
-# Entropy below this triggers forced exploration. 0.55 was picked so
-# that with 5 arms, picking one arm 14/20 times (entropy ≈ 0.50) fires
-# the floor, while picking each of 3 arms a few times (entropy ≈ 0.65)
-# does not. Tunable per (channel, bandit_type) later if needed; for
-# now one global value keeps the system legible.
 DIVERSITY_THRESHOLD = 0.55
 
-# We need at least this many recent picks before we trust the entropy
-# computation. Below this we *never* force exploration — early in a
-# channel's life we want Thompson to converge fast.
 MIN_PICKS_FOR_GUARD = 8
 
 
-# Pure-function core
 
 
 def shannon_entropy(counts: Iterable[int]) -> float:
@@ -127,15 +113,12 @@ def pick_least_pulled(
     if not arms:
         return None
 
-    # Map any arm not in history to count=0 so untried arms are
-    # *always* the least-pulled choice — exactly what we want.
     def _key(arm: str) -> tuple[int, str]:
         return (arm_counts.get(arm, 0), arm)
 
     return min(arms, key=_key)
 
 
-# DB layer
 
 
 async def log_bandit_pick(

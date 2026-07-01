@@ -62,7 +62,6 @@ async def main() -> None:
         task_queue="video-production",
         workflows=[VideoProductionWorkflow],
         activities=[
-            # Pipeline activities (in order)
             research_activity,
             script_activity,
             title_activity,
@@ -79,9 +78,7 @@ async def main() -> None:
             analytics_activity,
             brand_activity,
             editor_activity,
-            # Agentic foundation (AE-511 / P0)
             brain_directive_check_activity,
-            # Infrastructure activities
             update_video_status,
             emit_job_event,
             release_channel_lock,

@@ -27,7 +27,6 @@ from src.observability.metrics import instrument_app
 logger = structlog.get_logger()
 
 
-# Request Models
 
 class DirectionRequest(BaseModel):
     content_id: str
@@ -41,7 +40,6 @@ class DirectionRequest(BaseModel):
     music_data: dict = Field(default_factory=dict)
 
 
-# Helpers
 
 def _safe_format(template: str, **kwargs) -> str:
     """Replace {key} placeholders without failing on unknown/literal braces."""
@@ -83,7 +81,6 @@ async def _log_usage(content_id: str, service: str, provider: str, model: str,
         logger.warning("direction.db_log_failed", error=str(e))
 
 
-# App
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -123,7 +120,6 @@ async def generate_direction(req: DirectionRequest):
         brand_primary = channel.get("primary_color", "#1A237E")
         brand_accent = channel.get("accent_color", "#FF6F00")
 
-        # Intelligence: Try script v3 direction hint first
         use_hint_cfg = await _load_config("direction_use_script_v3_hint")
         use_hint = use_hint_cfg != "false"
         llm_enhance_cfg = await _load_config("direction_llm_enhance_enabled")
@@ -138,7 +134,6 @@ async def generate_direction(req: DirectionRequest):
                 script_v3_hint["segments"].append(seg.get("direction_hint", {}))
 
         if use_hint and script_v3_hint.get("segments"):
-            # Try to build direction from script v3 hints (cost: $0.00)
             merged = merge_script_direction_with_assets(
                 script_v3_hint, req.script_segments,
                 req.voice_manifest, req.asset_manifest,
@@ -149,7 +144,6 @@ async def generate_direction(req: DirectionRequest):
                 merged_score = merged_qc.get("score", 0)
 
                 if merged_score >= 7.0 and not llm_enhance:
-                    # Merged direction is good enough, skip LLM entirely
                     merged["direction_score"] = merged_score
                     merged["direction_issues"] = merged_qc.get("issues", [])
                     merged["meta"]["video_id"] = req.content_id
@@ -185,16 +179,13 @@ async def generate_direction(req: DirectionRequest):
                         cost={"cost_usd": 0, "provider": "local"},
                     )
 
-        # Build asset lookup
         asset_lookup = {}
         for item in req.asset_manifest:
             seg_id = item.get("segment_id", "")
             asset_lookup[seg_id] = item
 
-        # Build voice segment lookup
         segment_urls = req.voice_manifest.get("segment_urls", {})
 
-        # Step 1: GPT Direction for each segment
         prompt = await _load_prompt("PRM_B4_DIRECTION")
         direction_llm = ProviderRegistry.get("llm.direction")
 
@@ -249,7 +240,6 @@ async def generate_direction(req: DirectionRequest):
         except json.JSONDecodeError:
             gpt_segments = []
 
-        # Step 2: Build Remotion Direction v3
         gpt_lookup = {s.get("id"): s for s in gpt_segments}
         remotion_segments = []
         cumulative_ms = 0
@@ -262,19 +252,15 @@ async def generate_direction(req: DirectionRequest):
             text_overlay = seg.get("text_overlay", "")
             transition = seg.get("transition", "cut")
 
-            # Get GPT direction for this segment
             gpt_dir = gpt_lookup.get(seg_id, {})
 
-            # Get asset for this segment
             seg_asset = asset_lookup.get(seg_id, {})
             assets = seg_asset.get("assets", [])
             bg_url = assets[0]["url"] if assets else ""
             asset_type = seg_asset.get("type", "none")
 
-            # Get voice audio for this segment
             voice_url = segment_urls.get(seg_id, "")
 
-            # Determine scene preset from GPT or fallback
             scene_preset = gpt_dir.get("scene_preset", "")
             if not scene_preset:
                 if asset_type == "stock_video":
@@ -284,7 +270,6 @@ async def generate_direction(req: DirectionRequest):
                 else:
                     scene_preset = "scene.kinetic_typography"
 
-            # Extract rich direction fields from GPT output
             gpt_camera = gpt_dir.get("camera", {})
             gpt_text_strategy = gpt_dir.get("text_strategy", {})
             gpt_bg_strategy = gpt_dir.get("background_strategy", {})
@@ -292,7 +277,6 @@ async def generate_direction(req: DirectionRequest):
             gpt_audio_cues = gpt_dir.get("audio_cues", {})
             gpt_transition = gpt_dir.get("transition_in", {})
 
-            # Script-level emphasis_words and emotion
             script_emphasis = seg.get("emphasis_words", [])
             script_emotion = seg.get("emotion", "")
 
@@ -393,24 +377,20 @@ async def generate_direction(req: DirectionRequest):
             "segments": remotion_segments,
         }
 
-        # Step 3: Direction QC (enhanced)
         direction_score = 10.0
         issues = []
 
-        # Check backgrounds
         missing_bg = sum(1 for s in remotion_segments if not s.get("scene_overrides", {}).get("background_url"))
         if missing_bg > 0:
             penalty = min(2.0, missing_bg * 0.5)
             direction_score -= penalty
             issues.append(f"{missing_bg} segments missing background visuals")
 
-        # Check text_strategy completeness
         missing_text = sum(1 for s in remotion_segments if not s.get("text_strategy", {}).get("primary_text"))
         if missing_text > 0:
             direction_score -= missing_text * 0.3
             issues.append(f"{missing_text} segments missing text_strategy")
 
-        # Check emphasis_words
         missing_emphasis = sum(1 for s in remotion_segments
                                if not s.get("scene_overrides", {}).get("emphasis_words")
                                and not s.get("text_strategy", {}).get("emphasis_words"))
@@ -418,26 +398,22 @@ async def generate_direction(req: DirectionRequest):
             direction_score -= missing_emphasis * 0.2
             issues.append(f"{missing_emphasis} segments missing emphasis_words")
 
-        # Check camera movement (should not all be static)
         all_static = all(s.get("camera", {}).get("type", "static") == "static" for s in remotion_segments)
         if all_static and len(remotion_segments) > 2:
             direction_score -= 1.0
             issues.append("All segments use static camera — needs visual variety")
 
-        # Check motion_design
         no_motion = sum(1 for s in remotion_segments if not s.get("motion_design", {}).get("elements"))
         if no_motion > len(remotion_segments) * 0.5:
             direction_score -= 0.5
             issues.append(f"{no_motion} segments have no motion_design elements")
 
-        # Check consecutive scene_preset repetition
         presets = [s.get("scene_preset", "") for s in remotion_segments]
         consecutive_repeats = sum(1 for i in range(1, len(presets)) if presets[i] == presets[i-1])
         if consecutive_repeats > 0:
             direction_score -= consecutive_repeats * 0.3
             issues.append(f"{consecutive_repeats} consecutive scene_preset repeats")
 
-        # Duration check
         if total_duration_s < 10:
             direction_score -= 0.5
             issues.append("Very short total duration")
@@ -447,12 +423,10 @@ async def generate_direction(req: DirectionRequest):
         direction_v3["direction_score"] = round(direction_score, 1)
         direction_v3["direction_issues"] = issues
 
-        # Intelligence: Store direction features for learning
         await store_direction_features(
             req.content_id, req.channel_id, direction_v3,
             used_hint=False, llm_tokens=result.tokens_in + result.tokens_out)
 
-        # Step 4: Store in DB
         try:
             pool = await get_pool()
             await pool.execute(

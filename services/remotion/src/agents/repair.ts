@@ -47,7 +47,6 @@ export class RepairAgent implements Agent<RepairInput, RepairOutput> {
     const t0 = Date.now();
     const { graph, report } = input;
 
-    // Index clips by id for fast lookup.
     const clipIndex = indexSceneClips(graph);
 
     const ops: PatchOp[] = [];
@@ -142,13 +141,11 @@ function ruleForFlag(
         clipId: target.clip.id,
         props: {
           ...(target.clip.sceneOverrides ?? {}),
-          // Renderer interprets this as "render a 3-frame crossfade in".
           repairCrossfadeInFrames: 3,
         },
       };
 
     case "color_drift":
-      // Re-apply baseline grade preset.
       return { op: "setGradePreset", preset: graph.gradePreset };
 
     case "asset_mismatch":

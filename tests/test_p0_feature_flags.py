@@ -50,7 +50,6 @@ async def test_get_flag_caches_value_within_ttl(mock_pool):
     await get_flag("x.flag")
     await get_flag("x.flag")
     await get_flag("x.flag")
-    # Only one DB hit despite three reads — cache is working.
     assert mock_pool.fetchrow.await_count == 1
 
 

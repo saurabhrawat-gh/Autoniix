@@ -36,7 +36,6 @@ async fn test_auth_mode_is_public() {
         .await
         .unwrap();
 
-    // Public endpoint — no auth required.
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
@@ -81,7 +80,6 @@ async fn test_register_then_sign_in() {
         .unwrap();
     let register_response: Value = serde_json::from_slice(&body).unwrap();
 
-    // #350: register returns onboarding metadata, NOT tokens
     assert_eq!(register_response["status"], "ok");
     assert!(register_response["user_id"].is_i64(), "must return user_id");
     assert!(
@@ -156,7 +154,6 @@ async fn test_forgot_password_is_public() {
         .await
         .unwrap();
 
-    // Always returns 200 — never leaks whether email exists.
     assert_eq!(response.status(), StatusCode::OK);
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await

@@ -19,10 +19,9 @@ from src.redis_client import get_redis
 
 logger = structlog.get_logger()
 
-CACHE_TTL = 3600 * 12  # 12 hours
+CACHE_TTL = 3600 * 12
 
 
-# YouTube Data API Helpers
 
 async def _yt_get(endpoint: str, params: dict) -> dict:
     """Make a YouTube Data API GET request with caching."""
@@ -78,7 +77,6 @@ async def _get_recent_videos(channel_id: str, max_results: int = 20) -> list[dic
     if not video_ids:
         return []
 
-    # Get full stats
     stats_data = await _yt_get("videos", {
         "part": "statistics,contentDetails,snippet",
         "id": ",".join(video_ids),
@@ -88,7 +86,6 @@ async def _get_recent_videos(channel_id: str, max_results: int = 20) -> list[dic
     for v in stats_data.get("items", []):
         stats = v.get("statistics", {})
         snippet = v.get("snippet", {})
-        # Parse duration ISO 8601
         dur_str = v.get("contentDetails", {}).get("duration", "PT0S")
         duration_s = _parse_iso_duration(dur_str)
 
@@ -116,7 +113,6 @@ def _parse_iso_duration(dur: str) -> int:
     return h * 3600 + m * 60 + s
 
 
-# Outlier Detection
 
 def detect_outliers(videos: list[dict], channel_avg_views: int) -> list[dict]:
     """Flag videos that significantly outperform the channel's average.
@@ -149,7 +145,6 @@ def compute_view_velocity(videos: list[dict]) -> list[dict]:
     return videos
 
 
-# Store Results
 
 async def _store_competitor_channel(our_channel_id: str, comp: dict) -> None:
     pool = await get_pool()
@@ -193,14 +188,10 @@ async def _store_competitor_videos(niche: str, videos: list[dict], competitor_yt
 
     pool = await get_pool()
 
-    # Batch encode all titles in one model call.
     embeddings: list[list[float] | None] = [None] * len(videos)
     try:
         from src.services.research.similarity import compute_embeddings_batch
         titles = [(v.get("title") or "").strip() for v in videos]
-        # Filter out empties — they'd waste model time and produce
-        # near-meaningless vectors. Track positions so we can splice
-        # results back into the right slots.
         idx_with_text = [(i, t) for i, t in enumerate(titles) if t]
         if idx_with_text:
             non_empty = [t for _, t in idx_with_text]
@@ -208,18 +199,12 @@ async def _store_competitor_videos(niche: str, videos: list[dict], competitor_yt
             for (orig_idx, _), vec in zip(idx_with_text, vecs):
                 embeddings[orig_idx] = vec
     except Exception as exc:
-        # Model load failure / OOM / unrelated import error. Log once
-        # at the batch level — don't poison every row's log.
         logger.warning("competitor.embed_batch_failed",
                        count=len(videos), error=str(exc))
 
     stored = 0
     for v, emb in zip(videos, embeddings):
         try:
-            # pgvector accepts the literal string form '[v1,v2,...]' or
-            # a list when the asyncpg type codec is registered. asyncpg
-            # without the codec needs the string form, so we always
-            # encode that way for portability.
             emb_param = (
                 "[" + ",".join(f"{x:.6f}" for x in emb) + "]"
                 if emb is not None else None
@@ -261,7 +246,6 @@ async def _store_competitor_videos(niche: str, videos: list[dict], competitor_yt
     return stored
 
 
-# Niche-Wide Outlier Search
 
 async def _search_niche_outliers(niche: str) -> list[dict]:
     """Find viral videos in the niche from any channel (including small ones)."""
@@ -287,7 +271,6 @@ async def _search_niche_outliers(niche: str) -> list[dict]:
         "id": ",".join(video_ids),
     })
 
-    # Get channel stats for all unique channels
     channel_ids = list({v["snippet"]["channelId"] for v in stats_data.get("items", [])})
     channel_stats = await _get_channel_stats(channel_ids)
 
@@ -300,7 +283,6 @@ async def _search_niche_outliers(niche: str) -> list[dict]:
         ch_avg = ch.get("view_count", 0) / max(ch.get("video_count", 1), 1)
         subs = ch.get("subscriber_count", 0)
 
-        # Small channel with big video = outlier signal
         if subs < 50000 and views > ch_avg * 5:
             outliers.append({
                 "video_id": v["id"],
@@ -316,7 +298,6 @@ async def _search_niche_outliers(niche: str) -> list[dict]:
     return outliers[:10]
 
 
-# Public API
 
 async def collect_competitor_insights(
     our_channel_id: str,
@@ -335,7 +316,6 @@ async def collect_competitor_insights(
     """
     logger.info("competitor.start", niche=niche, competitors=len(competitor_yt_ids or []))
 
-    # If no explicit competitors, discover via search
     if not competitor_yt_ids:
         search_data = await _yt_get("search", {
             "part": "snippet",
@@ -349,14 +329,12 @@ async def collect_competitor_insights(
             for it in search_data.get("items", [])
         ]
 
-    # Get channel stats
     channel_stats = await _get_channel_stats(competitor_yt_ids[:10])
 
-    # Fetch recent videos and detect outliers for each competitor
     all_outliers = []
     total_stored = 0
 
-    for comp_id in competitor_yt_ids[:5]:  # Limit to 5 to stay in API quota
+    for comp_id in competitor_yt_ids[:5]:
         ch = channel_stats.get(comp_id, {})
         avg_views = ch.get("view_count", 0) / max(ch.get("video_count", 1), 1)
 
@@ -364,7 +342,6 @@ async def collect_competitor_insights(
         videos = compute_view_velocity(videos)
         videos = detect_outliers(videos, int(avg_views))
 
-        # Store
         await _store_competitor_channel(our_channel_id, {
             "competitor_yt_id": comp_id,
             "name": ch.get("name", ""),
@@ -379,7 +356,6 @@ async def collect_competitor_insights(
         outlier_vids = [v for v in videos if v.get("is_outlier")]
         all_outliers.extend(outlier_vids)
 
-    # Also search for niche-wide outliers (small channels with viral hits)
     niche_outliers = await _search_niche_outliers(niche)
 
     all_outliers.sort(key=lambda x: x.get("outlier_multiplier", 0), reverse=True)

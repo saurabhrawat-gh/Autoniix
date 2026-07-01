@@ -31,13 +31,11 @@ export const CameraShake: React.FC<CameraShakeProps> = ({
 }) => {
   const frame = useCurrentFrame();
   
-  // Deterministic random shake
   const seed = Math.floor(frame * frequency);
   const offsetX = (random(seed) - 0.5) * 2 * intensity;
   const offsetY = (random(seed + 1000) - 0.5) * 2 * intensity;
   const rotation = (random(seed + 2000) - 0.5) * 2 * rotationIntensity;
   
-  // Fade in/out
   let fadeMultiplier = 1;
   if (fadeFrames > 0) {
     fadeMultiplier = interpolate(

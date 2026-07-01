@@ -28,9 +28,7 @@ from src.intelligence.system_health import aggregate_health
 __all__ = [
     "list_templates", "get_template", "build_performance_context",
     "evaluate_diversity_floor", "log_bandit_pick",
-    # Phase 11 — prediction-error correction loop
     "log_prediction", "update_prediction_actual",
     "get_calibration_metrics", "get_sample_weights",
-    # Phase 12 — system health aggregation
     "aggregate_health",
 ]

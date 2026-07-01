@@ -57,7 +57,6 @@ export async function handleShardJob(job: Job<ShardJobData>): Promise<ShardJobRe
     throw new Error(`shard worker: malformed payload for job ${job.id}`);
   }
 
-  // Diff-cache fast path.
   const cached = await lookupShard({
     shardHash: data.shardHash,
     tier: data.tier,
@@ -82,7 +81,6 @@ export async function handleShardJob(job: Job<ShardJobData>): Promise<ShardJobRe
     };
   }
 
-  // Miss → tier renderer not implemented yet at P0.
   throw new ShardRenderNotImplemented(data.tier);
 }
 

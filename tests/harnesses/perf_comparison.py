@@ -34,7 +34,7 @@ class EndpointResult:
     service: str
     endpoint: str
     method: str
-    samples: list[float] = field(default_factory=list)  # latencies in ms
+    samples: list[float] = field(default_factory=list)
 
     @property
     def p50(self) -> float:
@@ -145,14 +145,12 @@ class PerformanceComparison:
         result = EndpointResult(service=service_name, endpoint=path, method=method)
 
         async with httpx.AsyncClient(base_url=base_url, timeout=30.0) as client:
-            # Warmup
             for _ in range(self.warmup_requests):
                 try:
                     await self._make_request(client, method, path, payload, headers)
                 except Exception:
                     pass
 
-            # Timed samples with controlled concurrency
             sem = asyncio.Semaphore(self.concurrency)
 
             async def timed_request() -> float | None:

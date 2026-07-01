@@ -58,8 +58,6 @@ async def notify(
             "body": body, "payload": payload or {}, "channel_id": channel_id,
             "video_id": video_id,
         })
-        # Push to all open dashboards over the existing event WS so the
-        # notification center updates instantly without polling.
         try:
             from src.services.dashboard import main as _legacy
             await _legacy._event_broadcaster.broadcast({
@@ -111,10 +109,8 @@ async def _deliver(notification_id: int, route_id: int, channel: str,
         elif channel == "webhook":
             ok, response, err = await _send_webhook(n, config)
         elif channel == "browser":
-            # Browser delivery is implicit (notification row is enough).
             ok, response = True, {"info": "via_notification_center"}
         elif channel == "email":
-            # Email requires a configured SMTP/SES; left as a no-op until configured.
             ok, response, err = False, None, "email channel not configured"
         else:
             err = f"unknown channel {channel!r}"

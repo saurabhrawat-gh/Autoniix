@@ -60,8 +60,6 @@ pub fn routes(pool: PgPool) -> Router {
         .with_state(pool)
 }
 
-// ── Shared role gates ─────────────────────────────────────────────────────
-
 /// Accept workspace `owner` or `member` — mirrors Python
 /// `require_role("owner", "member")`.
 fn require_owner_or_member(principal: &Principal) -> ApiResult<()> {
@@ -81,8 +79,6 @@ fn require_owner(principal: &Principal) -> ApiResult<()> {
     }
 }
 
-// ── Legacy BFF proxy ──────────────────────────────────────────────────────
-
 /// Forward a request to the legacy BFF and re-emit its JSON response.
 /// Mirrors Python's `_proxy()` helper:
 ///   - 30-second timeout
@@ -97,9 +93,6 @@ async fn proxy_legacy(
     path: &str,
     body: Option<Value>,
 ) -> ApiResult<Value> {
-    // Pull the auth token: Authorization header wins, cookie is a fallback so
-    // the Next.js dashboard (which sets HttpOnly access_token cookies) works
-    // when the bearer header is absent.
     let auth = headers
         .get("authorization")
         .and_then(|v| v.to_str().ok())
@@ -126,10 +119,10 @@ async fn proxy_legacy(
         req = req.json(&b);
     }
 
-    let resp = req.send().await.map_err(|e| {
-        // Python returns 502 on connection failure; we keep the same shape.
-        ApiError::ServiceUnavailable(format!("Legacy BFF unreachable: {e}"))
-    })?;
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| ApiError::ServiceUnavailable(format!("Legacy BFF unreachable: {e}")))?;
 
     let status = resp.status();
     let content_type = resp
@@ -144,7 +137,6 @@ async fn proxy_legacy(
         .map_err(|e| ApiError::Internal(format!("legacy BFF body read failed: {e}")))?;
 
     if !status.is_success() {
-        // Match Python: prefer `detail` from JSON, otherwise the raw body.
         let detail = if content_type.starts_with("application/json") {
             serde_json::from_str::<Value>(&text)
                 .ok()
@@ -183,8 +175,6 @@ fn extract_access_token_cookie(cookie_hdr: &str) -> Option<String> {
     }
     None
 }
-
-// ── Config ────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 struct ConfigRow {
@@ -304,8 +294,6 @@ async fn update_config(
     ))
 }
 
-// ── Emergency stop / resume ───────────────────────────────────────────────
-
 /// `POST /api/v2/system/emergency-stop` — owner/member. Freezes the system
 /// and pauses all running Temporal workflows via the legacy BFF.
 async fn emergency_stop(
@@ -360,8 +348,6 @@ async fn emergency_resume(
     Ok((StatusCode::OK, Json(result)))
 }
 
-// ── Fleet health ──────────────────────────────────────────────────────────
-
 /// `GET /api/v2/system/fleet-health` — any authed user. Pure proxy; the
 /// legacy BFF aggregates worker liveness/queue depth/etc.
 async fn fleet_health(
@@ -371,8 +357,6 @@ async fn fleet_health(
     let result = proxy_legacy(&headers, reqwest::Method::GET, "/api/fleet-health", None).await?;
     Ok((StatusCode::OK, Json(result)))
 }
-
-// ── Environment ───────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize)]
 struct EnvironmentData {
@@ -416,7 +400,7 @@ async fn get_environment(
 struct EnvSwitchRequest {
     mode: String,
     #[serde(default)]
-    #[allow(dead_code)] // mirrors Python's `confirm` field; reserved for future UI gating
+    #[allow(dead_code)]
     confirm: bool,
 }
 
@@ -456,8 +440,6 @@ async fn set_environment(
     ))
 }
 
-// ── Clean slate ───────────────────────────────────────────────────────────
-
 /// `POST /api/v2/system/clean-slate` — owner only. Cancels workflows,
 /// truncates job tables, wipes storage via the legacy BFF. Audits the
 /// destructive action regardless of upstream outcome (so we can trace who
@@ -477,8 +459,6 @@ async fn clean_slate(
     )
     .await;
 
-    // Always audit, even on failure — but record the outcome so the row
-    // makes sense in forensics.
     let (outcome_label, outcome_payload) = match &result {
         Ok(_) => ("system.clean_slate", json!({"upstream": "ok"})),
         Err(e) => (
@@ -500,8 +480,6 @@ async fn clean_slate(
     let body = result?;
     Ok((StatusCode::OK, Json(body)))
 }
-
-// ── Entity settings ────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
 struct EntitySettingUpsert {
@@ -675,9 +653,6 @@ mod tests {
 
     #[test]
     fn legacy_bff_url_falls_back_to_localhost() {
-        // No way to remove an env var without unsafe in stable Rust; just
-        // assert that the default-on-empty path returns a non-empty string.
-        // Setting the env var would be racy across parallel tests.
         let url = legacy_bff_url();
         assert!(!url.is_empty());
         assert!(url.starts_with("http"));

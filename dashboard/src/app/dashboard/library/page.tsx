@@ -13,7 +13,6 @@ import {
 import { Button, Input } from '@/lib/ui';
 import { confirmDialog } from '@/lib/components/ConfirmDialog';
 
-// constants
 
 type Scope = 'system' | 'workspace' | 'brand' | 'channel';
 type Kind = 'all' | 'image' | 'video' | 'audio' | 'font' | 'lut' | 'template' | 'document' | 'other';

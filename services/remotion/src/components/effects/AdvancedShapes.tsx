@@ -64,7 +64,6 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
   const centerY = height / 2;
   const maxRadius = Math.min(width, height) * 0.4;
 
-  // Animation values
   const rotation = interpolate(frame, [0, 300], [0, 360], {
     extrapolateRight: "wrap",
   });
@@ -77,7 +76,6 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
 
   const pulseValue = Math.sin((frame / 30) * Math.PI) * 0.3 + 1;
 
-  // Get color for index
   const getColor = (index: number): string => {
     if (colors && colors.length > 0) {
       return colors[index % colors.length] ?? color;
@@ -85,13 +83,11 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
     return color;
   };
 
-  // Render different patterns
   const renderPattern = () => {
     const elements: JSX.Element[] = [];
 
     switch (preset) {
       case "kaleidoscope":
-        // Symmetrical kaleidoscope pattern
         for (let i = 0; i < count; i++) {
           const angle = (i / count) * Math.PI * 2;
           const radius = maxRadius * (0.5 + Math.sin(frame * 0.05 + i) * 0.3);
@@ -101,7 +97,6 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
           const x2 = centerX + Math.cos(angle + rotation * 0.01) * radius;
           const y2 = centerY + Math.sin(angle + rotation * 0.01) * radius;
 
-          // Create multiple layers for complexity
           for (let layer = 0; layer < complexity; layer++) {
             const layerRadius = radius * ((layer + 1) / complexity);
             const lx2 = centerX + Math.cos(angle + rotation * 0.01) * layerRadius;
@@ -124,7 +119,6 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
         break;
 
       case "mandala":
-        // Mandala pattern with concentric circles
         for (let ring = 1; ring <= complexity; ring++) {
           const ringRadius = (maxRadius * ring) / complexity;
 
@@ -151,7 +145,6 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
         break;
 
       case "hexagrid":
-        // Hexagonal grid pattern
         const hexSize = maxRadius / (complexity + 2);
         const rows = complexity * 2 + 1;
         const cols = complexity * 2 + 1;
@@ -182,7 +175,6 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
         break;
 
       case "spirograph":
-        // Spirograph pattern
         const points = count * 20;
         const pathPoints: string[] = [];
 
@@ -217,7 +209,6 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
         break;
 
       case "fractal":
-        // Recursive fractal pattern
         const drawFractal = (
           x: number,
           y: number,
@@ -255,7 +246,6 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
         break;
 
       case "geometric":
-        // Geometric shapes array
         for (let i = 0; i < count; i++) {
           const angle = (i / count) * Math.PI * 2;
           const radius = maxRadius * (0.6 + Math.sin(frame * 0.03 + i) * 0.2);
@@ -263,11 +253,9 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
           const y = centerY + Math.sin(angle + rotation * 0.01) * radius;
           const size = 40 * scaleValue;
 
-          // Alternate between shapes
           const shapeType = i % 3;
 
           if (shapeType === 0) {
-            // Triangle
             const trianglePath = `M ${x} ${y - size} L ${x + size} ${y + size} L ${x - size} ${y + size} Z`;
             elements.push(
               <path
@@ -281,7 +269,6 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
               />
             );
           } else if (shapeType === 1) {
-            // Square
             elements.push(
               <rect
                 key={`geo-rect-${i}`}
@@ -297,7 +284,6 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
               />
             );
           } else {
-            // Circle
             elements.push(
               <circle
                 key={`geo-circle-${i}`}
@@ -327,7 +313,6 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
   );
 };
 
-// Helper function to create hexagon path
 function createHexagonPath(cx: number, cy: number, radius: number): string {
   const points: string[] = [];
   for (let i = 0; i < 6; i++) {

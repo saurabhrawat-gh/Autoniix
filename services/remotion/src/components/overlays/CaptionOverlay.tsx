@@ -21,7 +21,7 @@ export interface CaptionOverlayProps {
   srt?: string;
   style?: CaptionStyle;
   accent?: string;
-  maxWords?: number; // sliding window of words shown at once
+  maxWords?: number;
 }
 
 const BASE_TEXT: React.CSSProperties = {
@@ -68,14 +68,12 @@ export const CaptionOverlay: React.FC<CaptionOverlayProps> = ({
 
   const ms = (frame / fps) * 1000;
 
-  // Build display string based on style
   let body: React.ReactNode = null;
 
   if (style === "subtitle_bottom_center") {
     const cue = cues.find((c) => ms >= c.startMs && ms <= c.endMs);
     if (cue) body = <span>{cue.text}</span>;
   } else {
-    // word-highlight / karaoke / big-bold — all use per-word timing
     const activeIdx = words.findIndex((w) => ms >= w.startMs && ms <= w.endMs);
     if (activeIdx >= 0) {
       const start = Math.max(0, activeIdx - Math.floor(maxWords / 2));

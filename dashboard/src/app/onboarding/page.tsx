@@ -34,7 +34,6 @@ export default function OnboardingPage() {
   const [invitedEmails, setInvitedEmails] = useState<string[]>([]);
   const [loading, setLoading]         = useState(true);
 
-  // Auth guard + load saved progress
   useEffect(() => {
     if (!isLoggedIn()) { router.replace('/login'); return; }
     (async () => {
@@ -43,7 +42,6 @@ export default function OnboardingPage() {
         const id: number = ws.data.id;
         setWsId(id);
         setWsName(ws.data.name ?? '');
-        // Load saved onboarding step
         const settings = await settingsApi.get('workspace', String(id));
         const ob = settings.data.find(s => s.key === 'onboarding');
         if (ob?.value?.completed) { router.replace('/dashboard'); return; }
@@ -62,7 +60,6 @@ export default function OnboardingPage() {
     await saveProgress(nextStep);
   }
 
-  // Step 1: confirm workspace name (create if none exists, update if renaming)
   async function saveWorkspaceName() {
     setSaving(true);
     try {
@@ -76,7 +73,6 @@ export default function OnboardingPage() {
     } finally { setSaving(false); }
   }
 
-  // Step 2: invite
   async function sendInvite(e: React.FormEvent) {
     e.preventDefault();
     setInviting(true); setInviteErr(null);
@@ -89,7 +85,6 @@ export default function OnboardingPage() {
     } finally { setInviting(false); }
   }
 
-  // Step 4: finish
   async function finish() {
     await saveProgress(4, true);
     router.push('/dashboard');

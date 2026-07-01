@@ -9,7 +9,7 @@ export interface EndCardVideo {
 export interface EndCardProps {
   title?: string;
   subtitle?: string;
-  videos?: EndCardVideo[]; // up to 4 recommended video cards
+  videos?: EndCardVideo[];
   bg?: string;
   color?: string;
   accent?: string;

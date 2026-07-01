@@ -36,7 +36,6 @@ export const zoomPunchTransition = (props?: ZoomPunchProps): TransitionPresentat
     const isEntering = presentationDirection === "entering";
     const progress = presentationProgress;
 
-    // Exponential zoom curve for punch effect
     const zoomCurve = Math.pow(progress, 2.5);
     
     let scale: number;
@@ -46,32 +45,26 @@ export const zoomPunchTransition = (props?: ZoomPunchProps): TransitionPresentat
 
     if (direction === "in") {
       if (isEntering) {
-        // Next scene zooms in from large to normal
         scale = interpolate(zoomCurve, [0, 1], [intensity, 1]);
         opacity = interpolate(progress, [0, 0.3], [0, 1], { extrapolateRight: "clamp" });
         blur = interpolate(progress, [0, 0.5, 1], [10, 5, 0]);
       } else {
-        // Previous scene stays normal
         scale = 1;
         opacity = interpolate(progress, [0.7, 1], [1, 0], { extrapolateLeft: "clamp" });
         blur = 0;
       }
     } else {
-      // "out" direction
       if (isEntering) {
-        // Next scene fades in
         scale = 1;
         opacity = interpolate(progress, [0.5, 1], [0, 1], { extrapolateLeft: "clamp" });
         blur = 0;
       } else {
-        // Previous scene zooms out
         scale = interpolate(zoomCurve, [0, 1], [1, intensity]);
         opacity = interpolate(progress, [0, 0.7], [1, 0], { extrapolateRight: "clamp" });
         blur = interpolate(progress, [0.5, 1], [0, 10]);
       }
     }
 
-    // Flash at peak (50% progress)
     if (flash) {
       flashOpacity = interpolate(progress, [0.4, 0.5, 0.6], [0, 0.8, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
     }

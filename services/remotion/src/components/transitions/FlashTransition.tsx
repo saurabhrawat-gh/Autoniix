@@ -32,7 +32,6 @@ export const flashTransition = (props?: FlashTransitionProps): TransitionPresent
     const isEntering = presentationDirection === "entering";
     const progress = presentationProgress;
 
-    // Flash curve: quick rise to peak, then fade out
     const peakStart = 0.5 - peakDuration / 2;
     const peakEnd = 0.5 + peakDuration / 2;
     
@@ -43,7 +42,6 @@ export const flashTransition = (props?: FlashTransitionProps): TransitionPresent
       { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
 
-    // Scene opacity: fade out before flash, fade in after
     let sceneOpacity: number;
     if (isEntering) {
       sceneOpacity = interpolate(progress, [peakEnd, 1], [0, 1], { extrapolateLeft: "clamp" });

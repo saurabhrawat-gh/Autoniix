@@ -12,7 +12,7 @@ logger = structlog.get_logger()
 
 class FishAudioTTS(TTSProvider):
     BASE_URL = "https://api.fish.audio/v1/tts"
-    COST_PER_BYTE = 15.0 / 1_000_000  # $15 per 1M UTF-8 bytes
+    COST_PER_BYTE = 15.0 / 1_000_000
 
     def __init__(self) -> None:
         self.api_key = settings.fish_audio_api_key
@@ -64,7 +64,6 @@ class FishAudioTTS(TTSProvider):
             "format": "mp3",
             "bitrate": 128,
         }
-        # Fish Audio supports prosody control via these params
         if speed != 1.0:
             body["speed"] = speed
         if temperature != 0.7:
@@ -84,7 +83,6 @@ class FishAudioTTS(TTSProvider):
         text_bytes = len(text.encode("utf-8"))
         cost = text_bytes * self.COST_PER_BYTE
         word_count = len(text.split())
-        # Estimate duration: ~150 WPM adjusted by speed
         estimated_duration = (word_count / 150) * 60 / max(speed, 0.5)
 
         logger.info(

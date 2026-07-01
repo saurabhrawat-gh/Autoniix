@@ -76,7 +76,6 @@ async function ffprobe(path: string): Promise<FfprobeOutput | null> {
  * over a handful of frames. Returns mean Y in 0–255, or null on failure.
  */
 async function meanLuminance(path: string, sampleFrames = 20): Promise<number | null> {
-  // signalstats writes YAVG metadata per frame; metadata=print emits to stderr.
   const args = [
     "-hide_banner",
     "-nostats",
@@ -138,7 +137,7 @@ export async function postRenderQc(
   opts: PostRenderQcOptions,
 ): Promise<PostRenderQcResult> {
   const reasons: string[] = [];
-  const minLum = opts.minMeanLuminance ?? 12; // 0–255
+  const minLum = opts.minMeanLuminance ?? 12;
   const tol = opts.durationToleranceSec ?? Math.max(0.5, opts.expectedDurationSec * 0.1);
   const minSize = opts.minFileSizeBytes ?? 50_000;
 

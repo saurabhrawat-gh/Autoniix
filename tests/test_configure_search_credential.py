@@ -21,7 +21,6 @@ def test_serpapi_api_key_settable(monkeypatch):
     inst = SerpAPISearch()
     assert inst.api_key == ""
 
-    # chain._instantiate direct-set path
     vault_key = "serp-test-key"
     if vault_key and hasattr(inst, "api_key") and not getattr(inst, "api_key", None):
         inst.api_key = vault_key
@@ -87,7 +86,6 @@ def test_serpapi_health_check_uses_instance_api_key(monkeypatch):
     inst = SerpAPISearch()
     inst.api_key = "injected-key"
 
-    # Verify the key that would be embedded in the URL
     url_fragment = f"api_key={inst.api_key}"
     expected_url = f"{SerpAPISearch.BASE_URL}?q=test&api_key=injected-key&num=1&engine=google"
     assert "api_key=injected-key" in expected_url

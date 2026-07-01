@@ -43,7 +43,6 @@ export function FeatureFlagProvider({ children }: FeatureFlagProviderProps) {
       }
       setFlags(map);
     } catch {
-      // Silently fail — flags default to false (feature off)
     } finally {
       setIsLoaded(true);
     }

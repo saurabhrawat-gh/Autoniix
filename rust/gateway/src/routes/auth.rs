@@ -15,7 +15,6 @@ use crate::{
     middleware::{invite_rate_limit, InviteRateLimiter},
 };
 
-// Cookie lifetimes (seconds): access token 1h, refresh token 30d.
 const ACCESS_MAX_AGE: i64 = 3600;
 const REFRESH_MAX_AGE: i64 = 2_592_000;
 
@@ -88,15 +87,11 @@ fn extract_ua(headers: &HeaderMap) -> Option<String> {
 }
 
 pub fn routes(auth_service: AuthServiceImpl) -> Router {
-    // Rate-limited endpoints get their own per-route middleware layer.
-    // The limiter state is separate from `auth_service` — axum resolves them independently.
     let invite_limiter = InviteRateLimiter::new();
 
     Router::new()
         .route("/api/v2/auth/mode", get(auth_mode))
         .route("/api/v2/auth/signin", post(sign_in))
-        // #350: /register is the canonical public signup endpoint (matches
-        // Python). /signup kept as a backward-compatible alias.
         .route("/api/v2/auth/register", post(register))
         .route("/api/v2/auth/signup", post(register))
         .route("/api/v2/auth/refresh", post(refresh_token))
@@ -109,7 +104,6 @@ pub fn routes(auth_service: AuthServiceImpl) -> Router {
         .route("/api/v2/auth/mfa/verify", post(mfa_verify))
         .route("/api/v2/auth/mfa/challenge", post(mfa_challenge))
         .route("/api/v2/auth/mfa/disable", post(mfa_disable))
-        // IM-171: rate-limited — 5 attempts per IP per 15 min, returns 429 + Retry-After.
         .route(
             "/api/v2/auth/accept-invite",
             post(accept_invite).layer(axum::middleware::from_fn_with_state(
@@ -176,8 +170,6 @@ async fn update_profile(
     }))
 }
 
-// ── Forgot / Reset ──────────────────────────────────────────────────────────
-
 #[derive(Debug, Deserialize)]
 struct ForgotRequest {
     email: String,
@@ -223,8 +215,6 @@ async fn reset_password(
         status: "ok".to_string(),
     }))
 }
-
-// ── MFA ─────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize)]
 struct MfaSetupResponse {
@@ -368,7 +358,6 @@ async fn sign_in(
         )
         .await?
     {
-        // #666: MFA required — return pending token only, no session cookies.
         SignInResult::MfaRequired { mfa_pending_token } => Ok((
             StatusCode::OK,
             Json(serde_json::json!({
@@ -635,8 +624,6 @@ async fn logout(
     cookie: Option<TypedHeader<Cookie>>,
     body: Option<Json<LogoutRequest>>,
 ) -> ApiResult<impl IntoResponse> {
-    // Authentication is required (AuthUser). Revoke the session identified by the
-    // refresh token from the cookie or body, then clear all auth cookies.
     if let Some(token) = resolve_refresh_token(&cookie, body.and_then(|Json(b)| b.refresh_token)) {
         auth_service.logout(&token).await?;
     }

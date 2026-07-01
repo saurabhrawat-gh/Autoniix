@@ -39,7 +39,6 @@ def _load_all() -> list[dict[str, Any]]:
         if tid in seen_ids:
             raise ValueError(f"niche_templates.json: duplicate template id {tid!r}")
         seen_ids.add(tid)
-        # Mandatory keys \u2014 fail loud at startup, not silently in production.
         for required in ("label", "niche", "dna"):
             if required not in t:
                 raise ValueError(

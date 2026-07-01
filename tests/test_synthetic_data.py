@@ -7,7 +7,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# Add scripts to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.generate_training_data import (

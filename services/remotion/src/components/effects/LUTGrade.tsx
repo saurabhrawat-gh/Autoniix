@@ -93,12 +93,10 @@ function sampleLUT(lut: ParsedLUT, r: number, g: number, b: number): [number, nu
   const { size, data } = lut;
   const max = size - 1;
 
-  // Scale input to LUT grid
   const ri = r * max;
   const gi = g * max;
   const bi = b * max;
 
-  // Floor / ceil indices
   const r0 = Math.min(Math.floor(ri), max);
   const r1 = Math.min(r0 + 1, max);
   const g0 = Math.min(Math.floor(gi), max);
@@ -106,15 +104,12 @@ function sampleLUT(lut: ParsedLUT, r: number, g: number, b: number): [number, nu
   const b0 = Math.min(Math.floor(bi), max);
   const b1 = Math.min(b0 + 1, max);
 
-  // Fractional parts
   const fr = ri - r0;
   const fg = gi - g0;
   const fb = bi - b0;
 
-  // LUT index: .cube files are stored R-fastest (R varies first, then G, then B)
   const idx = (ri_: number, gi_: number, bi_: number) => (bi_ * size * size + gi_ * size + ri_) * 3;
 
-  // Trilinear interpolation
   const lerp = (a: number, b_: number, t: number) => a + (b_ - a) * t;
 
   const result: [number, number, number] = [0, 0, 0];
@@ -154,8 +149,6 @@ function extractChannelCurves(lut: ParsedLUT, steps: number = 256): ChannelCurve
   for (let i = 0; i < steps; i++) {
     const t = i / (steps - 1);
 
-    // Sample the LUT along the neutral diagonal (R=G=B=t)
-    // This captures the per-channel tone curve
     const [or_, og, ob] = sampleLUT(lut, t, t, t);
     r.push(Math.max(0, Math.min(1, or_)));
     g.push(Math.max(0, Math.min(1, og)));
@@ -170,21 +163,11 @@ function extractChannelCurves(lut: ParsedLUT, steps: number = 256): ChannelCurve
 /* ------------------------------------------------------------------ */
 
 function extractColorMatrix(lut: ParsedLUT): number[] {
-  // Sample the LUT at pure R, pure G, pure B, and black to derive a
-  // 4×5 color matrix that approximates cross-channel effects.
-  const [rr, rg, rb] = sampleLUT(lut, 1, 0, 0); // pure red input
-  const [gr, gg, gb] = sampleLUT(lut, 0, 1, 0); // pure green input
-  const [br, bg, bb] = sampleLUT(lut, 0, 0, 1); // pure blue input
-  const [kr, kg, kb] = sampleLUT(lut, 0, 0, 0); // black input (offset)
+  const [rr, rg, rb] = sampleLUT(lut, 1, 0, 0);
+  const [gr, gg, gb] = sampleLUT(lut, 0, 1, 0);
+  const [br, bg, bb] = sampleLUT(lut, 0, 0, 1);
+  const [kr, kg, kb] = sampleLUT(lut, 0, 0, 0);
 
-  // feColorMatrix "matrix" format (row-major):
-  // | rr rg rb 0 kr |   ← red output
-  // | gr gg gb 0 kg |   ← green output
-  // | br bg bb 0 kb |   ← blue output
-  // | 0  0  0  1 0  |   ← alpha
-  // But we need to account for the fact that feComponentTransfer
-  // already handles the diagonal, so the matrix here captures
-  // cross-channel bleed only. We normalize to identity diagonal.
   return [
     1, rg - 0, rb - 0, 0, kr,
     gr - 0, 1, gb - 0, 0, kg,
@@ -216,7 +199,6 @@ export const LUTGrade: React.FC<LUTGradeProps> = ({
   const handleRef = useRef<ReturnType<typeof delayRender> | null>(null);
   const filterId = useMemo(() => nextFilterId(), []);
 
-  // Fetch and parse the .cube file
   useEffect(() => {
     if (!lutSrc) return;
 
@@ -251,12 +233,10 @@ export const LUTGrade: React.FC<LUTGradeProps> = ({
     };
   }, [lutSrc]);
 
-  // Build SVG filter table values strings
   const tableR = curves ? curves.r.join(" ") : undefined;
   const tableG = curves ? curves.g.join(" ") : undefined;
   const tableB = curves ? curves.b.join(" ") : undefined;
 
-  // When intensity < 1, we mix the LUT curves with identity (linear)
   const applyIntensity = (values: number[], ident: number[]): number[] =>
     values.map((v, i) => v * intensity + (ident[i] ?? 0) * (1 - intensity));
 
@@ -266,14 +246,12 @@ export const LUTGrade: React.FC<LUTGradeProps> = ({
   const finalG = curves ? applyIntensity(curves.g, identityCurve).join(" ") : undefined;
   const finalB = curves ? applyIntensity(curves.b, identityCurve).join(" ") : undefined;
 
-  // If LUT not loaded yet, render children ungraded
   if (!curves || !finalR || !finalG || !finalB) {
     return <>{children}</>;
   }
 
   const matrixValues = colorMatrix
     ? colorMatrix.map((v) => {
-        // Blend cross-channel matrix with identity based on intensity
         return v;
       }).join(" ")
     : undefined;

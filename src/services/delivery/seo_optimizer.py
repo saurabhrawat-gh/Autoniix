@@ -22,7 +22,6 @@ from src.db import get_pool
 
 logger = structlog.get_logger()
 
-# Power words that increase CTR
 POWER_WORDS = {
     "secret", "shocking", "revealed", "truth", "never", "instantly",
     "proven", "warning", "mistake", "surprising", "hidden", "deadly",
@@ -30,17 +29,16 @@ POWER_WORDS = {
     "insane", "unbelievable", "illegal", "dangerous", "destroyed",
 }
 
-# YouTube category optimization
 CATEGORY_MAP = {
-    "health": "26",       # How-to & Style
-    "tech": "28",         # Science & Technology
-    "finance": "22",      # People & Blogs (no direct finance cat)
-    "education": "27",    # Education
-    "entertainment": "24",# Entertainment
-    "gaming": "20",       # Gaming
-    "music": "10",        # Music
-    "sports": "17",       # Sports
-    "news": "25",         # News & Politics
+    "health": "26",
+    "tech": "28",
+    "finance": "22",
+    "education": "27",
+    "entertainment": "24",
+    "gaming": "20",
+    "music": "10",
+    "sports": "17",
+    "news": "25",
 }
 
 
@@ -52,7 +50,6 @@ def score_title_seo(title: str) -> dict:
     words = title.split()
     word_count = len(words)
 
-    # Length check (50-70 chars optimal)
     char_count = len(title)
     if 40 <= char_count <= 70:
         score += 1.5
@@ -64,25 +61,21 @@ def score_title_seo(title: str) -> dict:
         score -= 0.5
         factors.append("Title too short")
 
-    # Power words
     title_lower = title.lower()
     power_found = [w for w in POWER_WORDS if w in title_lower]
     if power_found:
         score += min(1.5, len(power_found) * 0.5)
         factors.append(f"Power words: {', '.join(power_found[:3])}")
 
-    # Numbers (titles with numbers get more clicks)
     has_number = any(c.isdigit() for c in title)
     if has_number:
         score += 1.0
         factors.append("Contains number (CTR boost)")
 
-    # Question (questions trigger curiosity)
     if "?" in title:
         score += 0.5
         factors.append("Question format (curiosity trigger)")
 
-    # ALL CAPS words (max 2 acceptable)
     caps_words = [w for w in words if w.isupper() and len(w) > 1]
     if 1 <= len(caps_words) <= 2:
         score += 0.5
@@ -91,7 +84,6 @@ def score_title_seo(title: str) -> dict:
         score -= 0.5
         factors.append("Too many ALL CAPS words — looks spammy")
 
-    # Brackets/parentheses (YouTube SEO trick)
     if re.search(r'[\[\(].*[\]\)]', title):
         score += 0.5
         factors.append("Brackets detected (SEO boost pattern)")
@@ -114,27 +106,23 @@ def optimize_description(description: str, title: str, tags: list[str],
     """Optimize YouTube description for SEO."""
     suggestions = []
 
-    # Check length
     desc_length = len(description)
     if desc_length < 200:
         suggestions.append("Description too short — aim for 500+ characters for SEO")
     elif desc_length < 500:
         suggestions.append("Description could be longer — 500-2000 chars is optimal")
 
-    # Check if title keywords appear in description
     title_words = set(w.lower() for w in title.split() if len(w) > 3)
     desc_lower = description.lower()
     missing_keywords = [w for w in title_words if w not in desc_lower]
     if missing_keywords:
         suggestions.append(f"Add title keywords to description: {', '.join(missing_keywords[:5])}")
 
-    # Check if tags appear in description
     tag_words = set(t.lower() for t in tags)
     missing_tags = [t for t in tag_words if t.lower() not in desc_lower]
     if missing_tags and len(missing_tags) > len(tags) * 0.5:
         suggestions.append("Include more tags in description for keyword density")
 
-    # Keyword density
     total_words = len(description.split())
     if total_words > 0:
         keyword_matches = sum(1 for w in description.lower().split() if w in title_words)
@@ -155,15 +143,13 @@ def optimize_description(description: str, title: str, tags: list[str],
 def suggest_tags(title: str, niche: str, existing_tags: list[str],
                   max_tags: int = 30) -> list[str]:
     """Suggest optimized tags based on title and niche."""
-    tags = [str(t) for t in existing_tags]  # normalize to strings
+    tags = [str(t) for t in existing_tags]
 
-    # Extract key phrases from title
     title_words = [w.strip(".,!?:;") for w in title.split() if len(w) > 2]
     for word in title_words:
         if word.lower() not in [t.lower() for t in tags]:
             tags.append(word.lower())
 
-    # Add niche-specific tags
     niche_tags = {
         "health": ["health", "wellness", "medical", "body", "science"],
         "tech": ["technology", "tech", "gadgets", "digital", "innovation"],
@@ -174,7 +160,6 @@ def suggest_tags(title: str, niche: str, existing_tags: list[str],
         if tag not in [t.lower() for t in tags]:
             tags.append(tag)
 
-    # Add multi-word phrases from title
     if len(title_words) >= 2:
         for i in range(len(title_words) - 1):
             phrase = f"{title_words[i]} {title_words[i+1]}".lower()
@@ -189,7 +174,6 @@ async def predict_optimal_upload_time(channel_id: str) -> dict:
     try:
         pool = await get_pool()
 
-        # Get historical upload times and performance
         rows = await pool.fetch("""
             SELECT df.upload_hour_utc, df.upload_day_of_week,
                    df.first_hour_views, df.first_day_views
@@ -200,15 +184,13 @@ async def predict_optimal_upload_time(channel_id: str) -> dict:
         """, channel_id)
 
         if len(rows) < 5:
-            # Default recommendation
             return {
-                "optimal_hour_utc": 14,  # 2 PM UTC
-                "optimal_day": 2,        # Tuesday
+                "optimal_hour_utc": 14,
+                "optimal_day": 2,
                 "confidence": "low",
                 "reason": "Insufficient data — using industry default",
             }
 
-        # Group by hour and find best performing
         hour_perf: dict[int, list[int]] = {}
         for r in rows:
             h = r["upload_hour_utc"]
@@ -220,7 +202,6 @@ async def predict_optimal_upload_time(channel_id: str) -> dict:
 
         best_hour = max(hour_perf, key=lambda h: np.mean(hour_perf[h])) if hour_perf else 14
 
-        # Group by day
         day_perf: dict[int, list[int]] = {}
         for r in rows:
             d = r["upload_day_of_week"]

@@ -19,8 +19,6 @@ import (
 	"time"
 )
 
-// ── MockRedisClient ──────────────────────────────────────────────────────────
-
 // MockRedisClient is an in-memory fake for Redis operations.
 // Supports Get, Set, Del, Expire, Incr, Publish, and Subscribe.
 type MockRedisClient struct {
@@ -123,8 +121,6 @@ func (r *MockRedisClient) Reset() {
 	r.CallLog = nil
 }
 
-// ── MockTemporalClient ───────────────────────────────────────────────────────
-
 // WorkflowRun is a fake in-progress workflow execution.
 type WorkflowRun struct {
 	WorkflowID string
@@ -197,8 +193,6 @@ func (tc *MockTemporalClient) Reset() {
 	tc.CallLog = nil
 	tc.NextRunID = 0
 }
-
-// ── MockObjectStore ──────────────────────────────────────────────────────────
 
 // ObjectMeta holds metadata for a stored object.
 type ObjectMeta struct {
@@ -274,8 +268,6 @@ func (s *MockObjectStore) Reset() {
 	s.CallLog = nil
 }
 
-// ── MockEmailSender ──────────────────────────────────────────────────────────
-
 // SentEmail captures a single outbound email for test assertions.
 type SentEmail struct {
 	To      string
@@ -323,8 +315,6 @@ func (e *MockEmailSender) Reset() {
 	e.Sent = nil
 	e.CallLog = nil
 }
-
-// ── FullServiceMocks ─────────────────────────────────────────────────────────
 
 // FullServiceMocks bundles all mocks for services that need everything.
 type FullServiceMocks struct {

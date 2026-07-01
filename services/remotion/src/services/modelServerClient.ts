@@ -81,10 +81,10 @@ export interface RunOpts {
 /* ---------- Stub client (no env var set) ---------------------------- */
 
 const FALLBACK_BY_KIND: Record<ModelKind, string> = {
-  rife: "blend", // warp falls back to setpts/blend
-  scunet: "ffmpeg-hqdn3d", // denoise CPU equivalent
-  "real-esrgan": "ffmpeg-lanczos", // upscale CPU equivalent
-  ddcolor: "none", // no CPU equivalent for colorize → will fail upstream
+  rife: "blend",
+  scunet: "ffmpeg-hqdn3d",
+  "real-esrgan": "ffmpeg-lanczos",
+  ddcolor: "none",
 };
 
 class StubModelServerClient implements ModelServerClient {
@@ -95,7 +95,7 @@ class StubModelServerClient implements ModelServerClient {
     return false;
   }
   async submit(req: ModelJobRequest): Promise<ModelJobStatus> {
-    metrics.cache.miss("blend"); // generic miss tag — caller refines
+    metrics.cache.miss("blend");
     return { status: "unavailable", fallback: FALLBACK_BY_KIND[req.kind] };
   }
   async poll(_jobId: string): Promise<ModelJobStatus> {
@@ -141,7 +141,6 @@ class HttpModelServerClient implements ModelServerClient {
     });
     if (!r.ok) throw new Error(`model server submit failed: HTTP ${r.status}`);
     const body = (await r.json()) as { jobId: string; status?: string; outputUrl?: string; outputSha256?: string };
-    // Cache hit → server returns terminal state immediately
     if (body.status === "done" && body.outputUrl) {
       return {
         status: "done",
@@ -165,14 +164,12 @@ class HttpModelServerClient implements ModelServerClient {
     const start = Date.now();
 
     const submitted = await this.submit(req);
-    // If the server already replied with a terminal state (cache hit), forward it.
     if ("status" in submitted) {
       opts.onProgress?.(submitted);
       return submitted;
     }
     const jobId = submitted.jobId;
 
-    // Poll loop
     // eslint-disable-next-line no-constant-condition
     while (true) {
       if (Date.now() - start > timeout) {

@@ -22,8 +22,8 @@ def run_final_qc(direction_v3: dict, captions: dict = None,
     Returns {score: float, passed: bool, issues: list, warnings: list}.
     """
     score = 10.0
-    issues = []     # Hard failures
-    warnings = []   # Soft warnings
+    issues = []
+    warnings = []
 
     segments = direction_v3.get("segments", [])
     meta = direction_v3.get("meta", {})
@@ -31,7 +31,6 @@ def run_final_qc(direction_v3: dict, captions: dict = None,
     if not segments:
         return {"score": 0, "passed": False, "issues": ["No segments in direction"]}
 
-    # 1. Timeline Integrity
     for i, seg in enumerate(segments):
         if i == 0:
             if seg.get("start_ms", -1) != 0:
@@ -45,7 +44,6 @@ def run_final_qc(direction_v3: dict, captions: dict = None,
                 issues.append(f"Timeline gap at segment {seg.get('id')}: expected {expected}ms, got {actual}ms")
                 score -= 1.0
 
-    # 2. Duration Sanity
     total_ms = sum(s.get("duration_ms", 0) for s in segments)
     target_s = meta.get("duration_target_seconds", 0)
     if target_s and abs(total_ms / 1000 - target_s) > target_s * 0.2:
@@ -57,7 +55,6 @@ def run_final_qc(direction_v3: dict, captions: dict = None,
     if total_ms > 1800000:
         warnings.append("Very long video (> 30 minutes)")
 
-    # 3. Narration-Audio Alignment
     for seg in segments:
         narration = seg.get("narration", {})
         if isinstance(narration, dict):
@@ -67,7 +64,6 @@ def run_final_qc(direction_v3: dict, captions: dict = None,
                 warnings.append(f"Segment {seg.get('id')}: narration text but no audio_url")
                 score -= 0.5
 
-    # 4. Background Coverage
     missing_bg = 0
     for seg in segments:
         bg_url = seg.get("scene_overrides", {}).get("background_url", "")
@@ -78,14 +74,12 @@ def run_final_qc(direction_v3: dict, captions: dict = None,
         warnings.append(f"{missing_bg} segments missing background (no asset, no fallback)")
         score -= min(2.0, missing_bg * 0.3)
 
-    # 5. Camera Variety
     camera_types = [s.get("camera", {}).get("type", "static") for s in segments]
     unique_cameras = len(set(camera_types))
     if unique_cameras <= 1 and len(segments) > 3:
         warnings.append("All segments use same camera type — needs visual variety")
         score -= 0.5
 
-    # 6. Transition Variety
     transitions = [s.get("transition_in", {}).get("type", "cut") for s in segments]
     unique_trans = len(set(transitions))
     consecutive_same = sum(1 for i in range(1, len(transitions)) if transitions[i] == transitions[i-1])
@@ -93,13 +87,11 @@ def run_final_qc(direction_v3: dict, captions: dict = None,
         warnings.append(f"{consecutive_same} consecutive same transitions")
         score -= 0.3
 
-    # 7. Audio Master
     audio_master = direction_v3.get("audio_master", {})
     if not audio_master.get("narration_url"):
         issues.append("No master narration_url")
         score -= 1.0
 
-    # 8. Theme Completeness
     theme = direction_v3.get("theme", {})
     if not theme.get("primary_color"):
         warnings.append("No primary_color in theme")
@@ -108,7 +100,6 @@ def run_final_qc(direction_v3: dict, captions: dict = None,
         warnings.append("No heading font specified")
         score -= 0.2
 
-    # 9. Emphasis Words Coverage
     missing_emphasis = sum(
         1 for s in segments
         if not s.get("scene_overrides", {}).get("emphasis_words")
@@ -118,7 +109,6 @@ def run_final_qc(direction_v3: dict, captions: dict = None,
         warnings.append(f"{missing_emphasis}/{len(segments)} segments missing emphasis_words")
         score -= 0.3
 
-    # 10. Caption Validation
     if captions:
         caption_words = captions.get("total_words", 0)
         narration_words = sum(

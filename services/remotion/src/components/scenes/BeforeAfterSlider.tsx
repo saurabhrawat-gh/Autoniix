@@ -9,7 +9,7 @@ export interface BeforeAfterSliderProps {
   afterLabel?: string;
   /** Sweep behaviour: "auto" animates the divider left→right, "static" stays at `position`. */
   mode?: "auto" | "static";
-  position?: number; // 0..1, divider X fraction (for static)
+  position?: number;
   handleColor?: string;
 }
 

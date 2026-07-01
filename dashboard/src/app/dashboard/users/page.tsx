@@ -131,7 +131,6 @@ export default function Users() {
             const isSelf = myId !== null && u.id === myId;
             const isSuperadmin = u.global_role === 'superadmin';
             const isDisabled = !!u.disabled;
-            // Disabled users only show Enable. No other actions allowed until re-enabled.
             const canTransfer = iAmSuperadmin && !isSelf && !isSuperadmin && !isDisabled;
             const canDisable  = iAmSuperadmin && !isSelf && !isSuperadmin && !isDisabled;
             const canDelete   = iAmSuperadmin && !isSelf && !isSuperadmin && !isDisabled;

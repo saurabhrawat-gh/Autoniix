@@ -20,10 +20,9 @@ from src.redis_client import get_redis
 
 logger = structlog.get_logger()
 
-CACHE_TTL = 3600 * 6  # 6 hours
+CACHE_TTL = 3600 * 6
 
 
-# Google Trends via pytrends
 
 async def _fetch_google_trends(keywords: list[str], timeframe: str = "now 7-d") -> dict:
     """Fetch Google Trends interest-over-time and related queries.
@@ -33,11 +32,9 @@ async def _fetch_google_trends(keywords: list[str], timeframe: str = "now 7-d") 
         try:
             from pytrends.request import TrendReq
             pytrends = TrendReq(hl="en-US", tz=330, timeout=(10, 25), retries=2)
-            # Limit to 5 keywords per request (Google Trends max)
             kws = keywords[:5]
             pytrends.build_payload(kws, cat=0, timeframe=timeframe, geo="", gprop="youtube")
 
-            # Interest over time
             iot = pytrends.interest_over_time()
             momentum = {}
             if not iot.empty:
@@ -55,7 +52,6 @@ async def _fetch_google_trends(keywords: list[str], timeframe: str = "now 7-d") 
                             "momentum": round((avg_recent - avg_older) / max(avg_older, 1), 3),
                         }
 
-            # Related queries
             related = {}
             try:
                 rq = pytrends.related_queries()
@@ -70,7 +66,6 @@ async def _fetch_google_trends(keywords: list[str], timeframe: str = "now 7-d") 
             except Exception:
                 pass
 
-            # Suggestions (for topic expansion)
             suggestions = {}
             for kw in kws[:3]:
                 try:
@@ -87,7 +82,6 @@ async def _fetch_google_trends(keywords: list[str], timeframe: str = "now 7-d") 
     return await asyncio.to_thread(_sync_fetch)
 
 
-# YouTube Search Trends (autocomplete + trending)
 
 async def _fetch_youtube_suggestions(keyword: str) -> list[str]:
     """Fetch YouTube search autocomplete suggestions (free, no API key)."""
@@ -104,9 +98,7 @@ async def _fetch_youtube_suggestions(keyword: str) -> list[str]:
                 params={"client": "youtube", "q": keyword, "ds": "yt"},
             )
             resp.raise_for_status()
-            # Response is JSONP; parse it
             text = resp.text
-            # Extract JSON array from JSONP callback
             start = text.index("(") + 1
             end = text.rindex(")")
             data = json.loads(text[start:end])
@@ -132,7 +124,6 @@ async def _fetch_youtube_trending_videos(niche: str, max_results: int = 15) -> l
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
-            # Search for recent videos sorted by viewCount
             resp = await client.get(
                 "https://www.googleapis.com/youtube/v3/search",
                 params={
@@ -148,7 +139,6 @@ async def _fetch_youtube_trending_videos(niche: str, max_results: int = 15) -> l
             resp.raise_for_status()
             items = resp.json().get("items", [])
 
-            # Get video stats in batch
             video_ids = [it["id"]["videoId"] for it in items if it.get("id", {}).get("videoId")]
             stats = {}
             if video_ids:
@@ -186,7 +176,6 @@ async def _fetch_youtube_trending_videos(niche: str, max_results: int = 15) -> l
         return []
 
 
-# Store Trend Signals
 
 async def _store_trend_signals(niche: str, trends_data: dict) -> int:
     """Persist trend signals to DB for downstream scoring."""
@@ -228,7 +217,6 @@ async def _store_trend_signals(niche: str, trends_data: dict) -> int:
     return stored
 
 
-# Public API
 
 async def collect_trends(niche: str, keywords: list[str]) -> dict:
     """Main entry: collect all trend signals for a niche + keywords.
@@ -238,7 +226,6 @@ async def collect_trends(niche: str, keywords: list[str]) -> dict:
     """
     logger.info("trend_collector.start", niche=niche, keywords=keywords[:5])
 
-    # Run all collectors in parallel
     gt_task = _fetch_google_trends(keywords[:5])
     yt_suggest_tasks = [_fetch_youtube_suggestions(kw) for kw in keywords[:3]]
     yt_trending_task = _fetch_youtube_trending_videos(niche)
@@ -247,13 +234,11 @@ async def collect_trends(niche: str, keywords: list[str]) -> dict:
         gt_task, *yt_suggest_tasks, yt_trending_task
     )
 
-    # Merge YouTube suggestions
     all_suggestions = {}
     for i, kw in enumerate(keywords[:3]):
         if i < len(yt_suggestions):
             all_suggestions[kw] = yt_suggestions[i]
 
-    # Store signals
     stored = await _store_trend_signals(niche, gt_data)
 
     result = {

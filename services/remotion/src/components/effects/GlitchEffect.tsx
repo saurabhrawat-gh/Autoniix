@@ -38,7 +38,6 @@ export const GlitchEffect: React.FC<GlitchEffectProps> = ({
 }) => {
   const frame = useCurrentFrame();
   
-  // Determine if glitch is active this frame
   const glitchSeed = Math.floor(frame / 3);
   const isGlitching = random(glitchSeed) < frequency;
   
@@ -46,16 +45,13 @@ export const GlitchEffect: React.FC<GlitchEffectProps> = ({
     return <AbsoluteFill>{children}</AbsoluteFill>;
   }
   
-  // Calculate glitch parameters
   const glitchAmount = intensity * 20;
   const offsetX = (random(glitchSeed + 1) - 0.5) * glitchAmount;
   const offsetY = (random(glitchSeed + 2) - 0.5) * glitchAmount * 0.5;
   
-  // RGB split
   const rgbOffsetR = rgbSplit ? glitchAmount * 0.5 : 0;
   const rgbOffsetB = rgbSplit ? -glitchAmount * 0.5 : 0;
   
-  // Displacement blocks
   const blockCount = displacement ? Math.floor(random(glitchSeed + 3) * 5) + 2 : 0;
   const blocks = [];
   for (let i = 0; i < blockCount; i++) {

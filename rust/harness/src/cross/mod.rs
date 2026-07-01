@@ -197,7 +197,6 @@ impl ServicePair {
 
         let mut mismatches = Vec::new();
 
-        // Check status codes match
         if status_a != status_b {
             mismatches.push(EquivalenceError::StatusMismatch {
                 a: status_a,
@@ -205,7 +204,6 @@ impl ServicePair {
             });
         }
 
-        // Check specified fields match
         for field in fields_to_compare {
             let val_a = body_a.get(field).unwrap_or(&Value::Null);
             let val_b = body_b.get(field).unwrap_or(&Value::Null);
@@ -290,7 +288,6 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    // Unit test for field comparison logic (no live services needed)
     #[test]
     fn test_field_mismatch_detection() {
         let a = json!({"email": "user@example.com", "role": "admin"});

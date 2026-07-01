@@ -44,7 +44,6 @@ export function NotificationBell() {
     prevUnread.current = unread;
   }, [unread, animateBell, bellScope]);
 
-  // Mark read on open
   useEffect(() => {
     if (open && unread > 0) {
       const t = setTimeout(() => markAllNotificationsRead(), 600);
