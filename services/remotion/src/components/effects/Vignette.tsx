@@ -2,8 +2,8 @@ import React from "react";
 import { AbsoluteFill } from "remotion";
 
 export interface VignetteProps {
-  intensity?: number; // 0..1, outer darkness
-  radius?: number; // 0..1, where darkening begins
+  intensity?: number;
+  radius?: number;
   color?: string;
 }
 

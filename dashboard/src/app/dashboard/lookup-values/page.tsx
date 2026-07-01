@@ -12,7 +12,6 @@ import {
 import { Plus, Edit2, PowerOff, Check, X } from '@/lib/components/Icon';
 import { cn } from '@/lib/utils';
 
-// ── Types ────────────────────────────────────────────────────────────────────
 
 const VALUE_TYPES = [
   { value: 'niche',            label: 'Niche' },
@@ -25,7 +24,6 @@ const VALUE_TYPES = [
   { value: 'lut',              label: 'LUT preset' },
 ];
 
-// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function LookupValuesPage() {
   const { globalRole, loading } = usePermissions();
@@ -37,19 +35,16 @@ export default function LookupValuesPage() {
   const [fetching, setFetching] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
 
-  // Add form state
   const [addValue, setAddValue] = useState('');
   const [addLabel, setAddLabel] = useState('');
   const [addParent, setAddParent] = useState('');
   const [addSort, setAddSort] = useState('0');
   const [saving, setSaving] = useState(false);
 
-  // Inline edit state
   const [editId, setEditId] = useState<number | null>(null);
   const [editLabel, setEditLabel] = useState('');
   const [editSort, setEditSort] = useState('');
 
-  // Redirect non-superadmins once permissions load
   useEffect(() => {
     if (!loading && globalRole !== 'superadmin') router.replace('/dashboard');
   }, [loading, globalRole, router]);

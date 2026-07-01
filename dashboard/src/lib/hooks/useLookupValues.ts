@@ -8,9 +8,6 @@ export interface LvOption {
   label: string;
 }
 
-// Simple per-render cache so repeated calls within the same component tree
-// don't fire duplicate requests. A full SWR/React Query cache can replace this
-// when the server-state migration (AE-595) lands.
 const _cache = new Map<string, LvOption[]>();
 
 export function useLookupValues(type: string, parentValue?: string): LvOption[] {

@@ -21,7 +21,6 @@ export const IntroAnimation: React.FC<IntroAnimationProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
-  // Sweep band that wipes across mid-intro
   const sweepX = interpolate(
     frame,
     [Math.round(durationInFrames * 0.35), Math.round(durationInFrames * 0.55)],

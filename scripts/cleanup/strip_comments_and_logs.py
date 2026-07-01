@@ -199,14 +199,38 @@ def _starts_with_any(line: str, prefixes: Iterable[str]) -> bool:
     return any(s.startswith(p) for p in prefixes)
 
 
-def _split_code_and_inline_comment(
-    line: str, comment_token: str, string_chars: tuple[str, ...] = ('"', "'", "`")
-) -> tuple[str, str | None]:
-    """Return (code_part, inline_comment_or_none) honouring strings.
+_REGEX_PRECEDING_TOKENS: tuple[str, ...] = (
+    "=", "(", ",", "[", "!", "&", "|", "?", ":", "{", ";", "+", "*",
+    "return", "typeof", "instanceof", "in", "of", "delete", "void",
+    "throw", "new", "yield", "await",
+)
 
-    Naive but adequate: tracks single-char quote contexts and skips escapes.
-    Does not understand TS template-literal nesting; safe because we only need
-    to recognise inline comments, not parse strings perfectly.
+
+def _last_meaningful_token(prefix: str) -> str:
+    """Return the last non-whitespace character or trailing word in *prefix*."""
+    s = prefix.rstrip()
+    if not s:
+        return ""
+    if s[-1].isalnum() or s[-1] == "_":
+        m = re.search(r"[A-Za-z_][A-Za-z0-9_]*$", s)
+        return m.group(0) if m else s[-1]
+    return s[-1]
+
+
+def _split_code_and_inline_comment(
+    line: str,
+    comment_token: str,
+    string_chars: tuple[str, ...] = ('"', "'", "`"),
+    *,
+    handle_regex: bool = False,
+) -> tuple[str, str | None]:
+    """Return (code_part, inline_comment_or_none) honouring strings and
+    (optionally) JS/TS regex literals.
+
+    Tracks single-char quote contexts and skips escape sequences. When
+    *handle_regex* is True (TS/JS), a ``/`` preceded by an operator/keyword
+    is treated as the start of a regex literal and consumed up to the
+    closing ``/`` plus any flag characters.
     """
     i = 0
     n = len(line)
@@ -225,6 +249,31 @@ def _split_code_and_inline_comment(
             in_str = ch
             i += 1
             continue
+        if handle_regex and ch == "/" and i + 1 < n and line[i + 1] not in "/*":
+            prev = _last_meaningful_token(line[:i])
+            if prev in _REGEX_PRECEDING_TOKENS:
+                j = i + 1
+                while j < n:
+                    cj = line[j]
+                    if cj == "\\" and j + 1 < n:
+                        j += 2
+                        continue
+                    if cj == "[":
+                        while j < n and line[j] != "]":
+                            if line[j] == "\\" and j + 1 < n:
+                                j += 2
+                                continue
+                            j += 1
+                    if cj == "/":
+                        j += 1
+                        while j < n and line[j] in "gimsuy":
+                            j += 1
+                        i = j
+                        break
+                    j += 1
+                else:
+                    return line, None
+                continue
         if line.startswith(comment_token, i):
             return line[:i], line[i:]
         i += 1
@@ -356,6 +405,7 @@ def clean_slash_lang(
     strip_fmt_print: bool = False,
     strip_console_debug: bool = False,
     preserved_lines: set[int] | None = None,
+    handle_regex: bool = False,
 ) -> tuple[str, int]:
     """Common cleaner for TypeScript / JavaScript / Rust / Go.
 
@@ -427,14 +477,15 @@ def clean_slash_lang(
             continue
 
         if "//" in raw:
-            code, comment = _split_code_and_inline_comment(raw.rstrip("\n"), "//")
+            code, comment = _split_code_and_inline_comment(
+                raw.rstrip("\n"), "//", handle_regex=handle_regex
+            )
             if comment is not None and not _starts_with_any(comment, preserved_prefixes):
                 trailing_ws = "\n" if raw.endswith("\n") else ""
                 cleaned = code.rstrip()
                 if cleaned:
                     out.append(cleaned + trailing_ws)
-                else:
-                    removed += 1
+                removed += 1
                 i += 1
                 continue
 
@@ -475,6 +526,7 @@ def clean_typescript(text: str) -> tuple[str, int]:
         text,
         preserved_prefixes=TS_PRESERVED_SLASH_PREFIXES,
         strip_console_debug=True,
+        handle_regex=True,
     )
 
 

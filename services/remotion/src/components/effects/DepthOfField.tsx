@@ -26,7 +26,6 @@ export const DepthOfField: React.FC<DepthOfFieldProps> = ({
   softness = 0.5,
   children,
 }) => {
-  // Generate SVG gradient mask for focus region
   let gradientStops: string;
   
   switch (focusRegion) {
@@ -71,7 +70,6 @@ export const DepthOfField: React.FC<DepthOfFieldProps> = ({
       `;
       break;
     default:
-      // "none" - uniform blur
       gradientStops = `<stop offset="0%" stop-opacity="0" />`;
   }
   
@@ -96,7 +94,6 @@ export const DepthOfField: React.FC<DepthOfFieldProps> = ({
   const maskUrl = `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}#dof-mask")`;
   
   if (focusRegion === "none") {
-    // Uniform blur, no mask
     return (
       <AbsoluteFill style={{ filter: filterUrl as string }}>
         {children}

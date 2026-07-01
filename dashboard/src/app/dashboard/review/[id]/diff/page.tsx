@@ -13,7 +13,6 @@ function diffLines(aText: string, bText: string) {
   const a = (aText || '').split(/\r?\n/);
   const b = (bText || '').split(/\r?\n/);
   const m = a.length, n = b.length;
-  // dp[i][j] = LCS length of a[0..i] vs b[0..j]
   const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
   for (let i = m - 1; i >= 0; i--) {
     for (let j = n - 1; j >= 0; j--) {

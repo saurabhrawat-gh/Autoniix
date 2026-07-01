@@ -16,11 +16,8 @@ import { Button } from '@/lib/ui';
 import { promptDialog, confirmDialog } from '@/lib/components/ConfirmDialog';
 import { useUrlState } from '@/lib/hooks/useUrlState';
 
-// Categories that are seeded in the DB but have no active provider
-// implementation yet. Hidden from the UI until they ship.
 const STUB_KINDS = new Set(['lut', 'sfx', 'music']);
 
-// Recommended setup order shown in the onboarding panel.
 const ONBOARDING_STEPS = [
   { kind: 'llm',           label: 'AI Writing (LLM)',     why: 'Required for scripting, research, hooks, and quality scoring.', urgent: true },
   { kind: 'tts',           label: 'Voice (TTS)',          why: 'Required to generate spoken narration for every video.', urgent: true },
@@ -78,16 +75,14 @@ export default function ProvidersIndex() {
   const [creds, setCreds] = useState<any[]>([]);
   const [market, setMarket] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  // Custom taxonomy editing
   const [addSectionFor, setAddSectionFor] = useState(false);
-  const [addCategoryFor, setAddCategoryFor] = useState<string | null | false>(false); // kind to prefill | null = any | false = closed
-  const [addProviderFor, setAddProviderFor] = useState<string | false>(false);        // kind | false
+  const [addCategoryFor, setAddCategoryFor] = useState<string | null | false>(false);
+  const [addProviderFor, setAddProviderFor] = useState<string | false>(false);
   const [restoring, setRestoring] = useState(false);
   const [probingAll, setProbingAll] = useState(false);
   const [marketFilter, setMarketFilter] = useState<string>('all');
   const [expandedKind, setExpandedKind] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
-  // AE-72 — rotation overdue
   const [overdueRotations, setOverdueRotations] = useState<any[]>([]);
   const [showApprovals, setShowApprovals] = useState(false);
   const [approvals, setApprovals] = useState<ChangeRequest[]>([]);
@@ -124,7 +119,7 @@ export default function ProvidersIndex() {
       confirmLabel: 'Wipe everything',
       destructive: true,
     });
-    if (phrase === null) return; // cancelled
+    if (phrase === null) return;
     setResetting(true);
     try {
       const r = await providersApi.cleanSlate();
@@ -209,8 +204,6 @@ export default function ProvidersIndex() {
       providersApi.credentials().then(r => setCreds(r.data || [])),
       providersApi.marketplace().then(r => setMarket(r.data || [])).catch(() => {}),
       providersApi.allRotationStatus({ overdue_only: true }).then(r => setOverdueRotations(r.data || [])).catch(() => {}),
-      // Lightweight count so the Approvals button only shows when there is
-      // actually something to review (a solo owner never sees an empty queue).
       Promise.all([
         changeRequestsApi.list({ status: 'pending_admin' }).then(r => r.data.length).catch(() => 0),
         changeRequestsApi.list({ status: 'pending_owner' }).then(r => r.data.length).catch(() => 0),
@@ -303,13 +296,11 @@ export default function ProvidersIndex() {
   };
 
   const grouped: Record<string, any[]> = cats.reduce((acc: any, c: any) => {
-    if (STUB_KINDS.has(c.kind)) return acc; // hide unimplemented categories
+    if (STUB_KINDS.has(c.kind)) return acc;
     (acc[c.kind] ||= []).push(c);
     return acc;
   }, {});
 
-  // Section metadata sourced from the provider_kinds API (icon/label/built-in),
-  // falling back to the hardcoded KIND_META for any kind not yet in the table.
   const kindsByKey: Record<string, any> = kinds.reduce((acc: any, k: any) => {
     acc[k.kind] = k; return acc;
   }, {});
@@ -497,9 +488,6 @@ export default function ProvidersIndex() {
             )}
             {/* ── Setup guide ── */}
             {(() => {
-              // Curated essential steps with live state computed from the
-              // categories/credentials already loaded. Only show a step when
-              // its section actually exists in the taxonomy.
               const steps = ONBOARDING_STEPS
                 .map(s => {
                   const catsForKind = (grouped[s.kind] || []);
@@ -998,7 +986,6 @@ export default function ProvidersIndex() {
   );
 }
 
-// ── Shared dialog primitives ──────────────────────────────────────────────────
 function DialogShell({ title, subtitle, onClose, children, footer }: {
   title: string; subtitle?: string; onClose: () => void;
   children: React.ReactNode; footer: React.ReactNode;

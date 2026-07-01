@@ -252,23 +252,19 @@ export function applyPrimaryRgb(
   const sat = p.saturation ?? 1;
   const contrast = p.contrast ?? 1;
 
-  // 1. lift / gamma / gain (DaVinci-style)
   let r = applyLGG(rgb[0], lift[0], gamma[0], gain[0]);
   let g = applyLGG(rgb[1], lift[1], gamma[1], gain[1]);
   let b = applyLGG(rgb[2], lift[2], gamma[2], gain[2]);
 
-  // 2. contrast around 0.5 pivot
   r = (r - 0.5) * contrast + 0.5;
   g = (g - 0.5) * contrast + 0.5;
   b = (b - 0.5) * contrast + 0.5;
 
-  // 3. saturation: lerp toward Rec.709 luma
   const Y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
   r = Y + (r - Y) * sat;
   g = Y + (g - Y) * sat;
   b = Y + (b - Y) * sat;
 
-  // 4. temperature/tint (white-balance push) — small additive in RGB.
   const temp = (p.temperature ?? 0) / 100;
   const tint = (p.tint ?? 0) / 100;
   r += temp * 0.05;
@@ -279,10 +275,8 @@ export function applyPrimaryRgb(
 }
 
 function applyLGG(x: number, lift: number, gamma: number, gain: number): number {
-  // Apply lift then gain, then a per-channel gamma curve.
   let v = (x + lift) * gain;
   if (v <= 0) return 0;
-  // Gamma > 1 darkens, < 1 lightens (DaVinci convention with 1/gamma).
   const g = gamma <= 0 ? 1 : gamma;
   return Math.pow(v, 1 / g);
 }
@@ -333,10 +327,8 @@ export function hslQualifierWeight(
 ): number {
   const [h, s, l] = rgbToHsl(rgb);
   const halfWidth = q.hueWidth / 2;
-  // Wrapped hue distance in degrees.
   let hueDist = Math.abs(((h - q.hueCenter + 540) % 360) - 180);
   hueDist = Math.min(hueDist, Math.abs(((q.hueCenter - h + 540) % 360) - 180));
-  // Interpret softness as % of width that fades; e.g. softness=0.4 → 40% fade.
   const fade = halfWidth * q.softness;
   const hueWeight =
     1 - smoothstep(halfWidth - fade, halfWidth + fade, hueDist);
@@ -376,13 +368,11 @@ export function powerWindowWeight(
       const dx = (u - w.shape.cx) / Math.max(1e-6, w.shape.rx);
       const dy = (v - w.shape.cy) / Math.max(1e-6, w.shape.ry);
       const r = Math.sqrt(dx * dx + dy * dy);
-      // r=0 fully inside, r=1 boundary, r>1 outside; soften across the edge.
       const inside = 1 - smoothstep(1 - soft, 1 + soft, r);
       return Math.abs(inv - inside);
     }
     case "rect": {
       const rs = w.shape;
-      // Distance to nearest edge (signed; positive inside).
       const dxL = u - rs.left;
       const dxR = rs.right - u;
       const dyT = v - rs.top;
@@ -392,7 +382,6 @@ export function powerWindowWeight(
       return Math.abs(inv - inside);
     }
     case "bezier_path": {
-      // Crude polygon fallback: each non-Z point treated as a vertex.
       const verts: Array<[number, number]> = [];
       for (const seg of w.shape.segments) {
         for (let i = 0; i < seg.points.length; i += 2) {

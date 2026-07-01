@@ -33,7 +33,6 @@ export const TimelineAnimation: React.FC<TimelineAnimationProps> = ({
   const n = events.length;
   const perEvent = Math.max(12, Math.floor((durationInFrames - 20) / Math.max(1, n)));
 
-  // Progress of the spine (0..1) as time advances
   const spineP = easings.power2(
     interpolate(frame, [10, 10 + perEvent * n], [0, 1], {
       extrapolateLeft: "clamp",
@@ -168,7 +167,6 @@ export const TimelineAnimation: React.FC<TimelineAnimationProps> = ({
     );
   }
 
-  // vertical
   return (
     <AbsoluteFill style={{ backgroundColor: bg, padding: 80 }}>
       {title && (

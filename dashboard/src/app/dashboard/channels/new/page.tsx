@@ -126,7 +126,6 @@ export default function ChannelWizard() {
     channelsApi.presets().then(r => setPresets(r.data || []));
   }, []);
 
-  // Autosave draft (debounced).
   useEffect(() => {
     const t = setTimeout(async () => {
       if (!state.channel_name) return;
@@ -139,7 +138,6 @@ export default function ChannelWizard() {
           await channelsApi.draftSave(draftId, step + 1, state);
         }
       } catch {
-        // best-effort
       } finally {
         setSavingDraft(false);
       }
@@ -150,14 +148,12 @@ export default function ChannelWizard() {
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setState(s => ({ ...s, [k]: v }));
 
-  // AE-291 — per-step validation
   const [touchedSteps, setTouchedSteps] = useState<Set<number>>(new Set());
   const allValidity = useMemo(() => computeAllValidity(state), [state]);
   const currentKey = STEPS[step].key as StepKey;
   const currentResult = useMemo(() => validateStep(currentKey, state), [currentKey, state]);
   const currentErrors: WizardErrors = currentResult.errors;
   const currentValid = currentResult.valid;
-  // A step's previous steps must all be valid before it can be jumped-into.
   const canJumpTo = (idx: number): boolean => {
     if (idx <= step) return true;
     for (let i = 0; i < idx; i++) {
@@ -190,7 +186,6 @@ export default function ChannelWizard() {
 
   const submit = async () => {
     if (invalidSteps.length > 0) {
-      // Mark every step touched so all errors render.
       setTouchedSteps(new Set(STEPS.map((_, i) => i)));
       return;
     }
@@ -336,7 +331,6 @@ export default function ChannelWizard() {
   );
 }
 
-// Field primitive
 function Field({
   label, hint, children, suggest, error, required,
 }: {
@@ -383,7 +377,6 @@ async function aiSuggest(field: string, context: any, set: (v: string) => void) 
   } catch {/* ignore */}
 }
 
-// Step components
 function BasicsStep({ state, update, errors }: { state: FormState; update: any; errors: WizardErrors }) {
   const niches     = useLookupValues('niche');
   const subNiches  = useLookupValues('sub_niche', state.niche || undefined);

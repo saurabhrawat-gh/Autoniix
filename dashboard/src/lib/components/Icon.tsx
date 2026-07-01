@@ -1,4 +1,3 @@
-// Curated Lucide icon re-exports — single import path for consistency.
 export {
   ArrowLeft,
   ArrowRight,

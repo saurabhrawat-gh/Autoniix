@@ -66,48 +66,38 @@ function batch(
 /* ------------------------------------------------------------------ */
 
 const envatoLuts: LUTPreset[] = [
-  // Cinematic (30)
   ...batch("cinematic_teal_orange", "Cinematic Teal Orange", "cinematic", 10, "envato", 0.85, ["cinematic", "teal_orange", "blockbuster"]),
   ...batch("cinematic_cool", "Cinematic Cool", "cinematic", 10, "envato", 0.80, ["cinematic", "cool", "blue"]),
   ...batch("cinematic_warm", "Cinematic Warm", "cinematic", 10, "envato", 0.80, ["cinematic", "warm", "golden"]),
 
-  // Film Emulation (20)
   ...batch("kodak_2383", "Kodak 2383 Print", "film_emulation", 5, "envato", 0.90, ["film", "kodak", "print", "cinema"]),
   ...batch("kodak_5219", "Kodak 5219 Negative", "film_emulation", 5, "envato", 0.85, ["film", "kodak", "negative"]),
   ...batch("fuji_3510", "Fuji 3510 Print", "film_emulation", 5, "envato", 0.90, ["film", "fuji", "print"]),
   ...batch("ilford_hp5", "Ilford HP5 BW", "film_emulation", 5, "envato", 0.80, ["film", "ilford", "bw", "monochrome"]),
 
-  // Moody/Dark (15)
   ...batch("moody_dark", "Moody Dark", "moody", 8, "envato", 0.75, ["moody", "dark", "desaturated"]),
   ...batch("moody_noir", "Noir", "moody", 4, "envato", 0.70, ["moody", "noir", "contrast"]),
   ...batch("moody_cold", "Cold Moody", "moody", 3, "envato", 0.75, ["moody", "cold", "blue"]),
 
-  // Documentary (15)
   ...batch("doc_natural", "Documentary Natural", "documentary", 8, "envato", 0.70, ["documentary", "natural", "clean"]),
   ...batch("doc_broadcast", "Broadcast Ready", "documentary", 7, "envato", 0.65, ["documentary", "broadcast", "neutral"]),
 
-  // Commercial (15)
   ...batch("commercial_bright", "Commercial Bright", "commercial", 8, "envato", 0.70, ["commercial", "bright", "vibrant"]),
   ...batch("commercial_clean", "Commercial Clean", "commercial", 7, "envato", 0.65, ["commercial", "clean", "corporate"]),
 
-  // Vintage (15)
   ...batch("vintage_faded", "Vintage Faded", "vintage", 8, "envato", 0.75, ["vintage", "faded", "retro"]),
   ...batch("vintage_70s", "70s Film Look", "vintage", 4, "envato", 0.80, ["vintage", "70s", "warm"]),
   ...batch("vintage_polaroid", "Polaroid Style", "vintage", 3, "envato", 0.70, ["vintage", "polaroid", "instant"]),
 
-  // Warm (10)
   ...batch("warm_golden_hour", "Golden Hour", "warm", 5, "envato", 0.75, ["warm", "golden", "sunset"]),
   ...batch("warm_wedding", "Wedding Warm", "warm", 5, "envato", 0.70, ["warm", "wedding", "soft"]),
 
-  // HDR/Vivid (10)
   ...batch("hdr_vivid", "HDR Vivid", "hdr", 5, "envato", 0.60, ["hdr", "vivid", "punchy"]),
   ...batch("hdr_contrast", "HDR High Contrast", "hdr", 5, "envato", 0.65, ["hdr", "contrast", "saturated"]),
 
-  // Travel (10)
   ...batch("travel_tropical", "Travel Tropical", "travel", 5, "envato", 0.70, ["travel", "tropical", "vibrant"]),
   ...batch("travel_urban", "Travel Urban", "travel", 5, "envato", 0.70, ["travel", "urban", "city"]),
 
-  // B&W (10)
   ...batch("bw_classic", "B&W Classic", "bw", 5, "envato", 0.90, ["bw", "monochrome", "classic"]),
   ...batch("bw_high_contrast", "B&W High Contrast", "bw", 5, "envato", 0.85, ["bw", "monochrome", "contrast"]),
 ];

@@ -6,7 +6,7 @@ export type SlideDirection = "left" | "right" | "up" | "down";
 
 export interface SlideInProps {
   direction?: SlideDirection;
-  distance?: number; // px
+  distance?: number;
   durationInFrames?: number;
   delay?: number;
   ease?: EaseName;

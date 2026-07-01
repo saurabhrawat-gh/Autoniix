@@ -15,7 +15,6 @@ import { dedupedGet, invalidateCache } from '../request-cache';
 
 export const BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
-// One-time purge: remove any legacy localStorage token keys left from old builds.
 if (typeof window !== 'undefined') {
   localStorage.removeItem('dashboard_token');
   localStorage.removeItem('dashboard_token_expires');
@@ -61,13 +60,8 @@ export async function rawRequest<T = any>(path: string, opts: RequestInit = {}, 
       if (refreshed) return rawRequest<T>(path, opts, true);
     }
     if (typeof window !== 'undefined') {
-      // Clear stale session hints so the edge middleware doesn't bounce us
-      // back to /dashboard in an infinite loop. The HttpOnly access/refresh
-      // cookies are owned by the backend; the `auth_status=1` hint is the
-      // only thing the middleware looks at.
       document.cookie = 'auth_status=; Path=/; Max-Age=0; SameSite=Lax; Secure';
       clearToken();
-      // Avoid re-loop if we're already on /login (e.g. /login itself calls API).
       if (!window.location.pathname.startsWith('/login')) {
         window.location.href = '/login';
       }
@@ -147,7 +141,6 @@ export async function request<T = any>(path: string, opts: RequestInit = {}): Pr
   return dedupedGet<T>(`GET ${path}`, () => rawRequest<T>(path, opts));
 }
 
-// Session utilities
 export function isLoggedIn(): boolean {
   if (typeof window === 'undefined') return false;
   return document.cookie.split(';').some(c => c.trim() === 'auth_status=1');
@@ -167,7 +160,6 @@ export function clearToken() {
   localStorage.removeItem('dashboard_token_expires');
 }
 
-// WebSocket helpers
 export function wsProgress(contentId: string): WebSocket {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = process.env.NEXT_PUBLIC_WS_URL || `${proto}//${window.location.host}`;
@@ -180,7 +172,6 @@ export function wsEvents(): WebSocket {
   return new WebSocket(`${host}/api/ws/events`);
 }
 
-// Legacy password-only login (used when auth.v2.enabled = FALSE).
 export async function legacyLogin(password: string): Promise<void> {
   const res = await fetch(`${BASE}/api/auth/login`, {
     method: 'POST',

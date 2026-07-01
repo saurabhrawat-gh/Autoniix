@@ -2,7 +2,7 @@ import React from "react";
 import { random, useCurrentFrame } from "remotion";
 
 export interface ShakeProps {
-  intensity?: number; // max translate in px
+  intensity?: number;
   rotationDeg?: number;
   /** Triggers after `delay` frames, lasts `durationInFrames`, then settles. */
   delay?: number;
@@ -24,7 +24,7 @@ export const Shake: React.FC<ShakeProps> = ({
   const frame = useCurrentFrame();
   const active = frame >= delay && frame < delay + durationInFrames;
   const falloff = active
-    ? 1 - (frame - delay) / durationInFrames // linear decay
+    ? 1 - (frame - delay) / durationInFrames
     : 0;
 
   const dx = active ? (random(`${seed}-x-${frame}`) * 2 - 1) * intensity * falloff : 0;

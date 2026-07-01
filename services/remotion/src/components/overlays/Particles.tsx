@@ -7,7 +7,7 @@ export interface ParticlesProps {
   style?: ParticleStyle;
   count?: number;
   color?: string;
-  speed?: number; // pixels / second vertical drift
+  speed?: number;
 }
 
 const STYLE_DEFAULTS: Record<

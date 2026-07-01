@@ -48,8 +48,6 @@ export async function dispatchSharded(input: DispatchInput): Promise<DispatchRes
   const sceneGraphJson = JSON.stringify(graph);
 
   const shards = plan.shards.map((shard) => {
-    // Tier of the shard = highest-cost tier of any clip it contains.
-    // Order: t1 > t0 > t2 (Chromium dominates if any DOM-required clip exists).
     let tier: TierName = "t2";
     for (const cid of shard.clipIds) {
       const t = tagsByClipId.get(cid) ?? "t1";
@@ -122,7 +120,6 @@ export async function dispatchSharded(input: DispatchInput): Promise<DispatchRes
 
 /** Tier merge: pick the more capability-demanding tier for the shard. */
 function mergeTier(a: TierName, b: TierName): TierName {
-  // t1 (Chromium) > t0 (WebGPU) > t2 (ffmpeg)
   const order: Record<TierName, number> = { t2: 0, t0: 1, t1: 2 };
   return (order[a] >= order[b] ? a : b);
 }

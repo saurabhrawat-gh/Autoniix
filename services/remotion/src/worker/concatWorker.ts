@@ -45,7 +45,6 @@ export function startConcatWorker(): Worker<ConcatJobData> {
     async (job) => handleConcatJob(job),
     {
       connection,
-      // Concat is cheap; allow more parallelism than shard workers.
       concurrency: Math.max(env.RENDER_CONCURRENCY, 2),
     },
   );

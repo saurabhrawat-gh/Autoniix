@@ -70,9 +70,6 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const trailing = !loading ? (rightIcon ?? null) : null;
 
     if (asChild) {
-      // Radix Slot requires exactly one React element child. Clone the
-      // consumer-provided child and inject icons inside it so the rendered
-      // element (e.g. <Link>) still styles as a button with icons.
       const child = React.Children.only(children) as React.ReactElement;
       return (
         <Slot

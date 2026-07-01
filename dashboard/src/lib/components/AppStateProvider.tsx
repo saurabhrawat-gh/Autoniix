@@ -99,7 +99,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         setActiveJobs(jr.data || []);
       } catch { /* best-effort */ }
     } catch {
-      // best-effort
     }
   }, []);
 
@@ -113,7 +112,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Persist density + load notifications from localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
@@ -124,7 +122,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     } catch {}
   }, []);
 
-  // Apply density attribute on <html> for CSS hooks
   useEffect(() => {
     if (typeof document === 'undefined') return;
     document.documentElement.setAttribute('data-density', density);
@@ -157,10 +154,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     try { localStorage.removeItem(NOTIF_KEY); } catch {}
   }, []);
 
-  // Periodic stats refresh — pauses when the tab is hidden, and skips when
-  // the WebSocket is already live (WS pushes job_update events; the timer
-  // is only a fallback for offline/connecting states). Bumped 15s → 30s.
-  // Read wsStatus from a ref so changes don't recreate the interval.
   const wsStatusRef = useRef<WsStatus>('connecting');
   useEffect(() => { wsStatusRef.current = wsStatus; }, [wsStatus]);
   useEffect(() => {
@@ -173,7 +166,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(t);
   }, [refresh]);
 
-  // Single shared WebSocket connection for all consumers
   const wsRef = useRef<WebSocket | null>(null);
   useEffect(() => {
     if (typeof window === 'undefined' || !isLoggedIn()) return;
@@ -187,7 +179,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       try {
         const ws = wsEvents();
         wsRef.current = ws;
-        // If the socket doesn't open within 5s, treat as offline
         connectTimeout = setTimeout(() => {
           if (ws.readyState !== WebSocket.OPEN) {
             setWsStatus('offline');
@@ -210,7 +201,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         ws.onmessage = (ev) => {
           try {
             const msg = JSON.parse(ev.data);
-            // Surface job lifecycle events as notifications
             if (msg.type === 'job_update') {
               jobsApi.active().then((r) => setActiveJobs(r.data || [])).catch(() => {});
             }

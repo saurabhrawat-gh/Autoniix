@@ -93,7 +93,6 @@ function runOnce(
 
     child.stdout.on("data", (b) => {
       stdout += b.toString("utf8");
-      // Cap at 1 MB per stream to avoid OOM on noisy commands.
       if (stdout.length > 1_000_000) stdout = stdout.slice(-1_000_000);
     });
     child.stderr.on("data", (b) => {
@@ -165,7 +164,6 @@ export async function runFfmpegRecipe(
       throw err;
     }
     if (cmd.finalOutput) {
-      // Output path is the last positional arg of the command.
       outputPath = cmd.args[cmd.args.length - 1] ?? null;
     }
   }
@@ -174,12 +172,10 @@ export async function runFfmpegRecipe(
     throw new Error("runFfmpegRecipe: recipe ended without a finalOutput=true command");
   }
 
-  // Confirm the output file exists.
   await fs.access(outputPath);
 
-  // Emit a metric for the whole recipe (one observation per kind hit).
   for (const cmd of recipe.commands) {
-    metrics.cache.miss("blend"); // placeholder — caller should do the real bookkeeping
+    metrics.cache.miss("blend");
     void cmd;
   }
 

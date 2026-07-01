@@ -16,7 +16,6 @@ const DASHBOARD_PATH = '/dashboard';
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Let Next.js internals, API routes and static assets pass through.
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
@@ -26,10 +25,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // `auth_status=1` is a non-HttpOnly cookie set by both the Rust gateway
-  // and Python backend to signal that a valid session exists. It is not a
-  // security gate (the real auth check is the HttpOnly JWT cookie validated
-  // by the gateway), but it is safe to use here for redirect UX.
   const isAuthenticated = request.cookies.has('auth_status');
 
   const isPublicPath = PUBLIC_PATHS.has(pathname) || PUBLIC_PATHS.has(pathname.replace(/\/$/, ''));
@@ -37,7 +32,6 @@ export function middleware(request: NextRequest) {
   const isOnboardingPath = pathname === ONBOARDING_PATH;
   const isRootPath = pathname === '/';
 
-  // Unauthenticated: redirect to login from protected routes.
   if (!isAuthenticated && (isDashboardPath || isOnboardingPath)) {
     const url = request.nextUrl.clone();
     url.pathname = LOGIN_PATH;
@@ -45,7 +39,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Authenticated: redirect away from auth pages.
   if (isAuthenticated && (isPublicPath || isRootPath)) {
     const url = request.nextUrl.clone();
     url.pathname = DASHBOARD_PATH;

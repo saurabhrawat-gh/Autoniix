@@ -272,6 +272,28 @@ func F() {
     assert removed >= 3
 
 
+def test_typescript_regex_literal() -> None:
+    src = '''const URL_RE = /^https?:\\/\\/[\\w.-]+$/i;
+const YT_RE  = /^https?:\\/\\/(www\\.)?(youtube\\.com|youtu\\.be)\\//i;
+const PATH = "/api/v2"; // inline note to remove
+const flags = /abc/g;
+const not_regex = x / y / z;
+'''
+    cleaned, removed = clean_typescript(src)
+    _check(
+        "typescript_regex_literal",
+        must_keep=[
+            "const URL_RE = /^https?",
+            "(youtube\\.com|youtu\\.be)\\//i;",
+            'const PATH = "/api/v2";',
+            "const flags = /abc/g;",
+        ],
+        must_drop=["// inline note to remove"],
+        cleaned=cleaned,
+    )
+    assert removed >= 1
+
+
 if __name__ == "__main__":
     test_python()
     test_rust()
@@ -280,4 +302,5 @@ if __name__ == "__main__":
     test_rust_multiline_macro()
     test_typescript_multiline_console()
     test_go_multiline_print()
+    test_typescript_regex_literal()
     print("ALL GREEN")

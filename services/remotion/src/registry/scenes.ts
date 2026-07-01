@@ -25,7 +25,6 @@ import { DiagnosticScene } from "../components/scenes/DiagnosticScene";
 import type { PresetRegistry } from "./types";
 
 export const SCENE_PRESETS: PresetRegistry = {
-  // Debug
   "scene.placeholder": {
     id: "scene.placeholder",
     component: PlaceholderScene,
@@ -33,9 +32,6 @@ export const SCENE_PRESETS: PresetRegistry = {
     category: "scene",
     tags: ["debug"],
   },
-  // NOTE: previously rendered fully black (bg=#000, fg=#000). Now visibly
-  // labelled — black-screen renders are a regression and must be caught by
-  // post-render QC, never produced silently.
   "scene.placeholder.black": {
     id: "scene.placeholder.black",
     component: PlaceholderScene,
@@ -43,8 +39,6 @@ export const SCENE_PRESETS: PresetRegistry = {
     category: "scene",
     tags: ["debug", "fallback"],
   },
-  // Loud, animated fallback — used by the simplifier and any unresolved
-  // preset path. Never confusable with a real, shippable render.
   "scene.error.diagnostic": {
     id: "scene.error.diagnostic",
     component: DiagnosticScene,
@@ -53,7 +47,6 @@ export const SCENE_PRESETS: PresetRegistry = {
     tags: ["debug", "diagnostic", "fallback"],
   },
 
-  // Stock footage
   "scene.stock.static_centered": {
     id: "scene.stock.static_centered",
     component: StockFootageScene,
@@ -76,7 +69,6 @@ export const SCENE_PRESETS: PresetRegistry = {
     tags: ["stock", "footage", "kenburns", "punch"],
   },
 
-  // Kinetic typography
   "scene.kinetic.scale_punch": {
     id: "scene.kinetic.scale_punch",
     component: KineticTypography,
@@ -106,7 +98,6 @@ export const SCENE_PRESETS: PresetRegistry = {
     tags: ["kinetic", "text", "fade"],
   },
 
-  // Full-screen statements
   "scene.fullscreen.bold": {
     id: "scene.fullscreen.bold",
     component: FullScreenText,
@@ -122,7 +113,6 @@ export const SCENE_PRESETS: PresetRegistry = {
     tags: ["fullscreen", "statement", "red"],
   },
 
-  // Quotes
   "scene.quote.minimal_serif": {
     id: "scene.quote.minimal_serif",
     component: QuoteCard,
@@ -145,7 +135,6 @@ export const SCENE_PRESETS: PresetRegistry = {
     tags: ["quote", "neon"],
   },
 
-  // Lists
   "scene.list.checkmark": {
     id: "scene.list.checkmark",
     component: ListAnimation,
@@ -168,7 +157,6 @@ export const SCENE_PRESETS: PresetRegistry = {
     tags: ["list"],
   },
 
-  // Hook openers
   "scene.hook.question": {
     id: "scene.hook.question",
     component: HookOpener,
@@ -198,7 +186,6 @@ export const SCENE_PRESETS: PresetRegistry = {
     tags: ["hook", "statement"],
   },
 
-  // Phase 2: DataVisualization
   "scene.data.bar": {
     id: "scene.data.bar", component: DataVisualization,
     defaultProps: { type: "bar" }, category: "scene", tags: ["data", "chart", "bar"],
@@ -220,7 +207,6 @@ export const SCENE_PRESETS: PresetRegistry = {
     defaultProps: { type: "stacked_bar" }, category: "scene", tags: ["data", "chart"],
   },
 
-  // Phase 2: SplitComparison
   "scene.split.vs_badge": {
     id: "scene.split.vs_badge", component: SplitComparison,
     defaultProps: { vsBadge: true }, category: "scene", tags: ["split", "compare", "vs"],
@@ -230,7 +216,6 @@ export const SCENE_PRESETS: PresetRegistry = {
     defaultProps: { vsBadge: false }, category: "scene", tags: ["split", "compare"],
   },
 
-  // Phase 2: IconAnimation
   "scene.icon.pop": {
     id: "scene.icon.pop", component: IconAnimation,
     defaultProps: { style: "pop" }, category: "scene", tags: ["icon"],
@@ -240,7 +225,6 @@ export const SCENE_PRESETS: PresetRegistry = {
     defaultProps: { style: "pulse" }, category: "scene", tags: ["icon", "pulse"],
   },
 
-  // Phase 2: CountdownScene
   "scene.countdown.numeric": {
     id: "scene.countdown.numeric", component: CountdownScene,
     defaultProps: { style: "numeric" }, category: "scene", tags: ["countdown"],
@@ -250,7 +234,6 @@ export const SCENE_PRESETS: PresetRegistry = {
     defaultProps: { style: "dial" }, category: "scene", tags: ["countdown", "dial"],
   },
 
-  // Phase 2: BeforeAfterSlider
   "scene.beforeafter.auto_sweep": {
     id: "scene.beforeafter.auto_sweep", component: BeforeAfterSlider,
     defaultProps: { mode: "auto" }, category: "scene", tags: ["beforeafter", "slider"],
@@ -260,7 +243,6 @@ export const SCENE_PRESETS: PresetRegistry = {
     defaultProps: { mode: "static", position: 0.5 }, category: "scene", tags: ["beforeafter"],
   },
 
-  // Phase 2: Mockups
   "scene.mockup.phone_iphone": {
     id: "scene.mockup.phone_iphone", component: PhoneMockup,
     defaultProps: { style: "iphone" }, category: "scene", tags: ["mockup", "phone"],
@@ -286,7 +268,6 @@ export const SCENE_PRESETS: PresetRegistry = {
     defaultProps: { platform: "youtube_comment" }, category: "scene", tags: ["mockup", "social"],
   },
 
-  // Phase 2: Branding (full-screen)
   "scene.branding.intro_sweep": {
     id: "scene.branding.intro_sweep", component: IntroAnimation,
     defaultProps: {}, category: "scene", tags: ["branding", "intro"],
@@ -296,7 +277,6 @@ export const SCENE_PRESETS: PresetRegistry = {
     defaultProps: {}, category: "scene", tags: ["branding", "outro"],
   },
 
-  // Phase 3: Premium scenes
   "scene.timeline.horizontal": {
     id: "scene.timeline.horizontal", component: TimelineAnimation,
     defaultProps: { orientation: "horizontal", events: [] },
@@ -338,7 +318,6 @@ export const SCENE_PRESETS: PresetRegistry = {
     category: "scene", tags: ["flowchart", "premium"],
   },
 
-  // Premium Kinetic Typography
   "scene.kinetic.cascade": {
     id: "scene.kinetic.cascade", component: AdvancedKineticText,
     defaultProps: { text: "", style: "cascade", staggerFrames: 3, fontSize: 80, motionBlur: true },
@@ -365,7 +344,6 @@ export const SCENE_PRESETS: PresetRegistry = {
     category: "scene", tags: ["text", "kinetic", "premium", "explode"],
   },
 
-  // Text Stroke Reveal
   "scene.text.stroke_reveal": {
     id: "scene.text.stroke_reveal", component: TextStrokeReveal,
     defaultProps: { text: "", fontSize: 100, strokeColor: "#FFFFFF", fillColor: "#FFFFFF", strokeWidth: 3, revealDuration: 60, fillDelay: 30 },

@@ -80,7 +80,6 @@ const mk = (
 
 export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
   [
-    // whoosh (10)
     mk("sfx.whoosh.short",        "whoosh", "Whoosh short",        300, "whoosh/whoosh_short.mp3", ["transition"]),
     mk("sfx.whoosh.long",         "whoosh", "Whoosh long",         900, "whoosh/whoosh_long.mp3",  ["transition"]),
     mk("sfx.whoosh.airy",         "whoosh", "Whoosh airy",         600, "whoosh/whoosh_airy.mp3"),
@@ -92,7 +91,6 @@ export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
     mk("sfx.whoosh.heavy",        "whoosh", "Whoosh heavy",        850, "whoosh/whoosh_heavy.mp3"),
     mk("sfx.whoosh.wind",         "whoosh", "Wind whoosh",         1200, "whoosh/whoosh_wind.mp3"),
 
-    // impact (10)
     mk("sfx.impact.punch",        "impact", "Impact punch",        250, "impact/impact_punch.mp3"),
     mk("sfx.impact.boom",         "impact", "Impact boom",         1100, "impact/impact_boom.mp3"),
     mk("sfx.impact.cinematic",    "impact", "Cinematic hit",       1400, "impact/impact_cinematic.mp3"),
@@ -104,7 +102,6 @@ export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
     mk("sfx.impact.stinger",      "impact", "Orchestral stinger",  2200, "impact/impact_stinger.mp3"),
     mk("sfx.impact.kick_808",     "impact", "808 kick",            500, "impact/impact_kick_808.mp3"),
 
-    // pop (6)
     mk("sfx.pop.bubble",          "pop", "Bubble pop",             180, "pop/pop_bubble.mp3"),
     mk("sfx.pop.tight",           "pop", "Tight pop",              120, "pop/pop_tight.mp3"),
     mk("sfx.pop.mouth",           "pop", "Mouth pop",              150, "pop/pop_mouth.mp3"),
@@ -112,7 +109,6 @@ export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
     mk("sfx.pop.cartoon",         "pop", "Cartoon pop",            200, "pop/pop_cartoon.mp3"),
     mk("sfx.pop.boing",           "pop", "Boing",                  380, "pop/pop_boing.mp3"),
 
-    // swoosh (6)
     mk("sfx.swoosh.fast",         "swoosh", "Swoosh fast",         250, "swoosh/swoosh_fast.mp3"),
     mk("sfx.swoosh.slow",         "swoosh", "Swoosh slow",         700, "swoosh/swoosh_slow.mp3"),
     mk("sfx.swoosh.tape",         "swoosh", "Tape swoosh",         500, "swoosh/swoosh_tape.mp3"),
@@ -120,7 +116,6 @@ export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
     mk("sfx.swoosh.paper",        "swoosh", "Paper swoosh",        300, "swoosh/swoosh_paper.mp3"),
     mk("sfx.swoosh.cinema",       "swoosh", "Cinematic swoosh",    900, "swoosh/swoosh_cinema.mp3"),
 
-    // ding (6)
     mk("sfx.ding.bell",           "ding", "Bell ding",             600, "ding/ding_bell.mp3"),
     mk("sfx.ding.notification",   "ding", "Notification ding",     450, "ding/ding_notification.mp3"),
     mk("sfx.ding.triangle",       "ding", "Triangle ding",         800, "ding/ding_triangle.mp3"),
@@ -128,7 +123,6 @@ export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
     mk("sfx.ding.cash",           "ding", "Cash register",         900, "ding/ding_cash.mp3"),
     mk("sfx.ding.achievement",    "ding", "Achievement",           1200, "ding/ding_achievement.mp3"),
 
-    // click / ui (8)
     mk("sfx.click.soft",          "click", "Soft click",           80, "click/click_soft.mp3"),
     mk("sfx.click.hard",          "click", "Hard click",           100, "click/click_hard.mp3"),
     mk("sfx.click.keyboard",      "click", "Keyboard click",       90, "click/click_keyboard.mp3"),
@@ -138,7 +132,6 @@ export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
     mk("sfx.ui.confirm",          "ui",    "UI confirm",           260, "ui/ui_confirm.mp3"),
     mk("sfx.ui.cancel",           "ui",    "UI cancel",            240, "ui/ui_cancel.mp3"),
 
-    // riser / drop (8)
     mk("sfx.riser.short",         "riser", "Riser short",          1500, "riser/riser_short.mp3"),
     mk("sfx.riser.long",          "riser", "Riser long",           4000, "riser/riser_long.mp3"),
     mk("sfx.riser.noise",         "riser", "Noise riser",          3000, "riser/riser_noise.mp3"),
@@ -148,7 +141,6 @@ export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
     mk("sfx.drop.reverse",        "drop",  "Reverse drop",         900,  "drop/drop_reverse.mp3"),
     mk("sfx.drop.sub",            "drop",  "Sub drop",             1800, "drop/drop_sub.mp3"),
 
-    // glitch / tech (10)
     mk("sfx.glitch.digital",      "glitch", "Digital glitch",      300, "glitch/glitch_digital.mp3"),
     mk("sfx.glitch.heavy",        "glitch", "Heavy glitch",        600, "glitch/glitch_heavy.mp3"),
     mk("sfx.glitch.static",       "glitch", "Static glitch",       400, "glitch/glitch_static.mp3"),
@@ -160,7 +152,6 @@ export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
     mk("sfx.tech.powerup",        "tech",   "Power-up",            900, "tech/tech_powerup.mp3"),
     mk("sfx.tech.hologram",       "tech",   "Hologram",            800, "tech/tech_hologram.mp3"),
 
-    // cinematic / ambient (10)
     mk("sfx.cinematic.reverse_hit","cinematic", "Reverse hit",     1400, "cinematic/cine_reverse_hit.mp3"),
     mk("sfx.cinematic.hit_rumble", "cinematic", "Hit + rumble",    2000, "cinematic/cine_hit_rumble.mp3"),
     mk("sfx.cinematic.suspense",   "cinematic", "Suspense drone",  4000, "cinematic/cine_suspense.mp3"),
@@ -172,7 +163,6 @@ export const SFX_LIBRARY: Record<string, SfxEntry> = Object.fromEntries(
     mk("sfx.ambient.office",       "ambient",   "Office ambience", 6000, "ambient/amb_office.mp3", [], -18),
     mk("sfx.ambient.rain",         "ambient",   "Rain",            6000, "ambient/amb_rain.mp3", [], -18),
 
-    // transition / notification (12)
     mk("sfx.transition.slide",     "transition", "Slide",          400, "transition/trans_slide.mp3"),
     mk("sfx.transition.zoom",      "transition", "Zoom",           500, "transition/trans_zoom.mp3"),
     mk("sfx.transition.flash",     "transition", "Flash",          200, "transition/trans_flash.mp3"),
@@ -234,88 +224,69 @@ function mkBatch(
 }
 
 const ENVATO_SFX: SfxEntry[] = [
-  // Whoosh (100)
   ...mkBatch("whoosh_cinematic", "whoosh", "Envato Cinematic Whoosh", 50, 500, "envato", ["cinematic", "transition", "premium"]),
   ...mkBatch("whoosh_soft", "whoosh", "Envato Soft Whoosh", 25, 400, "envato", ["soft", "transition", "premium"]),
   ...mkBatch("whoosh_heavy", "whoosh", "Envato Heavy Whoosh", 25, 700, "envato", ["heavy", "transition", "premium"]),
 
-  // Impact (80)
   ...mkBatch("impact_cinematic", "impact", "Envato Cinematic Impact", 30, 1000, "envato", ["cinematic", "premium"]),
   ...mkBatch("impact_deep_bass", "impact", "Envato Deep Bass Impact", 25, 1200, "envato", ["bass", "deep", "premium"]),
   ...mkBatch("impact_metal", "impact", "Envato Metal Impact", 25, 600, "envato", ["metal", "premium"]),
 
-  // UI (50)
   ...mkBatch("ui_click", "ui", "Envato UI Click", 20, 100, "envato", ["click", "interface", "premium"]),
   ...mkBatch("ui_notification", "ui", "Envato Notification", 15, 500, "envato", ["notification", "premium"]),
   ...mkBatch("ui_pop", "ui", "Envato UI Pop", 15, 150, "envato", ["pop", "interface", "premium"]),
 
-  // Transition (90)
   ...mkBatch("trans_riser", "transition", "Envato Riser", 30, 2500, "envato", ["riser", "build", "premium"]),
   ...mkBatch("trans_downer", "transition", "Envato Downer", 20, 1800, "envato", ["downer", "drop", "premium"]),
   ...mkBatch("trans_stinger", "transition", "Envato Stinger", 20, 800, "envato", ["stinger", "hit", "premium"]),
   ...mkBatch("trans_swoosh", "transition", "Envato Swoosh", 20, 450, "envato", ["swoosh", "premium"]),
 
-  // Ambient (40)
   ...mkBatch("amb_nature", "ambient", "Envato Nature Ambience", 10, 8000, "envato", ["nature", "outdoor", "premium"], -18),
   ...mkBatch("amb_city", "ambient", "Envato City Ambience", 10, 8000, "envato", ["city", "urban", "premium"], -18),
   ...mkBatch("amb_interior", "ambient", "Envato Interior Ambience", 10, 6000, "envato", ["interior", "room", "premium"], -18),
   ...mkBatch("amb_scifi", "ambient", "Envato Sci-Fi Ambience", 10, 6000, "envato", ["scifi", "futuristic", "premium"], -18),
 
-  // Cinematic (40)
   ...mkBatch("cine_boom", "cinematic", "Envato Cinematic Boom", 15, 1800, "envato", ["boom", "trailer", "premium"]),
   ...mkBatch("cine_suspense", "cinematic", "Envato Suspense Drone", 10, 5000, "envato", ["suspense", "drone", "premium"], -12),
   ...mkBatch("cine_brass", "cinematic", "Envato Brass Hit", 15, 1200, "envato", ["brass", "orchestra", "premium"]),
 
-  // Foley (30)
   ...mkBatch("foley_step", "foley", "Envato Footstep", 10, 300, "envato", ["footstep", "walk", "premium"]),
   ...mkBatch("foley_fabric", "foley", "Envato Fabric Rustle", 10, 400, "envato", ["fabric", "cloth", "premium"]),
   ...mkBatch("foley_paper", "foley", "Envato Paper", 10, 350, "envato", ["paper", "page", "premium"]),
 
-  // Glitch (30)
   ...mkBatch("glitch_digital", "glitch", "Envato Digital Glitch", 15, 350, "envato", ["digital", "error", "premium"]),
   ...mkBatch("glitch_data", "glitch", "Envato Data Corrupt", 15, 500, "envato", ["data", "corrupt", "premium"]),
 
-  // Tech (20)
   ...mkBatch("tech_beep", "tech", "Envato Tech Beep", 10, 200, "envato", ["beep", "computer", "premium"]),
   ...mkBatch("tech_hud", "tech", "Envato HUD Sound", 10, 400, "envato", ["hud", "interface", "premium"]),
 
-  // Explosion (30)
   ...mkBatch("explosion_big", "explosion", "Envato Big Explosion", 15, 2000, "envato", ["big", "fire", "premium"]),
   ...mkBatch("explosion_small", "explosion", "Envato Small Explosion", 15, 800, "envato", ["small", "burst", "premium"]),
 
-  // Magic (30)
   ...mkBatch("magic_spell", "magic", "Envato Magic Spell", 15, 1200, "envato", ["spell", "fantasy", "premium"]),
   ...mkBatch("magic_shimmer", "magic", "Envato Shimmer", 15, 900, "envato", ["shimmer", "sparkle", "premium"]),
 
-  // Musical (20)
   ...mkBatch("musical_piano", "musical", "Envato Piano Note", 10, 1500, "envato", ["piano", "note", "premium"]),
   ...mkBatch("musical_guitar", "musical", "Envato Guitar Strum", 10, 1000, "envato", ["guitar", "strum", "premium"]),
 
-  // Ding / Notification (20)
   ...mkBatch("ding_bright", "ding", "Envato Bright Ding", 10, 600, "envato", ["bright", "success", "premium"]),
   ...mkBatch("ding_subtle", "ding", "Envato Subtle Ding", 10, 400, "envato", ["subtle", "soft", "premium"]),
 
-  // Comedy (20)
   ...mkBatch("comedy_cartoon", "comedy", "Envato Cartoon SFX", 10, 500, "envato", ["cartoon", "funny", "premium"]),
   ...mkBatch("comedy_boing", "comedy", "Envato Boing", 10, 400, "envato", ["boing", "spring", "premium"]),
 
-  // Horror (20)
   ...mkBatch("horror_scare", "horror", "Envato Scare Stinger", 10, 1200, "envato", ["scare", "tension", "premium"]),
   ...mkBatch("horror_drone", "horror", "Envato Horror Drone", 10, 4000, "envato", ["drone", "dark", "premium"], -12),
 
-  // Mechanical (20)
   ...mkBatch("mech_servo", "mechanical", "Envato Servo", 10, 600, "envato", ["servo", "robot", "premium"]),
   ...mkBatch("mech_gear", "mechanical", "Envato Gear Turn", 10, 500, "envato", ["gear", "machine", "premium"]),
 
-  // Vocal (10)
   ...mkBatch("vocal_breath", "vocal", "Envato Breath", 5, 800, "envato", ["breath", "human", "premium"]),
   ...mkBatch("vocal_crowd", "vocal", "Envato Crowd", 5, 3000, "envato", ["crowd", "people", "premium"]),
 
-  // Alarm (10)
   ...mkBatch("alarm_siren", "alarm", "Envato Siren", 5, 2000, "envato", ["siren", "warning", "premium"]),
   ...mkBatch("alarm_beep", "alarm", "Envato Alarm Beep", 5, 1000, "envato", ["beep", "alert", "premium"]),
 
-  // Nature (20)
   ...mkBatch("nature_thunder", "nature", "Envato Thunder", 10, 3000, "envato", ["thunder", "storm", "premium"]),
   ...mkBatch("nature_water", "nature", "Envato Water", 10, 2000, "envato", ["water", "splash", "premium"]),
 ];
@@ -325,7 +296,6 @@ const ENVATO_SFX: SfxEntry[] = [
 /* ------------------------------------------------------------------ */
 
 const FREE_SFX: SfxEntry[] = [
-  // Mixkit (150)
   ...mkBatch("whoosh", "whoosh", "Mixkit Whoosh", 30, 450, "mixkit", ["transition"]),
   ...mkBatch("impact", "impact", "Mixkit Impact", 25, 800, "mixkit", ["hit"]),
   ...mkBatch("ui", "ui", "Mixkit UI", 20, 150, "mixkit", ["interface"]),
@@ -334,7 +304,6 @@ const FREE_SFX: SfxEntry[] = [
   ...mkBatch("ding", "ding", "Mixkit Ding", 15, 500, "mixkit", ["notification"]),
   ...mkBatch("cinematic", "cinematic", "Mixkit Cinematic", 20, 1500, "mixkit", ["trailer"]),
 
-  // Pixabay (100)
   ...mkBatch("whoosh", "whoosh", "Pixabay Whoosh", 15, 500, "pixabay", ["transition"]),
   ...mkBatch("impact", "impact", "Pixabay Impact", 15, 900, "pixabay", ["hit"]),
   ...mkBatch("ui", "ui", "Pixabay UI", 15, 120, "pixabay", ["click"]),
@@ -343,7 +312,6 @@ const FREE_SFX: SfxEntry[] = [
   ...mkBatch("nature", "nature", "Pixabay Nature", 15, 4000, "pixabay", ["outdoor"]),
   ...mkBatch("tech", "tech", "Pixabay Tech", 10, 300, "pixabay", ["computer"]),
 
-  // Freesound (50)
   ...mkBatch("whoosh", "whoosh", "Freesound Whoosh", 10, 500, "freesound", ["transition"]),
   ...mkBatch("impact", "impact", "Freesound Impact", 10, 800, "freesound", ["hit"]),
   ...mkBatch("foley", "foley", "Freesound Foley", 10, 400, "freesound", ["foley"]),

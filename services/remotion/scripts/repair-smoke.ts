@@ -61,19 +61,12 @@ async function main() {
     process.exit(1);
   }
 
-  // Reapplying the same patch must be deterministic.
   const next2 = applyPatch(graph, result.patch);
   if (next.hash !== next2.hash) {
     console.error("FAIL: applyPatch is not deterministic");
     process.exit(1);
   }
 
-  console.log("OK repair smoke");
-  console.log(`   ops:        ${result.output.ops.length}`);
-  console.log(`   reasons:    ${result.patch.reason}`);
-  console.log(`   pre  hash:  ${graph.hash.slice(0, 12)}…`);
-  console.log(`   post hash:  ${next.hash.slice(0, 12)}…`);
-  console.log(`   unhandled:  ${result.output.unhandled.length}`);
 }
 
 main().catch((e) => {

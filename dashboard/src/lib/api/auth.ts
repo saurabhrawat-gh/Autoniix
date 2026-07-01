@@ -37,9 +37,6 @@ export const authApi = {
   register: (email: string, password: string, workspace_name: string, display_name?: string) =>
     request<RegisterResponse>('/api/v2/auth/register', { method: 'POST', body: JSON.stringify({ email, password, workspace_name, display_name }) }),
   login: async (email: string, password: string, mfa_code?: string) => {
-    // Use raw fetch — NOT the request() wrapper — so a 401 from the login
-    // endpoint is surfaced as an error to the caller instead of triggering
-    // the global refresh-then-redirect interceptor.
     const res = await fetch(`${BASE}/api/v2/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Source': 'ui' },

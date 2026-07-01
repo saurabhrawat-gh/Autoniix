@@ -8,7 +8,7 @@ import { ShaderCanvas } from "./ShaderCanvas";
  * with a separate ColorGrade preset for richer CRT colour bias.
  */
 export interface CRTProps {
-  curvature?: number; // 0..1, barrel strength
+  curvature?: number;
   scanlineStrength?: number;
   phosphorStrength?: number;
 }
@@ -20,20 +20,16 @@ uniform float u_phosphor;
 
 void main() {
   vec2 uv = v_uv;
-  // Barrel distort
   vec2 cc = uv - 0.5;
   float r2 = dot(cc, cc);
   uv += cc * r2 * u_curvature;
 
-  // Off-screen darken for wrapped UV
   float mask = step(0.0, uv.x) * step(uv.x, 1.0) *
                step(0.0, uv.y) * step(uv.y, 1.0);
 
-  // Scanlines
   float scan = 0.5 + 0.5 * sin(uv.y * u_resolution.y * 3.14159);
   float scanMask = mix(1.0, scan, u_scan);
 
-  // Phosphor triad: tint every 3 horizontal pixels R/G/B
   float pixX = floor(uv.x * u_resolution.x);
   float phase = mod(pixX, 3.0);
   vec3 phosphor = vec3(
@@ -43,7 +39,6 @@ void main() {
   );
   phosphor = mix(vec3(1.0), phosphor, u_phosphor);
 
-  // Combine: darken via scanlines × phosphor, plus vignette
   float vig = smoothstep(1.4, 0.4, distance(uv, vec2(0.5)));
   vec3 col = phosphor * scanMask * vig * mask;
 

@@ -132,7 +132,6 @@ function invalidateCache(keyPrefix) {
             responseCache.delete(k);
     }
 }
-// --- Test-only hooks (not part of the public contract) ---------------------
 /** @internal */
 function _resetCacheForTest() {
     responseCache.clear();

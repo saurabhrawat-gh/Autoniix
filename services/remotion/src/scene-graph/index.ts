@@ -32,15 +32,11 @@ export type {
   Ms,
   Patch,
   PatchOp,
-  // Phase 1A
   BlendMode,
   Compositing,
-  // Phase 1C
   ClipMaskRef,
   MaskBlendMode,
-  // Phase 1D
   ColorGradeTrackRef,
-  // Phase 2
   ClipFilterRef,
 } from "./types";
 
@@ -53,7 +49,6 @@ export { planShards, msToFrames } from "./sharder";
 export type { Shard, ShardPlan, ShardOptions } from "./sharder";
 export { applyPatch } from "./commit";
 
-// Phase 1A — compositing helpers
 export {
   isBlendMode,
   validateCompositing,
@@ -64,7 +59,6 @@ export {
   compositingToCss,
 } from "./compositing";
 
-// Phase 1E — per-clip cache key derivation
 export {
   blendModeHash,
   textAnimHash,

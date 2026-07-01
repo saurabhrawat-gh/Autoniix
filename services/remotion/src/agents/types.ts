@@ -34,8 +34,8 @@ export interface AgentCtx {
 export interface AgentRunMeta {
   agent: string;
   agentVersion: string;
-  startedAt: string;     // ISO
-  finishedAt: string;    // ISO
+  startedAt: string;
+  finishedAt: string;
   latencyMs: number;
   tokenInput?: number;
   tokenOutput?: number;

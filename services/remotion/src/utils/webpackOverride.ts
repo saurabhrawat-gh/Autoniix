@@ -19,10 +19,6 @@ export const nodePrefixWebpackOverride: WebpackOverrideFn = (currentConfiguratio
       ...currentConfiguration.resolve,
       fallback: {
         ...(currentConfiguration.resolve?.fallback as Record<string, unknown> ?? {}),
-        // Webpack 5 does not polyfill Node built-ins by default.
-        // Set to false so webpack emits an empty module instead of erroring.
-        // The only consumer of `crypto` in the browser bundle was textAnimations.ts
-        // (now replaced with a pure-JS hash), but we keep this as a safety net.
         crypto: false,
         stream: false,
         path: false,

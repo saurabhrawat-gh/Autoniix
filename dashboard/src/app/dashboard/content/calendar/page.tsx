@@ -34,8 +34,6 @@ export default function ContentCalendarPage() {
   }, [cursor, channelId]);
 
   const grid = useMemo(() => {
-    // Build a 6-row x 7-col grid starting from the Sunday on/before
-    // the first of the month.
     const first = startOfMonth(cursor);
     const startDow = first.getDay();
     const totalDays = endOfMonth(cursor).getDate();

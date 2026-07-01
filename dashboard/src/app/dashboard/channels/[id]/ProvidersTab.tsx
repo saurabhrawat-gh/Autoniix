@@ -42,7 +42,6 @@ export default function ProvidersTab({ channelId }: ProvidersTabProps) {
   const [allCreds, setAllCreds] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Load category + content-mode catalogs once.
   useEffect(() => {
     providersApi.categories().then(r => setCategories(r.data || [])).catch(() => {});
     providersApi.contentModes().then(r => setModes(r.data || [])).catch(() => {});

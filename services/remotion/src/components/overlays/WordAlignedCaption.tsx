@@ -59,12 +59,10 @@ export const WordAlignedCaption: React.FC<WordAlignedCaptionProps> = ({
   const { fps } = useVideoConfig();
   const currentMs = (frame / fps) * 1000;
 
-  // Find the active word
   const activeIdx = words.findIndex(
     (w) => currentMs >= w.startMs && currentMs < w.endMs + tailMs,
   );
   if (activeIdx === -1) {
-    // Look ahead: find the next word within 250ms so the chunk preloads
     const upcoming = words.findIndex((w) => w.startMs > currentMs && w.startMs - currentMs < 250);
     if (upcoming === -1) return null;
     return renderChunk(upcoming, -1);
@@ -139,7 +137,6 @@ function wordStyle(
       transformOrigin: "bottom center",
     };
   }
-  // underline_active
   return {
     color: idleColor,
     borderBottom: isActive ? `4px solid ${activeColor}` : "4px solid transparent",

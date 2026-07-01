@@ -26,14 +26,12 @@ export {
   sfxCount,
   listSfxPremiumFirst,
   listSfxBySource,
-  // Grain library
   grainLibrary,
   resolveGrain,
   getGrainByTag,
   getRandomGrain,
   grainPath,
   registerGrainAssets,
-  // LUT library
   lutLibrary,
   resolveLUT,
   getLUTsByCategory,
@@ -41,7 +39,6 @@ export {
   getRandomLUT,
   lutPath,
   registerLutAssets,
-  // Overlay library
   overlayLibrary,
   resolveOverlay,
   getOverlaysByType,
@@ -49,7 +46,6 @@ export {
   getRandomOverlay,
   overlayPath,
   registerOverlayAssets,
-  // Asset resolver
   resolveAsset,
   resolveAssetById,
   resolveRandom,

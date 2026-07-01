@@ -30,7 +30,7 @@ describe('FeatureGate', () => {
   });
 
   it('hides children while flags are loading', () => {
-    mockFlagsApi.list.mockReturnValue(new Promise(() => {})); // never resolves
+    mockFlagsApi.list.mockReturnValue(new Promise(() => {}));
     const { container } = render(
       <FeatureFlagProvider>
         <FeatureGate flag="beta.dashboard">

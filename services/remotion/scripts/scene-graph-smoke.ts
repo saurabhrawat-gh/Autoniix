@@ -36,7 +36,6 @@ if (h1 !== g1.hash) {
   process.exit(1);
 }
 
-// Mutate a prop and confirm hash changes.
 const mutated = JSON.parse(JSON.stringify(raw));
 mutated.segments[0].scene_overrides.headline = "A different headline";
 const g3 = lower(DirectionV3.parse(mutated));
@@ -45,7 +44,6 @@ if (g3.hash === g1.hash) {
   process.exit(1);
 }
 
-// Capability tags
 const caps = tagCapabilities(g1);
 const s2 = caps.find((c) => c.clipId === "s2");
 const s1 = caps.find((c) => c.clipId === "s1");
@@ -58,9 +56,5 @@ if (!s1 || s1.tier !== "t1") {
   process.exit(1);
 }
 
-console.log("OK scene-graph smoke");
-console.log(`   root hash:   ${g1.hash.slice(0, 16)}…`);
 const video = g1.tracks.find((t) => t.kind === "video");
 const overlay = g1.tracks.find((t) => t.kind === "overlay");
-console.log(`   clips:       ${video?.clips.length ?? 0} video · ${overlay?.clips.length ?? 0} overlay`);
-console.log(`   tier split:  ${caps.map((c) => `${c.clipId}=${c.tier}`).join(" · ")}`);

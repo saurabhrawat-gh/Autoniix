@@ -41,7 +41,6 @@ export default function ChannelDetail() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // AE-290 — Owner-gated Danger Zone state
   const [myRole, setMyRole] = useState<string>('viewer');
   const [deleteBusy, setDeleteBusy] = useState(false);
 
@@ -423,7 +422,6 @@ function ReferencesTab({ data, channel_id, onChange }: any) {
   );
 }
 
-// ── Basics tab with lookup_values dropdowns ───────────────────────────────────
 
 function BasicsTabContent({ get, set }: { get: (k: string) => any; set: (k: string, v: any) => void }) {
   const niches    = useLookupValues('niche');

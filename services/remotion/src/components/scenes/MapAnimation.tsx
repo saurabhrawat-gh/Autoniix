@@ -41,7 +41,6 @@ export const MapAnimation: React.FC<MapAnimationProps> = ({
   const perPin = Math.max(10, Math.floor((durationInFrames - 30) / Math.max(1, pins.length)));
   const toXY = (p: MapPin): [number, number] => [p.x * width, p.y * height];
 
-  // Construct route polyline that reveals one pin at a time
   const routePathPoints: string[] = [];
   for (let i = 0; i < pins.length; i++) {
     const pinStart = 24 + i * perPin;

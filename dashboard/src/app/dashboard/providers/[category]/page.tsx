@@ -38,9 +38,6 @@ import {
   Label,
 } from '@/lib/ui';
 
-// Normalise a value that *should* be an array but may arrive as a JSON
-// string (JSONB columns with no asyncpg codec) or null. Prevents a stray
-// `.filter`/`.map` from crashing the whole page via the error boundary.
 function asArray<T = any>(value: unknown): T[] {
   if (Array.isArray(value)) return value as T[];
   if (typeof value === 'string') {
@@ -103,45 +100,35 @@ export default function ProviderCategoryPage() {
   const [testingId, setTestingId] = useState<number | null>(null);
   const [testResults, setTestResults] = useState<Record<number, any>>({});
   const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
-  // Wave 2 — routing policy
-  const [wsRoute, setWsRoute] = useState<any | null>(null);       // workspace-level
-  const [route, setRoute] = useState<any | null>(null);            // effective (channel or workspace)
+  const [wsRoute, setWsRoute] = useState<any | null>(null);
+  const [route, setRoute] = useState<any | null>(null);
   const [savingRoute, setSavingRoute] = useState(false);
   const [selectedPolicy, setSelectedPolicy] = useState('balanced');
   const [primaryCredId, setPrimaryCredId] = useState<number | null>(null);
-  // Wave 2 — sandbox runner
   const [sandboxCredId, setSandboxCredId] = useState<number | null>(null);
   const [sandboxCapability, setSandboxCapability] = useState('text-gen');
   const [sandboxPrompt, setSandboxPrompt] = useState('');
   const [sandboxRunning, setSandboxRunning] = useState(false);
   const [sandboxResult, setSandboxResult] = useState<any | null>(null);
   const [sandboxRecentRuns, setSandboxRecentRuns] = useState<any[]>([]);
-  // Wave 2 — health sparklines (last 20 per cred)
   const [healthHistory, setHealthHistory] = useState<Record<number, any[]>>({});
-  // AE-314/339 — quotas
   const [quotas, setQuotas] = useState<any[]>([]);
   const [quotaForm, setQuotaForm] = useState<{ credId: number | null; cap: string; alert: string }>({ credId: null, cap: '', alert: '80' });
   const [quotaFormOpen, setQuotaFormOpen] = useState(false);
   const [savingQuota, setSavingQuota] = useState(false);
-  // AE-338 — audit log
   const [auditLog, setAuditLog] = useState<any[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
 
-  // Wave 4 — content-mode aware chain editing
-  // selectedMode === null means "All modes" (NULL row in DB)
   const [contentModes, setContentModes] = useState<{ name: string; label: string }[]>([]);
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
   const [resolvedChain, setResolvedChain] = useState<any[]>([]);
-  // AE-72 — rotation status
   const [rotationByCredId, setRotationByCredId] = useState<Record<number, any>>({});
   const [rotatingCred, setRotatingCred] = useState<any | null>(null);
-  // AE-73 — context switcher
   const [scopeType, setScopeType] = useState<'workspace' | 'channel'>('workspace');
   const [scopeId, setScopeId] = useState<string | null>(null);
   const [channels, setChannels] = useState<any[]>([]);
   const [scopeDropdownOpen, setScopeDropdownOpen] = useState(false);
   const scopeDropdownRef = useRef<HTMLDivElement>(null);
-  // AE-73 — dnd sensors
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -204,14 +191,12 @@ export default function ProviderCategoryPage() {
       .catch(() => {});
   }, [decoded, selectedMode, scopeType, scopeId]);
 
-  // Load the content-mode catalog once.
   useEffect(() => {
     providersApi.contentModes()
       .then(r => setContentModes(r.data || []))
       .catch(() => setContentModes([]));
   }, []);
 
-  // AE-313 — audit log auto-refresh every 30s
   useEffect(() => {
     const id = setInterval(() => {
       providersApi.auditLog({ category: decoded, limit: 50 })
@@ -221,14 +206,12 @@ export default function ProviderCategoryPage() {
     return () => clearInterval(id);
   }, [decoded]);
 
-  // AE-73 — load channels list for context switcher
   useEffect(() => {
     channelsApi.list()
       .then(r => setChannels(r.data || []))
       .catch(() => {});
   }, []);
 
-  // AE-73 — close scope dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (scopeDropdownRef.current && !scopeDropdownRef.current.contains(e.target as Node)) {
@@ -239,7 +222,6 @@ export default function ProviderCategoryPage() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Auto-open add dialog when arriving via ?add=1 (from Marketplace / onboarding)
   useEffect(() => {
     if (searchParams.get('add') === '1') setShowAdd(true);
   }, [searchParams]);
@@ -253,7 +235,6 @@ export default function ProviderCategoryPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [creds.length]);
 
-  // AE-75 — real-time health badge updates via SSE
   useEffect(() => {
     const es = new EventSource(
       providersApi.healthStreamUrl(decoded),
@@ -290,7 +271,7 @@ export default function ProviderCategoryPage() {
     const newIdx = chain.findIndex(c => c.credential_id === over.id);
     if (oldIdx === -1 || newIdx === -1) return;
     const reordered = arrayMove(chain, oldIdx, newIdx);
-    setChain(reordered); // optimistic
+    setChain(reordered);
     const items = reordered.map((c, i) => ({ id: c.id, position: i + 1 }));
     providersApi.reorderChain(items).then(refresh).catch(() => {
       refresh();
@@ -1156,7 +1137,7 @@ export default function ProviderCategoryPage() {
           onClose={() => setShowAdd(false)}
           onAdded={(newCredId?: number) => {
             setShowAdd(false);
-            if (newCredId) addToChain(newCredId); // auto-activate immediately
+            if (newCredId) addToChain(newCredId);
             else refresh();
             showToast('Credential saved and added to chain ✓', 'success');
           }}
@@ -1173,14 +1154,10 @@ export default function ProviderCategoryPage() {
   );
 }
 
-// Provider display aliases to hide (duplicate backend registrations).
-// fish_audio and fishaudio are the SAME class registered twice — show only fish_audio.
 const PROVIDER_ALIASES_TO_HIDE = new Set(['fishaudio']);
 
-// Providers that need NO API key (free, bundled services).
 const NO_KEY_PROVIDERS = new Set(['edge_tts', 'mock_llm', 'placeholder', 'mock_search']);
 
-// Hints shown in Step 2 below the API key field.
 const KEY_HINTS: Record<string, { prefix: string; helpUrl: string; hint: string }> = {
   openai:       { prefix: 'sk-',       helpUrl: 'https://platform.openai.com/api-keys',          hint: 'Starts with sk- · Get it from platform.openai.com/api-keys' },
   anthropic:    { prefix: 'sk-ant-',   helpUrl: 'https://console.anthropic.com/settings/keys',   hint: 'Starts with sk-ant- · Get it from console.anthropic.com' },
@@ -1199,8 +1176,6 @@ const KEY_HINTS: Record<string, { prefix: string; helpUrl: string; hint: string 
   pixabay:      { prefix: '',          helpUrl: 'https://pixabay.com/api/docs/',                  hint: 'Get it at pixabay.com/api — completely free to sign up' },
 };
 
-// Per-provider voice/model hints shown in Step 3.
-// For TTS the "model" is really a voice — explain that clearly.
 const VOICE_HINTS: Record<string, {
   fieldLabel: string;
   placeholder: string;
@@ -1233,7 +1208,6 @@ const VOICE_HINTS: Record<string, {
   },
 };
 
-// Category-level field label override for Step 3
 const CATEGORY_MODEL_LABEL: Record<string, string> = {
   tts: 'Voice',
 };
@@ -1269,7 +1243,6 @@ function CategoryMultiSelect({ allCats, selKind, selectedCats, setSelectedCats, 
   );
   const selected = Array.from(selectedCats).filter(name => cats.some((c: any) => c.name === name));
 
-  // AE-317: only 1 option → plain text, no dropdown
   if (cats.length <= 1) {
     const onlyCat = cats[0];
     return (
@@ -1401,13 +1374,11 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
   const [registeredLoading, setRegisteredLoading] = useState(true);
   const [lazyModels, setLazyModels] = useState<string[] | null>(null);
   const [lazyModelsLoading, setLazyModelsLoading] = useState(false);
-  // Multi-category: always-visible combobox (no toggle)
   const [allCats, setAllCats] = useState<any[]>([]);
   const [catsLoading, setCatsLoading] = useState(false);
   const [selKind, setSelKind] = useState<string | null>(null);
   const [selectedCats, setSelectedCats] = useState<Set<string>>(() => new Set([category]));
   const [perCatModel, setPerCatModel] = useState<Record<string, string>>({});
-  // Validation
   const [step1Attempted, setStep1Attempted] = useState(false);
   const [touchedLabel, setTouchedLabel] = useState(false);
   const [touched2, setTouched2] = useState<Record<string, boolean>>({});
@@ -1415,10 +1386,6 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
 
   useEffect(() => {
     setRegisteredLoading(true);
-    // Source providers from BOTH the live Python registry (built-ins, with
-    // live model lists) and the marketplace catalog for this section (which
-    // also includes user-added custom providers). Merge by key; registry wins
-    // when both exist so live supported_models are preserved.
     const safeOrEmpty = (p: Promise<any>) =>
       p.catch((e: any) => { if (e?.message === 'Unauthorized') throw e; return []; });
     Promise.all([
@@ -1442,8 +1409,6 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
           });
         }
         for (const r of reg) {
-          // Only enrich catalog entries with live registry data (models, callable).
-          // Registry-only providers not in the catalog are excluded (strict catalog filter).
           if (byKey.has(r.provider_name)) {
             byKey.set(r.provider_name, { ...byKey.get(r.provider_name), ...r, is_callable: true });
           }
@@ -1457,7 +1422,6 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category]);
 
-  // Load categories to enable multi-select targeting in this section
   useEffect(() => {
     setCatsLoading(true);
     providersApi.categories()
@@ -1472,12 +1436,8 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
   }, [category]);
 
   const selProvider = (registered as any[]).find((r: any) => r.provider_name === providerName) ?? null;
-  // config_schema / supported_models come from a JSONB column; guard against
-  // the backend ever handing back a non-array so the dialog can't crash the page.
   const schema: SchemaField[] = asArray<SchemaField>(selProvider?.config_schema);
   const credFields = schema.filter(f => f.name !== 'model' && f.name !== 'model_id');
-  // Use lazy-fetched live model list (GET /models) when available; fall back to
-  // registered catalog's supported_models for providers that have no live endpoint.
   const effectiveModels: string[] = lazyModels !== null ? lazyModels : asArray<string>(selProvider?.supported_models);
   const modelField = schema.find(f => f.name === 'model' || f.name === 'model_id') ?? null;
   const noKeyNeeded = NO_KEY_PROVIDERS.has(providerName);
@@ -1486,13 +1446,9 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
   const modelLabel = voiceHint?.fieldLabel || CATEGORY_MODEL_LABEL[category] || 'Model';
   const supportedModels: string[] = asArray<string>(selProvider?.supported_models);
   const defaultModel: string | null = selProvider?.default_model ?? null;
-  // Catalog-only providers (user-added with no runtime adapter) can store a key
-  // but the pipeline cannot call them yet. Be explicit so the user isn't misled.
   const notCallable = selProvider?.is_callable === false;
-  // Derived: multi-category when more than one category is selected
   const isMulti = selectedCats.size > 1;
 
-  // ── Validation ──────────────────────────────────────────────────────────────
   const validateField2 = (field: SchemaField, val: string | boolean): string => {
     if (field.required && !val) return 'This field is required';
     if (typeof val === 'string' && val && field.hint) {
@@ -1560,7 +1516,6 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
   const submit = async () => {
     setBusy(true); setErr(null);
     try {
-      // Determine target categories
       const targets = isMulti && selKind
         ? Array.from(selectedCats).filter(n => {
             const c = allCats.find((x: any) => x.name === n);
@@ -1570,8 +1525,6 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
 
       const createOne = async (catName: string) => {
         const catModel = perCatModel[catName] ?? model;
-        // AE-321 Bug B: source keeps the user's label; each other target gets the
-        // category's own display name so the source nickname doesn't leak.
         const catInfo = allCats.find((c: any) => c.name === catName);
         const effectiveLabel = catName === category ? label : (catInfo?.label || catName);
         if (schema.length > 0) {
@@ -1600,9 +1553,6 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
       };
 
       const results = await Promise.all(targets.map(createOne));
-      // AE-321 Bug A: addToChain must receive the SOURCE category's credential id,
-      // not the last target's — otherwise a foreign-category credential ends up in
-      // the source chain, causing duplicate/wrong entries.
       const sourceIdx = targets.indexOf(category);
       const sourceResult = (sourceIdx >= 0 ? results[sourceIdx] : results[0]) as any;
       const newId = sourceResult?.id ?? sourceResult?.data?.id;
@@ -2134,7 +2084,7 @@ function Inp({ label, hint, value, onChange, placeholder, type = 'text' }: any) 
 
 function HealthSparkline({ data }: { data: Array<{ ok: boolean; latency_ms: number | null; checked_at: string }> }) {
   const W = 80, H = 16, pad = 1;
-  const sorted = [...data].reverse(); // oldest first
+  const sorted = [...data].reverse();
   const n = sorted.length;
   if (n === 0) return null;
   const latencies = sorted.map(d => d.latency_ms ?? 0).filter(v => v > 0);
@@ -2165,7 +2115,6 @@ function HealthSparkline({ data }: { data: Array<{ ok: boolean; latency_ms: numb
   );
 }
 
-// AE-73 — sortable chain item with drag handle + keyboard arrow fallback
 function SortableChainItem({
   entry, index, total,
   toggleChainEntryEnabled, moveChain, removeFromChain, inherited,

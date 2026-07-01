@@ -82,7 +82,7 @@ function buildTimeline(
 ): Record<string, unknown> {
   const fps = graph.meta.fps;
   const tracks = graph.tracks
-    .filter((t) => t.kind !== "caption" || t.clips.length > 0) // skip empty caption tracks
+    .filter((t) => t.kind !== "caption" || t.clips.length > 0)
     .map((t) => buildOtioTrack(t, fps, graph.meta));
 
   const stack: Record<string, unknown> = {
@@ -121,18 +121,15 @@ function buildOtioTrack(
     caption: "Video",
   };
 
-  // OTIO tracks are flat lists of clips/gaps/transitions; clips that don't
-  // start at the previous clip's end need a gap to fill the space.
   const children: Array<Record<string, unknown>> = [];
   const sorted = [...track.clips]
-    .filter((c) => c.kind !== "transition" || true) // keep transitions; they're inline
+    .filter((c) => c.kind !== "transition" || true)
     .sort((a, b) => clipStart(a) - clipStart(b));
 
   let cursor = 0;
   for (const c of sorted) {
     const range = clipTimedRange(c);
     if (!range) {
-      // transitions
       const t = c as Extract<Clip, { kind: "transition" }>;
       children.push({
         OTIO_SCHEMA: OTIO_SCHEMA_TRANSITION,
@@ -284,7 +281,7 @@ function clipMetadata(c: Clip): Record<string, unknown> {
 }
 
 function clipStart(c: Clip): number {
-  if (c.kind === "transition") return Number.POSITIVE_INFINITY; // transitions inserted by caller
+  if (c.kind === "transition") return Number.POSITIVE_INFINITY;
   return c.range[0];
 }
 
@@ -312,8 +309,6 @@ function timeRange(startMs: number, durMs: number, fps: number): Record<string, 
 }
 
 function msToFrames(ms: number, fps: number): number {
-  // OTIO tolerates float `value`, but rounding to int frames keeps round-trips
-  // exact when the IR is also frame-locked.
   return Math.round((ms / 1000) * fps);
 }
 
