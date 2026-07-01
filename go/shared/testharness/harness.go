@@ -25,7 +25,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 )
 
-const bufSize = 1024 * 1024 // 1 MiB in-memory buffer
+const bufSize = 1024 * 1024
 
 // ServiceHarness is an in-process gRPC test harness.
 // It starts a gRPC server over bufconn (no TCP port needed).
@@ -33,13 +33,10 @@ type ServiceHarness struct {
 	t           *testing.T
 	ServiceName string
 
-	// Server is the in-process gRPC server.
 	Server *grpc.Server
 
-	// Conn is the client connection to the in-process server.
 	Conn *grpc.ClientConn
 
-	// MockLLM is the shared mock LLM provider.
 	MockLLM *MockLLMProvider
 
 	listener *bufconn.Listener
@@ -61,15 +58,12 @@ func New(t *testing.T, serviceName string) *ServiceHarness {
 		listener:    lis,
 	}
 
-	// Start server in background
 	go func() {
 		if err := srv.Serve(lis); err != nil && err != grpc.ErrServerStopped {
 			t.Logf("testharness: server error: %v", err)
 		}
 	}()
 
-	// Connect client via bufconn dialer.
-	// grpc.Dial is used here for compatibility with grpc v1.62.
 	conn, err := grpc.Dial( //nolint:staticcheck
 		"passthrough:///bufnet",
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
