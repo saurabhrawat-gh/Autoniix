@@ -35,14 +35,12 @@ import {
 } from "../registry/clipFilters";
 
 export function applyPatch(graph: SceneGraph, patch: Patch): SceneGraph {
-  // Deep-clone via JSON (the IR is JSON-safe by construction).
   const next = JSON.parse(JSON.stringify(graph)) as SceneGraph;
 
   for (const op of patch.ops) {
     applyOp(next, op);
   }
 
-  // Recompute clip hashes (cheap), track integrity, then root hash.
   for (const track of next.tracks) {
     assertNonOverlapping(track);
     for (const clip of track.clips) {
@@ -146,8 +144,6 @@ function applyOp(graph: SceneGraph, op: PatchOp): void {
           `commit: setClipColorGrade only supported on scene|stock clips (got ${clip.kind})`,
         );
       }
-      // The IR-level structural type is loose; defer to the registry validator
-      // which enforces the strict shape.
       validateColorGradeTrack(op.colorGradeTrack as unknown as ColorGradeTrack, op.clipId);
       (clip as { colorGradeTrack?: ColorGradeTrackRef }).colorGradeTrack =
         op.colorGradeTrack;

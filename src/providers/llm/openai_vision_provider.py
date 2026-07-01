@@ -43,10 +43,8 @@ class OpenAIVisionLLM(LLMProvider):
             if msg["role"] == "system":
                 messages.append(msg)
             elif msg["role"] == "user":
-                # Build multimodal content if images are provided
                 content_parts = [{"type": "text", "text": msg["content"]}]
 
-                # Check for images in the request
                 if isinstance(request, VisionRequest):
                     for url in request.image_urls:
                         content_parts.append({

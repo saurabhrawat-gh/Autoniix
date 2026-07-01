@@ -38,7 +38,6 @@ from src.workers.media_jobs.handlers import resolve as resolve_handler
 
 logger = structlog.get_logger()
 
-# Backoff: 30s, 2m, 8m (capped) for attempts 1..3
 _BACKOFF_BASE_S = 30
 _BACKOFF_FACTOR = 4
 _BACKOFF_CAP_S = 600
@@ -135,7 +134,7 @@ async def _finalize_skipped(pool: Any, job_id: int, reason: str) -> None:
 
 async def _finalize_failure(pool: Any, job: dict, reason: str) -> None:
     """Either reschedule (more attempts left) or mark permanently failed."""
-    attempts = int(job.get("attempts", 0)) + 1  # we already bumped on claim
+    attempts = int(job.get("attempts", 0)) + 1
     max_attempts = int(job.get("max_attempts", 3))
     if attempts >= max_attempts:
         await pool.execute(

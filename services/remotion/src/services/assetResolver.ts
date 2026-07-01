@@ -62,12 +62,10 @@ const tagIndex = new Map<string, AssetEntry[]>();
 export function registerAsset(asset: AssetEntry): void {
   registry.set(asset.id, asset);
 
-  // Category index
   const catList = categoryIndex.get(asset.category) ?? [];
   catList.push(asset);
   categoryIndex.set(asset.category, catList);
 
-  // Tag index
   for (const tag of asset.tags ?? []) {
     const tagList = tagIndex.get(tag) ?? [];
     tagList.push(asset);
@@ -105,14 +103,12 @@ export function resolveAsset(
 ): ResolveResult | null {
   let candidates = categoryIndex.get(category) ?? [];
 
-  // Filter by tags if provided
   if (tags.length > 0) {
     candidates = candidates.filter((a) =>
       tags.some((t) => a.tags?.includes(t)),
     );
   }
 
-  // Filter by preferred source if specified
   if (preferredSource) {
     const sourceFiltered = candidates.filter((a) => a.source === preferredSource);
     if (sourceFiltered.length > 0) {
@@ -122,12 +118,9 @@ export function resolveAsset(
 
   if (candidates.length === 0) return null;
 
-  // Sort: premium first, then by quality descending
   const sorted = [...candidates].sort((a, b) => {
-    // Premium always first
     if (a.premium && !b.premium) return -1;
     if (!a.premium && b.premium) return 1;
-    // Then by quality
     return b.quality - a.quality;
   });
 
@@ -189,7 +182,6 @@ export function resolveRandom(
   const premium = candidates.filter((a) => a.premium);
   const free = candidates.filter((a) => !a.premium);
 
-  // 80% premium bias
   const pool = premium.length > 0 && (free.length === 0 || Math.random() < 0.8)
     ? premium
     : free.length > 0

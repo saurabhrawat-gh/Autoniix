@@ -6,13 +6,12 @@ import { AbsoluteFill, random, useCurrentFrame } from "remotion";
  * pre-rendered texture. Intensity controls overall opacity.
  */
 export interface GrainProps {
-  intensity?: number; // 0..1
-  scale?: number; // noise scale
+  intensity?: number;
+  scale?: number;
 }
 
 export const Grain: React.FC<GrainProps> = ({ intensity = 0.08, scale = 0.9 }) => {
   const frame = useCurrentFrame();
-  // Seed varies per-frame so the grain animates
   const seed = random(`grain-${frame}`) * 1000;
 
   const svg = `

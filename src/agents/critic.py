@@ -51,12 +51,8 @@ from src.llm.embeddings import (
 logger = structlog.get_logger()
 
 
-#: Confidence below which a HALT is considered too aggressive — the rule
-#: fallback will VETO. Tuned conservatively; LLM path can override.
 _HALT_MIN_CONFIDENCE = 0.5
 
-#: Confidence above which an ADVISE is considered under-reactive (the
-#: agent saw something serious but only suggested). Rule fallback VETOs.
 _ADVISE_MAX_CONFIDENCE = 0.95
 
 
@@ -79,7 +75,6 @@ class CriticAgent(BaseAgent):
         "HALT", "HOLD", "NUDGE", "RESUME", "ADVISE", "NONE",
     }
 
-    # ── Public entry point ───────────────────────────────────────────────
 
     async def review(
         self,
@@ -96,8 +91,6 @@ class CriticAgent(BaseAgent):
         method is conservative — every internal error becomes APPROVE
         (with a logged warning) rather than blocking the peer.
         """
-        # 1. Pick reasoning path. LLM if enabled and the call returns a
-        #    valid verdict, rules otherwise.
         verdict: CriticVerdict | None = None
         reasoning_path = "rules"
         try:
@@ -126,7 +119,6 @@ class CriticAgent(BaseAgent):
         if verdict is None:
             verdict = self._rule_review(decision)
 
-        # 2. Persist (best-effort).
         try:
             await self._persist_verdict(
                 verdict=verdict,
@@ -145,7 +137,6 @@ class CriticAgent(BaseAgent):
 
         return verdict
 
-    # ── Rule-based fallback ──────────────────────────────────────────────
 
     def _rule_review(self, decision: AgentDecision) -> CriticVerdict:
         """Deterministic heuristics. Always returns a valid verdict.
@@ -158,8 +149,6 @@ class CriticAgent(BaseAgent):
         dtype = decision.decision_type
         conf = float(decision.confidence or 0.0)
 
-        # Malformed directive → VETO. The peer's act() would likely fail
-        # anyway, but VETO-ing here turns it into a clean dead-letter.
         if not isinstance(decision.directive, dict) or not decision.directive:
             return CriticVerdict(
                 verdict="VETO",
@@ -172,8 +161,6 @@ class CriticAgent(BaseAgent):
                 reviewed_scope_id=decision.scope_id,
             )
 
-        # HALT with low confidence is the most damaging false positive
-        # in this system (it freezes a channel). VETO.
         if dtype == "HALT" and conf < _HALT_MIN_CONFIDENCE:
             return CriticVerdict(
                 verdict="VETO",
@@ -186,10 +173,6 @@ class CriticAgent(BaseAgent):
                 reviewed_scope_id=decision.scope_id,
             )
 
-        # ADVISE at very high confidence is suspicious — the agent was
-        # certain something was wrong but only chose to "suggest". The
-        # safer move is to escalate to NUDGE so the bias is at least
-        # applied automatically. MODIFY.
         if dtype == "ADVISE" and conf > _ADVISE_MAX_CONFIDENCE:
             modified = AgentDecision(
                 decision_type="NUDGE",
@@ -217,8 +200,6 @@ class CriticAgent(BaseAgent):
                 modified_decision=modified,
             )
 
-        # Default: APPROVE. The Critic should not second-guess every
-        # judgement call; only catch clear mistakes.
         return CriticVerdict(
             verdict="APPROVE",
             reasoning=(
@@ -230,7 +211,6 @@ class CriticAgent(BaseAgent):
             reviewed_scope_id=decision.scope_id,
         )
 
-    # ── LLM path ─────────────────────────────────────────────────────────
 
     async def _llm_review(
         self,
@@ -253,32 +233,15 @@ class CriticAgent(BaseAgent):
             temperature=0.2,
             max_tokens=768,
         )
-        # We reuse LLMReasoner's strict JSON parsing but the verdict
-        # schema differs from the standard decision schema, so we ask
-        # for it raw and validate ourselves.
         parsed = await reasoner.reason(
             user_prompt=user_prompt,
             channel_id="",
             content_id=decision.scope_id or "",
-            allowed_decision_types=None,  # this LLM emits a verdict, not a decision_type
+            allowed_decision_types=None,
         )
         if parsed is None:
             return None
 
-        # LLMReasoner._validate enforces the *decision* schema on
-        # ``parsed`` (decision_type/directive/reasoning/confidence). The
-        # critic emits a different shape, so strict reasoner validation
-        # would always reject it. Instead we re-parse the raw JSON from
-        # ``reasoning`` is not the path — we ask the LLM to emit the
-        # decision-shaped schema with verdict info embedded. To avoid
-        # changing LLMReasoner we accept that ``parsed`` is the decision
-        # schema and translate it to a verdict here.
-        #
-        # Concretely: the system prompt above asks for verdict JSON; if
-        # the model complies, ``parsed`` will be missing ``decision_type``
-        # and the validator already rejected it (returning None above).
-        # So if we got here, ``parsed`` is a valid *decision* dict and
-        # we synthesise a MODIFY verdict from it.
         return self._verdict_from_decision_shaped_response(parsed, decision)
 
     @staticmethod
@@ -367,7 +330,6 @@ class CriticAgent(BaseAgent):
         ]
         return "\n".join(parts)
 
-    # ── Persistence ──────────────────────────────────────────────────────
 
     async def _persist_verdict(
         self,
@@ -417,8 +379,6 @@ class CriticAgent(BaseAgent):
         if critic_id is None:
             return
 
-        # Best-effort embedding so future reviews can recall similar
-        # past verdicts. Failures are logged and swallowed.
         embed_text = (
             f"{verdict.verdict} of {peer_agent_name} {decision.decision_type} "
             f"@ {observation.scope}:{observation.scope_id}\n"

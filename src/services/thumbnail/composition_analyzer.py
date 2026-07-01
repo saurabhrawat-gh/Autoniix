@@ -23,7 +23,6 @@ import structlog
 
 logger = structlog.get_logger()
 
-# Lazy-load heavy imports
 _cv2 = None
 _cv2_lock = asyncio.Lock()
 _face_cascade = None
@@ -62,7 +61,6 @@ async def analyze_composition(image_bytes: bytes) -> dict:
         def _analyze():
             from PIL import Image
 
-            # Load image
             img_pil = Image.open(io.BytesIO(image_bytes)).convert("RGB")
             width, height = img_pil.size
 
@@ -73,7 +71,6 @@ async def analyze_composition(image_bytes: bytes) -> dict:
 
             features = {"width": width, "height": height}
 
-            # Face Detection
             faces = _face_cascade.detectMultiScale(
                 img_gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
             features["has_face"] = len(faces) > 0
@@ -84,24 +81,17 @@ async def analyze_composition(image_bytes: bytes) -> dict:
             else:
                 features["face_area_ratio"] = 0.0
 
-            # Brightness
             brightness = float(np.mean(img_gray)) / 255.0
             features["brightness"] = round(brightness, 3)
 
-            # Saturation
             saturation = float(np.mean(img_hsv[:, :, 1])) / 255.0
             features["saturation"] = round(saturation, 3)
 
-            # Color Contrast
-            # Measure std dev of luminance (higher = more contrast)
             luminance_std = float(np.std(img_gray)) / 255.0
             features["contrast"] = round(luminance_std * 10, 2)
 
-            # Dominant Colors
             pixels = img_np.reshape(-1, 3)
-            # Simple k-means with 3 clusters
             from collections import Counter
-            # Quantize colors to reduce space
             quantized = (pixels // 32 * 32).tolist()
             color_counts = Counter(tuple(c) for c in quantized)
             top_colors = color_counts.most_common(3)
@@ -110,29 +100,23 @@ async def analyze_composition(image_bytes: bytes) -> dict:
                 for c in top_colors
             ]
 
-            # Rule of Thirds
-            # Check if high-interest regions are near 1/3 or 2/3 lines
             thirds_h = [height // 3, 2 * height // 3]
             thirds_w = [width // 3, 2 * width // 3]
 
-            # For faces: check if face center is near thirds
-            thirds_score = 5.0  # Default neutral
+            thirds_score = 5.0
             if len(faces) > 0:
                 for (x, y, w, h) in faces:
                     face_cx = x + w // 2
                     face_cy = y + h // 2
-                    # Distance to nearest third line (normalized)
                     min_dist_w = min(abs(face_cx - tw) for tw in thirds_w) / width
                     min_dist_h = min(abs(face_cy - th) for th in thirds_h) / height
                     if min_dist_w < 0.1 or min_dist_h < 0.1:
-                        thirds_score = 9.0  # Face on thirds = excellent
+                        thirds_score = 9.0
                     elif min_dist_w < 0.2 or min_dist_h < 0.2:
                         thirds_score = 7.5
             else:
-                # Use edge detection interest points
                 edges = cv2.Canny(img_gray, 100, 200)
                 edge_density = float(np.mean(edges > 0))
-                # Check edge concentration in thirds zones
                 for ty in thirds_h:
                     zone = edges[max(0, ty-30):min(height, ty+30), :]
                     zone_density = float(np.mean(zone > 0))
@@ -149,25 +133,21 @@ async def analyze_composition(image_bytes: bytes) -> dict:
         logger.warning("composition_analyzer.failed", error=str(e))
         return {"composition_score": 5.0, "error": str(e), "used_fallback": True}
 
-    # Compute composite score
     score = 5.0
     issues = []
 
-    # Face bonus (faces in thumbnails get more clicks)
     if features.get("has_face"):
         face_ratio = features.get("face_area_ratio", 0)
         if 0.05 < face_ratio < 0.40:
             score += 2.0
         elif face_ratio >= 0.40:
-            score += 1.5  # Face too large
+            score += 1.5
             issues.append("Face occupies too much of thumbnail")
         else:
-            score += 0.5  # Face too small
+            score += 0.5
     else:
-        # No face isn't necessarily bad but loses click potential
         score += 0.5
 
-    # Brightness check
     brightness = features.get("brightness", 0.5)
     if 0.25 < brightness < 0.80:
         score += 1.0
@@ -178,7 +158,6 @@ async def analyze_composition(image_bytes: bytes) -> dict:
         score -= 0.5
         issues.append("Thumbnail too bright/washed out")
 
-    # Saturation check (vivid thumbnails perform better)
     saturation = features.get("saturation", 0.3)
     if saturation > 0.4:
         score += 1.0
@@ -186,7 +165,6 @@ async def analyze_composition(image_bytes: bytes) -> dict:
         score -= 1.0
         issues.append("Low saturation — thumbnail looks dull")
 
-    # Contrast check
     contrast = features.get("contrast", 3)
     if contrast > 4:
         score += 0.5
@@ -194,9 +172,8 @@ async def analyze_composition(image_bytes: bytes) -> dict:
         score -= 1.0
         issues.append("Low contrast — elements don't pop")
 
-    # Rule of thirds
     thirds = features.get("rule_of_thirds_score", 5.0)
-    score += (thirds - 5.0) * 0.2  # Small bonus/penalty
+    score += (thirds - 5.0) * 0.2
 
     score = max(1.0, min(10.0, round(score, 1)))
 

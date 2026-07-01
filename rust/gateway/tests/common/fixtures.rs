@@ -23,8 +23,6 @@ use serde_json::Value;
 
 use super::GatewayHarness;
 
-// ── Single-user fixtures ─────────────────────────────────────────────────────
-
 /// Pre-seeded authenticated user with a valid access token.
 pub struct AuthFixture {
     pub email: String,
@@ -96,8 +94,6 @@ impl AuthFixture {
     }
 }
 
-// ── Two-user workspace fixture ───────────────────────────────────────────────
-
 /// Two users (owner + a second independent user) ready for RBAC / workspace tests.
 pub struct WorkspaceFixture {
     pub owner: AuthFixture,
@@ -116,8 +112,6 @@ impl WorkspaceFixture {
     }
 }
 
-// ── Token-only fixture ───────────────────────────────────────────────────────
-
 /// Fastest fixture: just a token string. Use when you only need a valid Bearer.
 pub async fn bearer_token(harness: &GatewayHarness) -> String {
     harness
@@ -127,8 +121,6 @@ pub async fn bearer_token(harness: &GatewayHarness) -> String {
         )
         .await
 }
-
-// ── Expired / tampered token helpers ────────────────────────────────────────
 
 /// Returns a syntactically valid but semantically invalid JWT.
 /// Use to assert 401 on protected endpoints.

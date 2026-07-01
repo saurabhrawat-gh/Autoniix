@@ -39,7 +39,6 @@ class LutPreset:
         base = (settings.s3_public_base_url or "").rstrip("/")
         if base:
             return f"{base}/{self.preview_key}"
-        # Fall back to the canonical assets host referenced in the spec.
         return f"https://assets.autoniix.com/{self.preview_key}"
 
     def to_api(self) -> dict:
@@ -52,7 +51,6 @@ class LutPreset:
         }
 
 
-# Order here is the order shown in the dashboard preset picker.
 PRESETS: tuple[LutPreset, ...] = (
     LutPreset(
         key="cinematic",

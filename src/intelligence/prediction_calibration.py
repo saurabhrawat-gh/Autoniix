@@ -49,31 +49,15 @@ import structlog
 logger = structlog.get_logger()
 
 
-# Tunables
 
 
-# Multiplier on the confidence×error term in the sample-weight formula.
-# 4.0 is calibrated so that a "perfect storm" miss (confidence 1.0,
-# error 1.0) contributes 5x the weight of a clean prediction. Higher
-# values give more aggressive correction (and risk overfitting to
-# outliers); lower values approach uniform weighting.
 WEIGHT_K = 4.0
 
-# Hard ceiling on per-sample weight. Without this, a degenerate run
-# of analytics (e.g. a viral fluke labelled wrong) could dominate one
-# training pass. Cap at 5x — well above the formula's natural max
-# (which is 1 + 4 = 5) but defensive against future tuning that pushes
-# WEIGHT_K higher.
 WEIGHT_CAP = 6.0
 
-# How many days back to compute calibration metrics over. 30 days is
-# a balance: long enough to have a few hundred scored predictions in
-# steady state, short enough that the metrics reflect *current* model
-# behaviour rather than a model two retrains ago.
 DEFAULT_METRICS_LOOKBACK_DAYS = 30
 
 
-# Pure-function core
 
 
 def compute_abs_error(predicted: float, actual: float) -> float:
@@ -154,9 +138,6 @@ def expected_calibration_error(
     if n_bins < 1:
         return None
 
-    # Bin assignment: for predicted in [0, 1), bin = floor(p * n_bins).
-    # Predicted == 1.0 maps to the last bin (n_bins - 1) — closed-right
-    # boundary so we don't lose perfect-confidence predictions.
     bins: list[list[tuple[float, float]]] = [[] for _ in range(n_bins)]
     for p, a in pairs:
         p_clamped = max(0.0, min(1.0, float(p)))
@@ -174,7 +155,6 @@ def expected_calibration_error(
     return ece
 
 
-# DB layer
 
 
 async def log_prediction(

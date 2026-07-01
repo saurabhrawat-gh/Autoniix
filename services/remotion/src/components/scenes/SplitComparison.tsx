@@ -5,7 +5,7 @@ import { SlideIn } from "../animations/SlideIn";
 export interface SplitComparisonProps {
   leftLabel: string;
   rightLabel: string;
-  leftContent?: string; // text
+  leftContent?: string;
   rightContent?: string;
   leftImageUrl?: string;
   rightImageUrl?: string;

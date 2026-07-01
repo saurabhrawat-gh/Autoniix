@@ -33,8 +33,6 @@ fn unique_email(label: &str) -> String {
     format!("{label}-{ts}@equiv.test")
 }
 
-// ── Signup equivalence ────────────────────────────────────────────────────────
-
 #[tokio::test]
 async fn test_signup_response_structure_equivalent() {
     let pair = pair();
@@ -43,8 +41,8 @@ async fn test_signup_response_structure_equivalent() {
 
     let result = pair
         .compare_post(
-            "/auth/register",      // Python path
-            "/api/v2/auth/signup", // Rust path
+            "/auth/register",
+            "/api/v2/auth/signup",
             json!({
                 "email": email_a,
                 "password": "Password123!",
@@ -58,7 +56,7 @@ async fn test_signup_response_structure_equivalent() {
                 "workspace_name": "Rust Workspace"
             }),
             None,
-            &["expires_in"], // Fields that must match between both services
+            &["expires_in"],
         )
         .await;
 
@@ -70,14 +68,10 @@ async fn test_signup_response_structure_equivalent() {
                 panic!("Signup equivalence failed:\n  {}", mismatches.join("\n  "));
             }
         }
-        Err(harness::cross::EquivalenceError::Http { service, .. }) => {
-            eprintln!("SKIP: {service} not running");
-        }
+        Err(harness::cross::EquivalenceError::Http { service: _, .. }) => {}
         Err(e) => panic!("Unexpected error: {e}"),
     }
 }
-
-// ── Signin equivalence ────────────────────────────────────────────────────────
 
 #[tokio::test]
 async fn test_signin_token_structure_equivalent() {
@@ -86,7 +80,6 @@ async fn test_signin_token_structure_equivalent() {
     let email_rs = unique_email("signin-rs");
     let password = "Password123!";
 
-    // Pre-register both users
     let client = reqwest::Client::new();
     let _ = client
         .post(format!("{}/auth/register", python_url()))
@@ -114,21 +107,16 @@ async fn test_signin_token_structure_equivalent() {
         Ok(r) => {
             assert_auth_token_structure(&r).await;
         }
-        Err(harness::cross::EquivalenceError::Http { service, .. }) => {
-            eprintln!("SKIP: {service} not running");
-        }
+        Err(harness::cross::EquivalenceError::Http { service: _, .. }) => {}
         Err(e) => panic!("Unexpected error: {e}"),
     }
 }
-
-// ── JWT cross-validation ──────────────────────────────────────────────────────
 
 #[tokio::test]
 async fn test_rust_token_accepted_by_python() {
     let client = reqwest::Client::new();
     let email = unique_email("jwt-cross");
 
-    // Sign up via Rust
     let signup: serde_json::Value = match client
         .post(format!("{}/api/v2/auth/signup", rust_url()))
         .json(&json!({"email": email, "password": "Password123!", "workspace_name": "W"}))
@@ -137,7 +125,6 @@ async fn test_rust_token_accepted_by_python() {
     {
         Ok(r) => r.json().await.unwrap_or_default(),
         Err(_) => {
-            eprintln!("SKIP: Rust gateway not running");
             return;
         }
     };
@@ -145,12 +132,10 @@ async fn test_rust_token_accepted_by_python() {
     let token = match signup["access_token"].as_str() {
         Some(t) => t.to_string(),
         None => {
-            eprintln!("SKIP: no token in signup response");
             return;
         }
     };
 
-    // Use Rust-issued token against Python /me equivalent
     let py_resp = client
         .get(format!("{}/auth/me", python_url()))
         .bearer_auth(&token)
@@ -159,20 +144,14 @@ async fn test_rust_token_accepted_by_python() {
 
     match py_resp {
         Ok(r) => {
-            // If Python accepts the token, user email must match
             if r.status().is_success() {
                 let body: serde_json::Value = r.json().await.unwrap_or_default();
                 assert_eq!(body["email"], email, "Python /me must return same email");
-                println!("✓ Rust-issued JWT accepted by Python");
-            } else {
-                println!("⚠ Python returned {} for Rust-issued JWT", r.status());
             }
         }
         Err(_) => eprintln!("SKIP: Python dashboard not running"),
     }
 }
-
-// ── Field-level equivalence ───────────────────────────────────────────────────
 
 #[tokio::test]
 async fn test_signup_response_has_required_fields_in_both() {
@@ -187,21 +166,14 @@ async fn test_signup_response_has_required_fields_in_both() {
     {
         Ok(r) => r,
         Err(_) => {
-            eprintln!("SKIP: Rust gateway not running");
             return;
         }
     };
     if !rs_resp.status().is_success() {
-        eprintln!(
-            "SKIP: Rust gateway returned {} — not a clean test environment",
-            rs_resp.status()
-        );
         return;
     }
     let rs_body: serde_json::Value = rs_resp.json().await.unwrap_or_default();
 
-    // Register returns onboarding metadata only (no auto-login).
-    // Frontend calls /signin separately after register.
     for field in &["status", "user_id", "workspace_id", "role"] {
         assert!(
             !rs_body[field].is_null(),

@@ -57,7 +57,6 @@ async def _proxy(request: Request, method: str, path: str, **kwargs) -> dict:
         raise HTTPException(502, f"Legacy BFF unreachable: {exc}") from exc
 
 
-# Active jobs
 
 
 @router.get("/active")
@@ -69,7 +68,6 @@ async def active_jobs(
     return await _proxy(request, "GET", "/api/jobs/active")
 
 
-# Per-job detail
 
 
 @router.get("/{content_id}/progress")
@@ -147,7 +145,6 @@ async def job_metadata(
     }
 
 
-# Review actions
 
 
 @router.post("/{content_id}/approve")
@@ -191,7 +188,6 @@ async def reject_job(
     return {"status": "ok", "data": {"content_id": content_id, "rejected": True}}
 
 
-# Retry / restart (Temporal-coupled)
 
 
 @router.post("/{content_id}/retry")
@@ -220,7 +216,6 @@ async def restart_job(
     return result
 
 
-# Job-level workflow control
 
 
 @router.post("/{content_id}/pause")

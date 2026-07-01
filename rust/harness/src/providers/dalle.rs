@@ -103,7 +103,6 @@ mod tests {
         };
         let resp = generate(&cache, &req);
         let b64 = resp.data[0].b64_json.as_ref().unwrap();
-        // Verify it decodes to valid bytes
         let decoded = base64::engine::general_purpose::STANDARD
             .decode(b64)
             .unwrap();

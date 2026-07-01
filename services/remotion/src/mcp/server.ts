@@ -45,8 +45,6 @@ app.post("/tool/:name", async (req, res) => {
     return res.status(404).json({ error: `unknown tool: ${name}`, knownTools: Object.keys(TOOLS) });
   }
   try {
-    // Casting through unknown is the safest pattern across the heterogeneous
-    // tool signatures; per-tool input shapes are validated inside the handler.
     const out = await (tool as (input: unknown) => Promise<unknown>)(req.body ?? {});
     return res.json(out);
   } catch (err) {

@@ -91,9 +91,6 @@ def _observation(
     )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# observe()
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestObserve:
@@ -186,9 +183,6 @@ class TestObserve:
         assert obs.scope == "channel"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# decide() — rule matrix
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 _BASE_FLAGS = {
@@ -245,7 +239,6 @@ class TestDecide:
 
     async def test_hold_when_budget_remaining_below_threshold(self):
         agent = PreventorAgent()
-        # 4% remaining < 5% threshold
         obs = _observation(
             _signals(daily_budget_limit=100.0, daily_budget_remaining=4.0),
         )
@@ -276,7 +269,6 @@ class TestDecide:
             decision = await agent.decide(
                 {"observation": obs, "memories": []}
             )
-        # Budget gate disabled — falls through to ALLOW (no other trigger).
         assert decision is not None
         assert decision.decision_type == "ALLOW"
 
@@ -302,7 +294,6 @@ class TestDecide:
 
     async def test_warn_suppressed_when_sample_too_small(self):
         agent = PreventorAgent()
-        # Quality is bad but only 2 recent scores < 3-sample minimum.
         obs = _observation(
             _signals(
                 avg_composite_score=4.0,
@@ -331,14 +322,10 @@ class TestDecide:
             )
         assert decision is not None
         assert decision.decision_type == "ALLOW"
-        # Risk signals must be carried in extras for act() to persist.
         assert "risk_signals" in decision.extras
         assert decision.extras["planned_action"] == "produce_video"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# act()
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestAct:
@@ -372,7 +359,6 @@ class TestAct:
         assert decision.extras["decision_id"] == 99
         pool.fetchrow.assert_awaited_once()
         pub.assert_awaited_once()
-        # Topic and source_service correctly wired.
         kwargs = pub.await_args.kwargs
         assert kwargs["source_service"] == "preventor-agent"
         assert kwargs["payload"]["decision_id"] == 99
@@ -405,9 +391,6 @@ class TestAct:
         pool.fetchrow.assert_awaited_once()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# _has_unresolved_halt
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestUnresolvedHalt:
@@ -430,8 +413,6 @@ class TestUnresolvedHalt:
             assert await _has_unresolved_halt("ch1") is False
 
     async def test_returns_false_on_db_error(self):
-        # Conservative on DB failure — fail-open rather than auto-VETO
-        # the entire system on a transient blip.
         pool = MagicMock()
         pool.fetchrow = AsyncMock(side_effect=RuntimeError("db down"))
         with patch(

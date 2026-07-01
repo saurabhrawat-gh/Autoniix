@@ -21,7 +21,7 @@ export function canonicalize(value: unknown): string {
 
 function _stringify(v: unknown): string {
   if (v === null) return "null";
-  if (v === undefined) return "null"; // we strip undefined at object level; this path only for root
+  if (v === undefined) return "null";
   const t = typeof v;
   if (t === "number") {
     if (!Number.isFinite(v as number)) throw new Error("non-finite number in canonicalize");

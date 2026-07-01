@@ -16,11 +16,9 @@ logger = structlog.get_logger()
 class MinIOStorage(StorageProvider):
 
     def __init__(self) -> None:
-        # Configurable via chain extra_config:
-        #   endpoint, access_key, api_key (= secret_key), bucket, public_base
         self.endpoint: str = settings.s3_endpoint
         self.access_key: str = settings.s3_access_key
-        self.api_key: str = settings.s3_secret_key   # vault stores under 'api_key'
+        self.api_key: str = settings.s3_secret_key
         self.bucket: str = settings.s3_bucket
         self.public_base: str = settings.s3_public_base_url
         self.client: Minio | None = None
@@ -40,7 +38,6 @@ class MinIOStorage(StorageProvider):
             secret_key=self.api_key,
             secure=secure,
         )
-        # Ensure bucket exists
         try:
             if not self.client.bucket_exists(self.bucket):
                 self.client.make_bucket(self.bucket)

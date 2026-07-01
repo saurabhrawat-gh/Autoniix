@@ -77,9 +77,6 @@ def _build_minimal_direction() -> dict[str, Any]:
             "text_color": "#FFFFFF",
             "fonts": {"heading": "Inter", "body": "Inter"},
         },
-        # grade_preset is a required top-level field on DirectionV3.
-        # Match the TypeScript smoke (services/remotion/scripts/smoke.ts)
-        # so we exercise the same code path that's known to render.
         "grade_preset": "fx.grade.cinematic_teal_orange",
         "segments": [
             {
@@ -137,7 +134,6 @@ def test_render_smoke_produces_visible_mp4(tmp_path):
     """Submit minimal direction, poll, download, verify non-black playable MP4."""
     direction = _build_minimal_direction()
 
-    # Submit
     with httpx.Client(base_url=REMOTION_URL, timeout=30) as client:
         resp = client.post("/api/render", json={
             "composition": "MainVideo",
@@ -151,8 +147,7 @@ def test_render_smoke_produces_visible_mp4(tmp_path):
         resp.raise_for_status()
         render_id = resp.json()["renderId"]
 
-        # Poll
-        deadline = time.monotonic() + 300  # 5 minutes
+        deadline = time.monotonic() + 300
         last_status: dict[str, Any] = {}
         while time.monotonic() < deadline:
             status = client.get(f"/api/render/{render_id}").json()
@@ -167,11 +162,9 @@ def test_render_smoke_produces_visible_mp4(tmp_path):
         else:
             pytest.fail(f"render did not complete in 300s; last status={last_status}")
 
-        # QC metadata returned by the worker
         qc = last_status.get("qc")
         assert qc is not None, "render result missing post-render QC block"
         assert qc.get("pass") is True, f"worker QC rejected: {qc}"
-        # assert qc.get("hasAudio") is False  # smoke direction has no audio
         mean_lum = qc.get("meanLuminance")
         assert mean_lum is not None and mean_lum > 30, (
             f"worker reported low mean luminance {mean_lum} — "
@@ -181,13 +174,8 @@ def test_render_smoke_produces_visible_mp4(tmp_path):
         output_url = last_status["outputUrl"]
         assert output_url, "no outputUrl on done render"
 
-    # Download via dashboard proxy if available, else direct MinIO
     download_url = output_url
     if DASHBOARD_URL:
-        # Confirm the proxy works with a HEAD request (no auth required for
-        # /api/jobs/{id}/video — gate is the opaque content_id).
-        # The smoke test here doesn't insert a `videos` row so we skip the
-        # proxy assertion and just download from the direct URL.
         pass
 
     out = tmp_path / "smoke.mp4"
@@ -200,7 +188,6 @@ def test_render_smoke_produces_visible_mp4(tmp_path):
     size = out.stat().st_size
     assert size >= 50_000, f"downloaded MP4 suspiciously small: {size}B"
 
-    # Independent ffprobe / luminance check on the downloaded file
     probe = _ffprobe_video(str(out))
     streams = probe.get("streams", [])
     assert any(s.get("codec_type") == "video" for s in streams), "no video stream"

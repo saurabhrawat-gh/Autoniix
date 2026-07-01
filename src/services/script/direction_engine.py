@@ -22,7 +22,6 @@ import structlog
 
 logger = structlog.get_logger()
 
-# Scene Presets
 SCENE_PRESETS = {
     "hook": ["scene.kinetic_typography", "scene.zoom_focus", "scene.text_reveal"],
     "intro": ["scene.ken_burns", "scene.stock_footage", "scene.text_reveal"],
@@ -32,7 +31,6 @@ SCENE_PRESETS = {
     "outro": ["scene.ken_burns", "scene.stock_footage", "scene.quote_card"],
 }
 
-# Camera Templates
 CAMERA_TEMPLATES = {
     "hook": {
         "type": "push_in", "speed": "fast",
@@ -64,7 +62,6 @@ CAMERA_TEMPLATES = {
     },
 }
 
-# Text Animation Templates
 TEXT_ANIMATIONS = {
     "hook": {"animation": "scale_pop", "font_size": "xlarge", "position": "center"},
     "intro": {"animation": "fade_in", "font_size": "large", "position": "lower_third"},
@@ -73,7 +70,6 @@ TEXT_ANIMATIONS = {
     "outro": {"animation": "fade_in", "font_size": "large", "position": "center"},
 }
 
-# Transition Library
 TRANSITIONS = {
     "hook": ["cut", "glitch", "whip_pan"],
     "intro": ["dissolve", "slide_left", "zoom"],
@@ -86,7 +82,6 @@ TRANSITION_DURATIONS = {
     "zoom": 350, "whip_pan": 300, "glitch": 250, "fade": 600,
 }
 
-# Motion Design Templates
 MOTION_TEMPLATES = {
     "curiosity": [
         {"type": "floating_shape", "animation": "drift", "count": 3, "opacity": 0.15},
@@ -123,7 +118,6 @@ MOTION_TEMPLATES = {
     ],
 }
 
-# SFX Library
 SFX_MAP = {
     "hook": [{"name": "impact", "volume": 0.6}, {"name": "rise", "volume": 0.4}],
     "transition": [{"name": "whoosh", "volume": 0.3}],
@@ -133,11 +127,9 @@ SFX_MAP = {
     "question": [{"name": "rise", "volume": 0.2}],
 }
 
-# Emphasis Effects
 EMPHASIS_EFFECTS = ["scale", "color_flash", "glow", "underline", "shake"]
 
 
-# SEGMENT DIRECTION GENERATION
 
 def _text_display_duration_ms(text: str) -> int:
     """Minimum display time for text overlay based on character count.
@@ -154,7 +146,6 @@ def _select_transition(section: str, prev_transition: str | None, seed: int | No
         random.seed(seed)
 
     candidates = TRANSITIONS.get(section, TRANSITIONS["body"])
-    # Remove previous transition to enforce variety
     if prev_transition and prev_transition in candidates and len(candidates) > 1:
         candidates = [t for t in candidates if t != prev_transition]
 
@@ -168,7 +159,6 @@ def _select_transition(section: str, prev_transition: str | None, seed: int | No
 def _select_camera(section: str, body_index: int = 0) -> dict:
     """Select camera movement based on section type."""
     if section == "body":
-        # Alternate between body camera templates
         variants = ["body_a", "body_b", "body_c"]
         key = variants[body_index % len(variants)]
     else:
@@ -189,7 +179,6 @@ def _generate_text_strategy(
     text_overlay = segment.get("text_overlay", "")
     defaults = TEXT_ANIMATIONS.get(section, TEXT_ANIMATIONS["body"])
 
-    # Emphasis word effects
     emphasis_data = []
     primary_color = (channel or {}).get("primary_color", "#FFFFFF")
     for i, word in enumerate(emphasis_words[:3]):
@@ -261,13 +250,11 @@ def _generate_motion_design(emotion: str, section: str, channel: dict | None = N
             "color": primary_color,
         })
 
-    # Climax gets extra intensity
     if section == "climax":
         for el in elements:
             el["count"] = int(el["count"] * 1.5)
             el["opacity"] = min(0.35, el["opacity"] * 1.3)
 
-    # Outro gets minimal motion
     if section == "outro":
         elements = elements[:1]
         for el in elements:
@@ -287,12 +274,10 @@ def _generate_audio_cues(
     """Generate SFX and music shift cues."""
     sfx = []
 
-    # Section-specific SFX
     if is_first:
         for s in SFX_MAP["hook"]:
             sfx.append({**s, "trigger_ms": 0})
 
-    # Emphasis SFX (shimmer on emphasis words, spaced through segment)
     if emphasis_words and duration_s > 0:
         interval_ms = int((duration_s * 1000) / (len(emphasis_words) + 1))
         for i, _ in enumerate(emphasis_words[:2]):
@@ -302,16 +287,13 @@ def _generate_audio_cues(
                 "volume": 0.2,
             })
 
-    # Climax SFX
     if section == "climax":
         for s in SFX_MAP["climax"]:
             sfx.append({**s, "trigger_ms": 200})
 
-    # Outro SFX
     if is_last:
         sfx.append({"name": "drop", "trigger_ms": int(duration_s * 800), "volume": 0.3})
 
-    # Music shift
     if section == "hook":
         music_shift = "build"
     elif section == "climax":
@@ -329,7 +311,6 @@ def _generate_audio_cues(
     }
 
 
-# FULL SEGMENT DIRECTION
 
 def generate_segment_direction(
     segment: dict,
@@ -348,41 +329,31 @@ def generate_segment_direction(
     is_first = segment_index == 0
     is_last = segment_index == total_segments - 1
 
-    # Get emotion from voice data or default
     emotion = "neutral"
     emphasis_words = []
     if voice_data:
         emotion = voice_data.get("dominant_emotion", "neutral")
         emphasis_words = voice_data.get("emphasis_words", [])
 
-    # Scene preset (alternate for body segments to avoid repetition)
     presets = SCENE_PRESETS.get(section, SCENE_PRESETS["body"])
     preset_idx = segment_index % len(presets)
-    # Don't repeat the same preset as previous segment
     scene_preset = presets[preset_idx]
 
-    # Camera
     camera = _select_camera(section, body_index=segment_index)
 
-    # Text strategy
     text_strategy = _generate_text_strategy(
         segment, emphasis_words, section, channel,
         appear_ms=int(duration_s * 200),
     )
 
-    # Background
     background = _generate_background_strategy(section, emotion, channel)
 
-    # Motion design
     motion = _generate_motion_design(emotion, section, channel)
 
-    # Audio cues
     audio = _generate_audio_cues(section, emotion, emphasis_words, duration_s, is_first, is_last)
 
-    # Transition
     transition = _select_transition(section, prev_transition, seed=segment_index)
 
-    # Timing
     duration_ms = int(duration_s * 1000)
     start_ms = cumulative_time_ms
     end_ms = start_ms + duration_ms
@@ -404,7 +375,6 @@ def generate_segment_direction(
     }
 
 
-# FULL SCRIPT DIRECTION VERSION (v3)
 
 def generate_script_direction(
     segments: list[dict],
@@ -443,18 +413,15 @@ def generate_script_direction(
         prev_transition = dir_seg["transition_in"]["type"]
         direction_segments.append(dir_seg)
 
-    # Total duration
     total_duration_ms = cumulative_ms
     total_frames = int((total_duration_ms / 1000) * fps)
 
-    # Parse resolution
     try:
         width, height = resolution.split("x")
         width, height = int(width), int(height)
     except (ValueError, AttributeError):
         width, height = 1080, 1920
 
-    # QC checks
     transitions_used = [ds["transition_in"]["type"] for ds in direction_segments]
     transition_variety = len(set(transitions_used))
     consecutive_same = sum(

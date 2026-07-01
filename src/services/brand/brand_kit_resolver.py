@@ -162,7 +162,6 @@ async def bind_channel_brand_kit(channel_id: str, kit_id: int | None) -> bool:
         channel_id,
         kit_id,
     )
-    # asyncpg returns 'UPDATE n' — extract the integer.
     try:
         return int(str(result).rsplit(" ", 1)[-1]) > 0
     except Exception:

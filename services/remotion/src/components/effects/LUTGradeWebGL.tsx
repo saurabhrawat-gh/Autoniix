@@ -20,7 +20,7 @@ export interface LUTGradeWebGLProps {
 
 interface ParsedLUT {
   size: number;
-  data: Float32Array; // RGB triplets, size^3 * 3 values
+  data: Float32Array;
 }
 
 const vertexShaderSource = `
@@ -46,23 +46,19 @@ const fragmentShaderSource = `
     float scale = (lutSize - 1.0) / lutSize;
     float offset = 0.5 / lutSize;
     
-    // Map RGB [0,1] to 3D LUT coordinates
     vec3 scaledColor = clamp(color, 0.0, 1.0) * scale + offset;
     
-    // Calculate slice indices for trilinear interpolation
     float blueSlice = scaledColor.b * (lutSize - 1.0);
     float slice0 = floor(blueSlice);
     float slice1 = min(slice0 + 1.0, lutSize - 1.0);
     float blueFrac = fract(blueSlice);
     
-    // 2D texture layout: horizontal strips of size x size slices
     float yOffset0 = slice0 / lutSize;
     float yOffset1 = slice1 / lutSize;
     
     vec2 uv0 = vec2(scaledColor.r, yOffset0 + scaledColor.g / lutSize);
     vec2 uv1 = vec2(scaledColor.r, yOffset1 + scaledColor.g / lutSize);
     
-    // Sample and interpolate
     vec3 color0 = texture2D(u_lut, uv0).rgb;
     vec3 color1 = texture2D(u_lut, uv1).rgb;
     
@@ -106,7 +102,6 @@ function createLUTTexture(gl: WebGLRenderingContext, lut: ParsedLUT): WebGLTextu
 
   gl.bindTexture(gl.TEXTURE_2D, texture);
   
-  // Pack 3D LUT into 2D texture: horizontal strips (size x size*size)
   const width = lut.size;
   const height = lut.size * lut.size;
   const pixels = new Uint8Array(width * height * 4);
@@ -142,7 +137,6 @@ export const LUTGradeWebGL: React.FC<LUTGradeWebGLProps> = ({
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
 
-  // Load LUT file
   useEffect(() => {
     fetch(lutSrc)
       .then((res) => {
@@ -160,7 +154,6 @@ export const LUTGradeWebGL: React.FC<LUTGradeWebGLProps> = ({
       });
   }, [lutSrc]);
 
-  // Render WebGL effect each frame
   useEffect(() => {
     if (!lut || !canvasRef.current || !contentRef.current || error) return;
 
@@ -172,7 +165,6 @@ export const LUTGradeWebGL: React.FC<LUTGradeWebGLProps> = ({
       return;
     }
 
-    // Compile shaders
     const vertShader = gl.createShader(gl.VERTEX_SHADER);
     const fragShader = gl.createShader(gl.FRAGMENT_SHADER);
     if (!vertShader || !fragShader) return;
@@ -202,7 +194,6 @@ export const LUTGradeWebGL: React.FC<LUTGradeWebGLProps> = ({
     }
     gl.useProgram(program);
 
-    // Setup geometry (fullscreen quad)
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.bufferData(
@@ -225,25 +216,20 @@ export const LUTGradeWebGL: React.FC<LUTGradeWebGLProps> = ({
     gl.enableVertexAttribArray(texLoc);
     gl.vertexAttribPointer(texLoc, 2, gl.FLOAT, false, 0, 0);
 
-    // Create LUT texture
     const lutTexture = createLUTTexture(gl, lut);
     if (!lutTexture) return;
 
-    // Create image texture (will be updated each frame)
     const imageTexture = gl.createTexture();
     if (!imageTexture) return;
 
-    // Set uniforms
     gl.uniform1i(gl.getUniformLocation(program, "u_image"), 0);
     gl.uniform1i(gl.getUniformLocation(program, "u_lut"), 1);
     gl.uniform1f(gl.getUniformLocation(program, "u_intensity"), intensity);
     gl.uniform1f(gl.getUniformLocation(program, "u_lutSize"), lut.size);
 
-    // Bind LUT texture to unit 1
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, lutTexture);
 
-    // Render (this will be called each frame via useEffect dependency)
     gl.viewport(0, 0, width, height);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
@@ -251,7 +237,6 @@ export const LUTGradeWebGL: React.FC<LUTGradeWebGLProps> = ({
 
   }, [lut, frame, width, height, intensity, error]);
 
-  // Fallback if WebGL fails or LUT not loaded
   if (error || !lut) {
     return <>{children}</>;
   }

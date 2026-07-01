@@ -117,7 +117,6 @@ async def list_music(_: Principal = Depends(principal_dep)):
     return {"data": out}
 
 
-# Wave 3 — DAM
 
 def _storage_key(scope: str, scope_id: str | None, kind: str, filename: str) -> str:
     uid = uuid.uuid4().hex[:12]
@@ -125,7 +124,6 @@ def _storage_key(scope: str, scope_id: str | None, kind: str, filename: str) -> 
     return f"dam/{scope}/{sid}/{kind}/{uid}_{filename}"
 
 
-# helpers
 
 async def _upload_to_minio(data: bytes, key: str, content_type: str) -> bool:
     """Best-effort upload to MinIO; returns True on success."""
@@ -164,7 +162,6 @@ async def _enqueue_media_jobs(pool: Any, asset_id: int, kind: str) -> None:
         )
 
 
-# models
 
 class AssetPatch(BaseModel):
     display_name: str | None = None
@@ -201,15 +198,9 @@ class SearchIn(BaseModel):
     kind: str | None = None
     tags: list[str] | None = None
     limit: int = 40
-    # AE-356: search mode.
-    #   hybrid    — semantic if a query embedding succeeds; FTS otherwise.
-    #               Results are union-merged with score fusion (RRF-style).
-    #   semantic  — semantic only; empty result if embeddings unavailable.
-    #   fts       — legacy full-text + ILIKE match (the historical behaviour).
     mode: str = "hybrid"
 
 
-# GET /library/dam/assets
 
 @router.get("/dam/assets")
 async def dam_list_assets(
@@ -255,7 +246,6 @@ async def dam_list_assets(
     return {"data": [dict(r) for r in rows]}
 
 
-# POST /library/dam/assets/preflight
 
 @router.post("/dam/assets/preflight")
 async def dam_preflight(
@@ -273,7 +263,6 @@ async def dam_preflight(
     return {"exists": False}
 
 
-# POST /library/dam/upload
 
 @router.post("/dam/upload")
 async def dam_upload(
@@ -288,18 +277,10 @@ async def dam_upload(
     pool = await get_pool()
     results = []
 
-    # AE-364: pre-check quota once per upload call so a 50-file batch fails
-    # fast instead of writing half then aborting mid-loop. We sum the
-    # non-deduped bytes below as we go and abort the batch if it would
-    # cross the scope's quota.
     from src.services.dashboard.v2.library_quotas import check_quota_before_upload
 
     incoming_total = 0
     for f in files:
-        # ``UploadFile.size`` is set by Starlette when the client sends a
-        # Content-Length; falling back to 0 means "we'll discover the size
-        # when we read the stream" — the per-file check below still catches
-        # over-quota uploads, just one file later.
         incoming_total += int(getattr(f, "size", None) or 0)
     quota = await check_quota_before_upload(scope, scope_id, incoming_total)
     if not quota["ok"]:
@@ -313,7 +294,6 @@ async def dam_upload(
         data = await f.read()
         sha = hashlib.sha256(data).hexdigest()
 
-        # Dedup check
         existing = await pool.fetchrow(
             "SELECT id FROM dam_assets WHERE content_hash = $1 AND deleted_at IS NULL LIMIT 1",
             sha,
@@ -344,7 +324,6 @@ async def dam_upload(
     return {"count": len(results), "results": results}
 
 
-# GET /library/dam/assets/{id}
 
 @router.get("/dam/assets/{asset_id}")
 async def dam_get_asset(
@@ -358,21 +337,18 @@ async def dam_get_asset(
     if not row:
         raise HTTPException(404, "Asset not found")
     asset = dict(row)
-    # versions
     versions = await pool.fetch(
         "SELECT id, version_no, bytes, content_hash, note, created_at"
         " FROM dam_asset_versions WHERE asset_id = $1 ORDER BY version_no DESC",
         asset_id,
     )
     asset["versions"] = [dict(v) for v in versions]
-    # renditions
     renditions = await pool.fetch(
         "SELECT rendition_kind, storage_key, codec, width, height, bitrate_kbps,"
         " duration_ms, bytes FROM media_renditions WHERE asset_id = $1",
         asset_id,
     )
     asset["renditions"] = [dict(r) for r in renditions]
-    # media jobs (recent)
     jobs = await pool.fetch(
         "SELECT kind, status, error, finished_at FROM media_jobs"
         " WHERE asset_id = $1 ORDER BY created_at DESC LIMIT 10",
@@ -382,7 +358,6 @@ async def dam_get_asset(
     return {"data": asset}
 
 
-# PATCH /library/dam/assets/{id}
 
 @router.patch("/dam/assets/{asset_id}")
 async def dam_patch_asset(
@@ -411,7 +386,6 @@ async def dam_patch_asset(
     return {"ok": True}
 
 
-# DELETE /library/dam/assets/{id}
 
 @router.delete("/dam/assets/{asset_id}")
 async def dam_delete_asset(
@@ -426,7 +400,6 @@ async def dam_delete_asset(
     return {"ok": True}
 
 
-# GET /library/dam/tags
 
 @router.get("/dam/tags")
 async def dam_list_tags(
@@ -447,7 +420,6 @@ async def dam_list_tags(
     return {"data": [r["tag"] for r in rows]}
 
 
-# Collections CRUD
 
 @router.get("/dam/collections")
 async def dam_list_collections(
@@ -511,9 +483,6 @@ async def dam_delete_collection(
     return {"ok": True}
 
 
-# AE-359: Smart Collection resolution — returns the live asset list for a
-# collection (manual collections return their explicit member list; smart
-# collections re-execute the stored query JSONB on every fetch).
 @router.get("/dam/collections/{col_id}/assets")
 async def dam_resolve_collection_assets(
     col_id: int,
@@ -528,7 +497,6 @@ async def dam_resolve_collection_assets(
     return {"data": rows, "count": len(rows)}
 
 
-# Brand kits CRUD
 
 @router.get("/dam/brand-kits")
 async def dam_list_brand_kits(
@@ -585,7 +553,6 @@ async def dam_update_brand_kit(
     return {"ok": True}
 
 
-# POST /library/dam/search
 
 
 _SELECT_COLS = (
@@ -641,7 +608,6 @@ async def _semantic_search(body: "SearchIn") -> list[dict] | None:
     """
     if not body.q:
         return None
-    # Lazy import — semantic search depends on src/llm/embeddings (P0).
     from src.llm.embeddings import EmbeddingConfigError, EmbeddingError, embed_text
 
     try:
@@ -714,7 +680,6 @@ async def dam_search(
             return {"data": [], "count": 0, "mode": "semantic", "note": "embeddings unavailable"}
         return {"data": semantic, "count": len(semantic), "mode": "semantic"}
 
-    # hybrid (default)
     semantic = await _semantic_search(body)
     lexical = await _fts_search(body)
     if semantic is None:

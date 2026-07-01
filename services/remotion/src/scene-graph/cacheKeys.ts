@@ -30,7 +30,6 @@ export function textAnimHash(clip: Clip): string | null {
   const sc = clip as Extract<Clip, { kind: "scene" }>;
   const inAnims = sc.animationsIn ?? [];
   const outAnims = sc.animationsOut ?? [];
-  // Only count text-class presets — they're the ones Phase 1B touches.
   const textPrefixes = ["anim.text.", "anim.in.typewriter", "anim.in.scramble"];
   const isTextAnim = (preset: string): boolean =>
     textPrefixes.some((p) => preset.startsWith(p));

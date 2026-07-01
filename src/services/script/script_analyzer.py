@@ -23,7 +23,6 @@ import textstat
 
 logger = structlog.get_logger()
 
-# Lazy-loaded spaCy model
 _nlp = None
 _nlp_lock = asyncio.Lock()
 SPACY_MODEL = "en_core_web_sm"
@@ -52,8 +51,6 @@ async def _get_nlp():
         return _nlp
 
 
-# Emotion Lexicon (8 categories × ~70 words each)
-# Curated for YouTube content — covers persuasion, education, storytelling
 EMOTION_LEXICON: dict[str, set[str]] = {
     "curiosity": {
         "why", "how", "secret", "hidden", "mystery", "unknown", "discover",
@@ -135,13 +132,11 @@ EMOTION_LEXICON: dict[str, set[str]] = {
     },
 }
 
-# Flatten for quick lookup
 _ALL_EMOTION_WORDS: dict[str, str] = {}
 for _emotion, _words in EMOTION_LEXICON.items():
     for _w in _words:
         _ALL_EMOTION_WORDS[_w] = _emotion
 
-# Power Words (used for emphasis detection)
 POWER_WORDS = {
     "free", "new", "proven", "secret", "instant", "guaranteed",
     "discover", "amazing", "powerful", "ultimate", "exclusive",
@@ -151,7 +146,6 @@ POWER_WORDS = {
     "forbidden", "ancient", "forgotten", "remarkable", "stunning",
 }
 
-# AI Pattern Detection
 AI_PATTERNS = [
     r"\blet'?s dive (?:right )?in\b",
     r"\bit(?:'s| is) important to (?:note|understand|remember)\b",
@@ -178,7 +172,6 @@ AI_PATTERNS = [
 _AI_PATTERNS_COMPILED = [re.compile(p, re.IGNORECASE) for p in AI_PATTERNS]
 
 
-# CORE ANALYSIS FUNCTIONS
 
 def count_syllables(word: str) -> int:
     """Estimate syllable count for a word (English heuristic)."""
@@ -187,9 +180,7 @@ def count_syllables(word: str) -> int:
         return 0
     if len(word) <= 3:
         return 1
-    # Count vowel groups
     count = len(re.findall(r"[aeiouy]+", word))
-    # Adjustments
     if word.endswith("e") and not word.endswith("le"):
         count -= 1
     if word.endswith("ed") and len(word) > 4:
@@ -219,23 +210,18 @@ async def analyze_text(text: str) -> dict[str, Any]:
     nlp = await _get_nlp()
     doc = await asyncio.to_thread(nlp, text)
 
-    # Sentences
     sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
     sentence_lengths = [len(s.split()) for s in sentences]
 
-    # POS distribution
     pos_counts = Counter(token.pos_ for token in doc if not token.is_punct)
 
-    # Named entities
     entities = [
         {"text": ent.text, "label": ent.label_, "start": ent.start_char, "end": ent.end_char}
         for ent in doc.ents
     ]
 
-    # Noun phrases
     noun_phrases = [chunk.text for chunk in doc.noun_chunks]
 
-    # Key verbs (non-auxiliary)
     key_verbs = [
         token.lemma_ for token in doc
         if token.pos_ == "VERB" and token.dep_ not in ("aux", "auxpass")
@@ -305,7 +291,6 @@ async def detect_emphasis_words(text: str, top_n: int = 5) -> list[dict]:
         word = token.text.lower()
         score = 0.0
 
-        # POS boost
         if token.pos_ in ("NOUN", "PROPN"):
             score += 1.5
         elif token.pos_ == "VERB" and token.dep_ not in ("aux", "auxpass"):
@@ -315,32 +300,26 @@ async def detect_emphasis_words(text: str, top_n: int = 5) -> list[dict]:
         elif token.pos_ == "NUM":
             score += 2.0
 
-        # Named entity boost
         if token.ent_type_:
             score += 1.8
 
-        # Power word boost
         if word in POWER_WORDS:
             score += 2.5
 
-        # Emotion word boost
         if word in _ALL_EMOTION_WORDS:
             score += 1.5
 
-        # Rarity boost (longer words tend to be more specific)
         if len(word) >= 8:
             score += 0.5
         if len(word) >= 12:
             score += 0.5
 
-        # Number in text
         if re.search(r"\d", token.text):
             score += 2.5
 
         if score > 0:
             word_scores[token.text] = max(word_scores.get(token.text, 0), score)
 
-    # Sort and return top N
     ranked = sorted(word_scores.items(), key=lambda x: x[1], reverse=True)
     return [
         {"word": w, "score": round(s, 2), "emotion": _ALL_EMOTION_WORDS.get(w.lower(), "neutral")}
@@ -358,11 +337,8 @@ def compute_specificity(text: str) -> float:
     total = max(len(words), 1)
 
     specific_count = 0
-    # Numbers (including currency, percentages)
     specific_count += len(re.findall(r"\b\d[\d,.]*%?\b", text))
-    # Quoted phrases
     specific_count += len(re.findall(r"[\"'].*?[\"']", text))
-    # Proper nouns (capitalized words not at sentence start)
     sentences = re.split(r"[.!?]\s+", text)
     for sent in sentences:
         words_in = sent.split()
@@ -406,7 +382,6 @@ def compute_question_density(text: str) -> float:
     if not sentences:
         return 0.0
     questions = sum(1 for s in sentences if s.rstrip().endswith("?") or text.count("?") > 0)
-    # Count actual question marks in text
     question_marks = text.count("?")
     total_sentences = max(len(sentences), 1)
     return min(1.0, question_marks / total_sentences)
@@ -428,7 +403,6 @@ def compute_contraction_rate(text: str) -> float:
     return len(contractions) / max(len(words), 1)
 
 
-# Segment-Level Analysis
 
 async def analyze_segment(segment: dict) -> dict[str, Any]:
     """Full analysis of a single script segment.
@@ -479,7 +453,6 @@ async def analyze_full_script(segments: list[dict]) -> dict[str, Any]:
         analysis = await analyze_segment(seg)
         segment_analyses.append(analysis)
 
-    # Aggregate
     total_words = sum(a["word_count"] for a in segment_analyses)
     total_sentences = sum(a["sentence_count"] for a in segment_analyses)
     all_sentence_lengths = []
@@ -488,7 +461,6 @@ async def analyze_full_script(segments: list[dict]) -> dict[str, Any]:
             [len(s.split()) for s in a["sentences"]]
         )
 
-    # Emotion arc (variance across segments)
     emotion_intensities = [a["emotions"]["emotional_intensity"] for a in segment_analyses]
     dominant_emotions = [a["emotions"]["dominant_emotion"] for a in segment_analyses]
 
@@ -511,7 +483,6 @@ async def analyze_full_script(segments: list[dict]) -> dict[str, Any]:
     }
 
 
-# Utility
 
 def _variance(values: list[float | int]) -> float:
     """Compute variance of a list of numbers."""

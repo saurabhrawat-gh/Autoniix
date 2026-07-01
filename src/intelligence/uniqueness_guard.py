@@ -61,7 +61,6 @@ async def check_uniqueness(
             return UniquenessResult(True, 0.0, None, threshold)
         from src.db import get_pool
         pool = await get_pool()
-        # Use pgvector <=> (cosine distance). similarity = 1 - distance.
         row = await pool.fetchrow(
             """
             SELECT content_id, 1 - (title_embedding <=> $1::vector) AS similarity
@@ -102,7 +101,6 @@ def _embed(text: str) -> list[float] | None:
         return None
 
 
-# Authenticity score
 def compute_authenticity_score(video: dict[str, Any]) -> float:
     """Return a 0..1 authenticity score from a videos row.
 
@@ -110,30 +108,24 @@ def compute_authenticity_score(video: dict[str, Any]) -> float:
     Missing fields fall through to neutral defaults (~0.5) — the score never
     crashes a render.
     """
-    components: list[tuple[str, float, float]] = []  # (name, score, weight)
+    components: list[tuple[str, float, float]] = []
 
-    # 1) Hook novelty — derived from script_critic_scores.scene_direction or
-    #    falling back to a length heuristic.
     crit = video.get("script_critic_scores") or {}
     hook_score = float(crit.get("hook_retention", crit.get("hook", 0.7))) if isinstance(crit, dict) else 0.7
     components.append(("hook", min(1.0, hook_score / 10.0 if hook_score > 1 else hook_score), 0.25))
 
-    # 2) Thumbnail distinctiveness — composition_rule diversity proxy.
     thumb = video.get("thumbnail_result") or {}
     thumb_score = float(thumb.get("distinctiveness", 0.65)) if isinstance(thumb, dict) else 0.65
     components.append(("thumb", thumb_score, 0.20))
 
-    # 3) Narration / commentary ratio — structure_score normalized.
     structure = float(video.get("script_structure_score") or 0.7)
     structure = structure / 10.0 if structure > 1 else structure
     components.append(("structure", structure, 0.20))
 
-    # 4) Production score (composite of QA layers)
     prod = float(video.get("production_score") or 0.7)
     prod = prod / 10.0 if prod > 1 else prod
     components.append(("production", prod, 0.15))
 
-    # 5) Cross-channel similarity penalty (LOWER similarity → HIGHER authenticity)
     cross = float(video.get("cross_channel_similarity") or 0.0)
     components.append(("cross", max(0.0, 1.0 - cross), 0.20))
 

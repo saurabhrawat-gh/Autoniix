@@ -35,7 +35,7 @@ export type DeinterlaceAlgo = "yadif" | "bwdif";
 
 export interface DeinterlaceFilter {
   kind: "deinterlace";
-  algo?: DeinterlaceAlgo; // default 'yadif'
+  algo?: DeinterlaceAlgo;
 }
 
 export interface StabilizeFilter {
@@ -55,8 +55,8 @@ export interface StabilizeFilter {
  * keys describe the ramp.
  */
 export interface SpeedCurveKey {
-  srcU: number; // [0..1] — fraction of source duration
-  outU: number; // [0..1] — fraction of *output* duration mapped from srcU
+  srcU: number;
+  outU: number;
 }
 
 export interface WarpFilter {
@@ -72,7 +72,7 @@ export type DenoiseModel = "scunet" | "ffmpeg-hqdn3d";
 
 export interface DenoiseFilter {
   kind: "denoise";
-  model?: DenoiseModel; // default 'ffmpeg-hqdn3d' (CPU)
+  model?: DenoiseModel;
   /** 0..1 strength. Default 0.5. */
   strength?: number;
 }
@@ -81,13 +81,13 @@ export type UpscaleModel = "real-esrgan" | "ffmpeg-lanczos";
 
 export interface UpscaleFilter {
   kind: "upscale";
-  model?: UpscaleModel; // default 'ffmpeg-lanczos' (CPU)
+  model?: UpscaleModel;
   scale: 2 | 3 | 4;
 }
 
 export interface ColorizeFilter {
   kind: "colorize";
-  model: "ddcolor"; // GPU-only; no CPU fallback
+  model: "ddcolor";
 }
 
 export type ClipFilter =
@@ -193,7 +193,6 @@ export function validateFilter(f: ClipFilter, ctx = "filter"): void {
 
 export function validateFilters(filters: ClipFilter[], ctx = "filters"): void {
   for (const f of filters) validateFilter(f, ctx);
-  // orderFilters() throws on duplicates as a side effect
   orderFilters(filters);
 }
 
@@ -209,7 +208,6 @@ export function validateFilters(filters: ClipFilter[], ctx = "filters"): void {
 export function srcTimeAtOutTime(curve: SpeedCurveKey[], outU: number): number {
   if (outU <= 0) return 0;
   if (outU >= 1) return 1;
-  // Find the bracketing pair whose outU values straddle `outU`.
   for (let i = 0; i < curve.length - 1; i++) {
     const a = curve[i]!;
     const b = curve[i + 1]!;
@@ -300,10 +298,6 @@ export function buildFfmpegRecipe(
   const codec = opts.videoCodec ?? "libx264";
   const crf = opts.crf ?? 18;
 
-  // Multi-key warp is handled by a dedicated filter_complex pass — it cannot
-  // be combined with -vf because the trim/concat must run before any
-  // chain-style filters. Caller must split the pipeline explicitly when
-  // they want both warp(>2 keys) and other filters.
   const warp = cpuFilters.find((f): f is WarpFilter => f.kind === "warp");
   if (warp && warp.curve.length > 2) {
     if (cpuFilters.length > 1) {
@@ -316,7 +310,6 @@ export function buildFfmpegRecipe(
     return buildWarpFilterComplex(warp, opts, codec, crf, gpuFilters);
   }
 
-  // Stabilize is a 2-pass filter; if present, it splits the pipeline.
   const stab = cpuFilters.find((f): f is StabilizeFilter => f.kind === "stabilize");
   const stabIdx = cpuFilters.findIndex((f) => f.kind === "stabilize");
   const preStab = stabIdx >= 0 ? cpuFilters.slice(0, stabIdx) : cpuFilters;
@@ -328,8 +321,6 @@ export function buildFfmpegRecipe(
   const commands: FfmpegCommand[] = [];
 
   if (stab) {
-    // Pass 1 — pre-stabilize filters feed vidstabdetect (detect runs in the
-    // *processed* color/denoise space so transforms reflect what the user sees).
     const trf = `${opts.workDir}/transforms.trf`;
     const detectVf = [
       ...preStabVf,
@@ -350,9 +341,6 @@ export function buildFfmpegRecipe(
       finalOutput: false,
     });
 
-    // Pass 2 — re-apply pre-stabilize filters, then transform, then post-
-    // stabilize filters (upscale/warp). This keeps the chain order canonical
-    // even though stabilize forces two passes.
     const xformVf = [
       ...preStabVf,
       `vidstabtransform=input=${trf}:smoothing=${stab.smoothing ?? 15}:zoom=${stab.zoomPct ?? 0}`,
@@ -378,7 +366,6 @@ export function buildFfmpegRecipe(
       finalOutput: true,
     });
   } else if (cpuFilterChain.length > 0) {
-    // Single-pass.
     commands.push({
       args: [
         "-y",
@@ -398,7 +385,6 @@ export function buildFfmpegRecipe(
       finalOutput: true,
     });
   } else if (gpuFilters.length === 0) {
-    // No filters at all → straight copy.
     commands.push({
       args: ["-y", "-i", opts.inputPath, "-c", "copy", opts.outputPath],
       summary: "stream copy (no filters)",
@@ -426,7 +412,7 @@ function filterToVf(f: ClipFilter): string | null {
       return f.algo === "bwdif" ? "bwdif=mode=send_field:parity=auto" : "yadif=mode=1:parity=auto";
     case "denoise": {
       if ((f.model ?? "ffmpeg-hqdn3d") === "scunet") return null;
-      const s = (f.strength ?? 0.5) * 8; // map 0..1 to 0..8 luma_spatial
+      const s = (f.strength ?? 0.5) * 8;
       return `hqdn3d=${s.toFixed(2)}:${(s * 0.75).toFixed(2)}:${(s * 1.5).toFixed(2)}:${(s * 1.0).toFixed(2)}`;
     }
     case "upscale": {
@@ -434,19 +420,13 @@ function filterToVf(f: ClipFilter): string | null {
       return `scale=iw*${f.scale}:ih*${f.scale}:flags=lanczos`;
     }
     case "warp": {
-      // For a 2-key curve (constant speed), emit a single setpts. For
-      // multi-key curves we'd otherwise need per-segment trim+concat which
-      // doesn't fit a single -vf chain — those are handled by the recipe
-      // builder below via a separate code path. The map here is therefore
-      // only correct for 2-key curves; the builder routes longer curves to
-      // a `concat`-based pass instead of `filterToVf`.
       if (f.curve.length === 2) {
         const totalSpeed = (f.curve[1]!.srcU - f.curve[0]!.srcU) /
           Math.max(1e-9, f.curve[1]!.outU - f.curve[0]!.outU);
         const pts = (1 / totalSpeed).toFixed(6);
         return `setpts=${pts}*PTS`;
       }
-      return null; // recipe builder must handle multi-key curves
+      return null;
     }
     case "stabilize":
     case "colorize":
@@ -485,7 +465,6 @@ function buildWarpFilterComplex(
     const outEnd = b.outU * outputDur;
     const srcSpan = Math.max(1e-6, srcEnd - srcStart);
     const outSpan = Math.max(1e-6, outEnd - outStart);
-    // setpts factor inverts segment speed: factor = outSpan / srcSpan.
     const ptsFactor = (outSpan / srcSpan).toFixed(6);
     const label = `wv${i}`;
     labels.push(label);

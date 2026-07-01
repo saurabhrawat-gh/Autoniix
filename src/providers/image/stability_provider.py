@@ -9,7 +9,6 @@ from src.providers.registry import ProviderRegistry
 
 logger = structlog.get_logger()
 
-# Stability AI pricing: ~$0.04 per image for SDXL
 COST_PER_IMAGE = 0.04
 
 
@@ -27,7 +26,6 @@ class StabilityAI(ImageProvider):
             "Content-Type": "application/json",
         }
 
-        # Parse size (e.g., "1024x1024" -> width=1024, height=1024)
         width, height = map(int, request.size.split("x"))
 
         body = {

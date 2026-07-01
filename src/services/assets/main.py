@@ -37,7 +37,7 @@ try:
     ASSET_COVERAGE_TOTAL = Counter(
         "asset_coverage_total",
         "Per-segment asset acquisition outcomes.",
-        labelnames=("outcome",),  # stock | cached | kinetic_fallback | dalle | failed
+        labelnames=("outcome",),
     )
     ASSET_RELEVANCE = Histogram(
         "asset_relevance_score",
@@ -60,7 +60,6 @@ except Exception:  # pragma: no cover
 logger = structlog.get_logger()
 
 
-# Request Models
 
 class AssetsRequest(BaseModel):
     content_id: str
@@ -77,7 +76,6 @@ class MusicRequest(BaseModel):
     duration_s: float = 45.0
 
 
-# Helpers
 
 def _parse_json(text: str) -> dict:
     text = text.strip()
@@ -102,7 +100,6 @@ async def _log_usage(content_id: str, service: str, provider: str, cost: float):
         logger.warning("assets.db_log_failed", error=str(e))
 
 
-# Niche-Aware Query Expansion
 
 NICHE_KEYWORDS: dict[str, list[str]] = {
     "tech": ["technology", "digital", "futuristic", "code", "circuit"],
@@ -121,12 +118,10 @@ def _expand_query_for_niche(query: str, niche: str, content_mode: str = "short")
     """Expand search query with niche-specific keywords and aspect ratio hints."""
     niche_terms = NICHE_KEYWORDS.get(niche, [])
     if niche_terms:
-        # Add 1-2 niche terms to diversify results
         import random
         extras = random.sample(niche_terms, min(2, len(niche_terms)))
         query = f"{query} {' '.join(extras)}"
 
-    # Add orientation hint for better aspect ratio matches
     if content_mode == "short":
         query = f"{query} vertical"
     return query
@@ -150,12 +145,10 @@ def _filter_by_aspect_ratio(clips: list[dict], content_mode: str = "short") -> l
             clip["aspect_score"] = 0.5
         scored.append(clip)
 
-    # Sort by aspect match (prefer matching aspect ratio)
     scored.sort(key=lambda c: c.get("aspect_score", 0), reverse=True)
     return scored
 
 
-# Stock Video Search
 
 async def _search_pixabay_videos(query: str, min_duration: int = 5) -> list[dict]:
     """Search Pixabay for stock video clips."""
@@ -202,7 +195,6 @@ async def _search_pexels_videos(query: str, min_duration: int = 5) -> list[dict]
             results = []
             for v in videos:
                 files = v.get("video_files", [])
-                # Pick best quality file >= 720p
                 best = None
                 for f in files:
                     if f.get("height", 0) >= 720:
@@ -258,7 +250,6 @@ async def _search_freesound(query: str, duration_max: float = 30.0) -> list[dict
         return []
 
 
-# App
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -294,7 +285,7 @@ async def generate_assets(req: AssetsRequest):
     import asyncio
     import time as _time
     channel = await _load_channel(req.channel_id)
-    cache_enabled = True  # asset_cache_enabled config
+    cache_enabled = True
 
     for seg in req.segments:
         seg_id = seg.get("id", "unknown")
@@ -306,7 +297,6 @@ async def generate_assets(req: AssetsRequest):
             manifest.append({"segment_id": seg_id, "type": "none", "assets": []})
             continue
 
-        # Intelligence: Optimize query
         optimized = optimize_query(seg)
         queries = optimized.get("queries", [])
         query_hash = optimized.get("primary_hash", "")
@@ -314,7 +304,6 @@ async def generate_assets(req: AssetsRequest):
         search_start = _time.time()
 
         try:
-            # Intelligence: Check asset cache first
             if cache_enabled and query_hash:
                 cached = await check_asset_cache(query_hash)
                 if cached:
@@ -332,14 +321,9 @@ async def generate_assets(req: AssetsRequest):
                                      search_time_ms=int((_time.time() - search_start) * 1000))
                     continue
 
-            # Step 1: Expand query with niche context
             niche = channel.get("niche", "") if channel else ""
             expanded_query = _expand_query_for_niche(query, niche, req.content_mode)
 
-            # Step 2: Multi-provider chain with semantic re-rank
-            # Pulls top-K from every healthy provider in parallel, scores
-            # the union via the SBERT ranker, returns the best non-rejected
-            # clip (final score >= 0.55) or None.
             target_dur_s = float(seg.get("duration_ms", 0) or 0) / 1000.0
             motion_intent = (seg.get("motion_intent")
                               or seg.get("mood", {}).get("name")
@@ -361,8 +345,6 @@ async def generate_assets(req: AssetsRequest):
                 prefer_1080p=(req.content_mode != "short"),
             )
 
-            # Update provider health gauges so Grafana sees the rolling error
-            # rate per provider on every request.
             for prov_name, prov in provider_health_snapshot().items():
                 ASSET_PROVIDER_HEALTH.labels(provider=prov_name).set(prov["error_rate"])
 
@@ -370,7 +352,6 @@ async def generate_assets(req: AssetsRequest):
             selected_clip = best.clip if best else None
 
             if selected_clip and selected_clip.get("url"):
-                # Download and upload to MinIO
                 try:
                     async with httpx.AsyncClient(timeout=30.0) as client:
                         resp = await client.get(selected_clip["url"])
@@ -401,8 +382,6 @@ async def generate_assets(req: AssetsRequest):
                     stock_count += 1
                     ASSET_COVERAGE_TOTAL.labels(outcome="stock").inc()
                     ASSET_RELEVANCE.observe(relevance)
-                    # Cache the asset for future reuse (relevance is 0–1,
-                    # legacy quality_score column expects 0–10 — scale up).
                     await store_in_cache(
                         query, selected_clip["source"], selected_clip["url"],
                         minio_key=key, quality_score=round(relevance * 10, 2),
@@ -416,13 +395,6 @@ async def generate_assets(req: AssetsRequest):
                 except Exception as dl_err:
                     logger.warning("assets.stock_download_failed", seg=seg_id, error=str(dl_err))
 
-            # Fallback: kinetic-typography (no asset, no cost)
-            # When the chain returns no candidate above the 0.55 threshold,
-            # we DO NOT silently produce a black frame and we DO NOT burn a
-            # DALL-E call. Instead we emit a manifest entry that tells the
-            # downstream director to render the segment as kinetic typography
-            # (visible, on-brand, fast). DALL-E is opt-in via channel config
-            # `enable_dalle_fallback` for niches where stills genuinely help.
             enable_dalle = bool(channel.get("enable_dalle_fallback", False))
             if not enable_dalle:
                 manifest.append({
@@ -445,7 +417,6 @@ async def generate_assets(req: AssetsRequest):
                                  search_time_ms=int((_time.time() - search_start) * 1000))
                 continue
 
-            # Opt-in DALL-E fallback (channel-gated).
             image_provider = ProviderRegistry.get("image")
             from src.providers.image.base import ImageRequest
 
@@ -459,7 +430,6 @@ async def generate_assets(req: AssetsRequest):
 
             assets = []
             for i, img in enumerate(img_result.images):
-                # Placeholder provider stores raw bytes in _bytes key
                 img_bytes = img.get("_bytes")
                 if not img_bytes:
                     img_url = img.get("url", "")
@@ -508,7 +478,6 @@ async def generate_assets(req: AssetsRequest):
     )
 
 
-# Music & SFX
 
 @app.post("/search-music", response_model=ServiceResponse)
 async def search_music(req: MusicRequest):

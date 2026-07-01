@@ -56,7 +56,6 @@ export const PremiumLowerThird: React.FC<PremiumLowerThirdProps> = ({
 
   const totalDuration = animationDuration * 2 + holdDuration;
 
-  // Animation states
   const slideIn = spring({
     frame,
     fps,
@@ -71,10 +70,8 @@ export const PremiumLowerThird: React.FC<PremiumLowerThirdProps> = ({
 
   const progress = frame < animationDuration + holdDuration ? slideIn : 1 - slideOut;
 
-  // Position calculations
   const yPosition = position === "bottom" ? height - 200 : 100;
 
-  // Render different variations
   const renderVariation = () => {
     switch (variation) {
       case "minimal":
@@ -92,7 +89,6 @@ export const PremiumLowerThird: React.FC<PremiumLowerThirdProps> = ({
     }
   };
 
-  // MINIMAL: Simple line with text
   const renderMinimal = () => {
     const lineWidth = interpolate(progress, [0, 1], [0, 400]);
     const textOpacity = interpolate(progress, [0.3, 0.6], [0, 1], {
@@ -144,7 +140,6 @@ export const PremiumLowerThird: React.FC<PremiumLowerThirdProps> = ({
     );
   };
 
-  // CORPORATE: Box with gradient background
   const renderCorporate = () => {
     const boxWidth = interpolate(progress, [0, 1], [0, 500]);
     const textSlide = interpolate(progress, [0.2, 0.7], [50, 0], {
@@ -208,7 +203,6 @@ export const PremiumLowerThird: React.FC<PremiumLowerThirdProps> = ({
     );
   };
 
-  // MODERN: Animated bars with text
   const renderModern = () => {
     const bar1Width = interpolate(progress, [0, 0.5], [0, 450], {
       extrapolateRight: "clamp",
@@ -281,7 +275,6 @@ export const PremiumLowerThird: React.FC<PremiumLowerThirdProps> = ({
     );
   };
 
-  // BOLD: Large text with animated accent
   const renderBold = () => {
     const accentHeight = interpolate(progress, [0, 0.6], [0, 120], {
       extrapolateRight: "clamp",
@@ -351,7 +344,6 @@ export const PremiumLowerThird: React.FC<PremiumLowerThirdProps> = ({
     );
   };
 
-  // ELEGANT: Refined design with subtle animations
   const renderElegant = () => {
     const lineWidth = interpolate(progress, [0, 0.8], [0, 350], {
       extrapolateRight: "clamp",

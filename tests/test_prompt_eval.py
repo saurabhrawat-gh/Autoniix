@@ -53,7 +53,7 @@ def test_spec_requires_at_least_one_of():
 def test_spec_must_include_all_terms():
     spec = Spec(must_include_all=["pasta", "starchy"])
     ok, failures = spec.evaluate("Pasta water is liquid gold.")
-    assert not ok  # missing 'starchy'
+    assert not ok
     assert any("starchy" in f for f in failures)
 
 
@@ -96,7 +96,6 @@ def test_example_case_file_loads_cleanly():
         response_format=raw.get("response_format", "text"),
     )
     assert case.id == "hook_short_001"
-    # Spec should reject the empty-string output up front.
     ok, failures = case.spec.evaluate("")
     assert not ok
     assert any("min_chars" in f for f in failures)

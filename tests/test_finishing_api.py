@@ -46,7 +46,7 @@ def _default_row():
 
 def _pool_with_config():
     pool = FakePool()
-    pool.fetchval = AsyncMock(return_value=1)          # channel exists
+    pool.fetchval = AsyncMock(return_value=1)
     pool.fetchrow = AsyncMock(return_value=_default_row())
     pool.execute = AsyncMock(return_value="UPDATE 1")
     return pool
@@ -56,9 +56,6 @@ def _patch_pool(pool):
     return patch(f"{_MOD}.get_pool", new_callable=AsyncMock, return_value=pool)
 
 
-# ---------------------------------------------------------------------------
-# Validation (pydantic → 422)
-# ---------------------------------------------------------------------------
 
 class TestValidation:
     def test_invalid_preset_rejected(self):
@@ -89,9 +86,6 @@ class TestValidation:
         assert FinishingConfigUpdate(audio_true_peak_dbtps=-2.0).audio_true_peak_dbtps == -2.0
 
 
-# ---------------------------------------------------------------------------
-# GET
-# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 class TestGetConfig:
@@ -101,20 +95,17 @@ class TestGetConfig:
             out = await get_finishing_config("CH_1", _=_principal("viewer"))
         assert out["color_grade_preset"] == "cinematic"
         assert out["audio_loudness_lufs"] == -14.0
-        assert isinstance(out["updated_at"], str)  # serialised to ISO
+        assert isinstance(out["updated_at"], str)
 
     async def test_unknown_channel_404(self):
         pool = FakePool()
-        pool.fetchval = AsyncMock(return_value=None)   # channel missing
+        pool.fetchval = AsyncMock(return_value=None)
         with _patch_pool(pool):
             with pytest.raises(HTTPException) as exc:
                 await get_finishing_config("nope", _=_principal())
         assert exc.value.status_code == 404
 
 
-# ---------------------------------------------------------------------------
-# PUT
-# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 class TestUpdateConfig:
@@ -124,14 +115,13 @@ class TestUpdateConfig:
         with _patch_pool(pool), patch(f"{_MOD}.audit", new_callable=AsyncMock) as aud:
             out = await update_finishing_config(
                 "CH_1", body, request=AsyncMock(), actor=_principal("owner"))
-        # An UPDATE was issued and audit recorded.
         assert pool.execute.await_count >= 1
         aud.assert_awaited()
         assert "color_grade_preset" in out
 
     async def test_no_fields_is_noop_but_returns_config(self):
         pool = _pool_with_config()
-        body = FinishingConfigUpdate()  # nothing set
+        body = FinishingConfigUpdate()
         with _patch_pool(pool), patch(f"{_MOD}.audit", new_callable=AsyncMock):
             out = await update_finishing_config(
                 "CH_1", body, request=AsyncMock(), actor=_principal("owner"))
@@ -148,9 +138,6 @@ class TestUpdateConfig:
         assert exc.value.status_code == 404
 
 
-# ---------------------------------------------------------------------------
-# Role enforcement
-# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 class TestRoleEnforcement:
@@ -170,9 +157,6 @@ class TestRoleEnforcement:
         assert result.role == "member"
 
 
-# ---------------------------------------------------------------------------
-# Presets listing (public)
-# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_list_presets_returns_seven():

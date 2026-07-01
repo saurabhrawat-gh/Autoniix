@@ -29,9 +29,6 @@ async def refresh_niche_pulse_activity(niche: str) -> dict:
     gracefully — there's nothing to attribute the data to.
     """
     pool = await get_pool()
-    # Pick any active channel in this niche to act as the owner-of-record
-    # for the competitor data. ``ORDER BY channel_id`` keeps the choice
-    # deterministic across runs so the audit trail is stable.
     channel_id = await pool.fetchval(
         """
         SELECT channel_id FROM channels
@@ -47,9 +44,6 @@ async def refresh_niche_pulse_activity(niche: str) -> dict:
     insights = await collect_competitor_insights(
         our_channel_id=channel_id,
         niche=niche,
-        # competitor_yt_ids=None → discover via search; this is the
-        # right behaviour for a periodic refresh because the operator
-        # may not have curated a competitor list per niche.
         competitor_yt_ids=None,
     )
 

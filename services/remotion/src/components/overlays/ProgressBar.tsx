@@ -10,7 +10,7 @@ export interface ProgressBarProps {
   color?: string;
   bg?: string;
   heightPx?: number;
-  segments?: number; // only used when style = "segmented"
+  segments?: number;
 }
 
 export const ProgressBar: React.FC<ProgressBarProps> = ({

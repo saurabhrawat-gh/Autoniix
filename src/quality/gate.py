@@ -32,11 +32,6 @@ import structlog
 logger = structlog.get_logger()
 
 
-# Composite weights (mirror delivery._compute_final_score)
-# These are intentionally identical to the legacy
-# delivery.main._compute_final_score weights so existing dashboards
-# (channel_performance.py, feedback_loop.final_score) keep their meaning
-# unchanged. Phase 4 only adds the *gating* on top.
 WEIGHTS: dict[str, float] = {
     "research_depth_score":    0.15,
     "script_structure_score":  0.25,
@@ -47,7 +42,6 @@ WEIGHTS: dict[str, float] = {
     "production_score":        0.10,
 }
 
-# Per-dimension hard floors (production profile).
 PRODUCTION_THRESHOLDS: dict[str, float] = {
     "research_depth_score":    7.0,
     "script_structure_score":  7.5,
@@ -56,13 +50,12 @@ PRODUCTION_THRESHOLDS: dict[str, float] = {
     "thumbnail_score":         7.5,
     "direction_score":         7.0,
     "production_score":        7.0,
-    "composite_score":         8.0,  # special: applied to the weighted sum
+    "composite_score":         8.0,
 }
 
 TEST_THRESHOLDS: dict[str, float] = {k: 0.0 for k in PRODUCTION_THRESHOLDS}
 
 
-# Public types
 
 
 @dataclass
@@ -95,7 +88,6 @@ class GateDecision:
         }
 
 
-# Evaluation
 
 
 def _composite(sub_scores: dict[str, float]) -> float:
@@ -122,8 +114,6 @@ def evaluate(
     for human review, override with audit trail, etc.).
     """
     prof = PROFILES.get(profile, PROFILES["production"])
-    # Coerce everything to float; treat unparseable as 0 so a malformed
-    # payload from a service can never silently pass.
     coerced: dict[str, float] = {}
     for k, v in sub_scores.items():
         try:
@@ -154,7 +144,6 @@ def evaluate(
     )
 
 
-# Phase 7: niche-aware evaluation with live thresholds
 
 
 async def evaluate_for_niche(
@@ -178,7 +167,6 @@ async def evaluate_for_niche(
     if profile == "test" or not niche:
         return evaluate(sub_scores, profile=profile)
 
-    # Fetch live thresholds; the helper already falls back to defaults.
     from src.quality.calibrator import load_thresholds_for_niche
     thresholds = await load_thresholds_for_niche(niche)
 
@@ -208,15 +196,10 @@ async def evaluate_for_niche(
         composite_score=composite,
         sub_scores=coerced,
         failures=failures,
-        # Tag the decision so audit rows show this was a per-niche eval,
-        # not the static production profile. Useful when reviewing why a
-        # script blocked: same channel may behave differently after a
-        # calibration run.
         profile=f"production:{niche}",
     )
 
 
-# Audit-trail persistence
 
 
 async def record_decision(

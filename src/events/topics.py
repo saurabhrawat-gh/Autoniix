@@ -18,7 +18,6 @@ from enum import Enum
 class Topic(str, Enum):
     """All Redis pub/sub topics produced by the agentic stack."""
 
-    # ── Brain → downstream services
     BRAIN_COMPLIANCE_ALERT = "brain.compliance.alert"
     BRAIN_STRATEGY_BRIEF = "brain.strategy.brief"
     BRAIN_PREVENTOR_RISK = "brain.preventor.risk"
@@ -28,12 +27,10 @@ class Topic(str, Enum):
     BRAIN_VELOCITY = "brain.velocity"
     BRAIN_SEO_BRIEF = "brain.seo.brief"
 
-    # ── Pipeline → Brain
     PIPELINE_VIDEO_COMPLETE = "pipeline.video.complete"
     PIPELINE_VIDEO_FAILED = "pipeline.video.failed"
     PIPELINE_SURGE_SIGNAL = "pipeline.surge.signal"
 
-    # ── Internal/system
     SYSTEM_CHAOS_TEST = "system.chaos.test"
 
     @classmethod
@@ -45,5 +42,4 @@ class Topic(str, Enum):
         return True
 
 
-# Convenience: comma-separated string for docs / logging
 ALL_TOPICS: tuple[Topic, ...] = tuple(Topic)

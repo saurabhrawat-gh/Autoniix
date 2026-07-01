@@ -26,8 +26,6 @@ from src.providers.registry import ProviderRegistry
 logger = structlog.get_logger()
 
 
-# Topic variety pool for test mode
-# Each topic has: selected_topic, title_candidates, hook, key_facts
 TOPIC_POOL = [
     {
         "selected_topic": "The Future of AI in Everyday Life",
@@ -105,7 +103,6 @@ def _pick_topic(seed: str | None = None) -> dict:
         return TOPIC_POOL[idx]
     return random.choice(TOPIC_POOL)
 
-# Prefer tests/fixtures/llm for local dev, /tmp/mock_llm_cache for Docker
 _LOCAL_CACHE = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "llm"
 CACHE_DIR = _LOCAL_CACHE if _LOCAL_CACHE.parent.exists() else Path("/tmp/mock_llm_cache")
 
@@ -121,14 +118,13 @@ class MockLLM(LLMProvider):
 
     def __init__(self) -> None:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        self.api_key = settings.openai_api_key  # for fallback
+        self.api_key = settings.openai_api_key
 
     async def complete(self, request: LLMRequest) -> LLMResult:
         model = request.model or "gpt-4o-mini"
         key = _cache_key(request.messages, model)
         cache_file = CACHE_DIR / f"{key}.json"
 
-        # If no real LLM key, skip cache entirely to allow variety in static fallback
         if not self.api_key:
             logger.info("mock_llm.no_api_key_static_response", key=key)
             static_content = self._static_response(request)
@@ -143,7 +139,6 @@ class MockLLM(LLMProvider):
                 finish_reason="stop",
             )
 
-        # 1. Check disk cache
         if cache_file.exists():
             try:
                 cached = json.loads(cache_file.read_text())
@@ -161,11 +156,9 @@ class MockLLM(LLMProvider):
             except (json.JSONDecodeError, KeyError):
                 cache_file.unlink(missing_ok=True)
 
-        # 2. Fallback: call GPT-4o-mini if API key available
         if self.api_key:
             try:
                 result = await self._call_cheap_model(request, model)
-                # Cache the result
                 cache_file.write_text(json.dumps({
                     "content": result.content,
                     "tokens_in": result.tokens_in,
@@ -178,7 +171,6 @@ class MockLLM(LLMProvider):
             except Exception as exc:
                 logger.warning("mock_llm.api_fallback_failed", error=str(exc))
 
-        # 3. Static fallback — return generic JSON response
         logger.info("mock_llm.static_fallback", key=key)
         static_content = self._static_response(request)
         return LLMResult(
@@ -230,8 +222,6 @@ class MockLLM(LLMProvider):
 
     def _static_response(self, request: LLMRequest) -> str:
         """Return structurally valid mock data based on prompt content."""
-        # Use SYSTEM message for classification (clean, unique per call type)
-        # User messages often embed JSON payloads that confuse keyword matching
         system_text = ""
         user_text = ""
         for m in request.messages:
@@ -262,7 +252,6 @@ class MockLLM(LLMProvider):
         if topic_match:
             topic = topic_match.group(1).strip()
         else:
-            # Fall back to the first non-trivial line of the user message.
             topic = user_text.strip().splitlines()[0] if user_text.strip() else ""
             topic = topic[:140]
         topic = topic.rstrip(".").strip()
@@ -289,7 +278,6 @@ class MockLLM(LLMProvider):
         would cause false pattern matches if checked.
         """
 
-        # Extract content_id or channel_id from prompts as seed for variety
         seed = None
         for token in (user_text + system_text).split():
             if token.startswith("TEST_VID") or token.startswith("VID_"):
@@ -297,7 +285,6 @@ class MockLLM(LLMProvider):
                 break
         topic = _pick_topic(seed)
 
-        # Research synthesis — system prompt contains "research"
         if "research" in system_text and "scriptwriter" not in system_text:
             return {
                 "selected_topic": topic["selected_topic"],
@@ -317,7 +304,6 @@ class MockLLM(LLMProvider):
                 "unique_angle": f"Practical insights on {topic['selected_topic']}",
             }
 
-        # Fact-checking
         if "fact" in system_text and ("check" in system_text or "verify" in system_text):
             return {
                 "verified_claims": [
@@ -327,7 +313,6 @@ class MockLLM(LLMProvider):
                 "overall_accuracy": 0.92,
             }
 
-        # Ideation
         if "idea" in system_text or "ideation" in system_text:
             primary_title = topic["title_candidates"][0]
             return {
@@ -346,7 +331,6 @@ class MockLLM(LLMProvider):
                 },
             }
 
-        # Script critique / QC — detect by system prompt keywords
         if "critique" in system_text or "score" in system_text and "dimension" in system_text:
             return {
                 "overall_score": 9.5,
@@ -364,7 +348,6 @@ class MockLLM(LLMProvider):
                 "pass": True,
             }
 
-        # Script generation — detect by system prompt ("scriptwriter")
         if "scriptwriter" in system_text or ("script" in system_text and "json" in system_text):
             return {
                 "title": topic["title_candidates"][0],
@@ -435,7 +418,6 @@ class MockLLM(LLMProvider):
                 "script_structure_score": 9.5,
             }
 
-        # Hook generation
         if "hook" in system_text:
             return {
                 "hooks": [
@@ -447,7 +429,6 @@ class MockLLM(LLMProvider):
                 "hook_retention_score": 8.8,
             }
 
-        # Thumbnail concepts
         if "thumbnail" in system_text:
             return {
                 "concepts": [
@@ -464,7 +445,6 @@ class MockLLM(LLMProvider):
                 "thumbnail_score": 8.7,
             }
 
-        # Direction / scene direction
         if "direction" in system_text or "camera" in system_text or "visual" in system_text:
             return {
                 "direction_v3": {
@@ -482,7 +462,6 @@ class MockLLM(LLMProvider):
                 "direction_score": 8.5,
             }
 
-        # Emotion mapping for voice
         if "emotion" in system_text:
             return {
                 "emotion_map": [
@@ -497,7 +476,6 @@ class MockLLM(LLMProvider):
                 "volume_shift": {"hook": 1.1, "conclusion": 1.05, "cta": 1.0},
             }
 
-        # Brand DNA / identity
         if "brand" in system_text:
             return {
                 "brand_score": 8.5,
@@ -506,7 +484,6 @@ class MockLLM(LLMProvider):
                 "suggestions": [],
             }
 
-        # QC / quality check / inspector
         if "quality" in system_text or "inspect" in system_text or "qc" in system_text:
             return {
                 "score": 8.5,
@@ -520,7 +497,6 @@ class MockLLM(LLMProvider):
                 "issues": [],
             }
 
-        # Generic fallback
         return {
             "result": "test_mock_response",
             "score": 8.5,
@@ -545,7 +521,6 @@ class MockLLM(LLMProvider):
         return ["mock-gpt-4o-mini", "mock-cached", "mock-static"]
 
 
-# Register for all LLM categories
 ProviderRegistry.register("llm", "mock_llm", MockLLM)
 ProviderRegistry.register("llm.research", "mock_llm", MockLLM)
 ProviderRegistry.register("llm.script", "mock_llm", MockLLM)

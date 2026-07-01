@@ -29,7 +29,6 @@ export type ClipCapabilityTagged = { clipId: string; trackId: string; tier: "t0"
  *   - Everything else → Tier 1
  */
 const SHADER_PURE_SCENES = new Set<string>([
-  // Safe initial subset; expand as WebGPU shader library (P1) covers more scenes.
   "KineticTypography",
   "AdvancedKineticText",
   "TextStrokeReveal",
@@ -54,7 +53,6 @@ export function tagCapabilities(graph: SceneGraph): ClipCapabilityTagged[] {
 
 function clipCapability(clip: Clip): ClipCapability {
   if (clip.kind !== "scene") {
-    // Non-scene clips default to the safest tier (T1).
     return { requiresReact: true, requiresDom: false, requiresWebgl: false, stockOnly: false, shaderPure: false };
   }
   const s = clip as SceneClip;

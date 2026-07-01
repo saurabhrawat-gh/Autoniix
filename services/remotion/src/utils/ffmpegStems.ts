@@ -52,7 +52,6 @@ export async function mixDelayedAudio(
   outputWavPath: string,
 ): Promise<void> {
   if (inputs.length === 0) {
-    // Emit a silent WAV of the correct length so downstream pipelines have a stem file.
     await runFfmpeg([
       "-y",
       "-f",

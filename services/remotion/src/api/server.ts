@@ -21,8 +21,6 @@ app.post("/api/render", async (req, res) => {
 
   const renderId = `render_${nanoid(10)}`;
 
-  // Sharded path (P0.2): SCENE_GRAPH_ENABLED + SHARDING_ENABLED + MainVideo composition
-  // with inputProps containing a `direction` matching DirectionV3.
   if (
     env.SCENE_GRAPH_ENABLED &&
     env.SHARDING_ENABLED &&
@@ -55,7 +53,6 @@ app.post("/api/render", async (req, res) => {
     logger.warn({ renderId, issues: parsed.error.issues }, "scene-graph dispatch fallback: direction-v3 parse failed");
   }
 
-  // Legacy single-queue path (default).
   const data: RenderJobData = {
     renderId,
     composition: body.composition,

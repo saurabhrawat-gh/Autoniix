@@ -19,7 +19,6 @@ from src.services.dashboard.v2.library_quotas import (
 )
 
 
-# AE-363
 
 
 @pytest.mark.asyncio
@@ -56,7 +55,6 @@ async def test_licenses_expiring_uses_within_days_window(mock_pool):
     sql, *params = mock_pool.fetch.await_args.args
     assert "expires_at IS NOT NULL" in sql
     assert "ORDER BY expires_at ASC" in sql
-    # The within_days arg is bound as $2 via positional params.
     assert 30 in params
 
 
@@ -70,7 +68,6 @@ async def test_licenses_audit_groups_by_license(mock_pool):
     assert "expiring_30d" in sql
 
 
-# AE-364
 
 
 @pytest.mark.asyncio
@@ -105,14 +102,13 @@ async def test_quota_check_allows_when_at_exactly_quota(mock_pool):
 
 @pytest.mark.asyncio
 async def test_recalculate_upserts_one_row_per_scope(mock_pool):
-    mock_pool.fetchrow.return_value = None  # default quotas lookup
+    mock_pool.fetchrow.return_value = None
     mock_pool.fetch.return_value = [
         {"scope": "workspace", "scope_id": "WS_1", "used_bytes": 12345},
         {"scope": "channel", "scope_id": "CH_1", "used_bytes": 678},
     ]
     touched = await recalculate_quotas()
     assert touched == 2
-    # Two UPSERTs executed.
     upsert_calls = [c for c in mock_pool.execute.await_args_list
                     if "INSERT INTO storage_quotas" in c.args[0]]
     assert len(upsert_calls) == 2

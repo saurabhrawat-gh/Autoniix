@@ -39,12 +39,6 @@ pub fn routes(pool: PgPool) -> Router {
         .with_state(pool)
 }
 
-// ── GET /api/v2/voice/voices ──────────────────────────────────────────────────
-//
-// Returns the caller's ElevenLabs voice library. Requires ELEVENLABS_API_KEY
-// in env. Returns an empty list gracefully if the key is absent so the wizard
-// degrades to manual ID entry rather than erroring.
-
 #[derive(Debug, Serialize)]
 struct VoiceItem {
     voice_id: String,
@@ -111,12 +105,6 @@ async fn list_voices(
     Ok(Json(json!({ "data": voices })))
 }
 
-// ── POST /api/v2/voice/preview ────────────────────────────────────────────────
-//
-// Synthesises `text` with the given voice settings and returns the audio
-// as a base64-encoded MP3 data URL so the frontend can play it directly via
-// <audio src="data:audio/mpeg;base64,..."/>.
-
 #[derive(Debug, Deserialize)]
 struct PreviewRequest {
     voice_id: String,
@@ -138,11 +126,9 @@ async fn preview_voice(
         ));
     };
 
-    // Use a sensible default preview sentence if the caller didn't provide one.
     let raw_text = body.text.unwrap_or_else(|| {
         "Welcome to the channel. Today we explore something truly fascinating.".to_string()
     });
-    // Hard cap — prevent abuse.
     let text: String = raw_text.chars().take(PREVIEW_CHAR_LIMIT).collect();
 
     let voice_settings = json!({

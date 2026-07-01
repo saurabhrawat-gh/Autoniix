@@ -32,20 +32,16 @@ export function CommandPalette() {
   const [jobs, setJobs] = useState<JobLite[]>([]);
   const [search, setSearch] = useState('');
 
-  // Typewriter placeholder
   const [phIdx, setPhIdx]   = useState(0);
   const [phChars, setPhChars] = useState(0);
   const [inputFocused, setInputFocused] = useState(false);
 
-  // Ripple on item select
   const [ripplingId, setRipplingId] = useState<string | null>(null);
   const pendingAction = useRef<(() => void) | null>(null);
 
-  // Toggle on ⌘K / Ctrl+K
   useHotkeys('mod+k', (e) => { e.preventDefault(); setPaletteOpen(!paletteOpen); }, { enableOnFormTags: true });
   useHotkeys('escape', () => { if (paletteOpen) setPaletteOpen(false); }, { enableOnFormTags: true });
 
-  // Lazy-load context when opened
   useEffect(() => {
     if (!paletteOpen || !isLoggedIn()) return;
     let cancelled = false;
@@ -63,7 +59,6 @@ export function CommandPalette() {
     return () => { cancelled = true; };
   }, [paletteOpen]);
 
-  // Typewriter cycling — stops on search input or focus
   useEffect(() => {
     if (!paletteOpen || search !== '' || inputFocused || reduce) return;
     const phrase = TYPEWRITER_PHRASES[phIdx];
@@ -78,7 +73,6 @@ export function CommandPalette() {
     return () => clearTimeout(t);
   }, [paletteOpen, phIdx, phChars, search, inputFocused, reduce]);
 
-  // Reset typewriter when palette closes
   useEffect(() => {
     if (!paletteOpen) { setPhIdx(0); setPhChars(0); setSearch(''); }
   }, [paletteOpen]);

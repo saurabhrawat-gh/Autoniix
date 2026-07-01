@@ -12,16 +12,12 @@ from src.providers.registry import ProviderRegistry
 logger = structlog.get_logger()
 
 PRICING: dict[str, dict[str, float]] = {
-    # GPT-4o family (current flagship)
     "gpt-4o": {"input": 2.50 / 1_000_000, "output": 10.00 / 1_000_000},
     "gpt-4o-mini": {"input": 0.15 / 1_000_000, "output": 0.60 / 1_000_000},
-    # GPT-4 Turbo family (previous flagship)
     "gpt-4-turbo": {"input": 10.00 / 1_000_000, "output": 30.00 / 1_000_000},
     "gpt-4-turbo-preview": {"input": 10.00 / 1_000_000, "output": 30.00 / 1_000_000},
-    # GPT-3.5 family (budget option)
     "gpt-3.5-turbo": {"input": 0.50 / 1_000_000, "output": 1.50 / 1_000_000},
     "gpt-3.5-turbo-16k": {"input": 3.00 / 1_000_000, "output": 4.00 / 1_000_000},
-    # O1 reasoning models (new reasoning-focused models)
     "o1-preview": {"input": 15.00 / 1_000_000, "output": 60.00 / 1_000_000},
     "o1-mini": {"input": 3.00 / 1_000_000, "output": 12.00 / 1_000_000},
 }
@@ -37,10 +33,6 @@ class OpenAILLM(LLMProvider):
 
     async def complete(self, request: LLMRequest) -> LLMResult:
         if not self.api_key:
-            # Fail fast with a clear, permanent error. Without this guard
-            # httpx raises "Illegal header value b'Bearer '" because the
-            # bearer string ends with a space, which is opaque and easy
-            # to misread as a transient network issue.
             raise RuntimeError(
                 "openai provider has no api_key configured. Set "
                 "OPENAI_API_KEY or remove 'openai' from the provider "

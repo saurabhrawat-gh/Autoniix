@@ -24,7 +24,6 @@ from src.db import get_pool
 
 logger = structlog.get_logger()
 
-# Feature names used by the script success predictor
 SCRIPT_FEATURE_NAMES = [
     "segment_count", "word_count", "avg_sentence_length",
     "sentence_length_variance", "hook_strength", "curiosity_loop_count",
@@ -34,7 +33,6 @@ SCRIPT_FEATURE_NAMES = [
 ]
 
 
-# FEATURE EXTRACTION
 
 async def extract_script_features(
     script_analysis: dict,
@@ -120,7 +118,7 @@ async def store_script_features(
             features.get("readability_score", 0),
             features.get("emotion_variance", 0),
             features.get("emphasis_density", 0),
-            0.0,  # emotional_arc_score placeholder
+            0.0,
             overall_score,
             hook_score,
             hook_style,
@@ -131,7 +129,6 @@ async def store_script_features(
         logger.warning("script_features.store_failed", content_id=content_id, error=str(e))
 
 
-# GBM PREDICTOR
 
 async def _load_model(model_name: str, niche: str | None = None):
     """Load the latest trained model from DB."""
@@ -163,7 +160,6 @@ async def predict_script_success(features: dict, niche: str | None = None) -> di
     model, metrics = await _load_model("script_success_predictor", niche)
 
     if model is None:
-        # Rule-based fallback using feature weights
         pool = await get_pool()
         row = await pool.fetchrow(
             "SELECT config_value FROM system_config WHERE config_key = 'script_feature_weights'"
@@ -184,7 +180,6 @@ async def predict_script_success(features: dict, niche: str | None = None) -> di
                 "question_density": 0.08, "pacing_score": 0.07,
             }
 
-        # Map features to weight keys
         feature_map = {
             "hook_strength": features.get("hook_strength", 0.5),
             "curiosity_loops": min(1.0, features.get("curiosity_loop_count", 0) / 5),
@@ -206,7 +201,6 @@ async def predict_script_success(features: dict, niche: str | None = None) -> di
             "note": "No trained model yet; using weighted feature scoring.",
         }
 
-    # Build feature vector
     X = np.array([[features.get(f, 0.0) for f in SCRIPT_FEATURE_NAMES]])
 
     def _predict():
@@ -223,7 +217,6 @@ async def predict_script_success(features: dict, niche: str | None = None) -> di
     }
 
 
-# THOMPSON SAMPLING BANDITS
 
 async def thompson_sample(
     niche: str,
@@ -252,7 +245,6 @@ async def thompson_sample(
 
     arm_states = {r["arm_name"]: dict(r) for r in rows}
 
-    # Initialize missing arms
     for arm in arms:
         if arm not in arm_states:
             await pool.execute("""
@@ -262,7 +254,6 @@ async def thompson_sample(
             """, niche, bandit_type, arm)
             arm_states[arm] = {"alpha": 1.0, "beta": 1.0, "pulls": 0, "rewards": 0.0}
 
-    # Sample from Beta distribution for each arm
     samples = {}
     for arm in arms:
         state = arm_states.get(arm, {"alpha": 1.0, "beta": 1.0})
@@ -272,10 +263,6 @@ async def thompson_sample(
 
     thompson_pick = max(samples, key=samples.get)
 
-    # Phase 10 — diversity floor for hook_style / pacing_strategy.
-    # Hook and pacing especially benefit from forced diversity: a
-    # bandit that locks onto one hook style will produce visibly
-    # repetitive content within weeks.
     forced_exploration = False
     entropy = None
     selected = thompson_pick
@@ -284,7 +271,7 @@ async def thompson_sample(
             from src.intelligence.diversity_floor import evaluate_diversity_floor
             decision = await evaluate_diversity_floor(
                 channel_id=channel_id,
-                bandit_type=bandit_type,  # hook_style or pacing_strategy
+                bandit_type=bandit_type,
                 available_arms=arms,
             )
             entropy = decision["entropy"]
@@ -323,7 +310,6 @@ async def thompson_sample(
         "sampled_value": round(samples[selected], 4),
         "all_samples": {k: round(v, 4) for k, v in samples.items()},
         "exploration_bonus": round(exploration, 4),
-        # Phase 10 fields.
         "forced_exploration": forced_exploration,
         "entropy": entropy,
     }
@@ -346,7 +332,6 @@ async def bandit_update(niche: str, bandit_type: str, arm: str, reward: float) -
     logger.info("script_bandit.updated", niche=niche, type=bandit_type, arm=arm, reward=round(reward, 3))
 
 
-# FEEDBACK INGESTOR
 
 async def ingest_script_performance(content_id: str, analytics: dict) -> dict:
     """Ingest post-publish YouTube analytics and compute success label.
@@ -364,11 +349,9 @@ async def ingest_script_performance(content_id: str, analytics: dict) -> dict:
     comments = analytics.get("comments", 0)
     retention_curve = analytics.get("retention_curve", [])
 
-    # Engagement rate
     views = max(views_48h, 1)
     engagement = min(1.0, (likes + comments * 2) / views)
 
-    # Script-specific success scoring (weighted toward retention)
     score = 0
     if avg_view_pct >= 0.55:
         score += 4
@@ -396,14 +379,12 @@ async def ingest_script_performance(content_id: str, analytics: dict) -> dict:
     else:
         tier, is_success = "weak", False
 
-    # Get hook style and pacing from features table
     feat_row = await pool.fetchrow("""
         SELECT hook_style_used, pacing_strategy_used FROM script_features WHERE content_id = $1
     """, content_id)
     hook_style = feat_row["hook_style_used"] if feat_row else None
     pacing_strategy = feat_row["pacing_strategy_used"] if feat_row else None
 
-    # Store outcome
     try:
         await pool.execute("""
             INSERT INTO script_outcomes (
@@ -439,7 +420,6 @@ async def ingest_script_performance(content_id: str, analytics: dict) -> dict:
     except Exception as e:
         logger.warning("script_feedback.store_failed", content_id=content_id, error=str(e))
 
-    # Update bandits
     ch_row = await pool.fetchrow("""
         SELECT c.niche FROM videos v JOIN channels c ON v.channel_id = c.channel_id
         WHERE v.content_id = $1
@@ -462,7 +442,6 @@ async def ingest_script_performance(content_id: str, analytics: dict) -> dict:
     return result
 
 
-# MODEL TRAINER
 
 async def train_model(niche: str | None = None, min_samples: int = 15) -> dict:
     """Train/retrain the GBM script success predictor.
@@ -472,7 +451,6 @@ async def train_model(niche: str | None = None, min_samples: int = 15) -> dict:
     """
     pool = await get_pool()
 
-    # Fetch training data
     query = """
         SELECT sf.*, so.is_success
         FROM script_features sf
@@ -493,7 +471,6 @@ async def train_model(niche: str | None = None, min_samples: int = 15) -> dict:
             "min_required": min_samples,
         }
 
-    # Build X, y
     X = np.array([
         [float(row.get(f, 0) or 0) for f in SCRIPT_FEATURE_NAMES]
         for row in rows
@@ -513,36 +490,30 @@ async def train_model(niche: str | None = None, min_samples: int = 15) -> dict:
             random_state=42,
         )
 
-        # Cross-validation
         cv_scores = cross_val_score(base, X, y, cv=min(5, len(y) // 3), scoring="roc_auc")
         avg_auc = float(np.mean(cv_scores))
 
-        # Train final model with calibration
         base.fit(X, y)
         calibrated = CalibratedClassifierCV(base, method="isotonic", cv=3)
         calibrated.fit(X, y)
 
-        # Feature importances
         importances = dict(zip(SCRIPT_FEATURE_NAMES, base.feature_importances_.tolist()))
 
         return calibrated, avg_auc, importances
 
     model, auc, importances = await asyncio.to_thread(_train)
 
-    # Store model
     model_blob = pickle.dumps(model)
     current_version = await pool.fetchval("""
         SELECT COALESCE(MAX(model_version), 0) + 1 FROM script_models
         WHERE model_name = 'script_success_predictor' AND niche = $1
     """, niche or "__global__")
 
-    # Deactivate old models
     await pool.execute("""
         UPDATE script_models SET is_active = FALSE
         WHERE model_name = 'script_success_predictor' AND niche = $1
     """, niche or "__global__")
 
-    # Insert new model
     await pool.execute("""
         INSERT INTO script_models (model_name, model_version, niche, model_type, model_blob,
                                    feature_names, metrics, training_samples, is_active)
@@ -567,7 +538,6 @@ async def train_model(niche: str | None = None, min_samples: int = 15) -> dict:
     return result
 
 
-# DRIFT DETECTION
 
 async def detect_drift(niche: str | None = None) -> dict:
     """Check if the current model is still performing well.
@@ -580,7 +550,6 @@ async def detect_drift(niche: str | None = None) -> dict:
 
     pool = await get_pool()
 
-    # Get recent outcomes not used in training
     rows = await pool.fetch("""
         SELECT sf.*, so.is_success
         FROM script_features sf
@@ -607,7 +576,6 @@ async def detect_drift(niche: str | None = None) -> dict:
     recent_auc = await asyncio.to_thread(_evaluate)
     original_auc = float(metrics.get("roc_auc", 0.5)) if metrics else 0.5
 
-    # Load drift threshold from config
     threshold_row = await pool.fetchrow(
         "SELECT config_value FROM system_config WHERE config_key = 'script_ml_drift_auc_threshold'"
     )

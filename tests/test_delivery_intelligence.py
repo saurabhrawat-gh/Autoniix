@@ -15,7 +15,6 @@ from src.services.delivery.seo_optimizer import (
 )
 
 
-# Title SEO Scoring
 
 class TestScoreTitleSeo:
     def test_good_title(self):
@@ -65,7 +64,6 @@ class TestScoreTitleSeo:
         assert 1.0 <= result["seo_score"] <= 10.0
 
 
-# Description Optimization
 
 class TestOptimizeDescription:
     def test_short_description_warning(self):
@@ -95,7 +93,6 @@ class TestOptimizeDescription:
         assert result["description_length"] == 0
 
 
-# Tag Suggestions
 
 class TestSuggestTags:
     def test_includes_existing_tags(self):
@@ -128,7 +125,6 @@ class TestSuggestTags:
         assert isinstance(tags, list)
 
 
-# Constants
 
 class TestConstants:
     def test_power_words_are_lowercase(self):

@@ -63,7 +63,6 @@ export async function detectEncoders(): Promise<Set<EncoderName>> {
       "libvpx-vp9",
     ];
     for (const name of candidates) {
-      // ffmpeg lists each encoder on its own line; word-boundary check is enough.
       const re = new RegExp(`\\b${escapeRegex(name)}\\b`);
       if (re.test(stdout)) set.add(name);
     }
@@ -79,20 +78,17 @@ export async function selectEncoder(codec: CodecFamily): Promise<EncoderSelectio
   const available = await detectEncoders();
   const hint = env.ENCODER_HINT.toLowerCase();
 
-  // Honour the explicit override first if it's actually available.
   if (hint !== "auto") {
     const forced = forcedFromHint(hint, codec, available);
     if (forced) return forced;
     logger.warn({ hint, codec }, "ENCODER_HINT not available for codec; falling back to auto");
   }
 
-  // Auto: prefer NVENC > QSV > VAAPI > libx264.
   for (const enc of preferenceOrder(codec)) {
     if (available.has(enc)) {
       return wrap(codec, enc);
     }
   }
-  // Should never happen — libx264/x265/libvpx ship with ffmpeg builds we ship.
   return wrap(codec, fallback(codec));
 }
 

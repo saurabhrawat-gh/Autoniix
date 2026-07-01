@@ -38,7 +38,6 @@ export const SegmentRenderer: React.FC<SegmentRendererProps> = ({ segment }) => 
     sceneEl = <Component {...props} />;
   }
 
-  // Wrap scene in animations_in (nested). Wrappers expect `children`.
   if (segment.animations_in && segment.animations_in.length > 0) {
     for (const anim of segment.animations_in) {
       const aRes = resolvePreset(anim.preset, anim.overrides ?? {});
@@ -48,7 +47,6 @@ export const SegmentRenderer: React.FC<SegmentRendererProps> = ({ segment }) => 
     }
   }
 
-  // Wrap scene in animations_out (exit animations, nested).
   if (segment.animations_out && segment.animations_out.length > 0) {
     for (const anim of segment.animations_out) {
       const aRes = resolvePreset(anim.preset, anim.overrides ?? {});
@@ -58,8 +56,6 @@ export const SegmentRenderer: React.FC<SegmentRendererProps> = ({ segment }) => 
     }
   }
 
-  // Per-segment effects: split into wrapping effects (e.g. LUTGrade, which
-  // take children and apply CSS/SVG filters) vs. overlay effects (stacked on top).
   const WRAPPING_PREFIXES = ["fx.lut."];
   const wrappingEffects: Array<{ Component: React.ComponentType<any>; props: Record<string, any> }> = [];
   const overlayEffects: React.ReactNode[] = [];
@@ -79,7 +75,6 @@ export const SegmentRenderer: React.FC<SegmentRendererProps> = ({ segment }) => 
     }
   }
 
-  // Wrap scene in LUT/filter effects (innermost first)
   for (const { Component: WrapComp, props: wrapProps } of wrappingEffects) {
     sceneEl = (
       <EffectErrorBoundary fallback={sceneEl}>
@@ -88,7 +83,6 @@ export const SegmentRenderer: React.FC<SegmentRendererProps> = ({ segment }) => 
     );
   }
 
-  // Per-segment overlays.
   const overlayEls = (segment.overlays ?? []).map((ov, i) => {
     const r = resolvePreset(ov.preset, ov.overrides ?? {});
     if (!r) return null;
@@ -100,10 +94,8 @@ export const SegmentRenderer: React.FC<SegmentRendererProps> = ({ segment }) => 
     );
   });
 
-  // Per-segment SFX cues: `preset` is either an absolute URL or a library ID
-  // (e.g. `sfx.whoosh.short`) resolved via the SFX catalog.
   const sfxEls = (segment.sfx ?? []).map((cue, i) => {
-    const isUrl = /^https?:\/\//i.test(cue.preset);
+    const isUrl = /^https?:\/\
     let src: string | null = null;
     let defaultDb = 0;
     if (isUrl) {

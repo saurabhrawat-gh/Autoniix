@@ -11,7 +11,7 @@ export interface Template {
   allowed_transition_prefixes?: string[];
   /** Transition preset IDs or prefixes that are forbidden. */
   forbidden_transition_prefixes?: string[];
-  default_grade: string; // an `fx.grade.*` preset ID
-  default_caption: string; // an `ov.caption.*` preset ID
-  default_music_style?: string; // freeform label (upstream music selector uses this)
+  default_grade: string;
+  default_caption: string;
+  default_music_style?: string;
 }

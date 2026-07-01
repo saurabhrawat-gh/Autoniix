@@ -49,12 +49,6 @@ logger = logging.getLogger(__name__)
 PYTHON_URL = os.getenv("PYTHON_DASHBOARD_URL", "http://localhost:8000")
 RUST_URL = os.getenv("RUST_GATEWAY_URL", "http://localhost:8080")
 
-# ShadowMode controls whether the interceptor is active and how much traffic
-# Rust should handle. Set via SHADOW_MODE env var.
-#   off     — disabled (Python only)
-#   shadow  — Rust mirrors every request, response discarded (default)
-#   canary  — Rust serves SHADOW_RUST_PERCENT % of traffic (default 1%)
-#   full    — Rust serves 100%
 SHADOW_MODE = os.getenv("SHADOW_MODE", "shadow")
 SHADOW_RUST_PERCENT = float(os.getenv("SHADOW_RUST_PERCENT", "1"))
 
@@ -134,7 +128,7 @@ class ShadowModeInterceptor:
         python_url: str = PYTHON_URL,
         rust_url: str = RUST_URL,
         divergence_log: str = "logs/shadow_divergences.jsonl",
-        alert_threshold: float = 0.005,  # 0.5% divergence rate triggers alert
+        alert_threshold: float = 0.005,
         timeout_s: float = 10.0,
     ) -> None:
         self.python_url = python_url.rstrip("/")
@@ -152,7 +146,6 @@ class ShadowModeInterceptor:
     async def __aexit__(self, *_: Any) -> None:
         await self._client.aclose()
 
-    # ── Core shadow method ───────────────────────────────────────────────────
 
     async def shadow(
         self,
@@ -174,7 +167,6 @@ class ShadowModeInterceptor:
         if mode == "off":
             return await self._call(self.python_url, method, path, json=json, headers=headers, cookies=cookies)
 
-        # Parallel fire
         python_task = asyncio.create_task(
             self._timed_call(self.python_url, method, path, json=json, headers=headers, cookies=cookies)
         )
@@ -206,7 +198,6 @@ class ShadowModeInterceptor:
             raise py_resp
         return py_resp
 
-    # ── Comparison ──────────────────────────────────────────────────────────
 
     async def _compare(
         self,
@@ -273,7 +264,6 @@ class ShadowModeInterceptor:
                 self.alert_threshold * 100,
             )
 
-    # ── HTTP helpers ─────────────────────────────────────────────────────────
 
     async def _timed_call(
         self,
@@ -308,7 +298,6 @@ class ShadowModeInterceptor:
             cookies=cookies or {},
         )
 
-    # ── Reporting ────────────────────────────────────────────────────────────
 
     def divergence_report(self) -> dict[str, Any]:
         unintentional = [d for d in self._divergences if not d.is_intentional()]
@@ -337,7 +326,6 @@ class ShadowModeInterceptor:
             )
 
 
-# ── Utilities ────────────────────────────────────────────────────────────────
 
 def _json_diff(a: Any, b: Any, path: str = "") -> dict[str, Any]:
     """Shallow diff of two JSON values. Returns {path: {python: ..., rust: ...}} for mismatches."""
@@ -372,7 +360,6 @@ def _json_diff(a: Any, b: Any, path: str = "") -> dict[str, Any]:
     return diffs
 
 
-# ── Standalone smoke ─────────────────────────────────────────────────────────
 
 async def _smoke() -> None:
     """Quick sanity: run one shadow request against both services (if available)."""

@@ -88,7 +88,6 @@ const URL_RE = /^https?:\/\/[\w.-]+(\.[a-z]{2,})+([/?#].*)?$/i;
 const YT_RE  = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//i;
 
 export function validateReferences(state: any): StepValidation {
-  // Optional step — empty is fine.
   const errors: WizardErrors = {};
   const refs: Array<{ kind: string; uri?: string }> = state.references ?? [];
   refs.forEach((r, i) => {
@@ -151,7 +150,6 @@ const VALIDATORS: Record<Exclude<StepKey, 'review'>, (s: any) => StepValidation>
 
 export function validateStep(stepKey: StepKey, state: any): StepValidation {
   if (stepKey === 'review') {
-    // Review is valid iff every other step is valid.
     const errs: WizardErrors = {};
     let valid = true;
     (Object.keys(VALIDATORS) as Array<keyof typeof VALIDATORS>).forEach(k => {

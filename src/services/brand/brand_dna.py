@@ -23,7 +23,6 @@ from src.db import get_pool
 
 logger = structlog.get_logger()
 
-# Default brand templates per niche
 NICHE_DEFAULTS: dict[str, dict] = {
     "health": {
         "color_mood": "calm_trust",
@@ -67,7 +66,6 @@ NICHE_DEFAULTS: dict[str, dict] = {
     },
 }
 
-# Color psychology mapping
 COLOR_PSYCHOLOGY: dict[str, dict] = {
     "#1A237E": {"mood": "trust", "energy": "low", "emotion": "calm"},
     "#E91E63": {"mood": "passion", "energy": "high", "emotion": "excitement"},
@@ -99,7 +97,6 @@ def analyze_color_palette(primary: str, secondary: str = "", accent: str = "") -
     colors = [c for c in [primary, secondary, accent] if c]
     rgb_colors = [_hex_to_rgb(c) for c in colors]
 
-    # Find closest psychology mapping
     primary_rgb = rgb_colors[0] if rgb_colors else (128, 128, 128)
     best_match = "neutral"
     best_dist = float("inf")
@@ -109,10 +106,8 @@ def analyze_color_palette(primary: str, secondary: str = "", accent: str = "") -
             best_dist = dist
             best_match = psych["mood"]
 
-    # Contrast analysis
     contrast_score = 0.0
     if len(rgb_colors) >= 2:
-        # Simple luminance contrast
         lum1 = sum(rgb_colors[0]) / 3 / 255
         lum2 = sum(rgb_colors[1]) / 3 / 255
         contrast_ratio = (max(lum1, lum2) + 0.05) / (min(lum1, lum2) + 0.05)
@@ -132,7 +127,6 @@ def build_speaking_style(channel: dict) -> dict:
     pacing = channel.get("pacing_style", "steady")
     hook_len = channel.get("hook_length_seconds_short", 3)
 
-    # Map brand voice to style features
     voice_map = {
         "calm_authoritative": {"warmth": 0.6, "authority": 0.8, "pace": "slow"},
         "warm_empathetic": {"warmth": 0.9, "authority": 0.4, "pace": "medium"},
@@ -159,7 +153,6 @@ def build_vocabulary_profile(channel: dict) -> dict:
         blacklist = list(forbidden) if forbidden else []
 
     niche = channel.get("niche", "general")
-    # Niche-specific power words
     niche_vocab = {
         "health": ["research shows", "studies found", "your body", "the science"],
         "tech": ["breakthrough", "game-changer", "under the hood", "the future of"],
@@ -187,7 +180,6 @@ def compute_brand_fingerprint(channel: dict) -> dict:
     speaking_style = build_speaking_style(channel)
     vocabulary = build_vocabulary_profile(channel)
 
-    # Pacing profile
     content_mode = channel.get("content_mode", "short")
     target_wpm = 155 if content_mode == "short" else 140
     pacing_profile = {
@@ -198,7 +190,6 @@ def compute_brand_fingerprint(channel: dict) -> dict:
         "retention_target": float(channel.get("retention_target_short", 0.85)),
     }
 
-    # Visual style
     visual_identity = {
         "thumbnail_style": channel.get("thumbnail_style", "bold_cinematic"),
         "font_family": channel.get("font_family", "Inter"),
@@ -299,7 +290,6 @@ def score_brand_consistency(content_data: dict, fingerprint: dict) -> dict:
     deviations = []
     suggestions = []
 
-    # Check vocabulary blacklist
     blacklist = fingerprint.get("vocabulary", {}).get("blacklist", [])
     narration_text = ""
     for seg in content_data.get("segments", []):
@@ -310,7 +300,6 @@ def score_brand_consistency(content_data: dict, fingerprint: dict) -> dict:
             score -= 0.5
             deviations.append(f"Blacklisted word '{word}' found in narration")
 
-    # Check pacing alignment
     pacing = fingerprint.get("pacing_profile", {})
     target_wpm = pacing.get("target_wpm", 150)
     word_count = len(narration_text.split())
@@ -321,16 +310,13 @@ def score_brand_consistency(content_data: dict, fingerprint: dict) -> dict:
         deviations.append(f"WPM {actual_wpm:.0f} deviates from target {target_wpm}")
         suggestions.append(f"Adjust pacing to be closer to {target_wpm} WPM")
 
-    # Check energy level alignment
     energy = fingerprint.get("energy_level", 0.7)
-    # High energy channels should have more emphasis words
     emphasis_count = sum(len(seg.get("emphasis_words", [])) for seg in content_data.get("segments", []))
-    expected_emphasis = word_count * energy * 0.05  # ~5% of words at full energy
+    expected_emphasis = word_count * energy * 0.05
     if emphasis_count < expected_emphasis * 0.5:
         score -= 0.5
         deviations.append("Low emphasis density for channel energy level")
 
-    # Check formality alignment
     formality = fingerprint.get("formality_level", 0.5)
     contractions = sum(1 for w in narration_text.split() if "'" in w)
     contraction_rate = contractions / max(word_count, 1)

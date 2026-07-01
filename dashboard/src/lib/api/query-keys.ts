@@ -7,14 +7,12 @@
  */
 
 export const qk = {
-  // Auth
   auth: {
     all: ['auth'] as const,
     me: () => ['auth', 'me'] as const,
     workspaces: () => ['auth', 'workspaces'] as const,
   },
 
-  // Channels
   channels: {
     all: ['channels'] as const,
     list: (includeArchived = false) => ['channels', 'list', { includeArchived }] as const,
@@ -25,7 +23,6 @@ export const qk = {
     finishingConfig: (id: string) => ['channels', 'finishingConfig', id] as const,
   },
 
-  // Content
   content: {
     all: ['content'] as const,
     list: (params: Record<string, unknown>) => ['content', 'list', params] as const,
@@ -37,7 +34,6 @@ export const qk = {
     triggerHistory: (channelId?: string) => ['content', 'triggerHistory', channelId] as const,
   },
 
-  // Jobs
   jobs: {
     all: ['jobs'] as const,
     active: () => ['jobs', 'active'] as const,
@@ -46,7 +42,6 @@ export const qk = {
     metadata: (id: string) => ['jobs', 'metadata', id] as const,
   },
 
-  // Providers
   providers: {
     all: ['providers'] as const,
     categories: () => ['providers', 'categories'] as const,
@@ -73,20 +68,17 @@ export const qk = {
     },
   },
 
-  // Review
   review: {
     all: ['review'] as const,
     queue: (state?: string, channelId?: string) => ['review', 'queue', state, channelId] as const,
     detail: (videoId: string) => ['review', 'detail', videoId] as const,
   },
 
-  // Dashboard
   dashboard: {
     all: ['dashboard'] as const,
     stats: () => ['dashboard', 'stats'] as const,
   },
 
-  // Workspace
   workspace: {
     all: ['workspace'] as const,
     get: () => ['workspace', 'get'] as const,
@@ -104,7 +96,6 @@ export const qk = {
       ['workspace', 'resolveChain', category, opts] as const,
   },
 
-  // System
   system: {
     all: ['system'] as const,
     config: () => ['system', 'config'] as const,
@@ -112,7 +103,6 @@ export const qk = {
     fleetHealth: () => ['system', 'fleetHealth'] as const,
   },
 
-  // Notifications
   notifications: {
     all: ['notifications'] as const,
     list: (unreadOnly?: boolean, severity?: string) =>
@@ -121,7 +111,6 @@ export const qk = {
     deliveries: (notificationId?: number) => ['notifications', 'deliveries', notificationId] as const,
   },
 
-  // Library / DAM
   library: {
     all: ['library'] as const,
     assets: (params?: Record<string, unknown>) => ['library', 'assets', params] as const,
@@ -136,26 +125,22 @@ export const qk = {
     },
   },
 
-  // Users (superadmin)
   users: {
     all: ['users'] as const,
     list: () => ['users', 'list'] as const,
   },
 
-  // Flags
   flags: {
     all: ['flags'] as const,
     list: () => ['flags', 'list'] as const,
   },
 
-  // Experiments
   experiments: {
     all: ['experiments'] as const,
     list: (status?: string) => ['experiments', 'list', status] as const,
     results: (name: string) => ['experiments', 'results', name] as const,
   },
 
-  // Lookup values
   lookup: {
     all: ['lookup'] as const,
     values: (type?: string, parentValue?: string) => ['lookup', 'values', type, parentValue] as const,
@@ -164,7 +149,6 @@ export const qk = {
     finishingPresets: () => ['lookup', 'finishingPresets'] as const,
   },
 
-  // Voice
   voice: {
     all: ['voice'] as const,
     list: () => ['voice', 'list'] as const,

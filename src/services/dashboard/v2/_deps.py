@@ -15,7 +15,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src.db import get_pool
 
-from ._membership import check_membership  # re-exported so tests can monkeypatch
+from ._membership import check_membership
 
 logger = structlog.get_logger()
 
@@ -27,10 +27,10 @@ class Principal:
     """Authenticated subject. ``user_id`` is None for legacy single-user."""
     user_id: int | None
     email: str | None
-    role: str          # workspace-scoped role: owner | member | viewer
-    source: str        # 'legacy' | 'v2_jwt'
-    workspace_id: int = 1          # active workspace; 1 = default / legacy fallback
-    global_role: str = 'user'      # platform-level role: superadmin | user
+    role: str
+    source: str
+    workspace_id: int = 1
+    global_role: str = 'user'
 
 
 def _jwt_secret() -> str:
@@ -39,7 +39,7 @@ def _jwt_secret() -> str:
 
 def _decode_jwt(token: str) -> dict[str, Any] | None:
     try:
-        import jwt  # PyJWT
+        import jwt
         return jwt.decode(token, _jwt_secret(), algorithms=["HS256"])
     except Exception:
         return None
@@ -80,7 +80,6 @@ async def principal_dep(
                 workspace_id=wid,
                 source="v2_jwt",
             )
-            # Membership revocation check — skip for legacy/system tokens
             if uid is not None:
                 still_member = await check_membership(uid, wid)
                 if not still_member:
@@ -90,7 +89,6 @@ async def principal_dep(
                     )
             return principal
 
-    # Legacy fallback
     try:
         from src.services.dashboard import main as _legacy
         import time as _time
@@ -126,7 +124,7 @@ def require_global_role(*roles: str):
 
     async def _checker(p: Principal = Depends(principal_dep)) -> Principal:
         if p.source == "legacy":
-            return p  # legacy sessions bypass — always superadmin
+            return p
         if p.global_role not in allowed:
             raise HTTPException(
                 status_code=403,
@@ -157,7 +155,6 @@ def require_permission(permission: str):
     return _checker
 
 
-# Feature flags
 async def flag_enabled(key: str) -> bool:
     try:
         pool = await get_pool()
@@ -169,7 +166,6 @@ async def flag_enabled(key: str) -> bool:
         return False
 
 
-# Audit logging
 async def audit(
     *,
     actor: Principal,

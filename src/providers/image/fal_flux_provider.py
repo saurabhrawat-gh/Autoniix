@@ -9,16 +9,12 @@ from src.providers.registry import ProviderRegistry
 
 logger = structlog.get_logger()
 
-# fal.ai Flux.1 Schnell: ~$0.003/image — B-roll, background scenes (quality="standard")
-# fal.ai Flux.1 Dev:     ~$0.025/image — Thumbnails, hero images   (quality="hd")
-# DALL-E 3 HD 1792x1024: ~$0.120/image — (previous default, now fallback only)
 PRICING: dict[str, float] = {
     "fal-ai/flux/schnell": 0.003,
     "fal-ai/flux/dev":     0.025,
     "fal-ai/flux/pro":     0.050,
 }
 
-# Map standard ImageRequest size strings → fal.ai image_size values
 _SIZE_MAP: dict[str, str] = {
     "1024x1024":  "square_hd",
     "1024x576":   "landscape_16_9",
@@ -48,12 +44,9 @@ class FalFluxProvider(ImageProvider):
                 "FAL_AI_API_KEY or switch IMAGE_PROVIDER back to 'dalle'."
             )
 
-        # Route quality="hd" → Flux Dev (thumbnails/hero images)
-        #        quality="standard" → Flux Schnell (b-roll/background)
         model = self._model_hd if request.quality == "hd" else self._model_standard
 
         fal_size = _SIZE_MAP.get(request.size, _DEFAULT_FAL_SIZE)
-        # Schnell uses 4 steps (fastest); Dev uses default (28 steps, higher quality)
         steps = 4 if "schnell" in model else 28
 
         body = {

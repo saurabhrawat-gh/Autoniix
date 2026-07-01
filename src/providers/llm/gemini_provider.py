@@ -12,16 +12,12 @@ from src.providers.registry import ProviderRegistry
 logger = structlog.get_logger()
 
 PRICING: dict[str, dict[str, float]] = {
-    # Gemini 2.5 Flash family (current flagship)
     "gemini-2.5-flash": {"input": 0.15 / 1_000_000, "output": 0.60 / 1_000_000},
     "gemini-2.5-flash-exp": {"input": 0.15 / 1_000_000, "output": 0.60 / 1_000_000},
-    # Gemini 2.0 Flash family (previous generation)
     "gemini-2.0-flash": {"input": 0.10 / 1_000_000, "output": 0.40 / 1_000_000},
     "gemini-2.0-flash-exp": {"input": 0.10 / 1_000_000, "output": 0.40 / 1_000_000},
-    # Gemini 1.5 Pro family (balanced quality)
     "gemini-1.5-pro": {"input": 1.25 / 1_000_000, "output": 5.00 / 1_000_000},
     "gemini-1.5-pro-002": {"input": 1.25 / 1_000_000, "output": 5.00 / 1_000_000},
-    # Gemini 1.5 Flash family (fast, budget)
     "gemini-1.5-flash": {"input": 0.075 / 1_000_000, "output": 0.30 / 1_000_000},
     "gemini-1.5-flash-002": {"input": 0.075 / 1_000_000, "output": 0.30 / 1_000_000},
 }
@@ -39,7 +35,6 @@ class GeminiLLM(LLMProvider):
         model = request.model or self.default_model()
         start = time.monotonic()
 
-        # Convert OpenAI-style messages to Gemini format
         system_instruction = None
         contents = []
         for msg in request.messages:
@@ -68,14 +63,12 @@ class GeminiLLM(LLMProvider):
             response.raise_for_status()
             data = response.json()
 
-        # Extract content
         candidates = data.get("candidates", [])
         content = ""
         if candidates:
             parts = candidates[0].get("content", {}).get("parts", [])
             content = parts[0].get("text", "") if parts else ""
 
-        # Extract usage
         usage = data.get("usageMetadata", {})
         tokens_in = usage.get("promptTokenCount", 0)
         tokens_out = usage.get("candidatesTokenCount", 0)

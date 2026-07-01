@@ -15,8 +15,6 @@ mod common;
 
 use serde_json::json;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 /// Promote a user to superadmin by user_id — test-only, cleaned up by harness.cleanup().
 /// `users.role` is the platform-level (global) role; `global_role` is only an alias used in
 /// SELECT queries and JWT claims.
@@ -35,8 +33,6 @@ async fn cleanup_lookup_values(h: &common::harness::GatewayHarness, label_prefix
         .execute(&h.pool)
         .await;
 }
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[tokio::test]
 async fn test_list_lookup_values_requires_auth() {
@@ -70,13 +66,11 @@ async fn test_list_lookup_values_returns_seeded_global_data() {
     let body: serde_json::Value = resp.json().await.unwrap();
     let data = body["data"].as_array().expect("data should be an array");
 
-    // Migration 202606230002 seeds languages — at least 'en' should be present
     let has_en = data
         .iter()
         .any(|v| v["type"] == "language" && v["value"] == "en");
     assert!(has_en, "seeded 'en' language value should be present");
 
-    // All rows have required fields
     for row in data {
         assert!(row["id"].is_number(), "each row should have numeric id");
         assert!(row["type"].is_string(), "each row should have string type");
@@ -135,7 +129,6 @@ async fn test_create_global_value_requires_superadmin() {
     let email = common::harness::GatewayHarness::unique_email("lv-global-403");
     let token = h.signup_and_get_token(&email, "Test1234!").await;
 
-    // Regular user (owner role, but not superadmin) should be forbidden
     let resp = h
         .post_auth(
             "/api/v2/lookup-values",
@@ -163,7 +156,6 @@ async fn test_create_global_value_as_superadmin() {
     let email = common::harness::GatewayHarness::unique_email("lv-global-admin");
     let password = "Test1234!";
 
-    // register() returns user_id; signin() does not
     let reg: serde_json::Value = h
         .register(&email, password, "SA User", "SA Workspace")
         .await;
@@ -173,7 +165,6 @@ async fn test_create_global_value_as_superadmin() {
 
     make_superadmin(&h, uid).await;
 
-    // Re-sign-in so the JWT includes the updated global_role
     let new_signin: serde_json::Value = h.signin(&email, password).await;
     let admin_token = new_signin["access_token"].as_str().unwrap().to_string();
 
@@ -247,7 +238,6 @@ async fn test_create_workspace_value_as_owner() {
 async fn test_workspace_value_is_scoped_to_owner_workspace() {
     let h = common::harness::GatewayHarness::new().await;
 
-    // Workspace A owner creates a private value
     let email_a = common::harness::GatewayHarness::unique_email("lv-scope-a");
     let token_a = h.signup_and_get_token(&email_a, "Test1234!").await;
 
@@ -267,7 +257,6 @@ async fn test_workspace_value_is_scoped_to_owner_workspace() {
         .unwrap();
     assert_eq!(create["is_active"], true);
 
-    // Workspace B owner lists — should NOT see workspace A's private value
     let email_b = common::harness::GatewayHarness::unique_email("lv-scope-b");
     let token_b = h.signup_and_get_token(&email_b, "Test1234!").await;
 
@@ -286,7 +275,6 @@ async fn test_workspace_value_is_scoped_to_owner_workspace() {
         "workspace B should not see workspace A's private lookup value"
     );
 
-    // Workspace A owner lists — SHOULD see their own private value
     let list_a: serde_json::Value = h
         .get_auth("/api/v2/lookup-values?type=niche", &token_a)
         .await
@@ -312,7 +300,6 @@ async fn test_update_workspace_value_as_owner() {
     let email = common::harness::GatewayHarness::unique_email("lv-update");
     let token = h.signup_and_get_token(&email, "Test1234!").await;
 
-    // Create workspace-private value
     let create: serde_json::Value = h
         .post_auth(
             "/api/v2/workspace/lookup-values",
@@ -329,7 +316,6 @@ async fn test_update_workspace_value_as_owner() {
         .unwrap();
     let id = create["id"].as_i64().expect("create should return id");
 
-    // Update label and sort_order
     let patch = h
         .client
         .patch(format!("{}/api/v2/lookup-values/{id}", h.base_url))
@@ -355,7 +341,6 @@ async fn test_update_workspace_value_as_owner() {
 async fn test_update_workspace_value_cross_workspace_forbidden() {
     let h = common::harness::GatewayHarness::new().await;
 
-    // Owner A creates a value
     let email_a = common::harness::GatewayHarness::unique_email("lv-cross-a");
     let token_a = h.signup_and_get_token(&email_a, "Test1234!").await;
 
@@ -375,7 +360,6 @@ async fn test_update_workspace_value_cross_workspace_forbidden() {
         .unwrap();
     let id = create["id"].as_i64().expect("create should return id");
 
-    // Owner B tries to update it — should be 403
     let email_b = common::harness::GatewayHarness::unique_email("lv-cross-b");
     let token_b = h.signup_and_get_token(&email_b, "Test1234!").await;
 
@@ -403,7 +387,6 @@ async fn test_deactivate_workspace_value() {
     let email = common::harness::GatewayHarness::unique_email("lv-deactivate");
     let token = h.signup_and_get_token(&email, "Test1234!").await;
 
-    // Create
     let create: serde_json::Value = h
         .post_auth(
             "/api/v2/workspace/lookup-values",
@@ -420,7 +403,6 @@ async fn test_deactivate_workspace_value() {
         .unwrap();
     let id = create["id"].as_i64().unwrap();
 
-    // Soft-delete
     let del = h
         .client
         .delete(format!("{}/api/v2/lookup-values/{id}", h.base_url))
@@ -430,7 +412,6 @@ async fn test_deactivate_workspace_value() {
         .unwrap();
     assert_eq!(del.status(), 204, "deactivate should return 204 No Content");
 
-    // Default list (is_active=true) should no longer include it
     let list: serde_json::Value = h
         .get_auth("/api/v2/lookup-values?type=niche", &token)
         .await
@@ -444,7 +425,6 @@ async fn test_deactivate_workspace_value() {
         "deactivated value should not appear in default list"
     );
 
-    // include_inactive=true should show it
     let list_all: serde_json::Value = h
         .get_auth(
             "/api/v2/lookup-values?type=niche&include_inactive=true",

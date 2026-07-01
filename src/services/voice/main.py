@@ -33,7 +33,6 @@ from src.observability.metrics import instrument_app
 logger = structlog.get_logger()
 
 
-# Request Models
 
 class VoiceRequest(BaseModel):
     channel_id: str
@@ -44,7 +43,6 @@ class VoiceRequest(BaseModel):
     budget_guard: dict = Field(default_factory=lambda: {"max_cost_usd": 2.50, "accrued_cost_usd": 0.0})
 
 
-# Helpers
 
 def _safe_format(template: str, **kwargs) -> str:
     """Replace {key} placeholders without failing on unknown/literal braces."""
@@ -92,7 +90,6 @@ def _split_sentences(text: str) -> list[str]:
     return [s.strip() for s in sentences if s.strip()]
 
 
-# App
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -125,9 +122,6 @@ async def synthesize(req: VoiceRequest):
         if not channel:
             raise HTTPException(status_code=404, detail=f"Channel {req.channel_id} not found")
 
-        # Resolve TTS provider — passes channel_id + content_mode so the DB
-        # chain activates (per-channel provider, per-content-mode routing,
-        # automatic fallback to next credential on error).
         tts = ProviderRegistry.get(
             "tts",
             channel_id=req.channel_id,
@@ -135,9 +129,6 @@ async def synthesize(req: VoiceRequest):
         )
         storage = ProviderRegistry.get("storage")
 
-        # Resolve voice_id: prefer per-provider map stored in brand_config
-        # so each provider in a fallback chain uses its own correct voice ID.
-        # Priority: explicit request override → per-provider map → legacy single field.
         brand_config = channel.get("brand_config") or {}
         if isinstance(brand_config, str):
             import json as _json
@@ -154,9 +145,8 @@ async def synthesize(req: VoiceRequest):
             or channel.get("voice_id", "")
         )
         if not voice_id or voice_id.startswith("REPLACE_"):
-            voice_id = ""  # provider will use its own default_voice from credentials
+            voice_id = ""
 
-        # Step 1: Split into sentences per segment
         all_sentences = []
         for seg in req.script_segments:
             narration = seg.get("narration", "")
@@ -174,14 +164,11 @@ async def synthesize(req: VoiceRequest):
         if not all_sentences:
             raise HTTPException(status_code=400, detail="No narration text in segments")
 
-        # Step 2: Intelligence — Emotion Prediction
-        # Check if we can use local prediction (saves LLM cost)
         use_prosody = await _load_config("voice_use_prosody_hints")
         has_prosody_hints = any(s.get("prosody_hint") for s in all_sentences)
         emotion_source = "local"
 
         if use_prosody != "false" and has_prosody_hints:
-            # LOCAL PATH: Use emotion predictor (cost: $0.00)
             predicted_emotions = predict_emotions_for_sentences(all_sentences, channel)
             for i, sent in enumerate(all_sentences):
                 em = predicted_emotions[i] if i < len(predicted_emotions) else {}
@@ -195,7 +182,6 @@ async def synthesize(req: VoiceRequest):
                 sent["volume_shift"] = em.get("volume_shift", "normal")
             logger.info("voice.emotion_predicted_locally", sentences=len(all_sentences))
         else:
-            # LLM FALLBACK: Use GPT-4o-mini for emotion mapping
             emotion_source = "llm"
             emotion_prompt = await _load_prompt("PRM_B2_EMOTION_MAP")
             emotion_llm = ProviderRegistry.get("llm.emotion")
@@ -257,7 +243,6 @@ async def synthesize(req: VoiceRequest):
                     sent["emphasis_words"] = []
                     sent["volume_shift"] = "normal"
 
-        # Step 2B: Apply ML-learned optimal params (if model exists)
         niche = channel.get("niche", "general")
         optimal_params = await predict_optimal_params(req.channel_id, niche)
         if optimal_params:
@@ -266,7 +251,6 @@ async def synthesize(req: VoiceRequest):
                 sent["stability"] = sent["stability"] * 0.7 + optimal_params.get("stability", sent["stability"]) * 0.3
                 sent["similarity_boost"] = sent["similarity_boost"] * 0.7 + optimal_params.get("similarity_boost", sent["similarity_boost"]) * 0.3
 
-        # Step 3: Per-Sentence TTS
         audio_chunks = []
         total_duration = 0.0
         total_chars = 0
@@ -294,15 +278,12 @@ async def synthesize(req: VoiceRequest):
             total_chars += len(sent["text"])
             total_cost += tts_result.cost_usd
 
-        # Step 4: Concatenate audio + upload
-        # Simple concatenation (in production, use pydub/ffmpeg for proper concat with pauses)
         combined_audio = b"".join(chunk["audio_bytes"] for chunk in audio_chunks)
 
         key = f"voice/{req.content_id}/narration.mp3"
         sr = await storage.upload(StorageUpload(key=key, data=combined_audio, content_type="audio/mpeg"))
         url = sr.url
 
-        # Also upload per-segment audio
         segment_urls = {}
         current_seg = None
         seg_audio = b""
@@ -320,7 +301,6 @@ async def synthesize(req: VoiceRequest):
             seg_sr = await storage.upload(StorageUpload(key=seg_key, data=seg_audio, content_type="audio/mpeg"))
             segment_urls[current_seg] = seg_sr.url
 
-        # Step 5: Validation
         word_count = sum(len(s["text"].split()) for s in all_sentences)
         wpm = (word_count / total_duration * 60) if total_duration > 0 else 0
 
@@ -333,25 +313,20 @@ async def synthesize(req: VoiceRequest):
             "total_chars": total_chars,
         }
 
-        # Step 5B: Intelligence — Audio Quality Analysis
         audio_analysis = await analyze_audio_quality(
             combined_audio, expected_duration_s=total_duration)
         emotion_variety = score_emotion_variety(
             [{"emotion": s.get("emotion", "neutral")} for s in all_sentences])
 
-        # Step 6: Quality score (enhanced with intelligence)
         quality_score = 10.0
 
-        # WPM check
         if not validation["wpm_ok"]:
             quality_score -= 1.5
             validation["wpm_issue"] = f"WPM {wpm:.0f} outside 130-170 range"
 
-        # Duration check
         if total_duration < 10:
             quality_score -= 0.5
 
-        # Audio quality from librosa analysis
         audio_score = audio_analysis.get("quality_score", 7.0)
         if audio_score < 5.0:
             quality_score -= 2.0
@@ -362,11 +337,9 @@ async def synthesize(req: VoiceRequest):
         else:
             validation["audio_quality"] = f"Good audio quality: {audio_score}"
 
-        # Naturalness score
         naturalness = audio_analysis.get("naturalness_score", 7.0)
         validation["naturalness_score"] = naturalness
 
-        # Emotion variety check (using intelligence scorer)
         variety_score = emotion_variety.get("variety_score", 5.0)
         unique_emotions = set(s.get("emotion", "neutral") for s in all_sentences)
         if len(unique_emotions) <= 1:
@@ -379,7 +352,6 @@ async def synthesize(req: VoiceRequest):
             validation["emotion_variety"] = f"good — {len(unique_emotions)} distinct emotions"
         validation["emotion_variety_score"] = variety_score
 
-        # Segment coverage check
         covered_segments = set(s["segment_id"] for s in all_sentences)
         total_segments = set(seg.get("id", "") for seg in req.script_segments if seg.get("narration"))
         missing_segs = total_segments - covered_segments
@@ -389,7 +361,6 @@ async def synthesize(req: VoiceRequest):
 
         quality_score = max(1.0, round(quality_score, 1))
 
-        # Step 6B: Intelligence — Store features for ML
         await extract_voice_features(
             req.content_id, req.channel_id,
             audio_analysis.get("metrics", {}),
@@ -400,11 +371,9 @@ async def synthesize(req: VoiceRequest):
              for s in all_sentences],
             validation)
 
-        # Log usage
         await _log_usage(req.content_id, "voice", tts_provider_name, "tts",
                          total_chars, 0, total_cost, 0)
 
-        # Build audio manifest
         manifest = {
             "audio_url": url,
             "segment_urls": segment_urls,
@@ -457,7 +426,6 @@ async def synthesize(req: VoiceRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-# Intelligence Endpoints
 
 class VoiceFeedbackRequest(BaseModel):
     content_id: str

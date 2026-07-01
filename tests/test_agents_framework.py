@@ -21,9 +21,6 @@ from src.agents.memory import AgentMemory, MemoryRecallResult
 from src.agents.registry import AgentRegistry
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# BaseAgent
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class _DummyAgent(BaseAgent):
@@ -85,8 +82,6 @@ class TestBaseAgent:
         import asyncio
         agent = _DummyAgent()
         decision = await agent.run({"channel_id": "ch1"})
-        # remember() runs as a background task after the hardening pass —
-        # let any pending tasks complete before asserting.
         await asyncio.gather(*[
             t for t in asyncio.all_tasks()
             if t is not asyncio.current_task() and "agent-remember" in (t.get_name() or "")
@@ -122,7 +117,7 @@ class TestBaseAgent:
 
             async def observe(self, context):
                 self.calls.append("observe-start")
-                await asyncio.sleep(5)  # would hang forever without timeout
+                await asyncio.sleep(5)
                 self.calls.append("observe-end")
                 return None
 
@@ -158,15 +153,11 @@ class TestBaseAgent:
         agent = _BrokenAct()
         decision = await agent.run({"channel_id": "ch1"})
         assert decision is None
-        # The agent.decision_dead_lettered structured event must fire.
-        # (structlog writes via the stdlib logger; check by message text.)
         assert any(
             "decision_dead_lettered" in record.getMessage()
             or "decision_dead_lettered" in str(getattr(record, "event", ""))
             for record in caplog.records
-        ) or True  # structlog test capture is configuration-dependent;
-        # the assertion above is best-effort. The behaviour test
-        # (decision is None) is the binding contract.
+        ) or True
 
     async def test_remember_runs_in_background(self):
         """remember() must not block the lifecycle return."""
@@ -182,7 +173,6 @@ class TestBaseAgent:
 
         agent = _SlowRemember()
         decision = await agent.run({"channel_id": "ch1"})
-        # run() returned before remember finished
         assert decision is not None
         assert "remember-end" not in agent.calls
         await slow_remember_done.wait()
@@ -217,9 +207,6 @@ class TestBaseAgent:
         assert "act" in agent.calls
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# AgentMemory
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestAgentMemory:
@@ -282,18 +269,13 @@ class TestAgentMemory:
         ):
             await memory.recall_for_observation(obs)
 
-        # Query is deterministic and includes scope + sorted facts.
         assert "scope=channel" in captured["query"]
         assert "scope_id=ch42" in captured["query"]
         assert "avg_score=6.5" in captured["query"]
-        # Scope filter binds scope and scope_id as parameters.
         assert captured["where"] == "scope = $2 AND scope_id = $3"
         assert captured["where_params"] == ("channel", "ch42")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# AgentRegistry
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestAgentRegistry:
@@ -319,9 +301,6 @@ class TestAgentRegistry:
         assert len(AgentRegistry.all()) == 1
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# BrainAgent integration with framework
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestBrainAgentLifecycle:
@@ -333,7 +312,7 @@ class TestBrainAgentLifecycle:
             avg_composite_score=8.0,
             recent_scores=[8.0, 8.5, 7.5],
             total_delivered=10,
-            consecutive_failures=3,  # triggers HALT
+            consecutive_failures=3,
         )
         with (
             patch(
@@ -401,14 +380,12 @@ class TestBrainAgentLifecycle:
         assert decision.reasoning.startswith("Precedent: ")
         assert "#5 HALT" in decision.reasoning
         assert "#4 NUDGE" in decision.reasoning
-        # original reasoning still present after the precedent line
         assert "Channel ch1 has 3 consecutive failures." in decision.reasoning
         assert decision.extras["memories_used"] == 2
 
     async def test_full_run_publishes_directive(self):
         from src.services.brain.agent import BrainAgent
         agent = BrainAgent()
-        # Stub recall so it returns empty (no DB hit) and remember (no-op).
         with patch.object(
             BrainAgent, "recall", new=AsyncMock(return_value=[])
         ):

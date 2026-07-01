@@ -7,7 +7,7 @@ export interface WatermarkProps {
   src?: string;
   text?: string;
   corner?: WatermarkCorner;
-  size?: number; // px height for img / font-size for text
+  size?: number;
   opacity?: number;
   padding?: number;
   color?: string;

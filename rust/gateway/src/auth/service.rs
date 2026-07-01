@@ -120,7 +120,6 @@ impl AuthServiceImpl {
                 .execute(&mut *tx)
                 .await
                 .map_err(ApiError::Database)?;
-            // Revoke all other sessions when the password changes.
             sqlx::query(
                 "UPDATE sessions SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL",
             )
@@ -143,14 +142,11 @@ impl AuthServiceImpl {
             .await
             .map_err(ApiError::Database)?;
 
-        // Don't leak whether the email exists.
         let Some(user) = user else { return Ok(()) };
 
-        // Generate a random token (URL-safe base64, 32 bytes).
         let token_bytes: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
         let raw_token = URL_SAFE_NO_PAD.encode(&token_bytes);
 
-        // SHA-256 hash of the token for storage.
         let mut hasher = Sha256::new();
         hasher.update(raw_token.as_bytes());
         let token_hash = format!("{:x}", hasher.finalize());
@@ -167,7 +163,6 @@ impl AuthServiceImpl {
         .await
         .map_err(ApiError::Database)?;
 
-        // Best-effort email send via Resend API (no-op when RESEND_API_KEY unset).
         let frontend_url =
             std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
         let reset_link = format!("{}/reset-password?token={}", frontend_url, raw_token);
@@ -193,7 +188,6 @@ impl AuthServiceImpl {
                 reset_link, reset_link
             );
 
-            // Fire-and-forget — never bubble up email failures.
             let email_addr = email.to_string();
             tokio::spawn(async move {
                 let client = reqwest::Client::new();
@@ -326,7 +320,6 @@ impl AuthServiceImpl {
         let totp = TOTP::new(Algorithm::SHA1, 6, 1, 30, secret_bytes, None, String::new())
             .map_err(|_| ApiError::Internal("Failed to parse TOTP secret".to_string()))?;
 
-        // valid_window=1 allows ±30s clock drift, matching pyotp's default.
         let now = Utc::now();
         let timestamp = now.timestamp() as u64;
         let valid =
@@ -410,8 +403,6 @@ impl AuthServiceImpl {
 
         let wid = workspace_id.unwrap_or_else(|| user.active_workspace_id.unwrap_or(0));
 
-        // #666: if MFA is enabled, issue a short-lived pending token instead of
-        // full session tokens. The client must call POST /auth/mfa/challenge.
         if user.mfa_enabled.unwrap_or(false) {
             let mfa_pending_token = self.jwt_manager.create_mfa_pending_token(
                 user.id.to_string(),
@@ -494,7 +485,6 @@ impl AuthServiceImpl {
             return Err(ApiError::Unauthorized);
         }
 
-        // Verify TOTP code against stored secret.
         let secret_b32: Option<String> =
             sqlx::query_scalar("SELECT mfa_secret FROM users WHERE id = $1")
                 .bind(user_id)
@@ -592,9 +582,6 @@ impl AuthServiceImpl {
             .await
             .map_err(ApiError::Database)?;
 
-        // #667: feature-flag controlled registration mode.
-        // When auth.register.invite_only = true, only the first user (bootstrap)
-        // may register. Default (flag absent or false) = open signup (#350).
         if user_count > 0 {
             let invite_only: bool = sqlx::query_scalar(
                 "SELECT enabled FROM feature_flags WHERE key = 'auth.register.invite_only'",
@@ -632,7 +619,6 @@ impl AuthServiceImpl {
             .take(60)
             .collect::<String>();
 
-        // Ensure slug uniqueness (matching Python's suffix loop)
         let mut ws_slug = base_slug.clone();
         let mut suffix = 0;
         loop {
@@ -670,8 +656,6 @@ impl AuthServiceImpl {
 
         tx.commit().await.map_err(ApiError::Database)?;
 
-        // No tokens, no session — the frontend calls /login separately
-        // after register, matching Python's flow.
         Ok((user.id, workspace.id, "owner".to_string()))
     }
 
@@ -721,7 +705,6 @@ impl AuthServiceImpl {
             ));
         }
 
-        // Verify workspace still exists — it may have been deleted after the invite was created.
         let workspace_exists =
             sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM workspaces WHERE id = $1)")
                 .bind(workspace_id)
@@ -767,7 +750,6 @@ impl AuthServiceImpl {
             }
         };
 
-        // Upsert workspace membership (idempotent on re-accept).
         sqlx::query(
             "INSERT INTO workspace_members (workspace_id, user_id, role) \
              VALUES ($1, $2, $3) \
@@ -780,7 +762,6 @@ impl AuthServiceImpl {
         .await
         .map_err(ApiError::Database)?;
 
-        // Point user's active workspace at the invited workspace if unset.
         sqlx::query(
             "UPDATE users SET active_workspace_id = $1 \
              WHERE id = $2 AND active_workspace_id IS NULL",
@@ -791,7 +772,6 @@ impl AuthServiceImpl {
         .await
         .map_err(ApiError::Database)?;
 
-        // Consume the invitation.
         sqlx::query("UPDATE workspace_invitations SET accepted_at = NOW() WHERE id = $1")
             .bind(invite_id)
             .execute(&mut *tx)
@@ -800,7 +780,6 @@ impl AuthServiceImpl {
 
         tx.commit().await.map_err(ApiError::Database)?;
 
-        // Auto-login: issue full session tokens.
         User::update_last_login(&self.pool, user.id)
             .await
             .map_err(ApiError::Database)?;

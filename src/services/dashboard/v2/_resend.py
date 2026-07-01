@@ -29,7 +29,6 @@ def _from_email() -> str:
     return os.getenv("RESEND_FROM_EMAIL", "Autoniix <noreply@autoniix.com>")
 
 
-# ── HTML helpers ────────────────────────────────────────────────────────────
 
 def _wrap(title: str, body_html: str) -> str:
     return f"""<!DOCTYPE html>
@@ -50,7 +49,6 @@ def _btn(url: str, label: str) -> str:
     )
 
 
-# ── 8 templates ─────────────────────────────────────────────────────────────
 
 def _render(template_id: str, v: dict[str, Any]) -> tuple[str, str] | None:
     """Return (subject, html) or None if template_id unknown."""
@@ -161,7 +159,6 @@ def _render(template_id: str, v: dict[str, Any]) -> tuple[str, str] | None:
     return None
 
 
-# ── public API ───────────────────────────────────────────────────────────────
 
 async def _send_now(template_id: str, to: str, variables: dict[str, Any]) -> bool:
     """Execute the HTTP call to Resend. Returns True on success."""
@@ -214,5 +211,4 @@ def send_email(template_id: str, to: str, variables: dict[str, Any] | None = Non
         loop = asyncio.get_running_loop()
         return loop.create_task(_send_now(template_id, to, vars_))
     except RuntimeError:
-        # No running loop (e.g. tests)
         return asyncio.ensure_future(_send_now(template_id, to, vars_))

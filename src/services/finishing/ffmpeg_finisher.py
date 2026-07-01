@@ -74,7 +74,6 @@ class LoudnormStats:
 
 def _escape_lut_path(path: str) -> str:
     """Escape a filesystem path for use inside an ffmpeg filtergraph."""
-    # ffmpeg filtergraph: backslash, colon and single-quote are special.
     return path.replace("\\", "\\\\").replace(":", r"\:").replace("'", r"\'")
 
 
@@ -92,10 +91,8 @@ def build_audio_filter(cfg: FinishConfig, measured: LoudnormStats | None = None)
     stages: list[str] = []
 
     if cfg.audio_denoise:
-        # Gentle FFT denoise; -20 dB noise reduction floor.
         stages.append("afftdn=nr=12:nf=-25")
     if cfg.audio_eq:
-        # Slight low-mid cut at 200 Hz to reduce muddiness.
         stages.append("equalizer=f=200:width_type=o:width=2:g=-3")
     if cfg.audio_compress:
         stages.append("acompressor=threshold=-18dB:ratio=3:attack=5:release=50")
@@ -114,7 +111,6 @@ def build_audio_filter(cfg: FinishConfig, measured: LoudnormStats | None = None)
         )
     stages.append(loudness)
 
-    # True-peak ceiling as a hard safety limit after normalisation.
     limit = abs(cfg.audio_true_peak_dbtps)
     stages.append(f"alimiter=level_in=1:level_out=1:limit=-{limit}dB")
 

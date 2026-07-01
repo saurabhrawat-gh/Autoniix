@@ -80,9 +80,6 @@ def _resend_on_ctx():
     )
 
 
-# ---------------------------------------------------------------------------
-# Role validation — WS-INV-01..04
-# ---------------------------------------------------------------------------
 
 class TestRoleValidation:
 
@@ -105,8 +102,8 @@ class TestRoleValidation:
         from src.services.dashboard.v2.workspace import create_invite, InviteIn
 
         pool = FakePool()
-        pool.fetchrow.side_effect = [FakeRecord(plan="enterprise"), None]  # plan, slack
-        pool.conn.fetchval.side_effect = [None, None, 99]  # no existing, no pending, inv_id
+        pool.fetchrow.side_effect = [FakeRecord(plan="enterprise"), None]
+        pool.conn.fetchval.side_effect = [None, None, 99]
 
         with _pool_ctx(pool), _audit_ctx(), _resend_off_ctx():
             result = await create_invite(
@@ -137,18 +134,14 @@ class TestRoleValidation:
         assert result["status"] == "ok"
 
 
-# ---------------------------------------------------------------------------
-# Input validation — WS-INV-05, 09–12
-# ---------------------------------------------------------------------------
 
 class TestInputValidation:
 
     def test_ws_inv_05_malformed_email_rejected_by_pydantic(self):
         """WS-INV-05 — Malformed email → ValidationError at model construction."""
         from src.services.dashboard.v2.workspace import InviteIn
-        with pytest.raises(Exception) as exc:  # pydantic ValidationError
+        with pytest.raises(Exception) as exc:
             InviteIn(email="not-an-email", role="viewer")
-        # pydantic raises ValidationError but covers the 422 case
         assert "email" in str(exc.value).lower() or "value_error" in str(exc.value).lower()
 
     @pytest.mark.parametrize("bad_expires", [0, -1, 31, 100])
@@ -181,22 +174,17 @@ class TestInputValidation:
                 actor=_make_principal(),
             )
 
-        # Inspect the INSERT call: arg index 1 (after workspace_id) is email
         insert_calls = [
             c for c in pool.conn.fetchval.await_args_list
             if c.args and isinstance(c.args[0], str) and "INSERT INTO workspace_invitations" in c.args[0]
         ]
         assert len(insert_calls) == 1
-        # Args: (sql, workspace_id, email, role, token_hash, user_id, expires)
         inserted_email = insert_calls[0].args[2]
         assert inserted_email == "mixed.case@test.com", (
             f"Email should be normalized to lowercase before insertion; got {inserted_email!r}"
         )
 
 
-# ---------------------------------------------------------------------------
-# Dedup — WS-INV-06, 07, 08
-# ---------------------------------------------------------------------------
 
 class TestDedup:
 
@@ -207,7 +195,7 @@ class TestDedup:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise")]
-        pool.conn.fetchval.side_effect = [555]  # existing_member id
+        pool.conn.fetchval.side_effect = [555]
 
         with _pool_ctx(pool):
             with pytest.raises(HTTPException) as exc:
@@ -226,7 +214,7 @@ class TestDedup:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise")]
-        pool.conn.fetchval.side_effect = [None, 777]  # no existing member, pending_inv_id
+        pool.conn.fetchval.side_effect = [None, 777]
 
         with _pool_ctx(pool):
             with pytest.raises(HTTPException) as exc:
@@ -249,7 +237,7 @@ class TestDedup:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise"), None]
-        pool.conn.fetchval.side_effect = [None, None, 300]  # no member, no UNEXPIRED pending, new inv_id
+        pool.conn.fetchval.side_effect = [None, None, 300]
 
         with _pool_ctx(pool), _audit_ctx(), _resend_off_ctx():
             result = await create_invite(
@@ -261,9 +249,6 @@ class TestDedup:
         assert result["id"] == 300
 
 
-# ---------------------------------------------------------------------------
-# Plan limits — WS-INV-13..21
-# ---------------------------------------------------------------------------
 
 class TestPlanLimits:
 
@@ -274,7 +259,7 @@ class TestPlanLimits:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="starter")]
-        pool.conn.fetchval.side_effect = [3, 0]  # member=3, pending=0 → 3 >= 3
+        pool.conn.fetchval.side_effect = [3, 0]
 
         with _pool_ctx(pool):
             with pytest.raises(HTTPException) as exc:
@@ -316,7 +301,6 @@ class TestPlanLimits:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="starter"), None]
-        # member=2, pending=0 (expired excluded), no existing, no pending, inv_id=400
         pool.conn.fetchval.side_effect = [2, 0, None, None, 400]
 
         with _pool_ctx(pool), _audit_ctx(), _resend_off_ctx():
@@ -373,8 +357,6 @@ class TestPlanLimits:
         from src.services.dashboard.v2.workspace import create_invite, InviteIn
 
         pool = FakePool()
-        # When limit is None, NO member_count / pending_count fetchvals run.
-        # Only: no existing, no pending, inv_id.
         pool.fetchrow.side_effect = [FakeRecord(plan=plan), None]
         pool.conn.fetchval.side_effect = [None, None, 600]
 
@@ -393,7 +375,7 @@ class TestPlanLimits:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan=None)]
-        pool.conn.fetchval.side_effect = [3, 0]  # 3/3 starter → blocked
+        pool.conn.fetchval.side_effect = [3, 0]
 
         with _pool_ctx(pool):
             with pytest.raises(HTTPException) as exc:
@@ -417,7 +399,6 @@ class TestPlanLimits:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise_plus_xl"), None]
-        # No limit → no member/pending fetchvals → straight to no-existing, no-pending, inv_id
         pool.conn.fetchval.side_effect = [None, None, 700]
 
         with _pool_ctx(pool), _audit_ctx(), _resend_off_ctx():
@@ -429,9 +410,6 @@ class TestPlanLimits:
         assert result["status"] == "ok"
 
 
-# ---------------------------------------------------------------------------
-# Revocation — WS-INV-22..25
-# ---------------------------------------------------------------------------
 
 class TestRevocation:
 
@@ -478,7 +456,6 @@ class TestRevocation:
 
         with _pool_ctx(pool):
             with pytest.raises(HTTPException) as exc:
-                # Attacker in WS-1 tries to revoke invite #999 owned by WS-2
                 await revoke_invite(invite_id=999, request=MagicMock(),
                                     actor=_make_principal(workspace_id=1))
         assert exc.value.status_code == 404
@@ -499,9 +476,6 @@ class TestRevocation:
         assert result["status"] == "ok"
 
 
-# ---------------------------------------------------------------------------
-# Race condition — WS-INV-26 (documented expectation)
-# ---------------------------------------------------------------------------
 
 class TestRaceCondition:
 
@@ -524,8 +498,6 @@ class TestRaceCondition:
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise")]
-        # First call's INSERT already happened on the OTHER actor; this
-        # second call sees pending_inv=88, returns 409.
         pool.conn.fetchval.side_effect = [None, 88]
 
         with _pool_ctx(pool):
@@ -538,9 +510,6 @@ class TestRaceCondition:
         assert exc.value.status_code == 409
 
 
-# ---------------------------------------------------------------------------
-# Read-after-write — WS-INV-27
-# ---------------------------------------------------------------------------
 
 class TestReadAfterWrite:
 
@@ -564,9 +533,6 @@ class TestReadAfterWrite:
         assert result["data"][0]["accepted_at"] is None
 
 
-# ---------------------------------------------------------------------------
-# Side effects — WS-INV-28..32
-# ---------------------------------------------------------------------------
 
 class TestSideEffects:
 
@@ -633,7 +599,6 @@ class TestSideEffects:
         pool.conn.fetchval.side_effect = [None, None, 902]
 
         async def _bombing_slack(url, msg):
-            # Mimic real _notify_slack behaviour: swallow internally and never raise
             try:
                 raise RuntimeError("slack 500")
             except Exception:
@@ -654,12 +619,11 @@ class TestSideEffects:
         from src.services.dashboard.v2.workspace import create_invite, InviteIn
 
         pool = FakePool()
-        # plan, ws_info, actor_info, slack (the resend branch needs 2 extra fetchrows)
         pool.fetchrow.side_effect = [
             FakeRecord(plan="enterprise"),
             FakeRecord(name="Awesome Workspace"),
             FakeRecord(display_name="Alice Owner"),
-            None,  # no slack integration
+            None,
         ]
         pool.conn.fetchval.side_effect = [None, None, 903]
 
@@ -691,7 +655,6 @@ class TestSideEffects:
         from src.services.dashboard.v2.workspace import create_invite, InviteIn
 
         pool = FakePool()
-        # Only: plan + slack (NO ws_info, NO actor_info because resend is off)
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise"), None]
         pool.conn.fetchval.side_effect = [None, None, 904]
 
@@ -704,5 +667,4 @@ class TestSideEffects:
             )
         assert result["status"] == "ok"
         mock_send.assert_not_called()
-        # Verify exactly 2 fetchrow calls happened (plan + slack — no extras)
         assert pool.fetchrow.await_count == 2

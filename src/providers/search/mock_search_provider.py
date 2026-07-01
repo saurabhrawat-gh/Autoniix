@@ -22,7 +22,6 @@ from src.providers.search.base import SearchProvider, SearchRequest, SearchResul
 
 logger = structlog.get_logger()
 
-# Prefer tests/fixtures/search for local dev, /tmp/mock_search_cache for Docker
 _LOCAL_CACHE = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "search"
 CACHE_DIR = _LOCAL_CACHE if _LOCAL_CACHE.parent.exists() else Path("/tmp/mock_search_cache")
 
@@ -42,7 +41,6 @@ class MockSearchProvider(SearchProvider):
         key = _cache_key(request.query, request.search_type)
         cache_file = CACHE_DIR / f"{key}.json"
 
-        # 1. Disk cache
         if cache_file.exists():
             try:
                 cached = json.loads(cache_file.read_text())
@@ -57,10 +55,8 @@ class MockSearchProvider(SearchProvider):
             except (json.JSONDecodeError, KeyError):
                 cache_file.unlink(missing_ok=True)
 
-        # 2. Wikipedia API fallback (free)
         try:
             results = await self._wikipedia_search(request.query, request.num_results)
-            # Cache for next run
             cache_file.write_text(json.dumps({
                 "results": results,
                 "query": request.query,
@@ -76,7 +72,6 @@ class MockSearchProvider(SearchProvider):
         except Exception as exc:
             logger.warning("mock_search.wikipedia_failed", error=str(exc))
 
-        # 3. Static fallback
         static = [
             {
                 "title": f"[Test] Result for: {request.query[:50]}",

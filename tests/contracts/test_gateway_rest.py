@@ -13,7 +13,6 @@ SCHEMAS_DIR = Path(__file__).parent / "schemas"
 RUST_SCHEMA = SCHEMAS_DIR / "rust-gateway.json"
 PYTHON_SCHEMA = SCHEMAS_DIR / "python-dashboard.json"
 
-# Base URLs for services
 RUST_BASE_URL = "http://localhost:8080"
 PYTHON_BASE_URL = "http://localhost:8000"
 
@@ -103,13 +102,11 @@ class TestRustGatewayContracts:
         assert response.status_code == 201
 
         data = response.json()
-        # Post-#350 RegisterResponse shape
         assert data.get("status") == "ok"
         assert isinstance(data.get("user_id"), int)
         assert isinstance(data.get("workspace_id"), int)
         assert data.get("role") == "owner"
         assert isinstance(data.get("onboarding_required"), bool)
-        # No tokens on register
         assert "access_token" not in data
         assert "refresh_token" not in data
 
@@ -160,7 +157,7 @@ class TestRustGatewayContracts:
 
         data = response.json()
         assert "access_token" in data
-        assert "refresh_token" in data  # New refresh token after rotation
+        assert "refresh_token" in data
 
     def test_verify_matches_openapi(self, rust_validator):
         """POST /api/v2/auth/verify response matches OpenAPI schema."""
@@ -221,7 +218,6 @@ class TestRustGatewayContracts:
         assert response.status_code == 200
 
         data = response.json()
-        # /me returns a { data: {...} } envelope matching Python's contract
         assert isinstance(data.get("data"), dict), "/me must return data envelope"
         inner = data["data"]
         assert "email" in inner, "/me data must include email"
@@ -246,7 +242,6 @@ class TestPythonDashboardContracts:
             expected_code=200,
         )
 
-        # Note: strict=False because Python schema might not be complete
         if not is_valid:
             pytest.skip(f"Python schema incomplete: {errors}")
 

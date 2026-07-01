@@ -35,8 +35,6 @@ from src.providers.llm.base import LLMRequest
 logger = structlog.get_logger()
 
 
-#: JSON schema the LLM must emit. Kept minimal: only the fields an
-#: AgentDecision actually needs. Extra fields are ignored.
 DECISION_JSON_SCHEMA = {
     "type": "object",
     "required": ["decision_type", "directive", "reasoning", "confidence"],
@@ -169,7 +167,6 @@ class LLMReasoner:
             "cost_usd": float(result.cost_usd),
             "decision_type": parsed["decision_type"],
         }
-        # Log compression savings when available.
         comp = getattr(result, "compression", None)
         if comp is not None:
             log_extra["compression_tier"] = comp.tier
@@ -179,7 +176,6 @@ class LLMReasoner:
         logger.info("agent.llm_reasoner.success", **log_extra)
         return parsed
 
-    # ── Internals ────────────────────────────────────────────────────────
 
     @staticmethod
     def _parse_json(raw: str) -> dict[str, Any] | None:
@@ -195,7 +191,6 @@ class LLMReasoner:
             return json.loads(raw)
         except json.JSONDecodeError:
             pass
-        # Fallback: find the first balanced JSON object substring.
         start = raw.find("{")
         if start == -1:
             return None
@@ -242,7 +237,6 @@ class LLMReasoner:
         if allowed_decision_types is not None:
             if parsed["decision_type"] not in allowed_decision_types:
                 return False
-        # Optional reasoning_steps must be list[str] when present.
         if "reasoning_steps" in parsed:
             steps = parsed["reasoning_steps"]
             if not isinstance(steps, list) or not all(
@@ -252,9 +246,6 @@ class LLMReasoner:
         return True
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Default agent system prompts
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 BRAIN_SYSTEM_PROMPT = """You are the Brain Agent for Autoniix, an autonomous AI video
@@ -287,10 +278,6 @@ is provided in the user prompt, weigh it (especially repeated failure modes).
 Output JSON only.""".strip()
 
 
-#: JSON schema the Critic LLM must emit. Distinct from DECISION_JSON_SCHEMA
-#: because a Critic returns a *verdict* over a peer's decision, not a fresh
-#: decision of its own. ``modified_directive`` is required only when
-#: ``verdict == "MODIFY"``.
 CRITIC_VERDICT_JSON_SCHEMA = {
     "type": "object",
     "required": ["verdict", "reasoning", "confidence"],

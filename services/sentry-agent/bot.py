@@ -52,7 +52,6 @@ async def on_message(event: dict, client: object) -> None:
     if channel_id not in _WATCHED:
         return
 
-    # Only handle bot messages (Sentry Slack app sends as a bot)
     is_bot = bool(event.get("bot_id") or event.get("subtype") == "bot_message")
     if not is_bot:
         return

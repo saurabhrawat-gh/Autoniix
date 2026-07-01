@@ -61,8 +61,6 @@ async def handle_pipeline_event(envelope: dict) -> None:
 
     use_agent = await get_flag("brain.memory_recall.enabled", default=False)
     if use_agent:
-        # Agent path: framework owns observe→recall→reason→decide→act.
-        # The agent publishes the directive itself, so we return early.
         from src.services.brain.agent import BrainAgent
         await BrainAgent().run(
             {"channel_id": channel_id, "content_id": content_id}
@@ -76,7 +74,6 @@ async def handle_pipeline_event(envelope: dict) -> None:
     if decision is None:
         return
 
-    # Publish directive event so downstream subscribers can react.
     try:
         await publish(
             Topic.BRAIN_DIRECTIVE,
@@ -99,7 +96,6 @@ async def handle_pipeline_event(envelope: dict) -> None:
             error=str(exc),
         )
 
-    # Signal the Temporal workflow if advisory mode is OFF and workflow_id known.
     advisory = await get_flag("brain.advisory_mode", default=True)
     if not advisory and content_id:
         workflow_id = payload.get("workflow_id") or f"video-production-{content_id}"

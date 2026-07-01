@@ -46,17 +46,14 @@ class DeliveryRequest(BaseModel):
     title: str
     description: str = ""
     tags: list[str] = Field(default_factory=list)
-    video_url: str  # URL to rendered video in MinIO
-    thumbnail_url: str = ""  # URL to thumbnail in MinIO
-    privacy_status: str = "private"  # private|unlisted|public
-    category_id: str = "22"  # 22 = People & Blogs, 27 = Education, 26 = How-to
+    video_url: str
+    thumbnail_url: str = ""
+    privacy_status: str = "private"
+    category_id: str = "22"
     is_short: bool = False
-    scheduled_at: str = ""  # ISO datetime for scheduled publish
+    scheduled_at: str = ""
     quality_scores: dict = Field(default_factory=dict)
     human_review_required: bool = False
-    # Phase 4: bypass the strict pre-publish quality gate. Recorded as an
-    # 'override' decision in quality_gate_decisions with the reason supplied
-    # by the caller (admin UI / Temporal workflow on explicit operator input).
     quality_gate_override: bool = False
     quality_gate_override_reason: str = ""
     quality_gate_override_by: str = ""
@@ -150,20 +147,9 @@ async def upload(req: DeliveryRequest):
     logger.info("delivery.uploading", content_id=req.content_id, title=req.title[:50])
 
     try:
-        # Pre-flight: strict quality gate
-        # Hard floors per dimension + composite threshold. Failing the gate
-        # blocks the upload unless the caller explicitly sets
-        # quality_gate_override=True (audited).
-        # Phase 7: in production we use the niche-aware evaluator that
-        # reads live thresholds from gate_thresholds. The function falls
-        # back to PRODUCTION_THRESHOLDS for any (niche, dim) the
-        # calibrator hasn't covered yet, so cold-start channels behave
-        # exactly as before.
         from src.quality import record_decision as qg_record
         from src.quality.gate import evaluate_for_niche as qg_evaluate_niche
         gate_profile = "production"
-        # Look up the channel's niche for per-niche threshold tuning.
-        # Wrapped defensively — a DB blip here must not block delivery.
         niche: str | None = None
         try:
             pool = await get_pool()
@@ -220,7 +206,6 @@ async def upload(req: DeliveryRequest):
                         override_reason=req.quality_gate_override_reason,
                         override_by=req.quality_gate_override_by)
 
-        # Intelligence: SEO Analysis
         seo_result = score_title_seo(req.title)
         desc_result = optimize_description(req.description, req.title, req.tags)
         optimized_tags = suggest_tags(req.title, "", req.tags)
@@ -230,13 +215,11 @@ async def upload(req: DeliveryRequest):
                      title_seo=seo_result.get("seo_score"),
                      desc_score=desc_result.get("score"))
 
-        # Human review gate
         if req.human_review_required:
             pool = await get_pool()
             row = await pool.fetchrow(
                 "SELECT human_review_status FROM videos WHERE content_id = $1", req.content_id)
             if not row or row["human_review_status"] != "approved":
-                # Mark as pending review instead of uploading
                 await pool.execute(
                     "UPDATE videos SET status = 'pending_review', final_composite_score = $1, "
                     "updated_at = NOW() WHERE content_id = $2",
@@ -250,17 +233,13 @@ async def upload(req: DeliveryRequest):
                     },
                 )
 
-        # Step 1: Get fresh access token
         access_token = await refresh_access_token()
 
-        # Step 2: Download video from MinIO
         async with httpx.AsyncClient(timeout=300.0) as client:
             video_resp = await client.get(req.video_url)
             video_resp.raise_for_status()
             video_bytes = video_resp.content
 
-        # Step 3: Upload to YouTube via resumable upload
-        # Create the video resource
         metadata = {
             "snippet": {
                 "title": req.title[:100],
@@ -277,7 +256,6 @@ async def upload(req: DeliveryRequest):
         headers = {"Authorization": f"Bearer {access_token}"}
 
         async with httpx.AsyncClient(timeout=600.0) as client:
-            # Initiate resumable upload
             init_resp = await client.post(
                 "https://www.googleapis.com/upload/youtube/v3/videos"
                 "?uploadType=resumable&part=snippet,status",
@@ -290,7 +268,6 @@ async def upload(req: DeliveryRequest):
             if not upload_url:
                 raise HTTPException(status_code=500, detail="No upload URL returned from YouTube")
 
-            # Upload the video bytes
             upload_resp = await client.put(
                 upload_url,
                 headers={"Content-Type": "video/mp4"},
@@ -301,7 +278,6 @@ async def upload(req: DeliveryRequest):
 
         youtube_video_id = yt_data.get("id", "")
 
-        # Step 4: Upload thumbnail (if provided)
         if req.thumbnail_url and youtube_video_id:
             try:
                 async with httpx.AsyncClient(timeout=60.0) as client:
@@ -318,7 +294,6 @@ async def upload(req: DeliveryRequest):
             except Exception as thumb_err:
                 logger.warning("delivery.thumbnail_upload_failed", error=str(thumb_err))
 
-        # Step 5: Log to DB + create feedback_loop entry
         import json as json_mod
         try:
             pool = await get_pool()
@@ -337,7 +312,6 @@ async def upload(req: DeliveryRequest):
                 req.content_id,
             )
 
-            # Create feedback_loop entry for future analytics collection
             scores = req.quality_scores
             await pool.execute(
                 "INSERT INTO feedback_loop (video_id, channel_id, title, idea_score, script_score, "
@@ -356,7 +330,6 @@ async def upload(req: DeliveryRequest):
 
         logger.info("delivery.uploaded", youtube_video_id=youtube_video_id)
 
-        # Intelligence: Store delivery features
         await store_delivery_features(
             req.content_id, req.channel_id,
             req.title, req.description, req.tags, seo_result)
@@ -384,7 +357,6 @@ async def upload(req: DeliveryRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-# Intelligence Endpoints
 
 class SEORequest(BaseModel):
     title: str
@@ -434,21 +406,17 @@ async def compute_metadata(req: ComputeMetadataRequest):
     logger.info("delivery.compute_metadata", content_id=req.content_id, title=req.title[:50])
 
     try:
-        # Compute SEO analysis
         seo_result = score_title_seo(req.title)
         desc_result = optimize_description(req.description, req.title, req.tags, req.niche)
         optimized_tags = suggest_tags(req.title, req.niche, req.tags)
         upload_timing = await predict_optimal_upload_time(req.channel_id)
 
-        # Derive category from niche
         category_id = CATEGORY_MAP.get(req.niche, "22")
 
-        # Generate hashtags from top tags
         hashtags = [f"#{t.replace(' ', '')}" for t in optimized_tags[:5]]
         if req.is_short:
             hashtags.append("#Shorts")
 
-        # Build full metadata description if empty
         if not req.description:
             req.description = (
                 f"{req.title}\n\n"
@@ -458,10 +426,8 @@ async def compute_metadata(req: ComputeMetadataRequest):
             )
             desc_result = optimize_description(req.description, req.title, req.tags, req.niche)
 
-        # Final composite score
         final_score = _compute_final_score(req.quality_scores)
 
-        # Build delivery_result JSON
         import json as json_mod
 
         delivery_result = {
@@ -484,7 +450,6 @@ async def compute_metadata(req: ComputeMetadataRequest):
             "mode": "test",
         }
 
-        # Store in DB
         try:
             pool = await get_pool()
             await pool.execute(
@@ -495,7 +460,6 @@ async def compute_metadata(req: ComputeMetadataRequest):
         except Exception as db_err:
             logger.warning("delivery.compute_metadata_db_failed", error=str(db_err))
 
-        # Store delivery features for learning
         await store_delivery_features(
             req.content_id, req.channel_id,
             req.title, req.description, optimized_tags, seo_result)

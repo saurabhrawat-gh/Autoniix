@@ -7,15 +7,9 @@ import { dispatchCallback } from "../utils/callback";
 import { startShardWorker } from "./shardWorker";
 import { startConcatWorker } from "./concatWorker";
 
-// Role-aware boot (P0.11)
-// WORKER_ROLE selects which queue this process consumes.
-//   "legacy"           ← default; single-queue render-queue (no behavior change)
-//   "tier0|tier1|tier2"← shard worker on the matching tier queue
-//   "concat"           ← FlowProducer parent worker (concat + audio mux)
 const role = env.WORKER_ROLE.toLowerCase();
 if (role === "tier0" || role === "tier1" || role === "tier2") {
   startShardWorker(role);
-  // No legacy worker on this process.
   process.on("SIGTERM", () => process.exit(0));
   process.on("SIGINT", () => process.exit(0));
 } else if (role === "concat") {

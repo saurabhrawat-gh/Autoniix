@@ -104,10 +104,6 @@ async fn main() -> Result<()> {
     tokio::spawn(deletion_warning_cron(pool.clone()));
     info!("Workspace deletion 48h-warning cron task started (interval: 1 hour)");
 
-    // Schema ownership remains with the Python dashboard during the migration
-    // (see HARNESS-ENGINEERING-PLAN.md Section 13). The gateway reads/writes
-    // Python's existing tables and therefore runs no migrations of its own.
-
     let app = create_app(pool, config.jwt_secret).await;
 
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));

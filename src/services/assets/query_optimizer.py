@@ -23,7 +23,6 @@ from src.db import get_pool
 
 logger = structlog.get_logger()
 
-# Query expansion patterns
 MOOD_SYNONYMS: dict[str, list[str]] = {
     "calm": ["peaceful", "serene", "tranquil", "relaxing"],
     "energetic": ["dynamic", "vibrant", "lively", "active"],
@@ -55,14 +54,12 @@ def optimize_query(segment: dict, brand_colors: dict = None) -> dict:
     Uses script asset engine hints when available, enhances with mood
     synonyms and shot type qualifiers.
     """
-    # Prefer script intelligence queries
     primary_query = segment.get("primary_query", "")
     alternate_queries = segment.get("alternate_queries", [])
     shot_type = segment.get("shot_type", "medium")
     mood = segment.get("mood", {})
 
     if not primary_query:
-        # Build from traditional segment data
         b_roll = segment.get("b_roll_keywords", [])
         suggestions = segment.get("asset_suggestions", [])
         direction = segment.get("scene_direction", "")
@@ -73,24 +70,21 @@ def optimize_query(segment: dict, brand_colors: dict = None) -> dict:
     if not primary_query:
         return {"queries": [], "shot_type": shot_type, "mood": mood}
 
-    # Add shot type qualifiers
     shot_qualifier = SHOT_QUALITY_TERMS.get(shot_type, "")
     enhanced_primary = f"{primary_query} {shot_qualifier}".strip()
 
-    # Generate alternates from mood synonyms
     mood_name = mood.get("name", "") if isinstance(mood, dict) else str(mood)
     synonyms = MOOD_SYNONYMS.get(mood_name, [])
     expanded_queries = [enhanced_primary]
     for syn in synonyms[:2]:
         expanded_queries.append(f"{primary_query} {syn}")
 
-    # Add any pre-generated alternates
     for alt in alternate_queries[:3]:
         if alt not in expanded_queries:
             expanded_queries.append(alt)
 
     return {
-        "queries": expanded_queries[:5],  # Max 5 queries
+        "queries": expanded_queries[:5],
         "primary_hash": _query_hash(primary_query),
         "shot_type": shot_type,
         "mood": mood,
@@ -113,7 +107,6 @@ async def check_asset_cache(query_hash: str, max_reuse: int = 5) -> dict | None:
         if not row:
             return None
 
-        # Update use count
         await pool.execute(
             "UPDATE asset_library SET use_count = use_count + 1, last_used_at = NOW() WHERE id = $1",
             row["id"])
@@ -179,21 +172,18 @@ def score_asset_relevance(clip: dict, query: str, brand_colors: list[str] = None
     """
     score = 5.0
 
-    # Tag/keyword match
     tags = clip.get("tags", "").lower()
     query_words = query.lower().split()
     matches = sum(1 for w in query_words if w in tags)
     tag_bonus = min(3.0, matches * 0.75)
     score += tag_bonus
 
-    # Resolution bonus
     height = clip.get("height", 0)
     if height >= 1080:
         score += 1.0
     elif height >= 720:
         score += 0.5
 
-    # Duration penalty if too short
     duration = clip.get("duration", 0)
     if isinstance(duration, (int, float)) and duration < 3:
         score -= 1.0

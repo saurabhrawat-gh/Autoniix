@@ -7,7 +7,7 @@ export interface PhoneMockupProps {
   screenImageUrl?: string;
   screenVideoUrl?: string;
   style?: PhoneStyle;
-  tilt?: number; // degrees
+  tilt?: number;
   bg?: string;
   accentGlow?: string;
 }

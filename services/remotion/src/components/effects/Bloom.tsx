@@ -6,14 +6,13 @@ import { AbsoluteFill } from "remotion";
  * Accepts children (wraps them) — use as a CSS-filter style effect.
  */
 export interface BloomProps {
-  intensity?: number; // 0..1
+  intensity?: number;
   blurPx?: number;
   children?: React.ReactNode;
 }
 
 export const Bloom: React.FC<BloomProps> = ({ intensity = 0.5, blurPx = 30, children }) => {
   if (!children) {
-    // Standalone overlay: bright gradient in center
     return (
       <AbsoluteFill
         style={{

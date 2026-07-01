@@ -21,7 +21,6 @@ from src.intelligence.diversity_floor import (
 )
 
 
-# shannon_entropy
 
 
 def test_entropy_is_one_for_uniform_distribution():
@@ -69,21 +68,17 @@ def test_entropy_ignores_zero_arms():
     assert e_with_zeros == pytest.approx(e_without)
 
 
-# should_force_exploration
 
 
 def test_force_exploration_off_when_below_min_picks():
     """During the channel's early-learning phase the floor must not
     fire — Thompson needs room to converge."""
-    # Even with extreme collapse (1 arm, all picks), if there are
-    # too few total picks we don't force.
     counts = [MIN_PICKS_FOR_GUARD - 1]
     assert should_force_exploration(counts) is False
 
 
 def test_force_exploration_on_when_collapsed_and_enough_data():
     """Heavy collapse (one arm dominating) past min_picks → force."""
-    # 18 of 20 picks on one arm → entropy ≈ 0.31 ≪ 0.55 threshold.
     counts = [18, 2]
     assert sum(counts) >= MIN_PICKS_FOR_GUARD
     assert shannon_entropy(counts) < DIVERSITY_THRESHOLD
@@ -92,7 +87,7 @@ def test_force_exploration_on_when_collapsed_and_enough_data():
 
 def test_force_exploration_off_when_diverse_population():
     """Healthy diverse picks past min_picks → don't fire."""
-    counts = [4, 4, 4, 4, 4]   # uniform across 5 arms
+    counts = [4, 4, 4, 4, 4]
     assert sum(counts) >= MIN_PICKS_FOR_GUARD
     assert shannon_entropy(counts) >= DIVERSITY_THRESHOLD
     assert should_force_exploration(counts) is False
@@ -110,9 +105,9 @@ def test_force_exploration_monotone_around_threshold():
       * [17, 1, 1, 1] -> 0.42 (well below)
     """
     ladders = [
-        ([14, 4, 2],     False),   # entropy 0.73 >> 0.55
-        ([17, 2, 1],     True),    # entropy 0.47 < 0.55
-        ([17, 1, 1, 1],  True),    # entropy 0.42 < 0.55
+        ([14, 4, 2],     False),
+        ([17, 2, 1],     True),
+        ([17, 1, 1, 1],  True),
     ]
     for counts, expected_force in ladders:
         assert should_force_exploration(counts) is expected_force, (
@@ -133,7 +128,6 @@ def test_force_exploration_respects_custom_threshold():
     assert should_force_exploration(counts, threshold=0.4) is False
 
 
-# pick_least_pulled
 
 
 def test_pick_least_pulled_returns_minimum_count_arm():
@@ -155,7 +149,6 @@ def test_pick_least_pulled_is_deterministic_on_ties():
     Locking determinism so that two adjacent forced-exploration calls
     don't accidentally produce different picks given identical state."""
     counts = {"alpha": 5, "beta": 5, "gamma": 10}
-    # 'alpha' and 'beta' tie at 5; alpha comes first lexicographically.
     assert pick_least_pulled(counts) == "alpha"
 
 
@@ -167,11 +160,10 @@ def test_pick_least_pulled_constrains_to_available():
     """Even if arm 'a' has the lowest count, if it's not in the
     currently-offered arms list, we don't pick it."""
     counts = {"a": 1, "b": 5, "c": 8}
-    available = ["b", "c"]   # 'a' is no longer offered
+    available = ["b", "c"]
     assert pick_least_pulled(counts, available_arms=available) == "b"
 
 
-# Realistic scenarios
 
 
 def test_realistic_collapse_scenario():
@@ -201,7 +193,6 @@ def test_realistic_early_channel_scenario():
     assert should_force_exploration(counts) is False
 
 
-# Constants sanity
 
 
 def test_constants_have_sensible_values():
@@ -230,7 +221,5 @@ def test_thompson_sample_signatures_accept_channel_id():
     script_sig = inspect.signature(script_ts)
     assert "channel_id" in research_sig.parameters
     assert "channel_id" in script_sig.parameters
-    # And the parameter must be keyword-only (after *) so positional
-    # callers don't break when we add it.
     assert research_sig.parameters["channel_id"].kind == inspect.Parameter.KEYWORD_ONLY
     assert script_sig.parameters["channel_id"].kind == inspect.Parameter.KEYWORD_ONLY

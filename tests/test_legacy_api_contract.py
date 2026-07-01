@@ -36,11 +36,9 @@ def _collect_legacy_routes():
 
     sorted by path + method for deterministic comparison.
     """
-    # Make src importable regardless of PYTHONPATH.
     repo_root = Path(__file__).resolve().parent.parent
     sys.path.insert(0, str(repo_root))
 
-    # Mock out env so import doesn't require a real DB at module-load time.
     os.environ.setdefault("DATABASE_URL", "postgresql://app:app@localhost:5433/autoniix")
     os.environ.setdefault("REDIS_URL", "redis://localhost:6380")
 
@@ -56,7 +54,6 @@ def _collect_legacy_routes():
             continue
         if path.startswith("/api/v2/"):
             continue
-        # Filter HEAD/OPTIONS noise.
         m = sorted(x for x in methods if x not in ("HEAD", "OPTIONS"))
         if not m:
             continue
@@ -72,15 +69,12 @@ def test_legacy_api_contract():
         GOLDEN_PATH.write_text(json.dumps(actual, indent=2) + "\n")
         pytest.skip("snapshot updated — re-run without UPDATE_LEGACY_CONTRACT")
     if not GOLDEN_PATH.exists():
-        # First run — create the golden file silently. Treat as a pass so
-        # CI bootstraps cleanly the first time.
         GOLDEN_PATH.parent.mkdir(parents=True, exist_ok=True)
         GOLDEN_PATH.write_text(json.dumps(actual, indent=2) + "\n")
         return
     expected = json.loads(GOLDEN_PATH.read_text())
     if actual == expected:
         return
-    # Build a friendly diff message.
     actual_set = {(r["path"], tuple(r["methods"])) for r in actual}
     expected_set = {(r["path"], tuple(r["methods"])) for r in expected}
     removed = sorted(expected_set - actual_set)

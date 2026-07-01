@@ -50,16 +50,14 @@ export interface BundleCacheStats {
 export async function getOrBuildBundle(opts?: { entryPoint?: string }): Promise<BundleCacheStats> {
   const startedAt = Date.now();
   const entryPoint = opts?.entryPoint ?? path.resolve(process.cwd(), "src/index.ts");
-  const projectRoot = path.dirname(path.dirname(entryPoint)); // services/remotion/
+  const projectRoot = path.dirname(path.dirname(entryPoint));
 
   if (memoizedBundlePath && memoizedHash) {
     return { hash: memoizedHash, source: "process", bundlePath: memoizedBundlePath, warmMs: Date.now() - startedAt };
   }
 
-  // Compute the bundle's content hash from the inputs.
   const hash = await hashBundleInputs(projectRoot);
 
-  // Shared cache hit?
   if (env.BUNDLE_CACHE_DIR) {
     const shared = path.join(env.BUNDLE_CACHE_DIR, hash);
     if (await isReady(shared)) {
@@ -70,11 +68,9 @@ export async function getOrBuildBundle(opts?: { entryPoint?: string }): Promise<
     }
   }
 
-  // Miss → bundle locally.
   logger.info({ hash, entryPoint }, "bundle cache MISS — bundling");
   const localBundlePath = await bundle({ entryPoint, webpackOverride: nodePrefixWebpackOverride });
 
-  // Persist into shared cache atomically (best-effort; failure is non-fatal).
   if (env.BUNDLE_CACHE_DIR) {
     try {
       await persistToShared(localBundlePath, env.BUNDLE_CACHE_DIR, hash);
@@ -108,7 +104,6 @@ async function hashBundleInputs(projectRoot: string): Promise<string> {
     h.update("\n");
   }
 
-  // Pinned remotion versions are part of the bundle's output bytes.
   try {
     const pkgRaw = await fsp.readFile(path.join(projectRoot, "package.json"), "utf8");
     const pkg = JSON.parse(pkgRaw) as { dependencies?: Record<string, string> };
@@ -121,7 +116,6 @@ async function hashBundleInputs(projectRoot: string): Promise<string> {
     /* ignore */
   }
 
-  // Optional remotion.config.ts.
   for (const cfg of ["remotion.config.ts", "remotion.config.js"]) {
     const p = path.join(projectRoot, cfg);
     if (fs.existsSync(p)) {
@@ -145,7 +139,6 @@ async function walk(dir: string, out: string[]): Promise<void> {
     if (entry.name.startsWith(".")) continue;
     const abs = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      // Skip __fixtures__ (test data should not invalidate the bundle).
       if (entry.name === "__fixtures__" || entry.name === "__tests__") continue;
       await walk(abs, out);
     } else if (entry.isFile()) {
@@ -172,16 +165,13 @@ async function isReady(dir: string): Promise<boolean> {
 async function persistToShared(localBundlePath: string, cacheRoot: string, hash: string): Promise<void> {
   await fsp.mkdir(cacheRoot, { recursive: true });
   const finalDir = path.join(cacheRoot, hash);
-  if (await isReady(finalDir)) return; // someone else won the race
+  if (await isReady(finalDir)) return;
   const tmpDir = path.join(cacheRoot, `.${hash}.${process.pid}.${Date.now()}`);
   await fsp.cp(localBundlePath, tmpDir, { recursive: true });
-  // fs.rename is atomic on the same filesystem.
   try {
     await fsp.rename(tmpDir, finalDir);
   } catch (err) {
-    // Likely lost a race — verify final exists.
     if (!(await isReady(finalDir))) {
-      // Final didn't appear; rethrow so caller falls back to local.
       try {
         await fsp.rm(tmpDir, { recursive: true, force: true });
       } catch {

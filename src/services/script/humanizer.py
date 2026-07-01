@@ -27,7 +27,6 @@ from src.services.script.script_analyzer import (
 
 logger = structlog.get_logger()
 
-# Contraction Map
 CONTRACTION_MAP = {
     r"\bdo not\b": "don't",
     r"\bdoes not\b": "doesn't",
@@ -71,7 +70,6 @@ CONTRACTION_MAP = {
 }
 _CONTRACTION_COMPILED = {re.compile(k, re.IGNORECASE): v for k, v in CONTRACTION_MAP.items()}
 
-# AI Pattern Replacements
 AI_REPLACEMENTS = [
     (r"\blet'?s dive (?:right )?in\b", ["Here's what you need to know.", "So here's the deal.", "Let me break this down."]),
     (r"\bit(?:'s| is) important to (?:note|understand|remember) that\b", ["The key thing here:", "Here's what matters:", "Pay attention to this:"]),
@@ -93,7 +91,6 @@ AI_REPLACEMENTS = [
 ]
 _AI_REPLACE_COMPILED = [(re.compile(p, re.IGNORECASE), alts) for p, alts in AI_REPLACEMENTS]
 
-# Conversational Bridges
 BRIDGES = {
     "transition": [
         "Now,", "So,", "Here's the thing.", "And this is where it gets interesting.",
@@ -110,14 +107,12 @@ BRIDGES = {
 }
 
 
-# HUMANIZATION TRANSFORMS
 
 def inject_contractions(text: str) -> str:
     """Convert formal phrases to contractions for natural speech."""
     for pattern, replacement in _CONTRACTION_COMPILED.items():
         def _replace(match, repl=replacement):
             original = match.group()
-            # Preserve capitalization
             if original[0].isupper():
                 return repl[0].upper() + repl[1:]
             return repl
@@ -138,7 +133,6 @@ def remove_ai_patterns(text: str) -> tuple[str, list[str]]:
             return replacement
         text = pattern.sub(_replace, text, count=1)
 
-    # Clean up double spaces
     text = re.sub(r"  +", " ", text).strip()
     return text, removed
 
@@ -158,7 +152,6 @@ def enforce_sentence_variation(text: str) -> str:
         word_count = len(words)
 
         if word_count > 30:
-            # Break at natural points (commas, conjunctions)
             parts = re.split(r"(,\s*(?:and|but|or|so|because|which|that|where|when)\s)", sent, maxsplit=1)
             if len(parts) >= 3:
                 first_part = parts[0] + "."
@@ -178,10 +171,8 @@ def enforce_spoken_rhythm(text: str) -> str:
 
     Adds em-dashes and ellipses where speakers naturally pause.
     """
-    # Add pause markers before "but" and "however" mid-sentence
     text = re.sub(r",?\s*\b(but|however|yet)\b", r" — \1", text)
 
-    # Add pause after "because" followed by long explanation
     text = re.sub(r"\bbecause\b\s+", "because... ", text, count=2)
 
     return text
@@ -190,20 +181,16 @@ def enforce_spoken_rhythm(text: str) -> str:
 def adapt_to_channel_voice(text: str, pacing_style: str = "dynamic", brand_voice: str = "") -> str:
     """Adapt text to match channel's voice style."""
     if pacing_style == "slow_philosophical":
-        # Longer pauses, more contemplative
         text = re.sub(r"\.\s+", ". \n", text, count=3)
     elif pacing_style in ("fast_energetic", "fast_provocative"):
-        # Shorter sentences, more punchy
         text = re.sub(r",\s*and\s+", ". ", text)
     elif pacing_style == "gentle_progressive":
-        # Softer transitions
         text = text.replace(" — but", ", but")
         text = text.replace(" — however", ", however")
 
     return text
 
 
-# MAIN HUMANIZE FUNCTION
 
 def humanize_segment(narration: str, pacing_style: str = "dynamic",
                      brand_voice: str = "", seed: int | None = None) -> dict[str, Any]:
@@ -217,27 +204,20 @@ def humanize_segment(narration: str, pacing_style: str = "dynamic",
     original = narration
     text = narration
 
-    # Step 1: Inject contractions
     text = inject_contractions(text)
 
-    # Step 2: Remove AI patterns
     text, removed_patterns = remove_ai_patterns(text)
 
-    # Step 3: Sentence variation
     text = enforce_sentence_variation(text)
 
-    # Step 4: Spoken rhythm
     text = enforce_spoken_rhythm(text)
 
-    # Step 5: Channel voice adaptation
     text = adapt_to_channel_voice(text, pacing_style, brand_voice)
 
-    # Step 6: Final cleanup
     text = re.sub(r"\s+", " ", text).strip()
     text = re.sub(r"\.\s*\.", ".", text)
     text = re.sub(r"—\s*—", "—", text)
 
-    # Metrics
     original_contraction_rate = compute_contraction_rate(original)
     new_contraction_rate = compute_contraction_rate(text)
     remaining_ai = detect_ai_patterns(text)
@@ -267,29 +247,24 @@ def humanize_full_script(segments: list[dict], pacing_style: str = "dynamic",
         narration = seg.get("narration", "")
         result = humanize_segment(narration, pacing_style, brand_voice, seed=None)
 
-        # Update segment with humanized narration
         updated = {**seg, "narration": result["humanized"]}
         humanized_segments.append(updated)
 
         total_ai_removed += len(result["ai_patterns_removed"])
         total_ai_remaining += result["ai_patterns_remaining"]
 
-    # Compute humanization score
     total_words = sum(len(s.get("narration", "").split()) for s in humanized_segments)
     avg_contraction = compute_contraction_rate(
         " ".join(s.get("narration", "") for s in humanized_segments)
     )
 
-    # Score: contraction rate 0.02-0.06 is ideal for spoken content
     contraction_score = 1.0 if 0.02 <= avg_contraction <= 0.06 else (
         0.7 if 0.01 <= avg_contraction <= 0.08 else 0.4
     )
 
-    # AI pattern density: lower is better
     ai_density = total_ai_remaining / max(total_words, 1)
     ai_score = 1.0 if ai_density == 0 else max(0.2, 1.0 - ai_density * 50)
 
-    # Sentence variation
     all_sentences = []
     for s in humanized_segments:
         sents = re.split(r"[.!?]+", s.get("narration", ""))
@@ -298,7 +273,7 @@ def humanize_full_script(segments: list[dict], pacing_style: str = "dynamic",
     if len(all_sentences) >= 3:
         mean_len = sum(all_sentences) / len(all_sentences)
         variance = sum((x - mean_len) ** 2 for x in all_sentences) / len(all_sentences)
-        variation_score = min(1.0, variance / 25)  # CV target ~5
+        variation_score = min(1.0, variance / 25)
     else:
         variation_score = 0.5
 

@@ -30,7 +30,6 @@ from src.observability.metrics import instrument_app
 logger = structlog.get_logger()
 
 
-# Request Models
 
 class BrandProfileRequest(BaseModel):
     channel_id: str
@@ -46,7 +45,6 @@ class BrandEvolutionRequest(BaseModel):
     days_lookback: int = 30
 
 
-# Helpers
 
 async def _load_channel(channel_id: str) -> dict:
     pool = await get_pool()
@@ -54,7 +52,6 @@ async def _load_channel(channel_id: str) -> dict:
     return dict(row) if row else {}
 
 
-# App
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -82,7 +79,6 @@ async def get_or_create_profile(req: BrandProfileRequest):
     logger.info("brand.profile", channel_id=req.channel_id)
 
     try:
-        # Try to load existing profile
         profile = await load_brand_profile(req.channel_id)
         if profile:
             return ServiceResponse(
@@ -90,7 +86,6 @@ async def get_or_create_profile(req: BrandProfileRequest):
                 data={"profile": profile, "source": "cached"},
             )
 
-        # Compute from channel DNA
         channel = await _load_channel(req.channel_id)
         if not channel:
             raise HTTPException(status_code=404, detail=f"Channel {req.channel_id} not found")
@@ -144,7 +139,6 @@ async def track_evolution(req: BrandEvolutionRequest):
     try:
         pool = await get_pool()
 
-        # Get recent video performance data
         rows = await pool.fetch("""
             SELECT v.content_id, v.script_structure_score, v.hook_retention_score,
                    v.thumbnail_score, v.direction_score,
@@ -161,19 +155,16 @@ async def track_evolution(req: BrandEvolutionRequest):
                 data={"evolution": "insufficient_data", "videos_analyzed": 0},
             )
 
-        # Analyze performance trends
         scores = [dict(r) for r in rows]
         avg_script = sum(float(s.get("script_structure_score") or 7) for s in scores) / len(scores)
         avg_hook = sum(float(s.get("hook_retention_score") or 7) for s in scores) / len(scores)
         avg_views = sum(int(s.get("yt_views") or 0) for s in scores) / len(scores)
 
-        # Detect tier distribution
         tiers = [s.get("performance_tier", "C") for s in scores if s.get("performance_tier")]
         tier_dist = {}
         for t in tiers:
             tier_dist[t] = tier_dist.get(t, 0) + 1
 
-        # Suggestions based on patterns
         suggestions = []
         if avg_script < 8.0:
             suggestions.append("Script quality trending below target — consider adjusting pacing or hook styles")
@@ -182,7 +173,6 @@ async def track_evolution(req: BrandEvolutionRequest):
         if tier_dist.get("D", 0) > len(tiers) * 0.3:
             suggestions.append("High D-tier rate — review content strategy and topic selection")
 
-        # Save snapshot
         import datetime
         try:
             await pool.execute("""

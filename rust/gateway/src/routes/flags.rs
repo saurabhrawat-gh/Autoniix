@@ -106,9 +106,6 @@ async fn set_flag(
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&principal)?;
 
-    // Snapshot the pre-write state so the audit row has a `before` payload.
-    // We tuple-bind only the two columns we care about to keep the query
-    // narrow.
     let before: Option<(bool, Value)> =
         sqlx::query_as("SELECT enabled, payload FROM feature_flags WHERE key = $1")
             .bind(&key)

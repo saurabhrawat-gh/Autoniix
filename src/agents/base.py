@@ -40,14 +40,8 @@ import structlog
 
 logger = structlog.get_logger()
 
-#: Current wire-format version for :class:`AgentDecision`. Bump when you
-#: add a non-backwards-compatible field. Consumers SHOULD check this
-#: before relying on optional fields.
 AGENT_DECISION_SCHEMA_VERSION = 1
 
-#: Default per-phase timeouts (seconds). Conservative — observe + recall
-#: are cheap reads; decide can be an LLM call so it gets more headroom;
-#: act publishes events + writes DB; remember is best-effort embedding.
 DEFAULT_PHASE_TIMEOUTS_S: dict[str, float] = {
     "observe": 10.0,
     "recall": 8.0,
@@ -58,16 +52,11 @@ DEFAULT_PHASE_TIMEOUTS_S: dict[str, float] = {
     "remember": 30.0,
 }
 
-#: Default retry policy for :meth:`BaseAgent.act` — act() has side-effects
-#: (DB writes, event publishes) so we retry with jitter, then dead-letter.
 DEFAULT_ACT_MAX_ATTEMPTS = 3
 DEFAULT_ACT_INITIAL_DELAY_S = 0.5
 DEFAULT_ACT_MAX_DELAY_S = 4.0
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Data carriers
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 @dataclass
@@ -98,18 +87,11 @@ class AgentDecision:
     directive: dict[str, Any]
     reasoning: str
     confidence: float
-    # Free-form structured context summary string — kept for parity with
-    # brain_decisions schema. Subclasses can build it however they like.
     context_summary: str = ""
-    # Optional: subclass-specific extras carried into act() / remember().
     extras: dict[str, Any] = field(default_factory=dict)
-    # Wire-format version. Defaults to the package-level constant so a
-    # subclass never forgets to bump it explicitly.
     schema_version: int = AGENT_DECISION_SCHEMA_VERSION
 
 
-#: Allowed verdict values from a Critic agent reviewing another agent's
-#: proposed decision. Stored in ``critic_decisions.verdict``.
 CRITIC_VERDICTS = ("APPROVE", "VETO", "MODIFY")
 
 
@@ -126,7 +108,7 @@ class CriticVerdict:
     The Critic's reasoning is always recorded so the audit trail is
     complete \u2014 even on APPROVE.
     """
-    verdict: str  # one of CRITIC_VERDICTS
+    verdict: str
     reasoning: str
     confidence: float
     reviewed_decision_type: str = ""
@@ -135,9 +117,6 @@ class CriticVerdict:
     extras: dict[str, Any] = field(default_factory=dict)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# BaseAgent
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class BaseAgent(ABC):
@@ -148,22 +127,12 @@ class BaseAgent(ABC):
     stay as safe no-ops.
     """
 
-    #: Short stable identifier for the agent. Used in logs, metrics, and as
-    #: the key in :class:`AgentRegistry`.
     name: ClassVar[str] = ""
 
-    #: SQL table where this agent's decisions are persisted. The table must
-    #: have the columns ``id, decision_type, scope, scope_id, directive,
-    #: reasoning, confidence, embedding, created_at`` for default
-    #: :class:`AgentMemory` recall to work.
     decision_table: ClassVar[str] = ""
 
-    #: Feature-flag prefix (e.g. ``"brain."``) — every flag this agent
-    #: reads should start with this prefix to make per-agent tuning easy.
     flag_prefix: ClassVar[str] = ""
 
-    #: Per-phase timeout overrides (seconds). Subclasses may override
-    #: any subset; defaults come from :data:`DEFAULT_PHASE_TIMEOUTS_S`.
     phase_timeouts_s: ClassVar[dict[str, float]] = {}
 
     def __init__(self) -> None:
@@ -178,7 +147,6 @@ class BaseAgent(ABC):
             self.phase_timeouts_s.get(phase, DEFAULT_PHASE_TIMEOUTS_S[phase])
         )
 
-    # ── Lifecycle ────────────────────────────────────────────────────────
 
     async def observe(self, context: dict[str, Any]) -> AgentObservation | None:
         """Pull structured facts from the world.
@@ -273,7 +241,6 @@ class BaseAgent(ABC):
                 error=str(exc),
             )
 
-    # ── Orchestration ────────────────────────────────────────────────────
 
     async def run(self, context: dict[str, Any]) -> AgentDecision | None:
         """Run the full lifecycle for one input context.
@@ -288,7 +255,6 @@ class BaseAgent(ABC):
         * **retried with backoff** — only ``act()``, because it's the
           one phase with externally-visible side-effects.
         """
-        # observe — None or timeout short-circuits the rest of the loop
         observation = await self._run_phase(
             "observe", lambda: self.observe(context), default=None
         )
@@ -315,21 +281,15 @@ class BaseAgent(ABC):
             )
             return None
 
-        # Optional critique pass — flag-gated, off by default. A Critic
-        # peer can VETO (drop + dead-letter) or MODIFY (substitute a new
-        # decision) before any side-effects happen.
         decision = await self._run_critique(decision, observation)
         if decision is None:
             return None
 
         acted = await self._run_act_with_retry(decision)
         if acted is None:
-            # All retries exhausted — dead-letter the decision.
             await self._dead_letter(decision)
             return None
 
-        # remember() runs as a background task so embedding latency
-        # never holds up the consumer loop. Failures are logged inside.
         asyncio.create_task(
             self._run_remember_bg(decision, acted),
             name=f"agent-remember-{self.name}",
@@ -345,7 +305,6 @@ class BaseAgent(ABC):
         )
         return decision
 
-    # ── Phase guards ─────────────────────────────────────────────────────
 
     async def _run_phase(self, name: str, coro_fn, *, default):
         """Run ``coro_fn`` with a per-phase timeout, swallowing failures.
@@ -435,7 +394,6 @@ class BaseAgent(ABC):
         any failure / disabled state) the original decision passes through
         unchanged. The Critic itself is never critiqued (no recursion).
         """
-        # Avoid recursion: a critic must never critique another critic.
         if self.name == "critic":
             return decision
 
@@ -489,13 +447,13 @@ class BaseAgent(ABC):
                 "agent.critique_timeout", agent=self.name,
                 timeout_s=timeout, scope_id=observation.scope_id,
             )
-            return decision  # fail-open
+            return decision
         except Exception as exc:
             logger.warning(
                 "agent.critique_failed", agent=self.name,
                 error=str(exc), scope_id=observation.scope_id,
             )
-            return decision  # fail-open
+            return decision
 
         verdict_str = getattr(verdict, "verdict", None)
         if verdict_str == "VETO":

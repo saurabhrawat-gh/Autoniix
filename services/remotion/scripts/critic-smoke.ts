@@ -18,7 +18,6 @@ function mkFrame(shardId: string, lum: number, atMs: number): FrameSample {
 async function main() {
   const { agent, defaultCtx } = makeDefaultCritic();
 
-  // Case 1 — clean frames
   const goodFrames: FrameSample[] = [
     mkFrame("s0", 0.45, 0),
     mkFrame("s0", 0.50, 1000),
@@ -32,7 +31,6 @@ async function main() {
     process.exit(1);
   }
 
-  // Case 2 — one black flash
   const badFrames: FrameSample[] = [
     mkFrame("s0", 0.45, 0),
     mkFrame("s1", 0.005, 1000),
@@ -49,17 +47,12 @@ async function main() {
     process.exit(1);
   }
 
-  // Determinism
   const r3 = await new CriticAgent().run({ jobId: "j1", frames: goodFrames }, defaultCtx);
   if (r3.output.overall !== r1.output.overall) {
     console.error(`FAIL: non-deterministic overall (${r1.output.overall} vs ${r3.output.overall})`);
     process.exit(1);
   }
 
-  console.log("OK critic smoke");
-  console.log(`   case 1 pass=true  overall=${r1.output.overall}`);
-  console.log(`   case 2 pass=false flags=${r2.output.shardsFlagged.map((f) => f.reason).join(",")}`);
-  console.log(`   provider=${r1.meta.agentVersion}`);
 }
 
 main().catch((e) => {

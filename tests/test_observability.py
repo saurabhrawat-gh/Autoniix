@@ -36,7 +36,6 @@ class TestLogDecision:
     @pytest.mark.asyncio
     async def test_handles_db_error(self, mock_pool):
         mock_pool.execute.side_effect = Exception("DB down")
-        # Should not raise — just logs warning
         await log_decision("voice", "emotion_mapping", "local_prosody")
 
 

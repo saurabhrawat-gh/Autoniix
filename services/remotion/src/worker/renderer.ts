@@ -57,7 +57,6 @@ export async function runRender(
 ): Promise<RenderResult> {
   const startedAt = Date.now();
 
-  // Validate + log warnings for MainVideo/ShortFormVideo jobs (thumbnail skipped).
   if (job.composition !== "ThumbnailComp") {
     const directionRaw = (job.inputProps as { direction?: unknown }).direction;
     if (directionRaw) {
@@ -123,12 +122,9 @@ export async function runRender(
   const outPath = path.join(env.RENDER_TMP_DIR, `${job.renderId}.${ext}`);
   const codec: Codec = (job.codec ?? "h264") as Codec;
 
-  // Map quality (0-100) to CRF (0-51 for h264, lower = better quality).
-  // quality=100 → CRF 1, quality=80 → CRF 18, quality=50 → CRF 28
   const quality = job.quality ?? 80;
   const baseCrf = Math.max(1, Math.round(51 - (quality / 100) * 50));
 
-  // Hardware encoder routing (P0.4). Detect once per process.
   const codecFamily = (codec === "h264" || codec === "h265" || codec === "vp8" || codec === "vp9"
     ? codec
     : "h264") as CodecFamily;
@@ -153,7 +149,6 @@ export async function runRender(
     hardwareAcceleration: enc.hardwareAcceleration,
   });
 
-  // Phase 2: post-process loudness normalization if target LUFS was specified.
   const targetLufs = (job.inputProps as { direction?: { audio?: { loudness_target_lufs?: number } } })
     .direction?.audio?.loudness_target_lufs;
   if (typeof targetLufs === "number" && ext !== "webm") {
@@ -165,10 +160,6 @@ export async function runRender(
     }
   }
 
-  // Post-render QC
-  // Reject black-frame, zero-byte, missing-audio, or duration-off renders
-  // BEFORE uploading. Prevents broken outputs from polluting MinIO and the
-  // videos table. The caller (BullMQ) will retry once on RenderQcError.
   const directionForQc = (job.inputProps as { direction?: { meta?: { duration_target_seconds?: number }; segments?: Array<{ duration_ms: number }>; audio?: { voiceover_url?: string } } }).direction;
   const segMs = directionForQc?.segments?.reduce((a, s) => a + (s.duration_ms || 0), 0) ?? 0;
   const expectedDurationSec = segMs > 0
@@ -190,7 +181,6 @@ export async function runRender(
     ext === "webm" ? "video/webm" : "video/mp4",
   );
 
-  // Phase 2.5: optional stems export for NLE import (Filmora/Premiere/DaVinci).
   let stems: RenderResult["stems"] | undefined;
   if (job.exportStems && ext !== "webm") {
     try {

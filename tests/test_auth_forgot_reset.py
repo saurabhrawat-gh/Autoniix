@@ -44,9 +44,6 @@ def _email_ctx(send_mock: AsyncMock, *, configured: bool = True):
     ]
 
 
-# ---------------------------------------------------------------------------
-# /forgot — UC-FP-01, UC-FP-02, UC-FP-05
-# ---------------------------------------------------------------------------
 
 class TestForgot:
     @pytest.mark.asyncio
@@ -64,7 +61,6 @@ class TestForgot:
         with _pool_ctx(pool), e1, e2, patch.dict(os.environ, env, clear=False):
             res = await forgot(ForgotIn(email="alice@example.com"))
 
-        # Token is NOT exposed once SMTP is configured, even in test mode.
         assert res == {"status": "ok"}
         send.assert_awaited_once()
         kwargs = send.await_args.kwargs
@@ -73,7 +69,6 @@ class TestForgot:
         assert "https://dash.autoniix.com/reset-password?token=" in kwargs["html"]
         assert "https://dash.autoniix.com/reset-password?token=" in kwargs["text"]
         assert "expires in 1 hour" in kwargs["text"]
-        # TC-18-18: SQL uses 1 hour TTL
         insert_sql = pool.execute.await_args.args[0]
         assert "1 hour" in insert_sql.lower()
 
@@ -90,7 +85,6 @@ class TestForgot:
         with _pool_ctx(pool), e1, e2:
             res = await forgot(ForgotIn(email="nobody@example.com"))
 
-        # Identical surface to known-email response (no enumeration)
         assert res == {"status": "ok"}
         send.assert_not_awaited()
         pool.execute.assert_not_awaited()
@@ -102,7 +96,7 @@ class TestForgot:
 
         pool = FakePool()
         pool.fetchrow.return_value = FakeRecord(id=7)
-        send = AsyncMock(return_value=False)  # send_email returns False when unconfigured
+        send = AsyncMock(return_value=False)
 
         e1, e2 = _email_ctx(send, configured=False)
         with _pool_ctx(pool), e1, e2:
@@ -135,7 +129,6 @@ class TestForgot:
 
         pool = FakePool()
         pool.fetchrow.return_value = FakeRecord(id=99)
-        # send_email itself swallows exceptions and returns False; simulate that.
         send = AsyncMock(return_value=False)
 
         e1, e2 = _email_ctx(send, configured=True)
@@ -162,9 +155,6 @@ class TestForgot:
         assert send.await_args.kwargs["subject"].startswith("[Staging] Reset your Autoniix password")
 
 
-# ---------------------------------------------------------------------------
-# /reset — UC-FP-03, UC-FP-04 (unchanged by the email-delivery requirement)
-# ---------------------------------------------------------------------------
 
 class TestReset:
     @pytest.mark.asyncio
@@ -195,7 +185,6 @@ class TestReset:
             res = await reset(ResetIn(token="a" * 32, password="N3wPassword!"))
 
         assert res == {"status": "ok"}
-        # 3 statements: update users, mark reset used, revoke sessions
         assert conn.execute.await_count == 3
         sqls = [call.args[0] for call in conn.execute.await_args_list]
         assert any("UPDATE users SET password_hash" in s for s in sqls)
@@ -262,9 +251,6 @@ class TestReset:
             ResetIn(token="anytoken", password="short")
 
 
-# ---------------------------------------------------------------------------
-# _email helper itself
-# ---------------------------------------------------------------------------
 
 class TestEmailHelper:
     def test_is_configured_false_when_smtp_host_unset(self, monkeypatch):
@@ -298,9 +284,6 @@ class TestEmailHelper:
         assert any("SMTP not configured" in r.message for r in caplog.records)
 
 
-# ---------------------------------------------------------------------------
-# Regression: prod mode never leaks reset token even if SMTP unconfigured
-# ---------------------------------------------------------------------------
 
 class TestForgotProdSmtpWarning:
     @pytest.mark.asyncio

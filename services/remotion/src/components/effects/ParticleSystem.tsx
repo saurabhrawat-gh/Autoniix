@@ -59,7 +59,6 @@ export const ParticleSystem: React.FC<ParticleSystemProps> = ({
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
 
-  // Generate particles with deterministic randomness
   const particles = useMemo<Particle[]>(() => {
     const result: Particle[] = [];
     const totalFrames = Math.ceil(count / spawnRate);
@@ -68,17 +67,16 @@ export const ParticleSystem: React.FC<ParticleSystemProps> = ({
       const birthFrame = Math.floor(i / spawnRate);
       const seed = i * 1000;
       
-      // Deterministic random values using Remotion's random()
       const x = random(seed + 1) * width;
       const y = type === "snow" || type === "stars" 
-        ? random(seed + 2) * height * 0.3 - 100  // Start above screen
+        ? random(seed + 2) * height * 0.3 - 100
         : random(seed + 2) * height;
       
       const vx = random(seed + 3) * (velocityRange[1] - velocityRange[0]) + velocityRange[0];
       const vy = type === "snow" 
-        ? random(seed + 4) * 2 + 1  // Snow falls down
+        ? random(seed + 4) * 2 + 1
         : type === "sparks"
-        ? random(seed + 4) * -5 - 2  // Sparks shoot up
+        ? random(seed + 4) * -5 - 2
         : random(seed + 4) * (velocityRange[1] - velocityRange[0]) + velocityRange[0];
       
       const size = random(seed + 5) * (sizeRange[1] - sizeRange[0]) + sizeRange[0];
@@ -113,12 +111,10 @@ export const ParticleSystem: React.FC<ParticleSystemProps> = ({
         const age = frame - particle.birthFrame;
         if (age < 0 || age > particle.lifetime) return null;
 
-        // Physics simulation
         const x = particle.x + particle.vx * age;
         const y = particle.y + particle.vy * age + gravity * age * age * 0.5;
         const rotation = particle.rotation + particle.rotationSpeed * age;
         
-        // Fade in/out
         const opacity = interpolate(
           age,
           [0, 10, particle.lifetime - 20, particle.lifetime],
@@ -126,10 +122,8 @@ export const ParticleSystem: React.FC<ParticleSystemProps> = ({
           { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
         );
 
-        // Don't render if off-screen
         if (x < -50 || x > width + 50 || y < -50 || y > height + 50) return null;
 
-        // Render particle based on type
         let particleElement: React.ReactNode;
         
         switch (type) {
@@ -188,7 +182,7 @@ export const ParticleSystem: React.FC<ParticleSystemProps> = ({
             );
             break;
           
-          default: // dust, snow
+          default:
             particleElement = (
               <div
                 style={{

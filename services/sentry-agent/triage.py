@@ -4,7 +4,6 @@ from __future__ import annotations
 import re
 from typing import List, Optional, Tuple
 
-# Layer detection — ordered by specificity (first match wins)
 _LAYER_PATTERNS: List[Tuple[str, str]] = [
     (r"src/services/dashboard|dashboard/src|web/src", "UI"),
     (r"src/workers/", "Worker"),
@@ -16,7 +15,6 @@ _LAYER_PATTERNS: List[Tuple[str, str]] = [
     (r"services/remotion", "Worker"),
 ]
 
-# Sentry issue URL — handles sentry.io and self-hosted
 _SENTRY_URL_RE = re.compile(
     r"https://(?:[a-z0-9.-]+\.sentry\.io|sentry\.io)/(?:organizations/[^/]+/)?issues/(\d+)[^\s|>]*"
 )
@@ -28,7 +26,6 @@ def parse_sentry_slack_message(event: dict) -> Optional[dict]:
     Returns a dict with keys: issue_id, url, title, fingerprint
     or None if the message is not a recognisable Sentry alert.
     """
-    # Accumulate all text surfaces (text, blocks, attachments)
     parts: list[str] = [event.get("text", "")]
     for block in event.get("blocks", []):
         if block.get("type") == "section":
@@ -47,7 +44,6 @@ def parse_sentry_slack_message(event: dict) -> Optional[dict]:
     issue_id = url_match.group(1)
     url = url_match.group(0).rstrip("/")
 
-    # Title — prefer the Slack link label: <url|TITLE>
     title = f"Sentry Issue #{issue_id}"
     link_label = re.search(r"<https?://[^|>]+\|([^>]+)>", full_text)
     if link_label:
@@ -73,7 +69,6 @@ def detect_layer(issue: dict) -> str:
             continue
         for exc_val in entry.get("data", {}).get("values", []):
             frames = exc_val.get("stacktrace", {}).get("frames", [])
-            # Walk frames in reverse — innermost (application) frame first
             for frame in reversed(frames):
                 filename = (frame.get("filename") or frame.get("module") or "").replace("\\", "/")
                 if not filename or _is_stdlib_frame(filename):

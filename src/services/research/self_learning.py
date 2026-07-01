@@ -30,7 +30,6 @@ FEATURE_NAMES = [
 ]
 
 
-# GBM PREDICTOR
 
 async def _load_model(niche: str | None = None):
     """Load the latest trained model from DB."""
@@ -82,7 +81,6 @@ async def predict_success(
     model, metrics = await _load_model(niche)
 
     if model is None:
-        # No trained model yet — return rule-based estimate
         vals = [features.get(f, 0.5) for f in FEATURE_NAMES]
         rule_score = sum(vals) / len(vals)
         return {
@@ -92,20 +90,15 @@ async def predict_success(
             "note": "No trained model yet; using feature average.",
         }
 
-    # Build feature vector
     X = np.array([[features.get(f, 0.0) for f in FEATURE_NAMES]])
 
     def _predict():
         prob = model.predict_proba(X)[0]
-        # prob[1] = P(success)
         return float(prob[1]) if len(prob) > 1 else float(prob[0])
 
     predicted = await asyncio.to_thread(_predict)
     confidence = float(metrics.get("roc_auc", 0.5))
 
-    # Phase 11 — audit-log the prediction for the calibration loop.
-    # Best-effort; log_prediction itself swallows DB errors so this
-    # never blocks the prediction path.
     if content_id:
         try:
             from src.intelligence.prediction_calibration import log_prediction
@@ -128,7 +121,6 @@ async def predict_success(
     }
 
 
-# THOMPSON SAMPLING BANDIT
 
 async def thompson_sample(
     niche: str,
@@ -158,14 +150,12 @@ async def thompson_sample(
     """
     pool = await get_pool()
 
-    # Load or initialize arms
     rows = await pool.fetch("""
         SELECT arm_name, alpha, beta, pulls, rewards FROM bandit_state WHERE niche = $1
     """, niche)
 
     arm_states = {r["arm_name"]: dict(r) for r in rows}
 
-    # Initialize missing arms
     for arm in arms:
         if arm not in arm_states:
             await pool.execute("""
@@ -175,7 +165,6 @@ async def thompson_sample(
             """, niche, arm)
             arm_states[arm] = {"alpha": 1.0, "beta": 1.0, "pulls": 0, "rewards": 0.0}
 
-    # Sample from Beta distribution for each arm
     samples = {}
     for arm in arms:
         state = arm_states.get(arm, {"alpha": 1.0, "beta": 1.0})
@@ -183,11 +172,8 @@ async def thompson_sample(
         b = float(state["beta"])
         samples[arm] = float(np.random.beta(a, b))
 
-    # Thompson selection.
     thompson_pick = max(samples, key=samples.get)
 
-    # Phase 10 — diversity floor check. Cold-start safe: returns
-    # force=False on missing channel_id, empty history, or DB error.
     forced_exploration = False
     entropy = None
     selected = thompson_pick
@@ -212,8 +198,6 @@ async def thompson_sample(
             logger.warning("bandit.diversity_check_failed",
                            niche=niche, error=str(exc))
 
-    # Audit-log the pick (always, regardless of whether floor fired) so
-    # the next call has data to compute entropy from.
     if channel_id:
         try:
             from src.intelligence.diversity_floor import log_bandit_pick
@@ -223,7 +207,7 @@ async def thompson_sample(
                 forced_exploration=forced_exploration,
             )
         except Exception:
-            pass  # log_bandit_pick already logs on failure
+            pass
 
     exploration = 1.0 / (1 + arm_states.get(selected, {}).get("pulls", 0))
 
@@ -232,8 +216,6 @@ async def thompson_sample(
         "sampled_value": round(samples[selected], 4),
         "all_samples": {k: round(v, 4) for k, v in samples.items()},
         "exploration_bonus": round(exploration, 4),
-        # Phase 10 fields. ``forced_exploration`` is the canonical
-        # signal that the diversity floor fired this round.
         "forced_exploration": forced_exploration,
         "entropy": entropy,
     }
@@ -264,7 +246,6 @@ async def bandit_update(niche: str, arm: str, reward: float) -> None:
     logger.info("bandit.updated", niche=niche, arm=arm, reward=round(reward, 3))
 
 
-# FEEDBACK INGESTOR
 
 async def ingest_performance(content_id: str, analytics: dict) -> dict:
     """Ingest post-publish YouTube analytics and compute success label.
@@ -287,13 +268,10 @@ async def ingest_performance(content_id: str, analytics: dict) -> dict:
     comments = analytics.get("comments", 0)
     subs_gained = analytics.get("subs_gained", 0)
 
-    # Compute engagement rate
     views = max(views_48h, views_24h, 1)
     engagement = (likes + comments * 2 + subs_gained * 5) / views
     engagement = round(min(1.0, engagement), 4)
 
-    # Determine success tier
-    # Use CTR (good > 0.06), AVD% (good > 0.40), and view velocity
     score = 0
     if ctr >= 0.08:
         score += 3
@@ -321,7 +299,6 @@ async def ingest_performance(content_id: str, analytics: dict) -> dict:
         tier = "weak"
         is_success = False
 
-    # Store
     try:
         await pool.execute("""
             INSERT INTO performance_outcomes
@@ -358,7 +335,6 @@ async def ingest_performance(content_id: str, analytics: dict) -> dict:
     except Exception as e:
         logger.warning("feedback.store_failed", content_id=content_id, error=str(e))
 
-    # Also update bandit if we have the arm info
     feat_row = await pool.fetchrow("""
         SELECT bandit_arm, channel_id FROM research_features WHERE content_id = $1
     """, content_id)
@@ -368,11 +344,6 @@ async def ingest_performance(content_id: str, analytics: dict) -> dict:
             reward = 1.0 if is_success else 0.0
             await bandit_update(ch_row["niche"], feat_row["bandit_arm"], reward)
 
-    # Phase 11 — close the prediction-error loop. The actual outcome
-    # is now known; reach back into prediction_log, compute abs_error
-    # and sample_weight, and stamp them on the row. The next training
-    # run picks these up via LEFT JOIN. No-op when there's no logged
-    # prediction (e.g. rule-based fallback skipped logging by design).
     try:
         from src.intelligence.prediction_calibration import update_prediction_actual
         await update_prediction_actual(
@@ -395,7 +366,6 @@ async def ingest_performance(content_id: str, analytics: dict) -> dict:
     return result
 
 
-# MODEL TRAINER
 
 async def train_model(niche: str | None = None, min_samples: int = 20) -> dict:
     """Train/retrain the GBM topic success predictor.
@@ -413,11 +383,6 @@ async def train_model(niche: str | None = None, min_samples: int = 20) -> dict:
     """
     pool = await get_pool()
 
-    # Build training set.
-    # Phase 11: LEFT JOIN against prediction_log so we can pull the
-    # confidence-weighted sample_weight per row. NULL coalesces to 1.0
-    # so unscored rows (rule-based predictions, predictions never
-    # back-filled) train at uniform weight — never zeroed out.
     query = """
         SELECT rf.freshness_score, rf.novelty_score, rf.trend_momentum,
                rf.supply_demand_gap, rf.hookability_score, rf.competitor_gap,
@@ -444,10 +409,8 @@ async def train_model(niche: str | None = None, min_samples: int = 20) -> dict:
             "min_required": min_samples,
         }
 
-    # Build numpy arrays
     X = np.array([[float(r[f]) for f in FEATURE_NAMES] for r in rows])
     y = np.array([1 if r["is_success"] else 0 for r in rows])
-    # Phase 11: per-sample weights from the calibration loop.
     sample_weights = np.array([float(r["sample_weight"]) for r in rows])
     n_weighted = int((sample_weights > 1.0).sum())
 
@@ -457,7 +420,6 @@ async def train_model(niche: str | None = None, min_samples: int = 20) -> dict:
         from sklearn.model_selection import cross_val_score
         from sklearn.metrics import roc_auc_score
 
-        # Train with cross-validation
         base_model = GradientBoostingClassifier(
             n_estimators=100,
             max_depth=4,
@@ -466,28 +428,14 @@ async def train_model(niche: str | None = None, min_samples: int = 20) -> dict:
             random_state=42,
         )
 
-        # CV scores. Note: cross_val_score does *not* take sample_weight
-        # in older sklearn versions, so we run unweighted CV for a
-        # stable benchmark and reserve sample_weight for the final fit.
-        # This is intentional — CV measures the model's intrinsic
-        # ability on this data; sample_weight is a *training* hint, not
-        # a *measurement* hint.
         cv_scores = cross_val_score(base_model, X, y, cv=min(5, len(y) // 4), scoring="roc_auc")
 
-        # Train final model with isotonic calibration. Pass
-        # sample_weight to .fit() so high-confidence misses (Phase 11)
-        # pull the gradient harder than uniform retraining would.
         base_model.fit(X, y, sample_weight=sample_weights)
         cal_model = CalibratedClassifierCV(base_model, cv=3, method="isotonic")
-        # CalibratedClassifierCV.fit also accepts sample_weight — keep
-        # them aligned so the calibration layer doesn't undo what the
-        # base model just learned.
         cal_model.fit(X, y, sample_weight=sample_weights)
 
-        # Feature importances from base model
         importances = dict(zip(FEATURE_NAMES, base_model.feature_importances_.tolist()))
 
-        # Derive updated opportunity weights from importances
         total_imp = sum(base_model.feature_importances_)
         if total_imp > 0:
             new_weights = {
@@ -504,8 +452,6 @@ async def train_model(niche: str | None = None, min_samples: int = 20) -> dict:
             "positive_rate": round(float(y.mean()), 4),
             "feature_importances": importances,
             "weights": new_weights,
-            # Phase 11 — visibility into how aggressively the
-            # calibration loop is steering this training run.
             "n_weighted_samples":   n_weighted,
             "weighted_fraction":    round(n_weighted / len(y), 4) if len(y) else 0.0,
             "mean_sample_weight":   round(float(sample_weights.mean()), 3),
@@ -514,23 +460,19 @@ async def train_model(niche: str | None = None, min_samples: int = 20) -> dict:
 
     model, metrics = await asyncio.to_thread(_train)
 
-    # Serialize and store
     model_blob = pickle.dumps(model)
 
-    # Get next version
     version_row = await pool.fetchrow("""
         SELECT COALESCE(MAX(model_version), 0) + 1 AS next_v FROM ml_models
         WHERE model_name = 'topic_success_predictor' AND niche = $1
     """, niche or "__global__")
     next_version = version_row["next_v"]
 
-    # Deactivate old versions
     await pool.execute("""
         UPDATE ml_models SET is_active = FALSE
         WHERE model_name = 'topic_success_predictor' AND niche = $1
     """, niche or "__global__")
 
-    # Insert new model
     await pool.execute("""
         INSERT INTO ml_models (model_name, model_version, niche, model_type,
             model_blob, feature_names, metrics, training_samples, is_active)
@@ -541,7 +483,6 @@ async def train_model(niche: str | None = None, min_samples: int = 20) -> dict:
         len(rows),
     )
 
-    # Also store updated opportunity weights if learned
     if metrics.get("weights"):
         await pool.execute("""
             INSERT INTO ml_models (model_name, model_version, niche, model_type,
@@ -563,7 +504,6 @@ async def train_model(niche: str | None = None, min_samples: int = 20) -> dict:
     }
 
 
-# DRIFT DETECTION
 
 async def check_model_drift(niche: str | None = None) -> dict:
     """Check if model performance is drifting by comparing recent predictions
@@ -601,7 +541,7 @@ async def check_model_drift(niche: str | None = None) -> dict:
 
     recent_auc = await asyncio.to_thread(_check)
 
-    needs_retrain = recent_auc < 0.55  # Threshold for retraining
+    needs_retrain = recent_auc < 0.55
 
     result = {
         "recent_auc": round(recent_auc, 4),

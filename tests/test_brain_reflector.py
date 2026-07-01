@@ -41,9 +41,6 @@ def _flag_map(flags):
     return _get_flag
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# reflect_once / flag gating
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestReflectOnce:
@@ -79,9 +76,6 @@ class TestReflectOnce:
         assert written == 0
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Sample-size + threshold filtering
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestReflectFiltering:
@@ -187,14 +181,10 @@ class TestReflectFiltering:
         persist.assert_not_awaited()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Per-pattern proposal generation
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestProposeForPattern:
     async def test_no_mapping_returns_none(self):
-        # RESUME has no entry in _PATTERN_TO_FLAG.
         p = await R._propose_for_pattern(
             _make_pattern(decision_type="RESUME", avg_score=2.0),
             lookback_days=14,
@@ -244,7 +234,6 @@ class TestProposeForPattern:
         assert p.proposed_payload["value"] == 6.5
 
     async def test_out_of_range_proposal_dropped(self):
-        # HALT max_value is 10 — already at 10 → next would be 11 → drop.
         with patch.object(
             R, "_read_flag_payload",
             new=AsyncMock(return_value={"value": 10}),
@@ -285,9 +274,6 @@ class TestProposeForPattern:
         assert p.supporting_evidence["lookback_days"] == 14
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Persistence
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestPersistProposal:
@@ -308,7 +294,6 @@ class TestPersistProposal:
                 observed_avg_score=2.5,
             ))
         execute.assert_awaited_once()
-        # The SQL must use ON CONFLICT for idempotence.
         sql = execute.await_args.args[0]
         assert "ON CONFLICT" in sql.upper()
         assert "brain_flag_proposals" in sql
@@ -344,13 +329,9 @@ class TestPersistProposal:
             ),
         ):
             written = await R.reflect_once()
-        # Persist failure is swallowed; the count of *successful* writes is 0.
         assert written == 0
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Loop control
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestRunReflectorLoop:
@@ -358,12 +339,8 @@ class TestRunReflectorLoop:
         import asyncio
         stop = asyncio.Event()
         stop.set()
-        # With stop already set, the loop runs at most one reflect_once
-        # then exits via the wait_for break.
         with patch.object(
             R, "reflect_once", new=AsyncMock(return_value=0)
         ) as reflect:
             await R.run_reflector_loop(interval_s=1, stop_event=stop)
-        # The first iteration checks stop_event BEFORE reflect_once, so
-        # the loop should exit immediately without calling reflect_once.
         reflect.assert_not_awaited()

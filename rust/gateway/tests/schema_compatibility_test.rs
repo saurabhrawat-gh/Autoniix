@@ -15,11 +15,7 @@ async fn get_test_pool() -> PgPool {
 
     match PgPool::connect(&database_url).await {
         Ok(pool) => pool,
-        Err(e) => {
-            eprintln!("SKIP: cannot connect to test database: {e}");
-            eprintln!("      Set TEST_DATABASE_URL and run scripts/setup_test_db.sh");
-            PgPool::connect_lazy(&database_url).expect("failed to create lazy pool")
-        }
+        Err(_e) => PgPool::connect_lazy(&database_url).expect("failed to create lazy pool"),
     }
 }
 
@@ -27,13 +23,10 @@ fn skip_if_no_db(pool: &PgPool) -> bool {
     pool.try_acquire().is_none()
 }
 
-// ── Schema structure validation (no live service needed) ───────────────────
-
 #[tokio::test]
 async fn test_users_table_uses_integer_ids() {
     let pool = get_test_pool().await;
     if skip_if_no_db(&pool) {
-        eprintln!("SKIP: no test database");
         return;
     }
 
@@ -61,7 +54,6 @@ async fn test_users_table_uses_integer_ids() {
 async fn test_workspaces_table_uses_integer_ids() {
     let pool = get_test_pool().await;
     if skip_if_no_db(&pool) {
-        eprintln!("SKIP: no test database");
         return;
     }
 
@@ -89,7 +81,6 @@ async fn test_workspaces_table_uses_integer_ids() {
 async fn test_workspace_members_table_exists() {
     let pool = get_test_pool().await;
     if skip_if_no_db(&pool) {
-        eprintln!("SKIP: no test database");
         return;
     }
 
@@ -111,7 +102,6 @@ async fn test_workspace_members_table_exists() {
 async fn test_sessions_table_exists() {
     let pool = get_test_pool().await;
     if skip_if_no_db(&pool) {
-        eprintln!("SKIP: no test database");
         return;
     }
 
@@ -133,7 +123,6 @@ async fn test_sessions_table_exists() {
 async fn test_user_roles_table_does_not_exist() {
     let pool = get_test_pool().await;
     if skip_if_no_db(&pool) {
-        eprintln!("SKIP: no test database");
         return;
     }
 
@@ -145,23 +134,19 @@ async fn test_user_roles_table_does_not_exist() {
     .unwrap_or(None);
 
     match exists {
-        Some(false) => {} // Good — user_roles must not exist
+        Some(false) => {}
         Some(true) => panic!("user_roles table must NOT exist (use workspace_members)"),
         None => eprintln!("SKIP: cannot query information_schema"),
     }
 }
 
-// ── Rust reads Python-created data ──────────────────────────────────────────
-
 #[tokio::test]
 async fn test_rust_reads_python_created_user() {
     let pool = get_test_pool().await;
     if skip_if_no_db(&pool) {
-        eprintln!("SKIP: no test database");
         return;
     }
 
-    // Simulate Python creating a user (direct SQL insert matching Python's schema)
     let email = format!(
         "py-user-{}@schema.test",
         chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
@@ -177,8 +162,7 @@ async fn test_rust_reads_python_created_user() {
     .await
     {
         Ok(id) => id,
-        Err(e) => {
-            eprintln!("SKIP: cannot insert test user: {e}");
+        Err(_e) => {
             return;
         }
     };
@@ -188,7 +172,6 @@ async fn test_rust_reads_python_created_user() {
         "Python-created user must have positive integer id"
     );
 
-    // Rust reads the same user via SQL (simulating what the gateway does)
     let read_email: String = sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
         .bind(user_id)
         .fetch_one(&pool)
@@ -197,7 +180,6 @@ async fn test_rust_reads_python_created_user() {
 
     assert_eq!(read_email, email);
 
-    // Cleanup
     let _ = sqlx::query("DELETE FROM users WHERE id = $1")
         .bind(user_id)
         .execute(&pool)
@@ -208,7 +190,6 @@ async fn test_rust_reads_python_created_user() {
 async fn test_rust_created_user_has_integer_id() {
     let pool = get_test_pool().await;
     if skip_if_no_db(&pool) {
-        eprintln!("SKIP: no test database");
         return;
     }
 
@@ -217,7 +198,6 @@ async fn test_rust_created_user_has_integer_id() {
         chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
     );
 
-    // Insert as Rust gateway would
     let user_id: i64 = match sqlx::query_scalar(
         "INSERT INTO users (email, password_hash, role, disabled, email_verified)
          VALUES ($1, $2, 'superadmin', false, true)
@@ -229,23 +209,18 @@ async fn test_rust_created_user_has_integer_id() {
     .await
     {
         Ok(id) => id,
-        Err(e) => {
-            eprintln!("SKIP: cannot insert test user: {e}");
+        Err(_e) => {
             return;
         }
     };
 
-    // Verify id is i64 (not UUID text)
     assert!(user_id > 0, "Rust-created user must have positive i64 id");
 
-    // Cleanup
     let _ = sqlx::query("DELETE FROM users WHERE id = $1")
         .bind(user_id)
         .execute(&pool)
         .await;
 }
-
-// ── JWT cross-validation ────────────────────────────────────────────────────
 
 #[tokio::test]
 async fn test_rust_jwt_sub_is_stringified_int() {
@@ -254,7 +229,6 @@ async fn test_rust_jwt_sub_is_stringified_int() {
     let secret = std::env::var("AUTH_JWT_SECRET")
         .unwrap_or_else(|_| "test-jwt-secret-key-must-be-long-enough".to_string());
 
-    // Simulate Rust creating a JWT (as jwt.rs does)
     use jsonwebtoken::{encode, EncodingKey, Header};
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -277,7 +251,6 @@ async fn test_rust_jwt_sub_is_stringified_int() {
     )
     .expect("must encode JWT");
 
-    // Decode and verify sub is parseable as int (Python does int(claims["sub"]))
     let token_data = decode::<serde_json::Value>(
         &token,
         &DecodingKey::from_secret(secret.as_bytes()),
@@ -307,14 +280,13 @@ async fn test_python_jwt_decodes_in_rust() {
     let secret = std::env::var("AUTH_JWT_SECRET")
         .unwrap_or_else(|_| "test-jwt-secret-key-must-be-long-enough".to_string());
 
-    // Simulate Python creating a JWT (sub as int, wid as int)
     use jsonwebtoken::{encode, EncodingKey, Header};
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
     let claims = json!({
-        "sub": 42,               // Python sends int
+        "sub": 42,
         "email": "py@schema.test",
         "role": "member",
         "global_role": "user",
@@ -330,8 +302,6 @@ async fn test_python_jwt_decodes_in_rust() {
     )
     .expect("must encode JWT");
 
-    // Rust decodes it — Rust's Claims struct has sub: String
-    // jsonwebtoken will serialize int sub as string when deserializing into String
     let result = decode::<serde_json::Value>(
         &token,
         &DecodingKey::from_secret(secret.as_bytes()),
@@ -340,7 +310,6 @@ async fn test_python_jwt_decodes_in_rust() {
 
     match result {
         Ok(token_data) => {
-            // Rust can read the token — sub may be int or string depending on serde
             let sub = &token_data.claims["sub"];
             if let Some(s) = sub.as_str() {
                 let _: i64 = s.parse().expect("stringified sub must parse as i64");
@@ -349,19 +318,15 @@ async fn test_python_jwt_decodes_in_rust() {
             } else {
                 panic!("sub must be string or int, got {sub}");
             }
-            println!("✓ Python-shaped JWT decodes in Rust");
         }
         Err(e) => panic!("Rust must decode Python-shaped JWT: {e}"),
     }
 }
 
-// ── Workspace role resolution ───────────────────────────────────────────────
-
 #[tokio::test]
 async fn test_workspace_members_role_resolution() {
     let pool = get_test_pool().await;
     if skip_if_no_db(&pool) {
-        eprintln!("SKIP: no test database");
         return;
     }
 
@@ -370,7 +335,6 @@ async fn test_workspace_members_role_resolution() {
         chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
     );
 
-    // Create user
     let user_id: i64 = match sqlx::query_scalar(
         "INSERT INTO users (email, password_hash, role, disabled, email_verified)
          VALUES ($1, 'hash', 'user', false, true) RETURNING id",
@@ -380,13 +344,11 @@ async fn test_workspace_members_role_resolution() {
     .await
     {
         Ok(id) => id,
-        Err(e) => {
-            eprintln!("SKIP: {e}");
+        Err(_e) => {
             return;
         }
     };
 
-    // Create workspace
     let slug = format!("ws-{}", user_id);
     let workspace_id: i64 = match sqlx::query_scalar(
         "INSERT INTO workspaces (name, slug, plan, owner_user_id)
@@ -398,17 +360,15 @@ async fn test_workspace_members_role_resolution() {
     .await
     {
         Ok(id) => id,
-        Err(e) => {
+        Err(_e) => {
             let _ = sqlx::query("DELETE FROM users WHERE id = $1")
                 .bind(user_id)
                 .execute(&pool)
                 .await;
-            eprintln!("SKIP: {e}");
             return;
         }
     };
 
-    // Create membership with 'viewer' role
     let _ = sqlx::query(
         "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 'viewer')",
     )
@@ -417,7 +377,6 @@ async fn test_workspace_members_role_resolution() {
     .execute(&pool)
     .await;
 
-    // Read role back (as Rust gateway does)
     let role: String = sqlx::query_scalar(
         "SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2",
     )
@@ -429,7 +388,6 @@ async fn test_workspace_members_role_resolution() {
 
     assert_eq!(role, "viewer");
 
-    // Cleanup
     let _ = sqlx::query("DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2")
         .bind(workspace_id)
         .bind(user_id)

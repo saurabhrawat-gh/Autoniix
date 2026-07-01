@@ -64,7 +64,6 @@ def _check_services(client: httpx.Client):
     skip_if_unavailable(client, RUST_URL, "Rust gateway")
 
 
-# ── Rust reads Python-created data ──────────────────────────────────────────
 
 
 def test_rust_reads_python_created_user(client: httpx.Client):
@@ -72,7 +71,6 @@ def test_rust_reads_python_created_user(client: httpx.Client):
     email = unique_email("py-to-rust")
     password = "Password123!"
 
-    # Create user via Python
     resp = client.post(
         f"{PYTHON_URL}/api/v2/auth/register",
         json={
@@ -84,7 +82,6 @@ def test_rust_reads_python_created_user(client: httpx.Client):
     )
     assert resp.status_code in (200, 201), f"Python register failed: {resp.text}"
 
-    # Rust must be able to sign in with same credentials
     signin = client.post(
         f"{RUST_URL}/api/v2/auth/signin",
         json={"email": email, "password": password},
@@ -111,7 +108,6 @@ def test_rust_reads_python_created_user_from_db(db):
     cursor.close()
 
 
-# ── Python reads Rust-created data ──────────────────────────────────────────
 
 
 def test_python_reads_rust_created_user(client: httpx.Client):
@@ -121,7 +117,6 @@ def test_python_reads_rust_created_user(client: httpx.Client):
     email = unique_email("rust-to-py")
     password = "Password123!"
 
-    # Create user via Rust /register (canonical endpoint post-#350)
     resp = client.post(
         f"{RUST_URL}/api/v2/auth/register",
         json={
@@ -133,7 +128,6 @@ def test_python_reads_rust_created_user(client: httpx.Client):
     )
     assert resp.status_code == 201, f"Rust register failed: {resp.text}"
 
-    # Python must be able to log in with same credentials
     login = client.post(
         f"{PYTHON_URL}/api/v2/auth/login",
         json={"email": email, "password": password},
@@ -173,7 +167,6 @@ def test_rust_register_creates_correct_db_rows(client: httpx.Client, db):
 
     cursor = db.cursor()
 
-    # Check user row
     cursor.execute("SELECT id, email, role, disabled FROM users WHERE id = %s", (user_id,))
     user = cursor.fetchone()
     assert user is not None, f"User row not found for id={user_id}"
@@ -181,13 +174,11 @@ def test_rust_register_creates_correct_db_rows(client: httpx.Client, db):
     assert isinstance(user[0], int), "User id must be integer"
     assert user[3] is False, "User must not be disabled"
 
-    # Check workspace row
     cursor.execute("SELECT id, name, owner_user_id FROM workspaces WHERE id = %s", (workspace_id,))
     ws = cursor.fetchone()
     assert ws is not None, f"Workspace row not found for id={workspace_id}"
     assert ws[2] == user_id, "Workspace owner must match user id"
 
-    # Check workspace_members row
     cursor.execute(
         "SELECT role FROM workspace_members WHERE workspace_id = %s AND user_id = %s",
         (workspace_id, user_id),
@@ -196,8 +187,6 @@ def test_rust_register_creates_correct_db_rows(client: httpx.Client, db):
     assert member is not None, "workspace_members row not found"
     assert member[0] == "owner", f"First user must be 'owner', got '{member[0]}'"
 
-    # Post-#350: register does NOT create a session row (no auto-login).
-    # A session is created only when the user subsequently calls /signin.
     cursor.execute(
         "SELECT COUNT(*) FROM sessions WHERE user_id = %s",
         (user_id,),
@@ -210,7 +199,6 @@ def test_rust_register_creates_correct_db_rows(client: httpx.Client, db):
     cursor.close()
 
 
-# ── Schema structure validation ─────────────────────────────────────────────
 
 
 def test_users_table_uses_integer_ids(db):

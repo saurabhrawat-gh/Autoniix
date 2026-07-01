@@ -16,18 +16,15 @@ from typing import Any
 
 import structlog
 
-from src.db import get_pool  # re-exported at module level so tests can monkeypatch
+from src.db import get_pool
 
 logger = structlog.get_logger()
 
 _TTL_SECONDS = 30.0
 CHANNEL_NAME = "permissions.invalidate"
 
-# Roles that MUST have at least one permission seeded. An empty result for any
-# of these signals an uninitialized RBAC matrix (e.g. seed migration not run).
 KNOWN_ROLES: frozenset[str] = frozenset({"owner", "member", "viewer"})
 
-# Cache: role → (frozenset[permission_names], expires_at)
 _cache: dict[str, tuple[frozenset[str], float]] = {}
 
 _subscriber_task: asyncio.Task[Any] | None = None
@@ -82,9 +79,6 @@ async def get_permissions_for_role(role: str) -> frozenset[str]:
         ) from exc
 
     if not perms and role in KNOWN_ROLES:
-        # Known role with zero seeded permissions → RBAC matrix not initialized.
-        # Treat the same as a missing table so the dashboard surfaces a clear error
-        # instead of silently hiding every gated nav item.
         logger.error(
             "permissions.cache.empty_for_known_role",
             role=role,

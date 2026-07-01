@@ -32,7 +32,6 @@ from src.observability.metrics import instrument_app
 logger = structlog.get_logger()
 
 
-# Request Models
 
 class ThumbnailRequest(BaseModel):
     content_id: str
@@ -43,7 +42,6 @@ class ThumbnailRequest(BaseModel):
     style_hints: dict = Field(default_factory=dict)
 
 
-# Helpers
 
 def _safe_format(template: str, **kwargs) -> str:
     """Replace {key} placeholders without failing on unknown/literal braces."""
@@ -83,7 +81,6 @@ async def _log_usage(content_id: str, service: str, provider: str, cost: float):
         logger.warning("thumbnail.db_log_failed", error=str(e))
 
 
-# App
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -118,7 +115,6 @@ async def generate_thumbnail(req: ThumbnailRequest):
         primary_color = channel.get("primary_color", "#1A237E")
         target_audience = channel.get("target_audience", "")
 
-        # Step 1: Generate 5 Concepts (GPT)
         prompt = await _load_prompt("PRM_B3_THUMBNAIL")
         concept_llm = ProviderRegistry.get("llm")
 
@@ -152,11 +148,9 @@ async def generate_thumbnail(req: ThumbnailRequest):
         except json.JSONDecodeError:
             concepts = [{"concept_name": "default", "dall_e_prompt": f"YouTube thumbnail for: {req.title}", "predicted_ctr": 0.08}]
 
-        # Sort by predicted CTR, take top 3
         concepts.sort(key=lambda c: float(c.get("predicted_ctr", 0)), reverse=True)
         top_concepts = concepts[:3]
 
-        # Step 2: Generate thumbnails via DALL-E
         image_provider = ProviderRegistry.get("image")
         storage = ProviderRegistry.get("storage")
         from src.providers.image.base import ImageRequest
@@ -211,7 +205,6 @@ async def generate_thumbnail(req: ThumbnailRequest):
                 logger.warning("thumbnail.variant_failed", variant=i, error=str(gen_err))
 
         if not variants:
-            # Last-resort fallback: generate one placeholder variant locally
             try:
                 fallback_prompt = f"YouTube thumbnail: {req.title} [TEST FALLBACK]"
                 img_result = await image_provider.generate(ImageRequest(
@@ -253,7 +246,6 @@ async def generate_thumbnail(req: ThumbnailRequest):
         if not variants:
             raise HTTPException(status_code=500, detail="All thumbnail variants failed to generate")
 
-        # Step 2B: Intelligence — Local Composition Analysis
         local_qc_skip_threshold = 8.5
         try:
             _thresh = await _load_config("thumb_local_qc_skip_threshold")
@@ -264,7 +256,6 @@ async def generate_thumbnail(req: ThumbnailRequest):
 
         for variant in variants:
             try:
-                # Download image bytes for local analysis
                 async with httpx.AsyncClient(timeout=15.0) as client:
                     resp = await client.get(variant["url"])
                     resp.raise_for_status()
@@ -274,13 +265,11 @@ async def generate_thumbnail(req: ThumbnailRequest):
                 variant["local_composition"] = composition
                 variant["local_score"] = composition.get("composition_score", 5.0)
 
-                # Extract features for ML
                 await extract_thumbnail_features(
                     req.content_id, req.channel_id, composition,
                     variant_id=variant.get("variant_id", 0),
                     text_overlay=variant.get("text_overlay", ""))
 
-                # Predict CTR using ML model
                 ml_ctr = await predict_ctr(
                     composition.get("features", {}), niche)
                 if ml_ctr is not None:
@@ -291,8 +280,6 @@ async def generate_thumbnail(req: ThumbnailRequest):
                                variant=variant.get("variant_id"), error=str(comp_err))
                 variant["local_score"] = 5.0
 
-        # Step 3: GPT Vision QC (score each variant)
-        # Intelligence: Skip Vision QC if local score is high enough
         vision_llm = None
         try:
             vision_llm = ProviderRegistry.get("llm.vision")
@@ -303,7 +290,6 @@ async def generate_thumbnail(req: ThumbnailRequest):
             from src.providers.llm.openai_vision_provider import VisionRequest
 
             for variant in variants:
-                # Intelligence: Skip expensive Vision QC if local score is very high
                 if variant.get("local_score", 0) >= local_qc_skip_threshold:
                     variant["thumbnail_score"] = variant["local_score"]
                     variant["vision_skipped"] = True
@@ -363,12 +349,10 @@ async def generate_thumbnail(req: ThumbnailRequest):
             for variant in variants:
                 variant["thumbnail_score"] = float(variant.get("predicted_ctr", 0.08)) * 100
 
-        # Step 4: Select best variant by vision score
         variants.sort(key=lambda v: v.get("thumbnail_score", 0), reverse=True)
         best_variant = variants[0]
         best_score = best_variant.get("thumbnail_score", 7.0)
 
-        # Step 5: Regeneration loop if score < 9.0 (max 2 retries) ─
         regen_count = 0
         target_thumb_score = 9.0
         while best_score < target_thumb_score and regen_count < 2:
@@ -535,7 +519,6 @@ async def generate_thumbnail(req: ThumbnailRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-# Intelligence Endpoints
 
 class ThumbnailFeedbackRequest(BaseModel):
     content_id: str

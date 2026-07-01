@@ -14,7 +14,6 @@ class DailySchedulerWorkflow:
 
     @workflow.run
     async def run(self) -> dict:
-        # Step 1: Check system status
         status = await workflow.execute_activity(
             "check_system_status",
             start_to_close_timeout=timedelta(seconds=30),
@@ -30,7 +29,6 @@ class DailySchedulerWorkflow:
             workflow.logger.warning("Budget exhausted")
             return {"triggered": 0, "reason": "budget_exhausted"}
 
-        # Step 2: Get eligible channels
         channels = await workflow.execute_activity(
             "get_eligible_channels",
             start_to_close_timeout=timedelta(seconds=30),
@@ -41,7 +39,6 @@ class DailySchedulerWorkflow:
         for ch in channels:
             mode = ch.get("content_mode", "long_form")
 
-            # Step 3: Acquire lock (one job per channel at a time)
             locked = await workflow.execute_activity(
                 "acquire_channel_lock",
                 args=[ch["channel_id"]],
@@ -51,7 +48,6 @@ class DailySchedulerWorkflow:
                 workflow.logger.info(f"Channel {ch['channel_id']} already locked")
                 continue
 
-            # Step 4: Start child workflow
             per_video_budget = min(
                 ch.get("max_daily_api_spend", 5.0),
                 budget_remaining / max(len(channels) - triggered, 1),

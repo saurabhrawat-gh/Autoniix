@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { providersApi } from '@/lib/api-v2';
 import { cn } from '@/lib/utils';
 import { usePermissions } from '@/lib/hooks/usePermissions';
-import { confirmDialog, promptDialog } from '@/lib/components/ConfirmDialog'; // promptDialog kept for handleWipe (bulk-wipe only)
+import { confirmDialog, promptDialog } from '@/lib/components/ConfirmDialog';
 import { Input } from '@/lib/ui';
 import { useToast } from '@/lib/toast';
 import { Plug, Loader2, Trash2, Plus, ChevronRight, Edit2, Check, X } from '@/lib/components/Icon';

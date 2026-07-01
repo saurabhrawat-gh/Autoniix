@@ -14,19 +14,16 @@ type Workspace = {
   active: boolean;
 };
 
-// ── Deterministic hash-gradient avatar ────────────────────────────────────────
-// Each workspace name maps to a fixed gradient drawn from the §3.1 Spectrum
-// Palette, so every workspace has a unique, memorable visual identity.
 
 const GRADIENT_PAIRS: Array<[string, string]> = [
-  ['#6EE7B7', '#7DD3FC'], // mint → sky
-  ['#A78BFA', '#F472B6'], // violet → pink
-  ['#7DD3FC', '#A78BFA'], // sky → violet
-  ['#F472B6', '#FBBF24'], // pink → amber
-  ['#FBBF24', '#6EE7B7'], // amber → mint
-  ['#6EE7B7', '#A78BFA'], // mint → violet
-  ['#F472B6', '#7DD3FC'], // pink → sky
-  ['#FBBF24', '#F472B6'], // amber → pink
+  ['#6EE7B7', '#7DD3FC'],
+  ['#A78BFA', '#F472B6'],
+  ['#7DD3FC', '#A78BFA'],
+  ['#F472B6', '#FBBF24'],
+  ['#FBBF24', '#6EE7B7'],
+  ['#6EE7B7', '#A78BFA'],
+  ['#F472B6', '#7DD3FC'],
+  ['#FBBF24', '#F472B6'],
 ];
 
 function hashName(name: string): number {

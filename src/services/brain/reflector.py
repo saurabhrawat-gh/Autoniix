@@ -59,16 +59,6 @@ class Proposal:
     observed_avg_score: float
 
 
-#: Map of (decision_type, direction) → (flag_key, new_value generator).
-#:
-#: ``direction`` is currently always ``"raise"`` — the Reflector only fires
-#: on *under-performing* decision classes, and the safe response is to
-#: make the trigger threshold harder to hit (raise it). Future work can
-#: add ``"lower"`` patterns once we model over-performing classes too.
-#:
-#: Each entry's ``next_value`` function takes the current numeric value
-#: and returns the proposed next value. Single bump per pass — operator
-#: approves, observes, then the next pass can bump again if needed.
 _PATTERN_TO_FLAG: dict[str, dict[str, Any]] = {
     "HALT": {
         "flag_key": "brain.threshold.halt.consecutive_failures",
@@ -102,7 +92,6 @@ _PATTERN_TO_FLAG: dict[str, dict[str, Any]] = {
             "avg-quality trigger from {old} to {new} so we nudge "
             "only when quality is actually a problem."
         ),
-        # Lowering this threshold makes NUDGE rarer (harder to trip).
         "next_value": lambda cur: round(float(cur) - 0.5, 2),
         "min_value": 1.0,
         "max_value": 10.0,
@@ -110,9 +99,6 @@ _PATTERN_TO_FLAG: dict[str, dict[str, Any]] = {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Public API
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 async def reflect_once(*, dry_run: bool = False) -> int:
@@ -155,7 +141,6 @@ async def run_reflector_loop(
 
         await reflect_once()
 
-        # Determine sleep interval for the next pass.
         if interval_s is None:
             try:
                 hours = await get_flag(
@@ -178,9 +163,6 @@ async def run_reflector_loop(
     logger.info("brain.reflector.stopped")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Internals
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 async def _reflect(*, dry_run: bool) -> int:
@@ -317,7 +299,6 @@ async def _propose_for_pattern(
         )
         return None
 
-    # Refuse to leave the safe range — operator can override manually.
     if (
         new_value < mapping["min_value"]
         or new_value > mapping["max_value"]

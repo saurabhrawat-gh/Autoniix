@@ -20,7 +20,6 @@ from src.llm import router as router_mod
 from src.llm import BudgetExceeded, LadderExhausted, Router
 
 
-# Fake providers
 
 
 class _FakeOK(LLMProvider):
@@ -66,7 +65,6 @@ class _FakePermanent(LLMProvider):
 
     async def complete(self, request: LLMRequest) -> LLMResult:
         self.calls += 1
-        # Build a fake 401 response — httpx.HTTPStatusError needs a Response.
         req = httpx.Request("POST", "https://example.invalid/x")
         resp = httpx.Response(401, request=req)
         raise httpx.HTTPStatusError("unauthorized", request=req, response=resp)
@@ -78,7 +76,6 @@ class _FakePermanent(LLMProvider):
     def supported_models(self): return ["fake-p"]
 
 
-# Fixtures
 
 
 CATEGORY = "llm.router_test"
@@ -95,7 +92,6 @@ def registered(monkeypatch):
     ProviderRegistry.register(CATEGORY, "transient", _FakeTransient)
     ProviderRegistry.register(CATEGORY, "permanent", _FakePermanent)
     yield
-    # Drop cached instances so the next test gets a fresh provider state.
     ProviderRegistry.reset()
 
 
@@ -120,7 +116,6 @@ def _req() -> LLMRequest:
     return LLMRequest(messages=[{"role": "user", "content": "hi"}])
 
 
-# Tests
 
 
 @pytest.mark.asyncio
@@ -157,7 +152,6 @@ async def test_ladder_exhausted(registered, router):
             category=CATEGORY, request=_req(),
             ladder=["transient", "transient"],
         )
-    # Both attempts should be recorded.
     assert len(exc_info.value.attempts) == 2
 
 
@@ -179,8 +173,6 @@ async def test_budget_exceeded_short_circuits(registered, router, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_circuit_breaker_opens_after_repeated_failures(registered, router):
-    # 6 failures over the same provider → breaker opens and the next attempt
-    # is skipped without hitting the provider.
     for _ in range(6):
         try:
             await router.route(
@@ -191,13 +183,11 @@ async def test_circuit_breaker_opens_after_repeated_failures(registered, router)
             pass
     transient = ProviderRegistry.get(CATEGORY, override="transient")
     calls_before_open = transient.calls
-    # Now route again — breaker should be open, ladder should fall through to "ok".
     out = await router.route(
         category=CATEGORY, request=_req(),
         ladder=["transient", "ok"],
     )
     assert out.provider == "fake_ok"
-    # The transient provider should NOT have been called this round.
     assert transient.calls == calls_before_open
 
 

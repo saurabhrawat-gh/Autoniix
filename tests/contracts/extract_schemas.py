@@ -51,7 +51,6 @@ def extract_rust_schema(base_url: str = "http://localhost:8080") -> dict[str, An
     """
     logger.info("extracting_rust_schema", base_url=base_url)
     
-    # Try Option A: Auto-generated endpoint
     try:
         response = httpx.get(f"{base_url}/openapi.json", timeout=10.0)
         if response.status_code == 200:
@@ -64,7 +63,6 @@ def extract_rust_schema(base_url: str = "http://localhost:8080") -> dict[str, An
     except httpx.HTTPError:
         pass
     
-    # Fallback: Check for handwritten schema
     handwritten_path = Path(__file__).parent.parent.parent / "docs" / "openapi" / "rust-gateway.yaml"
     if handwritten_path.exists():
         logger.info("using_handwritten_rust_schema", path=str(handwritten_path))

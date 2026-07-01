@@ -65,9 +65,5 @@ pub async fn create_test_app() -> Router {
         .await
         .expect("Failed to connect to test database");
 
-    // Note: Rust gateway reads Python's existing schema (users, workspaces, workspace_members, sessions).
-    // Schema migrations are owned by Python until full migration is complete.
-    // Tests assume the Python schema is already present in the test database.
-
     create_app(pool, "test-jwt-secret-key".to_string()).await
 }

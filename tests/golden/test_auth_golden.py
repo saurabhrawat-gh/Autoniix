@@ -77,7 +77,6 @@ def assert_keys_match(actual: dict, expected: dict, path: str = "") -> None:
                     assert_keys_match(item, expected_val[0], f"{full_path}[{i}]")
 
 
-# ── Golden file: auth register response shape (post-#350) ───────────────────
 
 
 def test_register_response_matches_golden(client: httpx.Client):
@@ -101,7 +100,6 @@ def test_register_response_matches_golden(client: httpx.Client):
     expected = golden.get("expected_response", {})
     assert_keys_match(body, expected)
 
-    # Verify required onboarding-metadata fields
     assert body.get("status") == "ok", f"status must be 'ok', got {body.get('status')}"
     assert isinstance(body.get("user_id"), int), (
         f"user_id must be int, got {type(body.get('user_id'))}"
@@ -116,12 +114,10 @@ def test_register_response_matches_golden(client: httpx.Client):
         f"onboarding_required must be bool, got {type(body.get('onboarding_required'))}"
     )
 
-    # Tokens MUST NOT be returned (would leak credentials before email verification).
     assert "access_token" not in body, "register must not return access_token (post-#350)"
     assert "refresh_token" not in body, "register must not return refresh_token (post-#350)"
 
 
-# ── Golden file: auth signin response shape ─────────────────────────────────
 
 
 def test_signin_response_matches_golden(client: httpx.Client):
@@ -131,7 +127,6 @@ def test_signin_response_matches_golden(client: httpx.Client):
     email = unique_email("golden-signin")
     password = "Password123!"
 
-    # Pre-register (post-#350: no auto-login; signin happens below)
     client.post(
         f"{RUST_URL}/api/v2/auth/register",
         json={
@@ -156,7 +151,6 @@ def test_signin_response_matches_golden(client: httpx.Client):
     assert isinstance(body.get("refresh_token"), str), "refresh_token must be string"
 
 
-# ── Golden file: /me response shape ─────────────────────────────────────────
 
 
 def test_me_response_matches_golden(client: httpx.Client):
@@ -166,7 +160,6 @@ def test_me_response_matches_golden(client: httpx.Client):
     email = unique_email("golden-me")
     password = "Password123!"
 
-    # Register + signin to obtain a token (post-#350)
     register = client.post(
         f"{RUST_URL}/api/v2/auth/register",
         json={
@@ -194,7 +187,6 @@ def test_me_response_matches_golden(client: httpx.Client):
     expected = golden.get("expected_response", {})
     assert_keys_match(body, expected)
 
-    # /me returns a { data: {...} } envelope matching Python's contract
     assert isinstance(body.get("data"), dict), "/me must return a data object"
     data = body["data"]
     assert data.get("email") == email, "/me must return same email"
@@ -202,7 +194,6 @@ def test_me_response_matches_golden(client: httpx.Client):
     assert isinstance(data.get("permissions"), list), "/me must return a permissions list"
 
 
-# ── Golden file: DB state after signup ──────────────────────────────────────
 
 
 def test_register_db_state_matches_golden(client: httpx.Client):
@@ -228,16 +219,12 @@ def test_register_db_state_matches_golden(client: httpx.Client):
     user_id = body.get("user_id")
     workspace_id = body.get("workspace_id")
 
-    # Verify the response carries the expected IDs (used downstream by callers
-    # to query the DB rows). Detailed schema validation lives in
-    # tests/migration/test_schema_compatibility.py.
     assert isinstance(user_id, int) and user_id > 0, (
         f"register must return positive integer user_id, got {user_id!r}"
     )
     assert isinstance(workspace_id, int) and workspace_id > 0, (
         f"register must return positive integer workspace_id, got {workspace_id!r}"
     )
-    # The first user in the new workspace is always 'owner' (per #350 contract).
     assert body.get("role") == "owner", (
         f"first user of new workspace must be 'owner', got {body.get('role')!r}"
     )

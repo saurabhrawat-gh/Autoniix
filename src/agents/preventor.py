@@ -73,7 +73,6 @@ class PreventorAgent(BaseAgent):
     _SOURCE = "preventor-agent"
     _ALLOWED_DECISIONS = {"ALLOW", "WARN", "HOLD", "VETO"}
 
-    # ── observe ──────────────────────────────────────────────────────────
 
     async def observe(
         self, context: dict[str, Any]
@@ -130,7 +129,6 @@ class PreventorAgent(BaseAgent):
             facts=facts,
         )
 
-    # ── decide ───────────────────────────────────────────────────────────
 
     async def decide(
         self, state: dict[str, Any]
@@ -178,11 +176,8 @@ class PreventorAgent(BaseAgent):
             budget_remaining / budget_limit if budget_limit > 0 else None
         )
 
-        # Reasons accumulate so the audit trail explains every factor
-        # contributing to the decision.
         reasons: list[str] = []
 
-        # ── VETO conditions (any one is sufficient) ───────────────────
         if veto_on_halt and unresolved_halt:
             reasons.append(
                 f"channel {channel_id} has an unresolved HALT in "
@@ -202,7 +197,6 @@ class PreventorAgent(BaseAgent):
                 confidence=0.9, facts=facts,
             )
 
-        # ── HOLD conditions ────────────────────────────────────────────
         if (
             hold_budget_pct > 0
             and budget_pct is not None
@@ -217,7 +211,6 @@ class PreventorAgent(BaseAgent):
                 confidence=0.8, facts=facts,
             )
 
-        # ── WARN conditions ────────────────────────────────────────────
         if (
             warn_min_quality > 0
             and len(recent_scores) >= 3
@@ -233,7 +226,6 @@ class PreventorAgent(BaseAgent):
                 confidence=0.6, facts=facts,
             )
 
-        # ── Default ALLOW ──────────────────────────────────────────────
         reasons.append(
             "no risk signal tripped (consec="
             f"{consec}, avg_quality={avg_quality:.2f}, budget_pct="
@@ -244,7 +236,6 @@ class PreventorAgent(BaseAgent):
             confidence=0.7, facts=facts,
         )
 
-    # ── act ──────────────────────────────────────────────────────────────
 
     async def act(self, decision: AgentDecision) -> dict[str, Any]:
         """Persist the decision and publish a directive on
@@ -308,7 +299,6 @@ class PreventorAgent(BaseAgent):
         )
         return {"id": decision_id}
 
-    # ── helpers ──────────────────────────────────────────────────────────
 
     def _build_decision(
         self,
@@ -326,7 +316,6 @@ class PreventorAgent(BaseAgent):
             "content_id": facts.get("content_id"),
             "planned_action": planned_action,
         }
-        # Snapshot a compact subset of facts as the risk_signals jsonb.
         risk_signals = {
             "consecutive_failures": facts.get("consecutive_failures"),
             "avg_composite_score": facts.get("avg_composite_score"),
@@ -352,9 +341,6 @@ class PreventorAgent(BaseAgent):
         )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Module-level helpers
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 async def _has_unresolved_halt(channel_id: str) -> bool:
@@ -376,10 +362,6 @@ async def _has_unresolved_halt(channel_id: str) -> bool:
         )
         return row is not None
     except Exception as exc:
-        # Be conservative on DB failures: assume there COULD be a HALT
-        # and let the rest of the rules decide. (Returning True here
-        # would auto-VETO every action on a DB blip, which is too
-        # aggressive.)
         logger.warning(
             "preventor_agent.halt_check_failed",
             channel_id=channel_id, error=str(exc),

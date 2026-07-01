@@ -4,8 +4,8 @@ import { useCurrentFrame, useVideoConfig } from "remotion";
 export interface WaveTextProps {
   text: string;
   amplitudePx?: number;
-  speed?: number; // cycles/sec
-  wavelengthChars?: number; // how many chars fit in a full wave
+  speed?: number;
+  wavelengthChars?: number;
   color?: string;
   style?: React.CSSProperties;
 }

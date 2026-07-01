@@ -68,8 +68,6 @@ impl GatewayHarness {
         }
     }
 
-    // ── Auth helpers ────────────────────────────────────────────────────────
-
     /// Register a new user via /register (#350). Returns onboarding metadata
     /// (status, user_id, workspace_id, role, onboarding_required) — NO tokens.
     pub async fn register(
@@ -209,8 +207,6 @@ impl GatewayHarness {
             .expect("logout_via_cookie request failed");
     }
 
-    // ── Authenticated helpers ───────────────────────────────────────────────
-
     /// GET /api/v2/me with a bearer token.
     pub async fn me(&self, access_token: &str) -> Value {
         let resp = self
@@ -257,8 +253,6 @@ impl GatewayHarness {
             .expect("authenticated POST failed")
     }
 
-    // ── Seed helpers ────────────────────────────────────────────────────────
-
     /// Create a unique test email using a timestamp to avoid conflicts.
     pub fn unique_email(label: &str) -> String {
         let ts = std::time::SystemTime::now()
@@ -268,14 +262,11 @@ impl GatewayHarness {
         format!("{label}-{ts}@harness.test")
     }
 
-    // ── Cleanup ─────────────────────────────────────────────────────────────
-
     /// Drop test data created during this test run.
     ///
     /// Note: Since Rust reads Python's shared schema, we only clean rows
     /// inserted via harness helpers (identified by the `@harness.test` email suffix).
     pub async fn cleanup(&self) {
-        // Clean sessions first (FK constraint), then workspace_members, workspaces, users.
         let _ = sqlx::query(
             r#"
             DELETE FROM sessions s

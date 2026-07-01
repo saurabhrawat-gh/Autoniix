@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from src.workers.media_jobs.handlers import autotag, embed, probe, skip_handler
 
-# Map of media_jobs.kind → callable(pool, asset, job) -> dict
 HANDLERS = {
     probe.KIND: probe.run,
     embed.KIND: embed.run,

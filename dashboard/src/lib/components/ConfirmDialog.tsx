@@ -41,7 +41,6 @@ import {
   Label,
 } from '../ui';
 
-// Types
 export interface ConfirmOptions {
   title: string;
   description?: string;
@@ -63,7 +62,6 @@ export interface PromptOptions extends Omit<ConfirmOptions, 'alertOnly'> {
   inputType?: 'text' | 'password' | 'email' | 'number';
 }
 
-// Declarative ConfirmDialog
 export function ConfirmDialog(props: {
   open: boolean;
   onCancel: () => void;
@@ -120,7 +118,6 @@ export function ConfirmDialog(props: {
   );
 }
 
-// Declarative PromptDialog
 export function PromptDialog(props: {
   open: boolean;
   onCancel: () => void;
@@ -204,7 +201,6 @@ export function PromptDialog(props: {
   );
 }
 
-// Imperative API (confirmDialog / promptDialog)
 type Resolver<T> = (v: T) => void;
 
 interface ConfirmRequest {
@@ -226,9 +222,6 @@ let pushRequest: ((r: Request) => void) | null = null;
 export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
   return new Promise(resolve => {
     if (!pushRequest) {
-      // Provider not mounted — fall back to native confirm so the app still works.
-      // (This should not happen in production; ConfirmDialogProvider is in the
-      // dashboard root layout.)
       // eslint-disable-next-line no-alert
       resolve(typeof window !== 'undefined' ? window.confirm(options.title) : false);
       return;

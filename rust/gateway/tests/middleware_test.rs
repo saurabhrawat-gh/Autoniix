@@ -15,7 +15,6 @@ async fn test_accept_invite_rate_limit_blocks_after_five_attempts() {
 
     let body = json!({"token": "bogus-invalid-token-im171"}).to_string();
 
-    // Requests 1–5 must pass the rate limiter (they'll 422 on the invalid token, not 429).
     for attempt in 1..=5 {
         let resp = app
             .clone()
@@ -38,7 +37,6 @@ async fn test_accept_invite_rate_limit_blocks_after_five_attempts() {
         );
     }
 
-    // Request 6 must be blocked by the rate limiter.
     let resp = app
         .oneshot(
             Request::builder()
@@ -75,7 +73,7 @@ async fn test_accept_invite_consistent_error_for_any_token_format() {
         "a",
         "short-token",
         "this-is-a-medium-length-token-abc123",
-        &"x".repeat(256), // very long token
+        &"x".repeat(256),
     ];
 
     for token in tokens {
@@ -87,14 +85,13 @@ async fn test_accept_invite_consistent_error_for_any_token_format() {
                     .uri("/api/v2/auth/accept-invite")
                     .method("POST")
                     .header("content-type", "application/json")
-                    .header("x-real-ip", "10.0.0.98") // separate IP bucket
+                    .header("x-real-ip", "10.0.0.98")
                     .body(Body::from(body))
                     .unwrap(),
             )
             .await
             .unwrap();
 
-        // Any invalid token must yield an error (422), never 200 or 500.
         assert!(
             resp.status().is_client_error(),
             "token of length {} should produce a client error, got {}",
@@ -125,7 +122,6 @@ async fn test_me_endpoint_unauthorized() {
 async fn test_me_endpoint_with_valid_token() {
     let app = gateway::create_test_app().await;
 
-    // #350: register returns no tokens — must sign in separately
     let register_body = json!({
         "email": "alice@example.com",
         "password": "securepassword123",
@@ -148,7 +144,6 @@ async fn test_me_endpoint_with_valid_token() {
 
     assert_eq!(register_response.status(), StatusCode::CREATED);
 
-    // Sign in to get access_token
     let signin_body = json!({
         "email": "alice@example.com",
         "password": "securepassword123"

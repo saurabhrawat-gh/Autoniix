@@ -1,16 +1,3 @@
-// ── Lookup Values ────────────────────────────────────────────────────────────
-//
-// Provides dynamic dropdown values used throughout the UI.
-// Global values (workspace_id IS NULL) are managed by superadmin.
-// Workspace-private custom values (workspace_id = wid) are managed by owners.
-//
-// Routes:
-//   GET  /api/v2/lookup-values              — list values (auth'd, workspace-aware)
-//   POST /api/v2/lookup-values              — create global value (superadmin only)
-//   PATCH /api/v2/lookup-values/:id         — update a value (owner for workspace, superadmin for global)
-//   DELETE /api/v2/lookup-values/:id        — soft-delete (deactivate) a value
-//   POST /api/v2/workspace/lookup-values    — create workspace-private value (owner only)
-
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -43,8 +30,6 @@ pub fn routes(pool: PgPool) -> Router {
         .with_state(pool)
 }
 
-// ── Query params ─────────────────────────────────────────────────────────────
-
 #[derive(Debug, Deserialize)]
 struct ListQuery {
     #[serde(rename = "type")]
@@ -52,8 +37,6 @@ struct ListQuery {
     parent_value: Option<String>,
     include_inactive: Option<bool>,
 }
-
-// ── Request bodies ───────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
 struct CreateLookupValue {
@@ -71,8 +54,6 @@ struct UpdateLookupValue {
     sort_order: Option<i32>,
     is_active: Option<bool>,
 }
-
-// ── Handlers ─────────────────────────────────────────────────────────────────
 
 /// GET /api/v2/lookup-values
 /// Returns global values merged with workspace-private values.
@@ -221,7 +202,6 @@ async fn update_lookup_value(
     Path(id): Path<i64>,
     Json(body): Json<UpdateLookupValue>,
 ) -> ApiResult<impl axum::response::IntoResponse> {
-    // Fetch the row first to check ownership
     let existing = sqlx::query("SELECT workspace_id FROM lookup_values WHERE id = $1")
         .bind(id)
         .fetch_optional(&pool)
@@ -234,13 +214,11 @@ async fn update_lookup_value(
 
     match row_workspace {
         None => {
-            // Global value — superadmin only
             if principal.global_role != "superadmin" {
                 return Err(ApiError::Forbidden);
             }
         }
         Some(wid) => {
-            // Workspace-private — owner of that workspace only
             if wid != principal.wid || principal.role != "owner" {
                 return Err(ApiError::Forbidden);
             }

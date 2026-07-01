@@ -20,16 +20,13 @@ async function main() {
   const fixturePath = path.resolve(__dirname, "../src/scene-graph/__fixtures__/minimal-direction.json");
   const raw = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
 
-  // Synthesize 8 segments × 3000ms = 24s (long enough to require ≥ 1 pattern interrupt at MAX=20s).
   const baseSeg = raw.segments[0];
   raw.segments = Array.from({ length: 8 }, (_, i) => ({
     ...baseSeg,
     id: `s${i + 1}`,
     start_ms: i * 3000,
     duration_ms: 3000,
-    // Use a non-hook scene first so Director must promote it.
     scene_preset: "StockFootageScene",
-    // Strip animations so Editor must add them.
     animations_in: undefined,
     animations_out: undefined,
     transition_out: undefined,
@@ -75,20 +72,12 @@ async function main() {
     process.exit(1);
   }
 
-  // Editor should be idempotent on its own output: running again yields no new ops.
   const eRes2 = await editor.run({ graph: g2 }, ectx);
   if (eRes2.output.animationFixes !== 0) {
     console.error(`FAIL: Editor not idempotent — animationFixes=${eRes2.output.animationFixes}`);
     process.exit(1);
   }
 
-  console.log("OK director+editor smoke");
-  console.log(`   pattern:        ${dRes.output.pattern}`);
-  console.log(`   hook promoted:  ${dRes.output.changedHook}`);
-  console.log(`   anim fixes:     ${eRes.output.animationFixes}`);
-  console.log(`   pacing fixes:   ${eRes.output.pacingFixes}`);
-  console.log(`   pre→D→E hash:   ${g0.hash.slice(0, 12)}… → ${g1.hash.slice(0, 12)}… → ${g2.hash.slice(0, 12)}…`);
-  console.log(`   2nd editor:     anim=${eRes2.output.animationFixes} pacing=${eRes2.output.pacingFixes} (idempotent)`);
 }
 
 main().catch((e) => {

@@ -64,9 +64,7 @@ def test_fuse_prefers_assets_present_in_both_lists():
     lexical = [{"id": 2}, {"id": 3}]
     fused = _fuse(semantic, lexical, limit=10)
     ids = [r["id"] for r in fused]
-    # Asset 2 appears in both → must be ranked first.
     assert ids[0] == 2
-    # Both 1 and 3 are present, in some order.
     assert set(ids) == {1, 2, 3}
 
 
@@ -94,7 +92,6 @@ async def test_hybrid_endpoint_combines_results(mock_pool):
         {"id": 3, "display_name": "C"},
     ]
 
-    # Two .fetch() calls inside dam_search: semantic first, then FTS.
     mock_pool.fetch.side_effect = [sem_rows, lex_rows]
     with patch(
         "src.llm.embeddings.embed_text",
@@ -106,5 +103,5 @@ async def test_hybrid_endpoint_combines_results(mock_pool):
 
     assert resp["mode"] == "hybrid"
     ids = [r["id"] for r in resp["data"]]
-    assert ids[0] == 2  # appears in both → top
+    assert ids[0] == 2
     assert set(ids) == {1, 2, 3}

@@ -22,9 +22,7 @@ PERMS_MIGRATION = (
     REPO_ROOT / "scripts" / "migrations" / "202605220001_named_permissions.sql"
 )
 
-# Permission names referenced by Sidebar.tsx in the form `permission: 'name.dotted'`.
 _SIDEBAR_PERM_RE = re.compile(r"permission:\s*'([a-z][\w.]+)'")
-# Seeded permission names in the migration: ('name.dotted', 'description'),
 _MIGRATION_PERM_RE = re.compile(r"\(\s*'([a-z][\w.]+)'\s*,\s*'[^']*'\s*\)")
 
 

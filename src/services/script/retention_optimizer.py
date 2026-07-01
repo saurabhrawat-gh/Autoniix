@@ -30,7 +30,6 @@ from src.services.script.script_analyzer import (
 
 logger = structlog.get_logger()
 
-# Curiosity Gap Markers
 CURIOSITY_OPENERS = [
     r"\bwhy\b", r"\bhow\b", r"\bwhat if\b", r"\bwhat happens\b",
     r"\bever wonder\b", r"\bdid you know\b", r"\bhere'?s (?:the|a) (?:secret|thing|truth)\b",
@@ -51,7 +50,6 @@ CURIOSITY_CLOSERS = [
 ]
 _CLOSER_COMPILED = [re.compile(p, re.IGNORECASE) for p in CURIOSITY_CLOSERS]
 
-# Pattern Interrupt Markers
 PATTERN_INTERRUPTS = [
     r"\bbut\b", r"\bhowever\b", r"\bwait\b", r"\bhold on\b",
     r"\bactually\b", r"\bhere'?s (?:the|a) (?:thing|twist|catch)\b",
@@ -64,7 +62,6 @@ PATTERN_INTERRUPTS = [
 ]
 _INTERRUPT_COMPILED = [re.compile(p, re.IGNORECASE) for p in PATTERN_INTERRUPTS]
 
-# But/Therefore vs And-Then
 BUT_THEREFORE_PATTERNS = [
     r"\bbut\b", r"\btherefore\b", r"\bso\b", r"\bhowever\b",
     r"\bconsequently\b", r"\bas a result\b", r"\bbecause of this\b",
@@ -79,18 +76,15 @@ _BT_COMPILED = [re.compile(p, re.IGNORECASE) for p in BUT_THEREFORE_PATTERNS]
 _AT_COMPILED = [re.compile(p, re.IGNORECASE) for p in AND_THEN_PATTERNS]
 
 
-# RETENTION ANALYSIS
 
 def analyze_curiosity_loops(text: str) -> dict[str, Any]:
     """Count curiosity openers and closers, compute loop balance."""
     openers = sum(len(p.findall(text)) for p in _CURIOSITY_COMPILED)
     closers = sum(len(p.findall(text)) for p in _CLOSER_COMPILED)
 
-    # Ideal: more openers than closers (keeps tension), but closers > 0 (satisfies)
     loop_count = openers
     close_ratio = closers / max(openers, 1)
 
-    # Score: penalize no loops, reward 3-8 loops per 1000 words
     words = max(len(text.split()), 1)
     loops_per_1k = (openers / words) * 1000
     if loops_per_1k >= 6:
@@ -102,7 +96,6 @@ def analyze_curiosity_loops(text: str) -> dict[str, Any]:
     else:
         density_score = loops_per_1k * 0.4
 
-    # Close ratio: ideal is 0.4-0.7 (some loops stay open for tension)
     if 0.4 <= close_ratio <= 0.7:
         balance_score = 1.0
     elif close_ratio < 0.4:
@@ -141,7 +134,6 @@ def analyze_pattern_interrupts(text: str, target_interval_words: int = 30) -> di
                 interrupt_positions.append(word_idx)
                 break
 
-    # Remove consecutive duplicates (within 5 words)
     cleaned_positions = []
     for pos in interrupt_positions:
         if not cleaned_positions or pos - cleaned_positions[-1] > 5:
@@ -150,7 +142,6 @@ def analyze_pattern_interrupts(text: str, target_interval_words: int = 30) -> di
     count = len(cleaned_positions)
     frequency = count / max(total_words / target_interval_words, 1)
 
-    # Analyze spacing (gaps between interrupts)
     gaps = []
     if len(cleaned_positions) >= 2:
         for i in range(1, len(cleaned_positions)):
@@ -158,7 +149,6 @@ def analyze_pattern_interrupts(text: str, target_interval_words: int = 30) -> di
 
     avg_gap = sum(gaps) / max(len(gaps), 1) if gaps else total_words
 
-    # Score: ideal gap is 20-40 words
     if 20 <= avg_gap <= 40:
         spacing_score = 1.0
     elif 15 <= avg_gap <= 50:
@@ -168,7 +158,6 @@ def analyze_pattern_interrupts(text: str, target_interval_words: int = 30) -> di
     else:
         spacing_score = 0.3
 
-    # Frequency score
     freq_per_1k = (count / max(total_words, 1)) * 1000
     if 20 <= freq_per_1k <= 40:
         freq_score = 1.0
@@ -204,7 +193,6 @@ def analyze_but_therefore(text: str) -> dict[str, Any]:
     else:
         ratio = bt_count / total
 
-    # Score: ideal is 0.65-0.85 BT ratio
     if 0.65 <= ratio <= 0.85:
         score = 1.0
     elif 0.50 <= ratio <= 0.90:
@@ -245,15 +233,12 @@ async def analyze_emotional_arc(segments: list[dict]) -> dict[str, Any]:
             "arc_score": 0.3,
         }
 
-    # Check for peaks (high points should be near start and 70-85% through)
     max_idx = intensities.index(max(intensities))
     relative_peak = max_idx / max(len(intensities) - 1, 1)
 
-    # Variance: higher is better (means dynamic arc)
     mean_i = sum(intensities) / len(intensities)
     variance = sum((x - mean_i) ** 2 for x in intensities) / len(intensities)
 
-    # Direction changes (peaks and valleys)
     direction_changes = 0
     for i in range(2, len(intensities)):
         prev_dir = intensities[i-1] - intensities[i-2]
@@ -261,11 +246,9 @@ async def analyze_emotional_arc(segments: list[dict]) -> dict[str, Any]:
         if (prev_dir > 0 and curr_dir < 0) or (prev_dir < 0 and curr_dir > 0):
             direction_changes += 1
 
-    # Has climax: should peak at 60-85% through
     has_climax = 0.5 <= relative_peak <= 0.9
 
-    # Score components
-    variance_score = min(1.0, variance * 10)  # Reward variance
+    variance_score = min(1.0, variance * 10)
     change_score = min(1.0, direction_changes / max(len(intensities) // 3, 1))
     climax_score = 1.0 if has_climax else 0.4
 
@@ -291,7 +274,6 @@ async def analyze_hook_strength(first_segment: dict, hook_duration_s: float = 5.
     narration = first_segment.get("narration", "")
     section = first_segment.get("section", "")
 
-    # Estimate which words fall in first 5 seconds
     words = narration.split()
     wpm = 150
     words_in_hook = min(len(words), int((hook_duration_s / 60) * wpm))
@@ -299,31 +281,24 @@ async def analyze_hook_strength(first_segment: dict, hook_duration_s: float = 5.
 
     scores = {}
 
-    # Curiosity trigger
     curiosity_hits = sum(1 for p in _CURIOSITY_COMPILED if p.search(hook_text))
     scores["curiosity_trigger"] = min(1.0, curiosity_hits * 0.5)
 
-    # Specificity (numbers, names, concrete details)
     scores["specificity"] = compute_specificity(hook_text)
 
-    # Emotion trigger
     emotions = await detect_emotions(hook_text)
     scores["emotion_trigger"] = emotions["emotional_intensity"]
 
-    # Question (creates open loop)
     scores["has_question"] = 1.0 if "?" in hook_text else 0.0
 
-    # Pattern interrupt (subverts expectations)
     interrupt_hits = sum(1 for p in _INTERRUPT_COMPILED if p.search(hook_text))
     scores["pattern_interrupt"] = min(1.0, interrupt_hits * 0.5)
 
-    # Power words
     hook_words_lower = set(hook_text.lower().split())
     from src.services.script.script_analyzer import POWER_WORDS
     power_hits = len(hook_words_lower & POWER_WORDS)
     scores["power_words"] = min(1.0, power_hits * 0.3)
 
-    # Word economy (fewer words = more impact in hook)
     if words_in_hook <= 15:
         scores["word_economy"] = 1.0
     elif words_in_hook <= 25:
@@ -331,7 +306,6 @@ async def analyze_hook_strength(first_segment: dict, hook_duration_s: float = 5.
     else:
         scores["word_economy"] = 0.4
 
-    # Composite
     weights = {
         "curiosity_trigger": 0.25, "specificity": 0.15, "emotion_trigger": 0.15,
         "has_question": 0.10, "pattern_interrupt": 0.10, "power_words": 0.10,
@@ -356,7 +330,6 @@ def analyze_information_density(text: str) -> dict[str, Any]:
     words = text.lower().split()
     total = max(len(words), 1)
 
-    # Unique meaningful words (exclude stop words)
     STOP_WORDS = {
         "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
         "have", "has", "had", "do", "does", "did", "will", "would", "shall",
@@ -370,10 +343,8 @@ def analyze_information_density(text: str) -> dict[str, Any]:
     meaningful = [w for w in words if w not in STOP_WORDS and len(w) > 2]
     unique_meaningful = set(meaningful)
 
-    # Concepts per 100 words
     density = (len(unique_meaningful) / total) * 100
 
-    # Score: ideal 25-45 unique concepts per 100 words
     if 25 <= density <= 45:
         score = 1.0
     elif 20 <= density <= 50:
@@ -391,7 +362,6 @@ def analyze_information_density(text: str) -> dict[str, Any]:
     }
 
 
-# COMPOSITE RETENTION SCORE
 
 async def compute_retention_score(segments: list[dict]) -> dict[str, Any]:
     """Compute comprehensive retention score for a full script.
@@ -403,7 +373,6 @@ async def compute_retention_score(segments: list[dict]) -> dict[str, Any]:
 
     all_narration = " ".join(s.get("narration", "") for s in segments)
 
-    # Run all analyses
     curiosity = analyze_curiosity_loops(all_narration)
     interrupts = analyze_pattern_interrupts(all_narration)
     bt = analyze_but_therefore(all_narration)
@@ -437,7 +406,6 @@ async def compute_retention_score(segments: list[dict]) -> dict[str, Any]:
 
     composite = sum(dimensions[k] * weights[k] for k in weights)
 
-    # Generate recommendations for weak dimensions
     recommendations = []
     for dim, score in dimensions.items():
         if score < 0.5:

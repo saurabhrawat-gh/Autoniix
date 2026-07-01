@@ -30,7 +30,6 @@ let _registry: any = null;
 function tryLoadPromClient(): any {
   if (_promClient !== null) return _promClient;
   try {
-    // Optional dependency — must not break the build when missing.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require("prom-client");
     _promClient = mod;
@@ -38,7 +37,7 @@ function tryLoadPromClient(): any {
     mod.collectDefaultMetrics({ register: _registry });
     return mod;
   } catch {
-    _promClient = false; // signal "tried and unavailable"
+    _promClient = false;
     return null;
   }
 }
@@ -67,26 +66,21 @@ function makeHistogram(
 /* ====================================================================== */
 
 interface Phase1Metrics {
-  // 1A
-  blendModeUsage: AnyCounter; // labels: mode, clipKind
-  blendModeShaderFallback: AnyCounter; // labels: mode
+  blendModeUsage: AnyCounter;
+  blendModeShaderFallback: AnyCounter;
 
-  // 1B
-  textAnimRender: AnyHistogram; // labels: kind  (seconds)
-  textAnimUsage: AnyCounter; // labels: kind
+  textAnimRender: AnyHistogram;
+  textAnimUsage: AnyCounter;
 
-  // 1C
-  maskRender: AnyHistogram; // labels: kind  (seconds)
-  maskShaderFallback: AnyCounter; // labels: kind
-  maskUsage: AnyCounter; // labels: kind, blend
+  maskRender: AnyHistogram;
+  maskShaderFallback: AnyCounter;
+  maskUsage: AnyCounter;
 
-  // 1D
-  colorGradePass: AnyHistogram; // labels: path  ('css'|'webgl')  (seconds)
-  colorGradeWebglFallback: AnyCounter; // labels: reason
+  colorGradePass: AnyHistogram;
+  colorGradeWebglFallback: AnyCounter;
 
-  // Cache layer
-  cacheHit: AnyCounter; // labels: kind  ('blend'|'mask'|'grade'|'text_anim')
-  cacheMiss: AnyCounter; // labels: kind
+  cacheHit: AnyCounter;
+  cacheMiss: AnyCounter;
 }
 
 let _metrics: Phase1Metrics | null = null;

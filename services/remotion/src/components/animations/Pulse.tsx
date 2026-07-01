@@ -2,8 +2,8 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig } from "remotion";
 
 export interface PulseProps {
-  bpm?: number; // pulses per minute
-  amplitude?: number; // scale delta (e.g. 0.05 → scales 1→1.05)
+  bpm?: number;
+  amplitude?: number;
   children: React.ReactNode;
   style?: React.CSSProperties;
 }

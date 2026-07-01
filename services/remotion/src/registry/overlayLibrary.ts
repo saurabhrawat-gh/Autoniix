@@ -61,28 +61,20 @@ function batch(
 /* ------------------------------------------------------------------ */
 
 const overlayPresets: OverlayPreset[] = [
-  // Light Leaks Warm (8)
   ...batch("light_leak_warm", "Light Leak Warm", "light_leak", 8, "screen", 0.45, ["light_leak", "warm", "organic"]),
 
-  // Light Leaks Cool (5)
   ...batch("light_leak_cool", "Light Leak Cool", "light_leak", 5, "screen", 0.40, ["light_leak", "cool", "blue"]),
 
-  // Light Leaks Anamorphic (5)
   ...batch("light_leak_anamorphic", "Anamorphic Flare", "light_leak", 5, "screen", 0.35, ["light_leak", "anamorphic", "cinematic", "horizontal"]),
 
-  // Dust Particles (8)
   ...batch("dust_particles", "Dust Particles", "dust", 8, "screen", 0.30, ["dust", "particles", "floating", "ambient"]),
 
-  // Bokeh (8)
   ...batch("bokeh", "Bokeh", "bokeh", 8, "screen", 0.35, ["bokeh", "soft", "dreamy", "depth"]),
 
-  // Lens Flares (8)
   ...batch("lens_flare", "Lens Flare", "lens_flare", 8, "screen", 0.40, ["lens_flare", "flare", "cinematic", "bright"]),
 
-  // Film Burns (5)
   ...batch("film_burn", "Film Burn", "film_burn", 5, "screen", 0.50, ["film_burn", "transition", "light", "analog"]),
 
-  // Smoke (5)
   ...batch("smoke", "Smoke", "smoke", 5, "screen", 0.25, ["smoke", "haze", "atmosphere", "moody"]),
 ];
 

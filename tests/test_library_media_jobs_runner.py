@@ -74,7 +74,6 @@ async def test_process_one_skips_when_asset_was_deleted():
         asset_row=None,
     )
     assert await runner.process_one(pool) is True
-    # The skipped finaliser ran (UPDATE … status='skipped')
     update_sqls = [c.args[0] for c in pool.execute.await_args_list]
     assert any("status = 'skipped'" in s for s in update_sqls)
 
@@ -135,7 +134,6 @@ async def test_process_one_reschedules_on_failure_when_attempts_left():
         await runner.process_one(pool)
 
     sqls = [c.args[0] for c in pool.execute.await_args_list]
-    # Rescheduling sets status back to 'pending' with a new scheduled_at.
     assert any("status = 'pending'" in s and "scheduled_at" in s for s in sqls)
 
 
@@ -194,5 +192,4 @@ async def test_unhandled_exception_in_handler_is_recovered():
         ran = await runner.process_one(pool)
     assert ran is True
     sqls = [c.args[0] for c in pool.execute.await_args_list]
-    # Rescheduled, not crashed.
     assert any("status = 'pending'" in s for s in sqls)

@@ -56,7 +56,6 @@ OPENAI_BASE_URL = "https://api.openai.com/v1/embeddings"
 DEFAULT_MODEL = "text-embedding-3-small"
 EMBEDDING_DIM = 1536
 
-# text-embedding-3-small pricing as of 2026-06: $0.02 per 1M tokens.
 PRICING_PER_TOKEN: dict[str, float] = {
     "text-embedding-3-small": 0.02 / 1_000_000,
     "text-embedding-3-large": 0.13 / 1_000_000,
@@ -68,7 +67,6 @@ _RETRY_INITIAL_DELAY_S = 0.5
 _RETRY_MAX_DELAY_S = 8.0
 
 
-# Public exceptions
 
 
 class EmbeddingError(RuntimeError):
@@ -79,7 +77,6 @@ class EmbeddingConfigError(RuntimeError):
     """Raised when the OpenAI API key is not configured."""
 
 
-# Internal helpers
 
 
 def _format_vector(values: list[float]) -> str:
@@ -116,7 +113,6 @@ async def _post_with_retry(payload: dict) -> dict:
             if response.status_code == 200:
                 return response.json()
             if not _is_transient(response.status_code):
-                # Permanent: raise immediately so the caller sees real config / schema bugs.
                 raise EmbeddingError(
                     f"openai embeddings {response.status_code}: {response.text[:300]}"
                 )
@@ -128,7 +124,6 @@ async def _post_with_retry(payload: dict) -> dict:
                 _RETRY_INITIAL_DELAY_S * (2 ** (attempt - 1)),
                 _RETRY_MAX_DELAY_S,
             )
-            # Full jitter so retries from concurrent callers don't synchronise.
             delay = random.uniform(0.0, delay)
             await asyncio.sleep(delay)
     raise EmbeddingError(
@@ -163,11 +158,9 @@ async def _record_cost(
             latency_ms,
         )
     except Exception as exc:
-        # Cost tracking failure must NOT break the embedding call.
         logger.warning("embeddings.cost_record_failed", error=str(exc))
 
 
-# Public API
 
 
 async def embed_text(
@@ -199,8 +192,6 @@ async def embed_text(
         raise EmbeddingError(f"unexpected embeddings response shape: {exc!s}")
 
     if len(vector) != EMBEDDING_DIM and model == DEFAULT_MODEL:
-        # text-embedding-3-small must return 1536 dims; anything else is a
-        # response-format mismatch we'd rather surface loudly than store.
         raise EmbeddingError(
             f"expected {EMBEDDING_DIM}-d vector, got {len(vector)}"
         )
@@ -235,9 +226,6 @@ async def embed_and_store(
     dimensionality. ``id_column`` defaults to ``id`` (matches our
     convention for ``brain_decisions``).
     """
-    # Use a parameterised identifier whitelist for safety — table/column
-    # come from trusted call-sites in our own services (never request input),
-    # but defence-in-depth is cheap here.
     _assert_safe_identifier(table)
     _assert_safe_identifier(column)
     _assert_safe_identifier(id_column)
@@ -307,9 +295,6 @@ async def semantic_search(
         f"1 - ({column} <=> $1::vector) AS cosine_sim "
     )
     if decay_days is not None:
-        # exp(-age_days / decay_days) caps at 1.0 for fresh rows and decays
-        # smoothly. Multiplied with cosine_sim so distant-and-old rows lose
-        # to either-distant-or-old rows.
         base_select += (
             f", (1 - ({column} <=> $1::vector)) * "
             f"exp(- GREATEST(EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400.0, 0) "
@@ -323,7 +308,6 @@ async def semantic_search(
     sql = base_select + f"FROM {table} "
     params: list[Any] = [vector_literal]
     if where:
-        # User-supplied where clause uses placeholders starting at $2.
         sql += f"WHERE {where} "
         if where_params:
             params.extend(where_params)

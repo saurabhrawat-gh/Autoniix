@@ -17,7 +17,6 @@ from src.providers.registry import ProviderRegistry
 from src.providers.secrets import EnvBackend
 
 
-# ── Fake providers ────────────────────────────────────────────────────────────
 
 class _FakeLLMProvider:
     """Minimal provider stand-in — sync and async methods."""
@@ -39,7 +38,6 @@ class _BrokenProvider:
         raise RuntimeError("broken-async")
 
 
-# ── Fixtures ──────────────────────────────────────────────────────────────────
 
 @pytest.fixture(autouse=True)
 def _reset_registry():
@@ -59,7 +57,6 @@ def _clear_chain_cache():
     chain_mod._chain_cache.clear()
 
 
-# ── ProviderRegistry.get() ────────────────────────────────────────────────────
 
 class TestProviderRegistryGet:
     def setup_method(self):
@@ -133,7 +130,6 @@ class TestProviderRegistryGet:
                     ProviderRegistry.get("image")
 
 
-# ── FallbackProvider ──────────────────────────────────────────────────────────
 
 class TestFallbackProvider:
     def test_sync_delegates_to_first_member(self):
@@ -190,7 +186,6 @@ class TestFallbackProvider:
         assert fp.labels == ["my-label"]
 
 
-# ── EnvBackend ────────────────────────────────────────────────────────────────
 
 class TestEnvBackend:
     def test_get_reads_env_var_by_translated_path(self, monkeypatch):
@@ -220,7 +215,6 @@ class TestEnvBackend:
         assert result == "sk-bare"
 
 
-# ── Cache invalidation helpers ────────────────────────────────────────────────
 
 class TestCacheInvalidation:
     def test_reset_chain_cache_clears_everything(self):
@@ -252,7 +246,6 @@ class TestCacheInvalidation:
         assert "image" in remaining_cats
 
 
-# ── Feature flag behaviour ────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_feature_flag_off_returns_none():
@@ -263,14 +256,13 @@ async def test_feature_flag_off_returns_none():
     assert result is None
 
 
-# ── Cache TTL hit ─────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_cache_hit_skips_db_entirely():
     """A valid (non-expired) cache entry is returned without any DB call."""
     key = chain_mod._cache_key("llm", "ch1", "short", "production")
     cached_fp = FallbackProvider("llm", [_FakeLLMProvider()], ["cached"])
-    chain_mod._chain_cache[key] = (cached_fp, 9e9)  # far-future TTL
+    chain_mod._chain_cache[key] = (cached_fp, 9e9)
 
     flag_called = False
 

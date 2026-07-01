@@ -21,7 +21,6 @@ from src.db import get_pool
 logger = structlog.get_logger()
 
 
-# Order matters only for FK safety; CASCADE handles the rest.
 PROVIDER_TABLES = [
     "provider_chains_v2",
     "provider_priority_chains",
@@ -89,15 +88,15 @@ async def run(verbose: bool = False) -> dict:
     """Execute the full wipe. Returns a summary dict."""
     tables = await _truncate_provider_tables()
     if verbose:
-        print(f"  cleared: {', '.join(tables) or '(none)'}")
+        pass
 
     secrets = _wipe_vault_secrets()
     if verbose:
-        print(f"  vault secrets deleted: {secrets}")
+        pass
 
     _invalidate_local_caches()
     await _publish_invalidate()
     if verbose:
-        print("  caches invalidated")
+        pass
 
     return {"tables": tables, "secrets_deleted": secrets}

@@ -28,13 +28,12 @@ from src.db import get_pool
 logger = structlog.get_logger()
 
 
-# Variant Assignment
 
 def _deterministic_variant(experiment_name: str, content_id: str, variants: list[str],
                            weights: list[float] | None = None) -> str:
     """Hash-based deterministic assignment — same content_id always gets same variant."""
     seed = hashlib.sha256(f"{experiment_name}:{content_id}".encode()).hexdigest()
-    bucket = int(seed[:8], 16) % 10000  # 0-9999
+    bucket = int(seed[:8], 16) % 10000
 
     if not weights:
         weights = [1.0 / len(variants)] * len(variants)
@@ -47,7 +46,6 @@ def _deterministic_variant(experiment_name: str, content_id: str, variants: list
     return variants[-1]
 
 
-# Experiment CRUD
 
 async def create_experiment(name: str, description: str,
                             variants: list[dict],
@@ -110,7 +108,6 @@ async def list_experiments(status: str = "") -> list[dict]:
     return [dict(r) for r in rows]
 
 
-# Assignment
 
 async def assign_variant(experiment_name: str, content_id: str,
                           channel_id: str = "") -> dict:
@@ -130,7 +127,6 @@ async def assign_variant(experiment_name: str, content_id: str,
     variants_json = json.loads(row["variants"]) if isinstance(row["variants"], str) else row["variants"]
     traffic_pct = float(row["traffic_pct"])
 
-    # Check if this content is in the experiment's traffic
     traffic_bucket = int(hashlib.sha256(content_id.encode()).hexdigest()[:4], 16) % 100
     if traffic_bucket >= traffic_pct:
         return {"variant": "control", "config": {}, "in_experiment": False}
@@ -141,7 +137,6 @@ async def assign_variant(experiment_name: str, content_id: str,
     variant_name = _deterministic_variant(experiment_name, content_id, names, weights)
     variant_config = next((v.get("config", {}) for v in variants_json if v["name"] == variant_name), {})
 
-    # Record assignment
     await pool.execute("""
         INSERT INTO experiment_assignments (experiment_name, content_id, channel_id, variant_name)
         VALUES ($1, $2, $3, $4)
@@ -151,7 +146,6 @@ async def assign_variant(experiment_name: str, content_id: str,
     return {"variant": variant_name, "config": variant_config, "in_experiment": True}
 
 
-# Outcome Recording
 
 async def record_outcome(experiment_name: str, content_id: str,
                           variant_name: str, metrics: dict) -> None:
@@ -165,13 +159,11 @@ async def record_outcome(experiment_name: str, content_id: str,
     """, experiment_name, content_id, variant_name, json.dumps(metrics))
 
 
-# Statistical Analysis
 
 async def analyze_experiment(experiment_name: str) -> dict:
     """Analyze experiment results with statistical significance testing."""
     pool = await get_pool()
 
-    # Get experiment info
     exp = await pool.fetchrow(
         "SELECT * FROM experiments WHERE experiment_name = $1", experiment_name)
     if not exp:
@@ -180,7 +172,6 @@ async def analyze_experiment(experiment_name: str) -> dict:
     target_metric = exp["target_metric"]
     variants_json = json.loads(exp["variants"]) if isinstance(exp["variants"], str) else exp["variants"]
 
-    # Get outcomes grouped by variant
     rows = await pool.fetch("""
         SELECT eo.variant_name, eo.metrics
         FROM experiment_outcomes eo
@@ -196,7 +187,6 @@ async def analyze_experiment(experiment_name: str) -> dict:
             "min_required": 10,
         }
 
-    # Group metrics by variant
     variant_data: dict[str, list[float]] = {}
     for row in rows:
         vn = row["variant_name"]
@@ -206,7 +196,6 @@ async def analyze_experiment(experiment_name: str) -> dict:
             variant_data[vn] = []
         variant_data[vn].append(value)
 
-    # Compute stats per variant
     variant_stats = {}
     for vn, values in variant_data.items():
         arr = np.array(values)
@@ -219,7 +208,6 @@ async def analyze_experiment(experiment_name: str) -> dict:
             "max": round(float(np.max(arr)), 6),
         }
 
-    # Significance test (two-sample t-test between first two variants)
     significance = {}
     variant_names = list(variant_data.keys())
     if len(variant_names) >= 2:
@@ -227,7 +215,6 @@ async def analyze_experiment(experiment_name: str) -> dict:
         b = np.array(variant_data[variant_names[1]])
 
         if len(a) >= 5 and len(b) >= 5:
-            # Welch's t-test
             n_a, n_b = len(a), len(b)
             mean_a, mean_b = np.mean(a), np.mean(b)
             var_a, var_b = np.var(a, ddof=1), np.var(b, ddof=1)
@@ -235,12 +222,10 @@ async def analyze_experiment(experiment_name: str) -> dict:
             se = np.sqrt(var_a / n_a + var_b / n_b)
             if se > 0:
                 t_stat = (mean_a - mean_b) / se
-                # Approximate degrees of freedom (Welch-Satterthwaite)
                 df_num = (var_a / n_a + var_b / n_b) ** 2
                 df_den = (var_a / n_a) ** 2 / (n_a - 1) + (var_b / n_b) ** 2 / (n_b - 1)
                 df = df_num / df_den if df_den > 0 else 1
 
-                # Rough p-value approximation (using normal for large df)
                 from math import erfc, sqrt
                 p_value = erfc(abs(t_stat) / sqrt(2))
 
@@ -256,7 +241,6 @@ async def analyze_experiment(experiment_name: str) -> dict:
                         float((mean_b - mean_a) / mean_a * 100) if mean_a != 0 else 0, 2),
                 }
 
-    # Determine recommended winner
     winner = ""
     if variant_stats:
         winner = max(variant_stats, key=lambda v: variant_stats[v]["mean"])

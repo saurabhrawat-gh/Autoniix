@@ -74,7 +74,6 @@ exports.legacyLogin = legacyLogin;
  */
 var request_cache_1 = require("../request-cache");
 exports.BASE = process.env.NEXT_PUBLIC_API_URL || '';
-// One-time purge: remove any legacy localStorage token keys left from old builds.
 if (typeof window !== 'undefined') {
     localStorage.removeItem('dashboard_token');
     localStorage.removeItem('dashboard_token_expires');
@@ -244,7 +243,6 @@ function request(path_1) {
         });
     });
 }
-// Session utilities
 function isLoggedIn() {
     if (typeof window === 'undefined')
         return false;
@@ -264,7 +262,6 @@ function clearToken() {
     localStorage.removeItem('dashboard_token');
     localStorage.removeItem('dashboard_token_expires');
 }
-// WebSocket helpers
 function wsProgress(contentId) {
     var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     var host = process.env.NEXT_PUBLIC_WS_URL || "".concat(proto, "//").concat(window.location.host);
@@ -275,7 +272,6 @@ function wsEvents() {
     var host = process.env.NEXT_PUBLIC_WS_URL || "".concat(proto, "//").concat(window.location.host);
     return new WebSocket("".concat(host, "/api/ws/events"));
 }
-// Legacy password-only login (used when auth.v2.enabled = FALSE).
 function legacyLogin(password) {
     return __awaiter(this, void 0, void 0, function () {
         var res, body, b, data;

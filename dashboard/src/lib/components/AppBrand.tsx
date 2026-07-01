@@ -18,8 +18,6 @@ import { Tip } from './Tooltip';
 import { useAppState } from './AppStateProvider';
 
 export function AppBrandMark({ size = 20 }: { size?: number }) {
-  // Gradient that echoes the .app-shell-bg radial spotlights (violet → pink).
-  // Hardcoded hex (not tokens) on purpose — it's the brand, not theme surface.
   return (
     <span
       aria-hidden="true"
@@ -42,7 +40,6 @@ export function AppBrand({ collapsed }: { collapsed: boolean }) {
   const { setPaletteOpen } = useAppState();
 
   if (collapsed) {
-    // Collapsed: brand mark only, perfectly centered. Search lives in ⌘K.
     return (
       <Tip text="Autoniix · Home" pos="right">
         <Link
@@ -56,7 +53,6 @@ export function AppBrand({ collapsed }: { collapsed: boolean }) {
     );
   }
 
-  // Expanded: brand link + Search trigger sit in a single row.
   return (
     <div className="flex items-center gap-1">
       <Link

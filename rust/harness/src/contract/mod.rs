@@ -125,10 +125,8 @@ impl ContractValidator {
         let body: Value = serde_json::from_str(&body_text)
             .map_err(|_| ContractError::InvalidJson(body_text.clone()))?;
 
-        // Locate response schema in the OpenAPI document
         let response_schema = self.get_response_schema(method.as_str(), path, expected_status)?;
 
-        // Validate
         let compiled =
             JSONSchema::compile(&response_schema).map_err(|e| ContractError::ValidationFailed {
                 errors: vec![e.to_string()],
@@ -206,8 +204,6 @@ impl ContractValidator {
 /// Minimal YAML→JSON conversion (delegates to serde_json via string round-trip for now).
 /// Replace with `serde_yaml` if added as a dependency.
 fn serde_yaml_value(raw: &str) -> Result<Value> {
-    // Attempt basic YAML by stripping comments and re-parsing as JSON (not robust).
-    // TODO: add serde_yaml to workspace deps for proper YAML support.
     serde_json::from_str(raw).context("YAML parsing not yet supported; use JSON schema")
 }
 
@@ -292,7 +288,7 @@ mod tests {
             .get_response_schema("POST", "/api/v2/auth/signup", 201)
             .unwrap();
 
-        let response = json!({ "expires_in": 3600 }); // missing access_token + refresh_token
+        let response = json!({ "expires_in": 3600 });
 
         let compiled = JSONSchema::compile(&schema).unwrap();
         let errors: Vec<String> = match compiled.validate(&response) {

@@ -4,8 +4,8 @@ import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from "remo
 export interface FlowNode {
   id: string;
   label: string;
-  x: number; // 0..1 of composition width
-  y: number; // 0..1 of composition height
+  x: number;
+  y: number;
   color?: string;
   shape?: "box" | "round" | "diamond";
 }

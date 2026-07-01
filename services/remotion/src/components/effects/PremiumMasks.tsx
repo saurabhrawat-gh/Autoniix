@@ -56,18 +56,15 @@ export const PremiumMasks: React.FC<PremiumMasksProps> = ({
 
   const maskId = `premium-mask-${Math.random().toString(36).substr(2, 9)}`;
 
-  // Calculate mask position and size
   const centerX = position[0] * width;
   const centerY = position[1] * height;
   const maskSize = Math.min(width, height) * size;
 
-  // Animation progress
   const progress = interpolate(frame, [0, duration], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
-  // Generate mask path based on shape and animation
   const generateMaskPath = (): string => {
     switch (shape) {
       case "circle": {
@@ -106,7 +103,6 @@ export const PremiumMasks: React.FC<PremiumMasksProps> = ({
       }
 
       case "polygon": {
-        // Hexagon
         const radius = maskSize * 0.5;
         const points: string[] = [];
         for (let i = 0; i < 6; i++) {
@@ -129,7 +125,6 @@ export const PremiumMasks: React.FC<PremiumMasksProps> = ({
 
   const maskPath = generateMaskPath();
 
-  // Rotation for rotate animation
   const rotationAngle = animation === "rotate" ? progress * 360 : 0;
 
   return (

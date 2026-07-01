@@ -22,7 +22,6 @@ async def _maybe_pool():
     try:
         from src.db import get_pool
         pool = await get_pool()
-        # Probe required columns; if migrations haven't been applied, skip.
         await pool.fetchval(
             "SELECT is_enabled FROM provider_chains_v2 LIMIT 1"
         )
@@ -43,7 +42,6 @@ async def db():
 
 
 async def _ensure_category_and_credential(pool, category: str, label: str) -> int:
-    # Category must exist
     cat = await pool.fetchrow(
         "SELECT name FROM provider_categories WHERE name=$1", category,
     )
@@ -71,15 +69,12 @@ async def test_clean_slate_then_seed_then_resolve(db):
 
     category = f"llm.test_{uuid.uuid4().hex[:8]}"
 
-    # 1. Clean slate.
     await run_wipe(verbose=False)
     rows = await db.fetch("SELECT 1 FROM provider_credentials")
     assert len(rows) == 0, "clean-slate did not empty provider_credentials"
 
-    # 2. Add one credential.
     cid = await _ensure_category_and_credential(db, category, "primary")
 
-    # 3. Push it into the workspace + mode-agnostic chain.
     await db.execute(
         """INSERT INTO provider_chains_v2
               (scope, scope_id, content_mode, category, position, credential_id, is_enabled)
@@ -87,14 +82,12 @@ async def test_clean_slate_then_seed_then_resolve(db):
         category, cid,
     )
 
-    # 4. Resolver should return one row.
     chain_mod.invalidate()
     rows = await chain_mod._load_chain(
         category, channel_id=None, content_mode=None,
     )
     assert [r["id"] for r in rows] == [cid]
 
-    # 5. Disable the chain entry → resolver returns zero rows.
     await db.execute(
         "UPDATE provider_chains_v2 SET is_enabled=FALSE "
         "WHERE category=$1 AND credential_id=$2",
@@ -106,7 +99,6 @@ async def test_clean_slate_then_seed_then_resolve(db):
     )
     assert rows == [], "disabled chain entry must be skipped"
 
-    # 6. Re-enable entry but disable the credential → still empty.
     await db.execute(
         "UPDATE provider_chains_v2 SET is_enabled=TRUE "
         "WHERE category=$1 AND credential_id=$2",
@@ -121,7 +113,6 @@ async def test_clean_slate_then_seed_then_resolve(db):
     )
     assert rows == [], "disabled credential must be skipped"
 
-    # Cleanup
     await db.execute("DELETE FROM provider_chains_v2 WHERE category=$1", category)
     await db.execute("DELETE FROM provider_credentials WHERE id=$1", cid)
 

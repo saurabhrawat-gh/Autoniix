@@ -81,7 +81,6 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>,
     );
     expect(screen.getByText('Something went wrong')).toBeInTheDocument();
-    // Disable throwing BEFORE reset so re-render succeeds
     throwControl.shouldThrow = false;
     fireEvent.click(screen.getByText('Try again'));
     expect(screen.getByText('All good')).toBeInTheDocument();

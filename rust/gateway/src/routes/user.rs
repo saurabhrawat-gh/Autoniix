@@ -56,15 +56,11 @@ async fn get_current_user(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
 ) -> ApiResult<impl IntoResponse> {
-    // The JWT `sub` claim carries the user id as a string; parse it to match the
-    // bigint `users.id` column.
     let user_id: i64 = principal
         .user_id
         .parse()
         .map_err(|_| ApiError::Unauthorized)?;
 
-    // `display_name` is the only field sourced from the DB; everything else comes
-    // from the verified JWT principal (mirrors Python `v2/auth.py` /me).
     let display_name: Option<String> =
         sqlx::query_scalar::<_, Option<String>>("SELECT display_name FROM users WHERE id = $1")
             .bind(user_id)
@@ -73,8 +69,6 @@ async fn get_current_user(
             .map_err(ApiError::Database)?
             .flatten();
 
-    // Resolve permissions for the workspace-scoped role from the shared
-    // `role_permissions` matrix (same source as Python `_permissions.py`).
     let mut permissions: Vec<String> =
         sqlx::query_scalar::<_, String>("SELECT permission FROM role_permissions WHERE role = $1")
             .bind(&principal.role)
@@ -88,8 +82,6 @@ async fn get_current_user(
             })?;
     permissions.sort();
 
-    // A known role with zero seeded permissions means the RBAC matrix is
-    // uninitialized — surface 503 rather than silently hiding every nav item.
     let known_role = matches!(principal.role.as_str(), "owner" | "member" | "viewer");
     if permissions.is_empty() && known_role {
         return Err(ApiError::ServiceUnavailable(format!(
@@ -147,14 +139,10 @@ async fn list_users(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
 ) -> ApiResult<impl IntoResponse> {
-    // Superadmin-only. We check `global_role` (platform-level), not `role`
-    // (workspace-scoped) — matches Python's `require_global_role("superadmin")`.
     if principal.global_role != "superadmin" {
         return Err(ApiError::Forbidden);
     }
 
-    // SQL is copied verbatim from `src/services/dashboard/v2/users.py` so the
-    // response shape stays identical across services during the migration.
     let rows: Vec<UserRow> = sqlx::query_as::<_, UserRow>(
         r#"SELECT u.id, u.email, u.display_name, u.role AS global_role,
                   u.mfa_enabled, u.email_verified, u.disabled,

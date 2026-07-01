@@ -85,7 +85,6 @@ export default function DashboardPage() {
     return () => clearTimeout(t);
   }, [wsFlash]);
 
-  // WS for live job updates
   useEffect(() => {
     if (!isLoggedIn()) return;
     let ws: WebSocket | null = null;
@@ -132,7 +131,6 @@ export default function DashboardPage() {
   const failedJobs   = jobs.filter(j => j.status === 'failed' || j.status === 'stopped');
   const recentJobs   = [...jobs].slice(0, 20);
 
-  // Derived metrics
   const successRate = totalVideos > 0 ? Math.round((delivered / totalVideos) * 100) : null;
   const budgetPct   = dailyLimit > 0 ? Math.min(100, Math.round((costToday / dailyLimit) * 100)) : null;
   const systemHealthy = !systemStopped && failedJobs.length === 0;

@@ -54,7 +54,6 @@ from src.providers.llm.base import LLMRequest
 logger = structlog.get_logger()
 
 
-# Spec
 
 
 @dataclass
@@ -66,7 +65,6 @@ class Spec:
     must_match_regex: list[str] = field(default_factory=list)
     min_chars: int = 0
     max_chars: int = 100_000
-    # If set, the output must be valid JSON and contain every top-level key.
     json_required_keys: list[str] | None = None
 
     def evaluate(self, output: str) -> tuple[bool, list[str]]:
@@ -104,7 +102,6 @@ class Spec:
         return (not failures), failures
 
 
-# Cases & results
 
 
 @dataclass
@@ -142,7 +139,6 @@ class EvalResult:
         }
 
 
-# Runner
 
 
 async def run_case(case: EvalCase, *, channel_id: str = "EVAL") -> EvalResult:
@@ -160,7 +156,7 @@ async def run_case(case: EvalCase, *, channel_id: str = "EVAL") -> EvalResult:
         ),
         channel_id=channel_id,
         content_id=f"eval-{case.id}",
-        record_usage=False,  # Eval runs shouldn't pollute production cost rollup.
+        record_usage=False,
     )
     latency = int((time.monotonic() - start) * 1000)
     passed, failures = case.spec.evaluate(res.content)

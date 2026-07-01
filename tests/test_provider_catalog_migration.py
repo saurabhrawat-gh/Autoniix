@@ -11,7 +11,6 @@ from __future__ import annotations
 import pytest
 
 
-# ─── custom_openai_compat provider ────────────────────────────────────────────
 
 def test_custom_openai_compat_registered():
     import src.providers.boot  # noqa: F401
@@ -45,7 +44,6 @@ async def test_custom_openai_compat_health_check_no_url():
     assert result is False
 
 
-# ─── RotateIn schema ───────────────────────────────────────────────────────────
 
 def test_rotate_in_accepts_hint():
     from src.services.dashboard.v2.providers import RotateIn
@@ -62,7 +60,6 @@ def test_rotate_in_hint_optional():
     assert r.hint is None
 
 
-# ─── Migration SQL sanity ──────────────────────────────────────────────────────
 
 def test_migration_file_exists():
     import os

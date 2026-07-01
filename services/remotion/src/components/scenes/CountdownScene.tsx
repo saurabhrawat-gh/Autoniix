@@ -29,7 +29,6 @@ export const CountdownScene: React.FC<CountdownSceneProps> = ({
   const progress = Math.min(1, t / totalS);
   const current = Math.max(endSeconds, Math.round(startSeconds + (endSeconds - startSeconds) * progress));
 
-  // Spring bounce on each integer change
   const intFrame = Math.floor((current / Math.max(1, startSeconds)) * durationInFrames);
   const pop = spring({
     frame: frame - intFrame,

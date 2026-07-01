@@ -52,14 +52,10 @@ class TestChannelDelete:
             ChannelDeleteIn, delete_channel,
         )
         pool = FakePool()
-        # Sequence of pool.fetchrow calls:
-        #   [0] users password_hash lookup
-        #   [1] channels lookup
         pool.fetchrow.side_effect = [
             FakeRecord(password_hash="dummyhash"),
             _channel_row(workspace_id=1),
         ]
-        # pool.fetchval: [0] video_count=0, [1] yt_linked=None
         pool.fetchval.side_effect = [0, None]
 
         actor = _make_principal()
@@ -77,13 +73,11 @@ class TestChannelDelete:
             "status": "ok",
             "data": {"deleted": True, "channel_id": "ch_test"},
         }
-        # DELETE FROM channels was issued
         delete_calls = [
             c for c in pool.execute.await_args_list
             if "DELETE FROM channels" in str(c)
         ]
         assert len(delete_calls) == 1
-        # Audit was called once for channel.delete (no youtube unlink since yt_linked=None)
         mock_audit.assert_awaited_once()
         assert mock_audit.await_args.kwargs["action"] == "channel.delete"
 
@@ -97,7 +91,6 @@ class TestChannelDelete:
             FakeRecord(password_hash="hash"),
             _channel_row(),
         ]
-        # video_count=0, yt_linked=1
         pool.fetchval.side_effect = [0, 1]
 
         actor = _make_principal()
@@ -111,7 +104,6 @@ class TestChannelDelete:
                 channel_id="ch_test", body=body, request=req, actor=actor,
             )
 
-        # Two audit calls: channel.delete + provider.youtube.unlink
         assert mock_audit.await_count == 2
         actions = [c.kwargs["action"] for c in mock_audit.await_args_list]
         assert "channel.delete" in actions
@@ -137,7 +129,6 @@ class TestChannelDelete:
                 )
         assert exc.value.status_code == 403
         assert exc.value.detail == {"code": "wrong_password"}
-        # Channel was never queried — short-circuited at password check
         assert pool.fetchrow.await_count == 1
 
     @pytest.mark.asyncio
@@ -146,7 +137,7 @@ class TestChannelDelete:
         from src.services.dashboard.v2.channels import ChannelDeleteIn
 
         with pytest.raises(ValidationError):
-            ChannelDeleteIn(confirmation="DELETE", password="x")  # uppercase rejected
+            ChannelDeleteIn(confirmation="DELETE", password="x")
         with pytest.raises(ValidationError):
             ChannelDeleteIn(confirmation="del", password="x")
         with pytest.raises(ValidationError):
@@ -160,7 +151,7 @@ class TestChannelDelete:
         pool = FakePool()
         pool.fetchrow.side_effect = [
             FakeRecord(password_hash="hash"),
-            _channel_row(workspace_id=99),  # different workspace
+            _channel_row(workspace_id=99),
         ]
 
         actor = _make_principal(workspace_id=1)
@@ -184,7 +175,7 @@ class TestChannelDelete:
         pool = FakePool()
         pool.fetchrow.side_effect = [
             FakeRecord(password_hash="hash"),
-            None,  # channel not found
+            None,
         ]
 
         actor = _make_principal()
@@ -210,7 +201,7 @@ class TestChannelDelete:
             FakeRecord(password_hash="hash"),
             _channel_row(),
         ]
-        pool.fetchval.side_effect = [5]  # 5 published videos
+        pool.fetchval.side_effect = [5]
 
         actor = _make_principal()
         body = ChannelDeleteIn(confirmation="delete", password="goodpw")
@@ -225,7 +216,6 @@ class TestChannelDelete:
         assert exc.value.status_code == 409
         assert exc.value.detail["code"] == "has_videos"
         assert exc.value.detail["video_count"] == 5
-        # No DELETE FROM channels happened
         delete_calls = [
             c for c in pool.execute.await_args_list
             if "DELETE FROM channels" in str(c)
@@ -239,7 +229,7 @@ class TestChannelDelete:
         )
         pool = FakePool()
         actor = _make_principal()
-        actor.user_id = None  # legacy session edge case
+        actor.user_id = None
         body = ChannelDeleteIn(confirmation="delete", password="goodpw")
         req = MagicMock()
 
