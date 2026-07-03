@@ -55,7 +55,6 @@ def _make_user(**overrides) -> FakeRecord:
     return FakeRecord(defaults)
 
 
-# ── TC-110-01: happy path ──────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_login_valid_credentials_returns_200_and_tokens():
@@ -64,9 +63,9 @@ async def test_login_valid_credentials_returns_200_and_tokens():
     pool = FakePool()
     user = _make_user()
     pool.fetchrow = AsyncMock(side_effect=[
-        user,               # SELECT … FROM users
-        FakeRecord(active_workspace_id=1),  # SELECT active_workspace_id
-        FakeRecord(role="owner"),           # SELECT role FROM workspace_members
+        user,
+        FakeRecord(active_workspace_id=1),
+        FakeRecord(role="owner"),
     ])
     pool.execute = AsyncMock(return_value="INSERT 0 1")
 
@@ -82,7 +81,6 @@ async def test_login_valid_credentials_returns_200_and_tokens():
     response.set_cookie.assert_called()
 
 
-# ── TC-110-02: wrong password → 401, not silent redirect ──────────────────
 
 @pytest.mark.asyncio
 async def test_login_wrong_password_raises_401():
@@ -100,14 +98,13 @@ async def test_login_wrong_password_raises_401():
     assert "credentials" in exc_info.value.detail.lower()
 
 
-# ── TC-110-03: unknown email → 401 ────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_login_unknown_email_raises_401():
     from src.services.dashboard.v2.auth import login, LoginIn
 
     pool = FakePool()
-    pool.fetchrow = AsyncMock(return_value=None)  # user not found
+    pool.fetchrow = AsyncMock(return_value=None)
 
     body = LoginIn(email="ghost@example.com", password="any-password")
     with _pool_ctx(pool):
@@ -117,7 +114,6 @@ async def test_login_unknown_email_raises_401():
     assert exc_info.value.status_code == 401
 
 
-# ── TC-110-04: disabled account → 401 ────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_login_disabled_account_raises_401():
@@ -134,7 +130,6 @@ async def test_login_disabled_account_raises_401():
     assert exc_info.value.status_code == 401
 
 
-# ── TC-110-05: NULL password_hash (legacy user row) → 401, no crash ───────
 
 @pytest.mark.asyncio
 async def test_login_null_password_hash_raises_401_not_500():
@@ -148,11 +143,9 @@ async def test_login_null_password_hash_raises_401_not_500():
         with pytest.raises(HTTPException) as exc_info:
             await login(request=_make_request(), body=body, response=MagicMock())
 
-    # Must be 401, NOT 500 — _verify_pw must never propagate an exception
     assert exc_info.value.status_code == 401
 
 
-# ── TC-110-06: _verify_pw never raises ────────────────────────────────────
 
 def test_verify_pw_never_raises_on_garbage_input():
     from src.services.dashboard.v2.auth import _verify_pw
@@ -170,7 +163,6 @@ def test_verify_pw_never_raises_on_garbage_input():
         assert result is False, f"Expected False for pw={pw!r} hash={hashed!r}, got {result}"
 
 
-# ── TC-110-07: argon2 round-trip ──────────────────────────────────────────
 
 def test_hash_and_verify_roundtrip():
     from src.services.dashboard.v2.auth import _hash_pw, _verify_pw

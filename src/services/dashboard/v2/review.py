@@ -24,12 +24,12 @@ router = APIRouter()
 
 
 class DecisionIn(BaseModel):
-    decision: str    # approved|needs_edits|rejected|regenerating
+    decision: str
     summary: str | None = None
 
 
 class ScriptEditIn(BaseModel):
-    kind: str        # full|section|paragraph|hook|shorten|expand|tone|emotion|repetition|restore
+    kind: str
     range: dict | None = None
     prompt: str | None = None
     body: str | None = None
@@ -48,7 +48,6 @@ class CommentIn(BaseModel):
     parent_id: int | None = None
 
 
-# Queue
 @router.get("/queue")
 async def review_queue(
     state: str = "pending",
@@ -62,8 +61,6 @@ async def review_queue(
         args.append(channel_id); where.append(f"rs.channel_id=${len(args)}")
     args.append(limit)
     pool = await get_pool()
-    # INNER JOIN drops orphaned sessions whose underlying video record was
-    # deleted — clicking those would 404 on the detail endpoint.
     rows = await pool.fetch(
         f"""SELECT rs.id, rs.video_id, rs.channel_id, rs.state, rs.opened_at,
                    rs.expires_at, v.title, v.topic, v.content_mode,
@@ -144,8 +141,12 @@ async def decide(
     video_id: str, body: DecisionIn, request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
-    if body.decision not in ("approved", "needs_edits", "rejected", "regenerating"):
-        raise HTTPException(400, "Invalid decision")
+    _VALID_DECISIONS = ("approved", "needs_edits", "rejected", "regenerating")
+    if body.decision not in _VALID_DECISIONS:
+        raise HTTPException(
+            400,
+            f"Invalid decision={body.decision!r}; expected one of {list(_VALID_DECISIONS)}",
+        )
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -166,7 +167,6 @@ async def decide(
                 "UPDATE videos SET review_state=$1, updated_at=NOW() WHERE content_id=$2",
                 body.decision, video_id,
             )
-    # Notify Temporal workflow if it's waiting (best-effort).
     try:
         from src.services.dashboard.main import _get_temporal_client
         client = await _get_temporal_client()
@@ -213,7 +213,6 @@ async def _ai_rewrite_script(*, video_id: str, kind: str, source: str,
         from src.providers.llm.base import LLMRequest
         from src.db import get_pool as _gp
 
-        # Look up channel_id for budget enforcement.
         channel_id = ""
         try:
             pool = await _gp()
@@ -254,7 +253,6 @@ async def _ai_rewrite_script(*, video_id: str, kind: str, source: str,
             if isinstance(new_body, str) and new_body.strip():
                 return new_body.strip()
         except Exception:
-            # Some providers ignore the JSON instruction — accept their text.
             if text:
                 return text
         return None
@@ -281,9 +279,6 @@ async def edit_script(
     ai_used = False
 
     if body.kind in _AI_KINDS:
-        # We need the source text. Either the caller already passed it as
-        # body.body (the editor sends the latest version), or we fetch the
-        # most recent version from the DB.
         source = body.body or ""
         if not source:
             row = await pool.fetchrow(
@@ -391,7 +386,6 @@ async def regenerate_thumbnail(
             r.raise_for_status()
             triggered = True
             payload = r.json()
-            # Persist all generated variants as thumbnail_versions rows.
             try:
                 variants = (payload.get("data") or {}).get("variants", [])
                 if variants:

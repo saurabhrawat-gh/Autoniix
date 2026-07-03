@@ -16,11 +16,9 @@ export function loadFonts(): void {
   if (loaded) return;
   loaded = true;
 
-  // Inter — primary UI/heading/body font used across all scenes
   const inter = loadInter();
-  inter.fontFamily; // trigger load
+  inter.fontFamily;
 
-  // Noto Serif — fallback for serif styles (QuoteCard serif_minimal, etc.)
   const notoSerif = loadNotoSerif();
   notoSerif.fontFamily;
 }

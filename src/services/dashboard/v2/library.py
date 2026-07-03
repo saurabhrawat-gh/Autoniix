@@ -117,7 +117,6 @@ async def list_music(_: Principal = Depends(principal_dep)):
     return {"data": out}
 
 
-# Wave 3 — DAM
 
 def _storage_key(scope: str, scope_id: str | None, kind: str, filename: str) -> str:
     uid = uuid.uuid4().hex[:12]
@@ -125,7 +124,6 @@ def _storage_key(scope: str, scope_id: str | None, kind: str, filename: str) -> 
     return f"dam/{scope}/{sid}/{kind}/{uid}_{filename}"
 
 
-# helpers
 
 async def _upload_to_minio(data: bytes, key: str, content_type: str) -> bool:
     """Best-effort upload to MinIO; returns True on success."""
@@ -164,7 +162,6 @@ async def _enqueue_media_jobs(pool: Any, asset_id: int, kind: str) -> None:
         )
 
 
-# models
 
 class AssetPatch(BaseModel):
     display_name: str | None = None
@@ -201,9 +198,9 @@ class SearchIn(BaseModel):
     kind: str | None = None
     tags: list[str] | None = None
     limit: int = 40
+    mode: str = "hybrid"
 
 
-# GET /library/dam/assets
 
 @router.get("/dam/assets")
 async def dam_list_assets(
@@ -249,7 +246,6 @@ async def dam_list_assets(
     return {"data": [dict(r) for r in rows]}
 
 
-# POST /library/dam/assets/preflight
 
 @router.post("/dam/assets/preflight")
 async def dam_preflight(
@@ -267,7 +263,6 @@ async def dam_preflight(
     return {"exists": False}
 
 
-# POST /library/dam/upload
 
 @router.post("/dam/upload")
 async def dam_upload(
@@ -281,11 +276,24 @@ async def dam_upload(
 ):
     pool = await get_pool()
     results = []
+
+    from src.services.dashboard.v2.library_quotas import check_quota_before_upload
+
+    incoming_total = 0
+    for f in files:
+        incoming_total += int(getattr(f, "size", None) or 0)
+    quota = await check_quota_before_upload(scope, scope_id, incoming_total)
+    if not quota["ok"]:
+        raise HTTPException(
+            413,
+            f"upload would exceed quota: requested {incoming_total} bytes, "
+            f"{quota['remaining_bytes']} remaining of {quota['quota_bytes']}",
+        )
+
     for f in files:
         data = await f.read()
         sha = hashlib.sha256(data).hexdigest()
 
-        # Dedup check
         existing = await pool.fetchrow(
             "SELECT id FROM dam_assets WHERE content_hash = $1 AND deleted_at IS NULL LIMIT 1",
             sha,
@@ -316,7 +324,6 @@ async def dam_upload(
     return {"count": len(results), "results": results}
 
 
-# GET /library/dam/assets/{id}
 
 @router.get("/dam/assets/{asset_id}")
 async def dam_get_asset(
@@ -330,21 +337,18 @@ async def dam_get_asset(
     if not row:
         raise HTTPException(404, "Asset not found")
     asset = dict(row)
-    # versions
     versions = await pool.fetch(
         "SELECT id, version_no, bytes, content_hash, note, created_at"
         " FROM dam_asset_versions WHERE asset_id = $1 ORDER BY version_no DESC",
         asset_id,
     )
     asset["versions"] = [dict(v) for v in versions]
-    # renditions
     renditions = await pool.fetch(
         "SELECT rendition_kind, storage_key, codec, width, height, bitrate_kbps,"
         " duration_ms, bytes FROM media_renditions WHERE asset_id = $1",
         asset_id,
     )
     asset["renditions"] = [dict(r) for r in renditions]
-    # media jobs (recent)
     jobs = await pool.fetch(
         "SELECT kind, status, error, finished_at FROM media_jobs"
         " WHERE asset_id = $1 ORDER BY created_at DESC LIMIT 10",
@@ -354,7 +358,6 @@ async def dam_get_asset(
     return {"data": asset}
 
 
-# PATCH /library/dam/assets/{id}
 
 @router.patch("/dam/assets/{asset_id}")
 async def dam_patch_asset(
@@ -383,7 +386,6 @@ async def dam_patch_asset(
     return {"ok": True}
 
 
-# DELETE /library/dam/assets/{id}
 
 @router.delete("/dam/assets/{asset_id}")
 async def dam_delete_asset(
@@ -398,7 +400,6 @@ async def dam_delete_asset(
     return {"ok": True}
 
 
-# GET /library/dam/tags
 
 @router.get("/dam/tags")
 async def dam_list_tags(
@@ -419,7 +420,6 @@ async def dam_list_tags(
     return {"data": [r["tag"] for r in rows]}
 
 
-# Collections CRUD
 
 @router.get("/dam/collections")
 async def dam_list_collections(
@@ -483,7 +483,20 @@ async def dam_delete_collection(
     return {"ok": True}
 
 
-# Brand kits CRUD
+@router.get("/dam/collections/{col_id}/assets")
+async def dam_resolve_collection_assets(
+    col_id: int,
+    limit: int = Query(200, ge=1, le=1000),
+    _: Principal = Depends(principal_dep),
+):
+    from src.services.dashboard.v2.library_smart_collections import (
+        resolve_smart_collection,
+    )
+
+    rows = await resolve_smart_collection(col_id, limit=limit)
+    return {"data": rows, "count": len(rows)}
+
+
 
 @router.get("/dam/brand-kits")
 async def dam_list_brand_kits(
@@ -540,41 +553,136 @@ async def dam_update_brand_kit(
     return {"ok": True}
 
 
-# POST /library/dam/search
 
-@router.post("/dam/search")
-async def dam_search(
-    body: SearchIn,
-    _: Principal = Depends(principal_dep),
-):
-    """Hybrid search: full-text on display_name + tag match."""
-    pool = await get_pool()
+
+_SELECT_COLS = (
+    "id, scope, scope_id, kind, display_name, mime_type, bytes, "
+    "thumbnail_key, storage_key, origin, tags, metadata, created_at"
+)
+
+
+def _common_filters(body: "SearchIn") -> tuple[list[str], list[Any]]:
+    """Build the WHERE clause shared between FTS and semantic paths."""
     where = ["deleted_at IS NULL", "scope = $1"]
     args: list[Any] = [body.scope]
-
     if body.scope_id:
-        args.append(body.scope_id); where.append(f"scope_id = ${len(args)}")
+        args.append(body.scope_id)
+        where.append(f"scope_id = ${len(args)}")
     if body.kind:
-        args.append(body.kind); where.append(f"kind = ${len(args)}")
+        args.append(body.kind)
+        where.append(f"kind = ${len(args)}")
     if body.tags:
         for t in body.tags:
-            args.append(t); where.append(f"${len(args)} = ANY(tags)")
+            args.append(t)
+            where.append(f"${len(args)} = ANY(tags)")
+    return where, args
 
+
+async def _fts_search(body: "SearchIn") -> list[dict]:
+    pool = await get_pool()
+    where, args = _common_filters(body)
     if body.q:
         args.append(body.q)
         where.append(
             f"(to_tsvector('english', display_name) @@ plainto_tsquery('english', ${len(args)})"
             f" OR display_name ILIKE '%' || ${len(args)} || '%')"
         )
-
     args.append(body.limit)
     rows = await pool.fetch(
-        f"""SELECT id, scope, scope_id, kind, display_name, mime_type, bytes,
-                   thumbnail_key, storage_key, origin, tags, metadata, created_at
+        f"""SELECT {_SELECT_COLS}, NULL::float8 AS cosine_sim
               FROM dam_assets
              WHERE {" AND ".join(where)}
              ORDER BY created_at DESC
              LIMIT ${len(args)}""",
         *args,
     )
-    return {"data": [dict(r) for r in rows], "count": len(rows)}
+    return [dict(r) for r in rows]
+
+
+async def _semantic_search(body: "SearchIn") -> list[dict] | None:
+    """Return semantic-ranked rows, or None if embeddings are unavailable.
+
+    Returns ``None`` (not ``[]``) when the embedding call fails so the caller
+    can fall back to FTS; an empty list means "we ran semantic search and
+    nothing matched."
+    """
+    if not body.q:
+        return None
+    from src.llm.embeddings import EmbeddingConfigError, EmbeddingError, embed_text
+
+    try:
+        vector = await embed_text(body.q)
+    except (EmbeddingConfigError, EmbeddingError):
+        return None
+
+    literal = "[" + ",".join(f"{v:.6f}" for v in vector) + "]"
+    pool = await get_pool()
+    where, args = _common_filters(body)
+    args.append(literal)
+    vec_param = f"${len(args)}::vector"
+    args.append(body.limit)
+    rows = await pool.fetch(
+        f"""
+        SELECT {_SELECT_COLS},
+               1 - (e.embedding <=> {vec_param}) AS cosine_sim
+          FROM dam_assets
+          JOIN dam_text_embeddings e ON e.asset_id = dam_assets.id
+         WHERE {" AND ".join(where)}
+         ORDER BY e.embedding <=> {vec_param}
+         LIMIT ${len(args)}
+        """,
+        *args,
+    )
+    return [dict(r) for r in rows]
+
+
+def _fuse(semantic: list[dict], lexical: list[dict], limit: int) -> list[dict]:
+    """Reciprocal-rank fusion of two ranked lists.
+
+    score(asset) = sum( 1 / (k + rank_i) ) over lists where the asset appears.
+    Standard RRF with k=60. Robust to score scales and missing scores.
+    """
+    K = 60.0
+    fused: dict[int, dict] = {}
+    for rank, row in enumerate(semantic, start=1):
+        entry = fused.setdefault(row["id"], dict(row, _score=0.0))
+        entry["_score"] += 1.0 / (K + rank)
+    for rank, row in enumerate(lexical, start=1):
+        entry = fused.setdefault(row["id"], dict(row, _score=0.0))
+        entry["_score"] += 1.0 / (K + rank)
+    ranked = sorted(fused.values(), key=lambda r: r["_score"], reverse=True)
+    for r in ranked:
+        r.pop("_score", None)
+    return ranked[:limit]
+
+
+@router.post("/dam/search")
+async def dam_search(
+    body: SearchIn,
+    _: Principal = Depends(principal_dep),
+):
+    """Library search (AE-356).
+
+    Modes:
+      * ``hybrid``   — semantic + FTS, fused with reciprocal-rank fusion.
+                       Falls back to FTS only when the embedding call fails.
+      * ``semantic`` — vector search only; empty list if embeddings unavailable.
+      * ``fts``      — legacy behaviour: full-text + ILIKE.
+    """
+    mode = (body.mode or "hybrid").lower()
+    if mode == "fts":
+        rows = await _fts_search(body)
+        return {"data": rows, "count": len(rows), "mode": "fts"}
+
+    if mode == "semantic":
+        semantic = await _semantic_search(body)
+        if semantic is None:
+            return {"data": [], "count": 0, "mode": "semantic", "note": "embeddings unavailable"}
+        return {"data": semantic, "count": len(semantic), "mode": "semantic"}
+
+    semantic = await _semantic_search(body)
+    lexical = await _fts_search(body)
+    if semantic is None:
+        return {"data": lexical, "count": len(lexical), "mode": "fts_fallback"}
+    fused = _fuse(semantic, lexical, body.limit)
+    return {"data": fused, "count": len(fused), "mode": "hybrid"}

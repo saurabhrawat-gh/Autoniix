@@ -10,7 +10,6 @@ import type {
  * Each returns a `TransitionPresentation<{}>` which TransitionSeries can render.
  */
 
-// BlurSwap: outgoing blurs out & fades, incoming blurs in & fades up
 
 const BlurSwapPresenter: React.FC<
   TransitionPresentationComponentProps<{ maxBlurPx: number }>
@@ -37,15 +36,12 @@ export const blurSwap = (
   props: { maxBlurPx: opts.maxBlurPx ?? 30 },
 });
 
-// Iris: circular mask expands/contracts around center
 
 const IrisPresenter: React.FC<
   TransitionPresentationComponentProps<{ direction: "open" | "close" }>
 > = ({ children, presentationDirection, presentationProgress, passedProps }) => {
   const { direction } = passedProps;
   const p = presentationProgress;
-  // For `open`: incoming reveals as circle grows; outgoing shrinks.
-  // For `close`: opposite.
   const radiusPct =
     presentationDirection === "entering"
       ? direction === "open"
@@ -76,7 +72,6 @@ export const iris = (
   props: { direction: opts.direction ?? "open" },
 });
 
-// WhipPan: fast horizontal motion blur sweep between scenes
 
 const WhipPanPresenter: React.FC<
   TransitionPresentationComponentProps<{ dir: "left" | "right"; maxBlurPx: number }>
@@ -85,12 +80,11 @@ const WhipPanPresenter: React.FC<
   const p = presentationProgress;
   const sign = dir === "left" ? -1 : 1;
 
-  // bell curve: blur peaks mid-transition
   const blurAmt = Math.sin(p * Math.PI) * maxBlurPx;
   const translate =
     presentationDirection === "entering"
-      ? -sign * (1 - p) * 100 // slide in from opposite edge
-      : sign * p * 100; // slide out toward dir
+      ? -sign * (1 - p) * 100
+      : sign * p * 100;
 
   return (
     <AbsoluteFill
@@ -111,7 +105,6 @@ export const whipPan = (
   props: { dir: opts.dir ?? "left", maxBlurPx: opts.maxBlurPx ?? 24 },
 });
 
-// Cover: incoming slides over stationary outgoing (outgoing holds, incoming overtakes)
 
 const CoverPresenter: React.FC<
   TransitionPresentationComponentProps<{ dir: "left" | "right" | "up" | "down" }>
@@ -120,11 +113,9 @@ const CoverPresenter: React.FC<
   const p = presentationProgress;
 
   if (presentationDirection === "exiting") {
-    // Outgoing scene stays in place
     return <AbsoluteFill>{children}</AbsoluteFill>;
   }
 
-  // Incoming slides in from `dir` edge
   const axis = dir === "left" || dir === "right" ? "X" : "Y";
   const sign = dir === "left" || dir === "up" ? -1 : 1;
   const offset = -sign * (1 - p) * 100;
@@ -142,7 +133,6 @@ export const cover = (
   props: { dir: opts.dir ?? "right" },
 });
 
-// ZoomPunch: outgoing scales up + blurs out; incoming scales in from zoom
 
 const ZoomPunchPresenter: React.FC<
   TransitionPresentationComponentProps<{ maxZoom: number; maxBlurPx: number }>
@@ -171,14 +161,12 @@ export const zoomPunch = (
   props: { maxZoom: opts.maxZoom ?? 2.4, maxBlurPx: opts.maxBlurPx ?? 16 },
 });
 
-// GlitchCut: very fast RGB-split flicker while swapping
 
 const GlitchCutPresenter: React.FC<
   TransitionPresentationComponentProps<{ splitPx: number }>
 > = ({ children, presentationDirection, presentationProgress, passedProps }) => {
   const { splitPx } = passedProps;
   const p = presentationProgress;
-  // Glitch intensity peaks mid-cut
   const g = Math.sin(p * Math.PI);
   const offset = g * splitPx;
 
@@ -209,7 +197,6 @@ export const glitchCut = (
   props: { splitPx: opts.splitPx ?? 18 },
 });
 
-// Shatter: outgoing breaks into a grid of tiles that fly outward
 
 const ShatterPresenter: React.FC<
   TransitionPresentationComponentProps<{ cols: number; rows: number; seed: string }>
@@ -217,19 +204,16 @@ const ShatterPresenter: React.FC<
   const { cols, rows, seed } = passedProps;
   const p = presentationProgress;
 
-  // Incoming simply fades in
   if (presentationDirection === "entering") {
     return <AbsoluteFill style={{ opacity: p }}>{children}</AbsoluteFill>;
   }
 
-  // Outgoing: render as cols×rows tiles, each offset by a seeded direction
   const tiles: React.ReactNode[] = [];
   const tileW = 100 / cols;
   const tileH = 100 / rows;
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const key = `${c}-${r}`;
-      // pseudo-random offsets per tile
       const rng = (n: number) => {
         const x = Math.sin((c + 1) * 127.1 + (r + 1) * 311.7 + n + seed.length) * 43758.5453;
         return x - Math.floor(x);
@@ -277,9 +261,6 @@ export const shatter = (
   props: { cols: opts.cols ?? 8, rows: opts.rows ?? 5, seed: opts.seed ?? "shatter" },
 });
 
-// Morph: scale-dissolve cross-fade with slight blur (fake morph)
-// True morph-cut requires feature matching across scenes (ML preprocess).
-// This approximation reads well for talking-head/similar-framing transitions.
 
 const MorphPresenter: React.FC<
   TransitionPresentationComponentProps<{ scaleAmt: number; blurPx: number }>
@@ -290,7 +271,7 @@ const MorphPresenter: React.FC<
     presentationDirection === "entering"
       ? 1 + (1 - p) * scaleAmt
       : 1 - p * scaleAmt;
-  const blur = Math.sin(p * Math.PI) * blurPx; // peaks mid-transition
+  const blur = Math.sin(p * Math.PI) * blurPx;
   const style: React.CSSProperties = {
     transform: `scale(${scale})`,
     filter: `blur(${blur}px)`,

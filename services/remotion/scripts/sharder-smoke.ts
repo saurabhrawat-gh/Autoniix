@@ -12,11 +12,9 @@ import path from "node:path";
 import { DirectionV3 } from "../src/schemas/directionV3";
 import { lower, planShards } from "../src/scene-graph";
 
-// Construct an 8-segment graph by replicating + offsetting the minimal fixture's segments.
 const fixturePath = path.resolve(__dirname, "../src/scene-graph/__fixtures__/minimal-direction.json");
 const raw = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
 
-// Synthesize a longer timeline: 8 segments * 3000ms = 24000ms.
 const seg = raw.segments[0];
 const segments: typeof raw.segments = [];
 for (let i = 0; i < 8; i++) {
@@ -37,7 +35,6 @@ const graph = lower(direction);
 const planA = planShards(graph, { targetShards: 4 });
 const planB = planShards(graph, { targetShards: 4 });
 
-// Determinism
 const hashesA = planA.shards.map((s) => s.hash).join("|");
 const hashesB = planB.shards.map((s) => s.hash).join("|");
 if (hashesA !== hashesB) {
@@ -45,7 +42,6 @@ if (hashesA !== hashesB) {
   process.exit(1);
 }
 
-// Coverage + non-overlap
 let cursor = 0;
 for (const shard of planA.shards) {
   if (shard.startMs !== cursor) {
@@ -59,7 +55,6 @@ if (cursor !== graph.meta.durationMs) {
   process.exit(1);
 }
 
-// Boundary alignment — every cut lies on a segment boundary.
 const segBounds = new Set<number>();
 for (const c of segments) {
   segBounds.add(c.start_ms);
@@ -72,7 +67,6 @@ for (const cut of planA.cutPointsMs) {
   }
 }
 
-// Frame alignment must be integer.
 for (const s of planA.shards) {
   if (!Number.isInteger(s.startFrame) || !Number.isInteger(s.endFrame)) {
     console.error(`FAIL: non-integer frame on shard ${s.index}`);
@@ -80,10 +74,5 @@ for (const s of planA.shards) {
   }
 }
 
-console.log("OK sharder smoke");
-console.log(`   shards: ${planA.shards.length}`);
 for (const s of planA.shards) {
-  console.log(
-    `   #${s.index}  ${s.startMs}–${s.endMs}ms  frames ${s.startFrame}–${s.endFrame}  clips=[${s.clipIds.join(",")}]  hash=${s.hash.slice(0, 12)}…`,
-  );
 }

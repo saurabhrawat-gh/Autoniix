@@ -25,7 +25,6 @@ import { applyPatch, lower, type SceneGraph } from "../scene-graph";
 import { DirectorAgent, EditorAgent } from "../agents";
 import type { Patch } from "../scene-graph";
 
-// propose_scene
 
 export interface ProposeSceneInput {
   /** A direction-v3 JSON OR an existing scene graph. */
@@ -85,7 +84,6 @@ export async function proposeScene(input: ProposeSceneInput): Promise<ProposeSce
   return { graph, patches, appliedAgents };
 }
 
-// render_preview
 
 export interface RenderPreviewInput {
   graph: SceneGraph;
@@ -101,16 +99,12 @@ export interface RenderPreviewOutput {
 }
 
 export async function renderPreview(input: RenderPreviewInput): Promise<RenderPreviewOutput> {
-  // The real implementation will enqueue a job onto PREVIEW_QUEUE and poll
-  // until ready, then return a signed URL. Wired in P1 once Tier-0
-  // compositor lands.
   return {
     status: "unimplemented",
     message: `preview render of ${input.graph.meta.videoId} (${(input.rangeMs ?? [0, 5000]).join("..")}ms) not yet implemented`,
   };
 }
 
-// query_registry
 
 export interface QueryRegistryInput {
   /** Filter by kind. Default returns all. */
@@ -133,8 +127,6 @@ export interface QueryRegistryOutput {
 }
 
 export async function queryRegistry(input: QueryRegistryInput): Promise<QueryRegistryOutput> {
-  // We import lazily to avoid pulling React/Remotion into the MCP process
-  // unless this tool is actually invoked.
   const { listPresets } = await import("../registry");
   const limit = input.limit ?? 200;
 
@@ -154,7 +146,6 @@ export async function queryRegistry(input: QueryRegistryInput): Promise<QueryReg
     tags: p.tags,
   }));
 
-  // Add LUTs/SFX when requested.
   if (!input.kind || input.kind === "lut") {
     const { lutLibrary } = await import("../registry/lutLibrary");
     for (const l of lutLibrary) {
@@ -176,7 +167,6 @@ export async function queryRegistry(input: QueryRegistryInput): Promise<QueryReg
   return { entries };
 }
 
-// get_qc_report
 
 export interface GetQcReportInput {
   jobId: string;
@@ -191,8 +181,6 @@ export interface GetQcReportOutput {
 }
 
 export async function getQcReport(input: GetQcReportInput): Promise<GetQcReportOutput> {
-  // Real implementation looks up `agent_runs` + render_outcomes by jobId
-  // (P0.12 schema) — not wired until orchestrator persists results.
   return {
     status: "unimplemented",
     jobId: input.jobId,
@@ -200,7 +188,6 @@ export async function getQcReport(input: GetQcReportInput): Promise<GetQcReportO
   };
 }
 
-// list_channels
 
 export interface ListChannelsOutput {
   status: "found" | "unimplemented";
@@ -216,7 +203,6 @@ export async function listChannels(): Promise<ListChannelsOutput> {
   };
 }
 
-// get_retention_curve
 
 export interface GetRetentionCurveInput {
   channelId: string;
@@ -239,7 +225,6 @@ export async function getRetentionCurve(input: GetRetentionCurveInput): Promise<
   };
 }
 
-// run_bandit_sample
 
 export interface RunBanditSampleInput {
   /** Cluster name, e.g. "hook_style", "pacing", "transition_family". */
@@ -272,8 +257,6 @@ export async function runBanditSample(input: RunBanditSampleInput): Promise<RunB
       message: `unknown cluster ${input.cluster}; bandit table not yet seeded for this dimension`,
     };
   }
-  // Deterministic stub: pick the first arm. Real bandit sampling lands once
-  // channel_style_priors table exists.
   return {
     cluster: input.cluster,
     arm: arms[0]!,
@@ -282,7 +265,6 @@ export async function runBanditSample(input: RunBanditSampleInput): Promise<RunB
   };
 }
 
-// tool index
 
 export const TOOLS = {
   propose_scene: proposeScene,

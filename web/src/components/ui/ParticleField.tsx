@@ -46,20 +46,15 @@ export default function ParticleField({
     let particles: Particle[] = []
 
     type Particle = {
-      // base spherical coords
       theta: number
       phi: number
       r: number
-      // jitter offsets
       ox: number
       oy: number
-      // size + color
       size: number
       col: string
-      // twinkle phase
       tw: number
       twSpeed: number
-      // drift
       dx: number
       dy: number
     }
@@ -80,12 +75,10 @@ export default function ParticleField({
       particles = []
       const baseR = Math.min(w, h) * radius
       for (let i = 0; i < count; i++) {
-        // Spherical-ish distribution — biased toward outer shell
         const u = Math.random()
         const v = Math.random()
         const theta = 2 * Math.PI * u
         const phi = Math.acos(2 * v - 1)
-        // shell-biased radius (Math.cbrt gives uniform vol; we bias outward)
         const r = baseR * (0.55 + Math.random() * 0.45)
         particles.push({
           theta,
@@ -110,21 +103,16 @@ export default function ParticleField({
       const cx = w * centerX
       const cy = h * centerY
 
-      // gentle global rotation
       const rotY = t * 0.0006
       const rotX = Math.sin(t * 0.0004) * 0.2
 
       for (const p of particles) {
-        // 3D point on sphere
         const x0 = p.r * Math.sin(p.phi) * Math.cos(p.theta + rotY)
         const y0 = p.r * Math.cos(p.phi)
         const z0 = p.r * Math.sin(p.phi) * Math.sin(p.theta + rotY)
-        // pitch
         const y1 = y0 * Math.cos(rotX) - z0 * Math.sin(rotX)
         const z1 = y0 * Math.sin(rotX) + z0 * Math.cos(rotX)
-        // depth-based fade (z1 > 0 = closer)
-        const depth = (z1 + p.r) / (2 * p.r) // 0..1
-        // gentle drift jitter
+        const depth = (z1 + p.r) / (2 * p.r)
         p.ox += p.dx
         p.oy += p.dy
         if (Math.abs(p.ox) > 6) p.dx *= -1
@@ -133,7 +121,6 @@ export default function ParticleField({
         const px = cx + x0 + p.ox
         const py = cy + y1 + p.oy
 
-        // twinkle
         p.tw += p.twSpeed
         const twinkle = 0.5 + 0.5 * Math.sin(p.tw)
 

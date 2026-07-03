@@ -205,7 +205,6 @@ export function makeDefaultCritic(): { agent: CriticAgent; defaultCtx: AgentCtx 
   };
 }
 
-// helpers
 
 function avg(xs: number[]): number {
   if (xs.length === 0) return 0;
@@ -228,7 +227,7 @@ function extractLumHint(f: FrameSample): number {
     const m = /\blum=([0-9.]+)/.exec(f.source.path);
     if (m) return clamp01(Number(m[1]));
   }
-  return 0.5; // neutral fallback when no hint
+  return 0.5;
 }
 
 function clamp01(x: number): number {

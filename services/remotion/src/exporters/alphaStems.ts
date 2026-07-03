@@ -124,7 +124,7 @@ export function planAlphaStems(
   const skipped: AlphaStemsPlan["skipped"] = [];
 
   for (const t of graph.tracks) {
-    if (t.kind === "video") continue; // primary track renders as-is
+    if (t.kind === "video") continue;
     if (t.kind === "caption") {
       collectCaptionStems(t, graph, fmt, compositions.captions, stems, skipped);
       continue;
@@ -147,12 +147,8 @@ export function planAlphaStems(
     }
   }
 
-  // Title cards — emitted only when at least one scene clip carries an
-  // advanced text animation (Phase 1B). These get their own stem so the
-  // editor can replace or restyle them without re-rendering the whole project.
   collectTitleCardStems(graph, fmt, compositions["title-cards"], stems);
 
-  // Stable order: by start time, then by id.
   stems.sort((a, b) => a.rangeMs[0] - b.rangeMs[0] || a.id.localeCompare(b.id));
 
   return { stems, skipped };
@@ -175,8 +171,6 @@ function collectCaptionStems(
     skipped.push({ kind: "captions", trackId: t.id, reason: "no caption clips" });
     return;
   }
-  // Aggregate all captions on this track into a single stem — the captions
-  // composition handles each clip's word timings internally.
   const start = Math.min(...clips.map((c) => c.range[0]));
   const end = Math.max(...clips.map((c) => c.range[1]));
   const id = stemId("captions", [t.id], clips.map((c) => c.hash));
@@ -236,7 +230,6 @@ function collectOverlayStems(
     return;
   }
 
-  // One stem per clip — preferred mode.
   for (const c of clips) {
     const start = clipStart(c)!;
     const end = clipEnd(c)!;
@@ -297,8 +290,6 @@ function collectTitleCardStems(
   composition: string,
   out: StemRender[],
 ): void {
-  // A "title card" stem is any scene clip whose animationsIn / animationsOut
-  // contains an advanced text preset (Phase 1B). One stem per clip.
   for (const t of graph.tracks) {
     if (t.kind !== "video" && t.kind !== "overlay") continue;
     for (const c of t.clips) {

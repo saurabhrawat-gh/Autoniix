@@ -37,7 +37,6 @@ export const SubscribePing: React.FC<SubscribePingProps> = ({
   );
   const pulse = 1 + 0.06 * Math.sin((frame / fps) * 2 * Math.PI * 1.5);
   const p = Math.min(enter, exit);
-  // dwellFrames is implicit — the Sequence durationInFrames is the dwell.
   void dwellFrames;
 
   const bg =

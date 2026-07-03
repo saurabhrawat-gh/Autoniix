@@ -32,19 +32,16 @@ async def extract_voice_features(content_id: str, channel_id: str,
                                   audio_metrics: dict, emotion_data: list[dict],
                                   validation: dict) -> dict:
     """Extract and store features for the voice ML pipeline."""
-    # Aggregate TTS params
     stabilities = [e.get("stability", 0.5) for e in emotion_data]
     similarities = [e.get("similarity_boost", 0.75) for e in emotion_data]
     styles = [e.get("style", 0.4) for e in emotion_data]
     speeds = [e.get("speed", 1.0) for e in emotion_data]
     pauses = [e.get("pause_after_ms", 300) for e in emotion_data]
 
-    # Emotion variety
     emotions = [e.get("emotion", "neutral") for e in emotion_data]
     unique_emotions = len(set(emotions))
     emotion_variety = unique_emotions / max(len(emotions), 1)
 
-    # Emphasis density
     total_emphasis = sum(len(e.get("emphasis_words", [])) for e in emotion_data)
     emphasis_density = total_emphasis / max(len(emotion_data), 1)
 
@@ -64,7 +61,6 @@ async def extract_voice_features(content_id: str, channel_id: str,
         "segment_count": validation.get("sentence_count", 0),
     }
 
-    # Store in DB
     try:
         pool = await get_pool()
         await pool.execute("""
@@ -109,7 +105,6 @@ async def predict_optimal_params(channel_id: str, niche: str) -> dict | None:
         model = pickle.loads(row["model_blob"])
         stored_features = json.loads(row["feature_names"]) if row["feature_names"] else FEATURE_NAMES
 
-        # Get recent successful voice params for this channel
         recent = await pool.fetch("""
             SELECT vf.stability, vf.similarity_boost, vf.style, vf.speed,
                    vf.audio_quality_score, vf.naturalness_score
@@ -122,7 +117,6 @@ async def predict_optimal_params(channel_id: str, niche: str) -> dict | None:
         if not recent:
             return None
 
-        # Average the successful params
         optimal = {
             "stability": round(np.mean([r["stability"] for r in recent if r["stability"]]), 3),
             "similarity_boost": round(np.mean([r["similarity_boost"] for r in recent if r["similarity_boost"]]), 3),
@@ -151,7 +145,6 @@ async def ingest_voice_feedback(content_id: str, channel_id: str,
         retention_50 = retention_data.get("retention_at_50pct", 0)
         retention_70 = retention_data.get("retention_at_70pct", 0)
 
-        # Good retention = above 50% at the 50% mark
         is_good = retention_50 > 0.50
 
         await pool.execute("""
@@ -180,7 +173,6 @@ async def train_voice_model(niche: str) -> dict:
     try:
         pool = await get_pool()
 
-        # Get labeled data
         rows = await pool.fetch("""
             SELECT vf.stability, vf.similarity_boost, vf.style, vf.speed,
                    vf.snr_db, vf.rms_energy, vf.naturalness_score, vf.wpm,
@@ -195,7 +187,6 @@ async def train_voice_model(niche: str) -> dict:
         if len(rows) < 15:
             return {"status": "insufficient_data", "samples": len(rows), "min_required": 15}
 
-        # Build feature matrix
         feature_cols = ["stability", "similarity_boost", "style", "speed",
                        "snr_db", "rms_energy", "naturalness_score", "wpm",
                        "duration_s", "audio_quality_score"]
@@ -222,7 +213,6 @@ async def train_voice_model(niche: str) -> dict:
                 [round(float(fi), 4) for fi in model.feature_importances_])),
         }
 
-        # Store model
         await pool.execute("""
             UPDATE voice_models SET is_active = FALSE
             WHERE model_name = 'voice_param_optimizer' AND niche = $1

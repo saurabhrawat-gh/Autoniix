@@ -34,7 +34,6 @@ function tokenize(src: string): Tok[] {
   while (i < src.length) {
     const c = src[i]!;
 
-    // line comment
     if ((c === "/" && src[i + 1] === "/") || c === "#") {
       const j = src.indexOf("\n", i);
       const end = j === -1 ? src.length : j;
@@ -42,7 +41,6 @@ function tokenize(src: string): Tok[] {
       i = end;
       continue;
     }
-    // block comment
     if (c === "/" && src[i + 1] === "*") {
       const j = src.indexOf("*/", i + 2);
       const end = j === -1 ? src.length : j + 2;
@@ -50,7 +48,6 @@ function tokenize(src: string): Tok[] {
       i = end;
       continue;
     }
-    // string
     if (c === '"' || c === "'" || c === "`") {
       let j = i + 1;
       while (j < src.length && src[j] !== c) {
@@ -61,7 +58,6 @@ function tokenize(src: string): Tok[] {
       i = j + 1;
       continue;
     }
-    // number
     if (/\d/.test(c)) {
       let j = i;
       while (j < src.length && /[\d._a-fA-FxX]/.test(src[j]!)) j++;
@@ -69,7 +65,6 @@ function tokenize(src: string): Tok[] {
       i = j;
       continue;
     }
-    // identifier / keyword
     if (/[A-Za-z_$]/.test(c)) {
       let j = i;
       while (j < src.length && /[A-Za-z0-9_$]/.test(src[j]!)) j++;
@@ -129,7 +124,6 @@ export const CodeTyping: React.FC<CodeTypingProps> = ({
   const tokens = tokenize(typed);
   const pal = THEMES[theme];
 
-  // Compute line structure for line-number gutter
   const lines = typed.split("\n");
   const showCursor = Math.floor(t * 2) % 2 === 0 && charsVisible < code.length;
 

@@ -15,7 +15,6 @@ from src.observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
-# Google Sheets tab GIDs
 SHEET_GIDS = {
     "Channel_DNA": 0,
     "Execution_Locks": 1865472506,
@@ -83,8 +82,7 @@ async def _sync_table_to_sheet(tab_name: str, query: str, columns: list[str]):
         logger.info(f"sheets_sync.{tab_name}.no_data")
         return {"tab": tab_name, "rows_synced": 0}
 
-    # Convert rows to list of lists
-    data = [columns]  # header row
+    data = [columns]
     for row in rows:
         data.append([
             str(row.get(col, "") or "") for col in columns
@@ -94,7 +92,6 @@ async def _sync_table_to_sheet(tab_name: str, query: str, columns: list[str]):
     sheet_id = settings.google_sheets_id
     gid = SHEET_GIDS.get(tab_name)
 
-    # Clear and write
     range_name = f"{tab_name}!A1"
     sheets.values().clear(
         spreadsheetId=sheet_id, range=f"{tab_name}!A:ZZ",

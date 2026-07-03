@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Command } from 'cmdk';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { api, isLoggedIn } from '../api';
 import { useAppState } from './AppStateProvider';
@@ -14,21 +14,34 @@ import {
 } from './Icon';
 import { Kbd } from '@/lib/ui';
 
+const TYPEWRITER_PHRASES = [
+  'Search channels...',
+  'Find failed jobs...',
+  'Trigger content...',
+  'Check queue...',
+] as const;
+
 interface ChannelLite { channel_id: string; channel_name: string; status: string }
 interface JobLite { content_id: string; title?: string; channel_name?: string; status?: string }
 
 export function CommandPalette() {
   const router = useRouter();
+  const reduce = useReducedMotion();
   const { paletteOpen, setPaletteOpen, envMode, switchEnv, systemStopped, setSystemStopped } = useAppState();
   const [channels, setChannels] = useState<ChannelLite[]>([]);
   const [jobs, setJobs] = useState<JobLite[]>([]);
   const [search, setSearch] = useState('');
 
-  // Toggle on ⌘K / Ctrl+K
+  const [phIdx, setPhIdx]   = useState(0);
+  const [phChars, setPhChars] = useState(0);
+  const [inputFocused, setInputFocused] = useState(false);
+
+  const [ripplingId, setRipplingId] = useState<string | null>(null);
+  const pendingAction = useRef<(() => void) | null>(null);
+
   useHotkeys('mod+k', (e) => { e.preventDefault(); setPaletteOpen(!paletteOpen); }, { enableOnFormTags: true });
   useHotkeys('escape', () => { if (paletteOpen) setPaletteOpen(false); }, { enableOnFormTags: true });
 
-  // Lazy-load context when opened
   useEffect(() => {
     if (!paletteOpen || !isLoggedIn()) return;
     let cancelled = false;
@@ -45,6 +58,39 @@ export function CommandPalette() {
     })();
     return () => { cancelled = true; };
   }, [paletteOpen]);
+
+  useEffect(() => {
+    if (!paletteOpen || search !== '' || inputFocused || reduce) return;
+    const phrase = TYPEWRITER_PHRASES[phIdx];
+    if (phChars < phrase.length) {
+      const t = setTimeout(() => setPhChars((c) => c + 1), 38);
+      return () => clearTimeout(t);
+    }
+    const t = setTimeout(() => {
+      setPhIdx((i) => (i + 1) % TYPEWRITER_PHRASES.length);
+      setPhChars(0);
+    }, 2500);
+    return () => clearTimeout(t);
+  }, [paletteOpen, phIdx, phChars, search, inputFocused, reduce]);
+
+  useEffect(() => {
+    if (!paletteOpen) { setPhIdx(0); setPhChars(0); setSearch(''); }
+  }, [paletteOpen]);
+
+  const twPlaceholder = search !== '' || inputFocused
+    ? ''
+    : TYPEWRITER_PHRASES[phIdx].slice(0, phChars);
+
+  function withRipple(id: string, action: () => void) {
+    if (reduce) { action(); return; }
+    setRipplingId(id);
+    pendingAction.current = action;
+    setTimeout(() => {
+      setRipplingId(null);
+      pendingAction.current?.();
+      pendingAction.current = null;
+    }, 280);
+  }
 
   const go = useCallback((href: string) => {
     setPaletteOpen(false);
@@ -122,7 +168,9 @@ export function CommandPalette() {
                 <Command.Input
                   value={search}
                   onValueChange={setSearch}
-                  placeholder="Search channels, jobs, actions…"
+                  placeholder={twPlaceholder || 'Search channels, jobs, actions…'}
+                  onFocus={() => setInputFocused(true)}
+                  onBlur={() => setInputFocused(false)}
                   className="flex-1 bg-transparent text-[15px] text-content-primary placeholder:text-content-tertiary outline-none font-normal"
                 />
                 <Kbd className="hidden sm:inline-flex h-6 px-2 text-[11px]">ESC</Kbd>
@@ -134,30 +182,66 @@ export function CommandPalette() {
                 </Command.Empty>
 
                 <Command.Group heading="Navigation" className="text-[10px] uppercase tracking-wider text-content-tertiary px-2 pt-2 pb-1">
-                  {navItems.map(({ id, label, icon: Icon, run, keywords }) => (
+                  {navItems.map(({ id, label, icon: Icon, run, keywords }, i) => (
                     <Command.Item
                       key={id}
                       value={`${label} ${keywords || ''}`}
-                      onSelect={run}
-                      className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-content-primary cursor-pointer aria-selected:bg-accent/10 aria-selected:text-accent"
+                      onSelect={() => withRipple(id, run)}
+                      className="relative overflow-hidden flex items-center gap-2 px-3 py-2 rounded-md text-sm text-content-primary cursor-pointer aria-selected:bg-accent/10 aria-selected:text-accent"
                     >
-                      <Icon size={14} className="shrink-0" />
-                      <span>{label}</span>
+                      <motion.span
+                        className="contents"
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.12, delay: i * 0.02 }}
+                      >
+                        <Icon size={14} className="shrink-0" />
+                        <span>{label}</span>
+                      </motion.span>
+                      <AnimatePresence>
+                        {ripplingId === id && (
+                          <motion.span
+                            className="absolute inset-0 rounded-md bg-accent/20"
+                            initial={{ opacity: 0.6, scale: 0.6 }}
+                            animate={{ opacity: 0, scale: 2 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.28 }}
+                          />
+                        )}
+                      </AnimatePresence>
                     </Command.Item>
                   ))}
                 </Command.Group>
 
                 {actionItems.length > 0 && (
                   <Command.Group heading="Actions" className="text-[10px] uppercase tracking-wider text-content-tertiary px-2 pt-3 pb-1">
-                    {actionItems.map(({ id, label, icon: Icon, run, keywords }) => (
+                    {actionItems.map(({ id, label, icon: Icon, run, keywords }, i) => (
                       <Command.Item
                         key={id}
                         value={`${label} ${keywords || ''}`}
-                        onSelect={run}
-                        className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-content-primary cursor-pointer aria-selected:bg-accent/10 aria-selected:text-accent"
+                        onSelect={() => withRipple(id, run)}
+                        className="relative overflow-hidden flex items-center gap-2 px-3 py-2 rounded-md text-sm text-content-primary cursor-pointer aria-selected:bg-accent/10 aria-selected:text-accent"
                       >
-                        <Icon size={14} className="shrink-0" />
-                        <span>{label}</span>
+                        <motion.span
+                          className="contents"
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.12, delay: i * 0.02 }}
+                        >
+                          <Icon size={14} className="shrink-0" />
+                          <span>{label}</span>
+                        </motion.span>
+                        <AnimatePresence>
+                          {ripplingId === id && (
+                            <motion.span
+                              className="absolute inset-0 rounded-md bg-accent/20"
+                              initial={{ opacity: 0.6, scale: 0.6 }}
+                              animate={{ opacity: 0, scale: 2 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.28 }}
+                            />
+                          )}
+                        </AnimatePresence>
                       </Command.Item>
                     ))}
                   </Command.Group>
@@ -165,16 +249,34 @@ export function CommandPalette() {
 
                 {channels.length > 0 && (
                   <Command.Group heading="Channels" className="text-[10px] uppercase tracking-wider text-content-tertiary px-2 pt-3 pb-1">
-                    {channels.slice(0, 30).map((ch) => (
+                    {channels.slice(0, 30).map((ch, i) => (
                       <Command.Item
                         key={`ch-${ch.channel_id}`}
                         value={`channel ${ch.channel_name} ${ch.channel_id}`}
-                        onSelect={() => go(`/dashboard/channels/${ch.channel_id}`)}
-                        className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-content-primary cursor-pointer aria-selected:bg-accent/10 aria-selected:text-accent"
+                        onSelect={() => withRipple(`ch-${ch.channel_id}`, () => go(`/dashboard/channels/${ch.channel_id}`))}
+                        className="relative overflow-hidden flex items-center gap-2 px-3 py-2 rounded-md text-sm text-content-primary cursor-pointer aria-selected:bg-accent/10 aria-selected:text-accent"
                       >
-                        <Video size={14} className="shrink-0" />
-                        <span className="truncate">{ch.channel_name}</span>
-                        <span className="ml-auto text-[10px] text-content-tertiary">{ch.status}</span>
+                        <motion.span
+                          className="contents"
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.12, delay: i * 0.02 }}
+                        >
+                          <Video size={14} className="shrink-0" />
+                          <span className="truncate">{ch.channel_name}</span>
+                          <span className="ml-auto text-[10px] text-content-tertiary">{ch.status}</span>
+                        </motion.span>
+                        <AnimatePresence>
+                          {ripplingId === `ch-${ch.channel_id}` && (
+                            <motion.span
+                              className="absolute inset-0 rounded-md bg-accent/20"
+                              initial={{ opacity: 0.6, scale: 0.6 }}
+                              animate={{ opacity: 0, scale: 2 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.28 }}
+                            />
+                          )}
+                        </AnimatePresence>
                       </Command.Item>
                     ))}
                   </Command.Group>
@@ -182,18 +284,36 @@ export function CommandPalette() {
 
                 {jobs.length > 0 && (
                   <Command.Group heading="Active Jobs" className="text-[10px] uppercase tracking-wider text-content-tertiary px-2 pt-3 pb-1">
-                    {jobs.slice(0, 30).map((j) => (
+                    {jobs.slice(0, 30).map((j, i) => (
                       <Command.Item
                         key={`job-${j.content_id}`}
                         value={`job ${j.title || ''} ${j.content_id} ${j.channel_name || ''}`}
-                        onSelect={() => go(`/dashboard/jobs/${j.content_id}`)}
-                        className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-content-primary cursor-pointer aria-selected:bg-accent/10 aria-selected:text-accent"
+                        onSelect={() => withRipple(`job-${j.content_id}`, () => go(`/dashboard/jobs/${j.content_id}`))}
+                        className="relative overflow-hidden flex items-center gap-2 px-3 py-2 rounded-md text-sm text-content-primary cursor-pointer aria-selected:bg-accent/10 aria-selected:text-accent"
                       >
-                        <Inbox size={14} className="shrink-0" />
-                        <span className="truncate">{j.title || j.content_id}</span>
-                        {j.channel_name && (
-                          <span className="ml-auto text-[10px] text-content-tertiary truncate max-w-[40%]">{j.channel_name}</span>
-                        )}
+                        <motion.span
+                          className="contents"
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.12, delay: i * 0.02 }}
+                        >
+                          <Inbox size={14} className="shrink-0" />
+                          <span className="truncate">{j.title || j.content_id}</span>
+                          {j.channel_name && (
+                            <span className="ml-auto text-[10px] text-content-tertiary truncate max-w-[40%]">{j.channel_name}</span>
+                          )}
+                        </motion.span>
+                        <AnimatePresence>
+                          {ripplingId === `job-${j.content_id}` && (
+                            <motion.span
+                              className="absolute inset-0 rounded-md bg-accent/20"
+                              initial={{ opacity: 0.6, scale: 0.6 }}
+                              animate={{ opacity: 0, scale: 2 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.28 }}
+                            />
+                          )}
+                        </AnimatePresence>
                       </Command.Item>
                     ))}
                   </Command.Group>

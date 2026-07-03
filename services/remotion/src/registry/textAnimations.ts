@@ -44,7 +44,6 @@ function clamp(x: number, lo: number, hi: number): number {
 export function seededRng(seed: string | number): () => number {
   let h = typeof seed === "number" ? seed >>> 0 : 0;
   if (typeof seed === "string") {
-    // FNV-1a fold to 32-bit
     h = 0x811c9dc5;
     for (let i = 0; i < seed.length; i++) {
       h ^= seed.charCodeAt(i);
@@ -92,7 +91,7 @@ export interface CountUpParams {
 export interface CountUpFrame {
   value: number;
   text: string;
-  progress: number; // 0..1
+  progress: number;
 }
 
 export function computeCountUp(params: CountUpParams, tLocalMs: number): CountUpFrame {
@@ -115,16 +114,16 @@ export function computeCountUp(params: CountUpParams, tLocalMs: number): CountUp
 
 export interface TypewriterParams {
   text: string;
-  cps?: number; // characters per second; default 30
+  cps?: number;
   delayMs?: number;
   cursorChar?: string;
-  cursorBlinkMs?: number; // default 500
+  cursorBlinkMs?: number;
 }
 
 export interface TypewriterFrame {
   visible: string;
   showCursor: boolean;
-  progress: number; // 0..1
+  progress: number;
 }
 
 export function computeTypewriter(
@@ -164,7 +163,7 @@ export interface ScrambleDecodeParams {
 
 export interface ScrambleDecodeFrame {
   visible: string;
-  progress: number; // 0..1 over the whole reveal
+  progress: number;
 }
 
 const DEFAULT_CHARSET =
@@ -189,8 +188,6 @@ export function computeScrambleDecode(
 
   const t = clamp(tLocalMs / params.durationMs, 0, 1);
 
-  // Each char i has a "settle progress" — once >= 1, the real char is shown.
-  // Distribute settle window per reveal mode so each char gets ~ (1/N) of t.
   const charSettlePerChar = 1 / N;
   function charProgress(i: number): number {
     let order: number;
@@ -209,7 +206,6 @@ export function computeScrambleDecode(
       case "random": {
         const rng = seededRng(`${seedKey}:order`);
         const arr = Array.from({ length: N }, (_, k) => k);
-        // Fisher–Yates with seeded RNG → permutation order
         for (let k = N - 1; k > 0; k--) {
           const j = Math.floor(rng() * (k + 1));
           [arr[k]!, arr[j]!] = [arr[j]!, arr[k]!];
@@ -223,7 +219,6 @@ export function computeScrambleDecode(
     return clamp((t - start) / (end - start), 0, 1);
   }
 
-  // Glyph rotation index for unsettled chars (deterministic per char + frame bucket).
   const frameBucket = Math.floor((tLocalMs / 1000) * scrambleFps);
 
   const out: string[] = [];
@@ -290,7 +285,6 @@ function bezierAt(
   const ab = lerp2(a, b, t);
   const bc = lerp2(b, c, t);
   const pos = lerp2(ab, bc, t);
-  // Derivative is the tangent.
   const tan: [number, number] = [
     3 * (1 - t) * (1 - t) * (p1[0] - p0[0]) +
       6 * (1 - t) * t * (p2[0] - p1[0]) +
@@ -325,12 +319,12 @@ export function computePathFollow(
   params: PathFollowParams,
   tLocalMs: number,
 ): PathFollowGlyph[] {
-  void tLocalMs; // Layout is time-invariant; animation comes from `spread` or wrappers.
+  void tLocalMs;
   const spread = params.spread ?? 1;
   const alignToPath = params.alignToPath ?? true;
   const charSpacing = params.charSpacingPx ?? 14;
 
-  void charSpacing; // reserved for advanced glyph metric integration
+  void charSpacing;
   const N = params.text.length;
   const totalSpan = clamp(spread, 0, 1);
   const out: PathFollowGlyph[] = [];
@@ -364,7 +358,7 @@ export interface StaggerWordsFrame {
   /** Per-word state at `tLocalMs`. */
   perWord: Array<{
     word: string;
-    progress: number; // 0..1; 0 = not started; 1 = fully revealed
+    progress: number;
     started: boolean;
     finished: boolean;
   }>;

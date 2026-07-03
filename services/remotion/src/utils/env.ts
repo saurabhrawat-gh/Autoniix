@@ -35,7 +35,7 @@ export const env = {
   RENDER_CONCURRENCY: num("RENDER_CONCURRENCY", 1),
   RENDER_TMP_DIR: str("RENDER_TMP_DIR", "./tmp"),
   /** Worker role. Selects which queue this process consumes. P0.11. */
-  WORKER_ROLE: str("WORKER_ROLE", "legacy"), // "legacy" | "tier0" | "tier1" | "tier2" | "concat"
+  WORKER_ROLE: str("WORKER_ROLE", "legacy"),
 
   S3_ENDPOINT: str("S3_ENDPOINT", ""),
   S3_REGION: str("S3_REGION", "auto"),
@@ -46,7 +46,6 @@ export const env = {
   S3_FORCE_PATH_STYLE: bool("S3_FORCE_PATH_STYLE", true),
   S3_KEY_PREFIX: str("S3_KEY_PREFIX", ""),
 
-  // Remotion Vision P0 flags
   /** Enable scene-graph aware path: lower direction-v3 → SceneGraph → render. */
   SCENE_GRAPH_ENABLED: bool("SCENE_GRAPH_ENABLED", false),
   /** Enable frame-range sharding via BullMQ FlowProducer. */

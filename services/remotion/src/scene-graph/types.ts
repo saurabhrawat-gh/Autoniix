@@ -16,7 +16,7 @@
 import type { DirectionV3Input } from "../schemas/directionV3";
 
 export type Ms = number;
-export type Hash = string; // sha256 hex, lowercased
+export type Hash = string;
 
 export type SceneGraphVersion = 1;
 
@@ -186,7 +186,7 @@ export type SceneClip = {
   id: string;
   scenePreset: string;
   sceneOverrides?: Record<string, unknown>;
-  range: [Ms, Ms]; // [start, end) in ms
+  range: [Ms, Ms];
   animationsIn?: AnimationRef[];
   animationsOut?: AnimationRef[];
   effects?: string[];

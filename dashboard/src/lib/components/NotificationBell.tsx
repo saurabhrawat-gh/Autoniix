@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { motion, useAnimate } from 'framer-motion';
 import { useAppState } from './AppStateProvider';
 import { Bell, CheckCircle2, XCircle, Info, AlertTriangle, Trash2 } from './Icon';
 import { cn } from '../utils';
@@ -32,10 +32,18 @@ function relTime(ts: number) {
 export function NotificationBell() {
   const { notifications, markAllNotificationsRead, clearNotifications } = useAppState();
   const [open, setOpen] = useState(false);
+  const [bellScope, animateBell] = useAnimate();
+  const prevUnread = useRef(0);
 
   const unread = notifications.filter(n => !n.read).length;
 
-  // Mark read on open
+  useEffect(() => {
+    if (unread > prevUnread.current && bellScope.current) {
+      animateBell(bellScope.current, { rotate: [0, 20, -20, 12, -12, 0] }, { duration: 0.5, ease: 'easeInOut' });
+    }
+    prevUnread.current = unread;
+  }, [unread, animateBell, bellScope]);
+
   useEffect(() => {
     if (open && unread > 0) {
       const t = setTimeout(() => markAllNotificationsRead(), 600);
@@ -49,9 +57,11 @@ export function NotificationBell() {
         <SimpleTooltip content="Notifications" side="bottom">
           <PopoverTrigger
             aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ''}`}
-            className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-surface-2 hover:bg-surface-3 text-content-secondary hover:text-content-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            className="relative w-7 h-7 inline-flex items-center justify-center rounded-md text-content-tertiary hover:bg-surface-2 hover:text-content-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
           >
-            <Bell size={14} />
+            <span ref={bellScope} style={{ display: 'inline-flex' }}>
+              <Bell size={14} />
+            </span>
             {unread > 0 && (
               <motion.span
                 key={unread}

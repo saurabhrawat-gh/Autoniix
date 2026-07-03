@@ -1,7 +1,3 @@
-// Autoniix Dashboard UI Kit — barrel
-// All primitives are themed via the CSS variables defined in app/globals.css.
-// They render identically in light and dark; theme is toggled by adding
-// `class="dark"` on <html>.
 
 export { cn } from './cn';
 
@@ -14,7 +10,7 @@ export { Textarea, type TextareaProps } from './textarea';
 export { Label } from './label';
 export { Checkbox } from './checkbox';
 export { RadioGroup, RadioGroupItem } from './radio-group';
-export { Switch } from './switch';
+export { Switch, SwitchRow, type SwitchRowProps } from './switch';
 export {
   Select,
   SelectGroup,
@@ -51,7 +47,9 @@ export {
   DialogPortal,
   DialogClose,
   DialogHeader,
+  DialogBody,
   DialogFooter,
+  DialogCloseButton,
   DialogTitle,
   DialogDescription,
 } from './dialog';
@@ -95,3 +93,30 @@ export {
   type Toast,
   type ToastVariant,
 } from './toast';
+
+export {
+  Modal,
+  ModalTrigger,
+  ModalPortal,
+  ModalClose,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalTitle,
+  ModalDescription,
+  type ModalSize,
+} from './modal';
+
+export {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  type TableRowProps,
+  type TableCellProps,
+  type TableHeadProps,
+  type TableProps,
+} from './table-row';

@@ -4,6 +4,12 @@ import * as React from 'react';
 import * as SwitchPrimitive from '@radix-ui/react-switch';
 import { cn } from './cn';
 
+export interface SwitchRowProps extends React.ComponentPropsWithoutRef<typeof SwitchPrimitive.Root> {
+  label: React.ReactNode;
+  description?: React.ReactNode;
+  rowClassName?: string;
+}
+
 export const Switch = React.forwardRef<
   React.ElementRef<typeof SwitchPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof SwitchPrimitive.Root>
@@ -30,3 +36,24 @@ export const Switch = React.forwardRef<
   </SwitchPrimitive.Root>
 ));
 Switch.displayName = 'Switch';
+
+export const SwitchRow = React.forwardRef<
+  React.ElementRef<typeof SwitchPrimitive.Root>,
+  SwitchRowProps
+>(({ label, description, rowClassName, id, className, ...props }, ref) => (
+  <div className={cn('flex items-center justify-between gap-4 py-3', rowClassName)}>
+    <div className="flex-1 min-w-0">
+      <label
+        htmlFor={id}
+        className="block text-sm font-medium text-content-primary leading-snug cursor-pointer"
+      >
+        {label}
+      </label>
+      {description && (
+        <p className="mt-0.5 text-xs text-content-tertiary">{description}</p>
+      )}
+    </div>
+    <Switch ref={ref} id={id} className={className} {...props} />
+  </div>
+));
+SwitchRow.displayName = 'SwitchRow';

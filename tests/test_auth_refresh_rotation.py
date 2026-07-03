@@ -57,9 +57,6 @@ def _build_request(cookie_value: str | None):
     return req
 
 
-# ---------------------------------------------------------------------------
-# Happy path — UC-RT-01
-# ---------------------------------------------------------------------------
 
 class TestRefreshHappyPath:
     @pytest.mark.asyncio
@@ -68,7 +65,6 @@ class TestRefreshHappyPath:
         from src.services.dashboard.v2.auth import refresh
 
         pool = FakePool()
-        # fetchrow is called 3 times: session lookup, active_workspace lookup, ws_role lookup
         pool.fetchrow.side_effect = [
             _valid_session_row(),
             FakeRecord(active_workspace_id=1),
@@ -87,18 +83,13 @@ class TestRefreshHappyPath:
 
         assert result["status"] == "ok"
         assert "access_token" in result and result["expires_in"] == 3600
-        # Exactly 2 statements: UPDATE rotated_at, INSERT new session
         assert conn_execute.await_count == 2
         sqls = [c.args[0] for c in conn_execute.await_args_list]
         assert any("UPDATE sessions SET rotated_at=NOW()" in s for s in sqls)
         assert any("INSERT INTO sessions" in s for s in sqls)
-        # Cookies set on response (access + refresh + auth_status -> 3 calls)
         assert resp.set_cookie.call_count >= 2
 
 
-# ---------------------------------------------------------------------------
-# Sad paths — UC-RT-02
-# ---------------------------------------------------------------------------
 
 class TestRefreshNoWorkspace:
     @pytest.mark.asyncio
@@ -231,9 +222,6 @@ class TestRefreshRejected:
         assert ei.value.status_code == 401
 
 
-# ---------------------------------------------------------------------------
-# Logout — UC-RT-03
-# ---------------------------------------------------------------------------
 
 class TestLogoutRevokesSession:
     @pytest.mark.asyncio
@@ -257,9 +245,7 @@ class TestLogoutRevokesSession:
             res = await logout(request=req, response=resp, body=None, _=principal)
 
         assert res == {"status": "ok"}
-        # Session UPDATE issued
         pool.execute.assert_awaited_once()
         sql = pool.execute.await_args.args[0]
         assert "UPDATE sessions SET revoked_at" in sql
-        # Cookies cleared on response
         assert resp.delete_cookie.call_count >= 1

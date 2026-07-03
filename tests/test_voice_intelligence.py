@@ -19,7 +19,6 @@ from src.services.voice.emotion_predictor import (
 from src.services.voice.audio_quality_scorer import _quick_audio_stats
 
 
-# Emotion Predictor
 
 class TestDetectSentenceEmotion:
     def test_curiosity_keyword(self):
@@ -53,7 +52,6 @@ class TestDetectSentenceEmotion:
         assert detect_sentence_emotion("") == "neutral"
 
     def test_multiple_emotions_picks_strongest(self):
-        # "amazing" = excitement, "why" = curiosity
         result = detect_sentence_emotion("Why is this so amazing and incredible?")
         assert result in ("excitement", "curiosity")
 
@@ -140,7 +138,6 @@ class TestPredictEmotionsForSentences:
     def test_blends_channel_defaults(self, sample_channel):
         sentences = [{"text": "Normal text here", "section": "body"}]
         results = predict_emotions_for_sentences(sentences, sample_channel)
-        # Stability should be blended: 70% predicted + 30% channel default
         assert 0.0 <= results[0]["stability"] <= 1.0
 
     def test_empty_list(self, sample_channel):
@@ -169,7 +166,6 @@ class TestSectionPacing:
         assert set(SECTION_PACING.keys()) == expected
 
 
-# Audio Quality Scorer
 
 class TestQuickAudioStats:
     def test_too_short(self):
@@ -181,7 +177,6 @@ class TestQuickAudioStats:
         assert result["valid"] is False
 
     def test_valid_mp3_header(self):
-        # ID3 header + padding
         audio = b"ID3" + b"\x00" * 200
         result = _quick_audio_stats(audio)
         assert result["valid"] is True

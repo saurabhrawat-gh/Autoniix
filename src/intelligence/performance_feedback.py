@@ -39,7 +39,7 @@ logger = structlog.get_logger()
 
 _TOP_LIMIT = 3
 _WORST_LIMIT = 2
-_MIN_VIEWS_FOR_LEARNING = 200  # Below this, view counts are noise.
+_MIN_VIEWS_FOR_LEARNING = 200
 
 
 async def _fetch_performers(channel_id: str) -> dict[str, Any]:
@@ -159,7 +159,5 @@ async def build_performance_context(channel_id: str) -> str:
     return text
 
 
-# Exposed for unit tests \u2014 lets us exercise _format on canned data
-# without touching the DB.
 def _format_for_tests(performers: dict[str, Any]) -> str:
     return _format(performers)

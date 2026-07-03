@@ -1,0 +1,414 @@
+{
+  "common": {
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "deleting": "Deleting…",
+    "confirm": "Confirm",
+    "close": "Close",
+    "edit": "Edit",
+    "view": "View",
+    "back": "Back",
+    "next": "Next",
+    "create": "Create",
+    "update": "Update",
+    "remove": "Remove",
+    "add": "Add",
+    "search": "Search",
+    "filter": "Filter",
+    "loading": "Loading…",
+    "error": "Something went wrong",
+    "retry": "Retry",
+    "empty": "No items yet",
+    "noResults": "No results found",
+    "required": "Required",
+    "optional": "Optional",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "active": "Active",
+    "inactive": "Inactive",
+    "paused": "Paused",
+    "unknown": "Unknown",
+    "yes": "Yes",
+    "no": "No",
+    "copied": "Copied!",
+    "copyLink": "Copy link",
+    "learnMore": "Learn more",
+    "seeAll": "See all",
+    "showMore": "Show more",
+    "showLess": "Show less",
+    "refresh": "Refresh",
+    "download": "Download",
+    "export": "Export",
+    "import": "Import"
+  },
+  "nav": {
+    "home": "Home",
+    "dashboard": "Dashboard",
+    "notifications": "Notifications",
+    "channels": "Channels",
+    "content": "Content",
+    "library": "Library",
+    "queue": "Queue",
+    "progress": "Progress",
+    "jobs": "Jobs",
+    "review": "Review",
+    "analytics": "Analytics",
+    "experiments": "Experiments",
+    "fleet": "Fleet",
+    "providers": "Providers",
+    "teams": "Teams",
+    "users": "Users",
+    "settings": "Settings",
+    "debug": "Debug",
+    "workspace": "Workspace",
+    "schedule": "Schedule",
+    "collapse": "Collapse",
+    "pillars": {
+      "create": "Create",
+      "operate": "Operate",
+      "measure": "Measure",
+      "configure": "Configure"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in to Autoniix",
+      "subtitle": "AI-powered content automation",
+      "email": "Email address",
+      "password": "Password",
+      "submit": "Sign in",
+      "submitting": "Signing in…",
+      "forgotPassword": "Forgot password?",
+      "noAccount": "Don't have an account?",
+      "register": "Create account",
+      "error": {
+        "invalidCredentials": "Invalid email or password",
+        "accountLocked": "Account locked. Please contact support.",
+        "generic": "Sign in failed. Please try again."
+      }
+    },
+    "register": {
+      "title": "Create your account",
+      "subtitle": "Get started with Autoniix",
+      "name": "Full name",
+      "email": "Email address",
+      "password": "Password",
+      "confirmPassword": "Confirm password",
+      "submit": "Create account",
+      "submitting": "Creating account…",
+      "haveAccount": "Already have an account?",
+      "signIn": "Sign in",
+      "error": {
+        "emailTaken": "This email is already registered",
+        "passwordMismatch": "Passwords do not match",
+        "weakPassword": "Password must be at least 8 characters",
+        "generic": "Registration failed. Please try again."
+      }
+    },
+    "forgotPassword": {
+      "title": "Reset your password",
+      "subtitle": "Enter your email and we'll send a reset link",
+      "email": "Email address",
+      "submit": "Send reset link",
+      "submitting": "Sending…",
+      "success": "Check your email for a reset link",
+      "backToLogin": "Back to sign in"
+    },
+    "resetPassword": {
+      "title": "Set new password",
+      "password": "New password",
+      "confirmPassword": "Confirm new password",
+      "submit": "Reset password",
+      "submitting": "Resetting…",
+      "success": "Password reset successfully",
+      "error": "Reset link is invalid or expired"
+    },
+    "logout": "Sign out"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "greeting": "Good {timeOfDay}",
+    "stats": {
+      "videosPublished": "Videos Published",
+      "activeChannels": "Active Channels",
+      "pendingReview": "Pending Review",
+      "systemHealth": "System Health",
+      "thisWeek": "This week",
+      "today": "Today",
+      "total": "Total"
+    },
+    "systemHealth": {
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "stopped": "Stopped"
+    },
+    "recentActivity": "Recent Activity",
+    "quickActions": "Quick Actions"
+  },
+  "channels": {
+    "title": "Channels",
+    "create": "New channel",
+    "edit": "Edit channel",
+    "delete": "Delete channel",
+    "deleteConfirm": "Are you sure you want to delete \"{name}\"? This will permanently remove the channel and all associated content.",
+    "trigger": "Trigger now",
+    "triggering": "Triggering…",
+    "fields": {
+      "name": "Channel name",
+      "handle": "YouTube handle",
+      "niche": "Niche",
+      "contentMode": "Content mode",
+      "language": "Language",
+      "status": "Status"
+    },
+    "contentMode": {
+      "short": "Short-form",
+      "long": "Long-form",
+      "mixed": "Mixed"
+    },
+    "empty": {
+      "title": "No channels yet",
+      "description": "Create your first YouTube channel to start automating content.",
+      "action": "Create channel"
+    },
+    "status": {
+      "active": "Active",
+      "paused": "Paused",
+      "archived": "Archived"
+    },
+    "table": {
+      "name": "Name",
+      "niche": "Niche",
+      "mode": "Mode",
+      "language": "Language",
+      "lastTriggered": "Last triggered",
+      "actions": "Actions"
+    },
+    "settings": {
+      "title": "Channel settings",
+      "general": "General",
+      "providers": "Providers",
+      "schedule": "Schedule"
+    }
+  },
+  "content": {
+    "title": "Content",
+    "videos": "Videos",
+    "scripts": "Scripts",
+    "assets": "Assets",
+    "empty": {
+      "title": "No content yet",
+      "description": "Trigger a channel to start generating content."
+    },
+    "status": {
+      "draft": "Draft",
+      "generating": "Generating",
+      "review": "Under review",
+      "approved": "Approved",
+      "published": "Published",
+      "failed": "Failed"
+    }
+  },
+  "review": {
+    "title": "Review",
+    "subtitle": "Review and approve AI-generated content before publishing",
+    "pending": "Pending review",
+    "approve": "Approve",
+    "approving": "Approving…",
+    "reject": "Reject",
+    "rejecting": "Rejecting…",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "empty": {
+      "title": "All caught up!",
+      "description": "No content waiting for review."
+    },
+    "fields": {
+      "title": "Title",
+      "channel": "Channel",
+      "mode": "Mode",
+      "submittedAt": "Submitted",
+      "reviewer": "Reviewer"
+    }
+  },
+  "progress": {
+    "title": "Progress",
+    "subtitle": "Monitor active and recent content generation jobs",
+    "stages": {
+      "research": "Research",
+      "script": "Script",
+      "voice": "Voice",
+      "video": "Video",
+      "thumbnail": "Thumbnail",
+      "upload": "Upload"
+    },
+    "status": {
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed",
+      "paused": "Paused",
+      "stopped": "Stopped",
+      "queued": "Queued"
+    },
+    "actions": {
+      "cancel": "Cancel",
+      "retry": "Retry",
+      "pause": "Pause",
+      "resume": "Resume"
+    },
+    "empty": {
+      "title": "No active jobs",
+      "description": "Trigger a channel to start a new content generation job."
+    }
+  },
+  "providers": {
+    "title": "Providers",
+    "subtitle": "Configure AI provider chains and credentials",
+    "addChain": "Add chain",
+    "editChain": "Edit chain",
+    "deleteChain": "Delete chain",
+    "categories": {
+      "llm": "Language Model",
+      "tts": "Text-to-Speech",
+      "search": "Search",
+      "image": "Image",
+      "storage": "Storage"
+    },
+    "health": {
+      "healthy": "Healthy",
+      "unhealthy": "Unhealthy",
+      "checking": "Checking…"
+    },
+    "empty": {
+      "title": "No provider chains",
+      "description": "Configure AI providers to power your content generation."
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "sections": {
+      "system": "System config",
+      "emergency": "Emergency stop",
+      "clean": "Clean slate"
+    },
+    "mode": {
+      "title": "Environment mode",
+      "test": "Test",
+      "production": "Production",
+      "switchToProduction": "Switch to Production",
+      "switchToTest": "Switch to Test",
+      "productionWarning": "Production mode will use real YouTube accounts and incur real costs."
+    },
+    "emergencyStop": {
+      "activate": "Activate emergency stop",
+      "deactivate": "Resume all operations",
+      "active": "Emergency stop is active",
+      "description": "Immediately pauses all active jobs and prevents new ones from starting."
+    },
+    "saved": "Settings saved",
+    "saveError": "Failed to save settings"
+  },
+  "workspace": {
+    "title": "Workspace",
+    "name": "Workspace name",
+    "members": "Members",
+    "invite": "Invite member",
+    "inviteEmail": "Email address",
+    "inviteRole": "Role",
+    "pendingInvites": "Pending invites",
+    "roles": {
+      "owner": "Owner",
+      "member": "Member",
+      "viewer": "Viewer",
+      "externalReviewer": "External reviewer"
+    },
+    "empty": {
+      "members": "No team members yet",
+      "invites": "No pending invites"
+    }
+  },
+  "errors": {
+    "notFound": {
+      "title": "Page not found",
+      "description": "The page you're looking for doesn't exist or has been moved.",
+      "action": "Go to dashboard"
+    },
+    "unauthorized": {
+      "title": "Access denied",
+      "description": "You don't have permission to view this page."
+    },
+    "serverError": {
+      "title": "Something went wrong",
+      "description": "An unexpected error occurred. Please try again.",
+      "action": "Try again"
+    },
+    "network": "Network error. Check your connection and try again.",
+    "timeout": "Request timed out. Please try again.",
+    "generic": "An error occurred: {message}"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllRead": "Mark all as read",
+    "empty": {
+      "title": "No notifications",
+      "description": "You're all caught up!"
+    }
+  },
+  "onboarding": {
+    "welcome": "Welcome to Autoniix",
+    "steps": {
+      "workspace": "Create your workspace",
+      "channel": "Add your first channel",
+      "provider": "Configure AI providers",
+      "trigger": "Trigger your first video"
+    }
+  },
+  "commandPalette": {
+    "placeholder": "Search or type a command…",
+    "noResults": "No results for \"{query}\"",
+    "sections": {
+      "navigation": "Navigation",
+      "actions": "Actions",
+      "recent": "Recent"
+    }
+  },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "header": {
+    "openMenu": "Open menu",
+    "brand": "Autoniix",
+    "searchCommandsTooltip": "Search & commands (⌘K)",
+    "openCommandPalette": "Open command palette",
+    "keyboardShortcutsTooltip": "Keyboard shortcuts (?)",
+    "keyboardShortcutsLabel": "Keyboard shortcuts",
+    "yourWorkspaces": "Your workspaces",
+    "workspaceFallback": "Workspace",
+    "switchWorkspace": "Switch workspace",
+    "userMenu": "User menu",
+    "profileSecurity": "Profile & Security",
+    "signOut": "Sign out",
+    "workspaceSwitched": "Workspace switched",
+    "failedToSwitchWorkspace": "Failed to switch workspace",
+    "addChannel": "Add Channel",
+    "addChannelTooltip": "Create a new channel (n)",
+    "addChannelLabel": "Add channel",
+    "systemStoppedTooltip": "Resume system from Settings to add channels",
+    "signOutDialog": {
+      "title": "Sign out?",
+      "description": "You will be returned to the login page.",
+      "confirm": "Sign out"
+    }
+  },
+  "locale": {
+    "label": "Language",
+    "en": "English",
+    "ja": "日本語",
+    "hi": "हिन्दी",
+    "es": "Español"
+  }
+}

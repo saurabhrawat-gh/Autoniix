@@ -90,7 +90,6 @@ export function invalidateCache(keyPrefix?: string): void {
   }
 }
 
-// --- Test-only hooks (not part of the public contract) ---------------------
 
 /** @internal */
 export function _resetCacheForTest(): void {

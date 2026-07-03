@@ -30,9 +30,6 @@ def _pool_ctx(pool):
     return patch(f"{_WS_MODULE}.get_pool", new_callable=AsyncMock, return_value=pool)
 
 
-# ---------------------------------------------------------------------------
-# Plan limit tests
-# ---------------------------------------------------------------------------
 
 class TestPlanLimits:
     @pytest.mark.asyncio
@@ -42,9 +39,7 @@ class TestPlanLimits:
         from tests.conftest import FakePool
 
         pool = FakePool()
-        # Plan lookup is outside the advisory-lock transaction (pool.fetchrow)
         pool.fetchrow.side_effect = [FakeRecord(plan="starter")]
-        # Inside transaction on conn: member_count=3, pending=0 → 402, no further calls
         pool.conn.fetchval.side_effect = [3, 0]
 
         actor = _make_principal(role="owner")
@@ -64,16 +59,10 @@ class TestPlanLimits:
         from tests.conftest import FakePool
 
         pool = FakePool()
-        # pool.fetchrow: plan lookup (outside lock); slack integration (outside lock)
         pool.fetchrow.side_effect = [
-            FakeRecord(plan="starter"),  # plan lookup
-            None,                        # slack integration (no webhook)
+            FakeRecord(plan="starter"),
+            None,
         ]
-        # conn.fetchval inside transaction:
-        #   [0] member_count=2, [1] pending_count=0 → passes limit
-        #   [2] existing member → None (no clash)
-        #   [3] pending_inv   → None (no dup)
-        #   [4] INSERT RETURNING id → 99
         pool.conn.fetchval.side_effect = [2, 0, None, None, 99]
 
         actor = _make_principal(role="owner")
@@ -92,13 +81,10 @@ class TestPlanLimits:
         from tests.conftest import FakePool
 
         pool = FakePool()
-        # pool.fetchrow: plan lookup; slack integration
         pool.fetchrow.side_effect = [
-            FakeRecord(plan="enterprise"),  # plan lookup
-            None,                           # slack integration (no webhook)
+            FakeRecord(plan="enterprise"),
+            None,
         ]
-        # conn.fetchval inside transaction (no limit check for enterprise):
-        #   [0] existing member → None, [1] pending_inv → None, [2] INSERT RETURNING → 99
         pool.conn.fetchval.side_effect = [None, None, 99]
 
         actor = _make_principal(role="owner")
@@ -111,9 +97,6 @@ class TestPlanLimits:
         assert result["status"] == "ok"
 
 
-# ---------------------------------------------------------------------------
-# Last-owner protection tests
-# ---------------------------------------------------------------------------
 
 class TestLastOwnerProtection:
     @pytest.mark.asyncio
@@ -123,7 +106,7 @@ class TestLastOwnerProtection:
         from tests.conftest import FakePool
 
         pool = FakePool()
-        pool.fetchval.side_effect = ["owner", 1]  # current_role, owner_count
+        pool.fetchval.side_effect = ["owner", 1]
 
         actor = _make_principal(role="owner")
         body = MemberRolePatch(role="member")
@@ -142,7 +125,7 @@ class TestLastOwnerProtection:
         from tests.conftest import FakePool
 
         pool = FakePool()
-        pool.fetchval.side_effect = ["owner", 2]  # current_role, owner_count=2 → safe
+        pool.fetchval.side_effect = ["owner", 2]
         pool.execute = AsyncMock(return_value="UPDATE 1")
 
         actor = _make_principal(role="owner")
@@ -155,9 +138,6 @@ class TestLastOwnerProtection:
         assert result["status"] == "ok"
 
 
-# ---------------------------------------------------------------------------
-# Role validation tests
-# ---------------------------------------------------------------------------
 
 class TestRoleValidation:
     @pytest.mark.asyncio
@@ -193,9 +173,6 @@ class TestRoleValidation:
         assert exc_info.value.status_code == 400
 
 
-# ---------------------------------------------------------------------------
-# Workspace integrations tests
-# ---------------------------------------------------------------------------
 
 class TestWorkspaceIntegrations:
     @pytest.mark.asyncio
@@ -244,9 +221,6 @@ class TestWorkspaceIntegrations:
         pool.execute.assert_called_once()
 
 
-# ---------------------------------------------------------------------------
-# AE-276 regression — Cross-workspace entity_settings tenant isolation
-# ---------------------------------------------------------------------------
 
 class TestEntitySettingsTenantIsolation:
     """Regression: ``GET /workspace/settings`` and ``PUT /workspace/settings``
@@ -267,7 +241,6 @@ class TestEntitySettingsTenantIsolation:
                 await get_settings(scope="workspace", scope_id="2", p=actor)
         assert exc_info.value.status_code == 403
         assert "cross-workspace" in exc_info.value.detail.lower()
-        # Ensure no SELECT against entity_settings happened — the gate fires first.
         pool.fetch.assert_not_called()
 
     @pytest.mark.asyncio
@@ -289,8 +262,6 @@ class TestEntitySettingsTenantIsolation:
             with pytest.raises(HTTPException) as exc_info:
                 await upsert_setting(body=body, request=req, actor=actor)
         assert exc_info.value.status_code == 403
-        # Critical: no DB write, no audit row.  If the assertion fires the leak
-        # has been re-introduced.
         pool.execute.assert_not_called()
         audit_mock.assert_not_called()
 
@@ -356,17 +327,14 @@ class TestEntitySettingsTenantIsolation:
         from tests.conftest import FakePool
 
         pool = FakePool()
-        # Ownership lookup returns the OTHER workspace's id
         pool.fetchval = AsyncMock(return_value=owner_workspace_id)
         actor = _make_principal(role="owner", workspace_id=1)
-        # channel uses TEXT id; others use stringified int — both work.
         scope_id = "UCfakeChannelId" if scope == "channel" else "777"
 
         with _pool_ctx(pool):
             with pytest.raises(HTTPException) as exc_info:
                 await get_settings(scope=scope, scope_id=scope_id, p=actor)
         assert exc_info.value.status_code == 403
-        # entity_settings SELECT must never run when ownership check fails
         pool.fetch.assert_not_called()
 
     @pytest.mark.asyncio
@@ -376,7 +344,7 @@ class TestEntitySettingsTenantIsolation:
         from tests.conftest import FakePool
 
         pool = FakePool()
-        pool.fetchval = AsyncMock(return_value=None)  # entity doesn't exist
+        pool.fetchval = AsyncMock(return_value=None)
         actor = _make_principal(role="owner", workspace_id=1)
 
         with _pool_ctx(pool):
@@ -410,8 +378,6 @@ class TestEntitySettingsTenantIsolation:
         actor = _make_principal(role="owner", workspace_id=1)
 
         with _pool_ctx(pool):
-            # Should NOT raise: system scope bypasses workspace ownership check.
             result = await get_settings(scope="system", scope_id="any", p=actor)
         assert result == {"data": []}
-        # No fetchval (no ownership lookup) for system scope
         pool.fetchval.assert_not_called()

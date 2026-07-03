@@ -1,0 +1,106 @@
+version: "3.9"
+
+# E2E test environment per HARNESS-ENGINEERING-PLAN.md Week 4 Day 2.
+# Spins up isolated test instances of all services + dependencies.
+#
+# Usage:
+#   docker-compose -f docker-compose.test.yml up -d
+#   cargo test -p harness -- --test-threads=1
+#   docker-compose -f docker-compose.test.yml down -v
+
+services:
+
+  # ── Databases ──────────────────────────────────────────────────────────────
+
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: autoniix
+      POSTGRES_PASSWORD: testpassword
+      POSTGRES_DB: autoniix_test
+    ports:
+      - "5433:5432"           # offset from dev port 5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U autoniix -d autoniix_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    networks:
+      - test_net
+
+  redis-test:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"           # offset from dev port 6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - test_net
+
+  # ── Python Dashboard ───────────────────────────────────────────────────────
+
+  python-dashboard-test:
+    build:
+      context: .
+      dockerfile: src/services/dashboard/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://autoniix:testpassword@postgres-test:5432/autoniix_test
+      REDIS_URL: redis://redis-test:6379/0
+      AUTH_JWT_SECRET: test-jwt-secret-key-shared-between-rust-and-python
+      DASHBOARD_JWT_SECRET: test-jwt-secret-key-shared-between-rust-and-python
+      ENVIRONMENT: test
+      PORT: 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - test_net
+
+  # ── Rust Gateway ───────────────────────────────────────────────────────────
+
+  rust-gateway-test:
+    build:
+      context: rust/gateway
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://autoniix:testpassword@postgres-test:5432/autoniix_test
+      AUTH_JWT_SECRET: test-jwt-secret-key-shared-between-rust-and-python
+      ENVIRONMENT: test
+      PORT: 8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      python-dashboard-test:
+        condition: service_healthy   # Wait for Python to run DB migrations first
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - test_net
+
+volumes:
+  postgres_test_data:
+
+networks:
+  test_net:
+    driver: bridge

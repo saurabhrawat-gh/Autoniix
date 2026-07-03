@@ -46,7 +46,6 @@ export interface GrainPreset {
 /* ------------------------------------------------------------------ */
 
 const envatoGrain: GrainPreset[] = [
-  // 35mm Cinematic Fine (10)
   ...Array.from({ length: 10 }, (_, i) => ({
     id: `grain.envato.35mm_fine_${String(i + 1).padStart(2, "0")}`,
     name: `35mm Cinematic Fine ${i + 1}`,
@@ -57,7 +56,6 @@ const envatoGrain: GrainPreset[] = [
     tags: ["35mm", "cinematic", "fine", "subtle", "premium"],
   })),
 
-  // 35mm Cinematic Heavy (5)
   ...Array.from({ length: 5 }, (_, i) => ({
     id: `grain.envato.35mm_heavy_${String(i + 1).padStart(2, "0")}`,
     name: `35mm Cinematic Heavy ${i + 1}`,
@@ -68,7 +66,6 @@ const envatoGrain: GrainPreset[] = [
     tags: ["35mm", "cinematic", "heavy", "gritty", "premium"],
   })),
 
-  // 16mm Documentary (8)
   ...Array.from({ length: 8 }, (_, i) => ({
     id: `grain.envato.16mm_doc_${String(i + 1).padStart(2, "0")}`,
     name: `16mm Documentary ${i + 1}`,
@@ -79,7 +76,6 @@ const envatoGrain: GrainPreset[] = [
     tags: ["16mm", "documentary", "indie", "gritty", "premium"],
   })),
 
-  // 8mm Vintage (8)
   ...Array.from({ length: 8 }, (_, i) => ({
     id: `grain.envato.8mm_vintage_${String(i + 1).padStart(2, "0")}`,
     name: `8mm Vintage ${i + 1}`,
@@ -90,7 +86,6 @@ const envatoGrain: GrainPreset[] = [
     tags: ["8mm", "vintage", "retro", "warm", "premium"],
   })),
 
-  // Super 8 Warm (5)
   ...Array.from({ length: 5 }, (_, i) => ({
     id: `grain.envato.super8_warm_${String(i + 1).padStart(2, "0")}`,
     name: `Super 8 Warm ${i + 1}`,
@@ -101,7 +96,6 @@ const envatoGrain: GrainPreset[] = [
     tags: ["super8", "vintage", "warm", "organic", "premium"],
   })),
 
-  // Damaged/Archival (5)
   ...Array.from({ length: 5 }, (_, i) => ({
     id: `grain.envato.damaged_${String(i + 1).padStart(2, "0")}`,
     name: `Damaged Archival ${i + 1}`,
@@ -112,7 +106,6 @@ const envatoGrain: GrainPreset[] = [
     tags: ["damaged", "archival", "scratches", "dust", "heavy", "premium"],
   })),
 
-  // Film Burns (5)
   ...Array.from({ length: 5 }, (_, i) => ({
     id: `grain.envato.film_burn_${String(i + 1).padStart(2, "0")}`,
     name: `Film Burn ${i + 1}`,
@@ -123,7 +116,6 @@ const envatoGrain: GrainPreset[] = [
     tags: ["film_burn", "transition", "light", "warm", "premium"],
   })),
 
-  // Clean Subtle (4)
   ...Array.from({ length: 4 }, (_, i) => ({
     id: `grain.envato.clean_subtle_${String(i + 1).padStart(2, "0")}`,
     name: `Clean Subtle ${i + 1}`,
@@ -150,7 +142,6 @@ const rocketstockGrain: GrainPreset[] = [
     tags: ["35mm", "free", "general"],
   })),
 
-  // Additional RocketStock-style free grain (4 more)
   ...Array.from({ length: 4 }, (_, i) => ({
     id: `grain.rocketstock.extra_${String(i + 1).padStart(2, "0")}`,
     name: `RocketStock Grain Extra ${i + 1}`,

@@ -2,6 +2,11 @@
 description: Handoff Protocol — defines the HandoffPayload schema and Human Checkpoint template used by all agent teams to communicate with each other through the conductor.
 ---
 
+> **Source of Truth — LOCKED:**
+> - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project.
+> - Jira **Autoniix Engineering (AE)** space is **archived** — read-only.
+> - GitHub **Autoniix MVP** project board is **closed** — do not reference it.
+
 # Handoff Protocol
 
 This document is the reference spec for inter-agent communication in the Autoniix multi-agent system. Every agent team reads this and emits a HandoffPayload at the end of its work.

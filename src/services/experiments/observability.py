@@ -69,7 +69,6 @@ async def get_decision_summary(days: int = 30, service_name: str = "") -> dict:
         ORDER BY service_name, decision_point, count DESC
     """, *params)
 
-    # Structure into service → decision_point → paths
     summary: dict = {}
     for r in rows:
         svc = r["service_name"]
@@ -89,7 +88,6 @@ async def get_decision_summary(days: int = 30, service_name: str = "") -> dict:
         })
         summary[svc][dp]["total_decisions"] += r["count"]
 
-    # Compute local vs LLM rates
     for svc in summary.values():
         for dp in svc.values():
             total = dp["total_decisions"]

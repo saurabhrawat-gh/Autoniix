@@ -18,14 +18,13 @@ from src.providers.registry import ProviderRegistry
 
 logger = structlog.get_logger()
 
-# Pleasing test colors
 TEST_COLORS = [
-    (99, 102, 241),    # indigo
-    (139, 92, 246),    # violet
-    (236, 72, 153),    # pink
-    (59, 130, 246),    # blue
-    (16, 185, 129),    # emerald
-    (245, 158, 11),    # amber
+    (99, 102, 241),
+    (139, 92, 246),
+    (236, 72, 153),
+    (59, 130, 246),
+    (16, 185, 129),
+    (245, 158, 11),
 ]
 
 
@@ -40,7 +39,7 @@ class PlaceholderImageProvider(ImageProvider):
             images.append({
                 "url": f"data:image/png;base64,placeholder_{i}",
                 "revised_prompt": f"[TEST] {request.prompt[:100]}",
-                "bytes": None,  # caller can use _bytes key if needed
+                "bytes": None,
                 "_bytes": img_bytes,
             })
 
@@ -58,7 +57,6 @@ class PlaceholderImageProvider(ImageProvider):
         img = Image.new("RGB", (w, h), color)
         draw = ImageDraw.Draw(img)
 
-        # Draw "TEST MODE" centered
         try:
             font_large = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", max(24, w // 15))
             font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", max(14, w // 30))
@@ -66,19 +64,16 @@ class PlaceholderImageProvider(ImageProvider):
             font_large = ImageFont.load_default()
             font_small = ImageFont.load_default()
 
-        # "TEST MODE" banner
         label = "TEST MODE"
         bbox = draw.textbbox((0, 0), label, font=font_large)
         tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
         draw.text(((w - tw) / 2, h * 0.35), label, fill=(255, 255, 255), font=font_large)
 
-        # Prompt preview (truncated)
         preview = prompt[:60] + ("..." if len(prompt) > 60 else "")
         bbox2 = draw.textbbox((0, 0), preview, font=font_small)
         tw2 = bbox2[2] - bbox2[0]
         draw.text(((w - tw2) / 2, h * 0.55), preview, fill=(255, 255, 255, 200), font=font_small)
 
-        # Corner badge
         draw.rectangle([10, 10, 80, 30], fill=(0, 0, 0, 128))
         try:
             badge_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 11)

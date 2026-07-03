@@ -1,4 +1,3 @@
-// Curated Lucide icon re-exports — single import path for consistency.
 export {
   ArrowLeft,
   ArrowRight,
@@ -135,4 +134,8 @@ export {
   Lock,
   KeyRound,
   Mail,
+  ClipboardList,
+  DollarSign,
+  Monitor,
+  Smartphone,
 } from 'lucide-react';

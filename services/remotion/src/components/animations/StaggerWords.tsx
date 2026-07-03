@@ -46,10 +46,9 @@ function applyChildAnim(
         transform: `translateY(${(1 - progress) * 16}px)`,
       };
     case "scale_pop": {
-      // Overshoot: peak at 110% around progress=0.7
       const overshoot = progress < 0.7
-        ? 0.6 + (progress / 0.7) * 0.5 // 0.6 → 1.10
-        : 1.10 - ((progress - 0.7) / 0.3) * 0.10; // 1.10 → 1.00
+        ? 0.6 + (progress / 0.7) * 0.5
+        : 1.10 - ((progress - 0.7) / 0.3) * 0.10;
       return {
         opacity: progress,
         transform: `scale(${overshoot})`,

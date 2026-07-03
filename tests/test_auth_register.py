@@ -1,9 +1,8 @@
-"""Regression tests for POST /auth/register (Bug AE-264 / #308).
+"""Regression tests for POST /auth/register (#350 / #308).
 
-Privilege escalation guard: only the very first user in the system bootstraps
-as global superadmin. Every subsequent self-registrant must default to ``user``
-so that random visitors to the public ``/register`` form cannot grant
-themselves admin permissions.
+Public self-serve signup: the first user bootstraps as global superadmin.
+Every subsequent self-registrant gets the non-privileged ``user`` global role
+but still owns the workspace they create (workspace_members.role='owner').
 
 Global roles (users.role): superadmin | user  (renamed from owner|viewer — AE-284)
 Workspace roles (workspace_members.role): owner | member | viewer  (unchanged)
@@ -104,7 +103,6 @@ def _insert_role_arg(conn) -> str:
     for call in conn.fetchval.await_args_list:
         sql = call.args[0] if call.args else ""
         if "INSERT INTO users" in sql:
-            # args = (sql, email, display_name, pw_hash, role, verify_token)
             return call.args[4]
     raise AssertionError("INSERT INTO users was never called")
 
@@ -118,7 +116,6 @@ def _workspace_member_role_arg(conn) -> str:
     raise AssertionError("INSERT INTO workspace_members was never called")
 
 
-# ── TC-264-01 ──────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_first_user_registration_assigns_owner_role():
@@ -143,12 +140,12 @@ async def test_first_user_registration_assigns_owner_role():
     assert result["status"] == "ok"
 
 
-# ── TC-264-02 ──────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_second_user_registration_is_blocked():
-    """AE-285: invite-only registration. Any self-registration after the first
-    user must be rejected with HTTP 403 — no account is created."""
+async def test_second_user_registration_gets_user_role():
+    """#350: Public self-serve signup. The second registrant must get the
+    non-privileged 'user' global role (not superadmin). Account and workspace
+    are created successfully."""
     from src.services.dashboard.v2.auth import register, RegisterIn
 
     pool, conn = _build_pool(existing_user_count=1)
@@ -158,26 +155,20 @@ async def test_second_user_registration_is_blocked():
         workspace_name="Random Workspace",
     )
 
-    with _pool_ctx(pool), pytest.raises(HTTPException) as exc:
-        await register(body=body, request=_make_request())
+    with _pool_ctx(pool), patch("src.services.dashboard.v2._resend.send_email"):
+        result = await register(body=body, request=_make_request())
 
-    assert exc.value.status_code == 403, (
-        f"Self-registration after first user must return 403 (got {exc.value.status_code}). "
-        "AE-285 invite-only enforcement."
+    assert _insert_role_arg(conn) == "user", (
+        "Second user must get global role='user', not superadmin"
     )
-    insert_user_calls = [
-        c for c in conn.fetchval.await_args_list
-        if c.args and "INSERT INTO users" in c.args[0]
-    ]
-    assert insert_user_calls == [], "No user INSERT must happen when registration is blocked"
+    assert result["status"] == "ok"
 
 
-# ── TC-264-03 ──────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("existing_count", [2, 3, 10, 1_000])
-async def test_nth_user_registration_is_blocked(existing_count: int):
-    """AE-285: invite-only. Any non-zero existing user count → 403, no INSERT."""
+async def test_nth_user_registration_gets_user_role(existing_count: int):
+    """#350: Any non-first self-registrant gets global role='user'."""
     from src.services.dashboard.v2.auth import register, RegisterIn
 
     pool, conn = _build_pool(existing_user_count=existing_count)
@@ -187,13 +178,13 @@ async def test_nth_user_registration_is_blocked(existing_count: int):
         workspace_name=f"Workspace {existing_count}",
     )
 
-    with _pool_ctx(pool), pytest.raises(HTTPException) as exc:
-        await register(body=body, request=_make_request())
+    with _pool_ctx(pool), patch("src.services.dashboard.v2._resend.send_email"):
+        result = await register(body=body, request=_make_request())
 
-    assert exc.value.status_code == 403
+    assert _insert_role_arg(conn) == "user"
+    assert result["status"] == "ok"
 
 
-# ── TC-264-04 ──────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_duplicate_email_raises_409_and_inserts_nothing():
@@ -212,7 +203,6 @@ async def test_duplicate_email_raises_409_and_inserts_nothing():
         await register(body=body, request=_make_request())
 
     assert exc.value.status_code == 409
-    # No INSERT INTO users should have happened
     insert_user_calls = [
         c for c in conn.fetchval.await_args_list
         if c.args and "INSERT INTO users" in c.args[0]
@@ -220,7 +210,6 @@ async def test_duplicate_email_raises_409_and_inserts_nothing():
     assert insert_user_calls == [], "Duplicate email path must not insert"
 
 
-# ── TC-264-05 ──────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_workspace_member_role_is_always_owner_for_own_workspace():
@@ -230,14 +219,18 @@ async def test_workspace_member_role_is_always_owner_for_own_workspace():
     Regression guard so we never accidentally weaken this."""
     from src.services.dashboard.v2.auth import register, RegisterIn
 
-    pool, conn = _build_pool(existing_user_count=5)  # not first user
+    pool, conn = _build_pool(existing_user_count=5)
     body = RegisterIn(
         email="member@example.com",
         password="strong-pass-1234",
         workspace_name="My Space",
     )
 
-    with _pool_ctx(pool), pytest.raises(HTTPException) as exc:
-        await register(body=body, request=_make_request())
+    with _pool_ctx(pool), patch("src.services.dashboard.v2._resend.send_email"):
+        result = await register(body=body, request=_make_request())
 
-    assert exc.value.status_code == 403
+    assert _workspace_member_role_arg(conn) == "owner", (
+        "workspace_members.role must be 'owner' for the workspace creator, "
+        "regardless of global users.role"
+    )
+    assert result["status"] == "ok"

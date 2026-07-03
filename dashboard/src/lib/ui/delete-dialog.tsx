@@ -6,9 +6,11 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogCloseButton,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from './dialog';
 import { Button } from './button';
 
@@ -33,36 +35,37 @@ export function DeleteDialog({
 }: DeleteDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="sm" hideClose>
+      <DialogContent size="sm">
         <DialogHeader>
-          <div className="flex items-start gap-3">
-            <div className="shrink-0 w-9 h-9 rounded-full bg-status-error/10 flex items-center justify-center mt-0.5">
-              <AlertTriangle size={16} className="text-status-error" />
-            </div>
-            <div className="space-y-1 pt-0.5">
-              <DialogTitle>{title}</DialogTitle>
-              <DialogDescription>{description}</DialogDescription>
-            </div>
+          <div>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle size={14} className="text-status-error shrink-0" />
+              {title}
+            </DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
           </div>
+          <DialogCloseButton onClick={() => onOpenChange(false)} />
         </DialogHeader>
-        <DialogFooter className="mt-2">
-          <Button
-            variant="ghost"
-            size="md"
-            onClick={() => onOpenChange(false)}
-            disabled={loading}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="destructive"
-            size="md"
-            loading={loading}
-            onClick={onConfirm}
-          >
-            {destructiveLabel}
-          </Button>
-        </DialogFooter>
+        <DialogBody>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              loading={loading}
+              onClick={onConfirm}
+            >
+              {destructiveLabel}
+            </Button>
+          </DialogFooter>
+        </DialogBody>
       </DialogContent>
     </Dialog>
   );

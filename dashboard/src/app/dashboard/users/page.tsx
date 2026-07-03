@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { usersApi, authApi } from '@/lib/api-v2';
-import { Button } from '@/lib/ui';
+import {
+  Button,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogCloseButton, DialogTitle, DialogDescription,
+} from '@/lib/ui';
 import { Trash2, ChevronDown, ChevronRight, ShieldCheck } from '@/lib/components/Icon';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 
@@ -81,23 +84,27 @@ export default function Users() {
         </div>
 
         {/* Transfer confirmation dialog */}
-        {transferTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="bg-surface-0 border border-border rounded-xl p-6 max-w-sm w-full space-y-4 shadow-xl">
-              <div className="flex items-center gap-3">
-                <ShieldCheck size={20} className="text-status-error shrink-0" />
-                <h2 className="text-base font-semibold">Transfer Superadmin?</h2>
+        <Dialog open={!!transferTarget} onOpenChange={(o) => { if (!o) setTransferTarget(null); }}>
+          <DialogContent size="sm">
+            <DialogHeader>
+              <div>
+                <DialogTitle className="flex items-center gap-2">
+                  <ShieldCheck size={14} className="text-status-error shrink-0" />
+                  Transfer Superadmin?
+                </DialogTitle>
+                <DialogDescription>
+                  Transfer the <strong>superadmin</strong> seat to <strong>{transferTarget?.email}</strong>.
+                </DialogDescription>
               </div>
-              <p className="text-sm opacity-75">
-                You are about to transfer the <strong>superadmin</strong> seat to{' '}
-                <strong>{transferTarget.email}</strong>.
+              <DialogCloseButton onClick={() => setTransferTarget(null)} />
+            </DialogHeader>
+            <DialogBody>
+              <p className="text-sm text-content-secondary">
+                <strong className="text-content-primary">You will immediately lose platform admin access.</strong>{' '}
+                This action takes effect on your next page load.
               </p>
-              <p className="text-sm opacity-75">
-                <strong>You will immediately lose platform admin access.</strong> This action
-                takes effect on your next page load.
-              </p>
-              <div className="flex gap-2 justify-end">
-                <Button size="sm" variant="outline" onClick={() => setTransferTarget(null)}>
+              <DialogFooter>
+                <Button size="sm" variant="ghost" onClick={() => setTransferTarget(null)}>
                   Cancel
                 </Button>
                 <Button
@@ -108,10 +115,10 @@ export default function Users() {
                 >
                   {transferring ? 'Transferring…' : 'Yes, transfer'}
                 </Button>
-              </div>
-            </div>
-          </div>
-        )}
+              </DialogFooter>
+            </DialogBody>
+          </DialogContent>
+        </Dialog>
 
         <div className="rounded-xl border border-border bg-surface-0 divide-y divide-border">
           {loading && <div className="p-6 text-sm opacity-60 text-center">Loading…</div>}
@@ -124,7 +131,6 @@ export default function Users() {
             const isSelf = myId !== null && u.id === myId;
             const isSuperadmin = u.global_role === 'superadmin';
             const isDisabled = !!u.disabled;
-            // Disabled users only show Enable. No other actions allowed until re-enabled.
             const canTransfer = iAmSuperadmin && !isSelf && !isSuperadmin && !isDisabled;
             const canDisable  = iAmSuperadmin && !isSelf && !isSuperadmin && !isDisabled;
             const canDelete   = iAmSuperadmin && !isSelf && !isSuperadmin && !isDisabled;

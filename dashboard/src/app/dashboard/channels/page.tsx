@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { channelsApi, dashboardApi } from '@/lib/api-v2';
 import { isLoggedIn, wsEvents } from '@/lib/api-v2';
+import { qk } from '@/lib/api/query-keys';
 import { cn, statusDot } from '@/lib/utils';
 import { useToast } from '@/lib/toast';
 import { Skeleton, SkeletonCard } from '@/lib/components/Skeleton';
@@ -21,9 +23,11 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogCloseButton,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
@@ -33,6 +37,7 @@ import {
   TooltipProvider,
 } from '@/lib/ui';
 import { useUrlState } from '@/lib/hooks/useUrlState';
+import { motion, useMotionValue, useSpring, useReducedMotion, AnimatePresence } from 'framer-motion';
 
 type Tab = 'all' | 'active' | 'disabled' | 'archived';
 type SortKey = 'name' | 'delivered' | 'status' | 'created';
@@ -48,9 +53,7 @@ function savePinned(s: Set<string>) {
 
 export default function ChannelsPage() {
   const router = useRouter();
-  const [allChannels, setAllChannels] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [systemStopped, setSystemStopped] = useState(false);
+  const queryClient = useQueryClient();
   const [actionMenu, setActionMenu] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState<string | null>(null);
   const [triggeringKeys, setTriggeringKeys] = useState<Set<string>>(new Set());
@@ -86,14 +89,6 @@ export default function ChannelsPage() {
     'bg-violet-500','bg-blue-500','bg-emerald-500','bg-amber-500',
     'bg-pink-500','bg-teal-500','bg-orange-500','bg-cyan-500',
   ];
-  function platformLabel(platform: string | undefined) {
-    const map: Record<string, string> = {
-      youtube: 'YouTube', instagram: 'Instagram', tiktok: 'TikTok',
-      x: 'X', linkedin: 'LinkedIn',
-    };
-    return map[platform || 'youtube'] ?? 'YouTube';
-  }
-
   function avatarColor(id: string) {
     let hash = 0;
     for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
@@ -109,22 +104,32 @@ export default function ChannelsPage() {
     return () => { debounceRef.current && clearTimeout(debounceRef.current); };
   }, [search]);
 
-  const loadData = useCallback(async () => {
-    try {
-      const [c, s] = await Promise.all([channelsApi.list(true), dashboardApi.stats().catch(() => null)]);
-      setAllChannels(c.data || []);
-      setSystemStopped(s?.data?.emergency_stop === true);
-    } catch (e: any) {
-      showToast(e?.message || 'Failed to load data', 'error');
-    }
-    setLoading(false);
-  }, [showToast]);
+  const { data: channelsRes, isLoading: channelsLoading, error: channelsError } = useQuery({
+    queryKey: qk.channels.list(true),
+    queryFn: () => channelsApi.list(true),
+    enabled: isLoggedIn(),
+    refetchInterval: 15_000,
+  });
+
+  const { data: statsRes } = useQuery({
+    queryKey: qk.dashboard.stats(),
+    queryFn: () => dashboardApi.stats(),
+    enabled: isLoggedIn(),
+    refetchInterval: 15_000,
+  });
+
+  const allChannels: any[] = channelsRes?.data ?? [];
+  const loading = channelsLoading;
+  const systemStopped = statsRes?.data?.emergency_stop === true;
 
   useEffect(() => {
     if (!isLoggedIn()) { router.replace('/login'); return; }
     setPinned(loadPinned());
-    loadData();
-  }, [router, loadData]);
+  }, [router]);
+
+  useEffect(() => {
+    if (channelsError) showToast((channelsError as any)?.message || 'Failed to load data', 'error');
+  }, [channelsError, showToast]);
 
   useEffect(() => {
     if (!isLoggedIn()) return;
@@ -133,15 +138,21 @@ export default function ChannelsPage() {
     function connectWs() {
       try {
         ws = wsEvents();
-        ws.onmessage = (ev) => { try { if (JSON.parse(ev.data).type === 'job_update') loadData(); } catch {} };
+        ws.onmessage = (ev) => {
+          try {
+            if (JSON.parse(ev.data).type === 'job_update') {
+              queryClient.invalidateQueries({ queryKey: qk.channels.all });
+              queryClient.invalidateQueries({ queryKey: qk.dashboard.stats() });
+            }
+          } catch {}
+        };
         ws.onclose = () => { reconnectTimer = setTimeout(connectWs, 5000); };
         ws.onerror = () => { ws?.close(); };
       } catch {}
     }
     connectWs();
-    const pollInterval = setInterval(loadData, 15000);
-    return () => { ws?.close(); clearTimeout(reconnectTimer); clearInterval(pollInterval); };
-  }, [loadData]);
+    return () => { ws?.close(); clearTimeout(reconnectTimer); };
+  }, [queryClient]);
 
   function togglePin(id: string) {
     setPinned(prev => {
@@ -185,36 +196,29 @@ export default function ChannelsPage() {
   }, [allChannels, tab, debouncedSearch, sortKey, sortDir, pinned]);
 
   async function toggleChannel(id: string, current: string) {
-    const next = current === 'active' ? 'disabled' : 'active';
-    const snapshot = allChannels;
-    setAllChannels(prev => prev.map(c => c.channel_id === id ? { ...c, status: next } : c));
     try {
       if (current === 'active') await channelsApi.disable(id);
       else await channelsApi.enable(id);
-      loadData();
-    } catch (e: any) { setAllChannels(snapshot); showToast(e?.message || 'Toggle failed', 'error'); }
+      queryClient.invalidateQueries({ queryKey: qk.channels.all });
+    } catch (e: any) { showToast(e?.message || 'Toggle failed', 'error'); }
   }
 
   async function archiveChannel(id: string) {
-    const snapshot = allChannels;
-    const name = allChannels.find(c => c.channel_id === id)?.channel_name || 'channel';
-    setAllChannels(prev => prev.map(c => c.channel_id === id ? { ...c, status: 'archived' } : c));
+    const name = allChannels.find((c: any) => c.channel_id === id)?.channel_name || 'channel';
     setConfirmArchive(null);
     try {
       await channelsApi.archive(id);
-      showToast(`${name} archived`, { variant: 'info', duration: 6000, action: { label: 'Undo', onAct: async () => { await channelsApi.restore(id); loadData(); } } });
-      loadData();
-    } catch (e: any) { setAllChannels(snapshot); showToast(e?.message || 'Archive failed', 'error'); }
+      queryClient.invalidateQueries({ queryKey: qk.channels.all });
+      showToast(`${name} archived`, { variant: 'info', duration: 6000, action: { label: 'Undo', onAct: async () => { await channelsApi.restore(id); queryClient.invalidateQueries({ queryKey: qk.channels.all }); } } });
+    } catch (e: any) { showToast(e?.message || 'Archive failed', 'error'); }
   }
 
   async function restoreChannel(id: string) {
-    const snapshot = allChannels;
-    setAllChannels(prev => prev.map(c => c.channel_id === id ? { ...c, status: 'disabled' } : c));
-    try { await channelsApi.restore(id); loadData(); } catch (e: any) { setAllChannels(snapshot); showToast(e?.message || 'Restore failed', 'error'); }
+    try { await channelsApi.restore(id); queryClient.invalidateQueries({ queryKey: qk.channels.all }); } catch (e: any) { showToast(e?.message || 'Restore failed', 'error'); }
   }
 
   async function cloneChannel(id: string) {
-    try { await channelsApi.clone(id); setActionMenu(null); loadData(); } catch (e: any) { showToast(e?.message || 'Clone failed', 'error'); }
+    try { await channelsApi.clone(id); setActionMenu(null); queryClient.invalidateQueries({ queryKey: qk.channels.all }); } catch (e: any) { showToast(e?.message || 'Clone failed', 'error'); }
   }
 
   async function exportChannel(id: string) {
@@ -231,7 +235,7 @@ export default function ChannelsPage() {
     const key = `${id}:${contentMode}`;
     if (triggeringKeys.has(key)) return;
     setTriggeringKeys(prev => new Set(prev).add(key));
-    try { await channelsApi.trigger(id, { content_mode: contentMode }); await loadData(); } catch (e: any) { showToast(e?.message || 'Trigger failed', 'error'); }
+    try { await channelsApi.trigger(id, { content_mode: contentMode }); queryClient.invalidateQueries({ queryKey: qk.channels.all }); } catch (e: any) { showToast(e?.message || 'Trigger failed', 'error'); }
     setTriggeringKeys(prev => { const n = new Set(prev); n.delete(key); return n; });
   }
 
@@ -241,7 +245,7 @@ export default function ChannelsPage() {
     try {
       if (isPaused) await channelsApi.resumeJob(channelId, contentId);
       else await channelsApi.pauseJob(channelId, contentId);
-      await loadData();
+      queryClient.invalidateQueries({ queryKey: qk.channels.all });
     } catch (e: any) { showToast(e?.message || 'Action failed', 'error'); }
     setBusyJobs(prev => { const n = new Set(prev); n.delete(contentId); return n; });
   }
@@ -249,7 +253,7 @@ export default function ChannelsPage() {
   async function stopJob(channelId: string, contentId: string) {
     if (busyJobs.has(contentId)) return;
     setBusyJobs(prev => new Set(prev).add(contentId));
-    try { await channelsApi.stopJob(channelId, contentId); await loadData(); } catch (e: any) { showToast(e?.message || 'Stop failed', 'error'); }
+    try { await channelsApi.stopJob(channelId, contentId); queryClient.invalidateQueries({ queryKey: qk.channels.all }); } catch (e: any) { showToast(e?.message || 'Stop failed', 'error'); }
     setBusyJobs(prev => { const n = new Set(prev); n.delete(contentId); return n; });
   }
 
@@ -265,8 +269,9 @@ export default function ChannelsPage() {
   }
   function getModes(ch: any): string[] {
     const raw = ch.content_mode || 'short';
-    if (raw === 'both') return ['short', 'long_form'];
-    return raw.split(',').map((m: string) => m.trim());
+    if (raw === 'mixed' || raw === 'both') return ['short', 'long'];
+    if (raw === 'long') return ['long'];
+    return [raw];
   }
   function isModeAtLimit(ch: any, mode: string): boolean {
     const u = ch.weekly_usage?.[mode]; return u ? u.used >= u.limit : false;
@@ -308,7 +313,7 @@ export default function ChannelsPage() {
             <p className="text-xs text-content-tertiary mt-0.5">Manage and trigger your automation channels.</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Button variant="outline" size="icon-sm" onClick={() => loadData()} aria-label="Refresh">
+            <Button variant="outline" size="icon-sm" onClick={() => queryClient.invalidateQueries({ queryKey: qk.channels.all })} aria-label="Refresh">
               <RotateCw size={13} />
             </Button>
             {/* View toggle */}
@@ -458,10 +463,6 @@ export default function ChannelsPage() {
                       </Link>
                       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                         {ch.niche && <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">{ch.niche}</span>}
-                        {ch.environment === 'production'
-                          ? <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-red-500/10 text-red-400">PROD</span>
-                          : <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-emerald-500/10 text-emerald-500">TEST</span>
-                        }
                         {modes.map((m: string) => (
                           <span key={m} className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium',
                             m === 'short' ? 'bg-violet-500/10 text-violet-500' : 'bg-blue-500/10 text-blue-500')}>
@@ -469,7 +470,6 @@ export default function ChannelsPage() {
                           </span>
                         ))}
                         {ch.auto_upload && <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent">Auto</span>}
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 font-medium">{platformLabel(ch.platform)}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -520,21 +520,12 @@ export default function ChannelsPage() {
                           const atLimit = isModeAtLimit(ch, m);
                           const canTrigger = !isDisabled && !systemStopped && !atLimit && mState === 'idle';
                           if (mState === 'idle') return (
-                            <Button
+                            <MagneticTriggerButton
                               key={m}
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => canTrigger && triggerChannel(ch.channel_id, m)}
+                              label={atLimit ? 'Limit' : m === 'short' ? 'Short' : 'Long'}
                               disabled={!canTrigger}
-                              leftIcon={<Play size={9} />}
-                              className={cn('flex-1 h-7 text-[11px]',
-                                canTrigger
-                                  ? 'text-accent border-accent/30 bg-accent/5 hover:bg-accent/10'
-                                  : 'text-content-tertiary border-border bg-surface-2')}
-                            >
-                              {atLimit ? 'Limit' : m === 'short' ? 'Short' : 'Long'}
-                            </Button>
+                              onClick={() => canTrigger && triggerChannel(ch.channel_id, m)}
+                            />
                           );
                           if (mState === 'pending_review' && mJob) return (
                             <Link key={m} href={`/dashboard/jobs/${mJob.content_id}`}
@@ -655,10 +646,6 @@ export default function ChannelsPage() {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-medium text-sm text-content-primary hover:text-accent truncate">{ch.channel_name}</span>
                           {ch.niche && <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">{ch.niche}</span>}
-                          {ch.environment === 'production'
-                            ? <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-red-500/10 text-red-400">PROD</span>
-                            : <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-emerald-500/10 text-emerald-500">TEST</span>
-                          }
                           {modes.map((m: string) => (
                             <span key={m} className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium',
                               m === 'short' ? 'bg-violet-500/10 text-violet-500' : 'bg-blue-500/10 text-blue-500')}>
@@ -666,7 +653,6 @@ export default function ChannelsPage() {
                             </span>
                           ))}
                           {ch.auto_upload && <span className="text-[10px] px-1 py-0.5 rounded bg-accent/10 text-accent">Auto</span>}
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 font-medium">{platformLabel(ch.platform)}</span>
                           {isArchived && <span className="text-[10px] px-1 py-0.5 rounded bg-surface-3 text-content-tertiary">Archived</span>}
                         </div>
                         <div className="text-[10px] text-content-tertiary mt-0.5 font-mono truncate">{ch.channel_id}</div>
@@ -732,21 +718,13 @@ export default function ChannelsPage() {
                                   if (mState === 'idle') {
                                     const canTrigger = !isDisabled && !systemStopped && !atLimit;
                                     return (
-                                      <Button
+                                      <MagneticTriggerButton
                                         key={m}
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => triggerChannel(ch.channel_id, m)}
+                                        label={atLimit ? `${mLabel} Limit` : m === 'short' ? 'Short' : 'Long'}
                                         disabled={!canTrigger}
-                                        leftIcon={<Play size={9} />}
-                                        className={cn('h-7 px-2.5 text-[11px]',
-                                          canTrigger
-                                            ? 'text-accent bg-accent/5 border-accent/15 hover:bg-accent/10'
-                                            : 'text-content-tertiary bg-surface-2 border-border')}
-                                      >
-                                        {atLimit ? `${mLabel} Limit` : m === 'short' ? 'Short' : 'Long'}
-                                      </Button>
+                                        onClick={() => triggerChannel(ch.channel_id, m)}
+                                        compact
+                                      />
                                     );
                                   }
                                   if (mState === 'pending_review' && mJob) return (
@@ -823,24 +801,29 @@ export default function ChannelsPage() {
 
       {/* ── Archive confirm modal ── */}
       <Dialog open={!!confirmArchive} onOpenChange={(o) => { if (!o) setConfirmArchive(null); }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader>
-            <DialogTitle>Archive channel?</DialogTitle>
-            <DialogDescription>
-              <span className="font-medium text-content-secondary">{confirmArchive}</span> will be hidden from the active list.
-              All configuration and history is preserved and can be restored.
-            </DialogDescription>
+            <div>
+              <DialogTitle>Archive channel?</DialogTitle>
+              <DialogDescription>
+                <span className="font-medium text-content-secondary">{confirmArchive}</span> will be hidden from the active list.
+                All configuration and history is preserved and can be restored.
+              </DialogDescription>
+            </div>
+            <DialogCloseButton onClick={() => setConfirmArchive(null)} />
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="secondary" size="sm" onClick={() => setConfirmArchive(null)}>Cancel</Button>
-            <Button
-              size="sm"
-              onClick={() => confirmArchive && archiveChannel(confirmArchive)}
-              className="bg-status-warning hover:bg-status-warning/90 text-content-inverse"
-            >
-              Archive
-            </Button>
-          </DialogFooter>
+          <DialogBody>
+            <DialogFooter>
+              <Button variant="ghost" size="sm" onClick={() => setConfirmArchive(null)}>Cancel</Button>
+              <Button
+                size="sm"
+                onClick={() => confirmArchive && archiveChannel(confirmArchive)}
+                className="bg-status-warning hover:bg-status-warning/90 text-content-inverse"
+              >
+                Archive
+              </Button>
+            </DialogFooter>
+          </DialogBody>
         </DialogContent>
       </Dialog>
     </div>
@@ -869,5 +852,79 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
       disabled={disabled}
       aria-label="Toggle channel"
     />
+  );
+}
+
+function MagneticTriggerButton({
+  label,
+  disabled,
+  onClick,
+  compact = false,
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+  compact?: boolean;
+}) {
+  const reduce = useReducedMotion();
+  const btnRef = useRef<HTMLDivElement>(null);
+  const mx = useSpring(useMotionValue(0), { stiffness: 500, damping: 30 });
+  const my = useSpring(useMotionValue(0), { stiffness: 500, damping: 30 });
+  const [ripple, setRipple] = useState<{ x: number; y: number; id: number } | null>(null);
+
+  const onMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (reduce || disabled || !btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    mx.set((e.clientX - (r.left + r.width / 2)) * 0.25);
+    my.set((e.clientY - (r.top + r.height / 2)) * 0.25);
+  };
+  const onMouseLeave = () => { mx.set(0); my.set(0); };
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+    if (!reduce) {
+      const r = e.currentTarget.getBoundingClientRect();
+      setRipple({ x: e.clientX - r.left, y: e.clientY - r.top, id: Date.now() });
+      setTimeout(() => setRipple(null), 500);
+    }
+    onClick();
+  };
+
+  return (
+    <motion.div
+      ref={btnRef}
+      className="flex-1"
+      style={reduce ? undefined : { x: mx, y: my }}
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
+    >
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={disabled}
+        className={cn(
+          'relative overflow-hidden w-full h-7 text-[11px] font-medium rounded-md border px-2 flex items-center justify-center gap-1 transition-all select-none',
+          disabled
+            ? 'text-content-tertiary border-border bg-surface-2 cursor-not-allowed'
+            : 'text-accent border-accent/30 bg-accent/5 hover:bg-accent/10 cursor-pointer',
+        )}
+      >
+        <Play size={9} />
+        {label}
+        <AnimatePresence>
+          {ripple && (
+            <motion.span
+              key={ripple.id}
+              className="absolute rounded-full bg-accent/30 pointer-events-none"
+              style={{ left: ripple.x, top: ripple.y, x: '-50%', y: '-50%', width: 8, height: 8 }}
+              initial={{ scale: 0, opacity: 0.5 }}
+              animate={{ scale: 12, opacity: 0 }}
+              exit={{}}
+              transition={{ duration: 0.45, ease: 'easeOut' }}
+            />
+          )}
+        </AnimatePresence>
+      </button>
+    </motion.div>
   );
 }

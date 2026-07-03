@@ -6,8 +6,8 @@ import { AbsoluteFill } from "remotion";
  * applies an SVG filter + feComponentTransfer to remap luminance.
  */
 export interface DuotoneProps {
-  shadow?: string; // dark color
-  highlight?: string; // light color
+  shadow?: string;
+  highlight?: string;
   children?: React.ReactNode;
 }
 

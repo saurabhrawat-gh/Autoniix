@@ -11,7 +11,6 @@ export type GradeLut =
   | "bright_flat"
   | "moody_cool"
   | "noir_bw"
-  // Phase 2 additions
   | "warm_sunset"
   | "cold_winter"
   | "vintage_faded"

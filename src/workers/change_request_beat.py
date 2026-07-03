@@ -11,8 +11,6 @@ from typing import Any
 
 from temporalio import activity, workflow
 
-# structlog transitively imports rich, which calls random.getrandbits at
-# module load. Pass it through the Temporal workflow sandbox.
 with workflow.unsafe.imports_passed_through():
     import structlog
 

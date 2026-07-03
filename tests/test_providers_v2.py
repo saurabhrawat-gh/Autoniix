@@ -33,9 +33,6 @@ def _pool_ctx(pool):
     return patch(f"{_PROV_MODULE}.get_pool", new_callable=AsyncMock, return_value=pool)
 
 
-# ---------------------------------------------------------------------------
-# _require_cred_actor
-# ---------------------------------------------------------------------------
 
 class TestRequireCredActor:
     @pytest.mark.asyncio
@@ -76,9 +73,6 @@ class TestRequireCredActor:
         assert exc_info.value.status_code == 403
 
 
-# ---------------------------------------------------------------------------
-# Credential scope_priority auto-computation
-# ---------------------------------------------------------------------------
 
 class TestCredentialScopes:
     async def _run_create(self, body, pool):
@@ -99,17 +93,16 @@ class TestCredentialScopes:
         from src.services.dashboard.v2.providers import CredentialIn
 
         pool = FakePool()
-        pool.fetchrow.return_value = FakeRecord(name="llm")  # category check
-        pool.fetchval.return_value = 1  # returned cred id
+        pool.fetchrow.return_value = FakeRecord(name="llm")
+        pool.fetchval.return_value = 1
 
         body = CredentialIn(category="llm", provider_name="openai",
                             label="main", secret_value="sk-test")
         result = await self._run_create(body, pool)
 
         assert result["status"] == "ok"
-        # scope_priority=0 is the 9th arg in the INSERT VALUES ($1..$10)
         args = pool.fetchval.call_args[0]
-        assert 0 in args  # scope_priority
+        assert 0 in args
 
     @pytest.mark.asyncio
     async def test_channel_scope_priority_ten(self):
@@ -148,9 +141,6 @@ class TestCredentialScopes:
         assert 20 in args
 
 
-# ---------------------------------------------------------------------------
-# Rotate credential feature flag
-# ---------------------------------------------------------------------------
 
 class TestRotateCredential:
     @pytest.mark.asyncio
@@ -184,7 +174,6 @@ class TestRotateCredential:
         body = RotateIn(secret_value="sk-new")
         req = MagicMock()
 
-        # Mock the safe-swap health check: provider class returns health_ok=True
         mock_inst = MagicMock()
         mock_inst.health_check = AsyncMock(return_value=True)
         mock_inst.api_key = ""
@@ -202,9 +191,6 @@ class TestRotateCredential:
         assert result["status"] == "ok"
 
 
-# ---------------------------------------------------------------------------
-# AE-300: Workspace scoping (no cross-workspace data leak)
-# ---------------------------------------------------------------------------
 
 class TestWorkspaceScoping:
     @pytest.mark.asyncio
@@ -287,9 +273,6 @@ class TestWorkspaceScoping:
         assert 3 in positional_args, "workspace_id=3 must be bound in query args"
 
 
-# ---------------------------------------------------------------------------
-# AE-318: delete_kind — FK-safe purge of marketplace catalog entries
-# ---------------------------------------------------------------------------
 
 class TestDeleteKind:
     @pytest.mark.asyncio

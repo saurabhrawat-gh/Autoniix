@@ -51,12 +51,10 @@ export const mainVideoDefaults: MainVideoProps = {
 export const MainVideo: React.FC<MainVideoProps> = ({ direction }) => {
   const { fps } = useVideoConfig();
 
-  // Resolve grade wrapper (applies CSS filter to the whole composition body).
   const gradeResolved = resolvePreset(direction.grade_preset);
   const GradeComp = gradeResolved?.Component;
   const gradeProps = gradeResolved?.props ?? {};
 
-  // Global effects (non-grade) — stacked AbsoluteFill overlays on top of scenes.
   const globalEffectEls = (direction.global_effects ?? [])
     .filter((id) => id !== direction.grade_preset)
     .map((id, i) => {
@@ -70,8 +68,6 @@ export const MainVideo: React.FC<MainVideoProps> = ({ direction }) => {
       );
     });
 
-  // Global overlays (captions, watermark, etc.). Auto-wire VO SRT URL into
-  // CaptionOverlay presets when the caller didn't already pass srt/srtUrl.
   const globalOverlayEls = (direction.global_overlays ?? []).map((ov, i) => {
     const r = resolvePreset(ov.preset, ov.overrides ?? {});
     if (!r) return null;
@@ -89,7 +85,6 @@ export const MainVideo: React.FC<MainVideoProps> = ({ direction }) => {
     );
   });
 
-  // Build the TransitionSeries children interleaving Sequence + Transition.
   const seriesChildren: React.ReactNode[] = [];
   direction.segments.forEach((seg, idx) => {
     seriesChildren.push(

@@ -1,6 +1,12 @@
 ---
-description: BA Agent — gather requirements for any new feature, then file structured GitHub Issues (Epic → Story → Task)
+description: BA Agent — gather requirements for any new feature, then file structured GitHub Issues (Epic → Story → Task) and matching Jira IM tickets
 ---
+
+> **Source of Truth — LOCKED:**
+> - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project. Always create Jira IM tickets after filing GitHub issues; record mappings in `scripts/issue_map.json`.
+> - Jira **Autoniix Engineering (AE)** space is **archived** — read-only, never create tickets there.
+> - GitHub **Autoniix MVP** project board is **closed** — do not reference it.
+> - Board: https://autoniix.atlassian.net/jira/software/c/projects/IM/boards/35/backlog
 
 # BA Agent Workflow
 
@@ -304,34 +310,32 @@ After all questions are answered:
 
 ---
 
-## Step 17 — Create GitHub Issues
+## Step 17 — Create GitHub Issues + Jira IM Tickets
 
 Only after user confirms the summary in Step 16.
 
 ### Issue Title Format (mandatory for all issues this agent creates)
 
 ```
-[Type] | [Env - bugs only] | [Layer] | Description
+[Area] | Description
 ```
 
 | Field | Values |
 |---|---|
-| Type | `feat` `bug` `task` `story` `epic` |
-| Env (bugs only) | `QA` (found locally) or `Prod` (found in production) |
-| Layer | `UI` `Gateway` `Service` `DB` `Auth` `Worker` `Infra` `Test` |
+| Area | `Gateway` `Dashboard` `Service` `Worker` `Infra` |
 | Description | Plain English, one line |
+
+> **Area mapping:** `UI`/`FE` → `Dashboard` · `Service`/`DB` → `Service` · `Gateway`/`Auth` → `Gateway` · `Worker` → `Worker` · `Infra` → `Infra`
 
 **Title examples:**
 ```
-feat | UI | Add workspace settings page
-task | DB | Migrate provider catalog to new schema
-story | Auth | HttpOnly Cookie Auth
-epic | | Auth & Authorization
-bug | QA | Gateway | OAuth token refresh fails on expired session
-bug | Prod | Service | Video render crashes on empty script
+Dashboard | Add workspace settings page
+Service | Migrate provider catalog to new schema
+Gateway | HttpOnly Cookie Auth
+Gateway | Auth & Authorization
+Gateway | OAuth token refresh fails on expired session
+Service | Video render crashes on empty script
 ```
-
-Note: for `epic` and `story`, the Layer field is optional — use the primary layer if one is dominant.
 
 ### Issues to create
 
@@ -355,7 +359,13 @@ Note: for `epic` and `story`, the Layer field is optional — use the primary la
 
 **Normal bug** should always reference its parent story: add `**Parent Story:** #{N}` in the body.
 
-After creating: "Stories are filed. Conductor will route to QA Agent to generate test plans before dev picks them up."
+After creating GitHub issues, **immediately create matching Jira IM tickets** for each one:
+- Call `mcp0_createJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, `projectKey: IM`
+- Issue type mapping: Epic → `Epic`, Story → `Story`, Task → `Task`, Bug → `Bug`
+- Title and description should match the GitHub issue body
+- Update `scripts/issue_map.json` with the new `{GH_issue_number}: "IM-XXX"` entry for each pair
+
+After creating: "Stories are filed in GitHub and Jira IM. Conductor will route to QA Agent to generate test plans before dev picks them up."
 
 ---
 

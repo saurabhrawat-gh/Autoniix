@@ -32,7 +32,6 @@ export function useUrlState<T>(key: string, opts: Options<T>): [T, (v: T) => voi
   const initial = decode(searchParams?.get(key) ?? null);
   const [value, setValueState] = useState<T>(initial);
 
-  // External URL changes (back/forward) → sync into local state
   const lastUrlValueRef = useRef<string | null>(searchParams?.get(key) ?? null);
   useEffect(() => {
     const raw = searchParams?.get(key) ?? null;

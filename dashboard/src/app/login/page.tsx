@@ -1,11 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { authApi, legacyLogin } from '@/lib/api-v2';
 import { ThemeToggle } from '@/lib/theme';
-import { Button, Input, Label, Card } from '@/lib/ui';
+import { Button, Input, Card } from '@/lib/ui';
+import { FormField } from '@/lib/components/FormField';
+import {
+  loginSchema, mfaSchema, legacyLoginSchema,
+  type LoginValues, type MfaValues, type LegacyLoginValues,
+} from '@/lib/schemas/auth';
 
 type AuthMode = 'loading' | 'legacy' | 'v2';
 type Step = 'credentials' | 'mfa';
@@ -15,12 +22,12 @@ export default function LoginPage() {
 
   const [mode, setMode] = useState<AuthMode>('loading');
   const [step, setStep] = useState<Step>('credentials');
+  const [serverError, setServerError] = useState('');
+  const [mfaPendingToken, setMfaPendingToken] = useState('');
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [mfaCode, setMfaCode] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const credForm = useForm<LoginValues>({ resolver: zodResolver(loginSchema) });
+  const mfaForm = useForm<MfaValues>({ resolver: zodResolver(mfaSchema) });
+  const legacyForm = useForm<LegacyLoginValues>({ resolver: zodResolver(legacyLoginSchema) });
 
   useEffect(() => {
     authApi.mode()
@@ -29,47 +36,43 @@ export default function LoginPage() {
     if (typeof window !== 'undefined') {
       const r = new URLSearchParams(window.location.search).get('reason');
       if (r === 'no_workspace_access') {
-        setError('Your workspace access was revoked. Contact your superadmin to be re-invited.');
+        setServerError('Your workspace access was revoked. Contact your superadmin to be re-invited.');
       }
     }
   }, []);
 
-  async function handleLegacyLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+  async function handleLegacyLogin(values: LegacyLoginValues) {
+    setServerError('');
     try {
-      await legacyLogin(password);
+      await legacyLogin(values.password);
       router.push('/dashboard');
     } catch (err: any) {
-      setError(err.message || 'Login failed');
-    } finally {
-      setLoading(false);
+      setServerError(err.message || 'Login failed');
     }
   }
 
-  async function handleV2Login(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+  async function handleCredentials(values: LoginValues) {
+    setServerError('');
     try {
-      if (step === 'credentials') {
-        const data = await authApi.login(email, password);
-        router.push((data as any).setup_required ? '/onboarding' : '/dashboard');
-      } else {
-        const data = await authApi.login(email, password, mfaCode);
-        router.push((data as any).setup_required ? '/onboarding' : '/dashboard');
-      }
-    } catch (err: any) {
-      const msg: string = err.message || 'Login failed';
-      if (msg.toLowerCase().includes('mfa')) {
+      const data = await authApi.login(values.email, values.password) as any;
+      if (data?.status === 'mfa_required' && data?.mfa_pending_token) {
+        setMfaPendingToken(data.mfa_pending_token);
         setStep('mfa');
-        setError('');
-      } else {
-        setError(msg);
+        return;
       }
-    } finally {
-      setLoading(false);
+      router.push(data?.setup_required ? '/onboarding' : '/dashboard');
+    } catch (err: any) {
+      setServerError(err.message || 'Login failed');
+    }
+  }
+
+  async function handleMfa(values: MfaValues) {
+    setServerError('');
+    try {
+      await authApi.mfaChallenge(mfaPendingToken, values.code);
+      router.push('/dashboard');
+    } catch (err: any) {
+      setServerError(err.message || 'Verification failed');
     }
   }
 
@@ -103,137 +106,92 @@ export default function LoginPage() {
       <div className="w-full max-w-md px-6">
         {mode === 'legacy' ? (
           <Card variant="elevated" padding="xl">
-            <form onSubmit={handleLegacyLogin} className="space-y-8">
+            <form onSubmit={legacyForm.handleSubmit(handleLegacyLogin)} className="space-y-8">
               <Logo />
-
-              {error && (
-                <div className="bg-status-error/10 text-status-error text-sm rounded-lg p-3 text-center">{error}</div>
+              {serverError && (
+                <div className="bg-status-error/10 text-status-error text-sm rounded-lg p-3 text-center">{serverError}</div>
               )}
-
-              <div className="space-y-2">
-                <Label htmlFor="legacy-pw">Password</Label>
+              <FormField id="legacy-pw" label="Password" error={legacyForm.formState.errors.password}>
                 <Input
                   id="legacy-pw"
                   type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
                   placeholder="Enter admin password"
                   autoFocus
+                  {...legacyForm.register('password')}
                 />
-              </div>
-
-              <Button
-                type="submit"
-                size="lg"
-                className="w-full"
-                disabled={!password}
-                loading={loading}
-              >
-                {loading ? 'Signing in…' : 'Sign In'}
+              </FormField>
+              <Button type="submit" size="lg" className="w-full" loading={legacyForm.formState.isSubmitting}>
+                {legacyForm.formState.isSubmitting ? 'Signing in…' : 'Sign In'}
               </Button>
             </form>
           </Card>
         ) : (
           <Card variant="elevated" padding="xl">
-            <form onSubmit={handleV2Login} className="space-y-6">
-              <Logo />
-
-              {error && (
-                <div className="bg-status-error/10 text-status-error text-sm rounded-lg p-3 text-center">{error}</div>
-              )}
-
-              {step === 'credentials' ? (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="email" required>Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      autoFocus
-                      required
-                    />
+            {step === 'credentials' ? (
+              <form onSubmit={credForm.handleSubmit(handleCredentials)} className="space-y-6">
+                <Logo />
+                {serverError && (
+                  <div className="bg-status-error/10 text-status-error text-sm rounded-lg p-3 text-center">{serverError}</div>
+                )}
+                <FormField id="email" label="Email" required error={credForm.formState.errors.email}>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="you@example.com"
+                    autoFocus
+                    {...credForm.register('email')}
+                  />
+                </FormField>
+                <FormField id="password" label="Password" required error={credForm.formState.errors.password}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span />
+                    <Link href="/forgot-password" className="text-xs text-accent hover:underline">Forgot password?</Link>
                   </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="password" required>Password</Label>
-                      <Link href="/forgot-password" className="text-xs text-accent hover:underline">
-                        Forgot password?
-                      </Link>
-                    </div>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      required
-                    />
-                  </div>
-
-                  <Button
-                    type="submit"
-                    size="lg"
-                    className="w-full"
-                    disabled={!email || !password}
-                    loading={loading}
-                  >
-                    {loading ? 'Signing in…' : 'Sign In'}
-                  </Button>
-
-                  <p className="text-center text-xs text-content-tertiary">
-                    No account?{' '}
-                    <Link href="/register" className="text-accent hover:underline">Create one</Link>
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-content-secondary text-center">
-                    Enter the 6-digit code from your authenticator app.
-                  </p>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="mfa" required>MFA Code</Label>
-                    <Input
-                      id="mfa"
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]{6}"
-                      maxLength={6}
-                      value={mfaCode}
-                      onChange={e => setMfaCode(e.target.value.replace(/\D/g, ''))}
-                      placeholder="000000"
-                      autoFocus
-                      required
-                      className="text-center tracking-widest text-lg font-mono"
-                    />
-                  </div>
-
-                  <Button
-                    type="submit"
-                    size="lg"
-                    className="w-full"
-                    disabled={mfaCode.length !== 6}
-                    loading={loading}
-                  >
-                    {loading ? 'Verifying…' : 'Verify'}
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => { setStep('credentials'); setMfaCode(''); setError(''); }}
-                  >
-                    ← Back
-                  </Button>
-                </>
-              )}
-            </form>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    {...credForm.register('password')}
+                  />
+                </FormField>
+                <Button type="submit" size="lg" className="w-full" loading={credForm.formState.isSubmitting}>
+                  {credForm.formState.isSubmitting ? 'Signing in…' : 'Sign In'}
+                </Button>
+                <p className="text-center text-xs text-content-tertiary">
+                  No account?{' '}
+                  <Link href="/register" className="text-accent hover:underline">Create one</Link>
+                </p>
+              </form>
+            ) : (
+              <form onSubmit={mfaForm.handleSubmit(handleMfa)} className="space-y-6">
+                <Logo />
+                {serverError && (
+                  <div className="bg-status-error/10 text-status-error text-sm rounded-lg p-3 text-center">{serverError}</div>
+                )}
+                <p className="text-sm text-content-secondary text-center">
+                  Enter the 6-digit code from your authenticator app.
+                </p>
+                <FormField id="mfa" label="MFA Code" required error={mfaForm.formState.errors.code}>
+                  <Input
+                    id="mfa"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="000000"
+                    autoFocus
+                    className="text-center tracking-widest text-lg font-mono"
+                    {...mfaForm.register('code')}
+                  />
+                </FormField>
+                <Button type="submit" size="lg" className="w-full" loading={mfaForm.formState.isSubmitting}>
+                  {mfaForm.formState.isSubmitting ? 'Verifying…' : 'Verify'}
+                </Button>
+                <Button type="button" variant="ghost" size="sm" className="w-full"
+                  onClick={() => { setStep('credentials'); mfaForm.reset(); setServerError(''); }}>
+                  ← Back
+                </Button>
+              </form>
+            )}
           </Card>
         )}
 

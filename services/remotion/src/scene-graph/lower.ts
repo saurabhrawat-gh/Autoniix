@@ -38,7 +38,7 @@ export function lower(direction: DirectionV3Input): SceneGraph {
     clips: videoClips,
   };
 
-  const overlayClips: Clip[] = []; // v1: global overlays live on graph, per-segment on SceneClip
+  const overlayClips: Clip[] = [];
   const overlayTrack: Track = {
     id: "track-overlay",
     kind: "overlay",
@@ -106,10 +106,9 @@ export function lower(direction: DirectionV3Input): SceneGraph {
       : undefined,
     tracks: [videoTrack, overlayTrack],
     audio,
-    hash: "", // filled below
+    hash: "",
   };
 
-  // Root hash computed over the graph without its own `hash` field (canonicalize excludes it).
   sceneGraph.hash = hashNode(sceneGraph);
   return sceneGraph;
 }

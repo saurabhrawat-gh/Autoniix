@@ -77,7 +77,7 @@ interface Particle {
   id: number;
   x: number;
   y: number;
-  z: number; // Depth
+  z: number;
   vx: number;
   vy: number;
   vz: number;
@@ -113,7 +113,6 @@ export const AdvancedParticleSystem: React.FC<
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
 
-  // Preset configurations
   const presetConfigs = {
     dust: { gravity: 0.05, turbulence: 0.5, glow: 0.2, trails: 0 },
     sparks: { gravity: 0.3, turbulence: 0.1, glow: 1, trails: 0.8 },
@@ -133,14 +132,12 @@ export const AdvancedParticleSystem: React.FC<
   const finalGlow = config.glow * glow;
   const finalTrails = config.trails * trails;
 
-  // Generate particles
   const particles = useMemo<Particle[]>(() => {
     const result: Particle[] = [];
 
     for (let i = 0; i < count; i++) {
       const seed = i * 1000;
 
-      // Emitter position calculation
       let startX = emitterPosition[0] * width;
       let startY = emitterPosition[1] * height;
 
@@ -169,7 +166,6 @@ export const AdvancedParticleSystem: React.FC<
         }
       }
 
-      // Initial velocity
       const angle = random(seed + 4) * Math.PI * 2;
       const speed = random(seed + 5) * 5 + 2;
       const vx = Math.cos(angle) * speed;
@@ -230,7 +226,6 @@ export const AdvancedParticleSystem: React.FC<
         const age = frame - particle.birthFrame;
         if (age < 0 || age > particle.lifetime) return null;
 
-        // Physics simulation with turbulence
         const turbX =
           Math.sin(frame * 0.05 + particle.id * 0.1) *
           finalTurbulence *
@@ -251,7 +246,6 @@ export const AdvancedParticleSystem: React.FC<
           turbY;
         const z = particle.z + particle.vz * age;
 
-        // 3D depth scaling
         const depthScale = interpolate(
           z,
           [-100, 100],
@@ -260,10 +254,8 @@ export const AdvancedParticleSystem: React.FC<
         );
         const finalSize = particle.size * (1 + (depthScale - 1) * depth3D);
 
-        // Rotation
         const rotation = particle.rotation + particle.rotationSpeed * age;
 
-        // Fade in/out with easing
         const opacity = interpolate(
           age,
           [0, 15, particle.lifetime - 30, particle.lifetime],
@@ -275,7 +267,6 @@ export const AdvancedParticleSystem: React.FC<
           }
         );
 
-        // Depth-based opacity
         const depthOpacity = interpolate(
           z,
           [-100, 100],
@@ -284,7 +275,6 @@ export const AdvancedParticleSystem: React.FC<
         );
         const finalOpacity = opacity * (1 + (depthOpacity - 1) * depth3D);
 
-        // Off-screen culling
         if (
           x < -100 ||
           x > width + 100 ||
@@ -293,7 +283,6 @@ export const AdvancedParticleSystem: React.FC<
         )
           return null;
 
-        // Glow effect
         const glowSize = finalSize * 2;
         const glowStyle = finalGlow > 0
           ? {

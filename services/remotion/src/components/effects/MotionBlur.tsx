@@ -30,22 +30,17 @@ export const MotionBlur: React.FC<MotionBlurProps> = ({
 }) => {
   const frame = useCurrentFrame();
   
-  // Calculate velocity-based blur intensity
   let blurAmount = amount;
   if (velocityBased) {
-    // Simulate velocity by frame oscillation (in real use, track element position)
     const velocity = Math.abs(Math.sin(frame * 0.1)) * 2;
     blurAmount = amount * (1 + velocity);
   }
   
-  // Apply shutter angle multiplier
   const shutterMultiplier = shutterAngle / 180;
   blurAmount *= shutterMultiplier;
   
-  // Generate SVG filter based on axis
   let stdDev: string;
   if (axis === "radial") {
-    // Radial blur approximation (uniform blur in all directions)
     stdDev = `${blurAmount} ${blurAmount}`;
   } else {
     stdDev = axis === "x" ? `${blurAmount} 0` : `0 ${blurAmount}`;

@@ -40,6 +40,7 @@ from src.workers.activities.delivery import delivery_activity, compute_metadata_
 from src.workers.activities.analytics import analytics_activity
 from src.workers.activities.brand import brand_activity
 from src.workers.activities.editor import editor_activity
+from src.temporal_workflows.brain_activities import brain_directive_check_activity
 
 logger = structlog.get_logger()
 
@@ -61,7 +62,6 @@ async def main() -> None:
         task_queue="video-production",
         workflows=[VideoProductionWorkflow],
         activities=[
-            # Pipeline activities (in order)
             research_activity,
             script_activity,
             title_activity,
@@ -78,7 +78,7 @@ async def main() -> None:
             analytics_activity,
             brand_activity,
             editor_activity,
-            # Infrastructure activities
+            brain_directive_check_activity,
             update_video_status,
             emit_job_event,
             release_channel_lock,

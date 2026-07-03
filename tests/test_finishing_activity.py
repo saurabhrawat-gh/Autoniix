@@ -32,9 +32,6 @@ from src.services.finishing.ffmpeg_finisher import (
 _ACT = "src.services.finishing.activity"
 
 
-# ---------------------------------------------------------------------------
-# LUT registry
-# ---------------------------------------------------------------------------
 
 class TestLutRegistry:
     def test_seven_presets(self):
@@ -64,9 +61,6 @@ class TestLutRegistry:
             assert {"key", "display_name", "description", "thumbnail_url", "best_for"} <= p.keys()
 
 
-# ---------------------------------------------------------------------------
-# ffmpeg command builders
-# ---------------------------------------------------------------------------
 
 class TestCommandBuilders:
     def test_video_filter_uses_lut3d(self):
@@ -81,11 +75,11 @@ class TestCommandBuilders:
     def test_audio_filter_full_chain(self):
         cfg = FinishConfig()
         f = build_audio_filter(cfg)
-        assert "afftdn" in f          # denoise
-        assert "equalizer" in f       # EQ
-        assert "acompressor" in f     # compress
+        assert "afftdn" in f
+        assert "equalizer" in f
+        assert "acompressor" in f
         assert "loudnorm=I=-14.0" in f
-        assert "alimiter" in f        # true-peak limit
+        assert "alimiter" in f
 
     def test_audio_filter_respects_toggles(self):
         cfg = FinishConfig(audio_denoise=False, audio_eq=False, audio_compress=False)
@@ -93,7 +87,7 @@ class TestCommandBuilders:
         assert "afftdn" not in f
         assert "equalizer" not in f
         assert "acompressor" not in f
-        assert "loudnorm" in f        # loudness always applied
+        assert "loudnorm" in f
 
     def test_audio_filter_two_pass_includes_measured(self):
         cfg = FinishConfig()
@@ -133,9 +127,6 @@ class TestLoudnormParse:
             parse_loudnorm_json("no json here")
 
 
-# ---------------------------------------------------------------------------
-# .cube generator
-# ---------------------------------------------------------------------------
 
 class TestCubeGenerator:
     def test_write_cube_well_formed(self):
@@ -146,7 +137,6 @@ class TestCubeGenerator:
             write_cube("cinematic", path, size=9)
             text = open(path).read()
             assert "LUT_3D_SIZE 9" in text
-            # 9^3 = 729 RGB triplets.
             triplets = [ln for ln in text.splitlines()
                         if len(ln.split()) == 3 and ln.split()[0].replace(".", "").isdigit()]
             assert len(triplets) == 9 ** 3
@@ -161,9 +151,6 @@ class TestCubeGenerator:
                 assert os.path.getsize(p) > 0
 
 
-# ---------------------------------------------------------------------------
-# finishing_activity fallback + success
-# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 class TestFinishingActivity:
@@ -194,7 +181,6 @@ class TestFinishingActivity:
                                             "video_url": "http://x/v.mp4"})
         assert out["status"] == "skipped"
         assert out["data"]["skipped"] is True
-        # marked skipped=True
         assert mark.await_args.kwargs["skipped"] is True
 
     async def test_failure_raises_when_required(self):
@@ -236,9 +222,6 @@ class TestFinishingActivity:
         assert mark.await_args.kwargs["skipped"] is False
 
 
-# ---------------------------------------------------------------------------
-# Optional: real ffmpeg integration (skipped if ffmpeg is unavailable)
-# ---------------------------------------------------------------------------
 
 @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
 @pytest.mark.asyncio
@@ -254,7 +237,6 @@ async def test_real_ffmpeg_finish_produces_output():
         lut = os.path.join(d, "cinematic.cube")
         write_cube("cinematic", lut, size=17)
 
-        # 1s test clip: colour bars + sine tone.
         gen = await asyncio.create_subprocess_exec(
             "ffmpeg", "-hide_banner", "-y",
             "-f", "lavfi", "-i", "testsrc=size=320x180:rate=24:duration=1",

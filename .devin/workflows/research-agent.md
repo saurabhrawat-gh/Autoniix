@@ -2,6 +2,11 @@
 description: Research Agent — reads a GitHub issue and produces a codebase impact analysis, dependency audit, and architecture recommendation note before the Dev Team picks up the issue.
 ---
 
+> **Source of Truth — LOCKED:**
+> - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project.
+> - Jira **Autoniix Engineering (AE)** space is **archived** — read-only.
+> - GitHub **Autoniix MVP** project board is **closed** — do not reference it.
+
 # Research Agent Workflow
 
 The Research Agent runs before any Dev work begins. Its job is to read the issue spec and understand the codebase deeply enough to give the Dev Team a precise, risk-free implementation path.
@@ -27,7 +32,7 @@ The Research Agent runs before any Dev work begins. Its job is to read the issue
 
 1. Call `mcp0_get_issue` to read the full issue body
 2. Extract: Summary, Use Cases, Acceptance Criteria, Impacted Files section
-3. Note the issue title format: `[Type] | [Layer] | Description` — understand which layer is primary
+3. Note the issue title format: `[Area] | Description` — understand which area it belongs to
 4. Check if a test-case issue already exists (linked in issue body as `**Test Plan:** #{N}`)
 5. Print: "Research starting for #N: {title}"
 

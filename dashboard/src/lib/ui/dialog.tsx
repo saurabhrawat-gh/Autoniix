@@ -37,7 +37,7 @@ export const DialogOverlay = React.forwardRef<
       initial="hidden"
       animate="visible"
       exit="exit"
-      className={cn('fixed inset-0 z-50 bg-black/50', className)}
+      className={cn('fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px]', className)}
     />
   </DialogPrimitive.Overlay>
 ));
@@ -52,10 +52,9 @@ const sizeClasses = {
 export const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
-    hideClose?: boolean;
     size?: 'sm' | 'md' | 'lg';
   }
->(({ className, children, hideClose, size = 'md', ...props }, ref) => (
+>(({ className, children, size = 'md', ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content ref={ref} asChild {...props}>
@@ -65,42 +64,62 @@ export const DialogContent = React.forwardRef<
         animate="visible"
         exit="exit"
         className={cn(
-          'fixed left-1/2 top-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4',
-          'bg-surface-0 border border-border rounded-xl shadow-elevated p-6',
+          'fixed left-1/2 top-1/2 z-50 flex w-full flex-col -translate-x-1/2 -translate-y-1/2 overflow-hidden',
+          'bg-surface-0 border border-border rounded-xl shadow-elevated',
           'focus:outline-none',
           sizeClasses[size],
           className
         )}
       >
         {children}
-        {!hideClose && (
-          <DialogPrimitive.Close
-            className={cn(
-              'absolute right-4 top-4 rounded-full p-1.5',
-              'text-content-tertiary hover:text-content-primary hover:bg-surface-2',
-              'transition-colors duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)] focus:outline-none focus:ring-2 focus:ring-accent/40',
-              'disabled:pointer-events-none'
-            )}
-          >
-            <X size={15} />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        )}
       </motion.div>
     </DialogPrimitive.Content>
   </DialogPortal>
 ));
 DialogContent.displayName = 'DialogContent';
 
+/** Header bar with border-b separator. Put title info on the left and DialogCloseButton on the right. */
 export const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn('flex flex-col gap-1.5 text-left', className)} {...props} />
+  <div
+    className={cn('px-5 pt-5 pb-3 border-b border-border flex items-start justify-between shrink-0', className)}
+    {...props}
+  />
 );
 DialogHeader.displayName = 'DialogHeader';
 
+/** Padded scrollable body area. Place content + DialogFooter inside. */
+export const DialogBody = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('px-5 py-5 space-y-4 overflow-y-auto', className)} {...props} />
+);
+DialogBody.displayName = 'DialogBody';
+
+/** Inline footer row — place inside DialogBody at the bottom of content. */
 export const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn('flex flex-col-reverse sm:flex-row sm:justify-end sm:gap-2 gap-2', className)} {...props} />
+  <div className={cn('flex flex-row justify-end gap-2 pt-2', className)} {...props} />
 );
 DialogFooter.displayName = 'DialogFooter';
+
+/** Radix-wired close button (X icon) for use inside DialogHeader on the right side. */
+export const DialogCloseButton = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Close>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Close>
+>(({ className, ...props }, ref) => (
+  <DialogPrimitive.Close
+    ref={ref}
+    className={cn(
+      'shrink-0 w-7 h-7 rounded-md flex items-center justify-center',
+      'text-content-tertiary hover:text-content-primary hover:bg-surface-2',
+      'transition-colors duration-[120ms] focus:outline-none focus:ring-2 focus:ring-accent/40',
+      'disabled:pointer-events-none',
+      className
+    )}
+    {...props}
+  >
+    <X size={14} />
+    <span className="sr-only">Close</span>
+  </DialogPrimitive.Close>
+));
+DialogCloseButton.displayName = 'DialogCloseButton';
 
 export const DialogTitle = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Title>,
@@ -108,7 +127,7 @@ export const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn('text-lg font-semibold leading-tight tracking-tight text-content-primary', className)}
+    className={cn('text-base font-semibold leading-tight text-content-primary', className)}
     {...props}
   />
 ));
@@ -120,7 +139,7 @@ export const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn('text-sm text-content-tertiary', className)}
+    className={cn('text-[11px] text-content-tertiary mt-0.5', className)}
     {...props}
   />
 ));

@@ -53,7 +53,6 @@ export const PremiumFilmGrain: React.FC<PremiumFilmGrainProps> = ({
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
 
-  // Film stock characteristics
   const filmCharacteristics = {
     "16mm": { baseSize: 2.5, density: 0.8, roughness: 1.2 },
     "35mm": { baseSize: 1.5, density: 0.6, roughness: 1.0 },
@@ -71,14 +70,11 @@ export const PremiumFilmGrain: React.FC<PremiumFilmGrainProps> = ({
     const ctx = canvas.getContext("2d", { willReadFrequently: false });
     if (!ctx) return;
 
-    // Generate grain texture
     const imageData = ctx.createImageData(width, height);
     const data = imageData.data;
 
-    // Seed for temporal animation
     const seed = Math.floor(frame * animationSpeed);
 
-    // Grain generation with film stock characteristics
     const grainScale = stock.baseSize * grainSize;
     const grainDensity = stock.density * intensity;
     const grainRoughness = stock.roughness;
@@ -88,40 +84,35 @@ export const PremiumFilmGrain: React.FC<PremiumFilmGrainProps> = ({
       const x = pixelIndex % width;
       const y = Math.floor(pixelIndex / width);
 
-      // Multi-octave noise for realistic grain structure
       const noise1 = random(seed + pixelIndex * 0.1) - 0.5;
       const noise2 = random(seed + pixelIndex * 0.5 + 1000) - 0.5;
       const noise3 = random(seed + pixelIndex * 1.5 + 2000) - 0.5;
 
-      // Combine octaves with film stock roughness
       const combinedNoise =
         noise1 * grainRoughness +
         noise2 * 0.5 * grainRoughness +
         noise3 * 0.25 * grainRoughness;
 
-      // Apply grain density threshold (authentic film has grain clusters)
       const grainValue =
         Math.abs(combinedNoise) > (1 - grainDensity) * 0.5
           ? combinedNoise * 255 * intensity
           : 0;
 
-      // Color grain (RGB channels have slightly different grain)
       if (colorGrain > 0) {
         const rNoise = random(seed + pixelIndex * 0.2 + 3000) - 0.5;
         const gNoise = random(seed + pixelIndex * 0.2 + 4000) - 0.5;
         const bNoise = random(seed + pixelIndex * 0.2 + 5000) - 0.5;
 
-        data[i] = grainValue + rNoise * 255 * colorGrain * saturation; // R
-        data[i + 1] = grainValue + gNoise * 255 * colorGrain * saturation; // G
-        data[i + 2] = grainValue + bNoise * 255 * colorGrain * saturation; // B
+        data[i] = grainValue + rNoise * 255 * colorGrain * saturation;
+        data[i + 1] = grainValue + gNoise * 255 * colorGrain * saturation;
+        data[i + 2] = grainValue + bNoise * 255 * colorGrain * saturation;
       } else {
-        // Monochrome grain
-        data[i] = grainValue; // R
-        data[i + 1] = grainValue; // G
-        data[i + 2] = grainValue; // B
+        data[i] = grainValue;
+        data[i + 1] = grainValue;
+        data[i + 2] = grainValue;
       }
 
-      data[i + 3] = 255; // A
+      data[i + 3] = 255;
     }
 
     ctx.putImageData(imageData, 0, 0);

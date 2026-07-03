@@ -16,7 +16,6 @@ from src.services.assets.query_optimizer import (
 )
 
 
-# Query Hash
 
 class TestQueryHash:
     def test_deterministic(self):
@@ -32,7 +31,6 @@ class TestQueryHash:
         assert _query_hash("query one") != _query_hash("query two")
 
 
-# Optimize Query
 
 class TestOptimizeQuery:
     def test_uses_primary_query_from_script_intel(self):
@@ -53,7 +51,6 @@ class TestOptimizeQuery:
             "mood": {},
         }
         result = optimize_query(segment)
-        # Aerial qualifier should be in the first query
         assert any("aerial" in q or "drone" in q for q in result["queries"])
 
     def test_expands_mood_synonyms(self):
@@ -63,7 +60,6 @@ class TestOptimizeQuery:
             "mood": {"name": "calm"},
         }
         result = optimize_query(segment)
-        # Should have synonym-expanded queries
         assert len(result["queries"]) > 1
 
     def test_falls_back_to_b_roll_keywords(self):
@@ -106,7 +102,6 @@ class TestOptimizeQuery:
         assert len(result["primary_hash"]) == 16
 
 
-# Score Asset Relevance
 
 class TestScoreAssetRelevance:
     def test_high_relevance_clip(self):
@@ -139,7 +134,6 @@ class TestScoreAssetRelevance:
         assert 1.0 <= score <= 10.0
 
 
-# Mood Synonyms
 
 class TestMoodSynonyms:
     def test_known_moods_have_synonyms(self):

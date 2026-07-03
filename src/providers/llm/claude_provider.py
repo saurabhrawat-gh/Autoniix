@@ -12,16 +12,11 @@ from src.providers.registry import ProviderRegistry
 logger = structlog.get_logger()
 
 PRICING: dict[str, dict[str, float]] = {
-    # Claude 3.5 Sonnet family (current flagship)
     "claude-3-5-sonnet-20241022": {"input": 3.00 / 1_000_000, "output": 15.00 / 1_000_000},
     "claude-3-5-sonnet-20240620": {"input": 3.00 / 1_000_000, "output": 15.00 / 1_000_000},
-    # Claude 3.5 Haiku family (fast, budget)
     "claude-3-5-haiku-20241022": {"input": 0.80 / 1_000_000, "output": 4.00 / 1_000_000},
-    # Claude 3 Opus family (previous top model)
     "claude-3-opus-20240229": {"input": 15.00 / 1_000_000, "output": 75.00 / 1_000_000},
-    # Claude 3 Sonnet family (balanced)
     "claude-3-sonnet-20240229": {"input": 3.00 / 1_000_000, "output": 15.00 / 1_000_000},
-    # Claude 3 Haiku family (fast, budget)
     "claude-3-haiku-20240307": {"input": 0.25 / 1_000_000, "output": 1.25 / 1_000_000},
 }
 
@@ -39,16 +34,20 @@ class ClaudeLLM(LLMProvider):
         model = request.model or self.default_model()
         start = time.monotonic()
 
-        # Separate system from user/assistant messages
         system_text = ""
+        system_cache_control = None
         messages = []
         for msg in request.messages:
             if msg["role"] == "system":
                 system_text = msg["content"]
+                if "cache_control" in msg:
+                    system_cache_control = msg["cache_control"]
             else:
-                messages.append({"role": msg["role"], "content": msg["content"]})
+                entry: dict = {"role": msg["role"], "content": msg["content"]}
+                if "cache_control" in msg:
+                    entry["cache_control"] = msg["cache_control"]
+                messages.append(entry)
 
-        # Ensure alternating user/assistant (Claude requirement)
         if not messages or messages[0]["role"] != "user":
             messages.insert(0, {"role": "user", "content": "Please proceed."})
 
@@ -59,7 +58,13 @@ class ClaudeLLM(LLMProvider):
             "messages": messages,
         }
         if system_text:
-            body["system"] = system_text
+            if system_cache_control:
+                body["system"] = [
+                    {"type": "text", "text": system_text,
+                     "cache_control": system_cache_control}
+                ]
+            else:
+                body["system"] = system_text
 
         headers = {
             "x-api-key": self.api_key,
@@ -72,16 +77,22 @@ class ClaudeLLM(LLMProvider):
             response.raise_for_status()
             data = response.json()
 
-        # Extract content
         content_blocks = data.get("content", [])
         content = "".join(b.get("text", "") for b in content_blocks if b.get("type") == "text")
 
-        # Extract usage
         usage = data.get("usage", {})
         tokens_in = usage.get("input_tokens", 0)
         tokens_out = usage.get("output_tokens", 0)
-        pricing = PRICING.get(model, PRICING["claude-sonnet-4-20250514"])
-        cost = tokens_in * pricing["input"] + tokens_out * pricing["output"]
+        cache_read = usage.get("cache_read_input_tokens", 0)
+        cache_create = usage.get("cache_creation_input_tokens", 0)
+        non_cached_in = tokens_in - cache_read - cache_create
+        pricing = PRICING.get(model, PRICING["claude-3-5-sonnet-20241022"])
+        cost = (
+            non_cached_in * pricing["input"]
+            + cache_create * pricing["input"]
+            + cache_read * pricing["input"] * 0.10
+            + tokens_out * pricing["output"]
+        )
         latency = int((time.monotonic() - start) * 1000)
 
         logger.info(
@@ -89,6 +100,8 @@ class ClaudeLLM(LLMProvider):
             model=model,
             tokens_in=tokens_in,
             tokens_out=tokens_out,
+            cache_read_tokens=cache_read,
+            cache_create_tokens=cache_create,
             cost_usd=round(cost, 6),
             latency_ms=latency,
         )
@@ -106,7 +119,7 @@ class ClaudeLLM(LLMProvider):
 
     def estimate_cost(self, tokens_in: int, tokens_out: int, model: str | None = None) -> float:
         model = model or self.default_model()
-        pricing = PRICING.get(model, PRICING["claude-sonnet-4-20250514"])
+        pricing = PRICING.get(model, PRICING["claude-3-5-sonnet-20241022"])
         return tokens_in * pricing["input"] + tokens_out * pricing["output"]
 
     async def health_check(self) -> bool:
@@ -119,7 +132,6 @@ class ClaudeLLM(LLMProvider):
                         "anthropic-version": self.API_VERSION,
                     },
                 )
-                # 405 Method Not Allowed means the API is up
                 return resp.status_code in (200, 405)
         except Exception:
             return False
@@ -135,4 +147,6 @@ class ClaudeLLM(LLMProvider):
 
 
 ProviderRegistry.register("llm", "claude", ClaudeLLM)
+ProviderRegistry.register("llm", "anthropic", ClaudeLLM)
 ProviderRegistry.register("llm.script", "claude", ClaudeLLM)
+ProviderRegistry.register("llm.script", "anthropic", ClaudeLLM)

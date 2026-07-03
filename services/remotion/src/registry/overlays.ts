@@ -15,7 +15,6 @@ import { ThreeDLogoReveal } from "../components/overlays/3DLogoReveal";
 import type { PresetRegistry } from "./types";
 
 export const OVERLAY_PRESETS: PresetRegistry = {
-  // Captions
   "ov.caption.word_highlight_yellow": {
     id: "ov.caption.word_highlight_yellow",
     component: CaptionOverlay,
@@ -45,7 +44,6 @@ export const OVERLAY_PRESETS: PresetRegistry = {
     tags: ["caption", "shorts"],
   },
 
-  // LowerThird
   "ov.lowerthird.minimal_white": {
     id: "ov.lowerthird.minimal_white",
     component: LowerThird,
@@ -68,7 +66,6 @@ export const OVERLAY_PRESETS: PresetRegistry = {
     tags: ["lowerthird", "modern"],
   },
 
-  // Watermark
   "ov.watermark.tr_small": {
     id: "ov.watermark.tr_small",
     component: Watermark,
@@ -84,7 +81,6 @@ export const OVERLAY_PRESETS: PresetRegistry = {
     tags: ["watermark", "logo"],
   },
 
-  // Phase 2: ProgressBar
   "ov.progress.thin_top": {
     id: "ov.progress.thin_top", component: ProgressBar,
     defaultProps: { position: "top", style: "thin_line", heightPx: 6, color: "#FFD60A" },
@@ -101,7 +97,6 @@ export const OVERLAY_PRESETS: PresetRegistry = {
     category: "overlay", tags: ["progress", "chapters"],
   },
 
-  // Phase 2: Particles (dust / snow / sparkles / confetti)
   "ov.particles.dust": {
     id: "ov.particles.dust", component: Particles,
     defaultProps: { style: "dust" }, category: "overlay", tags: ["particles", "ambient"],
@@ -119,7 +114,6 @@ export const OVERLAY_PRESETS: PresetRegistry = {
     defaultProps: { style: "confetti" }, category: "overlay", tags: ["particles", "celebration"],
   },
 
-  // Phase 2: LogoBug / ChannelWatermark
   "ov.logobug.tr": {
     id: "ov.logobug.tr", component: LogoBug,
     defaultProps: { corner: "tr", heightPx: 60, opacity: 0.8 },
@@ -136,7 +130,6 @@ export const OVERLAY_PRESETS: PresetRegistry = {
     category: "overlay", tags: ["branding", "channel"],
   },
 
-  // Phase 2: SubscribePing
   "ov.subscribe.red_button": {
     id: "ov.subscribe.red_button", component: SubscribePing,
     defaultProps: { style: "red_button", text: "SUBSCRIBE", position: "br" },
@@ -153,13 +146,11 @@ export const OVERLAY_PRESETS: PresetRegistry = {
     category: "overlay", tags: ["subscribe", "cta", "neon"],
   },
 
-  // Phase 2: EndCard (really a scene-like overlay, use at end of video)
   "ov.endcard.default": {
     id: "ov.endcard.default", component: EndCard,
     defaultProps: {}, category: "overlay", tags: ["endcard", "cta"],
   },
 
-  // Phase 2: ChapterMarker
   "ov.chapter.top_left": {
     id: "ov.chapter.top_left", component: ChapterMarker,
     defaultProps: { position: "top" }, category: "overlay", tags: ["chapter"],
@@ -169,7 +160,6 @@ export const OVERLAY_PRESETS: PresetRegistry = {
     defaultProps: { position: "bottom" }, category: "overlay", tags: ["chapter"],
   },
 
-  // Phase 3: Word-level forced-alignment captions
   "ov.wordcap.karaoke_yellow": {
     id: "ov.wordcap.karaoke_yellow", component: WordAlignedCaption,
     defaultProps: { style: "karaoke_highlight", activeColor: "#FFD60A", chunkSize: 6, position: "bottom" },
@@ -191,7 +181,6 @@ export const OVERLAY_PRESETS: PresetRegistry = {
     category: "overlay", tags: ["caption", "word-level", "minimal", "premium"],
   },
 
-  // Audio Waveforms
   "ov.waveform.bars_bottom": {
     id: "ov.waveform.bars_bottom", component: AudioWaveform,
     defaultProps: { audioSrc: "", style: "bars", bars: 64, color: "#00E0FF", position: "bottom", height: 0.2 },
@@ -213,7 +202,6 @@ export const OVERLAY_PRESETS: PresetRegistry = {
     category: "overlay", tags: ["audio", "waveform", "premium", "radial"],
   },
 
-  // PREMIUM LOWER THIRDS (100% Quality - Broadcast Grade)
   "ov.lowerthird.premium.minimal": {
     id: "ov.lowerthird.premium.minimal", component: PremiumLowerThird,
     defaultProps: { variation: "minimal", name: "John Doe", subtitle: "CEO & Founder", primaryColor: "#4ECDC4" },
@@ -240,7 +228,6 @@ export const OVERLAY_PRESETS: PresetRegistry = {
     category: "overlay", tags: ["lowerthird", "premium", "100%", "elegant", "broadcast"],
   },
 
-  // 3D LOGO REVEALS (95% Quality - CSS 3D Transforms)
   "ov.logo.3d.flip": {
     id: "ov.logo.3d.flip", component: ThreeDLogoReveal,
     defaultProps: { logoSrc: "", animation: "flip", duration: 90, size: 0.4, color: "#4ECDC4" },

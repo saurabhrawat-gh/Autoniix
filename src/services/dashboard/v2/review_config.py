@@ -22,7 +22,6 @@ logger = structlog.get_logger()
 
 router = APIRouter()
 
-# Valid artifact gate keys (the 13 reviewable artifacts from AE-226 spec)
 _GATE_KEYS = frozenset({
     "research_data",
     "brand_alignment_report",
@@ -41,13 +40,12 @@ _GATE_KEYS = frozenset({
 
 _PROFILES = frozenset({"hands_off", "quick", "standard", "full_control", "custom"})
 
-# Preset → gate key set
 _PRESET_GATES: dict[str, set[str]] = {
     "hands_off":    set(),
     "quick":        {"story_script", "final_video"},
     "standard":     {"topic_title", "story_script", "metadata", "thumbnail", "final_video"},
     "full_control": set(_GATE_KEYS),
-    "custom":       set(),  # gates come from the request body
+    "custom":       set(),
 }
 
 

@@ -34,6 +34,7 @@ from pydantic import BaseModel, Field
 
 from src.db import get_pool
 from src.providers.invalidation import publish_invalidate
+from src.providers.llm.base import LLMRequest
 from src.providers.secrets import get_secret_at, put_secret_at
 
 from ._deps import Principal, audit, flag_enabled, principal_dep, require_role
@@ -58,12 +59,12 @@ class CredentialIn(BaseModel):
     category: str
     provider_name: str
     label: str
-    secret_value: str = ""    # API key or token; write-only. Empty = no-key provider.
+    secret_value: str = ""
     secret_key: str = "api_key"
-    model: str | None = None   # pinned model (validated against supported_models())
+    model: str | None = None
     extra_config: dict = Field(default_factory=dict)
-    channel_id: str | None = None    # NULL = workspace-level
-    content_mode: str | None = None  # NULL = all modes
+    channel_id: str | None = None
+    content_mode: str | None = None
 
 
 class WizardCredentialIn(BaseModel):
@@ -74,9 +75,9 @@ class WizardCredentialIn(BaseModel):
     provider's ``config_schema`` from ``provider_marketplace_catalog``.
     """
     category: str
-    provider_key: str           # matches provider_marketplace_catalog.provider_key
+    provider_key: str
     label: str
-    wizard_fields: dict         # {field_name: value} from the wizard form
+    wizard_fields: dict
     model: str | None = None
     channel_id: str | None = None
     content_mode: str | None = None
@@ -92,7 +93,7 @@ class CredentialPatch(BaseModel):
 class RotateIn(BaseModel):
     secret_value: str
     secret_key: str = "api_key"
-    hint: str | None = None   # human note stored in rotation_hint column
+    hint: str | None = None
 
 
 class ChainIn(BaseModel):
@@ -102,24 +103,24 @@ class ChainIn(BaseModel):
 class KindIn(BaseModel):
     """Create a custom provider *section* (e.g. 'Avatar Generation')."""
     label: str
-    kind: str | None = None          # slug; derived from label when omitted
-    icon: str | None = None          # emoji
+    kind: str | None = None
+    icon: str | None = None
     description: str | None = None
 
 
 class CategoryIn(BaseModel):
     """Create a custom *category* (slot) bound to a section."""
     label: str
-    kind: str                        # section this category belongs to
-    name: str | None = None          # slug; derived from label when omitted
+    kind: str
+    name: str | None = None
     description: str | None = None
 
 
 class MarketplaceProviderIn(BaseModel):
     """Add a custom provider to the marketplace under a section."""
     display_name: str
-    kind: str                        # section the provider belongs to
-    provider_key: str | None = None  # slug; derived from display_name when omitted
+    kind: str
+    provider_key: str | None = None
     description: str | None = None
     supported_models: list[str] = Field(default_factory=list)
     has_free_tier: bool = False
@@ -167,7 +168,6 @@ def _slugify(text: str, *, sep: str = "_", maxlen: int = 40) -> str:
     return slug[:maxlen] or "custom"
 
 
-# Categories
 @router.get("/categories")
 async def list_categories(_: Principal = Depends(principal_dep)):
     pool = await get_pool()
@@ -178,7 +178,6 @@ async def list_categories(_: Principal = Depends(principal_dep)):
     return {"data": [dict(r) for r in rows]}
 
 
-# ── Sections (provider_kinds) ─────────────────────────────────────────────────
 @router.get("/kinds")
 async def list_kinds(_: Principal = Depends(principal_dep)):
     """List provider *sections* (LLM, Image, Avatar, …) with label + icon.
@@ -223,7 +222,6 @@ async def create_kind(
                    VALUES ($1,$2,$3,$4,TRUE,$5)""",
                 kind, label, body.icon, body.description, int(max_sort) + 1,
             )
-            # Default general category so providers can attach to this section.
             await conn.execute(
                 """INSERT INTO provider_categories (name, label, kind, description, is_user_defined)
                    VALUES ($1,$2,$3,$4,TRUE)
@@ -376,7 +374,6 @@ async def restore_defaults(
     return {"status": "ok"}
 
 
-# Credentials
 @router.get("/credentials")
 async def list_credentials(
     category: str | None = None,
@@ -387,11 +384,8 @@ async def list_credentials(
     pool = await get_pool()
     filters = []
     args: list[Any] = []
-    # Scope: show credentials belonging to this workspace OR system defaults (NULL).
-    # Superadmin/legacy sessions see all credentials across all workspaces.
-    if actor.global_role != "superadmin" and actor.source != "legacy":
-        args.append(actor.workspace_id)
-        filters.append(f"workspace_id=${len(args)}")  # AE-324: strict — NULL rows backfilled to ws 1
+    args.append(actor.workspace_id)
+    filters.append(f"workspace_id=${len(args)}")
     if category:
         args.append(category)
         filters.append(f"category=${len(args)}")
@@ -427,19 +421,10 @@ async def create_credential(
     if not cat:
         raise HTTPException(400, f"Unknown category {body.category!r}")
 
-    # Reject unknown provider_name hard: there's no future in which a
-    # credential pointing at an unregistered class can actually be
-    # used (test/health/runtime all fail with "Unknown provider").
-    # The UI ships a dropdown of registered names, so a 400 here means
-    # someone bypassed it via curl / typo.
     try:
         from src.providers.registry import ProviderRegistry
         registered = ProviderRegistry._registries.get(body.category, {})
         if body.provider_name not in registered:
-            # Not a built-in Python class — accept it only if it exists in the
-            # marketplace catalog (a user-added "catalog-only" provider). Such a
-            # credential is stored and shown as connected, but the runtime can't
-            # call it until an adapter class ships (is_callable=FALSE).
             in_catalog = await pool.fetchrow(
                 """SELECT pmc.provider_key,
                           (SELECT kind FROM provider_categories WHERE name = pmc.category)
@@ -456,7 +441,6 @@ async def create_credential(
                     f"category {body.category!r}. Available: {available or '(none)'}. "
                     f"Pick one from the dropdown.",
                 )
-            # AE-319: Reject cross-kind credential adds.
             provider_kind = in_catalog["provider_kind"]
             if provider_kind and provider_kind != cat["kind"]:
                 raise HTTPException(
@@ -468,12 +452,8 @@ async def create_credential(
     except HTTPException:
         raise
     except Exception:
-        # Registry import failed (very rare) — fall open rather than
-        # block all writes.
         pass
 
-    # If a model was specified, validate it against the live provider's
-    # supported_models() so a typo can't silently route to the wrong model.
     if body.model:
         _validate_model(body.category, body.provider_name, body.model)
 
@@ -539,7 +519,6 @@ async def create_credential_from_wizard(
 
     schema: list[dict] = _as_json(catalog_row["config_schema"], [])
 
-    # Validate required fields
     missing = [
         f["name"]
         for f in schema
@@ -551,7 +530,6 @@ async def create_credential_from_wizard(
             f"Required wizard field(s) missing: {', '.join(missing)}",
         )
 
-    # Split fields: password type → vault secret; others → extra_config
     secret_value = ""
     secret_key = "api_key"
     extra_config: dict = {}
@@ -561,7 +539,7 @@ async def create_credential_from_wizard(
         if value is None:
             continue
         if field.get("type") == "password":
-            if not secret_value:   # only first password field is the primary key
+            if not secret_value:
                 secret_value = str(value)
                 secret_key = name
         else:
@@ -578,7 +556,6 @@ async def create_credential_from_wizard(
         channel_id=body.channel_id,
         content_mode=body.content_mode,
     )
-    # Reuse the standard create flow by directly calling the helper
     return await create_credential(cred_in, request, actor)
 
 
@@ -594,8 +571,6 @@ async def update_credential(
     if not updates:
         return {"status": "noop"}
 
-    # Workspace ownership check — fetch existing credential first so we can
-    # verify it belongs to this workspace before patching.
     _ws_check = await pool.fetchrow(
         "SELECT category, provider_name, workspace_id FROM provider_credentials WHERE id=$1",
         credential_id,
@@ -704,7 +679,7 @@ async def test_credential(
                 inst = cls()
                 hc = getattr(inst, "health_check", None)
                 if hc is None:
-                    ok = True  # No health_check → assume ok
+                    ok = True
                 else:
                     res = hc()
                     if hasattr(res, "__await__"):
@@ -750,14 +725,12 @@ async def rotate_credential(
     if not row:
         raise HTTPException(404, "Credential not found")
 
-    # --- Safe-swap: write to a staging path, verify, then promote ---
     staging_path = row["vault_path"] + "/__staging__"
     try:
         put_secret_at(staging_path, body.secret_key, body.secret_value)
     except Exception as exc:
         raise HTTPException(500, f"Failed to stage new secret: {exc}")
 
-    # Verify the new key by instantiating the provider with the staged secret
     health_ok = False
     health_error: str | None = None
     try:
@@ -765,7 +738,7 @@ async def rotate_credential(
         cls = ProviderRegistry._registries.get(row["category"], {}).get(row["provider_name"])
         if cls is None:
             health_error = f"Provider {row['provider_name']!r} not registered; skipping verification"
-            health_ok = True  # fall-open: can't verify unregistered provider
+            health_ok = True
         else:
             test_inst = cls()
             staged_key = get_secret_at(staging_path, body.secret_key)
@@ -801,7 +774,6 @@ async def rotate_credential(
             f"The old credential is still active.",
         )
 
-    # Health check passed — promote staged key to live path
     try:
         backend = put_secret_at(row["vault_path"], body.secret_key, body.secret_value)
     except Exception as exc:
@@ -811,7 +783,6 @@ async def rotate_credential(
         "UPDATE provider_credentials SET rotated_at=NOW(), rotation_hint=$2 WHERE id=$1",
         credential_id, body.hint,
     )
-    # Reset chain cache so the next request picks up fresh creds.
     try:
         from src.providers.chain import reset_chain_cache
         from src.providers.registry import ProviderRegistry
@@ -829,8 +800,7 @@ async def rotate_credential(
     return {"status": "ok", "backend": backend}
 
 
-# ── Rotation status ──────────────────────────────────────────────────────────
-ROTATION_WARN_DAYS = 30   # flag as overdue after this many days without rotation
+ROTATION_WARN_DAYS = 30
 
 
 @router.get("/credentials/{credential_id}/rotation-status")
@@ -899,7 +869,6 @@ def _rotation_status_dict(row: Any) -> dict:
     }
 
 
-# Chains (legacy URL — proxies to v2 workspace+mode-agnostic)
 @router.get("/chains/{category}")
 async def get_chain(category: str, actor: Principal = Depends(principal_dep)):
     """Legacy endpoint. Returns the workspace + mode-agnostic chain for the category."""
@@ -945,12 +914,11 @@ async def set_chain(
     return {"status": "ok"}
 
 
-# Chains v2 (scope + content-mode aware)
 class ChainV2In(BaseModel):
-    scope: str = "workspace"           # system|workspace|brand|channel|project
+    scope: str = "workspace"
     scope_id: str | None = None
-    content_mode: str | None = None    # NULL = applies to all modes
-    pipeline_mode: str = "production"  # production|test
+    content_mode: str | None = None
+    pipeline_mode: str = "production"
     category: str
     credential_ids: list[int] = Field(default_factory=list)
 
@@ -998,8 +966,6 @@ async def upsert_chain_v2(
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Replace the chain at (scope, scope_id, content_mode, pipeline_mode, category)."""
-    # AE-319: Reject chain entries whose provider kind differs from the
-    # chain's category kind (e.g. adding an LLM credential to a TTS chain).
     if body.credential_ids:
         pool = await get_pool()
         cat_kind = await pool.fetchval(
@@ -1072,6 +1038,50 @@ async def delete_chain_v2(
     return {"status": "ok"}
 
 
+class ReorderItem(BaseModel):
+    id: int
+    position: int
+
+
+class ReorderIn(BaseModel):
+    items: list[ReorderItem]
+
+
+@router.patch("/chains/reorder")
+async def reorder_chain_entries(
+    body: ReorderIn,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "member")),
+):
+    """Atomic bulk reorder — update position for a list of {id, position} pairs.
+
+    Unlike PUT /chains which replaces the whole chain, this only repositions
+    existing entries, preserving enabled/disabled state and all other columns.
+    """
+    if not body.items:
+        return {"status": "ok"}
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            for item in body.items:
+                await conn.execute(
+                    "UPDATE provider_chains_v2 SET position=$1 WHERE id=$2",
+                    item.position, item.id,
+                )
+    entry_ids = [item.id for item in body.items]
+    rows = await pool.fetch(
+        "SELECT DISTINCT category FROM provider_chains_v2 WHERE id = ANY($1::bigint[])",
+        entry_ids,
+    )
+    for row in rows:
+        await publish_invalidate(category=row["category"])
+    await audit(actor=actor, action="provider.chain.reorder",
+                target_type="provider_chain_v2",
+                target_id=",".join(str(i) for i in entry_ids),
+                after={"count": len(entry_ids)}, request=request)
+    return {"status": "ok"}
+
+
 async def _upsert_chain_v2(
     *,
     scope: str,
@@ -1084,8 +1094,6 @@ async def _upsert_chain_v2(
     workspace_id: int = 1,
 ) -> None:
     pool = await get_pool()
-    # AE-321: deduplicate while preserving order — guards against frontend races
-    # sending the same id twice which would create duplicate chain positions.
     seen: set[int] = set()
     deduped: list[int] = []
     for cid in credential_ids:
@@ -1149,11 +1157,9 @@ def _validate_model(category: str, provider_name: str, model: str) -> None:
     except HTTPException:
         raise
     except Exception:
-        # Don't block writes on validation infra failures.
         return
 
 
-# Default fallback
 @router.put("/credentials/{credential_id}/default-fallback")
 async def set_default_fallback(
     credential_id: int,
@@ -1216,7 +1222,6 @@ async def clear_default_fallback(
     return {"status": "ok"}
 
 
-# Content modes
 @router.get("/content-modes")
 async def list_content_modes(_: Principal = Depends(principal_dep)):
     pool = await get_pool()
@@ -1227,10 +1232,6 @@ async def list_content_modes(_: Principal = Depends(principal_dep)):
     return {"data": [dict(r) for r in rows]}
 
 
-# Registered providers for a category
-# Hardcoded fallback display names for provider keys whose marketplace
-# catalog entry uses a different key (`claude` ↔ `anthropic`) or that
-# aren't catalogued yet. Source of truth: provider_marketplace_catalog.
 _PROVIDER_DISPLAY_FALLBACK: dict[str, str] = {
     "openai":        "OpenAI",
     "claude":        "Anthropic (Claude)",
@@ -1280,7 +1281,6 @@ async def registered_providers_endpoint(
     except Exception as exc:  # noqa: BLE001
         return {"data": [], "error": str(exc)}
 
-    # Pre-fetch marketplace display names in one query.
     pool = await get_pool()
     catalog_rows = await pool.fetch(
         "SELECT provider_key, display_name, logo_url, website_url, has_free_tier, "
@@ -1329,7 +1329,6 @@ async def registered_providers_endpoint(
     return {"data": out}
 
 
-# Supported models for a registered provider
 @router.get("/models")
 async def supported_models_endpoint(
     category: str,
@@ -1361,7 +1360,6 @@ async def supported_models_endpoint(
         return {"data": [], "registered": False, "error": str(exc)}
 
 
-# Effective chain (debug + UI rendering)
 @router.get("/resolved")
 async def resolved_chain(
     category: str,
@@ -1417,7 +1415,6 @@ async def resolved_chain(
                 seen.add(r["credential_id"])
                 out.append({**dict(r), "origin": origin})
 
-        # Default fallback always appended last.
         fb = await conn.fetchrow(
             """SELECT id AS credential_id, label, provider_name, model,
                       enabled, last_health_ok
@@ -1440,6 +1437,77 @@ async def resolved_chain(
     }
 
 
+@router.get("/audit-log")
+async def list_audit_log(
+    category: str | None = None,
+    credential_id: int | None = None,
+    limit: int = 100,
+    actor: Principal = Depends(principal_dep),
+):
+    """Return provider audit log entries for this workspace.
+
+    Filters by ``action LIKE 'provider.%'``. Optionally narrow to a specific
+    credential (``credential_id``) or category (joins via provider_credentials).
+    """
+    pool = await get_pool()
+    args: list[Any] = []
+
+    if credential_id is not None:
+        args += [credential_id, min(limit, 500)]
+        rows = await pool.fetch(
+            """SELECT a.id, a.actor_label, a.action, a.target_type, a.target_id,
+                      a.before, a.after, a.created_at
+                 FROM audit_log_v2 a
+                WHERE a.action LIKE 'provider.%'
+                  AND a.target_type = 'provider_credential'
+                  AND a.target_id = $1::text
+                ORDER BY a.created_at DESC
+                LIMIT $2""",
+            *args,
+        )
+    elif category is not None:
+        args += [category, min(limit, 500)]
+        rows = await pool.fetch(
+            """SELECT DISTINCT ON (a.id)
+                      a.id, a.actor_label, a.action, a.target_type, a.target_id,
+                      a.before, a.after, a.created_at
+                 FROM audit_log_v2 a
+                 JOIN provider_credentials pc
+                   ON pc.id::text = a.target_id
+                  AND pc.category = $1
+                WHERE a.action LIKE 'provider.%'
+                ORDER BY a.id DESC, a.created_at DESC
+                LIMIT $2""",
+            *args,
+        )
+    else:
+        args += [min(limit, 500)]
+        rows = await pool.fetch(
+            """SELECT a.id, a.actor_label, a.action, a.target_type, a.target_id,
+                      a.before, a.after, a.created_at
+                 FROM audit_log_v2 a
+                WHERE a.action LIKE 'provider.%'
+                ORDER BY a.created_at DESC
+                LIMIT $1""",
+            *args,
+        )
+
+    def _row(r: dict) -> dict:
+        d = dict(r)
+        for k in ("before", "after"):
+            if isinstance(d.get(k), str):
+                import json as _j
+                try:
+                    d[k] = _j.loads(d[k])
+                except Exception:
+                    pass
+        if d.get("created_at"):
+            d["created_at"] = d["created_at"].isoformat()
+        return d
+
+    return {"data": [_row(dict(r)) for r in rows]}
+
+
 @router.get("/health/{credential_id}")
 async def credential_health(
     credential_id: int, limit: int = 50,
@@ -1456,9 +1524,7 @@ async def credential_health(
     return {"data": [dict(r) for r in rows]}
 
 
-# Wave 2 — Marketplace, Routing, Quotas, Sandbox, Probe-all
 
-# Marketplace
 
 @router.get("/marketplace")
 async def list_marketplace(actor: Principal = Depends(principal_dep)):
@@ -1473,22 +1539,18 @@ async def list_marketplace(actor: Principal = Depends(principal_dep)):
              FROM provider_marketplace_catalog
             ORDER BY category, sort_order, display_name"""
     )
-    # AE-324: which provider_names are connected in THIS workspace only?
-    if actor.global_role != "superadmin" and actor.source != "legacy":
-        connected_rows = await pool.fetch(
-            "SELECT DISTINCT provider_name FROM provider_credentials "
-            "WHERE enabled=TRUE AND workspace_id=$1",
-            actor.workspace_id,
+    count_rows = await pool.fetch(
+        "SELECT provider_name, COUNT(*) AS cnt FROM provider_credentials "
+        "WHERE workspace_id=$1 GROUP BY provider_name",
+        actor.workspace_id,
         )
-    else:
-        connected_rows = await pool.fetch(
-            "SELECT DISTINCT provider_name FROM provider_credentials WHERE enabled=TRUE"
-        )
-    connected = {r["provider_name"] for r in connected_rows}
+    cred_counts: dict[str, int] = {r["provider_name"]: int(r["cnt"]) for r in count_rows}
     result = []
     for r in catalog:
         d = dict(r)
-        d["connected"] = r["provider_key"] in connected
+        cnt = cred_counts.get(r["provider_key"], 0)
+        d["credential_count"] = cnt
+        d["connected"] = cnt > 0
         d["config_schema"] = _as_json(d.get("config_schema"), [])
         d["supported_models"] = _as_json(d.get("supported_models"), [])
         result.append(d)
@@ -1534,9 +1596,6 @@ async def create_marketplace_provider(
     sec = await pool.fetchrow("SELECT kind FROM provider_kinds WHERE kind=$1", kind)
     if not sec:
         raise HTTPException(400, f"Unknown section {kind!r}. Create the section first.")
-    # Catalog rows reference a category name; use this section's general category
-    # (created alongside the section, name == kind). Fall back to any category in
-    # the section if the general one was renamed/removed.
     cat = await pool.fetchrow(
         "SELECT name FROM provider_categories WHERE name=$1", kind
     ) or await pool.fetchrow(
@@ -1664,7 +1723,6 @@ async def setup_checklist(_: Principal = Depends(principal_dep)):
     }
 
 
-# Probe-all
 
 @router.post("/health/probe-all")
 async def probe_all_credentials(
@@ -1720,10 +1778,9 @@ async def probe_all_credentials(
     return {"data": results, "summary": {"total": len(results), "ok": sum(1 for r in results if r["ok"])}}
 
 
-# Routing policies
 
 class RouteIn(BaseModel):
-    policy: str = "balanced"  # cheapest|fastest|highest_quality|balanced|custom
+    policy: str = "balanced"
     custom_rules: dict = Field(default_factory=dict)
     primary_credential_id: int | None = None
     fallback_chain: list[int] = Field(default_factory=list)
@@ -1788,7 +1845,6 @@ async def upsert_route(
     return {"status": "ok", "id": rid}
 
 
-# Quotas
 
 class QuotaIn(BaseModel):
     monthly_cap_usd: float
@@ -1864,15 +1920,32 @@ async def update_quota(
     return {"status": "ok"}
 
 
-# Sandbox runner
+@router.delete("/quotas/{quota_id}")
+async def delete_quota(
+    quota_id: int,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "member")),
+):
+    """Remove a quota cap from a credential."""
+    pool = await get_pool()
+    res = await pool.execute(
+        "DELETE FROM provider_quotas WHERE id=$1", quota_id
+    )
+    if res.endswith("0"):
+        raise HTTPException(404, "Quota not found")
+    await audit(actor=actor, action="provider.quota.delete",
+                target_type="provider_quota", target_id=str(quota_id),
+                request=request)
+    return {"status": "ok"}
+
+
 
 class SandboxRunIn(BaseModel):
     credential_id: int
-    capability: str            # 'text-gen' | 'tts-standard' | 'image-gen'
+    capability: str
     input_payload: dict = Field(default_factory=dict)
-    # capability-specific convenience fields
-    prompt: str | None = None  # for text-gen / image-gen
-    text: str | None = None    # for tts
+    prompt: str | None = None
+    text: str | None = None
 
 
 @router.post("/sandbox/run")
@@ -1884,11 +1957,17 @@ async def sandbox_run(
     """Run a test inference against a specific credential and return the output."""
     pool = await get_pool()
     cred = await pool.fetchrow(
-        "SELECT category, provider_name, vault_path, extra_config FROM provider_credentials WHERE id=$1",
+        "SELECT category, provider_name, vault_path, extra_config, workspace_id FROM provider_credentials WHERE id=$1",
         body.credential_id,
     )
     if not cred:
         raise HTTPException(404, "Credential not found")
+    if (
+        actor.global_role != "superadmin"
+        and cred["workspace_id"] is not None
+        and cred["workspace_id"] != actor.workspace_id
+    ):
+        raise HTTPException(403, "Credential belongs to a different workspace")
 
     secret = get_secret_at(cred["vault_path"], "api_key")
     if not secret:
@@ -1909,16 +1988,16 @@ async def sandbox_run(
 
         if body.capability == "text-gen":
             prompt = body.prompt or body.input_payload.get("prompt", "Say hello in one sentence.")
-            messages = [{"role": "user", "content": prompt}]
+            req = LLMRequest(messages=[{"role": "user", "content": prompt}], max_tokens=200)
             fn = getattr(inst, "complete", None) or getattr(inst, "generate", None)
             if fn is None:
                 raise ValueError("Provider has no complete() method")
-            result = fn(messages=messages, max_tokens=200)
-            if hasattr(result, "__await__"):
-                import asyncio; result = await result
-            text_out = result.get("content", str(result)) if isinstance(result, dict) else str(result)
+            result = fn(req)
+            if asyncio.iscoroutine(result):
+                result = await result
+            text_out = result.content if hasattr(result, "content") else str(result)
             output = {"text": text_out}
-            cost_usd = float(result.get("cost_usd", 0)) if isinstance(result, dict) else None
+            cost_usd = float(result.cost_usd) if hasattr(result, "cost_usd") else None
             ok = True
 
         elif body.capability in ("tts-standard", "tts-emotion"):
@@ -1947,7 +2026,6 @@ async def sandbox_run(
             ok = True
 
         else:
-            # Generic: just run health_check
             hc = getattr(inst, "health_check", None)
             if hc:
                 res = hc()
@@ -2001,7 +2079,6 @@ async def list_sandbox_runs(
     return {"data": [dict(r) for r in rows]}
 
 
-# Enable / disable switches + admin clean-slate
 
 class EnabledIn(BaseModel):
     enabled: bool

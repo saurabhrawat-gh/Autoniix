@@ -1,0 +1,36 @@
+{
+  "input": {
+    "email": "<unique>@golden.test",
+    "password": "Password123!",
+    "display_name": "Golden Test User",
+    "workspace_name": "Golden Workspace"
+  },
+  "expected_response": {
+    "status": "ok",
+    "user_id": "<integer>",
+    "workspace_id": "<integer>",
+    "role": "owner",
+    "onboarding_required": true
+  },
+  "expected_db_state": {
+    "users": [
+      {
+        "email": "<unique>@golden.test",
+        "role": "<string>",
+        "disabled": false
+      }
+    ],
+    "workspaces": [
+      {
+        "name": "Golden Workspace",
+        "plan": "starter"
+      }
+    ],
+    "workspace_members": [
+      {
+        "role": "owner"
+      }
+    ],
+    "sessions": []
+  }
+}

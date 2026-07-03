@@ -56,8 +56,6 @@ export function exportFcpxml(graph: SceneGraph, opts: FcpxmlExportOptions = {}):
   const projectName = opts.projectName ?? graph.meta.title ?? "Untitled";
   const libraryName = opts.libraryName ?? `${projectName} Library`;
 
-  // Pre-collect resources (formats, assets, effects) so they can be emitted
-  // in the <resources> block before any reference appears.
   collectResources(graph, ctx);
 
   const xml: string[] = [];
@@ -75,7 +73,6 @@ export function exportFcpxml(graph: SceneGraph, opts: FcpxmlExportOptions = {}):
   );
   xml.push(`          <spine>`);
 
-  // The "spine" is the primary video track — first video track wins.
   const videoTracks = graph.tracks.filter((t) => t.kind === "video");
   const overlayTracks = graph.tracks.filter((t) => t.kind === "overlay");
   const captionTracks = graph.tracks.filter((t) => t.kind === "caption");
@@ -87,15 +84,11 @@ export function exportFcpxml(graph: SceneGraph, opts: FcpxmlExportOptions = {}):
       emitClipOnSpine(c, ctx, xml, "            ");
     }
   } else {
-    // No video track? Emit a gap of full duration so the project loads.
     xml.push(`            <gap duration="${secs(graph.meta.durationMs)}"/>`);
   }
 
   xml.push(`          </spine>`);
 
-  // Connected lanes — each non-primary track becomes a connected lane on
-  // the first spine clip. FCPXML uses `lane` attributes (1, 2, 3, ...) and
-  // `offset` for absolute timeline placement.
   let lane = 1;
   for (const t of [...videoTracks.slice(1), ...overlayTracks, ...fxTracks, ...captionTracks]) {
     for (const c of t.clips) {
@@ -143,13 +136,11 @@ function newContext(meta: SceneGraphMeta): FcpxmlContext {
 }
 
 function collectResources(graph: SceneGraph, ctx: FcpxmlContext): void {
-  // Format
   const { width, height } = ctx.meta.resolution;
   ctx.resources.push(
     `<format id="${ctx.formatId}" name="FFVideoFormat${height}p${ctx.meta.fps}" frameDuration="${frameDur(ctx.meta.fps)}" width="${width}" height="${height}" colorSpace="1-1-1 (Rec. 709)"/>`,
   );
 
-  // Walk every clip and register assets / effects as needed.
   const visit = (g: SceneGraph): void => {
     for (const t of g.tracks) {
       for (const c of t.clips) {
@@ -167,10 +158,6 @@ function registerClipResources(clip: Clip, ctx: FcpxmlContext): void {
     void aid;
   }
   if (clip.kind === "scene") {
-    // Scene clips reference a preset; they don't have a media asset on disk
-    // (they're rendered from JSX). Emit a synthetic title-style placeholder
-    // resource per unique scenePreset so the FCP import isn't littered with
-    // dangling references.
     if (!ctx.effectIds.has(clip.scenePreset)) {
       const eid = `r-eff-${shortHash(clip.scenePreset)}`;
       ctx.effectIds.set(clip.scenePreset, eid);
@@ -234,7 +221,7 @@ function emitClip(
   lane: number,
 ): void {
   const startEnd = clipRange(c);
-  if (!startEnd) return; // transitions handled inline below
+  if (!startEnd) return;
   const [startMs, endMs] = startEnd;
   const offset = secs(startMs);
   const duration = secs(endMs - startMs);
@@ -263,8 +250,6 @@ function emitClip(
       return;
     }
     case "caption": {
-      // Captions emit as <title> on a connected lane — FCP reads the text
-      // from the inner <text-style> element so the editor can re-style it.
       const text = c.text || "";
       xml.push(
         `${indent}<title${laneAttr}${offsetAttr} name="${esc(c.id)}" duration="${duration}" start="0s" ref="${ensureBasicTitleEffect(ctx)}">`,
@@ -282,17 +267,12 @@ function emitClip(
       return;
     }
     case "fx": {
-      // FX clips don't render media — they decorate the target. Emit as a
-      // comment so the FCP user sees the intent without an empty asset.
       xml.push(
         `${indent}<!-- fx ${esc(c.id)} preset=${esc(c.effect)} target=${esc(c.targetClipId)} duration=${duration} -->`,
       );
       return;
     }
     case "transition": {
-      // Transitions go between two adjacent spine clips. We emit a
-      // standalone <transition> here; if the consumer puts these in the
-      // wrong order on the spine, FCP recovers gracefully.
       const eid = ctx.effectIds.get(c.transitionPreset)!;
       xml.push(
         `${indent}<transition offset="${offset}" name="${esc(c.transitionPreset)}" duration="${secs(c.durationMs)}">`,
@@ -302,10 +282,6 @@ function emitClip(
       return;
     }
     case "compose": {
-      // Nested compositions — emit as a connected reference to a sub-project
-      // (FCPXML supports <ref-clip ref="r-..."/> when a referenced project
-      // exists). For v1 we flatten into a labelled gap so the structure is
-      // visible in the editor.
       xml.push(
         `${indent}<gap${laneAttr}${offsetAttr} name="${esc(`compose:${c.id}`)}" duration="${duration}" start="0s"/>`,
       );
@@ -368,8 +344,6 @@ function renderAdjustments(c: Clip): string[] {
   const filters = (c as { filters?: Array<{ kind: string }> }).filters;
   if (filters?.length) {
     for (const f of filters) {
-      // Source-side filters don't have a 1:1 FCPXML equivalent; emit as a
-      // marker comment so the receiving editor sees the intent.
       out.push(`<!-- source-filter ${esc(f.kind)} -->`);
     }
   }
@@ -393,9 +367,6 @@ function clipRange(c: Clip): [number, number] | null {
 
 /** Convert ms → FCPXML rational seconds (locked to 1/<fps>s grid for stable round-trips). */
 function secs(ms: number): string {
-  // FCPXML expresses time as N/D s where D is a multiple of the project frame rate.
-  // We use 600/30000s style by computing on a 30000-tick grid which divides cleanly
-  // into 24/25/30/50/60 fps. Rounding to int frames at 30fps grid is fine for v1.
   const TICKS = 30000;
   const ticks = Math.round((ms / 1000) * TICKS);
   return `${ticks}/${TICKS}s`;
@@ -410,7 +381,6 @@ function frameDur(fps: number): string {
 }
 
 function tcFormat(fps: number): string {
-  // FCPXML supports DF/NDF for 23.976/29.97/59.94. Default to NDF for clean fps.
   return fps === 23.976 || fps === 29.97 || fps === 59.94 ? "DF" : "NDF";
 }
 

@@ -3,8 +3,8 @@ import { useCurrentFrame, useVideoConfig } from "remotion";
 
 export interface TypewriterProps {
   text: string;
-  cps?: number; // characters per second
-  delay?: number; // frames
+  cps?: number;
+  delay?: number;
   cursor?: boolean;
   style?: React.CSSProperties;
 }

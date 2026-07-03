@@ -21,13 +21,10 @@ from src.providers.registry import ProviderRegistry
 
 logger = structlog.get_logger()
 
-# USD per token. Source: https://platform.moonshot.cn/docs/pricing
-# Quoted prices are in CNY per 1M tokens; converted at ~0.14 USD/CNY.
 PRICING: dict[str, dict[str, float]] = {
     "moonshot-v1-8k":   {"input": 1.68 / 1_000_000, "output": 1.68 / 1_000_000},
     "moonshot-v1-32k":  {"input": 3.36 / 1_000_000, "output": 3.36 / 1_000_000},
     "moonshot-v1-128k": {"input": 8.40 / 1_000_000, "output": 8.40 / 1_000_000},
-    # Auto-routes between the three based on prompt length.
     "moonshot-v1-auto": {"input": 1.68 / 1_000_000, "output": 1.68 / 1_000_000},
 }
 

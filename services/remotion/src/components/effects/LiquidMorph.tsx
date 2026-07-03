@@ -55,10 +55,8 @@ export const LiquidMorph: React.FC<LiquidMorphProps> = ({
   const centerY = height / 2;
   const baseRadius = Math.min(width, height) * 0.25 * scale;
 
-  // Animated time for smooth morphing
   const time = (frame * speed) / 60;
 
-  // Generate morphing path based on preset
   const generatePath = (): string => {
     const points = 8;
     const pathPoints: string[] = [];
@@ -69,7 +67,6 @@ export const LiquidMorph: React.FC<LiquidMorphProps> = ({
 
       switch (preset) {
         case "blob":
-          // Organic blob with multiple sine waves
           radius +=
             Math.sin(angle * 3 + time * 2) * baseRadius * 0.3 +
             Math.sin(angle * 5 - time * 1.5) * baseRadius * 0.15 +
@@ -77,21 +74,18 @@ export const LiquidMorph: React.FC<LiquidMorphProps> = ({
           break;
 
         case "wave":
-          // Wave pattern
           radius +=
             Math.sin(angle * 4 + time * 3) * baseRadius * 0.4 +
             Math.cos(time * 2) * baseRadius * 0.2;
           break;
 
         case "pulse":
-          // Pulsing effect
           const pulse = Math.sin(time * 4) * 0.3 + 1;
           radius *= pulse;
           radius += Math.sin(angle * 6 + time) * baseRadius * 0.15;
           break;
 
         case "twist":
-          // Twisting spiral
           const twist = Math.sin(time * 2) * Math.PI;
           const twistedAngle = angle + twist * (1 - i / points);
           radius +=
@@ -100,7 +94,6 @@ export const LiquidMorph: React.FC<LiquidMorphProps> = ({
           break;
 
         case "melt":
-          // Melting effect (asymmetric)
           const meltFactor = Math.max(0, Math.sin(angle - Math.PI / 2));
           radius +=
             meltFactor * Math.sin(time * 2) * baseRadius * 0.5 +
@@ -108,7 +101,6 @@ export const LiquidMorph: React.FC<LiquidMorphProps> = ({
           break;
 
         case "bounce":
-          // Bouncing effect
           const bounce = Math.abs(Math.sin(time * 3)) * 0.4 + 0.8;
           radius *= bounce;
           radius += Math.sin(angle * 5 - time * 2) * baseRadius * 0.2;
@@ -121,9 +113,8 @@ export const LiquidMorph: React.FC<LiquidMorphProps> = ({
       if (i === 0) {
         pathPoints.push(`M ${x} ${y}`);
       } else {
-        // Use quadratic curves for smooth morphing
         const prevAngle = ((i - 1) / points) * Math.PI * 2;
-        const prevRadius = radius; // Simplified, should use previous calculated radius
+        const prevRadius = radius;
         const cpX = centerX + Math.cos(prevAngle + Math.PI / points) * prevRadius;
         const cpY = centerY + Math.sin(prevAngle + Math.PI / points) * prevRadius;
         pathPoints.push(`Q ${cpX} ${cpY} ${x} ${y}`);
@@ -136,7 +127,6 @@ export const LiquidMorph: React.FC<LiquidMorphProps> = ({
 
   const path = generatePath();
 
-  // Gradient animation
   const gradientRotation = interpolate(
     frame,
     [0, 300],

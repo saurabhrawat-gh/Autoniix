@@ -58,7 +58,6 @@ export const ThreeDLogoReveal: React.FC<ThreeDLogoRevealProps> = ({
 
   const logoSize = Math.min(width, height) * size;
 
-  // Render different animations
   const renderAnimation = () => {
     switch (animation) {
       case "flip":
@@ -78,7 +77,6 @@ export const ThreeDLogoReveal: React.FC<ThreeDLogoRevealProps> = ({
     }
   };
 
-  // FLIP: 3D flip reveal
   const renderFlip = () => {
     const rotateY = interpolate(progress, [0, 1], [90, 0]);
     const scale = interpolate(progress, [0, 0.5, 1], [0.5, 1.1, 1]);
@@ -109,7 +107,6 @@ export const ThreeDLogoReveal: React.FC<ThreeDLogoRevealProps> = ({
     );
   };
 
-  // CUBE: Rotating cube reveal
   const renderCube = () => {
     const rotateX = interpolate(progress, [0, 1], [-90, 0]);
     const rotateY = interpolate(progress, [0, 1], [90, 0]);
@@ -138,7 +135,6 @@ export const ThreeDLogoReveal: React.FC<ThreeDLogoRevealProps> = ({
     );
   };
 
-  // FOLD: Folding reveal
   const renderFold = () => {
     const foldProgress = interpolate(progress, [0, 1], [0, 1]);
     const parts = 4;
@@ -199,7 +195,6 @@ export const ThreeDLogoReveal: React.FC<ThreeDLogoRevealProps> = ({
     );
   };
 
-  // EXPLODE: Exploding pieces
   const renderExplode = () => {
     const pieces = 9;
     const elements: JSX.Element[] = [];
@@ -258,7 +253,6 @@ export const ThreeDLogoReveal: React.FC<ThreeDLogoRevealProps> = ({
     );
   };
 
-  // SPIRAL: Spiral reveal
   const renderSpiral = () => {
     const rotateZ = interpolate(progress, [0, 1], [720, 0]);
     const scale = interpolate(progress, [0, 0.5, 1], [0, 1.2, 1]);
@@ -289,7 +283,6 @@ export const ThreeDLogoReveal: React.FC<ThreeDLogoRevealProps> = ({
     );
   };
 
-  // PARTICLES: Particle burst reveal
   const renderParticles = () => {
     const logoOpacity = interpolate(progress, [0.5, 1], [0, 1], {
       extrapolateLeft: "clamp",
@@ -300,7 +293,6 @@ export const ThreeDLogoReveal: React.FC<ThreeDLogoRevealProps> = ({
       extrapolateRight: "clamp",
     });
 
-    // Generate particles
     const particleElements: JSX.Element[] = [];
     const particleCount = 50;
 

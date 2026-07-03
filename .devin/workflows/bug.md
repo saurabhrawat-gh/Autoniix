@@ -2,6 +2,11 @@
 description: Bug command — create a correctly formatted, labelled, and prioritised bug issue from a one-line natural language description. Detects QA vs production context automatically from the referenced parent issue.
 ---
 
+> **Source of Truth — LOCKED:**
+> - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project. Every bug must create a matching Jira IM ticket and be recorded in `scripts/issue_map.json`.
+> - Jira **Autoniix Engineering (AE)** space is **archived** — read-only, never create tickets there.
+> - GitHub **Autoniix MVP** project board is **closed** — do not reference it.
+
 # /bug — Bug Filing Command
 
 Use this workflow whenever you find a bug during local testing or production verification.
@@ -83,18 +88,23 @@ If unclear from description, pick the closest one and note it in the issue body.
 
 ## Step 4 — Build the issue title
 
-**Format:** `bug | {Env} | {Layer} | {description}`
+**Format:** `{Area} | {description}`
 
-| Bug type | Env value |
+> The bug type (QA/Production) is conveyed by the `bug:normal` / `bug:production` label — do not add it to the title.
+
+| Area | Maps from |
 |---|---|
-| `bug:normal` (QA) | `QA` |
-| `bug:production` (Prod) | `Prod` |
+| `Gateway` | auth, routing, Rust gateway, API gateway |
+| `Dashboard` | UI, frontend, Next.js |
+| `Service` | Python backend, DB, API service |
+| `Worker` | Temporal, background jobs |
+| `Infra` | Docker, CI/CD, infrastructure |
 
 **Examples:**
 ```
-bug | QA | Gateway | OAuth token refresh fails on expired session
-bug | Prod | Service | Video render hangs on empty script field
-bug | QA | UI | Login page crashes with special chars in email
+Gateway | OAuth token refresh fails on expired session
+Service | Video render hangs on empty script field
+Dashboard | Login page crashes with special chars in email
 ```
 
 ---
@@ -158,14 +168,25 @@ bug | QA | UI | Login page crashes with special chars in email
 
 ---
 
-## Step 7 — Create the issue
+## Step 7 — Create the GitHub issue
 
-Call `mcp0_create_issue`:
+Call `mcp1_create_issue`:
 - `owner`: saurabhrawat-gh
 - `repo`: Autoniix
 - `title`: the formatted title from Step 4
 - `body`: the body from Step 5
 - `labels`: the label set from Step 6
+
+## Step 7b — Create matching Jira IM ticket
+
+Call `mcp0_createJiraIssue`:
+- `cloudId`: `73672c49-7089-4f35-adde-e3fa0d1e438f`
+- `projectKey`: `IM`
+- `issueTypeName`: `Bug`
+- `summary`: same title as the GitHub issue
+- `description`: same body as the GitHub issue
+
+Then add the new mapping to `scripts/issue_map.json`: `"{new_gh_issue_number}": "IM-XXX"`
 
 ---
 

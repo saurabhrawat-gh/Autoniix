@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react';
 import { api, wsEvents, isLoggedIn } from '../api';
+import { jobsApi } from '../api-v2';
 
 type EnvMode = 'test' | 'production';
 export type WsStatus = 'connecting' | 'live' | 'offline';
@@ -23,6 +24,7 @@ interface AppState {
   systemStopped: boolean;
   channelCount: number;
   wsStatus: WsStatus;
+  activeJobs: any[];
   density: Density;
   setDensity: (d: Density) => void;
   notifications: NotificationItem[];
@@ -31,6 +33,8 @@ interface AppState {
   clearNotifications: () => void;
   paletteOpen: boolean;
   setPaletteOpen: (v: boolean) => void;
+  helpOpen: boolean;
+  setHelpOpen: (v: boolean) => void;
   refresh: () => Promise<void>;
   switchEnv: (mode: EnvMode, confirm?: boolean) => Promise<void>;
   setSystemStopped: (v: boolean) => void;
@@ -43,6 +47,7 @@ const Ctx = createContext<AppState>({
   systemStopped: false,
   channelCount: 0,
   wsStatus: 'connecting',
+  activeJobs: [],
   density: 'comfortable',
   setDensity: noop,
   notifications: [],
@@ -51,6 +56,8 @@ const Ctx = createContext<AppState>({
   clearNotifications: noop,
   paletteOpen: false,
   setPaletteOpen: noop,
+  helpOpen: false,
+  setHelpOpen: noop,
   refresh: async () => {},
   switchEnv: async () => {},
   setSystemStopped: noop,
@@ -66,9 +73,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [systemStopped, setSystemStopped] = useState(false);
   const [channelCount, setChannelCount] = useState(0);
   const [wsStatus, setWsStatus] = useState<WsStatus>('connecting');
+  const [activeJobs, setActiveJobs] = useState<any[]>([]);
   const [density, setDensityState] = useState<Density>('comfortable');
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     if (typeof window === 'undefined') return;
@@ -85,8 +94,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         setSystemStopped(!!s.emergency_stop);
         setChannelCount(s?.channels?.total ?? 0);
       }
+      try {
+        const jr = await jobsApi.active();
+        setActiveJobs(jr.data || []);
+      } catch { /* best-effort */ }
     } catch {
-      // best-effort
     }
   }, []);
 
@@ -100,7 +112,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Persist density + load notifications from localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
@@ -111,7 +122,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     } catch {}
   }, []);
 
-  // Apply density attribute on <html> for CSS hooks
   useEffect(() => {
     if (typeof document === 'undefined') return;
     document.documentElement.setAttribute('data-density', density);
@@ -144,10 +154,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     try { localStorage.removeItem(NOTIF_KEY); } catch {}
   }, []);
 
-  // Periodic stats refresh — pauses when the tab is hidden, and skips when
-  // the WebSocket is already live (WS pushes job_update events; the timer
-  // is only a fallback for offline/connecting states). Bumped 15s → 30s.
-  // Read wsStatus from a ref so changes don't recreate the interval.
   const wsStatusRef = useRef<WsStatus>('connecting');
   useEffect(() => { wsStatusRef.current = wsStatus; }, [wsStatus]);
   useEffect(() => {
@@ -160,7 +166,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(t);
   }, [refresh]);
 
-  // Single shared WebSocket connection for all consumers
   const wsRef = useRef<WebSocket | null>(null);
   useEffect(() => {
     if (typeof window === 'undefined' || !isLoggedIn()) return;
@@ -174,7 +179,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       try {
         const ws = wsEvents();
         wsRef.current = ws;
-        // If the socket doesn't open within 5s, treat as offline
         connectTimeout = setTimeout(() => {
           if (ws.readyState !== WebSocket.OPEN) {
             setWsStatus('offline');
@@ -197,7 +201,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         ws.onmessage = (ev) => {
           try {
             const msg = JSON.parse(ev.data);
-            // Surface job lifecycle events as notifications
+            if (msg.type === 'job_update') {
+              jobsApi.active().then((r) => setActiveJobs(r.data || [])).catch(() => {});
+            }
             if (msg.type === 'job_update' && msg.data) {
               const { status, title, content_id } = msg.data;
               if (status === 'failed') {
@@ -234,10 +240,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   return (
     <Ctx.Provider value={{
-      envMode, envSwitching, systemStopped, channelCount, wsStatus,
+      envMode, envSwitching, systemStopped, channelCount, wsStatus, activeJobs,
       density, setDensity,
       notifications, pushNotification, markAllNotificationsRead, clearNotifications,
       paletteOpen, setPaletteOpen,
+      helpOpen, setHelpOpen,
       refresh, switchEnv, setSystemStopped,
     }}>
       {children}

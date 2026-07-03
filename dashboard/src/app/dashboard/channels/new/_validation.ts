@@ -25,6 +25,9 @@ export function validateBasics(state: any): StepValidation {
 
   if (!(state.niche ?? '').trim()) errors.niche = 'Pick a niche.';
   if (!(state.primary_language ?? '').trim()) errors.primary_language = 'Select a primary language.';
+  const handle: string = (state.handle ?? '').trim();
+  if (!handle) errors.handle = 'YouTube handle is required (e.g. @YourChannel).';
+  else if (!handle.startsWith('@')) errors.handle = 'Handle must start with @.';
   if (!['short', 'long', 'mixed'].includes(state.content_mode)) {
     errors.content_mode = 'Pick a content mode.';
   }
@@ -85,7 +88,6 @@ const URL_RE = /^https?:\/\/[\w.-]+(\.[a-z]{2,})+([/?#].*)?$/i;
 const YT_RE  = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//i;
 
 export function validateReferences(state: any): StepValidation {
-  // Optional step — empty is fine.
   const errors: WizardErrors = {};
   const refs: Array<{ kind: string; uri?: string }> = state.references ?? [];
   refs.forEach((r, i) => {
@@ -148,7 +150,6 @@ const VALIDATORS: Record<Exclude<StepKey, 'review'>, (s: any) => StepValidation>
 
 export function validateStep(stepKey: StepKey, state: any): StepValidation {
   if (stepKey === 'review') {
-    // Review is valid iff every other step is valid.
     const errs: WizardErrors = {};
     let valid = true;
     (Object.keys(VALIDATORS) as Array<keyof typeof VALIDATORS>).forEach(k => {

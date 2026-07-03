@@ -12,7 +12,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 
-# ── _permissions.get_permissions_for_role error paths ─────────────────────
 
 
 class TestGetPermissionsErrorPaths:
@@ -47,7 +46,7 @@ class TestGetPermissionsErrorPaths:
         from src.services.dashboard.v2 import _permissions as pm
 
         mock_pool = AsyncMock()
-        mock_pool.fetch.return_value = []  # no rows for known role
+        mock_pool.fetch.return_value = []
         mock_get_pool = AsyncMock(return_value=mock_pool)
 
         with patch("src.services.dashboard.v2._permissions.get_pool", mock_get_pool):
@@ -113,10 +112,9 @@ class TestGetPermissionsErrorPaths:
         mock_get_pool = AsyncMock(return_value=mock_pool)
 
         with patch("src.services.dashboard.v2._permissions.get_pool", mock_get_pool):
-            await pm.verify_matrix_initialized()  # must not raise
+            await pm.verify_matrix_initialized()
 
 
-# ── /auth/me HTTP 503 path ────────────────────────────────────────────────
 
 
 class TestAuthMe503:
@@ -142,9 +140,7 @@ class TestAuthMe503:
         )
 
         mock_pool = AsyncMock()
-        # users SELECT for display_name
         mock_pool.fetchrow.return_value = None
-        # role_permissions SELECT raises (missing table)
         mock_pool.fetch.side_effect = RuntimeError(
             'relation "role_permissions" does not exist'
         )

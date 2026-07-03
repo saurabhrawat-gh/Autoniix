@@ -5,9 +5,12 @@ from datetime import timedelta
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
+from temporalio.exceptions import ApplicationError
 
 with workflow.unsafe.imports_passed_through():
     from src.schemas.common import VideoParams, VideoResult
+
+_BRAIN_HALTING_ACTIONS: frozenset[str] = frozenset({"HALT", "HOLD"})
 
 RETRY_STANDARD = RetryPolicy(
     maximum_attempts=3,
@@ -23,9 +26,6 @@ RETRY_RENDER = RetryPolicy(
     maximum_interval=timedelta(minutes=5),
 )
 
-# Finishing (AE-294). 3 attempts with exponential backoff. The activity itself
-# handles the skip-on-failure fallback when require_resolve_finish is False; this
-# policy mainly governs the require_resolve_finish=True (must-finish) path.
 RETRY_FINISH = RetryPolicy(
     maximum_attempts=3,
     initial_interval=timedelta(seconds=30),
@@ -77,8 +77,8 @@ class VideoProductionWorkflow:
         self._channel_id: str = ""
         self._title: str = ""
         self._content_mode: str = ""
+        self._brain_directive: dict | None = None
 
-    # Signals
 
     @workflow.signal
     async def approve_video(self, approved: bool) -> None:
@@ -97,7 +97,20 @@ class VideoProductionWorkflow:
     async def resume_workflow(self) -> None:
         self._paused = False
 
-    # Queries
+    @workflow.signal
+    async def receive_brain_directive(self, directive: dict) -> None:
+        """Mid-flight Brain interruption (AE-511 / P0).
+
+        The directive shape matches what `brain_directive_check_activity`
+        returns. The workflow consumes it at the next phase boundary via
+        :py:meth:`_check_brain_directive`; signals must be O(1) so this
+        method only stores the value.
+
+        Sending an empty dict (or one without a halting action) is a no-op
+        — useful for clearing a stale directive without restarting.
+        """
+        self._brain_directive = directive or None
+
 
     @workflow.query
     def get_status(self) -> dict:
@@ -109,7 +122,6 @@ class VideoProductionWorkflow:
             "cancelled": self._cancelled,
         }
 
-    # Helpers
 
     async def _set_phase(self, content_id: str, phase: str, channel_id: str = "") -> None:
         self._current_phase = phase
@@ -153,11 +165,42 @@ class VideoProductionWorkflow:
                     timeout=timedelta(hours=24),
                 )
             except asyncio.TimeoutError:
-                # 24 hours elapsed while paused — auto-cancel
                 self._cancelled = True
                 workflow.logger.warning("Auto-cancelling workflow after 24h pause timeout")
         if self._cancelled:
             raise RuntimeError("Workflow cancelled by user")
+
+    def _check_brain_directive(self) -> None:
+        """Halt the workflow if Brain has signalled a HALT or HOLD (AE-511 / P0).
+
+        Consumes the in-memory directive populated by
+        :py:meth:`receive_brain_directive`. Does NOT touch the DB on every
+        phase boundary — the activity-based check happens once at the very
+        start of `run()`, and signals carry mid-flight changes from there.
+
+        * Non-halting directives (ADVISE / NUDGE / RESUME / empty) → no-op.
+        * HALT → :class:`ApplicationError` with ``non_retryable=True`` so the
+          workflow fails permanently (Brain has decided this video must not ship).
+        * HOLD → :class:`ApplicationError` with ``non_retryable=False`` so a
+          future retry can resume once the directive is resolved.
+        """
+        directive = self._brain_directive
+        if not directive:
+            return
+        action = str(directive.get("action", "")).upper()
+        if action not in _BRAIN_HALTING_ACTIONS:
+            return
+        reasoning = directive.get("reasoning") or "no reason provided"
+        decision_id = directive.get("decision_id")
+        workflow.logger.warning(
+            f"BrainHalt at phase={self._current_phase} action={action} "
+            f"decision_id={decision_id} reasoning={reasoning!r}"
+        )
+        raise ApplicationError(
+            f"BrainHalt({action}): {reasoning}",
+            type="BrainHaltException",
+            non_retryable=(action == "HALT"),
+        )
 
     def _check_budget(self, budget: dict) -> None:
         if budget["accrued_cost_usd"] > budget["max_cost_usd"]:
@@ -188,7 +231,6 @@ class VideoProductionWorkflow:
             workflow.logger.warning(f"Failed to load checkpoint data for {phase}")
             return {}
 
-    # Main Pipeline
 
     @workflow.run
     async def run(self, params: VideoParams) -> VideoResult:
@@ -200,7 +242,6 @@ class VideoProductionWorkflow:
         budget = {"max_cost_usd": params.max_cost_usd, "accrued_cost_usd": 0}
         quality_scores = {}
 
-        # Quality thresholds — in test mode, bypass all scoring gates
         if is_test_mode:
             THRESHOLDS = {
                 "research_depth_score": 0.0,
@@ -230,7 +271,22 @@ class VideoProductionWorkflow:
             self._content_mode = params.content_mode
             resume_from = getattr(params, "resume_from", None)
 
-            # Initialize variables that phases produce (will be restored from checkpoint if resuming)
+            try:
+                initial_directive = await workflow.execute_activity(
+                    "brain_directive_check_activity",
+                    args=[ch, content_id],
+                    start_to_close_timeout=timedelta(seconds=10),
+                    retry_policy=RetryPolicy(maximum_attempts=2),
+                )
+            except Exception:
+                workflow.logger.warning(
+                    "brain_directive_check_activity_failed — proceeding without Brain input"
+                )
+                initial_directive = {}
+            if initial_directive:
+                self._brain_directive = initial_directive
+            self._check_brain_directive()
+
             research_data: dict = {}
             topic: str = params.topic_candidates[0] if params.topic_candidates else "Unknown"
             title: str = topic
@@ -254,17 +310,14 @@ class VideoProductionWorkflow:
             prod_score: float = 7.0
             composite_score: float = 0.0
 
-            # Resume: load checkpoint data for completed phases
             if resume_from:
                 workflow.logger.info(f"Resuming from phase: {resume_from}")
-                # Load all phases before resume_from
                 for prev_phase in WORKFLOW_PHASES:
                     if prev_phase == resume_from:
                         break
                     saved = await self._load_phase_data(content_id, prev_phase)
                     if not saved:
                         continue
-                    # Restore variables from each phase's saved data
                     if prev_phase == "researching":
                         research_data = saved.get("research_data", {})
                         topic = saved.get("topic", topic)
@@ -306,7 +359,6 @@ class VideoProductionWorkflow:
                         video_url = saved.get("video_url", video_url)
                     workflow.logger.info(f"Restored checkpoint: {prev_phase}")
 
-            # Phase 1: Research
             if _should_skip("researching", resume_from):
                 workflow.logger.info("Skipping researching (already completed)")
             else:
@@ -318,11 +370,6 @@ class VideoProductionWorkflow:
                         "channel_id": params.channel_id,
                         "content_mode": params.content_mode,
                         "topic_candidates": params.topic_candidates,
-                        # Phase 11: forward the workflow content_id so
-                        # research_features.content_id and the new
-                        # prediction_log.content_id match the delivered
-                        # video's id. Without this, the train_model
-                        # JOIN can't link predictions to actuals.
                         "content_id": content_id,
                         "budget_guard": budget,
                     }],
@@ -340,7 +387,6 @@ class VideoProductionWorkflow:
                 research_score = research_data.get("research_depth_score", 7.0)
                 quality_scores["research_depth_score"] = research_score
 
-                # Quality gate: research
                 if research_score < THRESHOLDS["research_depth_score"]:
                     workflow.logger.warning(
                         f"Research score {research_score} below threshold {THRESHOLDS['research_depth_score']} — proceeding with warning")
@@ -358,8 +404,8 @@ class VideoProductionWorkflow:
                 })
 
             await self._check_pause()
+            self._check_brain_directive()
 
-            # Phase 1B: Brand Identity
             if _should_skip("brand_check", resume_from):
                 workflow.logger.info("Skipping brand_check (already completed)")
             else:
@@ -388,8 +434,8 @@ class VideoProductionWorkflow:
                 })
 
             await self._check_pause()
+            self._check_brain_directive()
 
-            # Phase 2: Script
             if _should_skip("scripting", resume_from):
                 workflow.logger.info("Skipping scripting (already completed)")
             else:
@@ -412,7 +458,6 @@ class VideoProductionWorkflow:
                 self._accrued_cost += _add_cost(budget, script_result)
                 self._check_budget(budget)
 
-                # Multi-view response: {script_base, script_voice, script_assets, script_direction}
                 full_script_data = script_result.get("data", {})
                 script_data = full_script_data.get("script_base", full_script_data)
                 script_voice_data = full_script_data.get("script_voice", {})
@@ -427,7 +472,6 @@ class VideoProductionWorkflow:
                 quality_scores["script_structure_score"] = script_score
                 quality_scores["hook_retention_score"] = script_data.get("hook_retention_score", 7.0)
 
-                # Quality gate: script (hard gate — score must be reasonable)
                 if script_score < THRESHOLDS["script_structure_score"]:
                     workflow.logger.warning(
                         f"Script score {script_score} below target {THRESHOLDS['script_structure_score']} "
@@ -452,14 +496,13 @@ class VideoProductionWorkflow:
                 })
 
             await self._check_pause()
+            self._check_brain_directive()
 
-            # Phase 3: Voice
             if _should_skip("generating_voice", resume_from):
                 workflow.logger.info("Skipping generating_voice (already completed)")
             else:
                 await self._set_phase(content_id, "generating_voice", ch)
 
-                # Build voice segments with prosody data from Script Intelligence
                 voice_prosody_segs = script_voice_data.get("segments", []) if isinstance(script_voice_data, dict) else []
                 voice_segments_input = []
                 for i, s in enumerate(segments):
@@ -470,7 +513,6 @@ class VideoProductionWorkflow:
                         "emotion": s.get("emotion", ""),
                         "emphasis_words": s.get("emphasis_words", []),
                     }
-                    # Enrich with prosody engine data if available
                     if i < len(voice_prosody_segs):
                         prosody = voice_prosody_segs[i]
                         seg_input["tts_params"] = prosody.get("tts_params", {})
@@ -513,14 +555,13 @@ class VideoProductionWorkflow:
                 })
 
             await self._check_pause()
+            self._check_brain_directive()
 
-            # Phase 4: Assets + Thumbnail + Music (parallel) ─
             if _should_skip("generating_assets", resume_from):
                 workflow.logger.info("Skipping generating_assets (already completed)")
             else:
                 await self._set_phase(content_id, "generating_assets", ch)
 
-                # Build asset segments enriched with Script Intelligence queries
                 asset_intel_segs = script_assets_data.get("segments", []) if isinstance(script_assets_data, dict) else []
                 assets_segments_input = []
                 for i, s in enumerate(segments):
@@ -531,7 +572,6 @@ class VideoProductionWorkflow:
                         "b_roll_keywords": s.get("b_roll_keywords", []),
                         "emotion": s.get("emotion", ""),
                     }
-                    # Enrich with asset engine queries if available
                     if i < len(asset_intel_segs):
                         intel = asset_intel_segs[i]
                         seg_input["primary_query"] = intel.get("primary_query", "")
@@ -553,7 +593,6 @@ class VideoProductionWorkflow:
                 )
 
                 if is_test_mode:
-                    # Skip thumbnail generation in test mode; synthesize a passing result
                     music_future = workflow.execute_activity(
                         "music_activity",
                         args=[{
@@ -636,8 +675,8 @@ class VideoProductionWorkflow:
                 })
 
             await self._check_pause()
+            self._check_brain_directive()
 
-            # Phase 5: Direction
             if _should_skip("directing", resume_from):
                 workflow.logger.info("Skipping directing (already completed)")
             else:
@@ -684,8 +723,8 @@ class VideoProductionWorkflow:
                 })
 
             await self._check_pause()
+            self._check_brain_directive()
 
-            # Phase 5B: Editor / Post-Production
             if _should_skip("post_production", resume_from):
                 workflow.logger.info("Skipping post_production (already completed)")
             else:
@@ -706,7 +745,6 @@ class VideoProductionWorkflow:
                     )
 
                     editor_data = editor_result.get("data", {})
-                    # Apply editor optimizations back to direction_v3
                     if editor_data.get("optimized_direction"):
                         direction_v3 = editor_data["optimized_direction"]
                         workflow.logger.info(
@@ -725,8 +763,8 @@ class VideoProductionWorkflow:
                 })
 
             await self._check_pause()
+            self._check_brain_directive()
 
-            # Phase 6: Assembly (Remotion render)
             if _should_skip("rendering", resume_from):
                 workflow.logger.info("Skipping rendering (already completed)")
             else:
@@ -764,8 +802,8 @@ class VideoProductionWorkflow:
                 })
 
             await self._check_pause()
+            self._check_brain_directive()
 
-            # Phase 6B: Finishing (ffmpeg LUT colour grade + audio mastering) — AE-294
             if _should_skip("finishing", resume_from):
                 workflow.logger.info("Skipping finishing (already completed)")
             elif video_url:
@@ -805,7 +843,6 @@ class VideoProductionWorkflow:
             else:
                 workflow.logger.info("Finishing skipped — no rendered video_url")
 
-            # Phase 7: Compute Composite & Human Review Gate ─
             score_values = [v for v in quality_scores.values() if isinstance(v, (int, float))]
             composite_score = round(sum(score_values) / len(score_values), 1) if score_values else 0
 
@@ -824,7 +861,6 @@ class VideoProductionWorkflow:
             if needs_human_review:
                 await self._set_phase(content_id, "pending_review", ch)
 
-                # Notify
                 await workflow.execute_activity(
                     "send_notification",
                     args=[{
@@ -842,7 +878,6 @@ class VideoProductionWorkflow:
                     start_to_close_timeout=timedelta(seconds=30),
                 )
 
-                # Wait for human signal (up to 24 hours)
                 try:
                     await workflow.wait_condition(
                         lambda: self._human_approved is not None,
@@ -861,8 +896,8 @@ class VideoProductionWorkflow:
                     )
 
             await self._check_pause()
+            self._check_brain_directive()
 
-            # Phase 8: Delivery
             packaging = script_data.get("packaging", {})
             description = packaging.get("description", script_data.get("description", ""))
             tags = packaging.get("tags", script_data.get("tags", []))
@@ -873,7 +908,6 @@ class VideoProductionWorkflow:
                 await self._set_phase(content_id, "delivering", ch)
 
                 if is_test_mode:
-                    # TEST MODE: Skip YouTube upload but compute + store metadata
                     youtube_id = "TEST_SKIP"
                     workflow.logger.info("Test mode — computing metadata without YouTube upload")
                     try:
@@ -923,14 +957,9 @@ class VideoProductionWorkflow:
                                                detail={"youtube_id": youtube_id})
                     workflow.logger.info(f"Delivered: https://youtu.be/{youtube_id}")
 
-            # Phase 9: Analytics (skipped if nothing was actually published)
             if _should_skip("analytics", resume_from):
                 workflow.logger.info("Skipping analytics (already completed)")
             else:
-                # Analytics measures real YouTube performance. If we didn't upload
-                # (test mode, auto_upload disabled, or upload skipped) there is
-                # nothing to measure — skip the phase entirely instead of running
-                # an empty no-op that keeps the job looking "in progress".
                 should_run_analytics = bool(youtube_id) and youtube_id != "TEST_SKIP"
                 if should_run_analytics:
                     await self._set_phase(content_id, "analytics", ch)
@@ -953,9 +982,6 @@ class VideoProductionWorkflow:
                         youtube_id=youtube_id,
                     )
 
-            # Brand consistency check on final output
-            # NOTE: must call brand_activity with action='consistency' — there is
-            # no separate brand_consistency_activity registered on the worker.
             if brand_profile:
                 try:
                     await workflow.execute_activity(
@@ -974,7 +1000,6 @@ class VideoProductionWorkflow:
                 except Exception:
                     workflow.logger.warning("Brand consistency check failed — non-critical")
 
-            # Done
             final_status = "test_delivered" if is_test_mode else "delivered"
             await self._set_phase(content_id, final_status, ch)
             await self._complete_phase(content_id, ch, final_status,

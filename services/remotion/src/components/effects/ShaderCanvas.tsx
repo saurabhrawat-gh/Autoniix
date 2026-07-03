@@ -87,7 +87,6 @@ export const ShaderCanvas: React.FC<ShaderCanvasProps> = ({
   const programRef = useRef<WebGLProgram | null>(null);
   const glRef = useRef<WebGL2RenderingContext | null>(null);
 
-  // Compile on shader change
   useEffect(() => {
     const c = canvasRef.current;
     if (!c) return;
@@ -110,13 +109,11 @@ export const ShaderCanvas: React.FC<ShaderCanvasProps> = ({
       gl.enableVertexAttribArray(loc);
       gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
     } catch (err) {
-      // Compile errors surfaced for Phase 3 author debugging; do not crash comp.
       // eslint-disable-next-line no-console
       console.error("[ShaderCanvas]", err);
     }
   }, [fragmentShader]);
 
-  // Render every frame Remotion ticks
   useEffect(() => {
     const gl = glRef.current;
     const prog = programRef.current;

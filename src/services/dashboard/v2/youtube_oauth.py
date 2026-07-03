@@ -124,9 +124,6 @@ async def _fetch_channel_info(access_token: str) -> dict[str, Any]:
     }
 
 
-# ---------------------------------------------------------------------------
-# GET /auth  — initiate OAuth flow (called from popup)
-# ---------------------------------------------------------------------------
 
 @router.get("/auth")
 async def youtube_auth(
@@ -149,9 +146,6 @@ async def youtube_auth(
     return RedirectResponse(url)
 
 
-# ---------------------------------------------------------------------------
-# GET /callback  — Google redirects here after consent
-# ---------------------------------------------------------------------------
 
 @router.get("/callback")
 async def youtube_callback(
@@ -169,7 +163,6 @@ async def youtube_callback(
 
     workspace_id = int(state) if state and state.isdigit() else 0
 
-    # Exchange code for tokens
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(_GOOGLE_TOKEN_URL, data={
             "code":          code,
@@ -192,7 +185,6 @@ async def youtube_callback(
     refresh_token = token_data.get("refresh_token", "")
     granted_scope = token_data.get("scope", "")
 
-    # Store tokens in vault/secrets backend; fall back to DB extra_config if backend is read-only
     _tokens_in_db: dict[str, str] = {}
     if access_token:
         try:
@@ -205,11 +197,9 @@ async def youtube_callback(
         except NotImplementedError:
             _tokens_in_db["refresh_token"] = refresh_token
 
-    # Fetch channel info
     channel_info = await _fetch_channel_info(access_token) if access_token else {}
     missing_scopes = _missing_scope_names(granted_scope)
 
-    # Persist channel metadata + scope info in provider_credentials
     if workspace_id and (channel_info or _tokens_in_db):
         try:
             pool = await get_pool()
@@ -245,7 +235,6 @@ async def youtube_callback(
         except Exception as exc:  # noqa: BLE001
             logger.warning("youtube.oauth.db_write_failed", error=str(exc))
 
-    # Close popup and notify opener
     payload = json.dumps({
         "type": "youtube_oauth",
         "ok": True,
@@ -260,9 +249,6 @@ async def youtube_callback(
     return HTMLResponse(html)
 
 
-# ---------------------------------------------------------------------------
-# GET /status  — connection status for the dashboard card
-# ---------------------------------------------------------------------------
 
 @router.get("/status")
 async def youtube_status(
@@ -303,9 +289,6 @@ async def youtube_status(
     }}
 
 
-# ---------------------------------------------------------------------------
-# DELETE /disconnect  — revoke & delete tokens
-# ---------------------------------------------------------------------------
 
 @router.delete("/disconnect")
 async def youtube_disconnect(

@@ -1,0 +1,44 @@
+{
+  "name": "autoniix-monorepo",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Autoniix polyglot monorepo (Rust + Go + Python + TypeScript)",
+  "scripts": {
+    "prepare": "husky || true",
+    "proto:lint": "cd proto && buf lint",
+    "proto:format": "cd proto && buf format -w",
+    "proto:generate": "cd proto && buf generate",
+    "proto:breaking": "cd proto && buf breaking --against '.git#branch=main'",
+    "rust:build": "cd rust && cargo build --release",
+    "rust:test": "cd rust && cargo test",
+    "rust:fmt": "cd rust && cargo fmt --all -- --check",
+    "rust:clippy": "cd rust && cargo clippy --all-targets --all-features -- -D warnings",
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean && rm -rf gen node_modules rust/target"
+  },
+  "overrides": {
+    "@types/react": "18.3.28",
+    "@types/react-dom": "18.3.7"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.28",
+    "@types/react-dom": "18.3.7",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.2",
+    "turbo": "^2.0.0"
+  },
+  "workspaces": [
+    "dashboard",
+    "rust/*",
+    "go/*",
+    "python/*"
+  ],
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}

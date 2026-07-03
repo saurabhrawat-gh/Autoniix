@@ -63,8 +63,6 @@ async def send_email(to: str, subject: str, html: str, text: str) -> bool:
     msg = _build_message(to=to, subject=subject, html=html, text=text)
 
     try:
-        # Import lazily so the module loads cleanly even if the dependency
-        # is missing in environments that never send mail (e.g. CI).
         import aiosmtplib  # type: ignore
 
         use_tls = tls_mode == "ssl"
@@ -82,6 +80,5 @@ async def send_email(to: str, subject: str, html: str, text: str) -> bool:
         log.info("email sent to=%s subject=%r host=%s", to, subject, host)
         return True
     except Exception as exc:  # pragma: no cover - best-effort delivery
-        # Never log credentials. ``exc`` from aiosmtplib does not include them.
         log.warning("email send failed to=%s subject=%r err=%s", to, subject, exc)
         return False

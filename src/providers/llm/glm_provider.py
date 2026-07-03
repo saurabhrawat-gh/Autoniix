@@ -21,12 +21,11 @@ from src.providers.registry import ProviderRegistry
 
 logger = structlog.get_logger()
 
-# USD per token. Source: https://open.bigmodel.cn/pricing (updated 2025-05).
 PRICING: dict[str, dict[str, float]] = {
     "glm-4-plus":      {"input": 1.40 / 1_000_000, "output": 1.40 / 1_000_000},
     "glm-4-air":       {"input": 0.50 / 1_000_000, "output": 0.50 / 1_000_000},
     "glm-4-airx":      {"input": 1.40 / 1_000_000, "output": 1.40 / 1_000_000},
-    "glm-4-flash":     {"input": 0.0,               "output": 0.0},  # free tier
+    "glm-4-flash":     {"input": 0.0,               "output": 0.0},
     "glm-4-long":      {"input": 0.14 / 1_000_000, "output": 0.14 / 1_000_000},
 }
 
@@ -36,8 +35,6 @@ class GLMProvider(LLMProvider):
     HEALTH_URL = "https://open.bigmodel.cn/api/paas/v4/models"
 
     def __init__(self) -> None:
-        # The chain resolver injects GLM_API_KEY into os.environ from
-        # the credential's vault path before instantiating us.
         self.api_key = os.getenv("GLM_API_KEY", "")
         if not self.api_key:
             logger.warning("glm.no_api_key")
@@ -102,8 +99,6 @@ class GLMProvider(LLMProvider):
                     self.HEALTH_URL,
                     headers={"Authorization": f"Bearer {self.api_key}"},
                 )
-                # 401 still means the endpoint is reachable; we only fail
-                # on network errors / 5xx.
                 return resp.status_code < 500
         except Exception:
             return False
@@ -118,7 +113,6 @@ class GLMProvider(LLMProvider):
         return list(PRICING.keys())
 
 
-# Register for every LLM sub-category so it can be chained anywhere.
 for _cat in (
     "llm", "llm.research", "llm.script", "llm.factcheck", "llm.qc",
     "llm.ideation", "llm.hook", "llm.direction", "llm.emotion",

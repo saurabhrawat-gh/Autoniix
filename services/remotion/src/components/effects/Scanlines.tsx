@@ -6,7 +6,7 @@ import { AbsoluteFill } from "remotion";
  * shader when the scene only needs a subtle broadcast-tube feel.
  */
 export interface ScanlinesProps {
-  lineHeight?: number; // px per scanline pair
+  lineHeight?: number;
   opacity?: number;
   color?: string;
 }

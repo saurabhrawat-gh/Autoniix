@@ -35,24 +35,15 @@ logger = structlog.get_logger()
 
 app = FastAPI(title="resolve-finisher", version="0.1.0")
 
-# ---------------------------------------------------------------------------
-# In-memory job store (replaced by Redis / DB in a future phase)
-# ---------------------------------------------------------------------------
 _jobs: dict[str, dict[str, Any]] = {}
 _queue: asyncio.Queue[str] = asyncio.Queue()
 
-# ---------------------------------------------------------------------------
-# Prometheus metrics
-# ---------------------------------------------------------------------------
 JOBS_SUBMITTED = Counter("resolve_finisher_jobs_submitted_total", "Total jobs submitted")
 JOBS_COMPLETED = Counter("resolve_finisher_jobs_completed_total", "Total jobs completed")
 JOBS_FAILED = Counter("resolve_finisher_jobs_failed_total", "Total jobs failed")
 QUEUE_DEPTH = Gauge("resolve_finisher_queue_depth", "Current queue depth")
 
 
-# ---------------------------------------------------------------------------
-# Pydantic models
-# ---------------------------------------------------------------------------
 class JobStatus(str, Enum):
     pending = "pending"
     running = "running"
@@ -80,9 +71,6 @@ class FinishJobStatus(BaseModel):
     error: str | None = None
 
 
-# ---------------------------------------------------------------------------
-# Background worker (stub — replace with Resolve CLI call)
-# ---------------------------------------------------------------------------
 async def _worker() -> None:
     while True:
         job_id = await _queue.get()
@@ -96,8 +84,6 @@ async def _worker() -> None:
         logger.info("resolve_finisher.job_started", job_id=job_id)
 
         try:
-            # Phase 1B stub: simulate work then mark completed.
-            # Replace this block with actual DaVinci Resolve headless CLI call.
             await asyncio.sleep(0)
             job["status"] = JobStatus.completed
             JOBS_COMPLETED.inc()
@@ -111,18 +97,12 @@ async def _worker() -> None:
             _queue.task_done()
 
 
-# ---------------------------------------------------------------------------
-# Lifecycle
-# ---------------------------------------------------------------------------
 @app.on_event("startup")
 async def _startup() -> None:
     asyncio.create_task(_worker())
     logger.info("resolve_finisher.started")
 
 
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
 @app.post("/jobs", status_code=202)
 async def submit_job(body: FinishJob) -> dict[str, str]:
     job_id = str(uuid.uuid4())

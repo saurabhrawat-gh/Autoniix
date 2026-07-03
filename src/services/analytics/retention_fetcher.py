@@ -41,7 +41,6 @@ from src.quality.retention_features import (
 logger = structlog.get_logger()
 
 
-# Errors
 
 
 class RetentionFetchError(Exception):
@@ -55,7 +54,6 @@ class RetentionFetchError(Exception):
         self.status = status
 
 
-# OAuth token refresh
 
 
 _token_cache: dict[str, Any] = {"access_token": None, "expires_at": None}
@@ -109,7 +107,6 @@ async def _get_access_token() -> str:
     return token
 
 
-# Analytics fetch
 
 
 async def fetch_retention_curve(yt_video_id: str) -> list[CurvePoint]:
@@ -121,9 +118,6 @@ async def fetch_retention_curve(yt_video_id: str) -> list[CurvePoint]:
     """
     token = await _get_access_token()
 
-    # The Analytics API requires explicit start/end dates. We ask for
-    # the full lifetime: from a date well before any plausible publish
-    # to today. The API itself handles the filter to "data we have."
     today = datetime.utcnow().strftime("%Y-%m-%d")
 
     async with httpx.AsyncClient(timeout=20.0) as client:
@@ -142,10 +136,6 @@ async def fetch_retention_curve(yt_video_id: str) -> list[CurvePoint]:
         )
 
     if resp.status_code == 401:
-        # Token was rejected despite passing the freshness check —
-        # typical when a refresh token is revoked or the user changes
-        # their Google password. Bust the cache so the next call
-        # forces a fresh refresh and surfaces the real error.
         _token_cache["access_token"] = None
         raise RetentionFetchError("OAuth token rejected (401)", status=401)
     if resp.status_code == 403:
@@ -163,11 +153,9 @@ async def fetch_retention_curve(yt_video_id: str) -> list[CurvePoint]:
 
     data = resp.json()
     rows = data.get("rows") or []
-    # Each row is [elapsedVideoTimeRatio, audienceWatchRatio].
     return parse_curve(rows)
 
 
-# Persistence
 
 
 async def fetch_and_store_retention(content_id: str) -> dict:
@@ -271,7 +259,6 @@ async def fetch_and_store_retention(content_id: str) -> dict:
     }
 
 
-# Batch helper
 
 
 async def videos_needing_retention(

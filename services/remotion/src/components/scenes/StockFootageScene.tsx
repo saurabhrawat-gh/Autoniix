@@ -11,8 +11,8 @@ export type Fit = "cover" | "contain" | "fill";
 
 export interface StockFootageSceneProps {
   src: string;
-  startFrom?: number; // seconds into the source
-  endAt?: number; // seconds into the source
+  startFrom?: number;
+  endAt?: number;
   fit?: Fit;
   volume?: number;
   /** Simple Ken Burns — zooms from 1.0 to `kenBurnsTo` over the clip. */

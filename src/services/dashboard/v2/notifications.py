@@ -66,7 +66,6 @@ async def create_notification(
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
-    # Dedupe within 60s window
     if body.dedupe_key:
         existing = await pool.fetchval(
             "SELECT id FROM notifications "
@@ -82,7 +81,6 @@ async def create_notification(
         body.event_type, body.severity, body.title, body.body,
         json.dumps(body.payload), body.channel_id, body.video_id, body.dedupe_key,
     )
-    # Fan out via routes (best-effort, no await on external HTTP here).
     try:
         from src.services.dashboard.v2._notify import dispatch_routes
         await dispatch_routes(nid, body.model_dump())

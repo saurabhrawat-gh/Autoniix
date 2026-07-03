@@ -20,7 +20,6 @@ from src.quality.calibrator import (
 )
 
 
-# Sample.is_win / is_flop override
 
 
 def test_sample_default_uses_tier_for_classification():
@@ -33,12 +32,10 @@ def test_sample_default_uses_tier_for_classification():
 
 def test_sample_retention_label_overrides_tier():
     """When retention_label is set it takes precedence over tier."""
-    # Tier says S (= win), retention says flop. Retention wins.
     s = Sample(score=8.0, tier="S", retention_label=False)
     assert s.is_win is False
     assert s.is_flop is True
 
-    # Tier says D (= flop), retention says win. Retention wins.
     s = Sample(score=6.0, tier="D", retention_label=True)
     assert s.is_win is True
     assert s.is_flop is False
@@ -50,31 +47,25 @@ def test_sample_retention_label_none_falls_through_to_tier():
     assert s.is_flop is False
 
 
-# Median + classifier helpers
 
 
 def test_niche_median_returns_none_below_min_count():
-    assert _niche_median([0.1, 0.2, 0.3, 0.4]) is None  # 4 < 5
-    assert _niche_median([0.1] * 5) is not None         # exactly 5 OK
+    assert _niche_median([0.1, 0.2, 0.3, 0.4]) is None
+    assert _niche_median([0.1] * 5) is not None
 
 
 def test_niche_median_ignores_none_values():
     values = [None, None, 0.1, 0.2, 0.3, 0.4, 0.5]
-    # 5 valid values: median is 0.3.
     assert _niche_median(values) == pytest.approx(0.3)
 
 
 def test_classify_by_retention_lower_is_better():
-    # value below median → win
     assert _classify_by_retention(0.10, 0.20, lower_is_better=True) is True
-    # value above median → flop
     assert _classify_by_retention(0.30, 0.20, lower_is_better=True) is False
 
 
 def test_classify_by_retention_higher_is_better():
-    # value above median → win
     assert _classify_by_retention(0.80, 0.50, lower_is_better=False) is True
-    # value below median → flop
     assert _classify_by_retention(0.30, 0.50, lower_is_better=False) is False
 
 
@@ -89,7 +80,6 @@ def test_classify_by_retention_missing_data_returns_none():
     assert _classify_by_retention(0.10, None, lower_is_better=True) is None
 
 
-# Static config sanity
 
 
 def test_dim_to_retention_feature_dims_are_real_threshold_dims():
@@ -112,7 +102,6 @@ def test_dim_to_retention_feature_features_are_lower_is_better():
         )
 
 
-# _samples_by_dimension: end-to-end with mock rows
 
 
 def _row(*, tier: str, scores: dict, hook_drop: float | None = None,
@@ -139,36 +128,30 @@ def test_samples_by_dimension_falls_through_to_tier_when_no_curve_data():
     by_dim, _ = _samples_by_dimension(rows)
     samples = by_dim["hook_retention_score"]
     assert all(s.retention_label is None for s in samples)
-    # Tier-based wins/flops behave as in Phase 7.
-    assert samples[0].is_win is True   # S
-    assert samples[1].is_win is True   # A
-    assert samples[2].is_flop is True  # D
+    assert samples[0].is_win is True
+    assert samples[1].is_win is True
+    assert samples[2].is_flop is True
 
 
 def test_samples_by_dimension_uses_retention_label_when_curves_present():
     """With ≥5 valid hook_drops in the batch, niche_median is computable
     and the relevant samples are labelled by measurement, not tier."""
     rows = [
-        # 7 rows with hook_drop values: median = 0.20.
         _row(tier="S", scores={"hook_retention_score": 8.5}, hook_drop=0.05),
         _row(tier="A", scores={"hook_retention_score": 8.0}, hook_drop=0.10),
         _row(tier="A", scores={"hook_retention_score": 7.8}, hook_drop=0.15),
-        _row(tier="B", scores={"hook_retention_score": 7.5}, hook_drop=0.20),  # at median → tier
+        _row(tier="B", scores={"hook_retention_score": 7.5}, hook_drop=0.20),
         _row(tier="C", scores={"hook_retention_score": 7.0}, hook_drop=0.25),
         _row(tier="D", scores={"hook_retention_score": 6.0}, hook_drop=0.30),
         _row(tier="D", scores={"hook_retention_score": 5.5}, hook_drop=0.35),
     ]
     by_dim, _ = _samples_by_dimension(rows)
     samples = by_dim["hook_retention_score"]
-    # 7 samples retained.
     assert len(samples) == 7
-    # Below-median dropoff → measured win (overrides tier).
     assert samples[0].retention_label is True
     assert samples[1].retention_label is True
     assert samples[2].retention_label is True
-    # At median → None (defer to tier).
     assert samples[3].retention_label is None
-    # Above-median → measured flop.
     assert samples[4].retention_label is False
     assert samples[5].retention_label is False
 
@@ -185,13 +168,11 @@ def test_samples_by_dimension_does_not_apply_retention_label_to_unmapped_dims():
         _row(tier="D", scores={"idea_score": 5.5, "thumbnail_score": 5.5}, hook_drop=0.35),
     ]
     by_dim, _ = _samples_by_dimension(rows)
-    # idea_score is NOT in DIM_TO_RETENTION_FEATURE — must keep tier labels.
     assert "idea_score" not in DIM_TO_RETENTION_FEATURE
     for s in by_dim.get("idea_score", []):
         assert s.retention_label is None
 
 
-# Calibrator math under retention labels
 
 
 def _samples_with_retention(specs: list[tuple[float, bool | None]]) -> list[Sample]:
@@ -203,7 +184,6 @@ def _samples_with_retention(specs: list[tuple[float, bool | None]]) -> list[Samp
     has an anchor.
     """
     out = [Sample(score=s, tier="B", retention_label=lab) for s, lab in specs]
-    # Add an S-tier anchor at the top so monotonicity guard has data.
     out.append(Sample(score=max(s for s, _ in specs) + 0.5, tier="S",
                       retention_label=True))
     return out
@@ -212,7 +192,6 @@ def _samples_with_retention(specs: list[tuple[float, bool | None]]) -> list[Samp
 def test_calibrator_uses_retention_labels_when_available():
     """Reproduce Phase 7 lowest-acceptable test, but with retention
     labels driving win/flop instead of tier."""
-    # Wins clustered at high scores, flops at low scores.
     specs = (
         [(s, True)  for s in [8.0, 8.2, 8.4, 8.6, 8.8, 9.0, 8.1, 8.3, 8.5]]
         + [(s, False) for s in [
@@ -223,11 +202,8 @@ def test_calibrator_uses_retention_labels_when_available():
     samples = _samples_with_retention(specs)
     res = calibrate_dimension("hook_retention_score", samples, default_floor=7.5)
     assert res.status == "auto"
-    # Floor must clear precision target at the chosen value.
     assert res.win_rate_at_floor is not None
     assert res.win_rate_at_floor >= 0.70
-    # Floor must NOT exceed the lowest measured-win score (anchor S
-    # tier at top, but measured wins start at 8.0).
     assert res.floor <= 8.0
 
 
@@ -237,18 +213,14 @@ def test_calibrator_monotonicity_guard_still_uses_tier_S_anchor():
     performance with mediocre hook retention — we still mustn't block
     its score."""
     samples = [
-        # S-tier video with measured-flop retention (paradox: viral despite weak hook).
         Sample(score=7.2, tier="S", retention_label=False),
-        # Bunch of measured wins at higher scores.
         *[Sample(score=s, tier="A", retention_label=True)
           for s in [8.0, 8.2, 8.4, 8.6, 8.8]],
-        # And some measured flops at the bottom.
         *[Sample(score=s, tier="D", retention_label=False)
           for s in [5.0, 5.5, 6.0, 6.5, 7.0, 5.5, 6.2, 6.7,
                     5.8, 6.1, 6.3, 6.6, 6.8, 5.4, 5.9]],
     ]
     res = calibrate_dimension("hook_retention_score", samples, default_floor=7.5)
-    # The S-tier sample at score=7.2 must clamp the floor: never above 7.2.
     assert res.floor <= 7.2, (
         f"Monotonicity guard failed: floor={res.floor} would block an S-tier video"
     )

@@ -21,7 +21,6 @@ export function validateAgainstTemplate(d: DirectionV3Input): ValidationReport {
     return { valid: true, errors, warnings };
   }
 
-  // 1. Transition allow/deny lists
   for (const seg of d.segments) {
     const tId = seg.transition_out?.preset;
     if (!tId) continue;
@@ -41,7 +40,6 @@ export function validateAgainstTemplate(d: DirectionV3Input): ValidationReport {
     }
   }
 
-  // 2. Scene-category ratio budgets
   if (tpl.ratio_budgets) {
     const totalMs = d.segments.reduce((a, s) => a + s.duration_ms, 0);
     const byCat: Record<string, number> = {};

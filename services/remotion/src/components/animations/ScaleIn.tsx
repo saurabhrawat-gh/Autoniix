@@ -4,7 +4,7 @@ import { easings, type EaseName } from "../../utils/easing";
 
 export interface ScaleInProps {
   from?: number;
-  overshoot?: number; // peak scale past 1.0 then settle (scale-punch)
+  overshoot?: number;
   durationInFrames?: number;
   delay?: number;
   ease?: EaseName;

@@ -32,12 +32,8 @@ from src.services.dashboard.v2._deps import Principal, require_permission
 _PERMS_MODULE = "src.services.dashboard.v2._permissions.get_permissions_for_role"
 
 
-# ---------------------------------------------------------------------------
-# Canonical role → permission matrix (mirror of migration files)
-# ---------------------------------------------------------------------------
 
 ALL_PERMISSIONS = frozenset({
-    # Workspace domain
     "workspace.view",
     "workspace.settings.view",
     "workspace.settings.edit",
@@ -51,29 +47,24 @@ ALL_PERMISSIONS = frozenset({
     "workspace.integrations.view",
     "workspace.integrations.manage",
     "workspace.audit_log.view",
-    # Channel domain
     "channel.view",
     "channel.create",
     "channel.settings.edit",
     "channel.delete",
     "channel.credentials.view.labels",
     "channel.credentials.manage",
-    # Project domain
     "project.view",
     "project.create",
     "project.edit",
     "project.delete",
     "project.approve",
     "project.publish",
-    # Jobs domain
     "job.view",
     "job.trigger",
     "job.cancel",
     "job.retry",
-    # Analytics domain
     "analytics.view",
     "analytics.export",
-    # Credentials domain
     "credentials.view.labels",
     "credentials.view.manage",
 })
@@ -122,9 +113,6 @@ ROLE_MATRIX: dict[str, frozenset[str]] = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def _make_principal(role: str, *, workspace_id: int = 1, user_id: int = 42) -> Principal:
     return Principal(
@@ -170,29 +158,17 @@ async def _assert_allowed(permission: str, role: str) -> None:
     assert result is principal, "require_permission should return the principal on success"
 
 
-# ---------------------------------------------------------------------------
-# Sanity: the canonical matrix in this file matches what get_permissions_for_role
-# would resolve for each known role (mirror check; if the migration drifts, we
-# fail loudly here instead of silently passing the role tests below).
-# ---------------------------------------------------------------------------
 
 class TestRoleMatrixSnapshot:
     """Lock the role-permission matrix.  Update both this file AND the
     migration if the matrix legitimately changes."""
 
     def test_owner_has_all_permissions(self):
-        # NB: the comment in 202605220001_named_permissions.sql says "32
-        # atomic permissions" but the SQL actually inserts 33 rows
-        # (13 workspace + 6 channel + 6 project + 4 jobs + 2 analytics
-        # + 2 credentials).  Migration comment is stale; SQL is the
-        # source of truth.  If the count drifts again, update both this
-        # assertion AND the migration comment.
         assert OWNER_PERMS == ALL_PERMISSIONS
         assert len(OWNER_PERMS) == 33
 
     def test_member_has_24_permissions_no_people_management(self):
         assert len(MEMBER_PERMS) == 24
-        # The 8 permissions the spec says member must NOT have
         forbidden_for_member = {
             "workspace.settings.edit",
             "workspace.billing.view",
@@ -211,25 +187,18 @@ class TestRoleMatrixSnapshot:
 
     def test_viewer_has_only_5_read_permissions(self):
         assert len(VIEWER_PERMS) == 5
-        # Every viewer permission must end with .view
         assert all(p.endswith(".view") for p in VIEWER_PERMS), (
             f"Viewer must be read-only; non-view perms: "
             f"{[p for p in VIEWER_PERMS if not p.endswith('.view')]}"
         )
 
     def test_viewer_perms_are_subset_of_member_perms(self):
-        # Every viewer permission must be granted to member (member ⊇ viewer
-        # for read perms).  Note: viewer has 'workspace.view' which member
-        # also has; this property must hold to avoid demotion regressions.
         assert VIEWER_PERMS.issubset(MEMBER_PERMS)
 
     def test_member_perms_are_subset_of_owner_perms(self):
         assert MEMBER_PERMS.issubset(OWNER_PERMS)
 
 
-# ---------------------------------------------------------------------------
-# Negative — the 18 cases from AE-267 acceptance criteria
-# ---------------------------------------------------------------------------
 
 class TestPermissionGridNegative:
     """For every blocked (role, endpoint) pair, require_permission must
@@ -260,8 +229,6 @@ class TestPermissionGridNegative:
     async def test_ws_perm_05_member_cannot_revoke_invite(self):
         """WS-PERM-05 — Member cannot DELETE /workspace/invites/{id}
         (same workspace.members.invite gate)."""
-        # Same permission gates revoke as create; a member is denied either
-        # way.  Keeping the test explicit makes the AC traceable.
         await _assert_denied("workspace.members.invite", "member")
 
     @pytest.mark.asyncio
@@ -337,21 +304,16 @@ class TestPermissionGridNegative:
         await _assert_denied("workspace.audit_log.view", "member")
 
 
-# ---------------------------------------------------------------------------
-# Positive sanity — owner can do everything; member/viewer can do their reads.
-# ---------------------------------------------------------------------------
 
 class TestPermissionGridPositive:
     """Mirror of the negative grid — assert each role *can* call what it
     is supposed to.  Catches over-restrictive regressions."""
 
-    # Owner — every gated permission must pass for owner.
     @pytest.mark.parametrize("permission", sorted(OWNER_PERMS))
     @pytest.mark.asyncio
     async def test_owner_has_every_permission(self, permission: str):
         await _assert_allowed(permission, "owner")
 
-    # Member — full content + workspace.members.view but NOT people-mgmt etc.
     @pytest.mark.parametrize(
         "permission",
         ["workspace.view", "workspace.members.view", "workspace.integrations.view",
@@ -362,7 +324,6 @@ class TestPermissionGridPositive:
     async def test_member_can_use_content_and_pipeline_perms(self, permission: str):
         await _assert_allowed(permission, "member")
 
-    # Viewer — read-only across the 5 visible domains.
     @pytest.mark.parametrize(
         "permission",
         ["workspace.view", "channel.view", "project.view", "job.view", "analytics.view"],
@@ -372,9 +333,6 @@ class TestPermissionGridPositive:
         await _assert_allowed(permission, "viewer")
 
 
-# ---------------------------------------------------------------------------
-# Smoke: error message format is stable so the FE / monitoring can grep for it.
-# ---------------------------------------------------------------------------
 
 class TestPermissionDenialContract:
     """The 403 ``detail`` string is a stable contract: clients (and Sentry
@@ -387,7 +345,6 @@ class TestPermissionDenialContract:
         with _patch_perms("member"):
             with pytest.raises(HTTPException) as exc_info:
                 await checker(principal)
-        # FE/Sentry rely on this exact prefix:
         assert exc_info.value.detail.startswith("Permission denied: "), (
             f"Detail prefix changed; FE error handling will break. "
             f"Got: {exc_info.value.detail!r}"

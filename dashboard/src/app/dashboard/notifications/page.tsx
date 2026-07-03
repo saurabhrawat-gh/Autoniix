@@ -42,8 +42,6 @@ function Inbox() {
   const refresh = () => { notifyApi.list(false, sev || undefined).then(r => setRows(r.data || [])); };
   useEffect(() => { refresh(); }, [sev]);
 
-  // Live updates — listen for "notification" events on the global event WS
-  // and re-fetch. Cheap and keeps inbox in sync across tabs.
   useEffect(() => {
     let ws: WebSocket | null = null;
     let reconnect: any;

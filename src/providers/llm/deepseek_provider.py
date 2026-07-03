@@ -11,8 +11,6 @@ from src.providers.registry import ProviderRegistry
 
 logger = structlog.get_logger()
 
-# DeepSeek V3 (deepseek-chat):     $0.27/1M input,  $1.10/1M output
-# DeepSeek R1 (deepseek-reasoner): $0.55/1M input,  $2.19/1M output
 PRICING: dict[str, dict[str, float]] = {
     "deepseek-chat":     {"input": 0.27 / 1_000_000, "output": 1.10 / 1_000_000},
     "deepseek-reasoner": {"input": 0.55 / 1_000_000, "output": 2.19 / 1_000_000},

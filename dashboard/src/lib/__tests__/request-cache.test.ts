@@ -27,7 +27,6 @@ async function test(name: string, fn: () => Promise<void>): Promise<void> {
   _resetCacheForTest();
   try {
     await fn();
-    console.log(`  ✓ ${name}`);
     pass++;
   } catch (err) {
     console.error(`  ✗ ${name}`);
@@ -37,13 +36,11 @@ async function test(name: string, fn: () => Promise<void>): Promise<void> {
 }
 
 (async () => {
-  console.log('request-cache regression tests');
 
   await test('100 concurrent identical GETs ⇒ 1 executor call (AC: in-flight dedup)', async () => {
     let calls = 0;
     const executor = async (): Promise<{ ok: true; n: number }> => {
       calls++;
-      // Yield to next microtask so all 100 callers register as in-flight
       await new Promise((r) => setTimeout(r, 5));
       return { ok: true, n: calls };
     };
@@ -81,7 +78,7 @@ async function test(name: string, fn: () => Promise<void>): Promise<void> {
     let calls = 0;
     const executor = async () => ({ v: ++calls });
 
-    await dedupedGet('GET /api/v2/stats', executor, 10); // 10ms TTL
+    await dedupedGet('GET /api/v2/stats', executor, 10);
     await new Promise((r) => setTimeout(r, 20));
     await dedupedGet('GET /api/v2/stats', executor, 10);
 
@@ -134,7 +131,6 @@ async function test(name: string, fn: () => Promise<void>): Promise<void> {
       /upstream 500/,
     );
 
-    // Second attempt should hit network again, not return cached error
     const result = await dedupedGet('GET /api/v2/z', executor);
     assert.deepEqual(result, { ok: true });
     assert.equal(attempt, 2);
@@ -155,10 +151,8 @@ async function test(name: string, fn: () => Promise<void>): Promise<void> {
 
     assert.equal(attempt, 1, 'all subscribers share one in-flight call even on error');
     assert.ok(results.every((r) => r === 'boom'));
-    // After failure, in-flight entry must be cleared so retry can proceed
     assert.equal(_cacheSizeForTest().inFlight, 0);
   });
 
-  console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 })();

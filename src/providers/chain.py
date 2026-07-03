@@ -41,9 +41,6 @@ logger = structlog.get_logger()
 
 _TTL_SECONDS = 30.0
 
-# Sentinel returned by resolve_chain when the DB chain query succeeded
-# but yielded zero usable rows (no credentials configured / all disabled).
-# Distinct from ``None`` which means "DB unavailable, fall back to env".
 EMPTY_CHAIN: Any = object()
 
 
@@ -66,7 +63,6 @@ class NoProviderConfigured(RuntimeError):
             f"Add a credential and chain entry in /dashboard/providers."
         )
 
-# key -> (instance, expires_monotonic)
 _chain_cache: dict[tuple[str, str, str, str], tuple[Any, float]] = {}
 _lock = asyncio.Lock()
 
@@ -188,7 +184,6 @@ async def _load_chain(
                 )
                 merged.append(r)
 
-        # Always append the per-category default fallback credential.
         try:
             fb = await _load_default_fallback(conn, category)
         except Exception as exc:  # noqa: BLE001
@@ -221,8 +216,6 @@ class FallbackProvider:
         return list(self._labels)
 
     def __getattr__(self, name: str) -> Any:
-        # Return a callable that tries each member in order. Both sync and
-        # async methods are supported; we detect at call time.
         members = self._members
         labels = self._labels
         category = self._category
@@ -264,7 +257,6 @@ class FallbackProvider:
                 raise last_exc
             raise AttributeError(name)
 
-        # Probe the first method that actually exists to decide sync vs async
         for member in members:
             fn = getattr(member, name, None)
             if fn is None:
@@ -286,37 +278,25 @@ def _instantiate(
     if cls is None:
         raise ValueError(f"Provider {provider_name!r} not registered")
     api_key = get_secret_at(vault_path, "api_key")
-    # Provider classes today read from settings/env; we expose secrets
-    # by setting them in os.environ as a non-destructive shim. Long-term
-    # each provider should accept explicit creds in __init__.
     if api_key:
         upper = provider_name.upper().replace("-", "_") + "_API_KEY"
         os.environ.setdefault(upper, api_key)
     inst = cls()
-    # For providers that read api_key from settings at __init__ time the
-    # env-var shim above may arrive too late (settings already loaded).
-    # Directly set the attribute so the vault key always wins.
     if api_key and hasattr(inst, "api_key") and not getattr(inst, "api_key", None):
         try:
             inst.api_key = api_key
         except Exception:
             pass
-    # Allow extra_config to override attributes (e.g. base_url, voice_id).
     for k, v in (extra_config or {}).items():
         try:
             setattr(inst, k, v)
         except Exception:
             pass
-    # Allow providers with connection state (e.g. MinIO) to reconnect
-    # after extra_config attributes have been injected.
     if hasattr(inst, "_connect") and callable(inst._connect):
         try:
             inst._connect()
         except Exception:
             pass
-    # Per-credential model pin (column on provider_credentials). If the
-    # provider class supports a `model` attribute we set it; the LLM
-    # router additionally fills `LLMRequest.model` from `_pinned_model`.
     if model:
         try:
             setattr(inst, "model", model)
@@ -343,9 +323,6 @@ async def resolve_chain(
     empty, or every member fails to instantiate. Callers fall through to
     env-driven resolution in that case.
     """
-    # First-call side effect: ensure the cross-service invalidation
-    # subscriber is running. Idempotent + best-effort; if Redis is
-    # unreachable the runtime degrades to TTL-only refresh.
     try:
         from src.providers.invalidation import start_subscriber
         start_subscriber()
@@ -375,9 +352,6 @@ async def resolve_chain(
                            content_mode=content_mode, error=str(exc))
             return None
         if not rows:
-            # Explicit empty result: DB reachable, no enabled credentials.
-            # Cache it so we don't hammer the DB, and return the sentinel
-            # so callers can distinguish from "DB down".
             _chain_cache[key] = (EMPTY_CHAIN, now + _TTL_SECONDS)
             return EMPTY_CHAIN
 
@@ -405,7 +379,6 @@ async def resolve_chain(
         if not members:
             return None
         wrapped = FallbackProvider(category, members, labels)
-        # Surface metadata for the LLM router / UI debug endpoints.
         wrapped.models = models  # type: ignore[attr-defined]
         wrapped.origins = origins  # type: ignore[attr-defined]
         wrapped.provider_names = [r["provider_name"] for r in rows]  # type: ignore[attr-defined]

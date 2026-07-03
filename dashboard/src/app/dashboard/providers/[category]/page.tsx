@@ -11,6 +11,7 @@ import {
   Plus, Activity, Trash2, ArrowUp, ArrowDown, X, Check,
   ShieldCheck, AlertTriangle, HelpCircle, Loader2, Eye, EyeOff, RotateCw,
   Terminal, SlidersHorizontal, Play, Star, ExternalLink, GripVertical, ChevronDown,
+  ClipboardList, DollarSign, Ban,
 } from '@/lib/components/Icon';
 import {
   DndContext, closestCenter,
@@ -37,9 +38,6 @@ import {
   Label,
 } from '@/lib/ui';
 
-// Normalise a value that *should* be an array but may arrive as a JSON
-// string (JSONB columns with no asyncpg codec) or null. Prevents a stray
-// `.filter`/`.map` from crashing the whole page via the error boundary.
 function asArray<T = any>(value: unknown): T[] {
   if (Array.isArray(value)) return value as T[];
   if (typeof value === 'string') {
@@ -102,35 +100,35 @@ export default function ProviderCategoryPage() {
   const [testingId, setTestingId] = useState<number | null>(null);
   const [testResults, setTestResults] = useState<Record<number, any>>({});
   const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
-  // Wave 2 — routing policy
+  const [wsRoute, setWsRoute] = useState<any | null>(null);
   const [route, setRoute] = useState<any | null>(null);
   const [savingRoute, setSavingRoute] = useState(false);
   const [selectedPolicy, setSelectedPolicy] = useState('balanced');
   const [primaryCredId, setPrimaryCredId] = useState<number | null>(null);
-  // Wave 2 — sandbox runner
   const [sandboxCredId, setSandboxCredId] = useState<number | null>(null);
   const [sandboxCapability, setSandboxCapability] = useState('text-gen');
   const [sandboxPrompt, setSandboxPrompt] = useState('');
   const [sandboxRunning, setSandboxRunning] = useState(false);
   const [sandboxResult, setSandboxResult] = useState<any | null>(null);
-  // Wave 2 — health sparklines (last 20 per cred)
+  const [sandboxRecentRuns, setSandboxRecentRuns] = useState<any[]>([]);
   const [healthHistory, setHealthHistory] = useState<Record<number, any[]>>({});
+  const [quotas, setQuotas] = useState<any[]>([]);
+  const [quotaForm, setQuotaForm] = useState<{ credId: number | null; cap: string; alert: string }>({ credId: null, cap: '', alert: '80' });
+  const [quotaFormOpen, setQuotaFormOpen] = useState(false);
+  const [savingQuota, setSavingQuota] = useState(false);
+  const [auditLog, setAuditLog] = useState<any[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
 
-  // Wave 4 — content-mode aware chain editing
-  // selectedMode === null means "All modes" (NULL row in DB)
   const [contentModes, setContentModes] = useState<{ name: string; label: string }[]>([]);
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
   const [resolvedChain, setResolvedChain] = useState<any[]>([]);
-  // AE-72 — rotation status
   const [rotationByCredId, setRotationByCredId] = useState<Record<number, any>>({});
   const [rotatingCred, setRotatingCred] = useState<any | null>(null);
-  // AE-73 — context switcher
   const [scopeType, setScopeType] = useState<'workspace' | 'channel'>('workspace');
   const [scopeId, setScopeId] = useState<string | null>(null);
   const [channels, setChannels] = useState<any[]>([]);
   const [scopeDropdownOpen, setScopeDropdownOpen] = useState(false);
   const scopeDropdownRef = useRef<HTMLDivElement>(null);
-  // AE-73 — dnd sensors
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -163,31 +161,57 @@ export default function ProviderCategoryPage() {
         })
         .catch(() => {}),
       providersApi.routes('workspace').then(r => {
-        const found = (r.data || []).find((rt: any) => rt.category === decoded);
-        if (found) {
-          setRoute(found);
-          setSelectedPolicy(found.policy || 'balanced');
-          setPrimaryCredId(found.primary_credential_id || null);
+        const ws = (r.data || []).find((rt: any) => rt.category === decoded) ?? null;
+        setWsRoute(ws);
+        if (scopeType === 'workspace') {
+          setRoute(ws);
+          setSelectedPolicy(ws?.policy || 'balanced');
+          setPrimaryCredId(ws?.primary_credential_id || null);
         }
       }).catch(() => {}),
+      ...(scopeType === 'channel' && scopeId ? [
+        providersApi.routes('channel', scopeId).then(r => {
+          const ch = (r.data || []).find((rt: any) => rt.category === decoded) ?? null;
+          setRoute(ch);
+          setSelectedPolicy(ch?.policy || wsRoute?.policy || 'balanced');
+          setPrimaryCredId(ch?.primary_credential_id ?? wsRoute?.primary_credential_id ?? null);
+        }).catch(() => {}),
+      ] : []),
+      providersApi.quotas('workspace').then(r => {
+        setQuotas((r.data || []).filter((q: any) => !decoded || q.category === decoded));
+      }).catch(() => {}),
     ]).finally(() => setLoading(false));
+    setAuditLoading(true);
+    providersApi.auditLog({ category: decoded, limit: 50 })
+      .then(r => setAuditLog(r.data || []))
+      .catch(() => {})
+      .finally(() => setAuditLoading(false));
+    providersApi.sandboxRuns(undefined, 5)
+      .then(r => setSandboxRecentRuns(r.data || []))
+      .catch(() => {});
   }, [decoded, selectedMode, scopeType, scopeId]);
 
-  // Load the content-mode catalog once.
   useEffect(() => {
     providersApi.contentModes()
       .then(r => setContentModes(r.data || []))
       .catch(() => setContentModes([]));
   }, []);
 
-  // AE-73 — load channels list for context switcher
+  useEffect(() => {
+    const id = setInterval(() => {
+      providersApi.auditLog({ category: decoded, limit: 50 })
+        .then(r => setAuditLog(r.data || []))
+        .catch(() => {});
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [decoded]);
+
   useEffect(() => {
     channelsApi.list()
       .then(r => setChannels(r.data || []))
       .catch(() => {});
   }, []);
 
-  // AE-73 — close scope dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (scopeDropdownRef.current && !scopeDropdownRef.current.contains(e.target as Node)) {
@@ -198,7 +222,6 @@ export default function ProviderCategoryPage() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Auto-open add dialog when arriving via ?add=1 (from Marketplace / onboarding)
   useEffect(() => {
     if (searchParams.get('add') === '1') setShowAdd(true);
   }, [searchParams]);
@@ -212,7 +235,6 @@ export default function ProviderCategoryPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [creds.length]);
 
-  // AE-75 — real-time health badge updates via SSE
   useEffect(() => {
     const es = new EventSource(
       providersApi.healthStreamUrl(decoded),
@@ -249,12 +271,9 @@ export default function ProviderCategoryPage() {
     const newIdx = chain.findIndex(c => c.credential_id === over.id);
     if (oldIdx === -1 || newIdx === -1) return;
     const reordered = arrayMove(chain, oldIdx, newIdx);
-    setChain(reordered); // optimistic
-    providersApi.upsertChainV2({
-      scope: scopeType, scope_id: scopeId,
-      content_mode: selectedMode, category: decoded,
-      credential_ids: reordered.map(c => c.credential_id),
-    }).then(refresh).catch(() => {
+    setChain(reordered);
+    const items = reordered.map((c, i) => ({ id: c.id, position: i + 1 }));
+    providersApi.reorderChain(items).then(refresh).catch(() => {
       refresh();
       showToast('Reorder failed — reverted', 'error');
     });
@@ -374,6 +393,7 @@ export default function ProviderCategoryPage() {
     try {
       await providersApi.upsertRoute(decoded, {
         policy: selectedPolicy, primary_credential_id: primaryCredId,
+        scope: scopeType, scope_id: scopeType === 'channel' ? (scopeId ?? undefined) : undefined,
       });
       showToast('Routing policy saved', 'success');
       refresh();
@@ -397,6 +417,7 @@ export default function ProviderCategoryPage() {
       setSandboxResult({ ok: false, error: e?.message || 'Run failed', latency_ms: 0, output: {} });
     }
     setSandboxRunning(false);
+    providersApi.sandboxRuns(undefined, 5).then(r => setSandboxRecentRuns(r.data || [])).catch(() => {});
   };
 
   return (
@@ -777,7 +798,7 @@ export default function ProviderCategoryPage() {
                         ? 'border-accent/50 bg-accent/5 text-content-primary hover:bg-accent/10'
                         : 'border-border text-content-tertiary hover:border-border hover:bg-surface-1')}>
                     <div className="text-xs font-semibold">{opt.label}</div>
-                    <div className="text-[10px] text-content-tertiary mt-0.5">{opt.desc}</div>
+                    <div className="text-[11px] text-content-tertiary mt-0.5">{opt.desc}</div>
                   </Button>
                 ))}
               </div>
@@ -808,10 +829,126 @@ export default function ProviderCategoryPage() {
                 >
                   Save policy
                 </Button>
+                {wsRoute && scopeType === 'channel' && !route && (
+                  <span className="text-[11px] text-content-tertiary flex items-center gap-1">
+                    <span className="text-[10px] px-1 py-0.5 rounded bg-surface-2">↑ workspace</span>
+                    Inheriting <span className="text-content-secondary font-medium">{wsRoute.policy}</span>
+                  </span>
+                )}
                 {route && (
                   <span className="text-[11px] text-content-tertiary">
-                    Current: <span className="text-content-secondary font-medium">{route.policy}</span>
+                    {scopeType === 'channel' ? 'Channel override: ' : 'Current: '}
+                    <span className="text-content-secondary font-medium">{route.policy}</span>
                   </span>
+                )}
+              </div>
+              {/* AE-314 — Quota management */}
+              <div className="border-t border-border pt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-[10px] uppercase text-content-tertiary flex items-center gap-1">
+                    <DollarSign size={10} /> Quota caps
+                  </div>
+                  <Button type="button" size="sm" variant="ghost"
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() => setQuotaFormOpen(v => !v)}
+                    leftIcon={<Plus size={10} />}>
+                    Set quota
+                  </Button>
+                </div>
+                {quotaFormOpen && (
+                  <div className="mb-3 p-3 rounded-md border border-border bg-surface-1 space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="col-span-1">
+                        <div className="text-[10px] text-content-tertiary mb-1">Credential</div>
+                        <Select value={quotaForm.credId == null ? '' : String(quotaForm.credId)}
+                          onValueChange={v => setQuotaForm(f => ({ ...f, credId: v ? Number(v) : null }))}>
+                          <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Select…" /></SelectTrigger>
+                          <SelectContent>
+                            {creds.map((c: any) => (
+                              <SelectItem key={c.id} value={String(c.id)}>{c.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-content-tertiary mb-1">Monthly cap ($)</div>
+                        <Input className="h-7 text-xs" type="number" min="1" step="1"
+                          value={quotaForm.cap}
+                          onChange={e => setQuotaForm(f => ({ ...f, cap: e.target.value }))} />
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-content-tertiary mb-1">Alert at (%)</div>
+                        <Input className="h-7 text-xs" type="number" min="1" max="100"
+                          value={quotaForm.alert}
+                          onChange={e => setQuotaForm(f => ({ ...f, alert: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="button" size="sm" loading={savingQuota}
+                        disabled={!quotaForm.credId || !quotaForm.cap || savingQuota}
+                        onClick={async () => {
+                          if (!quotaForm.credId || !quotaForm.cap) return;
+                          setSavingQuota(true);
+                          try {
+                            await providersApi.createQuota({
+                              monthly_cap_usd: Number(quotaForm.cap),
+                              alert_pct: Number(quotaForm.alert),
+                              category: decoded,
+                            });
+                            setQuotaFormOpen(false);
+                            setQuotaForm({ credId: null, cap: '', alert: '80' });
+                            providersApi.quotas('workspace').then(r =>
+                              setQuotas((r.data || []).filter((q: any) => q.category === decoded))
+                            ).catch(() => {});
+                            showToast('Quota saved', 'success');
+                          } catch (e: any) { showToast(e?.message || 'Save failed', 'error'); }
+                          setSavingQuota(false);
+                        }}>Save</Button>
+                      <Button type="button" size="sm" variant="ghost"
+                        onClick={() => setQuotaFormOpen(false)}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
+                {quotas.length === 0 ? (
+                  <div className="text-[11px] text-content-tertiary italic">No quotas set — unlimited.</div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {quotas.map((q: any) => {
+                      const used = q.used_usd ?? 0;
+                      const cap = q.monthly_cap_usd ?? 0;
+                      const pct = cap > 0 ? Math.min(100, (used / cap) * 100) : 0;
+                      const crit = pct >= 90; const warn = !crit && pct >= 70;
+                      const cred = creds.find((c: any) => c.id === q.credential_id);
+                      return (
+                        <div key={q.id} className="flex items-center gap-2">
+                          <span className="text-[11px] text-content-secondary truncate flex-1 min-w-0">
+                            {cred?.label ?? `Cred #${q.credential_id}`}
+                          </span>
+                          <div className="w-20 h-1.5 rounded-full bg-surface-2 overflow-hidden shrink-0">
+                            <div className={cn('h-full rounded-full transition-all',
+                              crit ? 'bg-status-error' : warn ? 'bg-status-warning' : 'bg-accent')}
+                              style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className={cn('text-[10px] font-mono shrink-0',
+                            crit ? 'text-status-error' : warn ? 'text-status-warning' : 'text-content-tertiary')}>
+                            ${used.toFixed(2)} / ${cap}
+                          </span>
+                          <button type="button" title="Remove quota"
+                            className="text-content-tertiary hover:text-status-error transition-colors shrink-0"
+                            onClick={async () => {
+                              if (!await confirmDialog({ title: 'Remove quota cap?', description: 'This cannot be undone.', destructive: true })) return;
+                              try {
+                                await providersApi.deleteQuota(q.id);
+                                setQuotas(prev => prev.filter(x => x.id !== q.id));
+                                showToast('Quota removed', 'success');
+                              } catch (e: any) { showToast(e?.message || 'Delete failed', 'error'); }
+                            }}>
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </div>
@@ -913,9 +1050,83 @@ export default function ProviderCategoryPage() {
                     )}
                   </div>
                 )}
+                {/* AE-312 — Recent runs table */}
+                {sandboxRecentRuns.length > 0 && (
+                  <div className="border-t border-border pt-3">
+                    <div className="text-[10px] uppercase text-content-tertiary mb-2">Recent runs</div>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-border">
+                          <th className="text-left pb-1 text-[10px] font-medium text-content-tertiary">When</th>
+                          <th className="text-left pb-1 text-[10px] font-medium text-content-tertiary">Cap</th>
+                          <th className="text-left pb-1 text-[10px] font-medium text-content-tertiary">Latency</th>
+                          <th className="text-left pb-1 text-[10px] font-medium text-content-tertiary">Cost</th>
+                          <th className="text-left pb-1 text-[10px] font-medium text-content-tertiary">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {sandboxRecentRuns.map((run: any) => (
+                          <tr key={run.run_id ?? run.id} className="hover:bg-surface-1">
+                            <td className="py-1.5 text-content-tertiary font-mono">{run.created_at ? new Date(run.created_at).toLocaleTimeString() : '—'}</td>
+                            <td className="py-1.5 text-content-secondary">{run.capability ?? '—'}</td>
+                            <td className="py-1.5 text-content-tertiary font-mono">{run.latency_ms != null ? `${run.latency_ms}ms` : '—'}</td>
+                            <td className="py-1.5 text-content-tertiary font-mono">{run.cost_usd != null ? `$${run.cost_usd.toFixed(5)}` : '—'}</td>
+                            <td className="py-1.5">
+                              {run.ok
+                                ? <span className="text-status-success font-semibold">✓</span>
+                                : <span className="text-status-error font-semibold">✗</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </section>
           )}
+
+          {/* ── Audit log ───────────────────────────────── */}
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-base font-semibold text-content-primary flex items-center gap-1.5">
+                <ClipboardList size={13} className="text-accent" /> Audit log
+              </h2>
+              <span className="text-[10px] text-content-tertiary">Last 50 events for this category</span>
+            </div>
+            <div className="rounded-md border border-border bg-surface-0 overflow-hidden">
+              {auditLoading ? (
+                <div className="py-6 text-center"><Loader2 size={16} className="animate-spin mx-auto text-content-tertiary" /></div>
+              ) : auditLog.length === 0 ? (
+                <div className="py-6 text-center text-xs text-content-tertiary">No events yet.</div>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border bg-surface-1">
+                      <th className="text-left px-3 py-2 text-[10px] uppercase text-content-tertiary font-medium">When</th>
+                      <th className="text-left px-3 py-2 text-[10px] uppercase text-content-tertiary font-medium">Action</th>
+                      <th className="text-left px-3 py-2 text-[10px] uppercase text-content-tertiary font-medium">Target</th>
+                      <th className="text-left px-3 py-2 text-[10px] uppercase text-content-tertiary font-medium">By</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {auditLog.map((ev: any) => (
+                      <tr key={ev.id} className="hover:bg-surface-1 transition-colors">
+                        <td className="px-3 py-2 text-content-tertiary font-mono whitespace-nowrap">
+                          {ev.created_at ? new Date(ev.created_at).toLocaleString() : '—'}
+                        </td>
+                        <td className="px-3 py-2 font-mono">
+                          <span className="text-content-secondary">{ev.action}</span>
+                        </td>
+                        <td className="px-3 py-2 text-content-tertiary">{ev.target_id ?? '—'}</td>
+                        <td className="px-3 py-2 text-content-tertiary">{ev.actor_label ?? 'system'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </section>
         </div>
       )}
 
@@ -926,7 +1137,7 @@ export default function ProviderCategoryPage() {
           onClose={() => setShowAdd(false)}
           onAdded={(newCredId?: number) => {
             setShowAdd(false);
-            if (newCredId) addToChain(newCredId); // auto-activate immediately
+            if (newCredId) addToChain(newCredId);
             else refresh();
             showToast('Credential saved and added to chain ✓', 'success');
           }}
@@ -943,14 +1154,10 @@ export default function ProviderCategoryPage() {
   );
 }
 
-// Provider display aliases to hide (duplicate backend registrations).
-// fish_audio and fishaudio are the SAME class registered twice — show only fish_audio.
 const PROVIDER_ALIASES_TO_HIDE = new Set(['fishaudio']);
 
-// Providers that need NO API key (free, bundled services).
 const NO_KEY_PROVIDERS = new Set(['edge_tts', 'mock_llm', 'placeholder', 'mock_search']);
 
-// Hints shown in Step 2 below the API key field.
 const KEY_HINTS: Record<string, { prefix: string; helpUrl: string; hint: string }> = {
   openai:       { prefix: 'sk-',       helpUrl: 'https://platform.openai.com/api-keys',          hint: 'Starts with sk- · Get it from platform.openai.com/api-keys' },
   anthropic:    { prefix: 'sk-ant-',   helpUrl: 'https://console.anthropic.com/settings/keys',   hint: 'Starts with sk-ant- · Get it from console.anthropic.com' },
@@ -969,8 +1176,6 @@ const KEY_HINTS: Record<string, { prefix: string; helpUrl: string; hint: string 
   pixabay:      { prefix: '',          helpUrl: 'https://pixabay.com/api/docs/',                  hint: 'Get it at pixabay.com/api — completely free to sign up' },
 };
 
-// Per-provider voice/model hints shown in Step 3.
-// For TTS the "model" is really a voice — explain that clearly.
 const VOICE_HINTS: Record<string, {
   fieldLabel: string;
   placeholder: string;
@@ -1003,7 +1208,6 @@ const VOICE_HINTS: Record<string, {
   },
 };
 
-// Category-level field label override for Step 3
 const CATEGORY_MODEL_LABEL: Record<string, string> = {
   tts: 'Voice',
 };
@@ -1039,7 +1243,6 @@ function CategoryMultiSelect({ allCats, selKind, selectedCats, setSelectedCats, 
   );
   const selected = Array.from(selectedCats).filter(name => cats.some((c: any) => c.name === name));
 
-  // AE-317: only 1 option → plain text, no dropdown
   if (cats.length <= 1) {
     const onlyCat = cats[0];
     return (
@@ -1171,13 +1374,11 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
   const [registeredLoading, setRegisteredLoading] = useState(true);
   const [lazyModels, setLazyModels] = useState<string[] | null>(null);
   const [lazyModelsLoading, setLazyModelsLoading] = useState(false);
-  // Multi-category: always-visible combobox (no toggle)
   const [allCats, setAllCats] = useState<any[]>([]);
   const [catsLoading, setCatsLoading] = useState(false);
   const [selKind, setSelKind] = useState<string | null>(null);
   const [selectedCats, setSelectedCats] = useState<Set<string>>(() => new Set([category]));
   const [perCatModel, setPerCatModel] = useState<Record<string, string>>({});
-  // Validation
   const [step1Attempted, setStep1Attempted] = useState(false);
   const [touchedLabel, setTouchedLabel] = useState(false);
   const [touched2, setTouched2] = useState<Record<string, boolean>>({});
@@ -1185,13 +1386,11 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
 
   useEffect(() => {
     setRegisteredLoading(true);
-    // Source providers from BOTH the live Python registry (built-ins, with
-    // live model lists) and the marketplace catalog for this section (which
-    // also includes user-added custom providers). Merge by key; registry wins
-    // when both exist so live supported_models are preserved.
+    const safeOrEmpty = (p: Promise<any>) =>
+      p.catch((e: any) => { if (e?.message === 'Unauthorized') throw e; return []; });
     Promise.all([
-      providersApi.registeredProviders(category).then(r => r.data || []).catch(() => []),
-      providersApi.catalogForCategory(category).then(r => r.data || []).catch(() => []),
+      safeOrEmpty(providersApi.registeredProviders(category).then(r => r.data || [])),
+      safeOrEmpty(providersApi.catalogForCategory(category).then(r => r.data || [])),
     ])
       .then(([reg, catalog]) => {
         const byKey = new Map<string, any>();
@@ -1210,8 +1409,6 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
           });
         }
         for (const r of reg) {
-          // Only enrich catalog entries with live registry data (models, callable).
-          // Registry-only providers not in the catalog are excluded (strict catalog filter).
           if (byKey.has(r.provider_name)) {
             byKey.set(r.provider_name, { ...byKey.get(r.provider_name), ...r, is_callable: true });
           }
@@ -1225,7 +1422,6 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category]);
 
-  // Load categories to enable multi-select targeting in this section
   useEffect(() => {
     setCatsLoading(true);
     providersApi.categories()
@@ -1240,12 +1436,8 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
   }, [category]);
 
   const selProvider = (registered as any[]).find((r: any) => r.provider_name === providerName) ?? null;
-  // config_schema / supported_models come from a JSONB column; guard against
-  // the backend ever handing back a non-array so the dialog can't crash the page.
   const schema: SchemaField[] = asArray<SchemaField>(selProvider?.config_schema);
   const credFields = schema.filter(f => f.name !== 'model' && f.name !== 'model_id');
-  // Use lazy-fetched live model list (GET /models) when available; fall back to
-  // registered catalog's supported_models for providers that have no live endpoint.
   const effectiveModels: string[] = lazyModels !== null ? lazyModels : asArray<string>(selProvider?.supported_models);
   const modelField = schema.find(f => f.name === 'model' || f.name === 'model_id') ?? null;
   const noKeyNeeded = NO_KEY_PROVIDERS.has(providerName);
@@ -1254,13 +1446,9 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
   const modelLabel = voiceHint?.fieldLabel || CATEGORY_MODEL_LABEL[category] || 'Model';
   const supportedModels: string[] = asArray<string>(selProvider?.supported_models);
   const defaultModel: string | null = selProvider?.default_model ?? null;
-  // Catalog-only providers (user-added with no runtime adapter) can store a key
-  // but the pipeline cannot call them yet. Be explicit so the user isn't misled.
   const notCallable = selProvider?.is_callable === false;
-  // Derived: multi-category when more than one category is selected
   const isMulti = selectedCats.size > 1;
 
-  // ── Validation ──────────────────────────────────────────────────────────────
   const validateField2 = (field: SchemaField, val: string | boolean): string => {
     if (field.required && !val) return 'This field is required';
     if (typeof val === 'string' && val && field.hint) {
@@ -1328,7 +1516,6 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
   const submit = async () => {
     setBusy(true); setErr(null);
     try {
-      // Determine target categories
       const targets = isMulti && selKind
         ? Array.from(selectedCats).filter(n => {
             const c = allCats.find((x: any) => x.name === n);
@@ -1338,8 +1525,6 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
 
       const createOne = async (catName: string) => {
         const catModel = perCatModel[catName] ?? model;
-        // AE-321 Bug B: source keeps the user's label; each other target gets the
-        // category's own display name so the source nickname doesn't leak.
         const catInfo = allCats.find((c: any) => c.name === catName);
         const effectiveLabel = catName === category ? label : (catInfo?.label || catName);
         if (schema.length > 0) {
@@ -1368,9 +1553,6 @@ function AddCredentialDialog({ category, initialProvider, onClose, onAdded }: {
       };
 
       const results = await Promise.all(targets.map(createOne));
-      // AE-321 Bug A: addToChain must receive the SOURCE category's credential id,
-      // not the last target's — otherwise a foreign-category credential ends up in
-      // the source chain, causing duplicate/wrong entries.
       const sourceIdx = targets.indexOf(category);
       const sourceResult = (sourceIdx >= 0 ? results[sourceIdx] : results[0]) as any;
       const newId = sourceResult?.id ?? sourceResult?.data?.id;
@@ -1902,7 +2084,7 @@ function Inp({ label, hint, value, onChange, placeholder, type = 'text' }: any) 
 
 function HealthSparkline({ data }: { data: Array<{ ok: boolean; latency_ms: number | null; checked_at: string }> }) {
   const W = 80, H = 16, pad = 1;
-  const sorted = [...data].reverse(); // oldest first
+  const sorted = [...data].reverse();
   const n = sorted.length;
   if (n === 0) return null;
   const latencies = sorted.map(d => d.latency_ms ?? 0).filter(v => v > 0);
@@ -1933,7 +2115,6 @@ function HealthSparkline({ data }: { data: Array<{ ok: boolean; latency_ms: numb
   );
 }
 
-// AE-73 — sortable chain item with drag handle + keyboard arrow fallback
 function SortableChainItem({
   entry, index, total,
   toggleChainEntryEnabled, moveChain, removeFromChain, inherited,
@@ -1955,6 +2136,7 @@ function SortableChainItem({
   };
   const health = getHealth(entry);
   const entryEnabled = entry.is_enabled ?? true;
+  const credVaultEnabled = entry.enabled !== false;
 
   return (
     <div
@@ -1962,7 +2144,7 @@ function SortableChainItem({
       style={style}
       className={cn(
         'flex items-center gap-3 px-4 py-3 bg-surface-0',
-        !entryEnabled && 'opacity-60',
+        (!entryEnabled || !credVaultEnabled) && 'opacity-60',
         isDragging && 'shadow-lg bg-surface-1',
         inherited && 'bg-surface-1/50',
       )}>
@@ -1996,13 +2178,19 @@ function SortableChainItem({
             </span>
           )}
           {!entryEnabled && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">disabled</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">chain off</span>
+          )}
+          {!credVaultEnabled && (
+            <span title="Credential is disabled at vault level — skipped in fallback"
+              className="text-[10px] px-1.5 py-0.5 rounded bg-status-warning/10 text-status-warning border border-status-warning/20 flex items-center gap-0.5">
+              <Ban size={8} /> vault off
+            </span>
           )}
           {entry.chain_category_kind && entry.credential_kind &&
             entry.chain_category_kind !== entry.credential_kind && (
             <span
               title={`Kind mismatch: credential is ${entry.credential_kind}, chain expects ${entry.chain_category_kind}`}
-              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-amber-500/15 text-amber-600 border border-amber-500/30 font-medium"
+              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-status-warning/15 text-status-warning border border-status-warning/30 font-medium"
             >
               <AlertTriangle size={10} />
               <span>wrong kind</span>

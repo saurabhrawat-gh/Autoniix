@@ -56,7 +56,6 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     numberOfSamples: bars,
   });
 
-  // Apply smoothing
   const smoothedVisualization = visualization.map((v: number, i: number) => {
     const prev = i > 0 ? (visualization[i - 1] ?? v) : v;
     return prev * smoothing + v * (1 - smoothing);

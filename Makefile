@@ -1,6 +1,7 @@
 .PHONY: help infra bff ui dev stop logs up down health restart-app restart-bff verify-bff use-test use-prod env-status \
         migrate migrate-status backfill auth-enable smoke deploy-check schedule-register setup fresh tls-up tls-down \
-        backup restore alerts-status providers-wipe rebuild-ui rebuild-bff rebuild-svc logs-svc
+        backup restore alerts-status providers-wipe rebuild-ui rebuild-bff rebuild-svc logs-svc \
+        test-harness test-rust test-migration bench-rust
 
 help: ## Show available commands
 	@echo ""
@@ -45,6 +46,12 @@ help: ## Show available commands
 	@echo "  make restore    → Restore from latest snapshot (pass STAMP= to pick one)"
 	@echo "  make alerts-status → Show firing alerts from Alertmanager"
 	@echo ""
+	@echo "  Harness (HARNESS-ENGINEERING-PLAN.md):"
+	@echo "  make test-harness   → cargo test -p harness (provider mocks, contract)"
+	@echo "  make test-rust      → cargo test -p gateway (integration tests)"
+	@echo "  make test-migration → pytest tests/migration/ (offline: auto-skip)"
+	@echo "  make bench-rust     → cargo bench -p gateway (requires TEST_DATABASE_URL)"
+	@echo ""
 	@echo "  Quick start (3 terminals):"
 	@echo "    Terminal 1:  make infra"
 	@echo "    Terminal 2:  make bff"
@@ -76,7 +83,16 @@ bff: ## Start Dashboard BFF locally (port 8020)
 	DB_HOST=localhost DB_PORT=5433 \
 	REDIS_URL=redis://localhost:6380 \
 	TEMPORAL_HOST=localhost:7233 \
+	S3_ENDPOINT=http://localhost:9000 \
 	uvicorn src.services.dashboard.main:app --host 0.0.0.0 --port 8020 --reload
+
+# Brain Service (AE-P1)
+brain: ## Start Brain Service locally (port 8015)
+	DB_HOST=localhost DB_PORT=5433 \
+	REDIS_URL=redis://localhost:6380 \
+	TEMPORAL_HOST=localhost:7233 \
+	BRAIN_PORT=8015 \
+	PYTHONPATH=. .venv/bin/python -m src.services.brain.main
 
 # Dashboard Frontend (Next.js)
 ui: ## Start Dashboard UI locally (port 3000)
@@ -108,7 +124,7 @@ down: ## Stop and remove all containers
 health: ## Run end-to-end health check on every service
 	@bash scripts/check-stack.sh
 
-APP_SVCS := dashboard-bff dashboard-ui admin worker-production worker-scheduler \
+APP_SVCS := rust-gateway dashboard-bff dashboard-ui admin worker-production worker-scheduler \
             research script voice assets thumbnail direction assembly \
             delivery analytics brand editor sheets-sync
 
@@ -224,11 +240,11 @@ env-status: ## Show which environment is currently active
 # v2 Revamp shortcuts
 migrate: ## Apply all pending DB migrations
 	DB_HOST=$${DB_HOST_HOST:-localhost} DB_PORT=$${DB_PORT_HOST:-5433} \
-		python -m scripts.run_migrations
+		PYTHONPATH=. .venv/bin/python scripts/run_migrations.py
 
 migrate-status: ## Show pending migrations
 	DB_HOST=$${DB_HOST_HOST:-localhost} DB_PORT=$${DB_PORT_HOST:-5433} \
-		python -m scripts.run_migrations --status
+		PYTHONPATH=. .venv/bin/python scripts/run_migrations.py --status
 
 backfill: ## Backfill channel_profiles for existing channels (idempotent)
 	python -m scripts.backfill_channel_profiles
@@ -316,6 +332,32 @@ providers-wipe: ## Wipe ALL provider credentials, chains, routes (clean slate)
 	if [ "$$confirm" != "WIPE" ]; then echo "❌ Aborted"; exit 1; fi
 	python -m scripts.clean_slate_providers --yes
 	@echo "✅ Providers wiped — reload /dashboard/providers to verify empty state"
+
+# Harness — per HARNESS-ENGINEERING-PLAN.md
+test-harness: ## Run Rust harness tests (provider mocks + contract validator; no DB needed)
+	cargo test -p harness
+	@echo "✅ Harness tests passed"
+
+test-rust: ## Run Rust gateway integration tests (requires TEST_DATABASE_URL)
+	@if [ -z "$(TEST_DATABASE_URL)" ]; then \
+		echo "⚠  TEST_DATABASE_URL not set — using postgresql://localhost/autoniix_test"; \
+	fi
+	TEST_DATABASE_URL=$${TEST_DATABASE_URL:-postgresql://localhost/autoniix_test} \
+		cargo test -p gateway
+	@echo "✅ Gateway tests passed"
+
+test-migration: ## Run Python migration equivalence tests (auto-skip if services not running)
+	pytest tests/migration/ -v --tb=short
+	@echo "✅ Migration tests done (skipped if services offline)"
+
+bench-rust: ## Run Criterion benchmarks for auth endpoints (requires TEST_DATABASE_URL)
+	@if [ -z "$(TEST_DATABASE_URL)" ]; then \
+		echo "❌ TEST_DATABASE_URL required for benchmarks"; \
+		echo "   Usage: TEST_DATABASE_URL=postgresql://... make bench-rust"; \
+		exit 1; \
+	fi
+	cargo bench -p gateway
+	@echo "✅ Benchmarks complete — results in rust/target/criterion/"
 
 # Alerting
 alerts-status: ## Show currently firing alerts from Alertmanager

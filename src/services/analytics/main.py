@@ -23,7 +23,6 @@ from src.observability.metrics import instrument_app
 logger = structlog.get_logger()
 
 
-# Request Models
 
 class AnalyticsCollectRequest(BaseModel):
     channel_id: str
@@ -44,7 +43,6 @@ class TrendRefreshRequest(BaseModel):
     niche: str = ""
 
 
-# Helpers
 
 def _classify_tier(views: int, likes: int, comments: int) -> str:
     """Classify video performance tier: S/A/B/C/D."""
@@ -60,7 +58,6 @@ def _classify_tier(views: int, likes: int, comments: int) -> str:
     return "D"
 
 
-# App
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -129,7 +126,6 @@ async def collect(req: AnalyticsCollectRequest):
                 }
                 analytics.append(entry)
 
-                # Update feedback_loop table
                 try:
                     pool = await get_pool()
                     await pool.execute(
@@ -144,7 +140,6 @@ async def collect(req: AnalyticsCollectRequest):
             logger.warning("analytics.video_failed", video_id=video_id, error=str(exc))
             analytics.append({"youtube_video_id": video_id, "error": str(exc)})
 
-    # Update performance_memory for the channel
     if analytics:
         try:
             pool = await get_pool()
@@ -171,7 +166,6 @@ async def collect(req: AnalyticsCollectRequest):
                 "UPDATE channels SET performance_memory = $1, updated_at = NOW() WHERE channel_id = $2",
                 json.dumps(perf), req.channel_id)
 
-            # Also insert/update performance_memory table
             await pool.execute(
                 "INSERT INTO performance_memory (channel_id, metric_type, metric_key, metric_value, period_start, period_end) "
                 "VALUES ($1, 'aggregate', 'avg_views', $2, NOW() - INTERVAL '30 days', NOW()) "
@@ -198,7 +192,6 @@ async def run_feedback_loop(req: FeedbackLoopRequest):
     try:
         pool = await get_pool()
 
-        # Find delivered videos older than min_age_hours with missing analytics
         cutoff = datetime.utcnow() - timedelta(hours=req.min_age_hours)
         rows = await pool.fetch(
             "SELECT content_id, youtube_video_id, title, idea_score, "
@@ -215,7 +208,6 @@ async def run_feedback_loop(req: FeedbackLoopRequest):
             yt_id = row["youtube_video_id"]
             video_ids.append(yt_id)
 
-            # Upsert into feedback_loop
             await pool.execute(
                 "INSERT INTO feedback_loop (video_id, channel_id, title, idea_score, script_score, "
                 "thumbnail_score, hook_retention_score, final_score, content_mode, status, yt_video_id) "
@@ -227,7 +219,6 @@ async def run_feedback_loop(req: FeedbackLoopRequest):
                 row.get("final_composite_score"), row.get("content_mode"), yt_id)
             inserted += 1
 
-        # Now collect analytics for those videos
         if video_ids:
             collect_result = await collect(AnalyticsCollectRequest(
                 channel_id=req.channel_id, youtube_video_ids=video_ids))
@@ -254,7 +245,6 @@ async def get_performance(req: PerformanceRequest):
         if not row:
             raise HTTPException(status_code=404, detail=f"Channel {req.channel_id} not found")
 
-        # Get top performers from feedback_loop
         top_videos = await pool.fetch(
             "SELECT title, yt_video_id, yt_views, yt_likes, engagement_rate, performance_tier, "
             "idea_score, script_score, thumbnail_score "
@@ -262,7 +252,6 @@ async def get_performance(req: PerformanceRequest):
             "ORDER BY yt_views DESC LIMIT 10",
             req.channel_id)
 
-        # Get worst performers for learning
         worst_videos = await pool.fetch(
             "SELECT title, yt_video_id, yt_views, engagement_rate, performance_tier "
             "FROM feedback_loop WHERE channel_id = $1 AND performance_tier IN ('D') "
@@ -303,7 +292,6 @@ async def refresh_trends(req: TrendRefreshRequest):
         else:
             niche = req.niche
 
-        # Search YouTube trending in niche
         youtube_api_key = settings.youtube_api_key
         trends = []
 
@@ -338,7 +326,6 @@ async def refresh_trends(req: TrendRefreshRequest):
             except Exception as yt_err:
                 logger.warning("analytics.youtube_trends_failed", error=str(yt_err))
 
-        # Insert trends into trend_intelligence
         inserted = 0
         for trend in trends:
             try:
@@ -364,7 +351,6 @@ async def refresh_trends(req: TrendRefreshRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-# Intelligence Endpoints
 
 @app.post("/mine-patterns", response_model=ServiceResponse)
 async def mine_patterns(req: PerformanceRequest):

@@ -41,7 +41,7 @@ def test_wizard_credential_in_schema():
     )
     assert w.provider_key == "openai"
     assert w.wizard_fields["api_key"] == "sk-test"
-    assert w.model is None  # top-level model is separate
+    assert w.model is None
 
 
 def test_wizard_field_split_separates_password_and_plain():
@@ -80,7 +80,7 @@ def test_wizard_required_field_validation():
         {"name": "voice_id", "type": "text", "required": True},
         {"name": "model", "type": "select", "required": False},
     ]
-    wizard_fields = {"api_key": "sk-test"}  # missing voice_id
+    wizard_fields = {"api_key": "sk-test"}
 
     missing = [
         f["name"]
@@ -119,7 +119,6 @@ def test_custom_openai_compat_base_url_via_extra_config():
     import src.providers.boot  # noqa: F401
     from src.providers.llm.custom_openai_compat_provider import CustomOpenAICompatLLM
 
-    # Simulate what chain._instantiate does with extra_config
     inst = CustomOpenAICompatLLM()
     extra = {"base_url": "http://vllm-server:8000", "model": "mistral-7b"}
     for k, v in extra.items():

@@ -56,7 +56,6 @@ async function request<T = any>(path: string, opts: RequestInit = {}): Promise<T
 }
 
 export const api = {
-  // Auth
   login: (password: string) =>
     request<{ token: string; expires_in: number }>('/api/auth/login', {
       method: 'POST', body: JSON.stringify({ password }),
@@ -64,10 +63,8 @@ export const api = {
   logout: () => request('/api/auth/logout', { method: 'POST' }),
   me: () => request('/api/auth/me'),
 
-  // Stats
   stats: () => request('/api/stats'),
 
-  // Channels
   channels: (includeArchived = false) =>
     request(`/api/channels?include_archived=${includeArchived}`),
   createChannel: (data: any) =>
@@ -95,7 +92,6 @@ export const api = {
   exportChannel: (id: string) =>
     request(`/api/channels/${id}/export`),
 
-  // Workflow control
   trigger: (id: string, data: any = {}) =>
     request(`/api/channels/${id}/trigger`, { method: 'POST', body: JSON.stringify(data) }),
   pause: (id: string) =>
@@ -105,7 +101,6 @@ export const api = {
   stop: (id: string) =>
     request(`/api/channels/${id}/stop`, { method: 'POST' }),
 
-  // Jobs
   jobs: (channelId: string, contentMode?: string) => {
     const params = new URLSearchParams();
     if (contentMode) params.set('content_mode', contentMode);
@@ -118,14 +113,11 @@ export const api = {
   jobOutput: (contentId: string) =>
     request(`/api/jobs/${contentId}/output`),
 
-  // Workflow status
   workflowStatus: (channelId: string) =>
     request(`/api/channels/${channelId}/workflow-status`),
 
-  // Active jobs (all in-progress)
   activeJobs: () => request('/api/jobs/active'),
 
-  // Job approval / rejection / retry
   approveJob: (contentId: string) =>
     request(`/api/jobs/${contentId}/approve`, { method: 'POST' }),
   rejectJob: (contentId: string) =>
@@ -135,7 +127,6 @@ export const api = {
   restartJob: (contentId: string) =>
     request(`/api/jobs/${contentId}/restart`, { method: 'POST' }),
 
-  // Per-job workflow control
   pauseJob: (contentId: string) =>
     request(`/api/jobs/${contentId}/pause`, { method: 'POST' }),
   resumeJob: (contentId: string) =>
@@ -143,21 +134,18 @@ export const api = {
   stopJob: (contentId: string) =>
     request(`/api/jobs/${contentId}/stop`, { method: 'POST' }),
 
-  // Config
   config: () => request('/api/config'),
   updateConfig: (key: string, value: string) =>
     request('/api/config', { method: 'PUT', body: JSON.stringify({ config_key: key, config_value: value }) }),
   emergencyStop: () => request('/api/emergency-stop', { method: 'POST' }),
   emergencyResume: () => request('/api/emergency-resume', { method: 'POST' }),
 
-  // Environment
   environment: () => request('/api/v2/system/environment'),
   switchEnvironment: (mode: string, confirm: boolean = false) =>
     request('/api/v2/system/environment', { method: 'PUT', body: JSON.stringify({ mode, confirm }) }),
   testDataStats: () => request('/api/test-data/stats'),
   cleanupTestData: () => request('/api/test-data', { method: 'DELETE' }),
 
-  // Clean slate — full reset
   cleanSlate: () =>
     request('/api/admin/clean-slate', { method: 'POST', body: JSON.stringify({ confirm: 'RESET' }) }),
 };

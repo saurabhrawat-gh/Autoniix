@@ -25,7 +25,6 @@ def _test_jwt_secret():
     os.environ.setdefault("AUTH_JWT_SECRET", "ci-test-jwt-secret-not-for-production-use")
 
 
-# Event loop
 @pytest.fixture(scope="session")
 def event_loop():
     loop = asyncio.new_event_loop()
@@ -33,7 +32,6 @@ def event_loop():
     loop.close()
 
 
-# Mock DB pool
 class FakeRecord(dict):
     """Dict subclass that supports attribute access like asyncpg.Record."""
     def __getattr__(self, key):
@@ -82,7 +80,11 @@ def mock_pool():
     for _name, _mod in list(sys.modules.items()):
         if _mod is None or _name == "src.db":
             continue
-        if getattr(_mod, "get_pool", None) is original:
+        try:
+            _candidate = getattr(_mod, "get_pool", None)
+        except Exception:
+            continue
+        if _candidate is original:
             targets.append(f"{_name}.get_pool")
     started = []
     for _t in targets:
@@ -134,7 +136,6 @@ def fake_record():
     return _make
 
 
-# Sample data factories
 @pytest.fixture
 def sample_channel():
     return {

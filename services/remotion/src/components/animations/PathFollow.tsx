@@ -55,7 +55,7 @@ export const PathFollow: React.FC<PathFollowProps> = ({
   const localFrame = Math.max(0, frame - delayInFrames);
   const t = Math.min(1, localFrame / Math.max(1, durationInFrames));
   const spread = spreadFrom + (spreadTo - spreadFrom) * t;
-  const tLocalMs = (localFrame / 60) * 1000; // value unused by computePathFollow
+  const tLocalMs = (localFrame / 60) * 1000;
 
   const glyphs = computePathFollow(
     { text, path, spread, alignToPath },

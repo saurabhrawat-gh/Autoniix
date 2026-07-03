@@ -23,6 +23,7 @@ class LLMResult:
     provider: str = ""
     latency_ms: int = 0
     finish_reason: str = "stop"
+    compression: Any | None = None  # CompressionStats from src.llm.compressor
 
 
 class LLMProvider(ABC):

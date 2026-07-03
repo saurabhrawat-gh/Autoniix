@@ -23,6 +23,27 @@ try:
     from prometheus_client import Counter, Histogram
     from prometheus_fastapi_instrumentator import Instrumentator, metrics
     _HAS_INSTRUMENTATOR = True
+
+    # --- Compatibility shim for prometheus_fastapi_instrumentator 8.x ---
+    # v8 crashes with AttributeError on _IncludedRouter objects (routers added
+    # via app.include_router()) because it calls route.path on them directly.
+    # Patch the private helper to skip non-Route objects gracefully.
+    try:
+        import prometheus_fastapi_instrumentator.routing as _pfi_routing
+
+        _orig_get_route_name = _pfi_routing.get_route_name
+
+        def _safe_get_route_name(request: Any) -> str:  # type: ignore[override]
+            try:
+                return _orig_get_route_name(request)
+            except AttributeError:
+                return "unknown"
+
+        _pfi_routing.get_route_name = _safe_get_route_name  # type: ignore[assignment]
+    except Exception:
+        pass
+    # --- End shim ---
+
 except Exception:  # pragma: no cover - optional dep, must not crash app
     _HAS_INSTRUMENTATOR = False
     Counter = Histogram = None  # type: ignore
@@ -106,6 +127,18 @@ if _HAS_INSTRUMENTATOR:
         labelnames=("provider_name",),
         buckets=(10, 50, 100, 250, 500, 1000, 2000, 5000, 10000),
     )
+
+    # AE-520 — Token compression metrics
+    LLM_COMPRESSION_SAVINGS = Counter(
+        "llm_compression_tokens_saved_total",
+        "Total tokens saved by the compression layer.",
+        labelnames=("tier", "engine"),
+    )
+    LLM_COMPRESSION_PASSES = Counter(
+        "llm_compression_passes_total",
+        "Total compression passes applied.",
+        labelnames=("tier", "engine"),
+    )
 else:  # pragma: no cover
     class _Noop:
         def labels(self, *_a: Any, **_kw: Any) -> "_Noop": return self
@@ -124,6 +157,8 @@ else:  # pragma: no cover
     YT_QC_FAILED = _Noop()  # type: ignore
     PROVIDER_HEALTH_UNHEALTHY = _Noop()  # type: ignore
     PROVIDER_HEALTH_CHECK_DURATION = _Noop()  # type: ignore
+    LLM_COMPRESSION_SAVINGS = _Noop()  # type: ignore
+    LLM_COMPRESSION_PASSES = _Noop()  # type: ignore
 
 
 def instrument_app(app: Any, *, service_name: str) -> None:

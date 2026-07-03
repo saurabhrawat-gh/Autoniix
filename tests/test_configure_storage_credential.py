@@ -32,7 +32,7 @@ def test_minio_storage_has_config_attributes(monkeypatch):
 
     assert inst.endpoint == "http://localhost:9000"
     assert inst.access_key == "minioadmin"
-    assert inst.api_key == "minioadmin"   # s3_secret_key stored as api_key
+    assert inst.api_key == "minioadmin"
     assert inst.bucket == "test-bucket"
 
 
@@ -52,7 +52,6 @@ def test_minio_connect_rebuilds_client(monkeypatch):
         from src.providers.storage.minio_provider import MinIOStorage
         inst = MinIOStorage()
 
-        # Now inject new config (like chain._instantiate would)
         inst.access_key = "new-access-key"
         inst.api_key = "new-secret-key"
         inst.endpoint = "http://minio-prod:9000"
@@ -100,9 +99,7 @@ def test_chain_instantiate_calls_connect_after_extra_config(monkeypatch):
             )
 
     assert inst is not None
-    # _connect() is called at init and again after extra_config injection
     assert len(connect_calls) >= 2
-    # Last call should use the injected endpoint
     assert "minio-prod" in connect_calls[-1]["endpoint"]
 
 

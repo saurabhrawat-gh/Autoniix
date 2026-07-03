@@ -77,15 +77,13 @@ export function cssBlendMode(mode: BlendMode | undefined): string | null {
     case "saturation":
     case "color":
     case "luminosity":
-      return mode.replace("_", "-"); // hard_light -> hard-light, etc.
+      return mode.replace("_", "-");
     case "soft_light":
       return "soft-light";
     case "add":
     case "subtract":
-      // No CSS equivalent — caller must use the shader path.
       return null;
     default: {
-      // exhaustiveness check
       const _exhaustive: never = mode;
       void _exhaustive;
       return null;

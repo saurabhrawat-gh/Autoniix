@@ -2,6 +2,12 @@
 description: Dev Agent — pick up the oldest ready-for-dev GitHub Issue and implement it end-to-end
 ---
 
+> **Source of Truth — LOCKED:**
+> - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project. All new tickets go here.
+> - Jira **Autoniix Engineering (AE)** space is **archived** — read-only, never create tickets there.
+> - GitHub **Autoniix MVP** project board is **closed** — do not reference it.
+> - Board: https://autoniix.atlassian.net/jira/software/c/projects/IM/boards/35/backlog
+
 # Dev Agent Workflow
 
 Use this workflow to implement a feature from a GitHub Issue marked `ready-for-dev`.
@@ -12,15 +18,15 @@ There are two paths depending on issue type:
 
 ---
 
-## Step 0.A — Manual invocation by Jira key (NEW — takes precedence)
+## Step 0.A — Manual invocation by Jira key (takes precedence)
 
-If the user invoked this workflow with a Jira key (e.g. `/dev-agent AE-227`, or any message containing a `AE-\d+` pattern as the explicit target):
+If the user invoked this workflow with a Jira key (e.g. `/dev-agent IM-227`, or any message containing a `IM-\d+` pattern as the explicit target):
 
-1. **Resolve the Jira key to a GitHub issue number** via reverse-lookup in `scripts/migration/state/issue_map.json`:
+1. **Resolve the Jira key to a GitHub issue number** via reverse-lookup in `scripts/issue_map.json`:
    ```bash
-   python3 -c "import json; m={v:int(k) for k,v in json.load(open('scripts/migration/state/issue_map.json')).items()}; print(m['AE-227'])"
+   python3 -c "import json; m={v:int(k) for k,v in json.load(open('scripts/issue_map.json')).items()}; print(m['IM-227'])"
    ```
-2. **If no mapping found** → STOP. Report to the user: "AE-XXX has no GitHub mirror. Create the mirror first (use `/tmp/mirror_jira_to_gh.py` as template) and update `scripts/migration/state/issue_map.json` before invoking `/dev-agent`."
+2. **If no mapping found** → STOP. Report to the user: "IM-XXX has no GitHub mirror. Create the GitHub mirror issue first and update `scripts/issue_map.json` before invoking `/dev-agent`."
 3. **If mapping found** → set `{N}` = resolved GH issue number, then **skip Step 0 and Step 1**. Read the GH issue body directly via `mcp1_get_issue` and jump to Step 1a (Read Research Notes).
 4. **Path selection** — inspect the GH issue's labels:
    - Has `bug:production` or `hotfix` → take the **Hotfix Path** starting at H2.
@@ -49,7 +55,7 @@ Before anything else, check for open hotfix issues:
 - Pick the highest-priority open issue that is NOT a `hotfix` or `bug:production`
 - Read the full issue body: Summary, Use Cases, Acceptance Criteria, Impacted Files, DoD
 - Note the linked test-case issue number from the "Test Plan" section
-- Note the issue title format: `[Type] | [Layer] | Description` — confirm the layer before starting
+- Note the issue title format: `[Area] | Description` — confirm the area before starting
 
 ### 1a. Read Research Notes
 - Search the issue comments for a comment containing `## Research Notes`
@@ -58,8 +64,11 @@ Before anything else, check for open hotfix issues:
 - If NOT found: proceed (Research Team may not have run yet — follow existing patterns)
 
 ### 2. Label as in-progress
+
+> **MANDATORY — do this BEFORE writing a single line of code or creating a branch.**
+
+- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = the Jira key for this issue (look up in `scripts/issue_map.json`), transition id `4` (→ In Progress)
 - Call `mcp0_update_issue`: remove `ready-for-dev`, add `in-progress`
-- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = the Jira key for this issue (look up in `scripts/migration/state/issue_map.json`), transition id `21` (→ In Progress)
 - Call `mcp0_editJiraIssue` to assign to Dev Agent: `{"assignee": {"accountId": "712020:863fd585-7c67-4cac-86c6-8885e80502b3"}}`
 - Post comment: "Starting implementation of #{issue_number}."
 
@@ -93,11 +102,31 @@ e. Update `.env.example` if new env vars added
 - For each: run a test OR perform the manual verification step stated in the issue
 - Do NOT tick any checkbox in the issue — the user ticks those during QA
 
-### 7. Run pre-commit checks
+### 7. Run local CI — MANDATORY before any push
+
+Always run the script. The default mode is an **exact mirror** of `.github/workflows/build.yml` (Rust + Docker), which is the only thing CI gates on today:
+
 ```bash
 # turbo
-ruff check src/ tests/ && pytest --tb=short -q
+bash scripts/ci-local.sh
 ```
+
+If your change also touched Python / Node / Go / Proto, add the relevant flag(s) so the broader code-quality checks run too (they don't block CI today but should still be green):
+
+```bash
+bash scripts/ci-local.sh --python   # touched src/ tests/ scripts/ (Python)
+bash scripts/ci-local.sh --node     # touched dashboard/ (Next.js / TS)
+bash scripts/ci-local.sh --go       # touched go/
+bash scripts/ci-local.sh --proto    # touched proto/
+bash scripts/ci-local.sh --full     # touched multiple stacks
+```
+
+**Required outcome before proceeding:**
+- `✅  ALL CHECKS PASSED — safe to push to main` → continue to step 8
+- `✅  CI MIRROR PASSED ... ⚠  optional check(s) reported issues` → fix the soft failures, re-run, do not proceed while red
+- `❌  FAILED: ...` (hard fail in the CI mirror) → **STOP. Fix every failure. Re-run until fully green.**
+
+> This is non-negotiable. **Never push to `origin/develop` without a fully-green `ci-local.sh` run.** Every failed remote build costs real money.
 
 ### 8. Run diff review
 - Run `/diff-review` — verify no unrelated changes, no style drift
@@ -123,25 +152,39 @@ git merge --no-ff {branch-name} -m "{prefix}: merge issue-{N} into develop"
 git branch -d {branch-name}
 ```
 
+**After merge, re-run local CI on develop to confirm no merge conflicts broke anything:**
+```bash
+bash scripts/ci-local.sh        # CI mirror — always required
+# add --python / --node / --go / --proto / --full if relevant to the merge
+```
+If red: fix before push. If green: proceed to step 11.
+
 **Hard rules — non-negotiable:**
 - Feature branches must NEVER be pushed to `origin` for any reason
 - Feature branches must be deleted locally immediately after merging into `develop`
 - If `git branch -d` refuses (unmerged), STOP and report — do not force-delete without product-owner approval
 - The only branches that ever exist on `origin` are `main` and `develop`
 
-### 11. Set issue to ready-to-deploy, update Jira, push develop (GHA auto-merges to main)
+### 11. Set issue to ready-to-deploy, update Jira, push develop
+
+**HARD GATE — do not push to `origin/develop` unless BOTH of these are true:**
+1. Step 7 (pre-merge) finished with `✅ CI MIRROR PASSED` (or `✅ ALL CHECKS PASSED` if optional flags used)
+2. Step 10 (post-merge) finished with the same green outcome
+
+If either was red at any point, you must NOT have reached this step. Go back and fix.
+
 - Call `mcp0_update_issue` on the issue: remove `in-progress`, add `ready-to-deploy`
-- Look up the Jira key for this issue via `scripts/migration/state/issue_map.json`
-- Call `mcp0_transitionJiraIssue` with transition id `41` (→ Dev Done) on the Story's Jira key
+- Look up the Jira key for this issue via `scripts/issue_map.json`
+- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = Jira key, transition id `5` (→ Ready To Deploy)
 - Call `mcp0_add_issue_comment`:
   ```
   ✅ Implementation complete. Merged to `develop`.
+  Local CI passed (scripts/ci-local.sh) before push.
 
-  Pushing to `develop` — GitHub Actions will automatically:
-  1. Merge `develop → main`
-  2. Set this issue to `in-prod` after deploy
+  Issue is now **Ready to Deploy**.
+  Once DevOps deploys to production, this will be moved to `in-prod`.
 
-  Once it is in production, verify at https://dash.autoniix.com and type `verified #N` in Windsurf.
+  After deploy: verify at https://dash.autoniix.com and type `verified #N` in Windsurf.
   If you find a bug, type `bug: description, issue #N` to file it automatically.
   ```
 - Push develop to remote:
@@ -177,9 +220,12 @@ Use this path ONLY for issues labelled `hotfix` or `bug:production`. These skip 
 - Read the full issue body
 
 ### H2. Label as in-progress
+
+> **MANDATORY — do this BEFORE writing a single line of code or creating a branch.**
+
+- Look up the Jira key via `scripts/issue_map.json`
+- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = Jira key, transition id `4` (→ In Progress)
 - Call `mcp0_update_issue`: remove `ready-for-dev`, add `in-progress`
-- Look up the Jira key via `scripts/migration/state/issue_map.json`
-- Call `mcp0_transitionJiraIssue` with transition id `21` (→ In Progress)
 - Call `mcp0_editJiraIssue` to assign to Dev Agent: `{"assignee": {"accountId": "712020:863fd585-7c67-4cac-86c6-8885e80502b3"}}`
 
 ### H3. Create branch from main
@@ -197,7 +243,14 @@ git checkout -b hotfix/issue-{number}-{short-slug}
 git add -A && git commit -m "hotfix(#N): {short description}"
 ```
 
-### H6. Merge directly to main, then delete the hotfix branch
+### H6. Run local CI, then merge directly to main
+
+**GATE: Run local CI first — hotfixes go straight to production, no second chances:**
+```bash
+bash scripts/ci-local.sh   # run everything — hotfixes touch critical paths
+```
+Wait for `✅  ALL CI CHECKS PASSED`. If red: fix first. Do NOT push a red hotfix.
+
 ```bash
 git checkout main
 git pull --ff-only origin main
@@ -222,7 +275,7 @@ git branch -d hotfix/issue-{number}-{short-slug}
 
 ### H8. Set issue to in-prod
 - Call `mcp0_update_issue`: remove `in-progress`, add `in-prod`
-- Call `mcp0_transitionJiraIssue` with transition id `3` (→ In Prod)
+- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = Jira key, transition id `6` (→ In Prod)
 - Call `mcp0_add_issue_comment`:
   ```
   🔥 Hotfix deployed directly to `main`.
@@ -260,7 +313,7 @@ handoff:
 - Never push directly to `main` except for hotfixes
 - Never open a PR for individual feature/bug/task issues — merge them to `develop` locally and delete the feature branch
 - **The only branches that may ever exist on `origin` are `main` and `develop`.** Feature/hotfix branches are local-only and must be deleted after merge
-- **Every push to `develop` triggers GHA `on-develop-push` which auto-merges `develop → main` and deploys to production automatically**
+- **Every push to `develop` triggers GHA which merges `develop → main` and deploys to production — run `bash scripts/ci-local.sh` locally before every push, no exceptions**
 - If the issue is ambiguous, comment on the issue and flag to the user — do NOT guess
 - Role checks must use `require_role()` from `_deps.py` — never inline permission logic
 - All DB changes must be in a timestamped migration file, never applied directly
@@ -268,3 +321,5 @@ handoff:
 - Always emit the HandoffPayload comment at the end of implementation (Step 12 / H9)
 - When creating bug issues, always use the standard format: `bug | {QA/Prod} | {Layer} | description`
 - Read Research Notes (if present) before writing a single line of code — the approach is already decided
+- **Jira ↔ GitHub sync is mandatory**: When a GitHub issue is created, create a Jira mirror in the **IM** project and update `scripts/issue_map.json`. When a GitHub issue is closed, transition the Jira mirror to Done (transition id `51`). Jira cloudId: `73672c49-7089-4f35-adde-e3fa0d1e438f`, project key: `IM`. If no Jira mirror exists for a GH issue, create one in the IM project before proceeding
+- **Jira IM transition IDs (confirmed):** Start Working (To Do→In Progress)=`4`, Deploy Sprint (In Progress→Ready To Deploy)=`5`, Deployed (Ready To Deploy→In Prod)=`6`, Prod Verified/Close (In Prod→Done)=`7`, Defer (→Backlog)=`3`, Prod Bug (In Prod→To Do)=`8`. cloudId: `73672c49-7089-4f35-adde-e3fa0d1e438f`

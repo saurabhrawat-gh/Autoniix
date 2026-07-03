@@ -14,12 +14,10 @@ import {
 } from '@/lib/components/Icon';
 import { Button } from '@/lib/ui';
 import { promptDialog, confirmDialog } from '@/lib/components/ConfirmDialog';
+import { useUrlState } from '@/lib/hooks/useUrlState';
 
-// Categories that are seeded in the DB but have no active provider
-// implementation yet. Hidden from the UI until they ship.
 const STUB_KINDS = new Set(['lut', 'sfx', 'music']);
 
-// Recommended setup order shown in the onboarding panel.
 const ONBOARDING_STEPS = [
   { kind: 'llm',           label: 'AI Writing (LLM)',     why: 'Required for scripting, research, hooks, and quality scoring.', urgent: true },
   { kind: 'tts',           label: 'Voice (TTS)',          why: 'Required to generate spoken narration for every video.', urgent: true },
@@ -58,30 +56,33 @@ const HEALTH_LABEL: Record<HealthStatus, string> = {
 };
 
 const MODE_CHIP: Record<string, string> = {
-  byok:        'bg-accent/10 text-accent',
-  system:      'bg-status-success/10 text-status-success',
-  marketplace: 'bg-status-info/10 text-status-info',
+  byok:        'bg-surface-2 text-content-tertiary',
+  system:      'bg-surface-2 text-content-tertiary',
+  marketplace: 'bg-surface-2 text-content-tertiary',
   internal:    'bg-status-warning/10 text-status-warning',
 };
 
 export default function ProvidersIndex() {
   const { showToast } = useToast();
-  const [tab, setTab] = useState<'connected' | 'marketplace' | 'accounts'>('connected');
+  const PROVIDER_TABS = ['connected', 'marketplace', 'accounts'] as const;
+  type ProvidersTab = typeof PROVIDER_TABS[number];
+  const [tab, setTab] = useUrlState<ProvidersTab>('tab', {
+    defaultValue: 'connected',
+    deserialize: (raw) => (PROVIDER_TABS.includes(raw as ProvidersTab) ? (raw as ProvidersTab) : 'connected'),
+  });
   const [cats, setCats] = useState<any[]>([]);
   const [kinds, setKinds] = useState<any[]>([]);
   const [creds, setCreds] = useState<any[]>([]);
   const [market, setMarket] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  // Custom taxonomy editing
   const [addSectionFor, setAddSectionFor] = useState(false);
-  const [addCategoryFor, setAddCategoryFor] = useState<string | null | false>(false); // kind to prefill | null = any | false = closed
-  const [addProviderFor, setAddProviderFor] = useState<string | false>(false);        // kind | false
+  const [addCategoryFor, setAddCategoryFor] = useState<string | null | false>(false);
+  const [addProviderFor, setAddProviderFor] = useState<string | false>(false);
   const [restoring, setRestoring] = useState(false);
   const [probingAll, setProbingAll] = useState(false);
   const [marketFilter, setMarketFilter] = useState<string>('all');
   const [expandedKind, setExpandedKind] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
-  // AE-72 — rotation overdue
   const [overdueRotations, setOverdueRotations] = useState<any[]>([]);
   const [showApprovals, setShowApprovals] = useState(false);
   const [approvals, setApprovals] = useState<ChangeRequest[]>([]);
@@ -100,7 +101,9 @@ export default function ProvidersIndex() {
   useEffect(() => {
     if (searchParams.get('addCategory') === '1') {
       setAddCategoryFor(null);
-      router.replace('/dashboard/providers');
+      const currentTab = searchParams.get('tab');
+      const preserved = currentTab && currentTab !== 'connected' ? `?tab=${currentTab}` : '';
+      router.replace(`/dashboard/providers${preserved}`);
     }
   }, [searchParams, router]);
 
@@ -116,7 +119,7 @@ export default function ProvidersIndex() {
       confirmLabel: 'Wipe everything',
       destructive: true,
     });
-    if (phrase === null) return; // cancelled
+    if (phrase === null) return;
     setResetting(true);
     try {
       const r = await providersApi.cleanSlate();
@@ -201,8 +204,6 @@ export default function ProvidersIndex() {
       providersApi.credentials().then(r => setCreds(r.data || [])),
       providersApi.marketplace().then(r => setMarket(r.data || [])).catch(() => {}),
       providersApi.allRotationStatus({ overdue_only: true }).then(r => setOverdueRotations(r.data || [])).catch(() => {}),
-      // Lightweight count so the Approvals button only shows when there is
-      // actually something to review (a solo owner never sees an empty queue).
       Promise.all([
         changeRequestsApi.list({ status: 'pending_admin' }).then(r => r.data.length).catch(() => 0),
         changeRequestsApi.list({ status: 'pending_owner' }).then(r => r.data.length).catch(() => 0),
@@ -295,13 +296,11 @@ export default function ProvidersIndex() {
   };
 
   const grouped: Record<string, any[]> = cats.reduce((acc: any, c: any) => {
-    if (STUB_KINDS.has(c.kind)) return acc; // hide unimplemented categories
+    if (STUB_KINDS.has(c.kind)) return acc;
     (acc[c.kind] ||= []).push(c);
     return acc;
   }, {});
 
-  // Section metadata sourced from the provider_kinds API (icon/label/built-in),
-  // falling back to the hardcoded KIND_META for any kind not yet in the table.
   const kindsByKey: Record<string, any> = kinds.reduce((acc: any, k: any) => {
     acc[k.kind] = k; return acc;
   }, {});
@@ -489,9 +488,6 @@ export default function ProvidersIndex() {
             )}
             {/* ── Setup guide ── */}
             {(() => {
-              // Curated essential steps with live state computed from the
-              // categories/credentials already loaded. Only show a step when
-              // its section actually exists in the taxonomy.
               const steps = ONBOARDING_STEPS
                 .map(s => {
                   const catsForKind = (grouped[s.kind] || []);
@@ -511,7 +507,7 @@ export default function ProvidersIndex() {
               const requiredSteps = steps.filter(s => s.urgent);
               const requiredDone = requiredSteps.filter(s => s.configured).length;
               return (
-              <div className="rounded-xl border border-accent/30 bg-accent/5 p-5">
+              <div className="rounded-xl border border-border bg-surface-0 p-5">
                 <div className="flex items-start gap-3 mb-4">
                   <div className="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center shrink-0 mt-0.5">
                     <Plug size={14} className="text-accent" />
@@ -532,8 +528,7 @@ export default function ProvidersIndex() {
                   {steps.map((step, i) => {
                     const isExpanded = expandedKind === step.kind;
                     return (
-                      <div key={step.kind} className={cn('rounded-lg border transition-all',
-                        step.configured ? 'border-status-success/30 bg-status-success/5' : 'border-border bg-surface-0')}>
+                      <div key={step.kind} className={cn('rounded-lg border border-border bg-surface-0 transition-all')}>
                         <button
                           type="button"
                           onClick={() => setExpandedKind(isExpanded ? null : step.kind)}
@@ -666,11 +661,7 @@ export default function ProvidersIndex() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {filteredMarket.map((p: any) => (
                 <div key={p.provider_key}
-                  className={cn(
-                    'group relative rounded-xl border bg-surface-0 p-4 flex flex-col gap-3 transition-all',
-                    p.connected ? 'border-status-success/30' : 'border-border',
-                    p.featured && !p.connected && 'border-accent/30'
-                  )}>
+                  className="group relative rounded-xl border border-border bg-surface-0 p-4 flex flex-col gap-3 transition-all">
                   {p.is_user_defined && (
                     <button
                       type="button"
@@ -694,14 +685,13 @@ export default function ProvidersIndex() {
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">Featured</span>
                         )}
                         {p.has_free_tier && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-success/10 text-status-success">Free tier</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">Free tier</span>
                         )}
-                        {p.is_callable === false ? (
+                        {p.is_callable === false && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-warning/10 text-status-warning" title="You can save a key but the pipeline adapter isn't wired yet.">Catalog only</span>
-                        ) : p.is_user_defined ? (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-info/10 text-status-info">Custom</span>
-                        ) : (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-success/10 text-status-success">Full support</span>
+                        )}
+                        {p.is_user_defined && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">Custom</span>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 mt-1">
@@ -713,31 +703,28 @@ export default function ProvidersIndex() {
                     </div>
                   </div>
 
-                  {p.description && (
-                    <p className="text-[11px] text-content-tertiary line-clamp-2">{p.description}</p>
-                  )}
-
                   {/* Capabilities */}
                   {p.capabilities?.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {p.capabilities.slice(0, 4).map((cap: string) => (
-                        <span key={cap} className="text-[9px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary font-mono">{cap}</span>
+                        <span key={cap} className="text-[9px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">{cap}</span>
                       ))}
                     </div>
                   )}
 
                   <div className="flex items-center justify-between mt-auto pt-1">
                     <span className="text-xs text-content-tertiary font-mono">{p.cost_unit || '—'}</span>
-                    {p.connected ? (
-                      <span className="flex items-center gap-1 h-6 px-2 rounded-full bg-status-success/10 text-status-success text-[10px] font-semibold border border-status-success/20">
-                        <Check size={10} /> Connected
-                      </span>
-                    ) : (
+                    <div className="flex items-center gap-1.5">
+                      {(p.credential_count ?? (p.connected ? 1 : 0)) > 0 && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-status-success/10 text-status-success font-medium border border-status-success/20">
+                          {p.credential_count ?? 1} connected
+                        </span>
+                      )}
                       <Link prefetch={false} href={`/dashboard/providers/${encodeURIComponent(p.category)}?add=1&provider=${encodeURIComponent(p.provider_key)}`}
                         className="flex items-center gap-1 h-7 px-2.5 rounded-full bg-accent/10 text-accent text-xs font-semibold border border-accent/20 hover:bg-accent/20 transition-colors">
                         <Plus size={11} /> Connect
                       </Link>
-                    )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -844,12 +831,9 @@ export default function ProvidersIndex() {
             { icon: <ShieldCheck size={14} className="text-status-success" />, title: 'Vault-Backed Secrets', desc: 'API keys written to env/Vault — never stored in DB or repo.' },
             { icon: <Gauge size={14} className="text-status-warning" />, title: 'Live Health Probes', desc: 'Use "Probe all" for a fan-out health check across every enabled credential.' },
           ].map(t => (
-            <div key={t.title} className="rounded-xl border border-border bg-surface-0 px-4 py-3 flex items-start gap-3">
-              <div className="mt-0.5 shrink-0">{t.icon}</div>
-              <div>
-                <div className="text-xs font-semibold text-content-primary mb-0.5">{t.title}</div>
-                <div className="text-[11px] text-content-tertiary leading-relaxed">{t.desc}</div>
-              </div>
+            <div key={t.title} className="rounded-xl border border-border bg-surface-0 px-4 py-3 flex items-center gap-3">
+              <div className="shrink-0">{t.icon}</div>
+              <div className="text-xs font-medium text-content-secondary">{t.title}</div>
             </div>
           ))}
         </div>
@@ -1002,7 +986,6 @@ export default function ProvidersIndex() {
   );
 }
 
-// ── Shared dialog primitives ──────────────────────────────────────────────────
 function DialogShell({ title, subtitle, onClose, children, footer }: {
   title: string; subtitle?: string; onClose: () => void;
   children: React.ReactNode; footer: React.ReactNode;

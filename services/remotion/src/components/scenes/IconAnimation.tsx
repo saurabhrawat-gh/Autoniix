@@ -46,8 +46,6 @@ export const IconAnimation: React.FC<IconAnimationProps> = ({
         <div
           style={{
             animation: "spin 8s linear infinite",
-            // Note: CSS animations run during render because Remotion freezes the clock
-            // based on frame time. For deterministic rotation, use useCurrentFrame.
           }}
         >
           {iconEl}

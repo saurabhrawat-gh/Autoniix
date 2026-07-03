@@ -19,7 +19,6 @@ import structlog
 
 logger = structlog.get_logger()
 
-# Optimal pacing rules
 PACING_RULES: dict[str, dict] = {
     "hook": {"min_ms": 1500, "max_ms": 5000, "ideal_ms": 3000, "tolerance_pct": 0.30},
     "intro": {"min_ms": 2000, "max_ms": 8000, "ideal_ms": 5000, "tolerance_pct": 0.25},
@@ -29,7 +28,6 @@ PACING_RULES: dict[str, dict] = {
     "cta": {"min_ms": 1500, "max_ms": 6000, "ideal_ms": 3000, "tolerance_pct": 0.30},
 }
 
-# Transition rules
 TRANSITION_AFFINITY: dict[str, list[str]] = {
     "hook": ["cut", "impact_zoom", "flash"],
     "body": ["dissolve", "slide", "push", "wipe"],
@@ -60,7 +58,6 @@ def analyze_pacing(direction_v3: dict) -> dict:
 
         rules = PACING_RULES.get(section, PACING_RULES["body"])
 
-        # Check if segment is too long
         if duration_ms > rules["max_ms"]:
             ideal = rules["ideal_ms"]
             adjustments.append({
@@ -72,7 +69,6 @@ def analyze_pacing(direction_v3: dict) -> dict:
                 "priority": "high",
             })
 
-        # Check if segment is too short
         elif duration_ms < rules["min_ms"]:
             adjustments.append({
                 "segment_id": seg.get("id"),
@@ -83,7 +79,6 @@ def analyze_pacing(direction_v3: dict) -> dict:
                 "priority": "medium",
             })
 
-    # Check overall pace variation (should vary, not be monotone)
     durations = [s.get("duration_ms", 10000) for s in segments]
     if len(durations) > 2:
         duration_cv = np.std(durations) / np.mean(durations) if np.mean(durations) > 0 else 0
@@ -95,7 +90,6 @@ def analyze_pacing(direction_v3: dict) -> dict:
                 "priority": "medium",
             })
 
-    # Score pacing
     pacing_score = 10.0
     for adj in adjustments:
         if adj["priority"] == "high":
@@ -127,7 +121,6 @@ def optimize_transitions(direction_v3: dict) -> dict:
         current_trans = seg.get("transition_in", {}).get("type", "cut")
         transitions_used.append(current_trans)
 
-        # Check transition is appropriate for section
         good_transitions = TRANSITION_AFFINITY.get(section, TRANSITION_AFFINITY["body"])
         if current_trans not in good_transitions and current_trans != "cut":
             suggested = good_transitions[0]
@@ -139,7 +132,6 @@ def optimize_transitions(direction_v3: dict) -> dict:
                 "reason": f"'{current_trans}' not ideal for {section} section",
             })
 
-        # Check consecutive duplicate transitions
         if i > 0 and current_trans == transitions_used[i-1] and current_trans != "cut":
             alts = [t for t in good_transitions if t != current_trans]
             if alts:
@@ -151,7 +143,6 @@ def optimize_transitions(direction_v3: dict) -> dict:
                     "reason": "Consecutive same transitions — vary for visual interest",
                 })
 
-    # Transition variety score
     unique_transitions = len(set(transitions_used))
     variety_score = min(10.0, unique_transitions * 2.5)
 
@@ -186,7 +177,6 @@ def apply_pacing_adjustments(direction_v3: dict, adjustments: list[dict],
             seg["duration_ms"] = adj["suggested_ms"]
             applied += 1
 
-    # Recalculate start_ms
     cumulative = 0
     for seg in segments:
         seg["start_ms"] = cumulative

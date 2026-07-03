@@ -47,17 +47,13 @@ from tests.conftest import FakePool, FakeRecord
 _AUTH = "src.services.dashboard.v2.auth"
 
 
-# ---------------------------------------------------------------------------
-# Test doubles for the ``async with pool.acquire() as conn`` /
-# ``async with conn.transaction()`` pattern used by ``accept_invite``.
-# ---------------------------------------------------------------------------
 
 class _FakeTxn:
     async def __aenter__(self):
         return self
 
     async def __aexit__(self, *exc):
-        return False  # let exceptions propagate
+        return False
 
 
 class FakeConn:
@@ -94,9 +90,6 @@ class FakeTxnPool(FakePool):
         return _FakeAcquireCM(self.conn)
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def _hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
@@ -147,9 +140,6 @@ def _exit_all(patches):
             pass
 
 
-# ---------------------------------------------------------------------------
-# Preview endpoint — WS-ACC-01..03
-# ---------------------------------------------------------------------------
 
 class TestInvitePreview:
 
@@ -162,11 +152,11 @@ class TestInvitePreview:
         pool.fetchrow.side_effect = [
             FakeRecord(
                 email="invitee@test.com", role="member",
-                workspace_id=42, accepted_at=None, expires_at=_future(),
+                workspace_id=42, accepted_at=None, cancelled_at=None, expires_at=_future(),
             ),
             FakeRecord(name="Awesome Workspace"),
         ]
-        pool.fetchval.return_value = 99  # user_exists
+        pool.fetchval.return_value = 99
 
         with _pool_ctx(pool):
             result = await invite_info(token="any-raw-token")
@@ -204,9 +194,6 @@ class TestInvitePreview:
         assert exc.value.status_code == 400
 
 
-# ---------------------------------------------------------------------------
-# Accept happy paths — WS-ACC-04, 05, 14, 25
-# ---------------------------------------------------------------------------
 
 class TestAcceptHappyPaths:
 
@@ -217,15 +204,14 @@ class TestAcceptHappyPaths:
         from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
 
         pool = FakeTxnPool()
-        # Outer pool.fetchrow: invite lookup, then user_row for JWT
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="newbie@test.com",
-                       role="member", accepted_at=None, expires_at=_future()),
-            FakeRecord(id=999, email="newbie@test.com", role="viewer"),  # post-insert user_row
+                       role="member", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            FakeRecord(id=42),
+            FakeRecord(id=999, email="newbie@test.com", role="viewer"),
         ]
-        # Inside transaction:
-        pool.conn.fetchrow.return_value = None  # user does NOT exist yet
-        pool.conn.fetchval.return_value = 999  # INSERT users RETURNING id
+        pool.conn.fetchrow.return_value = None
+        pool.conn.fetchval.return_value = 999
 
         patches = _suppress_side_effects()
         _enter_all(patches)
@@ -242,8 +228,6 @@ class TestAcceptHappyPaths:
         assert result["workspace_id"] == 42
         assert result["role"] == "member"
 
-        # Critical AE-264 regression assertion: the INSERT users SQL must hard-code
-        # role='user' (platform role, NOT the invite's workspace role). AE-284: viewer→user.
         insert_user_calls = [
             c for c in pool.conn.fetchval.await_args_list
             if c.args and "INSERT INTO users" in c.args[0]
@@ -254,21 +238,16 @@ class TestAcceptHappyPaths:
             "AE-264 regression: new user from accept-invite must be inserted with "
             f"role='user' literal in the SQL. Got SQL:\n{sql}"
         )
-        # And it must NOT pass the invite role as a SQL parameter for users.role:
-        # the args after the SQL string are: email, display_name, password_hash, workspace_id
-        # — exactly 4 args, NO role arg.
         assert len(insert_user_calls[0].args) == 5, (
             "INSERT users should bind 4 params (email, display_name, pw, ws_id). "
             "If a role param is added, AE-264 regression has been reintroduced."
         )
 
-        # Workspace-members INSERT must use invite['role']
         wm_inserts = [
             c for c in pool.conn.execute.await_args_list
             if c.args and "INSERT INTO workspace_members" in c.args[0]
         ]
         assert len(wm_inserts) == 1
-        # Args: (sql, workspace_id, user_id, role) — role is invite['role']='member'
         assert wm_inserts[0].args[3] == "member"
 
     @pytest.mark.asyncio
@@ -279,10 +258,10 @@ class TestAcceptHappyPaths:
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="returning@test.com",
-                       role="viewer", accepted_at=None, expires_at=_future()),
+                       role="viewer", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            FakeRecord(id=42),
             FakeRecord(id=777, email="returning@test.com", role="viewer"),
         ]
-        # Inside transaction: user EXISTS
         pool.conn.fetchrow.return_value = FakeRecord(id=777, email="returning@test.com",
                                                      role="viewer", disabled=False)
 
@@ -290,7 +269,6 @@ class TestAcceptHappyPaths:
         _enter_all(patches)
         try:
             with _pool_ctx(pool):
-                # No password supplied — must succeed for existing user
                 result = await accept_invite(
                     body=AcceptInviteIn(token="raw"),
                     request=_request(), response=_response(),
@@ -299,7 +277,6 @@ class TestAcceptHappyPaths:
             _exit_all(patches)
 
         assert result["status"] == "ok"
-        # No INSERT users call
         insert_user_calls = [
             c for c in pool.conn.fetchval.await_args_list
             if c.args and "INSERT INTO users" in c.args[0]
@@ -315,7 +292,8 @@ class TestAcceptHappyPaths:
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="upgraded@test.com",
-                       role="member", accepted_at=None, expires_at=_future()),  # invite says 'member'
+                       role="member", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            FakeRecord(id=42),
             FakeRecord(id=555, email="upgraded@test.com", role="viewer"),
         ]
         pool.conn.fetchrow.return_value = FakeRecord(
@@ -333,7 +311,6 @@ class TestAcceptHappyPaths:
         finally:
             _exit_all(patches)
 
-        # Verify the upsert SQL is used (ON CONFLICT DO UPDATE)
         wm_inserts = [
             c for c in pool.conn.execute.await_args_list
             if c.args and "INSERT INTO workspace_members" in c.args[0]
@@ -358,7 +335,8 @@ class TestAcceptHappyPaths:
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
             FakeRecord(id=2, workspace_id=42, email="idem@test.com",
-                       role="viewer", accepted_at=None, expires_at=_future()),
+                       role="viewer", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            FakeRecord(id=42),
             FakeRecord(id=300, email="idem@test.com", role="viewer"),
         ]
         pool.conn.fetchrow.return_value = FakeRecord(
@@ -378,9 +356,6 @@ class TestAcceptHappyPaths:
         assert result["status"] == "ok"
 
 
-# ---------------------------------------------------------------------------
-# Accept error paths — WS-ACC-06..10, 13
-# ---------------------------------------------------------------------------
 
 class TestAcceptErrorPaths:
 
@@ -392,7 +367,8 @@ class TestAcceptErrorPaths:
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="disabled@test.com",
-                       role="member", accepted_at=None, expires_at=_future()),
+                       role="member", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            FakeRecord(id=42),
         ]
         pool.conn.fetchrow.return_value = FakeRecord(
             id=666, email="disabled@test.com", role="viewer", disabled=True,
@@ -413,16 +389,11 @@ class TestAcceptErrorPaths:
         assert exc.value.status_code == 403
         assert "disabled" in exc.value.detail.lower()
 
-        # The transaction should have rolled back: no UPDATE accepted_at on the invite
         accepted_at_updates = [
             c for c in pool.conn.execute.await_args_list
             if c.args and "UPDATE workspace_invitations" in c.args[0]
             and "accepted_at" in c.args[0]
         ]
-        # Note: the call may have been queued before the exception; we assert
-        # at the integration level instead via the transaction-rollback contract.
-        # (Inside a real txn, even queued calls roll back.)
-        # The unit-level safety net: the handler raises BEFORE the UPDATE call.
         assert len(accepted_at_updates) == 0
 
     @pytest.mark.asyncio
@@ -453,7 +424,7 @@ class TestAcceptErrorPaths:
         pool = FakeTxnPool()
         pool.fetchrow.return_value = FakeRecord(
             id=1, workspace_id=42, email="x@test.com", role="viewer",
-            accepted_at=None, expires_at=_past(),
+            accepted_at=None, cancelled_at=None, expires_at=_past(),
         )
 
         with _pool_ctx(pool):
@@ -473,9 +444,10 @@ class TestAcceptErrorPaths:
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="brand-new@test.com",
-                       role="viewer", accepted_at=None, expires_at=_future()),
+                       role="viewer", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            FakeRecord(id=42),
         ]
-        pool.conn.fetchrow.return_value = None  # user doesn't exist
+        pool.conn.fetchrow.return_value = None
 
         patches = _suppress_side_effects()
         _enter_all(patches)
@@ -483,7 +455,7 @@ class TestAcceptErrorPaths:
             with _pool_ctx(pool):
                 with pytest.raises(HTTPException) as exc:
                     await accept_invite(
-                        body=AcceptInviteIn(token="raw"),  # no password
+                        body=AcceptInviteIn(token="raw"),
                         request=_request(), response=_response(),
                     )
         finally:
@@ -496,7 +468,7 @@ class TestAcceptErrorPaths:
         """WS-ACC-10 — password <8 chars → pydantic ValidationError (would be 422 via FastAPI)."""
         from src.services.dashboard.v2.auth import AcceptInviteIn
         with pytest.raises(Exception):
-            AcceptInviteIn(token="raw", password="short")  # 5 chars
+            AcceptInviteIn(token="raw", password="short")
 
     @pytest.mark.parametrize(
         "good_password", ["password", "Test1234!", "x" * 100],
@@ -517,10 +489,10 @@ class TestAcceptErrorPaths:
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="MIXED.case@TEST.com",
-                       role="viewer", accepted_at=None, expires_at=_future()),
+                       role="viewer", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            FakeRecord(id=42),
             FakeRecord(id=42, email="mixed.case@test.com", role="viewer"),
         ]
-        # Inside txn: existing user matched case-insensitively
         pool.conn.fetchrow.return_value = FakeRecord(
             id=42, email="mixed.case@test.com", role="viewer", disabled=False,
         )
@@ -537,7 +509,6 @@ class TestAcceptErrorPaths:
             _exit_all(patches)
         assert result["status"] == "ok"
 
-        # Verify the user-lookup SQL uses lower() on both sides (case-insensitive):
         user_lookup_calls = [
             c for c in pool.conn.fetchrow.await_args_list
             if c.args and "FROM users" in c.args[0] and "lower(email)" in c.args[0]
@@ -548,9 +519,6 @@ class TestAcceptErrorPaths:
         )
 
 
-# ---------------------------------------------------------------------------
-# AE-264 privilege-escalation regression — WS-ACC-19, 22
-# ---------------------------------------------------------------------------
 
 class TestPrivilegeEscalationRegression:
     """The platform-level ``users.role`` must NEVER be set to ``owner`` or the
@@ -565,12 +533,12 @@ class TestPrivilegeEscalationRegression:
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
-            # Invite says role='member' — this is the WORKSPACE role.
             FakeRecord(id=1, workspace_id=42, email="new@test.com",
-                       role="member", accepted_at=None, expires_at=_future()),
+                       role="member", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            FakeRecord(id=42),
             FakeRecord(id=1234, email="new@test.com", role="viewer"),
         ]
-        pool.conn.fetchrow.return_value = None  # brand-new
+        pool.conn.fetchrow.return_value = None
         pool.conn.fetchval.return_value = 1234
 
         patches = _suppress_side_effects()
@@ -584,17 +552,13 @@ class TestPrivilegeEscalationRegression:
         finally:
             _exit_all(patches)
 
-        # Find the INSERT users statement
         insert_calls = [
             c for c in pool.conn.fetchval.await_args_list
             if c.args and "INSERT INTO users" in c.args[0]
         ]
         assert len(insert_calls) == 1
         sql = insert_calls[0].args[0]
-        # The literal 'user' MUST appear in the SQL (hard-coded platform role, AE-284)
         assert "'user'" in sql, f"Expected hard-coded 'user' (platform role) in SQL: {sql!r}"
-        # The invite's role ('member') MUST NOT appear as a parameter
-        # (i.e. the args after the SQL must not contain 'member')
         params = insert_calls[0].args[1:]
         assert "member" not in params, (
             f"AE-264 regression risk: invite role 'member' appears as a parameter to "
@@ -608,25 +572,18 @@ class TestPrivilegeEscalationRegression:
         reject any extra ``role`` field, and the handler reads role from the
         invite row exclusively."""
         from src.services.dashboard.v2.auth import AcceptInviteIn
-        # Pydantic v2 default: extra fields are IGNORED (model_config might
-        # forbid them; either way, no 'role' attribute should be set).
         m = AcceptInviteIn.model_validate({
             "token": "raw", "password": "longpassword",
-            "role": "owner",  # ATTACKER input
-            "workspace_id": 99,  # ATTACKER input
+            "role": "owner",
+            "workspace_id": 99,
         })
         assert not hasattr(m, "role"), (
             "AcceptInviteIn must NOT bind a 'role' field from the request body. "
             "If you add one, AE-264 regression risk."
         )
         assert not hasattr(m, "workspace_id")
-        # Handler logic also confirmed in WS-ACC-04 / WS-ACC-19: workspace_members
-        # role is invite['role'], NOT body.role.
 
 
-# ---------------------------------------------------------------------------
-# Cross-invite tampering — WS-ACC-24 (current behaviour documented)
-# ---------------------------------------------------------------------------
 
 class TestCrossInviteTampering:
 
@@ -653,7 +610,8 @@ class TestCrossInviteTampering:
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
             FakeRecord(id=1, workspace_id=42, email="b@test.com",
-                       role="viewer", accepted_at=None, expires_at=_future()),
+                       role="viewer", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            FakeRecord(id=42),
             FakeRecord(id=2, email="b@test.com", role="viewer"),
         ]
         pool.conn.fetchrow.return_value = FakeRecord(
@@ -664,8 +622,6 @@ class TestCrossInviteTampering:
         _enter_all(patches)
         try:
             with _pool_ctx(pool):
-                # Note: there is no 'logged-in user A' concept at this layer.
-                # Endpoint is open. We assert it succeeds for B.
                 result = await accept_invite(
                     body=AcceptInviteIn(token="raw"),
                     request=_request(), response=_response(),
@@ -675,21 +631,36 @@ class TestCrossInviteTampering:
 
         assert result["status"] == "ok"
         assert result["workspace_id"] == 42
-        # If product requires strict session/email match, file a follow-up bug.
 
 
-# ---------------------------------------------------------------------------
-# Deferred to AE-273 (testcontainer-backed) or other follow-ups
-# ---------------------------------------------------------------------------
 
 class TestDeferredToTestcontainer:
     """These ACs require a real Postgres testcontainer or middleware harness.
     They are tracked under AE-273 (Plan limits + isolation + concurrency)
     where testcontainer infrastructure already lands."""
 
-    @pytest.mark.skip(reason="WS-ACC-12: requires Postgres FK constraint; tracked in AE-273")
-    def test_ws_acc_12_workspace_deleted_between_invite_and_accept(self):
-        ...
+    @pytest.mark.asyncio
+    async def test_ws_acc_12_workspace_deleted_between_invite_and_accept(self):
+        """WS-ACC-12 — Workspace deleted after invite creation but before acceptance
+        → 410 Gone with descriptive message (application-level check, no FK reliance)."""
+        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+
+        pool = FakeTxnPool()
+        pool.fetchrow.side_effect = [
+            FakeRecord(id=1, workspace_id=99, email="invited@test.com",
+                       role="member", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            None,
+        ]
+
+        with _pool_ctx(pool):
+            with pytest.raises(HTTPException) as exc:
+                await accept_invite(
+                    body=AcceptInviteIn(token="raw"),
+                    request=_request(), response=_response(),
+                )
+
+        assert exc.value.status_code == 410
+        assert "workspace has been removed" in exc.value.detail.lower()
 
     @pytest.mark.skip(reason="WS-ACC-15: requires rate-limit middleware in test app; "
                               "if no limiter exists today, file a security bug. "

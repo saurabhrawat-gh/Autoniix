@@ -13,17 +13,12 @@ from src.providers.tts.base import TTSProvider, TTSRequest, TTSResult
 
 logger = structlog.get_logger()
 
-# Inworld TTS pricing (per character)
-# inworld-tts-2 / inworld-tts-1-max → $25/million chars
-# inworld-tts-1                      → $15/million chars
 PRICING: dict[str, float] = {
     "inworld-tts-2":     25.0 / 1_000_000,
     "inworld-tts-1-max": 25.0 / 1_000_000,
     "inworld-tts-1":     15.0 / 1_000_000,
 }
 
-# Map abstract emotion names → Inworld TTS-2 bracketed steering instructions
-# TTS-2 interprets natural-language instructions inline in the text.
 _EMOTION_INSTRUCTIONS: dict[str, str] = {
     "happy":     "[speak warmly and enthusiastically] ",
     "excited":   "[speak with high energy and excitement] ",
@@ -37,7 +32,6 @@ _EMOTION_INSTRUCTIONS: dict[str, str] = {
 }
 _DEFAULT_INSTRUCTION = "[speak naturally and engagingly] "
 
-# Inworld API max chars per single request
 _MAX_CHARS = 2000
 
 
@@ -61,7 +55,6 @@ def _chunk_text(text: str, max_chars: int = _MAX_CHARS) -> list[str]:
         return [text]
 
     chunks: list[str] = []
-    # Split on sentence-ending punctuation followed by whitespace
     sentences = re.split(r'(?<=[.!?])\s+', text.strip())
     current = ""
     for sentence in sentences:
@@ -70,7 +63,6 @@ def _chunk_text(text: str, max_chars: int = _MAX_CHARS) -> list[str]:
         else:
             if current:
                 chunks.append(current)
-            # If a single sentence is too long, hard-split at word boundaries
             if len(sentence) > max_chars:
                 words = sentence.split()
                 current = ""

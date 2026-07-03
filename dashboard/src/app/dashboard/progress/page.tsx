@@ -12,9 +12,10 @@ import { PageHeader } from '@/lib/components/PageHeader';
 import { SkeletonCard } from '@/lib/components/Skeleton';
 import { EmptyState } from '@/lib/components/EmptyState';
 import { PhaseStepper } from '@/lib/components/PhaseStepper';
+import { BorderBeam } from '@/lib/components/BorderBeam';
 import { AnimatedNumber } from '@/lib/components/AnimatedNumber';
 import { ChevronDown, Inbox, RotateCcw } from '@/lib/components/Icon';
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/lib/ui';
+import { Button, Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogCloseButton, DialogTitle, DialogDescription } from '@/lib/ui';
 
 /* ── Phase descriptions for the expanded timeline ─────── */
 const PHASE_DESC: Record<string, string> = {
@@ -56,7 +57,6 @@ export default function ProgressPage() {
     setLoading(false);
   }, [showToast]);
 
-  // Smart polling: stop when all jobs are terminal
   const allTerminal = jobs.length > 0 && jobs.every(j =>
     ['failed', 'stopped', 'superseded', 'delivered', 'test_delivered', 'rejected'].includes(j.status)
   );
@@ -68,12 +68,11 @@ export default function ProgressPage() {
   }, [router, loadJobs]);
 
   useEffect(() => {
-    if (allTerminal) return; // Don't poll when all jobs are terminal
+    if (allTerminal) return;
     const interval = setInterval(loadJobs, 5000);
     return () => clearInterval(interval);
   }, [allTerminal, loadJobs]);
 
-  // Cross-tab sync via WebSocket
   useEffect(() => {
     if (!isLoggedIn()) return;
     let ws: WebSocket | null = null;
@@ -87,11 +86,6 @@ export default function ProgressPage() {
             if (msg.type === 'clean_slate') { loadJobs(); return; }
             if (msg.type !== 'job_update') return;
 
-            // Optimistic local patch for instant PhaseStepper feedback.
-            // Backend payload `status` is overloaded — it's either a workflow
-            // phase ('researching', 'scripting', …) or a lifecycle event
-            // ('paused', 'resumed', 'stopped'). Map accordingly so the stepper
-            // animates as soon as the event arrives, then refetch as backup.
             const cid: string = msg.content_id;
             const s: string = msg.status || '';
             if (cid && s) {
@@ -101,15 +95,12 @@ export default function ProgressPage() {
                 if (s === 'resumed') return { ...j, is_paused: false };
                 if (s === 'stopped') return { ...j, status: 'stopped', is_paused: false };
                 if (s === 'failed') return { ...j, status: 'failed' };
-                // Phase advance — only move forward, never backward.
                 const nextIdx = PHASE_ORDER.indexOf(s);
                 const curIdx = j.current_phase ? PHASE_ORDER.indexOf(j.current_phase) : -1;
                 if (nextIdx > curIdx) return { ...j, current_phase: s, is_paused: false };
                 return j;
               }));
             }
-            // Refetch (debounced via existing polling cadence) to reconcile
-            // any fields the optimistic patch can't infer (phase_status, etc.).
             loadJobs();
           } catch {}
         };
@@ -121,7 +112,6 @@ export default function ProgressPage() {
     return () => { ws?.close(); clearTimeout(reconnectTimer); };
   }, [loadJobs]);
 
-  // Fetch timeline for the expanded job
   useEffect(() => {
     if (!expanded) return;
     let cancelled = false;
@@ -136,7 +126,6 @@ export default function ProgressPage() {
       } catch {}
     }
     fetchTimeline();
-    // Only poll timeline for non-terminal jobs
     const expandedJob = jobs.find(j => j.content_id === cid);
     const isTerminal = expandedJob && ['failed', 'stopped', 'superseded', 'delivered', 'test_delivered', 'rejected'].includes(expandedJob.status);
     if (isTerminal) return () => { cancelled = true; };
@@ -230,7 +219,6 @@ export default function ProgressPage() {
     }
   }
 
-  // Group jobs by channel
   const grouped = jobs.reduce((acc: Record<string, any[]>, job) => {
     const key = job.channel_id;
     if (!acc[key]) acc[key] = [];
@@ -307,13 +295,15 @@ export default function ProgressPage() {
 
                       return (
                         <div key={job.content_id} className={cn(
-                          'card overflow-hidden',
+                          'card overflow-hidden relative',
                           isFailed && 'border-status-error/30 bg-status-error/5',
                           isStopped && 'border-status-warning/30 bg-status-warning/5',
                           isPaused && !isFailed && !isStopped && 'border-status-warning/30',
-                          !isFailed && !isStopped && !isPaused && !systemStopped && 'card-in-progress',
                           systemStopped && !isFailed && !isStopped && 'lockdown-frost'
                         )}>
+                          {!isFailed && !isStopped && !isPaused && !systemStopped && (
+                            <BorderBeam duration={3} size={55} />
+                          )}
                           {/* ── Job Card Header ──────────────── */}
                           <div className="p-5">
                             <div className="flex items-center justify-between">
@@ -518,7 +508,6 @@ export default function ProgressPage() {
                               ) : (
                                 <div className="space-y-0">
                                   {PHASE_ORDER.map((phase) => {
-                                    // Find events for this phase
                                     const phaseEvents = timeline.filter((ev: any) => ev.phase === phase);
                                     const started = phaseEvents.find((ev: any) => ev.status === 'started');
                                     const completed = phaseEvents.find((ev: any) => ev.status === 'completed');
@@ -529,17 +518,14 @@ export default function ProgressPage() {
                                     const hasFailed = !!failed;
                                     const isCurPhase = job.current_phase === phase && !isComplete && !hasFailed;
 
-                                    // Compute duration
                                     let durationStr = '';
                                     if (started && completed) {
                                       const ms = new Date(completed.timestamp).getTime() - new Date(started.timestamp).getTime();
                                       durationStr = ms < 60000 ? `${Math.round(ms / 1000)}s` : `${Math.round(ms / 60000)}m`;
                                     }
 
-                                    // Compute cost
                                     const cost = phaseEvents.reduce((sum: number, ev: any) => sum + (ev.cost_usd || 0), 0);
 
-                                    // Detail text
                                     const detail = completed?.detail || failed?.detail || {};
                                     let detailText = '';
                                     if (detail.topic) detailText = `Topic: ${detail.topic}`;
@@ -552,7 +538,6 @@ export default function ProgressPage() {
                                     else if (detail.error) detailText = detail.error;
 
                                     if (!hasStarted && !isCurPhase) {
-                                      // Pending phase
                                       return (
                                         <div key={phase} className="flex items-start gap-3 py-2">
                                           <div className="flex flex-col items-center">
@@ -658,7 +643,7 @@ export default function ProgressPage() {
       </main>
 
       <Dialog open={!!retryConfirm} onOpenChange={(o) => { if (!o) setRetryConfirm(null); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent size="sm">
           {(() => {
             if (!retryConfirm) return null;
             const job = jobs.find(j => j.content_id === retryConfirm);
@@ -668,35 +653,36 @@ export default function ProgressPage() {
             return (
               <>
                 <DialogHeader>
-                  <div className="flex items-start gap-3">
-                    <div className="shrink-0 w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent">
-                      <RotateCcw size={18} />
-                    </div>
-                    <div>
-                      <DialogTitle>Start Fresh?</DialogTitle>
-                      <DialogDescription>A brand new job will begin from the very first step.</DialogDescription>
-                    </div>
+                  <div>
+                    <DialogTitle className="flex items-center gap-2">
+                      <RotateCcw size={14} className="text-accent shrink-0" />
+                      Start Fresh?
+                    </DialogTitle>
+                    <DialogDescription>A brand new job will begin from the very first step.</DialogDescription>
                   </div>
+                  <DialogCloseButton onClick={() => setRetryConfirm(null)} />
                 </DialogHeader>
-                <div className="text-sm text-content-secondary leading-relaxed">
-                  All the steps will start again from scratch.
-                  {checkpointLabel ? (
-                    <> If you only want to redo the later phases, open the timeline and hit <span className="text-status-success font-medium">Restart from {checkpointLabel}</span> instead.</>
-                  ) : (
-                    <> If you only want to redo the later phases, open the timeline and hit <span className="text-status-success font-medium">Restart from checkpoint</span> instead.</>
-                  )}
-                </div>
-                <DialogFooter>
-                  <Button variant="secondary" size="sm" onClick={() => setRetryConfirm(null)} disabled={running}>Cancel</Button>
-                  <Button
-                    size="sm"
-                    onClick={async () => { await handleRetry(retryConfirm); setRetryConfirm(null); }}
-                    disabled={running}
-                    loading={running}
-                  >
-                    {running ? 'Starting…' : 'Yes, Retry Fresh'}
-                  </Button>
-                </DialogFooter>
+                <DialogBody>
+                  <p className="text-sm text-content-secondary leading-relaxed">
+                    All the steps will start again from scratch.
+                    {checkpointLabel ? (
+                      <> If you only want to redo the later phases, open the timeline and hit <span className="text-status-success font-medium">Restart from {checkpointLabel}</span> instead.</>
+                    ) : (
+                      <> If you only want to redo the later phases, open the timeline and hit <span className="text-status-success font-medium">Restart from checkpoint</span> instead.</>
+                    )}
+                  </p>
+                  <DialogFooter>
+                    <Button variant="ghost" size="sm" onClick={() => setRetryConfirm(null)} disabled={running}>Cancel</Button>
+                    <Button
+                      size="sm"
+                      onClick={async () => { await handleRetry(retryConfirm); setRetryConfirm(null); }}
+                      disabled={running}
+                      loading={running}
+                    >
+                      {running ? 'Starting…' : 'Yes, Retry Fresh'}
+                    </Button>
+                  </DialogFooter>
+                </DialogBody>
               </>
             );
           })()}

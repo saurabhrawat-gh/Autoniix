@@ -35,7 +35,6 @@ from ._deps import Principal, audit, principal_dep, require_role
 router = APIRouter()
 
 
-# Schemas
 class ChannelCreate(BaseModel):
     channel_id: str | None = None
     channel_name: str
@@ -137,7 +136,7 @@ class PillarIn(BaseModel):
 
 
 class TopicRuleIn(BaseModel):
-    kind: str  # avoid|safe|core|inspiration_competitor|primary_competitor
+    kind: str
     value: str
     metadata: dict = Field(default_factory=dict)
 
@@ -157,7 +156,6 @@ class ChannelDeleteIn(BaseModel):
     @field_validator("confirmation")
     @classmethod
     def confirmation_must_match(cls, v: str) -> str:
-        # Case-sensitive — owner must literally type "delete"
         if v != "delete":
             raise ValueError("confirmation must be the literal string 'delete'")
         return v
@@ -179,7 +177,6 @@ class FieldSuggestIn(BaseModel):
     context: dict = Field(default_factory=dict)
 
 
-# Helpers
 def _new_channel_id(name: str) -> str:
     """Lowercase slug + 4-char suffix (matches existing 20-char limit)."""
     base = "".join(c for c in (name or "ch").lower() if c.isalnum())[:14] or "ch"
@@ -196,7 +193,6 @@ def _completeness(profile: dict) -> int:
     return int(round((filled / len(fields)) * 100))
 
 
-# Channel CRUD
 @router.post("")
 async def create_channel(
     body: ChannelCreate,
@@ -206,7 +202,6 @@ async def create_channel(
     pool = await get_pool()
     channel_id = body.channel_id or _new_channel_id(body.channel_name)
 
-    # Apply preset if specified
     preset_payload: dict[str, Any] = {}
     if body.preset:
         row = await pool.fetchrow(
@@ -224,7 +219,6 @@ async def create_channel(
             if existing:
                 raise HTTPException(409, f"channel_id {channel_id!r} exists")
 
-            # Insert minimal core row; new columns nullable.
             await conn.execute(
                 """
                 INSERT INTO channels (
@@ -266,7 +260,6 @@ async def create_channel(
                 "wizard", "active", "production", actor.workspace_id,
             )
 
-            # Profile (extended payload)
             extended = body.extra or {}
             extended.update({k: getattr(body, k) for k in (
                 "mission", "vision", "brand_personality", "tone",
@@ -287,7 +280,6 @@ async def create_channel(
                 body.brand_personality, body.tone, _completeness(extended),
             )
 
-            # Pillars
             for i, p in enumerate(body.pillars):
                 await conn.execute(
                     """INSERT INTO channel_pillars (channel_id, name, description, weight, examples, position)
@@ -297,7 +289,6 @@ async def create_channel(
                     int(p.get("position", i)),
                 )
 
-            # Topic rules
             for r in body.topic_rules:
                 if r.get("kind") and r.get("value"):
                     await conn.execute(
@@ -307,7 +298,6 @@ async def create_channel(
                         json.dumps(r.get("metadata", {})),
                     )
 
-            # References
             for r in body.references:
                 if r.get("kind"):
                     await conn.execute(
@@ -478,7 +468,6 @@ async def upsert_profile(
     return {"status": "ok", "completeness_score": score}
 
 
-# Pillars
 @router.post("/{channel_id}/pillars")
 async def add_pillar(
     channel_id: str, body: PillarIn, request: Request,
@@ -533,7 +522,6 @@ async def delete_pillar(
     return {"status": "ok"}
 
 
-# Topic rules
 @router.post("/{channel_id}/topic-rules")
 async def add_topic_rule(
     channel_id: str, body: TopicRuleIn, request: Request,
@@ -567,7 +555,6 @@ async def delete_topic_rule(
     return {"status": "ok"}
 
 
-# References
 @router.post("/{channel_id}/references")
 async def add_reference(
     channel_id: str, body: ReferenceIn, request: Request,
@@ -601,7 +588,6 @@ async def delete_reference(
     return {"status": "ok"}
 
 
-# Memory
 @router.post("/{channel_id}/memory")
 async def add_memory(
     channel_id: str, body: MemoryIn, request: Request,
@@ -618,7 +604,6 @@ async def add_memory(
     return {"status": "ok", "id": mid}
 
 
-# Drafts
 @router.post("/drafts")
 async def create_draft(
     body: DraftIn,
@@ -665,7 +650,6 @@ async def get_draft(
     return {"data": dict(row)}
 
 
-# AI field-suggest
 @router.post("/ai/field-suggest")
 async def field_suggest(
     body: FieldSuggestIn,
@@ -680,9 +664,6 @@ async def field_suggest(
     ctx = body.context or {}
     fallback = _heuristic_suggest(field, ctx)
 
-    # Try the LLM router (fully respects the per-channel budget cap +
-    # provider ladder). Fall back to a deterministic heuristic so the
-    # wizard always gives the user something usable in dev/test.
     try:
         from src.llm import route
         from src.providers.llm.base import LLMRequest
@@ -715,25 +696,20 @@ async def field_suggest(
                 return {"data": {"suggestion": sug, "rationale": rat or "llm",
                                  "provider": result.provider, "model": result.model}}
         except Exception:
-            # Provider returned plain text — still usable.
             if text:
                 return {"data": {"suggestion": text[:240], "rationale": "llm",
                                  "provider": result.provider, "model": result.model}}
     except Exception as exc:  # noqa: BLE001
-        # Budget exceeded, ladder exhausted, or provider-side error — log
-        # and fall through to the heuristic so the UI still works.
         import structlog
         structlog.get_logger().info("v2.field_suggest.fallback", error=str(exc))
     return {"data": {"suggestion": fallback, "rationale": "heuristic"}}
 
 
-# Wave 5: enrichment helper + action endpoints
 
 async def _enrich_channel_list(pool: Any, channels: list[dict]) -> list[dict]:
     """Batch-attach stats, weekly_usage, and active_jobs to each channel dict."""
     ids = [c["channel_id"] for c in channels]
 
-    # Lifetime per-channel stats
     stat_rows = await pool.fetch(
         """SELECT channel_id,
                   COUNT(*) FILTER (WHERE status IN ('delivered','test_delivered')) AS delivered,
@@ -746,7 +722,6 @@ async def _enrich_channel_list(pool: Any, channels: list[dict]) -> list[dict]:
     )
     stats_map = {r["channel_id"]: r for r in stat_rows}
 
-    # Weekly usage (current ISO week)
     weekly_rows = await pool.fetch(
         """SELECT channel_id,
                   COUNT(*) FILTER (WHERE content_mode = 'short'
@@ -761,7 +736,6 @@ async def _enrich_channel_list(pool: Any, channels: list[dict]) -> list[dict]:
     )
     weekly_map = {r["channel_id"]: r for r in weekly_rows}
 
-    # Active (non-terminal) jobs — latest per channel+mode
     job_rows = await pool.fetch(
         """SELECT DISTINCT ON (channel_id, content_mode)
                   channel_id, content_id, status, content_mode
@@ -844,7 +818,6 @@ async def _dashboard_stats_impl(_: Principal):
     }
 
 
-# Channel status actions
 
 @router.put("/{channel_id}/enable")
 async def enable_channel(
@@ -936,17 +909,15 @@ async def delete_channel(
 
     pool = await get_pool()
 
-    # Re-verify password against the live user row
     user = await pool.fetchrow(
         "SELECT password_hash FROM users WHERE id=$1", actor.user_id
     )
     if not user:
         raise HTTPException(404, detail={"code": "user_not_found"})
-    from .auth import _verify_pw  # local import to avoid circular deps
+    from .auth import _verify_pw
     if not _verify_pw(body.password, user["password_hash"] or ""):
         raise HTTPException(403, detail={"code": "wrong_password"})
 
-    # Channel must exist AND belong to actor's workspace
     channel = await pool.fetchrow(
         """SELECT channel_id, channel_name, niche, platform, status,
                   workspace_id, created_at
@@ -954,10 +925,8 @@ async def delete_channel(
         channel_id,
     )
     if not channel or channel["workspace_id"] != actor.workspace_id:
-        # Don't leak existence of channels in other workspaces
         raise HTTPException(404, detail={"code": "channel_not_found"})
 
-    # Refuse if any videos exist — protects historical content
     video_count = await pool.fetchval(
         "SELECT COUNT(*) FROM videos WHERE channel_id=$1", channel_id
     )
@@ -974,14 +943,12 @@ async def delete_channel(
             },
         )
 
-    # Detect existing YouTube linkage so we can emit a separate audit event
     yt_linked = await pool.fetchval(
         """SELECT 1 FROM provider_credentials
             WHERE channel_id=$1 AND category='youtube' LIMIT 1""",
         channel_id,
     )
 
-    # Capture forensic snapshot
     snapshot = {
         "channel_id": channel["channel_id"],
         "channel_name": channel["channel_name"],
@@ -993,7 +960,6 @@ async def delete_channel(
             if channel["created_at"] else None,
     }
 
-    # Delete — DB cascades + SET NULL handle the rest
     await pool.execute("DELETE FROM channels WHERE channel_id=$1", channel_id)
 
     await audit(
@@ -1111,7 +1077,6 @@ async def trigger_channel(
     return result
 
 
-# Job control (pause / resume / stop)
 
 @router.post("/{channel_id}/jobs/{content_id}/pause")
 async def pause_job(
@@ -1193,3 +1158,50 @@ def _heuristic_suggest(field: str, ctx: dict) -> str:
         "typography_preference": "Inter / Geist; bold weights on emphasis words.",
     }
     return table.get(field, f"Suggested value for {field} on {name or niche}")
+
+
+
+
+class BrandKitBindIn(BaseModel):
+    """Body for binding a brand kit to a channel. Pass null to unbind."""
+
+    brand_kit_id: int | None = None
+
+
+@router.get("/{channel_id}/brand-kit")
+async def get_channel_brand_kit(
+    channel_id: str,
+    _: Principal = Depends(principal_dep),
+):
+    """Return the resolved brand kit for ``channel_id`` (AE-357)."""
+    from src.services.brand.brand_kit_resolver import resolve_brand_kit_for_channel
+
+    data = await resolve_brand_kit_for_channel(channel_id)
+    return {"data": data, "bound": bool(data)}
+
+
+@router.put("/{channel_id}/brand-kit")
+async def put_channel_brand_kit(
+    channel_id: str,
+    body: BrandKitBindIn,
+    request: Request,
+    actor: Principal = Depends(require_role("owner", "member")),
+):
+    """Bind or unbind a brand kit on a channel (AE-357)."""
+    from src.services.brand.brand_kit_resolver import bind_channel_brand_kit
+
+    try:
+        updated = await bind_channel_brand_kit(channel_id, body.brand_kit_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    if not updated:
+        raise HTTPException(404, f"channel {channel_id} not found")
+    await audit(
+        actor=actor,
+        action="channel.brand_kit.bind",
+        target_type="channel",
+        target_id=channel_id,
+        after={"brand_kit_id": body.brand_kit_id},
+        request=request,
+    )
+    return {"status": "ok", "brand_kit_id": body.brand_kit_id}
