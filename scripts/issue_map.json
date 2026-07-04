@@ -48,6 +48,7 @@
     "709": { "jira": "IM-192", "status": "done", "title": "[Harness] A5 — CI blocking gate: equivalence workflow + required check" },
     "710": { "jira": "IM-193", "status": "done", "title": "[Harness] A6 — Criterion benchmarks + 10% perf-regression gate" },
     "711": { "jira": "IM-194", "status": "done", "title": "[Harness] A7 — Go harness template (forward-looking for Phase C G0)" },
+    "700": { "jira": "IM-49",  "status": "ready-to-deploy", "title": "Core-Gateway: Per-workspace rate limiting — configurable RPM + 429 response" },
     "712": { "jira": "IM-195", "status": "ready-to-deploy", "title": "[Phase B] Epic — Rust migration completion (replace Python v2 thin proxies)" },
     "713": { "jira": "IM-196", "status": "ready-to-deploy", "title": "[Phase B] B1 — Native Rust implementation of providers.py (49 endpoints)" },
     "714": { "jira": "IM-197", "status": "ready-to-deploy", "title": "[Phase B] B2 — Native Rust implementation of workspace remainder endpoints" },

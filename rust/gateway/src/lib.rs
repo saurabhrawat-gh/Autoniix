@@ -27,6 +27,8 @@ pub async fn create_app(pool: sqlx::PgPool, jwt_secret: String) -> Router {
     let jwt_manager = Arc::new(JwtManager::new(&jwt_secret));
     let auth_service = AuthServiceImpl::new(pool.clone(), jwt_manager.clone());
 
+    let workspace_limiter = middleware::WorkspaceRateLimiter::new();
+
     let protected_routes = Router::new()
         .merge(routes::user::routes(pool.clone()))
         .merge(routes::flags::routes(pool.clone()))
@@ -46,6 +48,10 @@ pub async fn create_app(pool: sqlx::PgPool, jwt_secret: String) -> Router {
         .merge(routes::experiments::routes(pool.clone()))
         .layer(axum_middleware::from_fn(
             middleware::require_auth_middleware,
+        ))
+        .layer(axum_middleware::from_fn_with_state(
+            workspace_limiter,
+            middleware::workspace_rate_limit,
         ));
 
     Router::new()
