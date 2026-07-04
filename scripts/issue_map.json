@@ -49,6 +49,11 @@
     "710": { "jira": "IM-193", "status": "done", "title": "[Harness] A6 — Criterion benchmarks + 10% perf-regression gate" },
     "711": { "jira": "IM-194", "status": "done", "title": "[Harness] A7 — Go harness template (forward-looking for Phase C G0)" },
     "712": { "jira": "IM-195", "status": "open", "title": "[Phase B] Epic — Rust migration completion (replace Python v2 thin proxies)" },
-    "713": { "jira": "IM-196", "status": "ready-to-deploy", "title": "[Phase B] B1 — Native Rust implementation of providers.py (49 endpoints)" }
+    "713": { "jira": "IM-196", "status": "ready-to-deploy", "title": "[Phase B] B1 — Native Rust implementation of providers.py (49 endpoints)" },
+    "714": { "jira": "IM-197", "status": "open", "title": "[Phase B] B2 — Native Rust implementation of workspace remainder endpoints" },
+    "715": { "jira": "IM-198", "status": "open", "title": "[Phase B] B3 — Native Rust implementation of library cluster (~27 endpoints)" },
+    "716": { "jira": "IM-199", "status": "open", "title": "[Phase B] B4 — Native Rust implementation of jobs.py (~11 endpoints)" },
+    "717": { "jira": "IM-200", "status": "open", "title": "[Phase B] B5 — Native Rust implementation of review cluster (~14 endpoints)" },
+    "718": { "jira": "IM-201", "status": "open", "title": "[Phase B] B6 — Native Rust implementation of content/finishing/experiments cluster (~33 endpoints)" }
   }
 }
