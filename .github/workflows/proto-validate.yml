@@ -2,13 +2,6 @@ name: Proto Validation
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - 'proto/**/*.proto'
-      - 'proto/buf.yaml'
-      - 'proto/buf.gen.yaml'
 
 jobs:
   lint:
