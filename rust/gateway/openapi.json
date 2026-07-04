@@ -1,0 +1,954 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Autoniix Gateway API",
+    "description": "Rust gateway API surface. This is the source of truth used by the harness contract validator (Story A1 / IM-188).",
+    "contact": {
+      "name": "Autoniix",
+      "url": "https://autoniix.com"
+    },
+    "license": {
+      "name": ""
+    },
+    "version": "0.1.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local dev"
+    },
+    {
+      "url": "https://dash.autoniix.com",
+      "description": "Production"
+    }
+  ],
+  "paths": {
+    "/api/v2/auth/accept-invite": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/accept-invite — accept a workspace invitation.",
+        "description": "For new users: `password` is required to set credentials.\nFor existing users: `password` is ignored.\nOn success: issues full session tokens + auth cookies (auto-login).",
+        "operationId": "accept_invite",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Invitation accepted, session issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid token or missing password for new user"
+          },
+          "410": {
+            "description": "Invitation expired or workspace deleted"
+          }
+        }
+      }
+    },
+    "/api/v2/auth/forgot": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/forgot — public; never leaks whether email exists.",
+        "operationId": "forgot_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted (regardless of email existence)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/logout — revoke refresh token and clear auth cookies.",
+        "operationId": "logout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Logged out",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoutResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/auth/mfa/challenge": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/mfa/challenge — second factor for MFA-enabled accounts.",
+        "description": "Accepts the short-lived pending token from /signin plus the TOTP code.\nOn success: issues full session tokens + auth cookies, identical to /signin.",
+        "operationId": "mfa_challenge",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaChallengeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "MFA verified, session issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid pending token or code"
+          }
+        }
+      }
+    },
+    "/api/v2/auth/mfa/disable": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/mfa/disable — requires auth + valid TOTP code.",
+        "description": "Disables MFA on the account and clears the stored secret.",
+        "operationId": "mfa_disable",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaDisableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "MFA disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized or invalid code"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/auth/mfa/setup": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/mfa/setup — requires auth; generates a TOTP secret and",
+        "description": "returns the otpauth URI.",
+        "operationId": "mfa_setup",
+        "responses": {
+          "200": {
+            "description": "TOTP secret and otpauth URI",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaSetupResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/auth/mfa/verify": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/mfa/verify — requires auth; verifies the TOTP code and",
+        "description": "enables MFA.",
+        "operationId": "mfa_verify",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "MFA enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid code"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/auth/mode": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Public endpoint: which auth backends are active. The login UI calls this on",
+        "description": "mount. Mirrors Python `GET /auth/mode`.",
+        "operationId": "auth_mode",
+        "responses": {
+          "200": {
+            "description": "Active auth backends",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthModeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/auth/profile": {
+      "put": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "PUT /api/v2/auth/profile — update display_name and/or password.",
+        "description": "Mirrors Python `PUT /auth/profile`.",
+        "operationId": "update_profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Profile updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateProfileResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/refresh — rotate refresh token and issue new access token.",
+        "description": "Reads refresh token from cookie first, then request body.",
+        "operationId": "refresh_token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "New access token issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshTokenResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Refresh token missing or invalid"
+          }
+        }
+      }
+    },
+    "/api/v2/auth/register": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/register — public self-serve signup (#350).",
+        "description": "No auto-login: returns onboarding metadata only. The frontend calls\n/signin separately after register. Mirrors Python `POST /auth/register`.\nAlso mounted at `/api/v2/auth/signup` (alias).",
+        "operationId": "register",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Account and workspace created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error or duplicate email"
+          }
+        }
+      }
+    },
+    "/api/v2/auth/reset": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/reset — public; validates the reset token and sets a new",
+        "description": "password.",
+        "operationId": "reset_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Password reset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid token or weak password"
+          }
+        }
+      }
+    },
+    "/api/v2/auth/signin": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/signin — public; primary login endpoint.",
+        "description": "Returns full session tokens + auth cookies on success. For MFA-enabled\naccounts, returns a pending token instead and requires /mfa/challenge.",
+        "operationId": "sign_in",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in (or MFA required)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials"
+          }
+        }
+      }
+    },
+    "/api/v2/auth/verify": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/verify — Rust-only extension (no Python equivalent).",
+        "description": "Lightweight token introspection for SDK clients. Returns `valid: false`\ninstead of 401 when the token is expired or malformed.",
+        "operationId": "verify_token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Token introspection result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyTokenResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AcceptInviteRequest": {
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "password": {
+            "type": "string",
+            "nullable": true
+          },
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "AuthModeResponse": {
+        "type": "object",
+        "required": [
+          "v2_enabled",
+          "legacy_enabled"
+        ],
+        "properties": {
+          "legacy_enabled": {
+            "type": "boolean"
+          },
+          "v2_enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ForgotRequest": {
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          }
+        }
+      },
+      "LogoutRequest": {
+        "type": "object",
+        "properties": {
+          "refresh_token": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "LogoutResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "MfaChallengeRequest": {
+        "type": "object",
+        "required": [
+          "mfa_pending_token",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "mfa_pending_token": {
+            "type": "string"
+          }
+        }
+      },
+      "MfaDisableRequest": {
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "MfaSetupData": {
+        "type": "object",
+        "required": [
+          "otpauth_url",
+          "secret"
+        ],
+        "properties": {
+          "otpauth_url": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "string"
+          }
+        }
+      },
+      "MfaSetupResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MfaSetupData"
+          }
+        }
+      },
+      "MfaVerifyRequest": {
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "RefreshTokenRequest": {
+        "type": "object",
+        "properties": {
+          "refresh_token": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "RefreshTokenResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "access_token",
+          "expires_in"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password",
+          "workspace_name"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "workspace_name": {
+            "type": "string"
+          }
+        }
+      },
+      "RegisterResponse": {
+        "type": "object",
+        "description": "#350: Register response — no tokens (no auto-login). Returns onboarding\nmetadata only, matching Python `POST /auth/register`.",
+        "required": [
+          "status",
+          "user_id",
+          "workspace_id",
+          "role",
+          "onboarding_required"
+        ],
+        "properties": {
+          "onboarding_required": {
+            "type": "boolean"
+          },
+          "role": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "workspace_id": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ResetRequest": {
+        "type": "object",
+        "required": [
+          "token",
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "SignInRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          }
+        }
+      },
+      "SignInResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "access_token",
+          "expires_in",
+          "user"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "setup_required": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "status": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/SignInUser"
+          }
+        }
+      },
+      "SignInUser": {
+        "type": "object",
+        "description": "Signin user object, matching Python `/auth/login` (workspace-scoped `role`,\n`workspace_id`).",
+        "required": [
+          "id",
+          "email",
+          "role"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "role": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          }
+        }
+      },
+      "StatusResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateProfileRequest": {
+        "type": "object",
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "nullable": true
+          },
+          "display_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "new_password": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "UpdateProfileResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "VerifyTokenRequest": {
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "VerifyTokenResponse": {
+        "type": "object",
+        "required": [
+          "valid"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "global_role": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "nullable": true
+          },
+          "user_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "wid": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "cookie_auth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "access_token"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "auth",
+      "description": "Authentication and session management"
+    },
+    {
+      "name": "channels",
+      "description": "Channel CRUD, publishing, cadence"
+    },
+    {
+      "name": "system",
+      "description": "System-level admin endpoints"
+    },
+    {
+      "name": "users",
+      "description": "User management within a workspace"
+    },
+    {
+      "name": "flags",
+      "description": "Feature flags"
+    },
+    {
+      "name": "notifications",
+      "description": "In-app notifications"
+    },
+    {
+      "name": "workspace",
+      "description": "Workspace lifecycle"
+    },
+    {
+      "name": "voice",
+      "description": "Voice generation and providers"
+    },
+    {
+      "name": "lookup",
+      "description": "Static lookup value lists"
+    }
+  ]
+}

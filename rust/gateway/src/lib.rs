@@ -8,6 +8,7 @@ mod extractors;
 mod health;
 mod middleware;
 mod observability;
+pub mod openapi;
 pub mod routes;
 
 pub use auth::{AuthServiceImpl, JwtManager};
@@ -16,6 +17,7 @@ pub use db::{create_pool, health_check};
 pub use error::{ApiError, ApiResult};
 pub use extractors::{AuthUser, RequireAdmin, RequireOwner};
 pub use middleware::Principal;
+pub use openapi::ApiDoc;
 
 use axum::{middleware as axum_middleware, Router};
 use std::sync::Arc;
@@ -41,6 +43,7 @@ pub async fn create_app(pool: sqlx::PgPool, jwt_secret: String) -> Router {
     Router::new()
         .merge(health::routes(pool.clone()))
         .merge(routes::api_routes())
+        .merge(openapi::routes())
         .merge(routes::auth::routes(auth_service))
         .merge(protected_routes)
         .layer(axum_middleware::from_fn_with_state(
