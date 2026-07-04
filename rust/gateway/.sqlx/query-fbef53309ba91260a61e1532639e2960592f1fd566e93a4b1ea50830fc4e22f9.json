@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(NULLIF(license, ''), 'unspecified') AS \"license!\",\n                  COUNT(*)::bigint                             AS \"asset_count!\",\n                  COALESCE(SUM(bytes), 0)::bigint             AS \"total_bytes!\",\n                  COUNT(*) FILTER (\n                      WHERE expires_at IS NOT NULL AND expires_at <= NOW()\n                  )::bigint                                   AS \"expired_count!\",\n                  COUNT(*) FILTER (\n                      WHERE expires_at IS NOT NULL\n                        AND expires_at > NOW()\n                        AND expires_at <= NOW() + INTERVAL '30 days'\n                  )::bigint                                   AS \"expiring_30d!\"\n             FROM dam_assets\n            WHERE deleted_at IS NULL\n              AND scope = $1\n              AND ($2::text IS NULL OR scope_id = $2)\n            GROUP BY COALESCE(NULLIF(license, ''), 'unspecified')\n            ORDER BY COUNT(*) DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "license!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "asset_count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "total_bytes!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "expired_count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "expiring_30d!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "fbef53309ba91260a61e1532639e2960592f1fd566e93a4b1ea50830fc4e22f9"
+}
