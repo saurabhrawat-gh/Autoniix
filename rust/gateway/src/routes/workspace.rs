@@ -52,7 +52,20 @@ struct DeleteWorkspaceParams {
 /// When force-deleted by a superadmin the user is flagged
 /// `needs_workspace_setup = true` so the onboarding wizard is shown on next
 /// login.
-async fn delete_workspace(
+#[utoipa::path(
+    delete,
+    path = "/api/v2/workspaces/{id}",
+    tag = "workspace",
+    params(("id" = i64, Path, description = "Workspace id")),
+    responses(
+        (status = 200, description = "Workspace scheduled for deletion"),
+        (status = 400, description = "Last workspace or invalid state"),
+        (status = 404, description = "Workspace not found"),
+        (status = 409, description = "Already pending deletion"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn delete_workspace(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     headers: HeaderMap,
@@ -220,7 +233,19 @@ async fn delete_workspace(
 /// Cancels a pending soft-delete within the grace window.
 /// Restores the workspace to `active` and un-suspends all invitations
 /// that were suspended (not hard-cancelled) during the deletion initiation.
-async fn cancel_deletion(
+#[utoipa::path(
+    post,
+    path = "/api/v2/workspaces/{id}/cancel-deletion",
+    tag = "workspace",
+    params(("id" = i64, Path, description = "Workspace id")),
+    responses(
+        (status = 200, description = "Deletion cancelled"),
+        (status = 404, description = "Workspace not found"),
+        (status = 410, description = "Grace period expired"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn cancel_deletion(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     headers: HeaderMap,
@@ -324,7 +349,18 @@ async fn cancel_deletion(
 ///
 /// Returns the current deletion state of a workspace.
 /// Accessible by any workspace member or superadmin.
-async fn deletion_status(
+#[utoipa::path(
+    get,
+    path = "/api/v2/workspaces/{id}/deletion-status",
+    tag = "workspace",
+    params(("id" = i64, Path, description = "Workspace id")),
+    responses(
+        (status = 200, description = "Deletion status"),
+        (status = 404, description = "Workspace not found"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn deletion_status(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(workspace_id): Path<i64>,

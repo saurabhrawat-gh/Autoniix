@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
-# Pinned via versions.env RUST_IMAGE=rust:1.83.0-bookworm DEBIAN_IMAGE=debian:bookworm-slim
-ARG RUST_IMAGE=rust:1.83.0-bookworm
+# Pinned via versions.env RUST_IMAGE=rust:1.88.0-bookworm DEBIAN_IMAGE=debian:bookworm-slim
+ARG RUST_IMAGE=rust:1.88.0-bookworm
 ARG DEBIAN_IMAGE=debian:bookworm-slim
 
 FROM ${RUST_IMAGE} AS builder

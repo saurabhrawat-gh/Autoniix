@@ -1,8 +1,8 @@
 //! OpenAPI schema generation for the Autoniix Gateway (Story A1 / IM-188).
 //!
 //! Every route handler in `routes/*.rs` is annotated with `#[utoipa::path]`
-//! and every request/response type derives `ToSchema`. Those attributes feed
-//! into [`ApiDoc`] which is exposed at:
+//! and every request/response type that is meaningful to expose derives
+//! `ToSchema`. Those attributes feed into [`ApiDoc`] which is exposed at:
 //!
 //! - Runtime: `GET /openapi.json` (mounted by [`routes`]).
 //! - Build time: `cargo run -p gateway --bin openapi-dump` writes
@@ -11,6 +11,12 @@
 //!
 //! The harness contract validator (`rust/harness/src/contract/mod.rs`) uses
 //! the on-disk `openapi.json` as its source of truth for the Rust API surface.
+//!
+//! Note: For modules other than `auth`, we intentionally omit `ToSchema`
+//! derives on request/response bodies in this first pass — the schemas are
+//! still valid, they just document their payloads as `Object`. Follow-up
+//! stories (A5) will tighten the schemas incrementally once the harness
+//! is wired.
 
 use axum::{routing::get, Json, Router};
 use utoipa::{
@@ -18,10 +24,7 @@ use utoipa::{
     Modify, OpenApi,
 };
 
-// Only import modules that have been annotated so far.
-// TODO(A1 remaining checkpoints): add channels, system, user, flags,
-// notifications, workspace, voice, lookup_values as each is annotated.
-use crate::routes::auth;
+use crate::routes::{auth, channels, flags, lookup_values, notifications, system, user, voice, workspace};
 
 /// Injects the `cookie_auth` security scheme used by protected endpoints.
 ///
@@ -70,7 +73,7 @@ impl Modify for SecurityAddon {
         (name = "lookup", description = "Static lookup value lists"),
     ),
     paths(
-        // auth (14 unique handlers — /signup mounted as alias of /register)
+        // auth (14)
         auth::auth_mode,
         auth::sign_in,
         auth::register,
@@ -85,9 +88,96 @@ impl Modify for SecurityAddon {
         auth::mfa_challenge,
         auth::mfa_disable,
         auth::accept_invite,
+        // channels (39)
+        channels::list_channels,
+        channels::create_channel,
+        channels::list_presets,
+        channels::get_stats,
+        channels::get_channel,
+        channels::patch_channel,
+        channels::delete_channel,
+        channels::upsert_profile,
+        channels::export_channel,
+        channels::enable_channel,
+        channels::disable_channel,
+        channels::archive_channel,
+        channels::restore_channel,
+        channels::list_pillars,
+        channels::add_pillar,
+        channels::update_pillar,
+        channels::delete_pillar,
+        channels::list_topic_rules,
+        channels::add_topic_rule,
+        channels::delete_topic_rule,
+        channels::list_references,
+        channels::add_reference,
+        channels::delete_reference,
+        channels::list_memory,
+        channels::add_memory,
+        channels::list_drafts,
+        channels::create_draft,
+        channels::get_draft,
+        channels::save_draft,
+        channels::field_suggest,
+        channels::resolve_config,
+        channels::resolve_provider_chain,
+        channels::proxy_trigger,
+        channels::proxy_clone,
+        channels::proxy_get_brand_kit,
+        channels::proxy_put_brand_kit,
+        channels::proxy_pause_job,
+        channels::proxy_resume_job,
+        channels::proxy_stop_job,
+        // flags (2)
+        flags::list_flags,
+        flags::set_flag,
+        // lookup_values (5)
+        lookup_values::list_lookup_values,
+        lookup_values::create_global_value,
+        lookup_values::create_workspace_value,
+        lookup_values::update_lookup_value,
+        lookup_values::deactivate_lookup_value,
+        // notifications (8)
+        notifications::list_notifications,
+        notifications::create_notification,
+        notifications::mark_read,
+        notifications::list_routes,
+        notifications::create_route,
+        notifications::update_route,
+        notifications::delete_route,
+        notifications::list_deliveries,
+        // system (12)
+        system::get_config,
+        system::update_config,
+        system::emergency_stop,
+        system::emergency_resume,
+        system::fleet_health,
+        system::get_environment,
+        system::set_environment,
+        system::clean_slate,
+        system::list_system_entity_settings,
+        system::upsert_system_entity_setting,
+        system::list_workspace_entity_settings,
+        system::upsert_workspace_entity_setting,
+        // user (8)
+        user::get_current_user,
+        user::list_sessions,
+        user::revoke_session,
+        user::list_users,
+        user::transfer_superadmin,
+        user::disable_user,
+        user::enable_user,
+        user::delete_user,
+        // voice (2)
+        voice::list_voices,
+        voice::preview_voice,
+        // workspace (3)
+        workspace::delete_workspace,
+        workspace::cancel_deletion,
+        workspace::deletion_status,
     ),
     components(schemas(
-        // auth
+        // auth schemas (only module with ToSchema in first pass)
         auth::AuthModeResponse,
         auth::SignInRequest,
         auth::SignInResponse,

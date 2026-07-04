@@ -58,7 +58,14 @@ struct UpdateLookupValue {
 /// GET /api/v2/lookup-values
 /// Returns global values merged with workspace-private values.
 /// Global values come first (sort_order), workspace custom values appended.
-async fn list_lookup_values(
+#[utoipa::path(
+    get,
+    path = "/api/v2/lookup-values",
+    tag = "lookup",
+    responses((status = 200, description = "Merged lookup values")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn list_lookup_values(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Query(q): Query<ListQuery>,
@@ -110,7 +117,17 @@ async fn list_lookup_values(
 }
 
 /// POST /api/v2/lookup-values  — superadmin only, creates a global value
-async fn create_global_value(
+#[utoipa::path(
+    post,
+    path = "/api/v2/lookup-values",
+    tag = "lookup",
+    responses(
+        (status = 201, description = "Global lookup value created"),
+        (status = 403, description = "Superadmin only"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn create_global_value(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Json(body): Json<CreateLookupValue>,
@@ -152,7 +169,17 @@ async fn create_global_value(
 }
 
 /// POST /api/v2/workspace/lookup-values  — workspace owner only, creates workspace-private value
-async fn create_workspace_value(
+#[utoipa::path(
+    post,
+    path = "/api/v2/workspace/lookup-values",
+    tag = "lookup",
+    responses(
+        (status = 201, description = "Workspace lookup value created"),
+        (status = 403, description = "Owner only"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn create_workspace_value(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Json(body): Json<CreateLookupValue>,
@@ -196,7 +223,19 @@ async fn create_workspace_value(
 
 /// PATCH /api/v2/lookup-values/:id
 /// Superadmin can update any value; owner can only update their workspace's values.
-async fn update_lookup_value(
+#[utoipa::path(
+    patch,
+    path = "/api/v2/lookup-values/{id}",
+    tag = "lookup",
+    params(("id" = i64, Path, description = "Lookup value id")),
+    responses(
+        (status = 200, description = "Lookup value updated"),
+        (status = 403, description = "Forbidden"),
+        (status = 404, description = "Not found"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn update_lookup_value(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(id): Path<i64>,
@@ -244,7 +283,19 @@ async fn update_lookup_value(
 }
 
 /// DELETE /api/v2/lookup-values/:id  — soft-delete (set is_active = false)
-async fn deactivate_lookup_value(
+#[utoipa::path(
+    delete,
+    path = "/api/v2/lookup-values/{id}",
+    tag = "lookup",
+    params(("id" = i64, Path, description = "Lookup value id")),
+    responses(
+        (status = 204, description = "Lookup value deactivated"),
+        (status = 403, description = "Forbidden"),
+        (status = 404, description = "Not found"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn deactivate_lookup_value(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(id): Path<i64>,
