@@ -16,6 +16,11 @@ tests/golden/
   flags/         ← /api/v2/flags/* endpoints
   system/        ← /api/v2/system/* endpoints
   voice/         ← /api/v2/voice/* endpoints
+  providers/     ← /api/v2/providers/* (B1 — credentials, chains, categories)
+  library/       ← /api/v2/library/* (B3 — assets, DAM assets, collections, tags)
+  content/       ← /api/v2/content/* (B6 — list, trigger history)
+  finishing/     ← /api/v2/finishing/* (B6 — presets)
+  review/        ← /api/v2/review/* (B5 — queue)
 ```
 
 ## Fixture schema
