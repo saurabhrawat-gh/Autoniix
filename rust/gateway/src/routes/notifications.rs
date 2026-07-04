@@ -116,7 +116,14 @@ fn default_limit() -> i64 {
 /// non-null user_id, always true in Rust since the JWT enforces a sub), then
 /// the limit. We build the WHERE clause dynamically to match the same
 /// `$1, $2, …` binding pattern Python uses.
-async fn list_notifications(
+#[utoipa::path(
+    get,
+    path = "/api/v2/notifications",
+    tag = "notifications",
+    responses((status = 200, description = "Notifications list")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn list_notifications(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Query(q): Query<ListNotificationsQuery>,
@@ -208,7 +215,14 @@ struct CreateNotificationResponse {
 /// minute, return its id with `deduped: true` instead of inserting a new
 /// row. Note: route fan-out (Python's `dispatch_routes`) is intentionally
 /// not wired in this port; see module docstring.
-async fn create_notification(
+#[utoipa::path(
+    post,
+    path = "/api/v2/notifications",
+    tag = "notifications",
+    responses((status = 200, description = "Notification created or deduped")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn create_notification(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Json(body): Json<CreateNotificationRequest>,
@@ -272,7 +286,15 @@ async fn create_notification(
 /// prevents the same user from appearing twice. Returns `{"status": "noop"}`
 /// if the JWT somehow lacks a parseable user id (matches Python's
 /// `if p.user_id is None` branch).
-async fn mark_read(
+#[utoipa::path(
+    post,
+    path = "/api/v2/notifications/{notification_id}/read",
+    tag = "notifications",
+    params(("notification_id" = i64, Path, description = "Notification id")),
+    responses((status = 200, description = "Marked read")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn mark_read(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(notification_id): Path<i64>,
@@ -316,7 +338,14 @@ struct ListRoutesResponse {
 }
 
 /// `GET /api/v2/notifications/routes` — owner/member only.
-async fn list_routes(
+#[utoipa::path(
+    get,
+    path = "/api/v2/notifications/routes",
+    tag = "notifications",
+    responses((status = 200, description = "Notification routes")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn list_routes(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
 ) -> ApiResult<impl IntoResponse> {
@@ -362,7 +391,14 @@ struct CreateRouteResponse {
 /// `POST /api/v2/notifications/routes` — create a fan-out route. Audits
 /// `notification.route.create` with the full request body as the `after`
 /// payload, matching Python's `body.model_dump()`.
-async fn create_route(
+#[utoipa::path(
+    post,
+    path = "/api/v2/notifications/routes",
+    tag = "notifications",
+    responses((status = 200, description = "Route created")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn create_route(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     headers: HeaderMap,
@@ -416,7 +452,18 @@ async fn create_route(
 /// `PUT /api/v2/notifications/routes/:route_id` — replace an existing
 /// route. Returns 404 if no row matched the id (Python checks the row count
 /// via `res.endswith("0")`; we use the cleaner `rows_affected`).
-async fn update_route(
+#[utoipa::path(
+    put,
+    path = "/api/v2/notifications/routes/{route_id}",
+    tag = "notifications",
+    params(("route_id" = i64, Path, description = "Route id")),
+    responses(
+        (status = 200, description = "Route updated"),
+        (status = 404, description = "Not found"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn update_route(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(route_id): Path<i64>,
@@ -451,7 +498,15 @@ async fn update_route(
 
 /// `DELETE /api/v2/notifications/routes/:route_id` — drop a route. Always
 /// returns 200/ok per Python's behaviour (no 404 on missing rows).
-async fn delete_route(
+#[utoipa::path(
+    delete,
+    path = "/api/v2/notifications/routes/{route_id}",
+    tag = "notifications",
+    params(("route_id" = i64, Path, description = "Route id")),
+    responses((status = 200, description = "Route deleted")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn delete_route(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(route_id): Path<i64>,
@@ -511,7 +566,14 @@ struct ListDeliveriesQuery {
 /// `GET /api/v2/notifications/deliveries` — owner/member only. Optional
 /// `notification_id` filter narrows to one notification's delivery attempts;
 /// otherwise returns the global recent-delivery log.
-async fn list_deliveries(
+#[utoipa::path(
+    get,
+    path = "/api/v2/notifications/deliveries",
+    tag = "notifications",
+    responses((status = 200, description = "Delivery attempts")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn list_deliveries(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Query(q): Query<ListDeliveriesQuery>,

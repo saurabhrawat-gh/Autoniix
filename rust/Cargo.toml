@@ -73,6 +73,10 @@ wiremock = "0.6"
 testcontainers = "0.15"
 testcontainers-modules = { version = "0.3", features = ["postgres"] }
 
+# OpenAPI generation (Story A1 / IM-188)
+utoipa = { version = "4.2", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-axum = "0.1"
+
 [profile.release]
 opt-level = 3
 lto = "thin"

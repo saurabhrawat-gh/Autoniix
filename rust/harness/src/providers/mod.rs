@@ -18,6 +18,7 @@ pub mod anthropic;
 pub mod dalle;
 pub mod fish_audio;
 pub mod gemini;
+pub mod mock_bff;
 pub mod openai;
 pub mod pexels;
 pub mod pixabay;

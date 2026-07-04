@@ -1,0 +1,10 @@
+{
+  "method": "GET",
+  "path": "/api/v2/auth/mode",
+  "request_body": null,
+  "status": 200,
+  "body": {
+    "mode": "email"
+  },
+  "ignore_fields": []
+}

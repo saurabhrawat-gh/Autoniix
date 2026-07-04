@@ -55,6 +55,14 @@ dotenvy.workspace = true
 chrono.workspace = true
 reqwest.workspace = true
 
+# OpenAPI (Story A1 / IM-188)
+utoipa.workspace = true
+utoipa-axum.workspace = true
+
+[[bin]]
+name = "openapi-dump"
+path = "src/bin/openapi_dump.rs"
+
 [dev-dependencies]
 hyper = "1.1"
 criterion = { version = "0.5", features = ["async_tokio"] }

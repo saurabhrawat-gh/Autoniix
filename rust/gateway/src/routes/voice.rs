@@ -47,7 +47,14 @@ struct VoiceItem {
     preview_url: Option<String>,
 }
 
-async fn list_voices(
+#[utoipa::path(
+    get,
+    path = "/api/v2/voice/voices",
+    tag = "voice",
+    responses((status = 200, description = "List of ElevenLabs voices")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn list_voices(
     AuthUser(_principal): AuthUser,
     State(_pool): State<PgPool>,
 ) -> ApiResult<impl IntoResponse> {
@@ -115,7 +122,14 @@ struct PreviewRequest {
     style: Option<f64>,
 }
 
-async fn preview_voice(
+#[utoipa::path(
+    post,
+    path = "/api/v2/voice/preview",
+    tag = "voice",
+    responses((status = 200, description = "Base64-encoded MP3 sample")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn preview_voice(
     AuthUser(_principal): AuthUser,
     State(_pool): State<PgPool>,
     Json(body): Json<PreviewRequest>,

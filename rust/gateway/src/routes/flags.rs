@@ -50,7 +50,14 @@ struct ListFlagsResponse {
 /// `GET /api/v2/flags` — any authenticated user may read the catalog. No
 /// permission gate here matches Python's `Depends(principal_dep)` (i.e. only
 /// requires a valid JWT, no role check).
-async fn list_flags(
+#[utoipa::path(
+    get,
+    path = "/api/v2/flags",
+    tag = "flags",
+    responses((status = 200, description = "Feature flag catalog")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn list_flags(
     AuthUser(_principal): AuthUser,
     State(pool): State<PgPool>,
 ) -> ApiResult<impl IntoResponse> {
@@ -97,7 +104,19 @@ fn require_owner_or_member(principal: &Principal) -> ApiResult<()> {
 /// flag. Returns 404 if the key is unknown (we deliberately do NOT auto-
 /// create rows; the catalog is curated). Audits both the old and new
 /// values so an operator can reconstruct the change history.
-async fn set_flag(
+#[utoipa::path(
+    put,
+    path = "/api/v2/flags/{key}",
+    tag = "flags",
+    params(("key" = String, Path, description = "Flag key")),
+    responses(
+        (status = 200, description = "Flag updated"),
+        (status = 403, description = "Forbidden"),
+        (status = 404, description = "Unknown flag"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn set_flag(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(key): Path<String>,

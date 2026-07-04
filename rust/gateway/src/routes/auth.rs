@@ -1,12 +1,13 @@
 use axum::{
-    extract::State,
+    extract::{Query, State},
     http::{header::SET_COOKIE, HeaderMap, HeaderName, StatusCode},
     response::{AppendHeaders, IntoResponse},
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use axum_extra::{headers::Cookie, TypedHeader};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::{
     auth::{AuthServiceImpl, SignInResult},
@@ -111,18 +112,31 @@ pub fn routes(auth_service: AuthServiceImpl) -> Router {
                 invite_rate_limit,
             )),
         )
+        .route("/api/v2/auth/invite-info", get(invite_info))
+        .route("/api/v2/auth/workspaces", get(list_workspaces))
+        .route("/api/v2/auth/switch-workspace", post(switch_workspace))
+        .route("/api/v2/auth/create-workspace", post(create_workspace))
+        .route("/api/v2/auth/account", delete(delete_account))
         .with_state(auth_service)
 }
 
-#[derive(Debug, Serialize)]
-struct AuthModeResponse {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct AuthModeResponse {
     v2_enabled: bool,
     legacy_enabled: bool,
 }
 
 /// Public endpoint: which auth backends are active. The login UI calls this on
 /// mount. Mirrors Python `GET /auth/mode`.
-async fn auth_mode(State(auth_service): State<AuthServiceImpl>) -> impl IntoResponse {
+#[utoipa::path(
+    get,
+    path = "/api/v2/auth/mode",
+    responses(
+        (status = 200, description = "Active auth backends", body = AuthModeResponse),
+    ),
+    tag = "auth",
+)]
+pub(crate) async fn auth_mode(State(auth_service): State<AuthServiceImpl>) -> impl IntoResponse {
     let (v2_enabled, legacy_enabled) = auth_service.auth_mode().await;
     Json(AuthModeResponse {
         v2_enabled,
@@ -130,22 +144,34 @@ async fn auth_mode(State(auth_service): State<AuthServiceImpl>) -> impl IntoResp
     })
 }
 
-#[derive(Debug, Deserialize)]
-struct UpdateProfileRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct UpdateProfileRequest {
     display_name: Option<String>,
     current_password: Option<String>,
     new_password: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
-struct UpdateProfileResponse {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct UpdateProfileResponse {
     status: String,
     message: String,
 }
 
 /// PUT /api/v2/auth/profile — update display_name and/or password.
 /// Mirrors Python `PUT /auth/profile`.
-async fn update_profile(
+#[utoipa::path(
+    put,
+    path = "/api/v2/auth/profile",
+    request_body = UpdateProfileRequest,
+    responses(
+        (status = 200, description = "Profile updated", body = UpdateProfileResponse),
+        (status = 400, description = "Validation error"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("cookie_auth" = [])),
+    tag = "auth",
+)]
+pub(crate) async fn update_profile(
     State(auth_service): State<AuthServiceImpl>,
     AuthUser(principal): AuthUser,
     Json(req): Json<UpdateProfileRequest>,
@@ -170,18 +196,27 @@ async fn update_profile(
     }))
 }
 
-#[derive(Debug, Deserialize)]
-struct ForgotRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct ForgotRequest {
     email: String,
 }
 
-#[derive(Debug, Serialize)]
-struct StatusResponse {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct StatusResponse {
     status: String,
 }
 
 /// POST /api/v2/auth/forgot — public; never leaks whether email exists.
-async fn forgot_password(
+#[utoipa::path(
+    post,
+    path = "/api/v2/auth/forgot",
+    request_body = ForgotRequest,
+    responses(
+        (status = 200, description = "Accepted (regardless of email existence)", body = StatusResponse),
+    ),
+    tag = "auth",
+)]
+pub(crate) async fn forgot_password(
     State(auth_service): State<AuthServiceImpl>,
     Json(req): Json<ForgotRequest>,
 ) -> Result<Json<StatusResponse>, ApiError> {
@@ -191,15 +226,25 @@ async fn forgot_password(
     }))
 }
 
-#[derive(Debug, Deserialize)]
-struct ResetRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct ResetRequest {
     token: String,
     password: String,
 }
 
 /// POST /api/v2/auth/reset — public; validates the reset token and sets a new
 /// password.
-async fn reset_password(
+#[utoipa::path(
+    post,
+    path = "/api/v2/auth/reset",
+    request_body = ResetRequest,
+    responses(
+        (status = 200, description = "Password reset", body = StatusResponse),
+        (status = 400, description = "Invalid token or weak password"),
+    ),
+    tag = "auth",
+)]
+pub(crate) async fn reset_password(
     State(auth_service): State<AuthServiceImpl>,
     Json(req): Json<ResetRequest>,
 ) -> Result<Json<StatusResponse>, ApiError> {
@@ -216,20 +261,30 @@ async fn reset_password(
     }))
 }
 
-#[derive(Debug, Serialize)]
-struct MfaSetupResponse {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct MfaSetupResponse {
     data: MfaSetupData,
 }
 
-#[derive(Debug, Serialize)]
-struct MfaSetupData {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct MfaSetupData {
     otpauth_url: String,
     secret: String,
 }
 
 /// POST /api/v2/auth/mfa/setup — requires auth; generates a TOTP secret and
 /// returns the otpauth URI.
-async fn mfa_setup(
+#[utoipa::path(
+    post,
+    path = "/api/v2/auth/mfa/setup",
+    responses(
+        (status = 200, description = "TOTP secret and otpauth URI", body = MfaSetupResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("cookie_auth" = [])),
+    tag = "auth",
+)]
+pub(crate) async fn mfa_setup(
     State(auth_service): State<AuthServiceImpl>,
     AuthUser(principal): AuthUser,
 ) -> Result<Json<MfaSetupResponse>, ApiError> {
@@ -246,14 +301,26 @@ async fn mfa_setup(
     }))
 }
 
-#[derive(Debug, Deserialize)]
-struct MfaVerifyRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct MfaVerifyRequest {
     code: String,
 }
 
 /// POST /api/v2/auth/mfa/verify — requires auth; verifies the TOTP code and
 /// enables MFA.
-async fn mfa_verify(
+#[utoipa::path(
+    post,
+    path = "/api/v2/auth/mfa/verify",
+    request_body = MfaVerifyRequest,
+    responses(
+        (status = 200, description = "MFA enabled", body = StatusResponse),
+        (status = 400, description = "Invalid code"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("cookie_auth" = [])),
+    tag = "auth",
+)]
+pub(crate) async fn mfa_verify(
     State(auth_service): State<AuthServiceImpl>,
     AuthUser(principal): AuthUser,
     Json(req): Json<MfaVerifyRequest>,
@@ -268,15 +335,15 @@ async fn mfa_verify(
     }))
 }
 
-#[derive(Debug, Deserialize)]
-struct SignInRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct SignInRequest {
     email: String,
     password: String,
     workspace_id: Option<i64>,
 }
 
-#[derive(Debug, Serialize)]
-struct SignInResponse {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct SignInResponse {
     status: String,
     access_token: String,
     expires_in: i64,
@@ -287,16 +354,16 @@ struct SignInResponse {
 
 /// Signin user object, matching Python `/auth/login` (workspace-scoped `role`,
 /// `workspace_id`).
-#[derive(Debug, Serialize)]
-struct SignInUser {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct SignInUser {
     id: i64,
     email: String,
     role: String,
     workspace_id: Option<i64>,
 }
 
-#[derive(Debug, Deserialize)]
-struct RegisterRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct RegisterRequest {
     email: String,
     password: String,
     display_name: Option<String>,
@@ -305,8 +372,8 @@ struct RegisterRequest {
 
 /// #350: Register response — no tokens (no auto-login). Returns onboarding
 /// metadata only, matching Python `POST /auth/register`.
-#[derive(Debug, Serialize)]
-struct RegisterResponse {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct RegisterResponse {
     status: String,
     user_id: i64,
     workspace_id: i64,
@@ -314,25 +381,25 @@ struct RegisterResponse {
     onboarding_required: bool,
 }
 
-#[derive(Debug, Deserialize)]
-struct RefreshTokenRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct RefreshTokenRequest {
     refresh_token: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
-struct RefreshTokenResponse {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct RefreshTokenResponse {
     status: String,
     access_token: String,
     expires_in: i64,
 }
 
-#[derive(Debug, Deserialize)]
-struct VerifyTokenRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct VerifyTokenRequest {
     token: String,
 }
 
-#[derive(Debug, Serialize)]
-struct VerifyTokenResponse {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct VerifyTokenResponse {
     valid: bool,
     user_id: Option<String>,
     wid: Option<i64>,
@@ -341,7 +408,20 @@ struct VerifyTokenResponse {
     global_role: Option<String>,
 }
 
-async fn sign_in(
+/// POST /api/v2/auth/signin — public; primary login endpoint.
+/// Returns full session tokens + auth cookies on success. For MFA-enabled
+/// accounts, returns a pending token instead and requires /mfa/challenge.
+#[utoipa::path(
+    post,
+    path = "/api/v2/auth/signin",
+    request_body = SignInRequest,
+    responses(
+        (status = 200, description = "Signed in (or MFA required)", body = SignInResponse),
+        (status = 401, description = "Invalid credentials"),
+    ),
+    tag = "auth",
+)]
+pub(crate) async fn sign_in(
     State(auth_service): State<AuthServiceImpl>,
     headers: HeaderMap,
     Json(req): Json<SignInRequest>,
@@ -402,8 +482,8 @@ async fn sign_in(
     }
 }
 
-#[derive(Debug, Deserialize)]
-struct MfaChallengeRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct MfaChallengeRequest {
     mfa_pending_token: String,
     code: String,
 }
@@ -411,7 +491,17 @@ struct MfaChallengeRequest {
 /// POST /api/v2/auth/mfa/challenge — second factor for MFA-enabled accounts.
 /// Accepts the short-lived pending token from /signin plus the TOTP code.
 /// On success: issues full session tokens + auth cookies, identical to /signin.
-async fn mfa_challenge(
+#[utoipa::path(
+    post,
+    path = "/api/v2/auth/mfa/challenge",
+    request_body = MfaChallengeRequest,
+    responses(
+        (status = 200, description = "MFA verified, session issued", body = SignInResponse),
+        (status = 401, description = "Invalid pending token or code"),
+    ),
+    tag = "auth",
+)]
+pub(crate) async fn mfa_challenge(
     State(auth_service): State<AuthServiceImpl>,
     headers: HeaderMap,
     Json(req): Json<MfaChallengeRequest>,
@@ -448,14 +538,25 @@ async fn mfa_challenge(
     ))
 }
 
-#[derive(Debug, Deserialize)]
-struct MfaDisableRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct MfaDisableRequest {
     code: String,
 }
 
 /// POST /api/v2/auth/mfa/disable — requires auth + valid TOTP code.
 /// Disables MFA on the account and clears the stored secret.
-async fn mfa_disable(
+#[utoipa::path(
+    post,
+    path = "/api/v2/auth/mfa/disable",
+    request_body = MfaDisableRequest,
+    responses(
+        (status = 200, description = "MFA disabled", body = StatusResponse),
+        (status = 401, description = "Unauthorized or invalid code"),
+    ),
+    security(("cookie_auth" = [])),
+    tag = "auth",
+)]
+pub(crate) async fn mfa_disable(
     State(auth_service): State<AuthServiceImpl>,
     AuthUser(principal): AuthUser,
     Json(req): Json<MfaDisableRequest>,
@@ -473,7 +574,18 @@ async fn mfa_disable(
 /// POST /api/v2/auth/register — public self-serve signup (#350).
 /// No auto-login: returns onboarding metadata only. The frontend calls
 /// /signin separately after register. Mirrors Python `POST /auth/register`.
-async fn register(
+/// Also mounted at `/api/v2/auth/signup` (alias).
+#[utoipa::path(
+    post,
+    path = "/api/v2/auth/register",
+    request_body = RegisterRequest,
+    responses(
+        (status = 201, description = "Account and workspace created", body = RegisterResponse),
+        (status = 400, description = "Validation error or duplicate email"),
+    ),
+    tag = "auth",
+)]
+pub(crate) async fn register(
     State(auth_service): State<AuthServiceImpl>,
     Json(req): Json<RegisterRequest>,
 ) -> ApiResult<impl IntoResponse> {
@@ -503,8 +615,8 @@ async fn register(
     Ok((StatusCode::CREATED, Json(response)))
 }
 
-#[derive(Debug, Deserialize)]
-struct AcceptInviteRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct AcceptInviteRequest {
     token: String,
     password: Option<String>,
     display_name: Option<String>,
@@ -514,7 +626,18 @@ struct AcceptInviteRequest {
 /// For new users: `password` is required to set credentials.
 /// For existing users: `password` is ignored.
 /// On success: issues full session tokens + auth cookies (auto-login).
-async fn accept_invite(
+#[utoipa::path(
+    post,
+    path = "/api/v2/auth/accept-invite",
+    request_body = AcceptInviteRequest,
+    responses(
+        (status = 200, description = "Invitation accepted, session issued", body = SignInResponse),
+        (status = 400, description = "Invalid token or missing password for new user"),
+        (status = 410, description = "Invitation expired or workspace deleted"),
+    ),
+    tag = "auth",
+)]
+pub(crate) async fn accept_invite(
     State(auth_service): State<AuthServiceImpl>,
     headers: HeaderMap,
     Json(req): Json<AcceptInviteRequest>,
@@ -552,7 +675,19 @@ async fn accept_invite(
     ))
 }
 
-async fn refresh_token(
+/// POST /api/v2/auth/refresh — rotate refresh token and issue new access token.
+/// Reads refresh token from cookie first, then request body.
+#[utoipa::path(
+    post,
+    path = "/api/v2/auth/refresh",
+    request_body = RefreshTokenRequest,
+    responses(
+        (status = 200, description = "New access token issued", body = RefreshTokenResponse),
+        (status = 401, description = "Refresh token missing or invalid"),
+    ),
+    tag = "auth",
+)]
+pub(crate) async fn refresh_token(
     State(auth_service): State<AuthServiceImpl>,
     cookie: Option<TypedHeader<Cookie>>,
     body: Option<Json<RefreshTokenRequest>>,
@@ -578,7 +713,16 @@ async fn refresh_token(
 /// POST /api/v2/auth/verify — Rust-only extension (no Python equivalent).
 /// Lightweight token introspection for SDK clients. Returns `valid: false`
 /// instead of 401 when the token is expired or malformed.
-async fn verify_token(
+#[utoipa::path(
+    post,
+    path = "/api/v2/auth/verify",
+    request_body = VerifyTokenRequest,
+    responses(
+        (status = 200, description = "Token introspection result", body = VerifyTokenResponse),
+    ),
+    tag = "auth",
+)]
+pub(crate) async fn verify_token(
     State(auth_service): State<AuthServiceImpl>,
     Json(req): Json<VerifyTokenRequest>,
 ) -> ApiResult<impl IntoResponse> {
@@ -608,17 +752,29 @@ async fn verify_token(
     }
 }
 
-#[derive(Debug, Deserialize)]
-struct LogoutRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct LogoutRequest {
     refresh_token: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
-struct LogoutResponse {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct LogoutResponse {
     status: String,
 }
 
-async fn logout(
+/// POST /api/v2/auth/logout — revoke refresh token and clear auth cookies.
+#[utoipa::path(
+    post,
+    path = "/api/v2/auth/logout",
+    request_body = LogoutRequest,
+    responses(
+        (status = 200, description = "Logged out", body = LogoutResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("cookie_auth" = [])),
+    tag = "auth",
+)]
+pub(crate) async fn logout(
     _user: AuthUser,
     State(auth_service): State<AuthServiceImpl>,
     cookie: Option<TypedHeader<Cookie>>,
@@ -633,4 +789,125 @@ async fn logout(
     };
 
     Ok((StatusCode::OK, clear_auth_cookies(), Json(response)))
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  Workspace-management auth helpers
+// ─────────────────────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct InviteInfoQuery {
+    token: String,
+}
+
+pub(crate) async fn invite_info(
+    State(auth_service): State<AuthServiceImpl>,
+    Query(q): Query<InviteInfoQuery>,
+) -> ApiResult<impl IntoResponse> {
+    let info = auth_service.invite_info(q.token).await?;
+    Ok(Json(info))
+}
+
+pub(crate) async fn list_workspaces(
+    AuthUser(principal): AuthUser,
+    State(auth_service): State<AuthServiceImpl>,
+) -> ApiResult<impl IntoResponse> {
+    let user_id: i64 = principal.user_id.parse().map_err(|_| ApiError::Unauthorized)?;
+    let data = auth_service.list_workspaces(user_id).await?;
+    Ok(Json(serde_json::json!({ "data": data })))
+}
+
+#[derive(Deserialize)]
+struct SwitchWorkspaceIn {
+    workspace_id: i64,
+}
+
+pub(crate) async fn switch_workspace(
+    AuthUser(principal): AuthUser,
+    State(auth_service): State<AuthServiceImpl>,
+    Json(body): Json<SwitchWorkspaceIn>,
+) -> ApiResult<impl IntoResponse> {
+    let user_id: i64 = principal.user_id.parse().map_err(|_| ApiError::Unauthorized)?;
+    let (access_token, refresh_raw, wid, role) =
+        auth_service.switch_workspace(user_id, body.workspace_id).await?;
+
+    let cookies = AppendHeaders([
+        (
+            HeaderName::from_static("set-cookie"),
+            build_cookie("access_token", &access_token, ACCESS_MAX_AGE, true),
+        ),
+        (
+            HeaderName::from_static("set-cookie"),
+            build_cookie("refresh_token", &refresh_raw, REFRESH_MAX_AGE, true),
+        ),
+        (
+            HeaderName::from_static("set-cookie"),
+            build_cookie("auth_status", "1", ACCESS_MAX_AGE, false),
+        ),
+    ]);
+    Ok((
+        StatusCode::OK,
+        cookies,
+        Json(serde_json::json!({
+            "status": "ok",
+            "workspace_id": wid,
+            "role": role,
+            "access_token": access_token,
+        })),
+    ))
+}
+
+#[derive(Deserialize)]
+struct CreateWorkspaceIn {
+    workspace_name: String,
+}
+
+pub(crate) async fn create_workspace(
+    AuthUser(principal): AuthUser,
+    State(auth_service): State<AuthServiceImpl>,
+    Json(body): Json<CreateWorkspaceIn>,
+) -> ApiResult<impl IntoResponse> {
+    let user_id: i64 = principal.user_id.parse().map_err(|_| ApiError::Unauthorized)?;
+    let (access_token, refresh_raw, wid, role) =
+        auth_service.create_workspace(user_id, body.workspace_name).await?;
+
+    let cookies = AppendHeaders([
+        (
+            HeaderName::from_static("set-cookie"),
+            build_cookie("access_token", &access_token, ACCESS_MAX_AGE, true),
+        ),
+        (
+            HeaderName::from_static("set-cookie"),
+            build_cookie("refresh_token", &refresh_raw, REFRESH_MAX_AGE, true),
+        ),
+        (
+            HeaderName::from_static("set-cookie"),
+            build_cookie("auth_status", "1", ACCESS_MAX_AGE, false),
+        ),
+    ]);
+    Ok((
+        StatusCode::CREATED,
+        cookies,
+        Json(serde_json::json!({
+            "status": "ok",
+            "workspace_id": wid,
+            "role": role,
+            "access_token": access_token,
+        })),
+    ))
+}
+
+#[derive(Deserialize)]
+struct DeleteAccountIn {
+    password: String,
+}
+
+pub(crate) async fn delete_account(
+    AuthUser(principal): AuthUser,
+    State(auth_service): State<AuthServiceImpl>,
+    Json(body): Json<DeleteAccountIn>,
+) -> ApiResult<impl IntoResponse> {
+    let user_id: i64 = principal.user_id.parse().map_err(|_| ApiError::Unauthorized)?;
+    auth_service.delete_account(user_id, body.password).await?;
+    Ok((StatusCode::OK, clear_auth_cookies(), Json(serde_json::json!({ "status": "ok" }))))
 }

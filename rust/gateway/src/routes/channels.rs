@@ -413,7 +413,14 @@ fn bff_base() -> String {
     std::env::var("PYTHON_BFF_URL").unwrap_or_else(|_| "http://localhost:8020".to_string())
 }
 
-async fn list_channels(
+#[utoipa::path(
+    get,
+    path = "/api/v2/channels",
+    tag = "channels",
+    responses((status = 200, description = "List of channels")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn list_channels(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Query(q): Query<ListChannelsQuery>,
@@ -609,8 +616,15 @@ async fn enrich_channel_list(pool: &PgPool, channels: &mut [Value]) {
     }
 }
 
-async fn list_presets(
-    AuthUser(_): AuthUser,
+#[utoipa::path(
+    get,
+    path = "/api/v2/channels/presets",
+    tag = "channels",
+    responses((status = 200, description = "Channel preset templates")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn list_presets(
+    AuthUser(_principal): AuthUser,
     State(pool): State<PgPool>,
 ) -> ApiResult<impl IntoResponse> {
     let rows = sqlx::query(
@@ -637,7 +651,14 @@ async fn list_presets(
     Ok((StatusCode::OK, Json(json!({"data": data}))))
 }
 
-async fn get_stats(
+#[utoipa::path(
+    get,
+    path = "/api/v2/channels/stats",
+    tag = "channels",
+    responses((status = 200, description = "Aggregate channel stats")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn get_stats(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
 ) -> ApiResult<impl IntoResponse> {
@@ -722,7 +743,17 @@ async fn get_stats(
     ))
 }
 
-async fn create_channel(
+#[utoipa::path(
+    post,
+    path = "/api/v2/channels",
+    tag = "channels",
+    responses(
+        (status = 200, description = "Channel created"),
+        (status = 400, description = "Validation error"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn create_channel(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     headers: HeaderMap,
@@ -1043,7 +1074,18 @@ async fn create_channel(
     ))
 }
 
-async fn get_channel(
+#[utoipa::path(
+    get,
+    path = "/api/v2/channels/{channel_id}",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses(
+        (status = 200, description = "Channel detail"),
+        (status = 404, description = "Channel not found"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn get_channel(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -1161,7 +1203,18 @@ async fn get_channel(
     ))
 }
 
-async fn patch_channel(
+#[utoipa::path(
+    put,
+    path = "/api/v2/channels/{channel_id}",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses(
+        (status = 200, description = "Channel patched"),
+        (status = 404, description = "Channel not found"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn patch_channel(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -1307,7 +1360,15 @@ async fn patch_channel(
     Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
 }
 
-async fn upsert_profile(
+#[utoipa::path(
+    put,
+    path = "/api/v2/channels/{channel_id}/profile",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses((status = 200, description = "Profile upserted")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn upsert_profile(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -1398,7 +1459,15 @@ async fn set_channel_status(
     Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
 }
 
-async fn enable_channel(
+#[utoipa::path(
+    put,
+    path = "/api/v2/channels/{channel_id}/enable",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses((status = 200, description = "Channel enabled")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn enable_channel(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -1417,7 +1486,15 @@ async fn enable_channel(
     .await
 }
 
-async fn disable_channel(
+#[utoipa::path(
+    put,
+    path = "/api/v2/channels/{channel_id}/disable",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses((status = 200, description = "Channel disabled")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn disable_channel(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -1436,7 +1513,15 @@ async fn disable_channel(
     .await
 }
 
-async fn archive_channel(
+#[utoipa::path(
+    put,
+    path = "/api/v2/channels/{channel_id}/archive",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses((status = 200, description = "Channel archived")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn archive_channel(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -1455,7 +1540,15 @@ async fn archive_channel(
     .await
 }
 
-async fn restore_channel(
+#[utoipa::path(
+    put,
+    path = "/api/v2/channels/{channel_id}/restore",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses((status = 200, description = "Channel restored")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn restore_channel(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -1474,7 +1567,19 @@ async fn restore_channel(
     .await
 }
 
-async fn delete_channel(
+#[utoipa::path(
+    delete,
+    path = "/api/v2/channels/{channel_id}",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses(
+        (status = 200, description = "Channel deleted"),
+        (status = 403, description = "Forbidden"),
+        (status = 404, description = "Channel not found"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn delete_channel(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -1591,7 +1696,15 @@ async fn delete_channel(
     ))
 }
 
-async fn add_pillar(
+#[utoipa::path(
+    post,
+    path = "/api/v2/channels/{channel_id}/pillars",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses((status = 200, description = "Pillar added")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn add_pillar(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -1628,7 +1741,18 @@ async fn add_pillar(
     Ok((StatusCode::OK, Json(json!({"status": "ok", "id": pid}))))
 }
 
-async fn update_pillar(
+#[utoipa::path(
+    put,
+    path = "/api/v2/channels/{channel_id}/pillars/{pillar_id}",
+    tag = "channels",
+    params(
+        ("channel_id" = String, Path, description = "Channel id"),
+        ("pillar_id" = i64, Path, description = "Pillar id"),
+    ),
+    responses((status = 200, description = "Pillar updated")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn update_pillar(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path((channel_id, pillar_id)): Path<(String, i64)>,
@@ -1671,7 +1795,18 @@ async fn update_pillar(
     Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
 }
 
-async fn delete_pillar(
+#[utoipa::path(
+    delete,
+    path = "/api/v2/channels/{channel_id}/pillars/{pillar_id}",
+    tag = "channels",
+    params(
+        ("channel_id" = String, Path, description = "Channel id"),
+        ("pillar_id" = i64, Path, description = "Pillar id"),
+    ),
+    responses((status = 200, description = "Pillar deleted")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn delete_pillar(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path((channel_id, pillar_id)): Path<(String, i64)>,
@@ -1703,7 +1838,15 @@ async fn delete_pillar(
     Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
 }
 
-async fn add_topic_rule(
+#[utoipa::path(
+    post,
+    path = "/api/v2/channels/{channel_id}/topic-rules",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses((status = 200, description = "Topic rule added")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn add_topic_rule(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -1742,7 +1885,18 @@ async fn add_topic_rule(
     Ok((StatusCode::OK, Json(json!({"status": "ok", "id": rid}))))
 }
 
-async fn delete_topic_rule(
+#[utoipa::path(
+    delete,
+    path = "/api/v2/channels/{channel_id}/topic-rules/{rule_id}",
+    tag = "channels",
+    params(
+        ("channel_id" = String, Path, description = "Channel id"),
+        ("rule_id" = i64, Path, description = "Topic rule id"),
+    ),
+    responses((status = 200, description = "Topic rule deleted")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn delete_topic_rule(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path((channel_id, rule_id)): Path<(String, i64)>,
@@ -1778,7 +1932,15 @@ async fn delete_topic_rule(
     Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
 }
 
-async fn add_reference(
+#[utoipa::path(
+    post,
+    path = "/api/v2/channels/{channel_id}/references",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses((status = 200, description = "Reference added")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn add_reference(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -1816,7 +1978,18 @@ async fn add_reference(
     Ok((StatusCode::OK, Json(json!({"status": "ok", "id": rid}))))
 }
 
-async fn delete_reference(
+#[utoipa::path(
+    delete,
+    path = "/api/v2/channels/{channel_id}/references/{ref_id}",
+    tag = "channels",
+    params(
+        ("channel_id" = String, Path, description = "Channel id"),
+        ("ref_id" = i64, Path, description = "Reference id"),
+    ),
+    responses((status = 200, description = "Reference deleted")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn delete_reference(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path((channel_id, ref_id)): Path<(String, i64)>,
@@ -1848,7 +2021,15 @@ async fn delete_reference(
     Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
 }
 
-async fn add_memory(
+#[utoipa::path(
+    post,
+    path = "/api/v2/channels/{channel_id}/memory",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses((status = 200, description = "Memory entry added")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn add_memory(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -1883,7 +2064,14 @@ async fn add_memory(
     Ok((StatusCode::OK, Json(json!({"status": "ok", "id": mid}))))
 }
 
-async fn create_draft(
+#[utoipa::path(
+    post,
+    path = "/api/v2/channels/drafts",
+    tag = "channels",
+    responses((status = 200, description = "Draft created")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn create_draft(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Json(body): Json<DraftIn>,
@@ -1904,7 +2092,15 @@ async fn create_draft(
     Ok((StatusCode::OK, Json(json!({"status": "ok", "id": did}))))
 }
 
-async fn save_draft(
+#[utoipa::path(
+    put,
+    path = "/api/v2/channels/drafts/{draft_id}",
+    tag = "channels",
+    params(("draft_id" = i64, Path, description = "Draft id")),
+    responses((status = 200, description = "Draft saved")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn save_draft(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(draft_id): Path<i64>,
@@ -1932,7 +2128,18 @@ async fn save_draft(
     Ok((StatusCode::OK, Json(json!({"status": "ok"}))))
 }
 
-async fn get_draft(
+#[utoipa::path(
+    get,
+    path = "/api/v2/channels/drafts/{draft_id}",
+    tag = "channels",
+    params(("draft_id" = i64, Path, description = "Draft id")),
+    responses(
+        (status = 200, description = "Draft detail"),
+        (status = 404, description = "Draft not found"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn get_draft(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(draft_id): Path<i64>,
@@ -1961,7 +2168,15 @@ async fn get_draft(
     ))
 }
 
-async fn list_pillars(
+#[utoipa::path(
+    get,
+    path = "/api/v2/channels/{channel_id}/pillars",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses((status = 200, description = "Channel pillars")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn list_pillars(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -2000,7 +2215,15 @@ async fn list_pillars(
     Ok((StatusCode::OK, Json(json!({"data": data}))))
 }
 
-async fn list_topic_rules(
+#[utoipa::path(
+    get,
+    path = "/api/v2/channels/{channel_id}/topic-rules",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses((status = 200, description = "Channel topic rules")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn list_topic_rules(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -2038,7 +2261,15 @@ async fn list_topic_rules(
     Ok((StatusCode::OK, Json(json!({"data": data}))))
 }
 
-async fn list_references(
+#[utoipa::path(
+    get,
+    path = "/api/v2/channels/{channel_id}/references",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses((status = 200, description = "Channel references")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn list_references(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -2078,7 +2309,15 @@ async fn list_references(
     Ok((StatusCode::OK, Json(json!({"data": data}))))
 }
 
-async fn list_memory(
+#[utoipa::path(
+    get,
+    path = "/api/v2/channels/{channel_id}/memory",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses((status = 200, description = "Channel memory entries")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn list_memory(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -2116,7 +2355,14 @@ async fn list_memory(
     Ok((StatusCode::OK, Json(json!({"data": data}))))
 }
 
-async fn list_drafts(
+#[utoipa::path(
+    get,
+    path = "/api/v2/channels/drafts",
+    tag = "channels",
+    responses((status = 200, description = "User drafts")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn list_drafts(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
 ) -> ApiResult<impl IntoResponse> {
@@ -2146,7 +2392,15 @@ async fn list_drafts(
     Ok((StatusCode::OK, Json(json!({"data": data}))))
 }
 
-async fn export_channel(
+#[utoipa::path(
+    get,
+    path = "/api/v2/channels/{channel_id}/export",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses((status = 200, description = "Channel export payload")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn export_channel(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -2242,8 +2496,15 @@ async fn export_channel(
     ))
 }
 
-async fn field_suggest(
-    AuthUser(_): AuthUser,
+#[utoipa::path(
+    post,
+    path = "/api/v2/channels/ai/field-suggest",
+    tag = "channels",
+    responses((status = 200, description = "AI field suggestions")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn field_suggest(
+    AuthUser(_principal): AuthUser,
     Json(body): Json<FieldSuggestIn>,
 ) -> ApiResult<impl IntoResponse> {
     let niche = body
@@ -2348,7 +2609,15 @@ async fn proxy_put(
     Ok((status, Json(body)))
 }
 
-async fn proxy_trigger(
+#[utoipa::path(
+    post,
+    path = "/api/v2/channels/{channel_id}/trigger",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses((status = 200, description = "Channel workflow triggered")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn proxy_trigger(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -2411,7 +2680,15 @@ async fn proxy_trigger(
     Ok(result)
 }
 
-async fn proxy_clone(
+#[utoipa::path(
+    post,
+    path = "/api/v2/channels/{channel_id}/clone",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses((status = 200, description = "Channel cloned")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn proxy_clone(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -2436,7 +2713,18 @@ async fn proxy_clone(
     Ok(result)
 }
 
-async fn proxy_pause_job(
+#[utoipa::path(
+    post,
+    path = "/api/v2/channels/{channel_id}/jobs/{content_id}/pause",
+    tag = "channels",
+    params(
+        ("channel_id" = String, Path, description = "Channel id"),
+        ("content_id" = String, Path, description = "Content/job id"),
+    ),
+    responses((status = 200, description = "Job paused")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn proxy_pause_job(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path((channel_id, content_id)): Path<(String, String)>,
@@ -2464,7 +2752,18 @@ async fn proxy_pause_job(
     Ok(result)
 }
 
-async fn proxy_resume_job(
+#[utoipa::path(
+    post,
+    path = "/api/v2/channels/{channel_id}/jobs/{content_id}/resume",
+    tag = "channels",
+    params(
+        ("channel_id" = String, Path, description = "Channel id"),
+        ("content_id" = String, Path, description = "Content/job id"),
+    ),
+    responses((status = 200, description = "Job resumed")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn proxy_resume_job(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path((channel_id, content_id)): Path<(String, String)>,
@@ -2492,7 +2791,18 @@ async fn proxy_resume_job(
     Ok(result)
 }
 
-async fn proxy_stop_job(
+#[utoipa::path(
+    post,
+    path = "/api/v2/channels/{channel_id}/jobs/{content_id}/stop",
+    tag = "channels",
+    params(
+        ("channel_id" = String, Path, description = "Channel id"),
+        ("content_id" = String, Path, description = "Content/job id"),
+    ),
+    responses((status = 200, description = "Job stopped")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn proxy_stop_job(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path((channel_id, content_id)): Path<(String, String)>,
@@ -2520,8 +2830,16 @@ async fn proxy_stop_job(
     Ok(result)
 }
 
-async fn proxy_get_brand_kit(
-    AuthUser(_): AuthUser,
+#[utoipa::path(
+    get,
+    path = "/api/v2/channels/{channel_id}/brand-kit",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses((status = 200, description = "Bound brand kit")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn proxy_get_brand_kit(
+    AuthUser(_principal): AuthUser,
     Path(channel_id): Path<String>,
     headers: HeaderMap,
 ) -> ApiResult<impl IntoResponse> {
@@ -2533,7 +2851,15 @@ async fn proxy_get_brand_kit(
     proxy_get(&url, auth.as_deref()).await
 }
 
-async fn proxy_put_brand_kit(
+#[utoipa::path(
+    put,
+    path = "/api/v2/channels/{channel_id}/brand-kit",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses((status = 200, description = "Brand kit bound to channel")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn proxy_put_brand_kit(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -2570,7 +2896,18 @@ struct ResolveConfigQuery {
     content_mode: Option<String>,
 }
 
-async fn resolve_config(
+#[utoipa::path(
+    get,
+    path = "/api/v2/channels/{channel_id}/resolve-config",
+    tag = "channels",
+    params(("channel_id" = String, Path, description = "Channel id")),
+    responses(
+        (status = 200, description = "Resolved config with provenance"),
+        (status = 404, description = "Channel not found"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn resolve_config(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(channel_id): Path<String>,
@@ -2641,7 +2978,14 @@ struct ResolveChainQuery {
     channel_id: Option<String>,
 }
 
-async fn resolve_provider_chain(
+#[utoipa::path(
+    get,
+    path = "/api/v2/workspace/resolve-provider-chain",
+    tag = "channels",
+    responses((status = 200, description = "Resolved provider chain")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn resolve_provider_chain(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Query(q): Query<ResolveChainQuery>,
