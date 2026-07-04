@@ -41,7 +41,7 @@ pub async fn create_app(pool: sqlx::PgPool, jwt_secret: String) -> Router {
         .merge(routes::jobs::routes(pool.clone()))
         .merge(routes::content::routes())
         .merge(routes::library::routes(pool.clone()))
-        .merge(routes::review::routes())
+        .merge(routes::review::routes(pool.clone()))
         .merge(routes::finishing::routes())
         .merge(routes::experiments::routes())
         .layer(axum_middleware::from_fn(
