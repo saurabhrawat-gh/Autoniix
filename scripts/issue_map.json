@@ -1,7 +1,7 @@
 {
   "_comment": "GitHub ↔ Jira issue mapping for cross-system sync",
-  "_updated": "2026-07-04T16:37Z",
-  "_note": "Phase A (A1-A7) fully shipped to main. Phase B proxy routes + auth workspace routes shipped. B1 (providers.rs, 49 endpoints) merged to develop — ready to deploy.",
+  "_updated": "2026-07-07T00:00Z",
+  "_note": "Phase A (A1-A7) fully shipped to main. Phase B proxy routes + auth workspace routes shipped. B1 (providers.rs), B3 (library cluster) merged to develop — ready to deploy.",
   "mappings": {
     "638": { "jira": "AE-571", "status": "open",   "title": "Epic: Multi-Language Backend Migration" },
     "643": { "jira": "AE-572", "status": "done",   "title": "/me response alignment" },
@@ -51,7 +51,7 @@
     "712": { "jira": "IM-195", "status": "open", "title": "[Phase B] Epic — Rust migration completion (replace Python v2 thin proxies)" },
     "713": { "jira": "IM-196", "status": "ready-to-deploy", "title": "[Phase B] B1 — Native Rust implementation of providers.py (49 endpoints)" },
     "714": { "jira": "IM-197", "status": "open", "title": "[Phase B] B2 — Native Rust implementation of workspace remainder endpoints" },
-    "715": { "jira": "IM-198", "status": "open", "title": "[Phase B] B3 — Native Rust implementation of library cluster (~27 endpoints)" },
+    "715": { "jira": "IM-198", "status": "ready-to-deploy", "title": "[Phase B] B3 — Native Rust implementation of library cluster (~27 endpoints)" },
     "716": { "jira": "IM-199", "status": "open", "title": "[Phase B] B4 — Native Rust implementation of jobs.py (~11 endpoints)" },
     "717": { "jira": "IM-200", "status": "open", "title": "[Phase B] B5 — Native Rust implementation of review cluster (~14 endpoints)" },
     "718": { "jira": "IM-201", "status": "open", "title": "[Phase B] B6 — Native Rust implementation of content/finishing/experiments cluster (~33 endpoints)" }
