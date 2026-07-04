@@ -1200,8 +1200,7 @@ impl AuthServiceImpl {
         )
         .fetch_optional(&self.pool)
         .await
-        .map_err(ApiError::Database)?
-        .flatten();
+        .map_err(ApiError::Database)?;
 
         Ok(serde_json::json!({
             "email": invite.email,

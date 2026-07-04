@@ -36,8 +36,8 @@ pub async fn create_app(pool: sqlx::PgPool, jwt_secret: String) -> Router {
         .merge(routes::lookup_values::routes(pool.clone()))
         .merge(routes::voice::routes(pool.clone()))
         .merge(routes::workspace::routes(pool.clone()))
-        // ── Phase B proxy routes ───────────────────────────────────────────
-        .merge(routes::providers::routes())
+        // ── Phase B routes ─────────────────────────────────────────────────
+        .merge(routes::providers::routes(pool.clone()))
         .merge(routes::jobs::routes())
         .merge(routes::content::routes())
         .merge(routes::library::routes())

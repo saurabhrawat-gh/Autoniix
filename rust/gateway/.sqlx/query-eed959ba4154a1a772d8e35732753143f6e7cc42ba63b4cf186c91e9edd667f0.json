@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE workspaces\n              SET name = COALESCE($1, name),\n                  timezone = COALESCE($2, timezone),\n                  logo_url = COALESCE($3, logo_url),\n                  monthly_budget_usd = COALESCE($4::float8, monthly_budget_usd),\n                  updated_at = NOW()\n            WHERE id = $5",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Text",
+        "Float8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "eed959ba4154a1a772d8e35732753143f6e7cc42ba63b4cf186c91e9edd667f0"
+}

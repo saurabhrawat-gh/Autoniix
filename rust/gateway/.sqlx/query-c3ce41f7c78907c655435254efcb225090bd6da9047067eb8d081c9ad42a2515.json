@@ -1,0 +1,127 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, category, provider_name, label, vault_path, extra_config,\n                  model, is_default_fallback, channel_id, content_mode, scope_priority,\n                  workspace_id, enabled, last_health_ok, last_health_at, last_latency_ms,\n                  rotated_at, created_at\n             FROM provider_credentials\n            WHERE workspace_id = $1\n              AND ($2::text IS NULL OR category = $2)\n              AND ($3::text IS NULL OR channel_id = $3)\n              AND ($4::text IS NULL OR content_mode = $4)\n            ORDER BY category, scope_priority DESC NULLS LAST, id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "category",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "provider_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "label",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "vault_path",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "extra_config",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 6,
+        "name": "model",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "is_default_fallback",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "channel_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 9,
+        "name": "content_mode",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 10,
+        "name": "scope_priority",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 11,
+        "name": "workspace_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 13,
+        "name": "last_health_ok",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 14,
+        "name": "last_health_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 15,
+        "name": "last_latency_ms",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 16,
+        "name": "rotated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "c3ce41f7c78907c655435254efcb225090bd6da9047067eb8d081c9ad42a2515"
+}
