@@ -1,7 +1,7 @@
 {
   "_comment": "GitHub ↔ Jira issue mapping for cross-system sync",
-  "_updated": "2026-07-04T14:10Z",
-  "_note": "Phase A (A1-A7) fully shipped to main. Phase B proxy routes + auth workspace routes shipped.",
+  "_updated": "2026-07-04T16:37Z",
+  "_note": "Phase A (A1-A7) fully shipped to main. Phase B proxy routes + auth workspace routes shipped. B1 (providers.rs, 49 endpoints) merged to develop — ready to deploy.",
   "mappings": {
     "638": { "jira": "AE-571", "status": "open",   "title": "Epic: Multi-Language Backend Migration" },
     "643": { "jira": "AE-572", "status": "done",   "title": "/me response alignment" },
@@ -49,6 +49,6 @@
     "710": { "jira": "IM-193", "status": "done", "title": "[Harness] A6 — Criterion benchmarks + 10% perf-regression gate" },
     "711": { "jira": "IM-194", "status": "done", "title": "[Harness] A7 — Go harness template (forward-looking for Phase C G0)" },
     "712": { "jira": "IM-195", "status": "open", "title": "[Phase B] Epic — Rust migration completion (replace Python v2 thin proxies)" },
-    "713": { "jira": "IM-196", "status": "open", "title": "[Phase B] B1 — Native Rust implementation of providers.py (49 endpoints)" }
+    "713": { "jira": "IM-196", "status": "ready-to-deploy", "title": "[Phase B] B1 — Native Rust implementation of providers.py (49 endpoints)" }
   }
 }
