@@ -1,7 +1,7 @@
 {
   "_comment": "GitHub ↔ Jira issue mapping for cross-system sync",
-  "_updated": "2026-07-04",
-  "_note": "H.1-H.4 = Harness Phase 0 stories (all code pre-existing, tickets retroactively filed and closed)",
+  "_updated": "2026-07-04T14:10Z",
+  "_note": "Phase A (A1-A7) fully shipped to main. Phase B proxy routes + auth workspace routes shipped.",
   "mappings": {
     "638": { "jira": "AE-571", "status": "open",   "title": "Epic: Multi-Language Backend Migration" },
     "643": { "jira": "AE-572", "status": "done",   "title": "/me response alignment" },
@@ -40,13 +40,13 @@
     "696": { "jira": "IM-178", "status": "in-progress", "title": "Core1: MFA frontend UI — setup wizard, verification prompt, and disable flow" },
     "697": { "jira": "IM-182", "status": "in-progress", "title": "Core1: Notify all workspace members by email on deletion initiation and before hard-delete" },
     "698": { "jira": "IM-183", "status": "in-progress", "title": "Core1: Orphaned user protection — user with zero remaining workspaces after deletion" },
-    "704": { "jira": "IM-187", "status": "open", "title": "[Harness] Phase A — Complete migration harness infrastructure (Epic)" },
-    "705": { "jira": "IM-188", "status": "open", "title": "[Harness] A1 — OpenAPI schema generation from Rust gateway routes (utoipa)" },
-    "706": { "jira": "IM-189", "status": "open", "title": "[Harness] A2 — Provider-mock injection into gateway (PROVIDER_MODE=mock)" },
-    "707": { "jira": "IM-190", "status": "open", "title": "[Harness] A3 — Reusable GatewayHarness fixture for Rust integration tests" },
-    "708": { "jira": "IM-191", "status": "open", "title": "[Harness] A4 — Golden-file regression suite (Python v2 ↔ Rust equivalence for 74 endpoints)" },
-    "709": { "jira": "IM-192", "status": "open", "title": "[Harness] A5 — CI blocking gate: equivalence workflow + required check" },
-    "710": { "jira": "IM-193", "status": "open", "title": "[Harness] A6 — Criterion benchmarks + 10% perf-regression gate" },
-    "711": { "jira": "IM-194", "status": "open", "title": "[Harness] A7 — Go harness template (forward-looking for Phase C G0)" }
+    "704": { "jira": "IM-187", "status": "done", "title": "[Harness] Phase A — Complete migration harness infrastructure (Epic)" },
+    "705": { "jira": "IM-188", "status": "done", "title": "[Harness] A1 — OpenAPI schema generation from Rust gateway routes (utoipa)" },
+    "706": { "jira": "IM-189", "status": "done", "title": "[Harness] A2 — Provider-mock injection into gateway (PROVIDER_MODE=mock)" },
+    "707": { "jira": "IM-190", "status": "done", "title": "[Harness] A3 — Reusable GatewayHarness fixture for Rust integration tests" },
+    "708": { "jira": "IM-191", "status": "done", "title": "[Harness] A4 — Golden-file regression suite (Python v2 ↔ Rust equivalence for 74 endpoints)" },
+    "709": { "jira": "IM-192", "status": "done", "title": "[Harness] A5 — CI blocking gate: equivalence workflow + required check" },
+    "710": { "jira": "IM-193", "status": "done", "title": "[Harness] A6 — Criterion benchmarks + 10% perf-regression gate" },
+    "711": { "jira": "IM-194", "status": "done", "title": "[Harness] A7 — Go harness template (forward-looking for Phase C G0)" }
   }
 }
