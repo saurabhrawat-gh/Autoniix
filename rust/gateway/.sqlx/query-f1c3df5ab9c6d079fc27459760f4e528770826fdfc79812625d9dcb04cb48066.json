@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT unnest(tags) AS \"tag!\"\n             FROM dam_assets\n            WHERE scope = $1\n              AND deleted_at IS NULL\n              AND ($2::text IS NULL OR scope_id = $2)\n            ORDER BY 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tag!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "f1c3df5ab9c6d079fc27459760f4e528770826fdfc79812625d9dcb04cb48066"
+}
