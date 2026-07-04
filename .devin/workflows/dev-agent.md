@@ -24,6 +24,7 @@ If the user invoked this workflow with a Jira key (e.g. `/dev-agent IM-227`, or 
 
 1. **Resolve the Jira key to a GitHub issue number** via reverse-lookup in `scripts/issue_map.json`:
    ```bash
+   # turbo
    python3 -c "import json; m={v:int(k) for k,v in json.load(open('scripts/issue_map.json')).items()}; print(m['IM-227'])"
    ```
 2. **If no mapping found** → STOP. Report to the user: "IM-XXX has no GitHub mirror. Create the GitHub mirror issue first and update `scripts/issue_map.json` before invoking `/dev-agent`."
@@ -154,6 +155,7 @@ git branch -d {branch-name}
 
 **After merge, re-run local CI on develop to confirm no merge conflicts broke anything:**
 ```bash
+# turbo
 bash scripts/ci-local.sh        # CI mirror — always required
 # add --python / --node / --go / --proto / --full if relevant to the merge
 ```
@@ -247,6 +249,7 @@ git add -A && git commit -m "hotfix(#N): {short description}"
 
 **GATE: Run local CI first — hotfixes go straight to production, no second chances:**
 ```bash
+# turbo
 bash scripts/ci-local.sh   # run everything — hotfixes touch critical paths
 ```
 Wait for `✅  ALL CI CHECKS PASSED`. If red: fix first. Do NOT push a red hotfix.

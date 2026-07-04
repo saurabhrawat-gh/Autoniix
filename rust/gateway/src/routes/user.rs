@@ -52,7 +52,14 @@ struct CurrentUserData {
     permissions: Vec<String>,
 }
 
-async fn get_current_user(
+#[utoipa::path(
+    get,
+    path = "/api/v2/me",
+    tag = "users",
+    responses((status = 200, description = "Current user profile")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn get_current_user(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
 ) -> ApiResult<impl IntoResponse> {
@@ -135,7 +142,17 @@ struct UserRow {
     workspaces: Value,
 }
 
-async fn list_users(
+#[utoipa::path(
+    get,
+    path = "/api/v2/users",
+    tag = "users",
+    responses(
+        (status = 200, description = "List all users"),
+        (status = 403, description = "Superadmin only"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn list_users(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
 ) -> ApiResult<impl IntoResponse> {
@@ -197,7 +214,20 @@ fn principal_user_id(principal: &crate::middleware::Principal) -> ApiResult<i64>
 /// swap. Caller becomes 'user', target becomes 'superadmin'. Mirrors Python
 /// `v2/users.py::transfer_superadmin` byte-for-byte including the audit
 /// `user.superadmin.transfer` action label.
-async fn transfer_superadmin(
+#[utoipa::path(
+    post,
+    path = "/api/v2/users/transfer-superadmin/{target_user_id}",
+    tag = "users",
+    params(("target_user_id" = i64, Path, description = "Target user id")),
+    responses(
+        (status = 200, description = "Superadmin transferred"),
+        (status = 403, description = "Superadmin only"),
+        (status = 404, description = "Target not found"),
+        (status = 409, description = "Target disabled or already superadmin"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn transfer_superadmin(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(target_user_id): Path<i64>,
@@ -265,7 +295,19 @@ async fn transfer_superadmin(
 
 /// `PUT /api/v2/users/:user_id/disable` — disable a user account and revoke
 /// all active sessions. Mirrors Python `v2/users.py::disable_user`.
-async fn disable_user(
+#[utoipa::path(
+    put,
+    path = "/api/v2/users/{user_id}/disable",
+    tag = "users",
+    params(("user_id" = i64, Path, description = "User id")),
+    responses(
+        (status = 200, description = "User disabled"),
+        (status = 403, description = "Superadmin only"),
+        (status = 404, description = "User not found"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn disable_user(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(user_id): Path<i64>,
@@ -324,7 +366,18 @@ async fn disable_user(
 
 /// `PUT /api/v2/users/:user_id/enable` — re-enable a previously-disabled user.
 /// Mirrors Python `v2/users.py::enable_user`. Idempotent.
-async fn enable_user(
+#[utoipa::path(
+    put,
+    path = "/api/v2/users/{user_id}/enable",
+    tag = "users",
+    params(("user_id" = i64, Path, description = "User id")),
+    responses(
+        (status = 200, description = "User enabled"),
+        (status = 403, description = "Superadmin only"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn enable_user(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(user_id): Path<i64>,
@@ -356,7 +409,19 @@ async fn enable_user(
 /// workspace memberships, and rewrites the user row with a sentinel email so
 /// the unique-email constraint remains satisfied while the row is preserved
 /// for audit history.
-async fn delete_user(
+#[utoipa::path(
+    delete,
+    path = "/api/v2/users/{user_id}",
+    tag = "users",
+    params(("user_id" = i64, Path, description = "User id")),
+    responses(
+        (status = 200, description = "User tombstoned"),
+        (status = 403, description = "Superadmin only"),
+        (status = 404, description = "User not found"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn delete_user(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(user_id): Path<i64>,
@@ -450,7 +515,14 @@ struct SessionItem {
 
 /// `GET /api/v2/me/sessions` — list all active (non-revoked, non-rotated,
 /// non-expired) sessions for the authenticated user.
-async fn list_sessions(
+#[utoipa::path(
+    get,
+    path = "/api/v2/me/sessions",
+    tag = "users",
+    responses((status = 200, description = "Active sessions")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn list_sessions(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
 ) -> ApiResult<impl IntoResponse> {
@@ -500,7 +572,19 @@ async fn list_sessions(
 
 /// `DELETE /api/v2/me/sessions/:session_id` — revoke a specific session.
 /// Returns 403 if the session does not belong to the authenticated user.
-async fn revoke_session(
+#[utoipa::path(
+    delete,
+    path = "/api/v2/me/sessions/{session_id}",
+    tag = "users",
+    params(("session_id" = i64, Path, description = "Session id")),
+    responses(
+        (status = 200, description = "Session revoked"),
+        (status = 403, description = "Not the session owner"),
+        (status = 404, description = "Session not found"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn revoke_session(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Path(session_id): Path<i64>,

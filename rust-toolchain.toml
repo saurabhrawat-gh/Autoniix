@@ -1,6 +1,10 @@
 [toolchain]
 # Pinned to match versions.env RUST_VERSION.
-channel = "1.83.0"
+# Bumped to 1.88 because the transitive dep graph (time-macros 0.2.29,
+# idna_adapter, home 0.5.12, clap_lex 1.1.0, etc.) now requires edition2024
+# which was stabilized in Rust 1.85. Some crates also declare
+# rust-version = "1.88.0", so 1.88 is the safe minimum.
+channel = "1.88.0"
 components = ["clippy", "rustfmt"]
 targets = ["x86_64-unknown-linux-gnu"]
 profile = "minimal"

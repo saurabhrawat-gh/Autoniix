@@ -197,7 +197,14 @@ struct ListConfigResponse {
 }
 
 /// `GET /api/v2/system/config` — any authenticated user may read.
-async fn get_config(
+#[utoipa::path(
+    get,
+    path = "/api/v2/system/config",
+    tag = "system",
+    responses((status = 200, description = "System config rows")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn get_config(
     AuthUser(_principal): AuthUser,
     State(pool): State<PgPool>,
 ) -> ApiResult<impl IntoResponse> {
@@ -245,7 +252,18 @@ struct ConfigUpdateResponse {
 
 /// `PUT /api/v2/system/config` — owner/member only. 404 when the key
 /// doesn't exist (no auto-create — matches Python).
-async fn update_config(
+#[utoipa::path(
+    put,
+    path = "/api/v2/system/config",
+    tag = "system",
+    responses(
+        (status = 200, description = "Config updated"),
+        (status = 403, description = "Forbidden"),
+        (status = 404, description = "Config key not found"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn update_config(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     headers: HeaderMap,
@@ -296,7 +314,14 @@ async fn update_config(
 
 /// `POST /api/v2/system/emergency-stop` — owner/member. Freezes the system
 /// and pauses all running Temporal workflows via the legacy BFF.
-async fn emergency_stop(
+#[utoipa::path(
+    post,
+    path = "/api/v2/system/emergency-stop",
+    tag = "system",
+    responses((status = 200, description = "Emergency stop applied")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn emergency_stop(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     headers: HeaderMap,
@@ -320,7 +345,14 @@ async fn emergency_stop(
 
 /// `POST /api/v2/system/emergency-resume` — owner/member. Un-freezes the
 /// system + resumes paused Temporal workflows via the legacy BFF.
-async fn emergency_resume(
+#[utoipa::path(
+    post,
+    path = "/api/v2/system/emergency-resume",
+    tag = "system",
+    responses((status = 200, description = "Emergency resume applied")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn emergency_resume(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     headers: HeaderMap,
@@ -350,7 +382,14 @@ async fn emergency_resume(
 
 /// `GET /api/v2/system/fleet-health` — any authed user. Pure proxy; the
 /// legacy BFF aggregates worker liveness/queue depth/etc.
-async fn fleet_health(
+#[utoipa::path(
+    get,
+    path = "/api/v2/system/fleet-health",
+    tag = "system",
+    responses((status = 200, description = "Fleet health snapshot")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn fleet_health(
     AuthUser(_principal): AuthUser,
     headers: HeaderMap,
 ) -> ApiResult<impl IntoResponse> {
@@ -372,7 +411,14 @@ struct EnvironmentResponse {
 /// `GET /api/v2/system/environment` — any authed user. DB override takes
 /// precedence over `ENVIRONMENT_MODE` env var; the default is
 /// `"production"` when neither is set (matches Python's fallback chain).
-async fn get_environment(
+#[utoipa::path(
+    get,
+    path = "/api/v2/system/environment",
+    tag = "system",
+    responses((status = 200, description = "Current environment mode")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn get_environment(
     AuthUser(_principal): AuthUser,
     State(pool): State<PgPool>,
 ) -> ApiResult<impl IntoResponse> {
@@ -406,7 +452,18 @@ struct EnvSwitchRequest {
 
 /// `PUT /api/v2/system/environment` — owner only. Persists the new mode to
 /// `system_config`. Only `"test"` or `"production"` are accepted.
-async fn set_environment(
+#[utoipa::path(
+    put,
+    path = "/api/v2/system/environment",
+    tag = "system",
+    responses(
+        (status = 200, description = "Environment updated"),
+        (status = 400, description = "Invalid mode"),
+        (status = 403, description = "Owner only"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn set_environment(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     Json(body): Json<EnvSwitchRequest>,
@@ -444,7 +501,17 @@ async fn set_environment(
 /// truncates job tables, wipes storage via the legacy BFF. Audits the
 /// destructive action regardless of upstream outcome (so we can trace who
 /// pressed the big red button even if the BFF later 5xx'd).
-async fn clean_slate(
+#[utoipa::path(
+    post,
+    path = "/api/v2/system/clean-slate",
+    tag = "system",
+    responses(
+        (status = 200, description = "Clean slate executed"),
+        (status = 403, description = "Owner only"),
+    ),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn clean_slate(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     headers: HeaderMap,
@@ -491,7 +558,14 @@ struct EntitySettingUpsert {
 
 /// `GET /api/v2/system/entity-settings` — owner/member.
 /// Returns all entity_settings rows at scope='system', scope_id='global'.
-async fn list_system_entity_settings(
+#[utoipa::path(
+    get,
+    path = "/api/v2/system/entity-settings",
+    tag = "system",
+    responses((status = 200, description = "System entity settings")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn list_system_entity_settings(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
 ) -> ApiResult<impl IntoResponse> {
@@ -522,7 +596,14 @@ async fn list_system_entity_settings(
 
 /// `PUT /api/v2/system/entity-settings` — owner/member.
 /// Upserts one entity_setting at scope='system', scope_id='global'.
-async fn upsert_system_entity_setting(
+#[utoipa::path(
+    put,
+    path = "/api/v2/system/entity-settings",
+    tag = "system",
+    responses((status = 200, description = "System entity setting upserted")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn upsert_system_entity_setting(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     headers: HeaderMap,
@@ -563,7 +644,14 @@ async fn upsert_system_entity_setting(
 
 /// `GET /api/v2/workspace/entity-settings` — owner/member.
 /// Returns all entity_settings rows for the caller's workspace.
-async fn list_workspace_entity_settings(
+#[utoipa::path(
+    get,
+    path = "/api/v2/workspace/entity-settings",
+    tag = "system",
+    responses((status = 200, description = "Workspace entity settings")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn list_workspace_entity_settings(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
 ) -> ApiResult<impl IntoResponse> {
@@ -596,7 +684,14 @@ async fn list_workspace_entity_settings(
 
 /// `PUT /api/v2/workspace/entity-settings` — owner/member.
 /// Upserts one entity_setting at the caller's workspace scope.
-async fn upsert_workspace_entity_setting(
+#[utoipa::path(
+    put,
+    path = "/api/v2/workspace/entity-settings",
+    tag = "system",
+    responses((status = 200, description = "Workspace entity setting upserted")),
+    security(("cookie_auth" = []))
+)]
+pub(crate) async fn upsert_workspace_entity_setting(
     AuthUser(principal): AuthUser,
     State(pool): State<PgPool>,
     headers: HeaderMap,
