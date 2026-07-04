@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM provider_chains_v2 WHERE scope = $1 AND ($2::text IS NULL AND scope_id IS NULL OR scope_id = $2) AND ($3::text IS NULL AND content_mode IS NULL OR content_mode = $3) AND COALESCE(pipeline_mode, 'production') = $4 AND category = $5",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8abdf46331d3988843dbeda8980ee713c676ce3218076a50faa6448659ba17dc"
+}

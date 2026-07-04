@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.id, a.actor_label, a.action, a.target_type, a.target_id,\n                      a.before, a.after, a.created_at\n                 FROM audit_log_v2 a\n                WHERE a.action LIKE 'provider.%'\n                  AND a.target_type = 'provider_credential'\n                  AND a.target_id = $1\n                ORDER BY a.created_at DESC LIMIT $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "actor_label",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "action",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "target_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "target_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "before",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 6,
+        "name": "after",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "7e1581f2de0124c5ee976e2cf76b0bb6430f8222e01e6d040d3635fe4d2cc9aa"
+}

@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, scope, scope_id, category, monthly_cap_usd::float8 AS \"monthly_cap_usd: f64\", current_spend::float8 AS \"current_spend: f64\",\n                  period_start, alert_pct, hard_limit, updated_at\n             FROM provider_quotas\n            WHERE scope = $1 AND ($2::text IS NULL OR scope_id = $2)\n            ORDER BY category NULLS FIRST",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "scope",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "scope_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "category",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "monthly_cap_usd: f64",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 5,
+        "name": "current_spend: f64",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 6,
+        "name": "period_start",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 7,
+        "name": "alert_pct",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 8,
+        "name": "hard_limit",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      null,
+      null,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "95f8f6284b98497d1331c5d7724a854d53aaf7d9d9505f3208f30d58d5087572"
+}
