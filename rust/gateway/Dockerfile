@@ -1,6 +1,9 @@
 # syntax=docker/dockerfile:1
+# Pinned via versions.env RUST_IMAGE=rust:1.83.0-bookworm DEBIAN_IMAGE=debian:bookworm-slim
+ARG RUST_IMAGE=rust:1.83.0-bookworm
+ARG DEBIAN_IMAGE=debian:bookworm-slim
 
-FROM rust:1-bookworm AS builder
+FROM ${RUST_IMAGE} AS builder
 
 # protoc is required by the gateway build script (tonic-build) to compile .proto files
 RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/apt/lists/*
@@ -8,6 +11,7 @@ RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/ap
 WORKDIR /build
 
 COPY rust/Cargo.toml rust/Cargo.lock ./
+COPY rust-toolchain.toml ./
 COPY rust/gateway gateway/
 COPY rust/harness harness/
 COPY proto ../proto/
@@ -16,7 +20,7 @@ WORKDIR /build/gateway
 
 RUN cargo build --release
 
-FROM debian:bookworm-slim
+FROM ${DEBIAN_IMAGE}
 
 RUN apt-get update && apt-get install -y \
     ca-certificates \

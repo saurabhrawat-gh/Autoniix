@@ -365,3 +365,28 @@ alerts-status: ## Show currently firing alerts from Alertmanager
 		python3 -c "import json,sys; alerts=json.load(sys.stdin); \
 		[print(f\"  [{a['labels'].get('severity','?').upper()}] {a['labels'].get('alertname','?')} — {a['annotations'].get('summary','')}\") for a in alerts]" 2>/dev/null \
 		|| echo "❌ Alertmanager not reachable at http://localhost:9093"
+
+# =============================================================================
+# Version parity + local CI mirror (see docs/TOOLCHAIN.md)
+# =============================================================================
+
+verify-versions: ## Assert local rustc/node/python/go/buf match versions.env
+	@bash scripts/verify-versions.sh
+
+check-drift: ## Assert every pin file matches versions.env
+	@bash scripts/verify-versions-in-sync.sh
+
+ci-local: ## Fast Rust CI mirror on host
+	@bash scripts/ci-local.sh
+
+ci-local-full: ## Full CI mirror on host (Rust + Python + Node + Go + Proto)
+	@bash scripts/ci-local.sh --full
+
+ci-local-docker: ## Full CI mirror inside pinned ubuntu:24.04 container (ultimate parity)
+	@bash scripts/ci-local.sh --full --docker
+
+install-hooks: ## Install pre-push git hook via husky
+	@npm install --silent
+	@echo "✅  pre-push hook installed. Bypass: git push --no-verify"
+
+.PHONY: verify-versions check-drift ci-local ci-local-full ci-local-docker install-hooks

@@ -92,5 +92,10 @@
     "tailwindcss": "^3.4.4",
     "typescript": "^5.4.5",
     "vitest": "^4.1.9"
+  },
+  "packageManager": "npm@10.8.2",
+  "engines": {
+    "node": "20.18.0",
+    "npm": "10.8.2"
   }
 }

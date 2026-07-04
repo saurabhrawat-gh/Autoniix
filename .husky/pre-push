@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Auto-checks version-parity drift before every push.
+#   Skip everything:  git push --no-verify
+#   Enable full CI:   export AUTONIIX_PREPUSH_CI=1
+set -euo pipefail
+REPO="$(git rev-parse --show-toplevel)"
+
+echo "▶  pre-push: check-drift"
+if ! bash "$REPO/scripts/verify-versions-in-sync.sh" >/dev/null 2>&1; then
+    echo ""
+    echo "❌  Version-pin drift detected. Run: make check-drift"
+    echo "    Bypass (not recommended): git push --no-verify"
+    exit 1
+fi
+echo "✓  no version drift"
+
+if [[ "${AUTONIIX_PREPUSH_CI:-0}" == "1" ]]; then
+    echo "▶  pre-push: full CI mirror (AUTONIIX_PREPUSH_CI=1)"
+    bash "$REPO/scripts/ci-local.sh" --full || { echo "❌  CI mirror failed"; exit 1; }
+else
+    echo "ℹ  Skipping full CI mirror (export AUTONIIX_PREPUSH_CI=1 to enable)."
+fi
+exit 0
