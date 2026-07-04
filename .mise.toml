@@ -1,0 +1,10 @@
+# mise config for this repo. Kept in sync with .tool-versions.
+# .tool-versions is the canonical source; this file adds mise-specific settings.
+
+[settings]
+# Disable GitHub artifact attestations for python installs.
+# python-build-standalone doesn't consistently publish attestations for
+# every patch release, causing `mise install python@3.12.7` to fail on
+# fresh machines. This is a mise-only concern; the tarball itself is
+# still hash-verified.
+python.github_attestations = false

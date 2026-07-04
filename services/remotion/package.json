@@ -5,7 +5,8 @@
   "license": "UNLICENSED",
   "description": "Remotion renderer service for YT automation pipeline",
   "engines": {
-    "node": ">=20"
+    "node": "20.18.0",
+    "npm": "10.8.2"
   },
   "scripts": {
     "studio": "remotion studio",
@@ -62,5 +63,6 @@
     "prettier": "^3.3.3",
     "tsx": "^4.19.0",
     "typescript": "^5.5.4"
-  }
+  },
+  "packageManager": "npm@10.8.2"
 }
