@@ -36,6 +36,14 @@ pub async fn create_app(pool: sqlx::PgPool, jwt_secret: String) -> Router {
         .merge(routes::lookup_values::routes(pool.clone()))
         .merge(routes::voice::routes(pool.clone()))
         .merge(routes::workspace::routes(pool.clone()))
+        // ── Phase B proxy routes ───────────────────────────────────────────
+        .merge(routes::providers::routes())
+        .merge(routes::jobs::routes())
+        .merge(routes::content::routes())
+        .merge(routes::library::routes())
+        .merge(routes::review::routes())
+        .merge(routes::finishing::routes())
+        .merge(routes::experiments::routes())
         .layer(axum_middleware::from_fn(
             middleware::require_auth_middleware,
         ));

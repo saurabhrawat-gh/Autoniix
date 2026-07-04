@@ -97,6 +97,7 @@ Use when a `bug:production` or `hotfix` issue was fixed by the dev agent and pus
 2. Same smoke checks as `deploy` task (steps 2–3 above)
 
 3. Verify backport to develop:
+   # turbo
    - git log develop --oneline -5
    - The hotfix commit should appear (dev agent backports as part of H7)
    - If missing: manually cherry-pick to develop
@@ -178,7 +179,8 @@ Use when a new service is added or an existing one is significantly changed.
 
 6. Update docs/DEPLOYMENT-GUIDE.md service list
 
-7. Run: docker compose config --quiet (validate syntax)
+7. # turbo
+   Run: docker compose config --quiet (validate syntax)
 
 8. Commit all infra changes together:
    git commit -m "infra: add {service} to stack"
@@ -198,6 +200,7 @@ Use to manage autoniix.com DNS records.
    mcp1_DNS_updateDNSRecordsV1 — add/update A, CNAME, TXT record
 
 3. Verify after ~5 min:
+   # turbo
    nslookup {subdomain}.autoniix.com 8.8.8.8
    # Should resolve to 187.127.155.126
 
@@ -241,6 +244,7 @@ Use when a deploy causes production issues.
 
 ```
 1. Find last stable commit:
+   # turbo
    git log --oneline -10
 
 2. Output rollback commands:
@@ -263,12 +267,14 @@ Use when a deploy causes production issues.
 ## Task: `audit` (run weekly or before major deploy)
 
 ```
-1. Secret scan:
+1. # turbo
+   Secret scan:
    grep -rn "api_key\s*=\s*['\"]" src/ --include="*.py" | grep -v "settings\." | grep -v ".example"
    grep -rn "password\s*=\s*['\"]" src/ --include="*.py" | grep -v "settings\."
    grep -rn "CHANGE_ME" . --include="*.env*" --include="*.yml"
 
-2. .env drift check:
+2. # turbo
+   .env drift check:
    diff <(grep -v '^#' .env.example | grep '=' | cut -d= -f1 | sort) \
         <(grep -v '^#' .env | grep '=' | cut -d= -f1 | sort)
    # Keys in .env.example but missing from .env = deployment risk

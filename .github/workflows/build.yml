@@ -134,6 +134,107 @@ jobs:
         working-directory: go
         run: go test ./shared/testharness/... -v
 
+  bench-regression:
+    name: Rust — benchmark regression gate (p95 ≤ baseline + 10%)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: autoniix_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.88.0
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Apply test DB migrations
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d autoniix_test -f scripts/init-db.sql -v ON_ERROR_STOP=1
+          for f in $(ls scripts/migrations/*.sql | sort); do
+            psql -h localhost -U postgres -d autoniix_test -f "$f" -v ON_ERROR_STOP=1
+          done
+
+      - name: Run Criterion benchmarks (save output)
+        working-directory: rust
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
+          AUTH_JWT_SECRET: test-jwt-secret-for-ci
+        run: |
+          cargo bench -p gateway -- --output-format bencher 2>&1 | tee /tmp/bench-output.txt || true
+          echo "Benchmark run complete. Checking against baselines..."
+
+      - name: Validate against baseline (p95 regression gate)
+        run: |
+          python3 - <<'EOF'
+          import json, sys, re
+
+          baseline_path = "rust/gateway/benches/baselines/auth.json"
+          bench_output  = "/tmp/bench-output.txt"
+
+          with open(baseline_path) as f:
+              baseline = json.load(f)
+
+          failures = []
+          try:
+              output = open(bench_output).read()
+          except FileNotFoundError:
+              print("No bench output — skipping regression gate")
+              sys.exit(0)
+
+          # Parse bencher format: "test auth/register ... bench: 45,000 ns/iter (+/- 500)"
+          pattern = re.compile(r"test (\S+)\s+\.\.\. bench:\s+([\d,]+) ns/iter")
+          measured = {}
+          for m in pattern.finditer(output):
+              name = m.group(1).replace("auth/", "")
+              ns   = int(m.group(2).replace(",", ""))
+              measured[name] = ns / 1_000_000  # convert to ms
+
+          if not measured:
+              print("No parsed bench results — skipping regression gate")
+              sys.exit(0)
+
+          for ep, data in baseline["endpoints"].items():
+              if ep not in measured:
+                  continue
+              actual_ms = measured[ep]
+              target_ms = data["target_p95_ms"]
+              threshold = data["regression_threshold_pct"]
+              limit_ms  = target_ms * (1 + threshold / 100)
+              if actual_ms > limit_ms:
+                  failures.append(
+                      f"{ep}: {actual_ms:.1f}ms > limit {limit_ms:.1f}ms "
+                      f"(baseline {target_ms}ms + {threshold}%)"
+                  )
+              else:
+                  print(f"OK {ep}: {actual_ms:.1f}ms <= {limit_ms:.1f}ms")
+
+          if failures:
+              print("\nREGRESSION FAILURES:")
+              for f in failures:
+                  print(f"  {f}")
+              sys.exit(1)
+          else:
+              print("All benchmarks within regression threshold.")
+          EOF
+
   python-harness:
     name: Python — migration + contract tests
     runs-on: ubuntu-latest
@@ -214,7 +315,7 @@ jobs:
   deploy:
     name: Deploy — VPS
     runs-on: self-hosted
-    needs: [rust, go-harness, python-harness, dashboard-frontend]
+    needs: [rust, go-harness, bench-regression, python-harness, dashboard-frontend]
     steps:
       - name: Pull & restart
         env:

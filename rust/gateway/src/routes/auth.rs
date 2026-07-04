@@ -1,8 +1,8 @@
 use axum::{
-    extract::State,
+    extract::{Query, State},
     http::{header::SET_COOKIE, HeaderMap, HeaderName, StatusCode},
     response::{AppendHeaders, IntoResponse},
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use axum_extra::{headers::Cookie, TypedHeader};
@@ -112,6 +112,11 @@ pub fn routes(auth_service: AuthServiceImpl) -> Router {
                 invite_rate_limit,
             )),
         )
+        .route("/api/v2/auth/invite-info", get(invite_info))
+        .route("/api/v2/auth/workspaces", get(list_workspaces))
+        .route("/api/v2/auth/switch-workspace", post(switch_workspace))
+        .route("/api/v2/auth/create-workspace", post(create_workspace))
+        .route("/api/v2/auth/account", delete(delete_account))
         .with_state(auth_service)
 }
 
@@ -784,4 +789,125 @@ pub(crate) async fn logout(
     };
 
     Ok((StatusCode::OK, clear_auth_cookies(), Json(response)))
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  Workspace-management auth helpers
+// ─────────────────────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct InviteInfoQuery {
+    token: String,
+}
+
+pub(crate) async fn invite_info(
+    State(auth_service): State<AuthServiceImpl>,
+    Query(q): Query<InviteInfoQuery>,
+) -> ApiResult<impl IntoResponse> {
+    let info = auth_service.invite_info(q.token).await?;
+    Ok(Json(info))
+}
+
+pub(crate) async fn list_workspaces(
+    AuthUser(principal): AuthUser,
+    State(auth_service): State<AuthServiceImpl>,
+) -> ApiResult<impl IntoResponse> {
+    let user_id: i64 = principal.user_id.parse().map_err(|_| ApiError::Unauthorized)?;
+    let data = auth_service.list_workspaces(user_id).await?;
+    Ok(Json(serde_json::json!({ "data": data })))
+}
+
+#[derive(Deserialize)]
+struct SwitchWorkspaceIn {
+    workspace_id: i64,
+}
+
+pub(crate) async fn switch_workspace(
+    AuthUser(principal): AuthUser,
+    State(auth_service): State<AuthServiceImpl>,
+    Json(body): Json<SwitchWorkspaceIn>,
+) -> ApiResult<impl IntoResponse> {
+    let user_id: i64 = principal.user_id.parse().map_err(|_| ApiError::Unauthorized)?;
+    let (access_token, refresh_raw, wid, role) =
+        auth_service.switch_workspace(user_id, body.workspace_id).await?;
+
+    let cookies = AppendHeaders([
+        (
+            HeaderName::from_static("set-cookie"),
+            build_cookie("access_token", &access_token, ACCESS_MAX_AGE, true),
+        ),
+        (
+            HeaderName::from_static("set-cookie"),
+            build_cookie("refresh_token", &refresh_raw, REFRESH_MAX_AGE, true),
+        ),
+        (
+            HeaderName::from_static("set-cookie"),
+            build_cookie("auth_status", "1", ACCESS_MAX_AGE, false),
+        ),
+    ]);
+    Ok((
+        StatusCode::OK,
+        cookies,
+        Json(serde_json::json!({
+            "status": "ok",
+            "workspace_id": wid,
+            "role": role,
+            "access_token": access_token,
+        })),
+    ))
+}
+
+#[derive(Deserialize)]
+struct CreateWorkspaceIn {
+    workspace_name: String,
+}
+
+pub(crate) async fn create_workspace(
+    AuthUser(principal): AuthUser,
+    State(auth_service): State<AuthServiceImpl>,
+    Json(body): Json<CreateWorkspaceIn>,
+) -> ApiResult<impl IntoResponse> {
+    let user_id: i64 = principal.user_id.parse().map_err(|_| ApiError::Unauthorized)?;
+    let (access_token, refresh_raw, wid, role) =
+        auth_service.create_workspace(user_id, body.workspace_name).await?;
+
+    let cookies = AppendHeaders([
+        (
+            HeaderName::from_static("set-cookie"),
+            build_cookie("access_token", &access_token, ACCESS_MAX_AGE, true),
+        ),
+        (
+            HeaderName::from_static("set-cookie"),
+            build_cookie("refresh_token", &refresh_raw, REFRESH_MAX_AGE, true),
+        ),
+        (
+            HeaderName::from_static("set-cookie"),
+            build_cookie("auth_status", "1", ACCESS_MAX_AGE, false),
+        ),
+    ]);
+    Ok((
+        StatusCode::CREATED,
+        cookies,
+        Json(serde_json::json!({
+            "status": "ok",
+            "workspace_id": wid,
+            "role": role,
+            "access_token": access_token,
+        })),
+    ))
+}
+
+#[derive(Deserialize)]
+struct DeleteAccountIn {
+    password: String,
+}
+
+pub(crate) async fn delete_account(
+    AuthUser(principal): AuthUser,
+    State(auth_service): State<AuthServiceImpl>,
+    Json(body): Json<DeleteAccountIn>,
+) -> ApiResult<impl IntoResponse> {
+    let user_id: i64 = principal.user_id.parse().map_err(|_| ApiError::Unauthorized)?;
+    auth_service.delete_account(user_id, body.password).await?;
+    Ok((StatusCode::OK, clear_auth_cookies(), Json(serde_json::json!({ "status": "ok" }))))
 }

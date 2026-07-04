@@ -22,6 +22,23 @@ pub mod voice;
 #[allow(private_interfaces)]
 pub mod workspace;
 
+pub mod proxy;
+
+#[allow(private_interfaces)]
+pub mod content;
+#[allow(private_interfaces)]
+pub mod experiments;
+#[allow(private_interfaces)]
+pub mod finishing;
+#[allow(private_interfaces)]
+pub mod jobs;
+#[allow(private_interfaces)]
+pub mod library;
+#[allow(private_interfaces)]
+pub mod providers;
+#[allow(private_interfaces)]
+pub mod review;
+
 use axum::{routing::get, Json, Router};
 use serde_json::json;
 
