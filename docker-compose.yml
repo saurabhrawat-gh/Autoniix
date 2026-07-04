@@ -21,6 +21,8 @@ services:
 
   # Databases
   postgres-app:
+    # Pinned via versions.env POSTGRES_IMAGE=pgvector/pgvector:pg15
+    # Must match every CI job + scripts/ci-local.sh.
     image: pgvector/pgvector:pg15
     environment:
       POSTGRES_DB: ${DB_NAME:-autoniix}

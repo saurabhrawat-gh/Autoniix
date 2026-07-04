@@ -1,0 +1,20 @@
+name: Versions in Sync
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: versions-in-sync-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  drift:
+    name: versions.env drift check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify all pin files match versions.env
+        run: bash scripts/verify-versions-in-sync.sh

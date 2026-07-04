@@ -1,0 +1,19 @@
+# Pinned Python dev/CI tools. Consumed by ci-local.sh and every CI job.
+# EXACT pins only.
+
+ruff==0.7.4
+mypy==1.13.0
+pytest==8.3.4
+pytest-asyncio==0.24.0
+
+pip-audit==2.7.3
+cyclonedx-bom==5.1.1
+
+psycopg2-binary==2.9.10
+asyncpg==0.30.0
+grpcio==1.68.1
+grpcio-tools==1.68.1
+httpx==0.28.1
+pyjwt==2.10.1
+structlog==24.4.0
+pydantic-settings==2.7.0
