@@ -37,6 +37,11 @@ help: ## Show available commands
 	@echo "  make smoke             → Smoke test: health + BFF v2 + unit suite"
 	@echo "  make deploy-check      → Pre-deploy readiness gate (secrets + schema)"
 	@echo "  make schedule-register → Register Temporal workflow schedules"
+	@echo "  make check-oauth       → Verify yt-analytics.readonly OAuth scope (Phase 9 prereq)"
+	@echo "  make backfill-phase8   → One-shot NichePulseRefreshWorkflow (Phase 8)"
+	@echo "  make backfill-phase9   → One-shot RetentionFetchWorkflow limit=200 (Phase 9)"
+	@echo "  make retrain-first     → Trigger ModelMaintenanceWorkflow if ≥30 samples (Phase 11)"
+	@echo "  make drill-backup-restore → Backup-restore drill (non-destructive)"
 	@echo "  make fresh             → Wipe volumes + rebuild from zero"
 	@echo "  make tls-up     → Start Traefik + Let's Encrypt TLS (requires DOMAIN+ACME_EMAIL in .env)"
 	@echo "  make tls-down   → Stop Traefik (keeps certs in letsencrypt_data volume)"
@@ -286,6 +291,21 @@ deploy-check: ## Pre-deploy readiness gate — checks secrets, schema, env, prov
 
 schedule-register: ## Register Temporal workflow schedules (idempotent — safe to re-run)
 	python -m scripts.register_schedules --temporal-host localhost:7233
+
+check-oauth: ## Verify Google OAuth token has yt-analytics.readonly scope (Phase 9 prereq)
+	python -m scripts.check_oauth_scopes
+
+backfill-phase8: ## Phase 8: one-shot NichePulseRefreshWorkflow — seeds niche-pulse tables immediately
+	python -m scripts.backfill_niche_pulse
+
+backfill-phase9: ## Phase 9: one-shot RetentionFetchWorkflow (limit=200) — seeds retention curves
+	python -m scripts.backfill_retention
+
+retrain-first: ## Phase 11: trigger ModelMaintenanceWorkflow if ≥30 delivered+analytics videos exist
+	python -m scripts.trigger_first_retrain
+
+drill-backup-restore: ## Backup-restore drill — backup → restore to drill DB → verify → drop (non-destructive)
+	bash scripts/drill_backup_restore.sh
 
 setup: ## Full bring-up: containers + rebuild app + migrate + backfill + smoke
 	@$(MAKE) up

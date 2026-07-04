@@ -46,23 +46,22 @@ make auth-enable                                 # flip to v2 auth
 make smoke
 ```
 
-Remaining manual steps after stack is up:
+Remaining steps after stack is up (all now scripted):
 
-- [ ] **OAuth scope check** — existing OAuth client must have
-      `https://www.googleapis.com/auth/yt-analytics.readonly` alongside
-      `youtube.upload`. RetentionFetchWorkflow throws 403 without it.
-- [ ] **Phase 8 backfill** — run `refresh_niche_pulse_activity` manually
-      for each active niche to seed the NichePulse tables immediately.
-- [ ] **Phase 9 backfill** — invoke `RetentionFetchWorkflow` with
-      `{"limit": 200}` once to pull curves for the existing 7-30 day
-      window. Without it, calibrator falls back to tier labels until the
-      daily cron catches up.
-- [ ] **Phase 11 first retrain** — after 30+ delivered videos with
-      analytics ingested, manually trigger `train_model(niche=...)` for
-      one channel and verify `n_weighted_samples > 0` in the response.
-- [ ] **backup-restore-drill** — run `make backup` → destroy test DB →
-      `make restore` → `make smoke` and record result in runbook.
-      Trigger: before production go-live (or monthly thereafter).
+- [ ] **OAuth scope check** — `make check-oauth`
+      Verifies `yt-analytics.readonly` is granted. Fix: re-run
+      `/api/v2/providers/youtube/oauth/init` and tick Analytics on consent screen.
+- [ ] **Phase 8 backfill** — `make backfill-phase8`
+      One-shot `NichePulseRefreshWorkflow` — seeds niche-pulse tables immediately.
+- [ ] **Phase 9 backfill** — `make backfill-phase9`
+      One-shot `RetentionFetchWorkflow` (limit=200) — seeds retention curves.
+      Without this, calibrator falls back to tier labels until the daily cron catches up.
+- [ ] **Phase 11 first retrain** — `make retrain-first`
+      Auto-detects when ≥30 delivered+analytics videos exist, then starts
+      `ModelMaintenanceWorkflow` per niche. Verify: `n_weighted_samples > 0` in `model_health`.
+- [ ] **backup-restore drill** — `make drill-backup-restore`
+      Non-destructive: backup → restore to `autoniix_drill` DB → SQL checks → drop.
+      Record result in runbook. Trigger: before production go-live (or monthly thereafter).
 
 **Watch windows after deploy:**
 
