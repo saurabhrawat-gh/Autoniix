@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE videos SET status='archived', updated_at=NOW()\n              WHERE content_id = ANY($1) AND status NOT IN ('archived','published')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "45c91a1b2745d0089cf065d14c5dd1911f23abd0026696d7228dbd810a45102d"
+}

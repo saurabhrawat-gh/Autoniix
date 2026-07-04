@@ -1,7 +1,7 @@
 {
   "_comment": "GitHub ↔ Jira issue mapping for cross-system sync",
   "_updated": "2026-07-07T18:15Z",
-  "_note": "Phase A (A1-A7) fully shipped to main. Phase B: B1, B3, B4, B5 merged to develop — ready to deploy. B6 in progress.",
+  "_note": "Phase A (A1-A7) fully shipped to main. Phase B: B1, B2, B3, B4, B5 merged to develop — ready to deploy. B6 in progress (last task).",
   "mappings": {
     "638": { "jira": "AE-571", "status": "open",   "title": "Epic: Multi-Language Backend Migration" },
     "643": { "jira": "AE-572", "status": "done",   "title": "/me response alignment" },
@@ -50,7 +50,7 @@
     "711": { "jira": "IM-194", "status": "done", "title": "[Harness] A7 — Go harness template (forward-looking for Phase C G0)" },
     "712": { "jira": "IM-195", "status": "open", "title": "[Phase B] Epic — Rust migration completion (replace Python v2 thin proxies)" },
     "713": { "jira": "IM-196", "status": "ready-to-deploy", "title": "[Phase B] B1 — Native Rust implementation of providers.py (49 endpoints)" },
-    "714": { "jira": "IM-197", "status": "open", "title": "[Phase B] B2 — Native Rust implementation of workspace remainder endpoints" },
+    "714": { "jira": "IM-197", "status": "ready-to-deploy", "title": "[Phase B] B2 — Native Rust implementation of workspace remainder endpoints" },
     "715": { "jira": "IM-198", "status": "ready-to-deploy", "title": "[Phase B] B3 — Native Rust implementation of library cluster (~27 endpoints)" },
     "716": { "jira": "IM-199", "status": "ready-to-deploy", "title": "[Phase B] B4 — Native Rust implementation of jobs.py (~11 endpoints)" },
     "717": { "jira": "IM-200", "status": "ready-to-deploy", "title": "[Phase B] B5 — Native Rust implementation of review cluster (~14 endpoints)" },

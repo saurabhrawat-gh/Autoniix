@@ -1,0 +1,91 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE channel_finishing_config SET\n               require_resolve_finish  = COALESCE($2, require_resolve_finish),\n               color_grade_preset      = COALESCE($3, color_grade_preset),\n               audio_denoise           = COALESCE($4, audio_denoise),\n               audio_eq                = COALESCE($5, audio_eq),\n               audio_compress          = COALESCE($6, audio_compress),\n               audio_music_duck        = COALESCE($7, audio_music_duck),\n               audio_loudness_lufs     = COALESCE($8::float8, audio_loudness_lufs::float8),\n               audio_true_peak_dbtps   = COALESCE($9::float8, audio_true_peak_dbtps::float8),\n               output_prores_archive   = COALESCE($10, output_prores_archive),\n               updated_at              = NOW()\n           WHERE channel_id = $1\n           RETURNING channel_id,\n                     require_resolve_finish, color_grade_preset,\n                     audio_denoise, audio_eq, audio_compress, audio_music_duck,\n                     audio_loudness_lufs::float8   AS \"audio_loudness_lufs!: f64\",\n                     audio_true_peak_dbtps::float8 AS \"audio_true_peak_dbtps!: f64\",\n                     output_prores_archive, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "channel_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "require_resolve_finish",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "color_grade_preset",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "audio_denoise",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "audio_eq",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "audio_compress",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "audio_music_duck",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "audio_loudness_lufs!: f64",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 8,
+        "name": "audio_true_peak_dbtps!: f64",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 9,
+        "name": "output_prores_archive",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 10,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Bool",
+        "Varchar",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Float8",
+        "Float8",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "a9c42d934b2f217c0fb5249a07e651a62d90fa2c377e47cfa7ea9b98f7f9d20c"
+}
