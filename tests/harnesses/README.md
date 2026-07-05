@@ -494,6 +494,6 @@ Per HARNESS-ENGINEERING-PLAN.md:
 
 ## Related Documents
 
-- `docs/architecture/HARNESS-ENGINEERING-PLAN.md` — Overall harness plan
+- `docs/architecture/harness-engineering-plan.md` — Overall harness plan
 - `tests/contracts/README.md` — REST contract validation
 - `docs/future/POST-HARNESS-TASKS.md` — Post-harness tasks

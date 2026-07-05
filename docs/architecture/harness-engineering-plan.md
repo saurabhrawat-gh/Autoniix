@@ -500,7 +500,7 @@ def _decode_jwt(token: str) -> dict[str, Any] | None:
 utoipa = { version = "4.0", features = ["axum_extras"] }
 
 // Annotate handlers with #[utoipa::path(...)]
-// Generate docs/openapi/gateway.json
+// Generate rust/gateway/openapi.json
 ```
 
 **3. Add REST contract validation**
@@ -509,7 +509,7 @@ utoipa = { version = "4.0", features = ["axum_extras"] }
 import openapi_core
 
 def test_signup_matches_openapi():
-    schema = load_openapi_schema("docs/openapi/gateway.json")
+    schema = load_openapi_schema("rust/gateway/openapi.json")
     validator = RESTValidator(schema)
     
     response = requests.post("http://localhost:8080/api/v2/auth/signup", {...})
@@ -631,7 +631,7 @@ def test_python_token_works_in_rust():
 ```
 Story P1.5: Jobs CRUD Endpoints (REST)
 ├─ Task 1: Write OpenAPI schema + contract test (1 day)
-│  ├─ docs/openapi/jobs.yaml (manual or utoipa-generated)
+│  ├─ rust/gateway/openapi.yaml (manual or utoipa-generated)
 │  └─ tests/contracts/test_jobs_rest.py
 │
 ├─ Task 2: Implement in Rust (3 days)
@@ -1250,10 +1250,9 @@ def test_signup_matches_golden():
 ## Appendix: File Structure
 
 ```
-docs/openapi/                     # OpenAPI schemas (NEW)
-├── gateway.json                  # Auto-generated from Rust utoipa
-├── jobs.yaml
-└── *.yaml
+rust/gateway/
+├── openapi.yaml                  # Handwritten schema (Week 1)
+├── openapi.json                  # Auto-generated from Rust utoipa annotations
 
 tests/
 ├── contracts/                    # Category 3: Contract compliance

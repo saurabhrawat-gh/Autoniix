@@ -214,7 +214,7 @@ Key top-level fields:
 - `audio_master` — background music config
 - `segments[]` — frame-accurate scene definitions
 
-See `docs/architecture/03-SCRIPT-ARCHITECTURE.md` (View C) for the full schema and generation logic.
+See `docs/architecture/script-architecture.md` (View C) for the full schema and generation logic.
 
 ---
 

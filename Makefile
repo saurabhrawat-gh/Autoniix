@@ -387,7 +387,7 @@ alerts-status: ## Show currently firing alerts from Alertmanager
 		|| echo "❌ Alertmanager not reachable at http://localhost:9093"
 
 # =============================================================================
-# Version parity + local CI mirror (see docs/architecture/TOOLCHAIN.md)
+# Version parity + local CI mirror (see docs/architecture/toolchain.md)
 # =============================================================================
 
 verify-versions: ## Assert local rustc/node/python/go/buf match versions.env

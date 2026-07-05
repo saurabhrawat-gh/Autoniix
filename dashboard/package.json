@@ -11,7 +11,7 @@
     "lint:tokens:strict": "node scripts/check-ui-tokens.mjs --strict",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "gen:types": "openapi-typescript ../docs/openapi/rust-gateway.yaml -o src/lib/api/types.ts",
+    "gen:types": "openapi-typescript ../rust/gateway/openapi.yaml -o src/lib/api/types.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

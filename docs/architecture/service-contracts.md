@@ -432,7 +432,7 @@ Error codes: `PROVIDER_RATE_LIMIT`, `PROVIDER_ERROR`, `BUDGET_EXCEEDED`, `VALIDA
 
 **Port:** 4000 (separate repo: `yt-automation-remotion`)
 
-See `docs/architecture/06-REMOTION-INTEGRATION.md` for full integration contract.
+See `docs/architecture/remotion-integration.md` for full integration contract.
 
 ### POST /api/render
 

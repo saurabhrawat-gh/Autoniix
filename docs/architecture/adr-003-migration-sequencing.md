@@ -150,9 +150,9 @@ Revisit this ADR if:
 
 ## References
 
-- `docs/architecture/ADR-001-polyglot-architecture.md`
-- `docs/architecture/HARNESS-ENGINEERING-PLAN.md` (v4)
-- `docs/architecture/HARNESS-LANGUAGE-DECISION.md`
+- `docs/architecture/adr-001-polyglot-architecture.md`
+- `docs/architecture/harness-engineering-plan.md` (v4)
+- `docs/architecture/harness-language-decision.md`
 - Plan artifacts:
   - `/Users/saurabhrawat/.windsurf/plans/migration-sequencing-correction-9dc209.md`
   - `/Users/saurabhrawat/.windsurf/plans/phase-a-harness-execution-9dc209.md`

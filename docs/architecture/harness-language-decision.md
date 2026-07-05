@@ -224,7 +224,7 @@ tests/
 
 ## Related Documents
 
-- `docs/architecture/HARNESS-ENGINEERING-PLAN.md` — Overall harness plan
+- `docs/architecture/harness-engineering-plan.md` — Overall harness plan
 - `docs/migration/WEEK1-COMPLETE.md` — Week 1 summary (Python, to be revised)
 - `docs/future/POST-HARNESS-TASKS.md` — Post-harness tasks
 

@@ -142,4 +142,4 @@ rust/gateway/
 
 - [Axum Documentation](https://docs.rs/axum)
 - [Tonic Documentation](https://docs.rs/tonic)
-- [ADR-001: Polyglot Architecture](../../docs/architecture/ADR-001-polyglot-architecture.md)
+- [ADR-001: Polyglot Architecture](../../docs/architecture/adr-001-polyglot-architecture.md)

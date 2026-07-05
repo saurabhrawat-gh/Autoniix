@@ -87,7 +87,7 @@ FastAPI auto-generates OpenAPI schema at `/openapi.json`. No manual work require
 
 ### Rust Gateway
 
-**Current (Week 1 Day 1):** Handwritten schema at `docs/openapi/rust-gateway.yaml`
+**Current (Week 1 Day 1):** Handwritten schema at `rust/gateway/openapi.yaml`
 
 **Future (Phase 1):** Auto-generated from code annotations using `utoipa`:
 
@@ -169,7 +169,7 @@ Add to `.github/workflows/test.yml`:
 
 **Error:** `Rust schema not found at tests/contracts/schemas/rust-gateway.json`
 
-**Solution:** Run `python extract_schemas.py` or ensure handwritten schema exists at `docs/openapi/rust-gateway.yaml`
+**Solution:** Run `python extract_schemas.py` or ensure handwritten schema exists at `rust/gateway/openapi.yaml`
 
 ### Service Not Running
 
@@ -203,6 +203,6 @@ Per HARNESS-ENGINEERING-PLAN.md:
 
 ## Related Documents
 
-- `docs/architecture/HARNESS-ENGINEERING-PLAN.md` — Overall harness plan
-- `docs/architecture/POST-HARNESS-TASKS.md` — Post-harness implementation tasks
+- `docs/architecture/harness-engineering-plan.md` — Overall harness plan
+- `docs/future/POST-HARNESS-TASKS.md` — Post-harness implementation tasks
 - `rust/gateway/DB_REALIGNMENT_SUMMARY.md` — DB schema realignment summary
