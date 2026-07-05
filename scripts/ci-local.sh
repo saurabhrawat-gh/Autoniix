@@ -132,6 +132,9 @@ docker exec "$PG_CONTAINER" pg_isready -U postgres >/dev/null 2>&1 \
     || fail "Postgres did not become ready in 60s"
 pass "Postgres ready"
 
+# Export DATABASE_URL so sqlx macros can validate queries live (same as CI)
+export DATABASE_URL="postgresql://postgres:postgres@${PG_HOST}:${PG_PORT}/autoniix_test"
+
 # =============================================================================
 # RUST CI MIRROR — build.yml `rust` + ci.yml `rust-tests` + `rust-audit`
 # =============================================================================
