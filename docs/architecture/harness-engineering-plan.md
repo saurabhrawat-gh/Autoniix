@@ -1,10 +1,19 @@
 # Harness Engineering Master Plan
 
-**Status:** In Execution (v4)  
+**Status:** In Execution (v5)  
 **Created:** 2026-06-20  
-**Last Updated:** 2026-06-20 (7:58 PM)  
+**Last Updated:** 2026-07-05  
 **Epic:** #638 Multi-Language Backend Migration  
 **Review Required By:** Migration lead, team architects, security team, SRE team
+
+**v5 Changes (2026-07-05 — actual state audit):**
+- ✅ Phase A (Harness): COMPLETE — `rust/harness/` built with contract/cross/golden/providers; 11 provider mocks; schema_compatibility_test, gateway_harness_test exist
+- ✅ Phase B (Rust routes): COMPLETE — 17 route modules in `rust/gateway/src/routes/`; full test coverage
+- ✅ Phase C (Go Temporal): COMPLETE — `go/worker/production/` + `go/worker/scheduler/` + 9 workflow files in `go/workflows/`
+- ✅ Dead Python temporal_workflows deleted (`src/temporal_workflows/` removed)
+- ✅ Equivalence CI now auto-triggered on PRs + develop pushes touching rust/gateway, rust/harness, proto
+- 🔴 Phase C (Go microservices G1–G7): NOT started — delivery, thumbnail, voice, research, script, notification-dispatcher, streaming-hub
+- 🔴 Phase D (Directory restructure): Blocked on Phase C G1–G7
 
 **v4 Changes (Week 1 Day 1 — JWT fix executed, discoveries applied):**
 - ✅ DECISION: JWT aligned Rust → Python (Option A) — implemented in `rust/gateway`
@@ -56,41 +65,51 @@
 
 ## 1. Current Migration Status
 
-### ✅ Completed (Stories P1.1-P1.4)
+> **Last audited: 2026-07-05.** Sections below reflect actual filesystem state.
 
-| Story | What Was Built | Files | Test Coverage |
-|-------|----------------|-------|---------------|
-| P1.1: Proto Setup | Buf CLI, 9 proto files, 4-language codegen | 17 | Contract schemas exist |
-| P1.2: Rust Gateway | Axum + Tonic framework, health checks | 14 | 1 integration test |
-| P1.3: Auth Service | JWT, Argon2, 4 auth endpoints, PostgreSQL | 16 | 2 integration tests |
-| P1.4: Auth Middleware | RBAC, Principal context, `/me` endpoint | 9 | 2 middleware tests |
+### ✅ Phase A — Harness Infrastructure: COMPLETE
 
-**Total:** 56 Rust files, 5 integration tests, **BUT:**
-- ❌ No OpenAPI schema (REST endpoints not documented)
-- ❌ No contract validation (no proof REST responses match schemas)
-- ❌ No equivalence testing (no comparison vs Python dashboard)
-- ❌ No provider mocks (will burn API credits in testing)
-- ❌ JWT schemas INCOMPATIBLE (Rust uses UUIDs, Python uses ints)
-- ❌ No database schema validation (UUID vs int ID mismatch)
-- ❌ No performance benchmarks
-- ⚠️ **Note:** Rust currently implements REST-only; gRPC comes in Phase 2
+| Harness | Location | State |
+|---------|----------|-------|
+| Contract tests | `rust/harness/src/contract/` | ✅ Built |
+| Cross-service equivalence | `rust/harness/src/cross/` | ✅ Built |
+| Golden replay | `rust/harness/src/golden/` | ✅ Built |
+| Provider mocks (11 providers) | `rust/harness/src/providers/` | ✅ Built |
+| Schema compatibility tests | `rust/gateway/tests/schema_compatibility_test.rs` | ✅ Built |
+| Gateway harness tests | `rust/gateway/tests/gateway_harness_test.rs` | ✅ Built |
+| Equivalence CI (auto-triggered) | `.github/workflows/equivalence.yml` | ✅ Wired (PR + develop push) |
 
-### 🔴 Remaining Migration Scope
+### ✅ Phase B — Rust Gateway Routes: COMPLETE
 
-| Component | LOC | Target Language | Status |
-|-----------|-----|-----------------|--------|
-| **Rust Services** | | | |
-| Gateway (remaining routes) | ~9K | Rust | 🟡 Auth done, 23 routes left |
-| Provider Router | ~800 | Rust | ❌ Not started |
-| Prompt Compressor | ~500 | Rust | ❌ Not started |
-| Assembly/Direction/Secrets/Metrics | ~2.8K | Rust | ❌ Not started |
-| **Go Services** | | | |
-| 10 microservices (Research, Script, Voice, etc.) | ~11K | Go | ❌ Not started |
-| 2 Temporal workers + 8 workflows | ~4K | Go | ❌ Not started |
-| **Python Services (add gRPC)** | | | |
-| 10 AI services (Brain, Analytics, etc.) | ~13K | Python | ❌ gRPC wrappers needed |
+17 route modules in `rust/gateway/src/routes/`:
+`auth`, `channels`, `content`, `experiments`, `finishing`, `flags`, `jobs`, `library`, `lookup_values`, `notifications`, `providers`, `proxy`, `review`, `system`, `user`, `voice`, `workspace`
 
-**Total to migrate:** ~41K LOC (excluding already-done auth)
+Test files: `auth_test`, `channels_test`, `lookup_values_test`, `middleware_test`, `schema_compatibility_test`, `gateway_harness_test`
+
+### ✅ Phase C — Go Temporal Layer: COMPLETE
+
+| Component | Location | State |
+|-----------|----------|-------|
+| Production Temporal worker | `go/worker/production/main.go` | ✅ |
+| Scheduler Temporal worker | `go/worker/scheduler/main.go` | ✅ |
+| 9 workflow files | `go/workflows/` | ✅ |
+| Dead Python temporal_workflows | `src/temporal_workflows/` | ✅ Deleted |
+
+### 🔴 Phase C — Go Microservices: NOT STARTED
+
+| Service | Python LOC | Go Status |
+|---------|-----------|-----------|
+| G1: notification-dispatcher | new service | ❌ Not started |
+| G2: streaming-hub | new service | ❌ Not started |
+| G3: service-delivery | ~484 | ❌ Not started |
+| G4: service-thumbnail | ~560 | ❌ Not started |
+| G5: service-voice | ~465 | ❌ Not started |
+| G6: service-research | ~882 | ❌ Not started |
+| G7: service-script | ~718 | ❌ Not started |
+
+**Estimated effort:** 15–22 weeks. Python AI services (brain, analytics, assembly, direction, etc.) stay in Python — they only need gRPC wrappers, not Go rewrites.
+
+### 🔴 Phase D — Directory Restructure: BLOCKED on Phase C G1–G7
 
 ---
 
