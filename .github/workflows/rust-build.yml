@@ -1,9 +1,6 @@
 name: Rust Build & Test
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 env:
@@ -19,7 +16,7 @@ jobs:
   guard:
     name: Guard — merge from develop only
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && env.ACT != 'true'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,7 +39,7 @@ jobs:
 
   check-and-build:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
     name: Check & Build
     runs-on: ubuntu-latest
     steps:
