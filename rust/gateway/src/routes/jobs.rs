@@ -26,20 +26,20 @@ use crate::{
 pub fn routes(pool: PgPool) -> Router {
     Router::new()
         // native DB reads — active pipeline + per-job progress
-        .route("/api/v2/jobs/active",               get(job_active))
-        .route("/api/v2/jobs/:id/progress",         get(job_progress))
+        .route("/api/v2/jobs/active", get(job_active))
+        .route("/api/v2/jobs/:id/progress", get(job_progress))
         // native DB reads
-        .route("/api/v2/jobs/:id/output",           get(job_output))
-        .route("/api/v2/jobs/:id/metadata",         get(job_metadata))
+        .route("/api/v2/jobs/:id/output", get(job_output))
+        .route("/api/v2/jobs/:id/metadata", get(job_metadata))
         // native DB writes + audit
-        .route("/api/v2/jobs/:id/approve",          post(approve_job))
-        .route("/api/v2/jobs/:id/reject",           post(reject_job))
+        .route("/api/v2/jobs/:id/approve", post(approve_job))
+        .route("/api/v2/jobs/:id/reject", post(reject_job))
         // proxy + audit
-        .route("/api/v2/jobs/:id/retry",            post(retry_job))
-        .route("/api/v2/jobs/:id/restart",          post(restart_job))
-        .route("/api/v2/jobs/:id/pause",            post(pause_job))
-        .route("/api/v2/jobs/:id/resume",           post(resume_job))
-        .route("/api/v2/jobs/:id/stop",             post(stop_job))
+        .route("/api/v2/jobs/:id/retry", post(retry_job))
+        .route("/api/v2/jobs/:id/restart", post(restart_job))
+        .route("/api/v2/jobs/:id/pause", post(pause_job))
+        .route("/api/v2/jobs/:id/resume", post(resume_job))
+        .route("/api/v2/jobs/:id/stop", post(stop_job))
         .with_state(pool)
 }
 
@@ -47,19 +47,24 @@ pub fn routes(pool: PgPool) -> Router {
 
 #[derive(Deserialize)]
 struct ActiveQ {
-    #[serde(default)] channel_id: Option<String>,
-    #[serde(default = "default_limit")] limit: i64,
+    #[serde(default)]
+    channel_id: Option<String>,
+    #[serde(default = "default_limit")]
+    limit: i64,
 }
-fn default_limit() -> i64 { 50 }
+fn default_limit() -> i64 {
+    50
+}
 
 async fn job_active(
     AuthUser(_p): AuthUser,
-    State(pool):  State<PgPool>,
-    Query(q):     Query<ActiveQ>,
+    State(pool): State<PgPool>,
+    Query(q): Query<ActiveQ>,
 ) -> ApiResult<Json<Value>> {
     let lim = q.limit.clamp(1, 100);
-    let rows = if let Some(ref ch) = q.channel_id {
-        sqlx::query!(
+    let rows =
+        if let Some(ref ch) = q.channel_id {
+            sqlx::query!(
             r#"SELECT content_id, channel_id, title, status, content_mode, created_at, updated_at
                FROM videos
                WHERE status IN ('queued','running','processing','pending')
@@ -73,8 +78,8 @@ async fn job_active(
             "content_mode": r.content_mode,
             "created_at": r.created_at, "updated_at": r.updated_at,
          })).collect::<Vec<Value>>()
-    } else {
-        sqlx::query!(
+        } else {
+            sqlx::query!(
             r#"SELECT content_id, channel_id, title, status, content_mode, created_at, updated_at
                FROM videos
                WHERE status IN ('queued','running','processing','pending')
@@ -87,16 +92,18 @@ async fn job_active(
             "content_mode": r.content_mode,
             "created_at": r.created_at, "updated_at": r.updated_at,
          })).collect::<Vec<Value>>()
-    };
+        };
 
-    Ok(Json(json!({ "status": "ok", "data": rows, "count": rows.len() })))
+    Ok(Json(
+        json!({ "status": "ok", "data": rows, "count": rows.len() }),
+    ))
 }
 
 // ── GET /jobs/:id/progress ────────────────────────────────────────────────────
 
 async fn job_progress(
     AuthUser(_p): AuthUser,
-    State(pool):  State<PgPool>,
+    State(pool): State<PgPool>,
     Path(content_id): Path<String>,
 ) -> ApiResult<Json<Value>> {
     let row = sqlx::query!(
@@ -107,7 +114,9 @@ async fn job_progress(
            FROM videos WHERE content_id = $1"#,
         content_id,
     )
-    .fetch_optional(&pool).await.map_err(ApiError::Database)?
+    .fetch_optional(&pool)
+    .await
+    .map_err(ApiError::Database)?
     .ok_or_else(|| ApiError::NotFound("Job not found".into()))?;
 
     Ok(Json(json!({
@@ -157,9 +166,7 @@ async fn job_output(
     };
 
     let yt_id = row.youtube_video_id.clone();
-    let yt_url = yt_id
-        .as_deref()
-        .map(|id| format!("https://youtu.be/{id}"));
+    let yt_url = yt_id.as_deref().map(|id| format!("https://youtu.be/{id}"));
     let cost = row.total_cost.unwrap_or(0.0);
 
     Ok(Json(json!({
@@ -238,13 +245,10 @@ async fn approve_job(
     headers: HeaderMap,
     Path(content_id): Path<String>,
 ) -> ApiResult<Json<Value>> {
-    let exists = sqlx::query_scalar!(
-        "SELECT 1 FROM videos WHERE content_id = $1",
-        content_id,
-    )
-    .fetch_optional(&pool)
-    .await
-    .map_err(ApiError::Database)?;
+    let exists = sqlx::query_scalar!("SELECT 1 FROM videos WHERE content_id = $1", content_id,)
+        .fetch_optional(&pool)
+        .await
+        .map_err(ApiError::Database)?;
 
     if exists.is_none() {
         return Err(ApiError::NotFound("Video not found".into()));
@@ -259,18 +263,23 @@ async fn approve_job(
     .await
     .map_err(ApiError::Database)?;
 
-    audit_log(&pool, AuditCtx {
-        actor: &actor,
-        action: "job.approve",
-        target_type: "video",
-        target_id: Some(content_id.clone()),
-        before: None,
-        after: None,
-        headers: Some(&headers),
-    })
+    audit_log(
+        &pool,
+        AuditCtx {
+            actor: &actor,
+            action: "job.approve",
+            target_type: "video",
+            target_id: Some(content_id.clone()),
+            before: None,
+            after: None,
+            headers: Some(&headers),
+        },
+    )
     .await;
 
-    Ok(Json(json!({ "status": "ok", "data": { "content_id": content_id, "approved": true } })))
+    Ok(Json(
+        json!({ "status": "ok", "data": { "content_id": content_id, "approved": true } }),
+    ))
 }
 
 // ── POST /jobs/:id/reject ──────────────────────────────────────────────────────
@@ -281,13 +290,10 @@ async fn reject_job(
     headers: HeaderMap,
     Path(content_id): Path<String>,
 ) -> ApiResult<Json<Value>> {
-    let exists = sqlx::query_scalar!(
-        "SELECT 1 FROM videos WHERE content_id = $1",
-        content_id,
-    )
-    .fetch_optional(&pool)
-    .await
-    .map_err(ApiError::Database)?;
+    let exists = sqlx::query_scalar!("SELECT 1 FROM videos WHERE content_id = $1", content_id,)
+        .fetch_optional(&pool)
+        .await
+        .map_err(ApiError::Database)?;
 
     if exists.is_none() {
         return Err(ApiError::NotFound("Video not found".into()));
@@ -301,18 +307,23 @@ async fn reject_job(
     .await
     .map_err(ApiError::Database)?;
 
-    audit_log(&pool, AuditCtx {
-        actor: &actor,
-        action: "job.reject",
-        target_type: "video",
-        target_id: Some(content_id.clone()),
-        before: None,
-        after: None,
-        headers: Some(&headers),
-    })
+    audit_log(
+        &pool,
+        AuditCtx {
+            actor: &actor,
+            action: "job.reject",
+            target_type: "video",
+            target_id: Some(content_id.clone()),
+            before: None,
+            after: None,
+            headers: Some(&headers),
+        },
+    )
     .await;
 
-    Ok(Json(json!({ "status": "ok", "data": { "content_id": content_id, "rejected": true } })))
+    Ok(Json(
+        json!({ "status": "ok", "data": { "content_id": content_id, "rejected": true } }),
+    ))
 }
 
 // ── proxy + audit helpers ──────────────────────────────────────────────────────
@@ -331,15 +342,18 @@ async fn proxy_and_audit(
     let auth = proxy::extract_auth(&headers);
     let ct = proxy::extract_content_type(&headers);
     let resp = proxy::proxy_request(method, url, auth, ct, body).await?;
-    audit_log(&pool, AuditCtx {
-        actor: &actor,
-        action,
-        target_type: "video",
-        target_id: Some(content_id),
-        before: None,
-        after: None,
-        headers: Some(&headers),
-    })
+    audit_log(
+        &pool,
+        AuditCtx {
+            actor: &actor,
+            action,
+            target_type: "video",
+            target_id: Some(content_id),
+            before: None,
+            after: None,
+            headers: Some(&headers),
+        },
+    )
     .await;
     Ok(resp)
 }
@@ -353,7 +367,17 @@ async fn retry_job(
     headers: HeaderMap,
     body: Bytes,
 ) -> ApiResult<impl IntoResponse> {
-    proxy_and_audit(actor, pool, method, uri, headers, body, "job.retry", content_id).await
+    proxy_and_audit(
+        actor,
+        pool,
+        method,
+        uri,
+        headers,
+        body,
+        "job.retry",
+        content_id,
+    )
+    .await
 }
 
 async fn restart_job(
@@ -365,7 +389,17 @@ async fn restart_job(
     headers: HeaderMap,
     body: Bytes,
 ) -> ApiResult<impl IntoResponse> {
-    proxy_and_audit(actor, pool, method, uri, headers, body, "job.restart", content_id).await
+    proxy_and_audit(
+        actor,
+        pool,
+        method,
+        uri,
+        headers,
+        body,
+        "job.restart",
+        content_id,
+    )
+    .await
 }
 
 async fn pause_job(
@@ -377,7 +411,17 @@ async fn pause_job(
     headers: HeaderMap,
     body: Bytes,
 ) -> ApiResult<impl IntoResponse> {
-    proxy_and_audit(actor, pool, method, uri, headers, body, "job.pause", content_id).await
+    proxy_and_audit(
+        actor,
+        pool,
+        method,
+        uri,
+        headers,
+        body,
+        "job.pause",
+        content_id,
+    )
+    .await
 }
 
 async fn resume_job(
@@ -389,7 +433,17 @@ async fn resume_job(
     headers: HeaderMap,
     body: Bytes,
 ) -> ApiResult<impl IntoResponse> {
-    proxy_and_audit(actor, pool, method, uri, headers, body, "job.resume", content_id).await
+    proxy_and_audit(
+        actor,
+        pool,
+        method,
+        uri,
+        headers,
+        body,
+        "job.resume",
+        content_id,
+    )
+    .await
 }
 
 async fn stop_job(
@@ -401,5 +455,8 @@ async fn stop_job(
     headers: HeaderMap,
     body: Bytes,
 ) -> ApiResult<impl IntoResponse> {
-    proxy_and_audit(actor, pool, method, uri, headers, body, "job.stop", content_id).await
+    proxy_and_audit(
+        actor, pool, method, uri, headers, body, "job.stop", content_id,
+    )
+    .await
 }

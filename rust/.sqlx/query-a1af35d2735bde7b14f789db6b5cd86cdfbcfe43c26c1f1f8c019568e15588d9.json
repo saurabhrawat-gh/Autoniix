@@ -11,12 +11,12 @@
       {
         "ordinal": 1,
         "name": "storage_key",
-        "type_info": "Text"
+        "type_info": "Varchar"
       },
       {
         "ordinal": 2,
         "name": "codec",
-        "type_info": "Text"
+        "type_info": "Varchar"
       },
       {
         "ordinal": 3,

@@ -16,17 +16,17 @@
       {
         "ordinal": 2,
         "name": "scope_id",
-        "type_info": "Text"
+        "type_info": "Varchar"
       },
       {
         "ordinal": 3,
         "name": "name",
-        "type_info": "Text"
+        "type_info": "Varchar"
       },
       {
         "ordinal": 4,
         "name": "version_no",
-        "type_info": "Int4"
+        "type_info": "Int2"
       },
       {
         "ordinal": 5,

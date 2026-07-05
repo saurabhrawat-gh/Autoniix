@@ -1,5 +1,5 @@
-# Pinned via versions.env NODE_ALPINE_IMAGE=node:20.18.0-alpine
-ARG NODE_ALPINE_IMAGE=node:20.18.0-alpine
+# Pinned via versions.env NODE_ALPINE_IMAGE=node:20.19.0-alpine
+ARG NODE_ALPINE_IMAGE=node:20.19.0-alpine
 FROM ${NODE_ALPINE_IMAGE} AS builder
 WORKDIR /app
 COPY package.json package-lock.json* ./

@@ -812,7 +812,10 @@ pub(crate) async fn list_workspaces(
     AuthUser(principal): AuthUser,
     State(auth_service): State<AuthServiceImpl>,
 ) -> ApiResult<impl IntoResponse> {
-    let user_id: i64 = principal.user_id.parse().map_err(|_| ApiError::Unauthorized)?;
+    let user_id: i64 = principal
+        .user_id
+        .parse()
+        .map_err(|_| ApiError::Unauthorized)?;
     let data = auth_service.list_workspaces(user_id).await?;
     Ok(Json(serde_json::json!({ "data": data })))
 }
@@ -827,9 +830,13 @@ pub(crate) async fn switch_workspace(
     State(auth_service): State<AuthServiceImpl>,
     Json(body): Json<SwitchWorkspaceIn>,
 ) -> ApiResult<impl IntoResponse> {
-    let user_id: i64 = principal.user_id.parse().map_err(|_| ApiError::Unauthorized)?;
-    let (access_token, refresh_raw, wid, role) =
-        auth_service.switch_workspace(user_id, body.workspace_id).await?;
+    let user_id: i64 = principal
+        .user_id
+        .parse()
+        .map_err(|_| ApiError::Unauthorized)?;
+    let (access_token, refresh_raw, wid, role) = auth_service
+        .switch_workspace(user_id, body.workspace_id)
+        .await?;
 
     let cookies = AppendHeaders([
         (
@@ -867,9 +874,13 @@ pub(crate) async fn create_workspace(
     State(auth_service): State<AuthServiceImpl>,
     Json(body): Json<CreateWorkspaceIn>,
 ) -> ApiResult<impl IntoResponse> {
-    let user_id: i64 = principal.user_id.parse().map_err(|_| ApiError::Unauthorized)?;
-    let (access_token, refresh_raw, wid, role) =
-        auth_service.create_workspace(user_id, body.workspace_name).await?;
+    let user_id: i64 = principal
+        .user_id
+        .parse()
+        .map_err(|_| ApiError::Unauthorized)?;
+    let (access_token, refresh_raw, wid, role) = auth_service
+        .create_workspace(user_id, body.workspace_name)
+        .await?;
 
     let cookies = AppendHeaders([
         (
@@ -907,7 +918,14 @@ pub(crate) async fn delete_account(
     State(auth_service): State<AuthServiceImpl>,
     Json(body): Json<DeleteAccountIn>,
 ) -> ApiResult<impl IntoResponse> {
-    let user_id: i64 = principal.user_id.parse().map_err(|_| ApiError::Unauthorized)?;
+    let user_id: i64 = principal
+        .user_id
+        .parse()
+        .map_err(|_| ApiError::Unauthorized)?;
     auth_service.delete_account(user_id, body.password).await?;
-    Ok((StatusCode::OK, clear_auth_cookies(), Json(serde_json::json!({ "status": "ok" }))))
+    Ok((
+        StatusCode::OK,
+        clear_auth_cookies(),
+        Json(serde_json::json!({ "status": "ok" })),
+    ))
 }

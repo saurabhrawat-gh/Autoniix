@@ -105,12 +105,7 @@ impl GoldenReplay {
 
     /// Replay a single fixture against `base_url`.
     /// Returns `Ok(())` if status + body match; `Err` with diff on mismatch.
-    pub async fn replay(
-        &self,
-        base_url: &str,
-        name: &str,
-        auth_token: Option<&str>,
-    ) -> Result<()> {
+    pub async fn replay(&self, base_url: &str, name: &str, auth_token: Option<&str>) -> Result<()> {
         let fixture = self.load(name)?;
         let url = format!("{}{}", base_url.trim_end_matches('/'), fixture.path);
 
@@ -143,7 +138,11 @@ impl GoldenReplay {
         let actual_body: Value = resp.json().await.unwrap_or(Value::Null);
 
         if actual_status != fixture.status {
-            anyhow::bail!("golden replay '{name}': status mismatch — expected {}, got {}", fixture.status, actual_status);
+            anyhow::bail!(
+                "golden replay '{name}': status mismatch — expected {}, got {}",
+                fixture.status,
+                actual_status
+            );
         }
 
         let ignore: Vec<&str> = fixture.ignore_fields.iter().map(String::as_str).collect();

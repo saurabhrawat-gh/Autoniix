@@ -12,13 +12,13 @@
     "parameters": {
       "Left": [
         "Varchar",
-        "Text",
-        "Text",
+        "Varchar",
+        "Varchar",
         "Text",
         "Varchar",
         "Jsonb",
         "Int8Array",
-        "Text"
+        "Varchar"
       ]
     },
     "nullable": [

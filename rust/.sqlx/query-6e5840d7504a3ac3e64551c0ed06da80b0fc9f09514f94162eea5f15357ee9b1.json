@@ -16,7 +16,7 @@
       {
         "ordinal": 2,
         "name": "scope_id",
-        "type_info": "Text"
+        "type_info": "Varchar"
       },
       {
         "ordinal": 3,

@@ -28,45 +28,89 @@ use crate::{
 pub fn routes(pool: PgPool) -> Router {
     Router::new()
         // ── Read endpoints ──────────────────────────────────────────────────
-        .route("/api/v2/providers/categories",            get(list_categories))
-        .route("/api/v2/providers/kinds",                 get(list_kinds))
-        .route("/api/v2/providers/content-modes",         get(list_content_modes))
-        .route("/api/v2/providers/credentials",           get(list_credentials))
-        .route("/api/v2/providers/credentials/rotation-status", get(all_rotation_status))
-        .route("/api/v2/providers/credentials/:id/rotation-status", get(credential_rotation_status))
-        .route("/api/v2/providers/chains",                get(list_chains))
-        .route("/api/v2/providers/chains/:category",      get(get_chain))
-        .route("/api/v2/providers/resolved",              get(resolved_chain))
-        .route("/api/v2/providers/marketplace",           get(list_marketplace))
-        .route("/api/v2/providers/catalog-for-category",  get(catalog_for_category))
-        .route("/api/v2/providers/setup-checklist",       get(setup_checklist))
-        .route("/api/v2/providers/routes",                get(list_routes))
-        .route("/api/v2/providers/quotas",                get(list_quotas))
-        .route("/api/v2/providers/audit-log",             get(list_audit_log))
-        .route("/api/v2/providers/health/:credential_id", get(credential_health))
-        .route("/api/v2/providers/sandbox/runs",          get(sandbox_runs))
+        .route("/api/v2/providers/categories", get(list_categories))
+        .route("/api/v2/providers/kinds", get(list_kinds))
+        .route("/api/v2/providers/content-modes", get(list_content_modes))
+        .route("/api/v2/providers/credentials", get(list_credentials))
+        .route(
+            "/api/v2/providers/credentials/rotation-status",
+            get(all_rotation_status),
+        )
+        .route(
+            "/api/v2/providers/credentials/:id/rotation-status",
+            get(credential_rotation_status),
+        )
+        .route("/api/v2/providers/chains", get(list_chains))
+        .route("/api/v2/providers/chains/:category", get(get_chain))
+        .route("/api/v2/providers/resolved", get(resolved_chain))
+        .route("/api/v2/providers/marketplace", get(list_marketplace))
+        .route(
+            "/api/v2/providers/catalog-for-category",
+            get(catalog_for_category),
+        )
+        .route("/api/v2/providers/setup-checklist", get(setup_checklist))
+        .route("/api/v2/providers/routes", get(list_routes))
+        .route("/api/v2/providers/quotas", get(list_quotas))
+        .route("/api/v2/providers/audit-log", get(list_audit_log))
+        .route(
+            "/api/v2/providers/health/:credential_id",
+            get(credential_health),
+        )
+        .route("/api/v2/providers/sandbox/runs", get(sandbox_runs))
         // ── Simple mutation endpoints ────────────────────────────────────────
-        .route("/api/v2/providers/restore-defaults",      post(restore_defaults))
-        .route("/api/v2/providers/kinds/:kind",           delete(delete_kind))
-        .route("/api/v2/providers/categories",            post(create_category))
-        .route("/api/v2/providers/categories/:name",      patch(rename_category).delete(delete_category))
-        .route("/api/v2/providers/chains/:category",      put(set_chain))
-        .route("/api/v2/providers/chains",                put(upsert_chain_v2).delete(delete_chain))
-        .route("/api/v2/providers/chains/reorder",        patch(reorder_chains))
-        .route("/api/v2/providers/credentials/:id/enabled",        put(set_credential_enabled))
-        .route("/api/v2/providers/credentials/:id/default-fallback",
-            put(set_default_fallback).delete(clear_default_fallback))
-        .route("/api/v2/providers/chains/entry/:entry_id/enabled", put(set_chain_entry_enabled))
-        .route("/api/v2/providers/marketplace",           post(create_marketplace_provider))
-        .route("/api/v2/providers/marketplace/:provider_key", delete(delete_marketplace_provider))
-        .route("/api/v2/providers/routes/:category",      put(upsert_route))
-        .route("/api/v2/providers/quotas",                post(create_quota))
-        .route("/api/v2/providers/quotas/:quota_id",      put(update_quota).delete(delete_quota))
+        .route("/api/v2/providers/restore-defaults", post(restore_defaults))
+        .route("/api/v2/providers/kinds/:kind", delete(delete_kind))
+        .route("/api/v2/providers/categories", post(create_category))
+        .route(
+            "/api/v2/providers/categories/:name",
+            patch(rename_category).delete(delete_category),
+        )
+        .route("/api/v2/providers/chains/:category", put(set_chain))
+        .route(
+            "/api/v2/providers/chains",
+            put(upsert_chain_v2).delete(delete_chain),
+        )
+        .route("/api/v2/providers/chains/reorder", patch(reorder_chains))
+        .route(
+            "/api/v2/providers/credentials/:id/enabled",
+            put(set_credential_enabled),
+        )
+        .route(
+            "/api/v2/providers/credentials/:id/default-fallback",
+            put(set_default_fallback).delete(clear_default_fallback),
+        )
+        .route(
+            "/api/v2/providers/chains/entry/:entry_id/enabled",
+            put(set_chain_entry_enabled),
+        )
+        .route(
+            "/api/v2/providers/marketplace",
+            post(create_marketplace_provider),
+        )
+        .route(
+            "/api/v2/providers/marketplace/:provider_key",
+            delete(delete_marketplace_provider),
+        )
+        .route("/api/v2/providers/routes/:category", put(upsert_route))
+        .route("/api/v2/providers/quotas", post(create_quota))
+        .route(
+            "/api/v2/providers/quotas/:quota_id",
+            put(update_quota).delete(delete_quota),
+        )
         // ── Credential CRUD + lifecycle ─────────────────────────────────────
-        .route("/api/v2/providers/credentials",           post(create_credential))
-        .route("/api/v2/providers/credentials/:id",       put(update_credential).delete(delete_credential))
-        .route("/api/v2/providers/credentials/:id/test",  post(test_credential))
-        .route("/api/v2/providers/credentials/:id/rotate",post(rotate_credential))
+        .route("/api/v2/providers/credentials", post(create_credential))
+        .route(
+            "/api/v2/providers/credentials/:id",
+            put(update_credential).delete(delete_credential),
+        )
+        .route(
+            "/api/v2/providers/credentials/:id/test",
+            post(test_credential),
+        )
+        .route(
+            "/api/v2/providers/credentials/:id/rotate",
+            post(rotate_credential),
+        )
         .with_state(pool)
 }
 
@@ -74,26 +118,37 @@ pub fn routes(pool: PgPool) -> Router {
 
 #[derive(Deserialize)]
 struct CredentialCreateIn {
-    category:       String,
-    provider_name:  String,
-    label:          String,
-    vault_path:     String,
-    #[serde(default)] extra_config:   Value,
-    #[serde(default)] model:          Option<String>,
-    #[serde(default)] channel_id:     Option<String>,
-    #[serde(default)] content_mode:   Option<String>,
-    #[serde(default)] scope_priority: Option<i16>,
-    #[serde(default = "default_true")] enabled: bool,
-    #[serde(default)] secret_blob:    Option<String>,
+    category: String,
+    provider_name: String,
+    label: String,
+    vault_path: String,
+    #[serde(default)]
+    extra_config: Value,
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
+    channel_id: Option<String>,
+    #[serde(default)]
+    content_mode: Option<String>,
+    #[serde(default)]
+    scope_priority: Option<i16>,
+    #[serde(default = "default_true")]
+    enabled: bool,
+    #[serde(default)]
+    secret_blob: Option<String>,
 }
 
 async fn create_credential(
-    AuthUser(p):  AuthUser,
-    State(pool):  State<PgPool>,
-    Json(body):   Json<CredentialCreateIn>,
+    AuthUser(p): AuthUser,
+    State(pool): State<PgPool>,
+    Json(body): Json<CredentialCreateIn>,
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&p)?;
-    let extra = if body.extra_config.is_null() { json!({}) } else { body.extra_config.clone() };
+    let extra = if body.extra_config.is_null() {
+        json!({})
+    } else {
+        body.extra_config.clone()
+    };
     let created_by: Option<i32> = p.user_id.parse().ok();
     let ws_id: i64 = p.wid;
 
@@ -103,39 +158,64 @@ async fn create_credential(
                 model, channel_id, content_mode, scope_priority, enabled, created_by, secret_blob)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
            RETURNING id, created_at"#,
-        ws_id, body.category, body.provider_name, body.label, body.vault_path, extra,
-        body.model, body.channel_id, body.content_mode, body.scope_priority, body.enabled,
-        created_by, body.secret_blob,
-    ).fetch_one(&pool).await.map_err(ApiError::Database)?;
+        ws_id,
+        body.category,
+        body.provider_name,
+        body.label,
+        body.vault_path,
+        extra,
+        body.model,
+        body.channel_id,
+        body.content_mode,
+        body.scope_priority,
+        body.enabled,
+        created_by,
+        body.secret_blob,
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(ApiError::Database)?;
 
-    Ok((StatusCode::CREATED, Json(json!({
-        "status": "ok",
-        "data": {
-            "id": row.id, "category": body.category,
-            "provider_name": body.provider_name, "label": body.label,
-            "created_at": row.created_at,
-        }
-    }))))
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "status": "ok",
+            "data": {
+                "id": row.id, "category": body.category,
+                "provider_name": body.provider_name, "label": body.label,
+                "created_at": row.created_at,
+            }
+        })),
+    ))
 }
 
 #[derive(Deserialize)]
 struct CredentialUpdateIn {
-    #[serde(default)] label:          Option<String>,
-    #[serde(default)] extra_config:   Option<Value>,
-    #[serde(default)] model:          Option<String>,
-    #[serde(default)] enabled:        Option<bool>,
-    #[serde(default)] vault_path:     Option<String>,
-    #[serde(default)] channel_id:     Option<String>,
-    #[serde(default)] content_mode:   Option<String>,
-    #[serde(default)] scope_priority: Option<i16>,
-    #[serde(default)] secret_blob:    Option<String>,
+    #[serde(default)]
+    label: Option<String>,
+    #[serde(default)]
+    extra_config: Option<Value>,
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
+    enabled: Option<bool>,
+    #[serde(default)]
+    vault_path: Option<String>,
+    #[serde(default)]
+    channel_id: Option<String>,
+    #[serde(default)]
+    content_mode: Option<String>,
+    #[serde(default)]
+    scope_priority: Option<i16>,
+    #[serde(default)]
+    secret_blob: Option<String>,
 }
 
 async fn update_credential(
-    AuthUser(p):  AuthUser,
-    State(pool):  State<PgPool>,
-    Path(id):     Path<i64>,
-    Json(body):   Json<CredentialUpdateIn>,
+    AuthUser(p): AuthUser,
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
+    Json(body): Json<CredentialUpdateIn>,
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&p)?;
     let ws_id: i64 = p.wid;
@@ -147,57 +227,84 @@ async fn update_credential(
     ).fetch_optional(&pool).await.map_err(ApiError::Database)?
      .ok_or_else(|| ApiError::NotFound("Credential not found".into()))?;
 
-    let label        = body.label.unwrap_or(existing.label);
-    let vault_path   = body.vault_path.unwrap_or(existing.vault_path);
+    let label = body.label.unwrap_or(existing.label);
+    let vault_path = body.vault_path.unwrap_or(existing.vault_path);
     let extra_config = body.extra_config.unwrap_or(existing.extra_config);
-    let model        = body.model.or(existing.model);
-    let enabled      = body.enabled.unwrap_or(existing.enabled);
-    let channel_id   = body.channel_id.or(existing.channel_id);
+    let model = body.model.or(existing.model);
+    let enabled = body.enabled.unwrap_or(existing.enabled);
+    let channel_id = body.channel_id.or(existing.channel_id);
     let content_mode = body.content_mode.or(existing.content_mode);
-    let scope_prio   = body.scope_priority.or(Some(existing.scope_priority));
-    let secret_blob  = body.secret_blob.or(existing.secret_blob);
+    let scope_prio = body.scope_priority.or(Some(existing.scope_priority));
+    let secret_blob = body.secret_blob.or(existing.secret_blob);
 
     sqlx::query!(
         "UPDATE provider_credentials SET label=$2, vault_path=$3, extra_config=$4, model=$5, \
          enabled=$6, channel_id=$7, content_mode=$8, scope_priority=$9, secret_blob=$10, \
          updated_at=NOW() WHERE id=$1 AND workspace_id=$11",
-        id, label, vault_path, extra_config, model, enabled, channel_id, content_mode, scope_prio, secret_blob, ws_id,
-    ).execute(&pool).await.map_err(ApiError::Database)?;
+        id,
+        label,
+        vault_path,
+        extra_config,
+        model,
+        enabled,
+        channel_id,
+        content_mode,
+        scope_prio,
+        secret_blob,
+        ws_id,
+    )
+    .execute(&pool)
+    .await
+    .map_err(ApiError::Database)?;
 
-    Ok((StatusCode::OK, Json(json!({ "status": "ok", "data": { "id": id } }))))
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "status": "ok", "data": { "id": id } })),
+    ))
 }
 
 async fn delete_credential(
-    AuthUser(p):  AuthUser,
-    State(pool):  State<PgPool>,
-    Path(id):     Path<i64>,
+    AuthUser(p): AuthUser,
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
 ) -> ApiResult<impl IntoResponse> {
     require_owner(&p)?;
     let ws_id: i64 = p.wid;
 
     let res = sqlx::query!(
         "DELETE FROM provider_credentials WHERE id=$1 AND workspace_id=$2",
-        id, ws_id,
-    ).execute(&pool).await.map_err(ApiError::Database)?;
+        id,
+        ws_id,
+    )
+    .execute(&pool)
+    .await
+    .map_err(ApiError::Database)?;
 
     if res.rows_affected() == 0 {
         return Err(ApiError::NotFound("Credential not found".into()));
     }
-    Ok((StatusCode::OK, Json(json!({ "status": "ok", "data": { "id": id, "deleted": true } }))))
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "status": "ok", "data": { "id": id, "deleted": true } })),
+    ))
 }
 
 async fn test_credential(
-    AuthUser(p):  AuthUser,
-    State(pool):  State<PgPool>,
-    Path(id):     Path<i64>,
+    AuthUser(p): AuthUser,
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&p)?;
     let ws_id: i64 = p.wid;
 
     let exists = sqlx::query_scalar!(
         "SELECT 1 FROM provider_credentials WHERE id=$1 AND workspace_id=$2",
-        id, ws_id,
-    ).fetch_optional(&pool).await.map_err(ApiError::Database)?;
+        id,
+        ws_id,
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(ApiError::Database)?;
     if exists.is_none() {
         return Err(ApiError::NotFound("Credential not found".into()));
     }
@@ -205,26 +312,36 @@ async fn test_credential(
     sqlx::query!(
         "UPDATE provider_credentials SET last_health_at=NOW(), updated_at=NOW() WHERE id=$1",
         id,
-    ).execute(&pool).await.map_err(ApiError::Database)?;
+    )
+    .execute(&pool)
+    .await
+    .map_err(ApiError::Database)?;
 
-    Ok((StatusCode::OK, Json(json!({
-        "status": "ok",
-        "data": { "id": id, "tested_at": Utc::now(), "result": "queued" }
-    }))))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "status": "ok",
+            "data": { "id": id, "tested_at": Utc::now(), "result": "queued" }
+        })),
+    ))
 }
 
 async fn rotate_credential(
-    AuthUser(p):  AuthUser,
-    State(pool):  State<PgPool>,
-    Path(id):     Path<i64>,
+    AuthUser(p): AuthUser,
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
 ) -> ApiResult<impl IntoResponse> {
     require_owner(&p)?;
     let ws_id: i64 = p.wid;
 
     let exists = sqlx::query_scalar!(
         "SELECT 1 FROM provider_credentials WHERE id=$1 AND workspace_id=$2",
-        id, ws_id,
-    ).fetch_optional(&pool).await.map_err(ApiError::Database)?;
+        id,
+        ws_id,
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(ApiError::Database)?;
     if exists.is_none() {
         return Err(ApiError::NotFound("Credential not found".into()));
     }
@@ -234,9 +351,15 @@ async fn rotate_credential(
          SET rotated_at=NOW(), rotation_due_at=NOW() + INTERVAL '30 days', updated_at=NOW() \
          WHERE id=$1",
         id,
-    ).execute(&pool).await.map_err(ApiError::Database)?;
+    )
+    .execute(&pool)
+    .await
+    .map_err(ApiError::Database)?;
 
-    Ok((StatusCode::OK, Json(json!({ "status": "ok", "data": { "id": id, "rotated": true } }))))
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "status": "ok", "data": { "id": id, "rotated": true } })),
+    ))
 }
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
@@ -390,8 +513,12 @@ pub(crate) struct ChainV2In {
     credential_ids: Vec<i64>,
 }
 
-fn default_workspace_scope() -> String { "workspace".into() }
-fn default_production() -> String { "production".into() }
+fn default_workspace_scope() -> String {
+    "workspace".into()
+}
+fn default_production() -> String {
+    "production".into()
+}
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct DeleteChainQuery {
@@ -433,7 +560,9 @@ pub(crate) struct MarketplaceProviderIn {
     requires_api_key: bool,
 }
 
-fn default_true() -> bool { true }
+fn default_true() -> bool {
+    true
+}
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct RouteIn {
@@ -449,7 +578,9 @@ pub(crate) struct RouteIn {
     scope_id: Option<String>,
 }
 
-fn default_balanced() -> String { "balanced".into() }
+fn default_balanced() -> String {
+    "balanced".into()
+}
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct QuotaIn {
@@ -464,7 +595,9 @@ pub(crate) struct QuotaIn {
     category: Option<String>,
 }
 
-fn default_80() -> i32 { 80 }
+fn default_80() -> i32 {
+    80
+}
 
 // ─── Slugify helper (mirrors Python `_slugify`) ───────────────────────────────
 
@@ -481,7 +614,11 @@ fn slugify(text: &str, maxlen: usize) -> String {
         }
     }
     let slug = out.trim_matches('_').to_string();
-    let slug = if slug.is_empty() { "custom".to_string() } else { slug };
+    let slug = if slug.is_empty() {
+        "custom".to_string()
+    } else {
+        slug
+    };
     slug.chars().take(maxlen).collect()
 }
 
@@ -499,13 +636,18 @@ pub(crate) async fn list_categories(
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "name":           r.name,
-        "label":          r.label,
-        "kind":           r.kind,
-        "description":    r.description,
-        "is_user_defined": r.is_user_defined,
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "name":           r.name,
+                "label":          r.label,
+                "kind":           r.kind,
+                "description":    r.description,
+                "is_user_defined": r.is_user_defined,
+            })
+        })
+        .collect();
 
     Ok((StatusCode::OK, Json(json!({ "data": data }))))
 }
@@ -524,15 +666,20 @@ pub(crate) async fn list_kinds(
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "kind":           r.kind,
-        "label":          r.label,
-        "icon":           r.icon,
-        "description":    r.description,
-        "is_user_defined": r.is_user_defined,
-        "sort_order":     r.sort_order,
-        "category_count": r.category_count,
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "kind":           r.kind,
+                "label":          r.label,
+                "icon":           r.icon,
+                "description":    r.description,
+                "is_user_defined": r.is_user_defined,
+                "sort_order":     r.sort_order,
+                "category_count": r.category_count,
+            })
+        })
+        .collect();
 
     Ok((StatusCode::OK, Json(json!({ "data": data }))))
 }
@@ -549,13 +696,18 @@ pub(crate) async fn list_content_modes(
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "name":        r.name,
-        "label":       r.label,
-        "description": r.description,
-        "sort_order":  r.sort_order,
-        "is_system":   r.is_system,
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "name":        r.name,
+                "label":       r.label,
+                "description": r.description,
+                "sort_order":  r.sort_order,
+                "is_system":   r.is_system,
+            })
+        })
+        .collect();
 
     Ok((StatusCode::OK, Json(json!({ "data": data }))))
 }
@@ -587,26 +739,31 @@ pub(crate) async fn list_credentials(
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "id":                 r.id,
-        "category":           r.category,
-        "provider_name":      r.provider_name,
-        "label":              r.label,
-        "vault_path":         r.vault_path,
-        "extra_config":       r.extra_config,
-        "model":              r.model,
-        "is_default_fallback": r.is_default_fallback,
-        "channel_id":         r.channel_id,
-        "content_mode":       r.content_mode,
-        "scope_priority":     r.scope_priority,
-        "workspace_id":       r.workspace_id,
-        "enabled":            r.enabled,
-        "last_health_ok":     r.last_health_ok,
-        "last_health_at":     r.last_health_at.map(|t| t.to_rfc3339()),
-        "last_latency_ms":    r.last_latency_ms,
-        "rotated_at":         r.rotated_at.map(|t| t.to_rfc3339()),
-        "created_at":         r.created_at.to_rfc3339(),
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id":                 r.id,
+                "category":           r.category,
+                "provider_name":      r.provider_name,
+                "label":              r.label,
+                "vault_path":         r.vault_path,
+                "extra_config":       r.extra_config,
+                "model":              r.model,
+                "is_default_fallback": r.is_default_fallback,
+                "channel_id":         r.channel_id,
+                "content_mode":       r.content_mode,
+                "scope_priority":     r.scope_priority,
+                "workspace_id":       r.workspace_id,
+                "enabled":            r.enabled,
+                "last_health_ok":     r.last_health_ok,
+                "last_health_at":     r.last_health_at.map(|t| t.to_rfc3339()),
+                "last_latency_ms":    r.last_latency_ms,
+                "rotated_at":         r.rotated_at.map(|t| t.to_rfc3339()),
+                "created_at":         r.created_at.to_rfc3339(),
+            })
+        })
+        .collect();
 
     Ok((StatusCode::OK, Json(json!({ "data": data }))))
 }
@@ -627,12 +784,20 @@ pub(crate) async fn all_rotation_status(
     .await
     .map_err(ApiError::Database)?;
 
-    let mut items: Vec<Value> = rows.iter().map(|r| {
-        rotation_status_json(
-            r.id, r.label.clone(), r.category.clone(), r.provider_name.clone(),
-            r.rotated_at, r.rotation_hint.clone(), r.created_at,
-        )
-    }).collect();
+    let mut items: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            rotation_status_json(
+                r.id,
+                r.label.clone(),
+                r.category.clone(),
+                r.provider_name.clone(),
+                r.rotated_at,
+                r.rotation_hint.clone(),
+                r.created_at,
+            )
+        })
+        .collect();
 
     if q.overdue_only.unwrap_or(false) {
         items.retain(|v| v["overdue"].as_bool().unwrap_or(false));
@@ -656,10 +821,18 @@ pub(crate) async fn credential_rotation_status(
     .map_err(ApiError::Database)?
     .ok_or_else(|| ApiError::NotFound("Credential not found".into()))?;
 
-    Ok((StatusCode::OK, Json(rotation_status_json(
-        row.id, row.label, row.category, row.provider_name,
-        row.rotated_at, row.rotation_hint, row.created_at,
-    ))))
+    Ok((
+        StatusCode::OK,
+        Json(rotation_status_json(
+            row.id,
+            row.label,
+            row.category,
+            row.provider_name,
+            row.rotated_at,
+            row.rotation_hint,
+            row.created_at,
+        )),
+    ))
 }
 
 pub(crate) async fn get_chain(
@@ -688,21 +861,26 @@ pub(crate) async fn get_chain(
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "id":                  r.id,
-        "position":            r.position,
-        "fallback_strategy":   r.fallback_strategy,
-        "is_enabled":          r.is_enabled,
-        "credential_id":       r.credential_id,
-        "label":               r.label,
-        "provider_name":       r.provider_name,
-        "model":               r.model,
-        "enabled":             r.enabled,
-        "last_health_ok":      r.last_health_ok,
-        "last_health_at":      r.last_health_at.map(|t| t.to_rfc3339()),
-        "chain_category_kind": r.chain_category_kind,
-        "credential_kind":     r.credential_kind,
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id":                  r.id,
+                "position":            r.position,
+                "fallback_strategy":   r.fallback_strategy,
+                "is_enabled":          r.is_enabled,
+                "credential_id":       r.credential_id,
+                "label":               r.label,
+                "provider_name":       r.provider_name,
+                "model":               r.model,
+                "enabled":             r.enabled,
+                "last_health_ok":      r.last_health_ok,
+                "last_health_at":      r.last_health_at.map(|t| t.to_rfc3339()),
+                "chain_category_kind": r.chain_category_kind,
+                "credential_kind":     r.credential_kind,
+            })
+        })
+        .collect();
 
     Ok((StatusCode::OK, Json(json!({ "data": data }))))
 }
@@ -739,26 +917,31 @@ pub(crate) async fn list_chains(
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "id":                  r.id,
-        "scope":               r.scope,
-        "scope_id":            r.scope_id,
-        "content_mode":        r.content_mode,
-        "pipeline_mode":       r.pipeline_mode,
-        "category":            r.category,
-        "position":            r.position,
-        "fallback_strategy":   r.fallback_strategy,
-        "is_enabled":          r.is_enabled,
-        "credential_id":       r.credential_id,
-        "label":               r.label,
-        "provider_name":       r.provider_name,
-        "model":               r.model,
-        "enabled":             r.enabled,
-        "last_health_ok":      r.last_health_ok,
-        "last_health_at":      r.last_health_at.map(|t| t.to_rfc3339()),
-        "chain_category_kind": r.chain_category_kind,
-        "credential_kind":     r.credential_kind,
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id":                  r.id,
+                "scope":               r.scope,
+                "scope_id":            r.scope_id,
+                "content_mode":        r.content_mode,
+                "pipeline_mode":       r.pipeline_mode,
+                "category":            r.category,
+                "position":            r.position,
+                "fallback_strategy":   r.fallback_strategy,
+                "is_enabled":          r.is_enabled,
+                "credential_id":       r.credential_id,
+                "label":               r.label,
+                "provider_name":       r.provider_name,
+                "model":               r.model,
+                "enabled":             r.enabled,
+                "last_health_ok":      r.last_health_ok,
+                "last_health_at":      r.last_health_at.map(|t| t.to_rfc3339()),
+                "chain_category_kind": r.chain_category_kind,
+                "credential_kind":     r.credential_kind,
+            })
+        })
+        .collect();
 
     Ok((StatusCode::OK, Json(json!({ "data": data }))))
 }
@@ -802,14 +985,20 @@ pub(crate) async fn resolved_chain(
                   AND pc.enabled = TRUE
                   AND COALESCE(c.is_enabled, TRUE) = TRUE
                 ORDER BY c.position"#,
-            scope, sid.map(str::to_string), mode.map(str::to_string), q.category, pm,
+            scope,
+            sid.map(str::to_string),
+            mode.map(str::to_string),
+            q.category,
+            pm,
         )
         .fetch_all(&pool)
         .await
         .map_err(ApiError::Database)?;
 
         for r in &rows {
-            if seen.contains(&r.credential_id) { continue; }
+            if seen.contains(&r.credential_id) {
+                continue;
+            }
             seen.insert(r.credential_id);
             out.push(json!({
                 "chain_entry_id":    r.chain_entry_id,
@@ -854,13 +1043,16 @@ pub(crate) async fn resolved_chain(
         }
     }
 
-    Ok((StatusCode::OK, Json(json!({
-        "data":          out,
-        "category":      q.category,
-        "channel_id":    q.channel_id,
-        "content_mode":  q.content_mode,
-        "pipeline_mode": pm,
-    }))))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "data":          out,
+            "category":      q.category,
+            "channel_id":    q.channel_id,
+            "content_mode":  q.content_mode,
+            "pipeline_mode": pm,
+        })),
+    ))
 }
 
 pub(crate) async fn list_marketplace(
@@ -896,33 +1088,36 @@ pub(crate) async fn list_marketplace(
         .map(|r| (r.provider_name, r.cnt.unwrap_or(0)))
         .collect();
 
-    let data: Vec<Value> = catalog.iter().map(|r| {
-        let cnt = counts.get(&r.provider_key).copied().unwrap_or(0);
-        json!({
-            "id":               r.id,
-            "provider_key":     r.provider_key,
-            "display_name":     r.display_name,
-            "category":         r.category,
-            "description":      r.description,
-            "logo_url":         r.logo_url,
-            "website_url":      r.website_url,
-            "mode":             r.mode,
-            "capabilities":     r.capabilities,
-            "pricing_notes":    r.pricing_notes,
-            "cost_unit":        r.cost_unit,
-            "regions":          r.regions,
-            "has_free_tier":    r.has_free_tier,
-            "featured":         r.featured,
-            "sort_order":       r.sort_order,
-            "config_schema":    r.config_schema,
-            "supported_models": r.supported_models,
-            "pricing_tier":     r.pricing_tier,
-            "docs_url":         r.docs_url,
-            "is_platform_seeded": r.is_platform_seeded,
-            "credential_count": cnt,
-            "connected":        cnt > 0,
+    let data: Vec<Value> = catalog
+        .iter()
+        .map(|r| {
+            let cnt = counts.get(&r.provider_key).copied().unwrap_or(0);
+            json!({
+                "id":               r.id,
+                "provider_key":     r.provider_key,
+                "display_name":     r.display_name,
+                "category":         r.category,
+                "description":      r.description,
+                "logo_url":         r.logo_url,
+                "website_url":      r.website_url,
+                "mode":             r.mode,
+                "capabilities":     r.capabilities,
+                "pricing_notes":    r.pricing_notes,
+                "cost_unit":        r.cost_unit,
+                "regions":          r.regions,
+                "has_free_tier":    r.has_free_tier,
+                "featured":         r.featured,
+                "sort_order":       r.sort_order,
+                "config_schema":    r.config_schema,
+                "supported_models": r.supported_models,
+                "pricing_tier":     r.pricing_tier,
+                "docs_url":         r.docs_url,
+                "is_platform_seeded": r.is_platform_seeded,
+                "credential_count": cnt,
+                "connected":        cnt > 0,
+            })
         })
-    }).collect();
+        .collect();
 
     Ok((StatusCode::OK, Json(json!({ "data": data }))))
 }
@@ -932,11 +1127,14 @@ pub(crate) async fn catalog_for_category(
     State(pool): State<PgPool>,
     Query(q): Query<CatalogQuery>,
 ) -> ApiResult<impl IntoResponse> {
-    let cat = sqlx::query!("SELECT kind FROM provider_categories WHERE name = $1", q.category)
-        .fetch_optional(&pool)
-        .await
-        .map_err(ApiError::Database)?
-        .ok_or_else(|| ApiError::NotFound(format!("Unknown category {:?}", q.category)))?;
+    let cat = sqlx::query!(
+        "SELECT kind FROM provider_categories WHERE name = $1",
+        q.category
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(ApiError::Database)?
+    .ok_or_else(|| ApiError::NotFound(format!("Unknown category {:?}", q.category)))?;
 
     let rows = sqlx::query!(
         r#"SELECT pmc.provider_key, pmc.display_name, pmc.description, pmc.logo_url,
@@ -952,22 +1150,30 @@ pub(crate) async fn catalog_for_category(
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "provider_key":     r.provider_key,
-        "display_name":     r.display_name,
-        "description":      r.description,
-        "logo_url":         r.logo_url,
-        "has_free_tier":    r.has_free_tier,
-        "cost_unit":        r.cost_unit,
-        "config_schema":    r.config_schema,
-        "supported_models": r.supported_models,
-        "docs_url":         r.docs_url,
-        "pricing_tier":     r.pricing_tier,
-        "is_user_defined":  r.is_user_defined,
-        "is_callable":      r.is_callable,
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "provider_key":     r.provider_key,
+                "display_name":     r.display_name,
+                "description":      r.description,
+                "logo_url":         r.logo_url,
+                "has_free_tier":    r.has_free_tier,
+                "cost_unit":        r.cost_unit,
+                "config_schema":    r.config_schema,
+                "supported_models": r.supported_models,
+                "docs_url":         r.docs_url,
+                "pricing_tier":     r.pricing_tier,
+                "is_user_defined":  r.is_user_defined,
+                "is_callable":      r.is_callable,
+            })
+        })
+        .collect();
 
-    Ok((StatusCode::OK, Json(json!({ "data": data, "kind": cat.kind }))))
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "data": data, "kind": cat.kind })),
+    ))
 }
 
 pub(crate) async fn setup_checklist(
@@ -996,7 +1202,8 @@ pub(crate) async fn setup_checklist(
         .map_err(ApiError::Database)?;
 
         let chain_count = sqlx::query_scalar!(
-            "SELECT COUNT(*) FROM provider_chains_v2 WHERE category = $1", cname
+            "SELECT COUNT(*) FROM provider_chains_v2 WHERE category = $1",
+            cname
         )
         .fetch_one(&pool)
         .await
@@ -1004,7 +1211,9 @@ pub(crate) async fn setup_checklist(
         .unwrap_or(0);
 
         let ok = cred.enabled_count.unwrap_or(0) > 0;
-        if ok { total_ok += 1; }
+        if ok {
+            total_ok += 1;
+        }
 
         result.push(json!({
             "category":      cname,
@@ -1017,14 +1226,17 @@ pub(crate) async fn setup_checklist(
     }
 
     let total = result.len() as i64;
-    Ok((StatusCode::OK, Json(json!({
-        "data": result,
-        "summary": {
-            "total_categories": total,
-            "configured":       total_ok,
-            "complete":         total_ok == total,
-        }
-    }))))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "data": result,
+            "summary": {
+                "total_categories": total,
+                "configured":       total_ok,
+                "complete":         total_ok == total,
+            }
+        })),
+    ))
 }
 
 pub(crate) async fn list_routes(
@@ -1043,26 +1255,32 @@ pub(crate) async fn list_routes(
              LEFT JOIN provider_credentials c ON c.id = r.primary_credential_id
             WHERE r.scope = $1 AND ($2::text IS NULL OR r.scope_id = $2)
             ORDER BY r.category"#,
-        scope, q.scope_id,
+        scope,
+        q.scope_id,
     )
     .fetch_all(&pool)
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "id":                   r.id,
-        "scope":                r.scope,
-        "scope_id":             r.scope_id,
-        "category":             r.category,
-        "policy":               r.policy,
-        "custom_rules":         r.custom_rules,
-        "primary_credential_id": r.primary_credential_id,
-        "fallback_chain":       r.fallback_chain,
-        "enabled":              r.enabled,
-        "updated_at":           r.updated_at.to_rfc3339(),
-        "primary_label":        r.primary_label,
-        "primary_provider":     r.primary_provider,
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id":                   r.id,
+                "scope":                r.scope,
+                "scope_id":             r.scope_id,
+                "category":             r.category,
+                "policy":               r.policy,
+                "custom_rules":         r.custom_rules,
+                "primary_credential_id": r.primary_credential_id,
+                "fallback_chain":       r.fallback_chain,
+                "enabled":              r.enabled,
+                "updated_at":           r.updated_at.to_rfc3339(),
+                "primary_label":        r.primary_label,
+                "primary_provider":     r.primary_provider,
+            })
+        })
+        .collect();
 
     Ok((StatusCode::OK, Json(json!({ "data": data }))))
 }
@@ -1086,18 +1304,23 @@ pub(crate) async fn list_quotas(
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "id":               r.id,
-        "scope":            r.scope,
-        "scope_id":         r.scope_id,
-        "category":         r.category,
-        "monthly_cap_usd":  r.monthly_cap_usd,
-        "current_spend":    r.current_spend,
-        "period_start":     r.period_start.to_string(),
-        "alert_pct":        r.alert_pct,
-        "hard_limit":       r.hard_limit,
-        "updated_at":       r.updated_at.to_rfc3339(),
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id":               r.id,
+                "scope":            r.scope,
+                "scope_id":         r.scope_id,
+                "category":         r.category,
+                "monthly_cap_usd":  r.monthly_cap_usd,
+                "current_spend":    r.current_spend,
+                "period_start":     r.period_start.to_string(),
+                "alert_pct":        r.alert_pct,
+                "hard_limit":       r.hard_limit,
+                "updated_at":       r.updated_at.to_rfc3339(),
+            })
+        })
+        .collect();
 
     Ok((StatusCode::OK, Json(json!({ "data": data }))))
 }
@@ -1132,12 +1355,15 @@ pub(crate) async fn list_audit_log(
                   AND a.target_type = 'provider_credential'
                   AND a.target_id = $1
                 ORDER BY a.created_at DESC LIMIT $2"#,
-            cred_str, lim
+            cred_str,
+            lim
         )
         .fetch_all(&pool)
         .await
         .map_err(ApiError::Database)?
-        .into_iter().map(|r| audit_row_to_json!(r)).collect()
+        .into_iter()
+        .map(|r| audit_row_to_json!(r))
+        .collect()
     } else if let Some(ref cat) = q.category {
         sqlx::query!(
             r#"SELECT DISTINCT ON (a.id)
@@ -1147,12 +1373,15 @@ pub(crate) async fn list_audit_log(
                  JOIN provider_credentials pc ON pc.id::text = a.target_id AND pc.category = $1
                 WHERE a.action LIKE 'provider.%'
                 ORDER BY a.id DESC, a.created_at DESC LIMIT $2"#,
-            cat, lim
+            cat,
+            lim
         )
         .fetch_all(&pool)
         .await
         .map_err(ApiError::Database)?
-        .into_iter().map(|r| audit_row_to_json!(r)).collect()
+        .into_iter()
+        .map(|r| audit_row_to_json!(r))
+        .collect()
     } else {
         sqlx::query!(
             r#"SELECT a.id, a.actor_label, a.action, a.target_type, a.target_id,
@@ -1165,7 +1394,9 @@ pub(crate) async fn list_audit_log(
         .fetch_all(&pool)
         .await
         .map_err(ApiError::Database)?
-        .into_iter().map(|r| audit_row_to_json!(r)).collect()
+        .into_iter()
+        .map(|r| audit_row_to_json!(r))
+        .collect()
     };
 
     Ok((StatusCode::OK, Json(json!({ "data": data }))))
@@ -1184,18 +1415,24 @@ pub(crate) async fn credential_health(
          FROM provider_health_log \
          WHERE credential_id = $1 \
          ORDER BY checked_at DESC LIMIT $2",
-        credential_id, lim
+        credential_id,
+        lim
     )
     .fetch_all(&pool)
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "ok":         r.ok,
-        "latency_ms": r.latency_ms,
-        "error":      r.error,
-        "checked_at": r.checked_at.to_rfc3339(),
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "ok":         r.ok,
+                "latency_ms": r.latency_ms,
+                "error":      r.error,
+                "checked_at": r.checked_at.to_rfc3339(),
+            })
+        })
+        .collect();
 
     Ok((StatusCode::OK, Json(json!({ "data": data }))))
 }
@@ -1219,18 +1456,23 @@ pub(crate) async fn sandbox_runs(
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "id":            r.id,
-        "credential_id": r.credential_id,
-        "capability":    r.capability,
-        "input_payload": r.input_payload,
-        "output":        r.output_payload,
-        "ok":            r.ok,
-        "error":         r.error,
-        "latency_ms":    r.latency_ms,
-        "cost_usd":      r.cost_usd,
-        "created_at":    r.created_at.to_rfc3339(),
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id":            r.id,
+                "credential_id": r.credential_id,
+                "capability":    r.capability,
+                "input_payload": r.input_payload,
+                "output":        r.output_payload,
+                "ok":            r.ok,
+                "error":         r.error,
+                "latency_ms":    r.latency_ms,
+                "cost_usd":      r.cost_usd,
+                "created_at":    r.created_at.to_rfc3339(),
+            })
+        })
+        .collect();
 
     Ok((StatusCode::OK, Json(json!({ "data": data }))))
 }
@@ -1246,7 +1488,15 @@ pub(crate) async fn restore_defaults(
         .execute(&pool)
         .await
         .map_err(ApiError::Database)?;
-    audit_log(&pool, AuditCtx::new(&p, "provider.taxonomy.restore_defaults", "provider_taxonomy")).await;
+    audit_log(
+        &pool,
+        AuditCtx::new(
+            &p,
+            "provider.taxonomy.restore_defaults",
+            "provider_taxonomy",
+        ),
+    )
+    .await;
     Ok((StatusCode::OK, Json(json!({ "status": "ok" }))))
 }
 
@@ -1265,12 +1515,11 @@ pub(crate) async fn delete_kind(
         return Err(ApiError::NotFound("Section not found".into()));
     }
 
-    let cat_names: Vec<String> = sqlx::query_scalar!(
-        "SELECT name FROM provider_categories WHERE kind = $1", kind
-    )
-    .fetch_all(&pool)
-    .await
-    .map_err(ApiError::Database)?;
+    let cat_names: Vec<String> =
+        sqlx::query_scalar!("SELECT name FROM provider_categories WHERE kind = $1", kind)
+            .fetch_all(&pool)
+            .await
+            .map_err(ApiError::Database)?;
 
     let mut tx = pool.begin().await.map_err(ApiError::Database)?;
     for cname in &cat_names {
@@ -1292,13 +1541,20 @@ pub(crate) async fn delete_kind(
         .map_err(ApiError::Database)?;
     tx.commit().await.map_err(ApiError::Database)?;
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(kind.clone()),
-        after: Some(json!({ "categories_removed": cat_names })),
-        ..AuditCtx::new(&p, "provider.kind.delete", "provider_kind")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(kind.clone()),
+            after: Some(json!({ "categories_removed": cat_names })),
+            ..AuditCtx::new(&p, "provider.kind.delete", "provider_kind")
+        },
+    )
+    .await;
 
-    Ok((StatusCode::OK, Json(json!({ "status": "ok", "categories_removed": cat_names }))))
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "status": "ok", "categories_removed": cat_names })),
+    ))
 }
 
 pub(crate) async fn create_category(
@@ -1317,36 +1573,55 @@ pub(crate) async fn create_category(
         .fetch_optional(&pool)
         .await
         .map_err(ApiError::Database)?
-        .ok_or_else(|| ApiError::Validation(format!("Unknown section {:?}. Create the section first.", kind)))?;
+        .ok_or_else(|| {
+            ApiError::Validation(format!(
+                "Unknown section {:?}. Create the section first.",
+                kind
+            ))
+        })?;
 
     let name_default = format!("{}_{}", kind, label);
     let name_base = body.name.as_deref().unwrap_or(&name_default);
     let name = slugify(name_base, 40);
 
-    let existing = sqlx::query_scalar!("SELECT name FROM provider_categories WHERE name = $1", name)
-        .fetch_optional(&pool)
-        .await
-        .map_err(ApiError::Database)?;
+    let existing =
+        sqlx::query_scalar!("SELECT name FROM provider_categories WHERE name = $1", name)
+            .fetch_optional(&pool)
+            .await
+            .map_err(ApiError::Database)?;
     if existing.is_some() {
-        return Err(ApiError::Conflict(format!("Category {:?} already exists", name)));
+        return Err(ApiError::Conflict(format!(
+            "Category {:?} already exists",
+            name
+        )));
     }
 
     sqlx::query!(
         "INSERT INTO provider_categories (name, label, kind, description, is_user_defined) \
          VALUES ($1, $2, $3, $4, TRUE)",
-        name, label, kind, body.description
+        name,
+        label,
+        kind,
+        body.description
     )
     .execute(&pool)
     .await
     .map_err(ApiError::Database)?;
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(name.clone()),
-        after: Some(json!({ "label": label, "kind": kind })),
-        ..AuditCtx::new(&p, "provider.category.create", "provider_category")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(name.clone()),
+            after: Some(json!({ "label": label, "kind": kind })),
+            ..AuditCtx::new(&p, "provider.category.create", "provider_category")
+        },
+    )
+    .await;
 
-    Ok((StatusCode::CREATED, Json(json!({ "status": "ok", "name": name, "label": label, "kind": kind }))))
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({ "status": "ok", "name": name, "label": label, "kind": kind })),
+    ))
 }
 
 pub(crate) async fn rename_category(
@@ -1362,26 +1637,38 @@ pub(crate) async fn rename_category(
         return Err(ApiError::Validation("label is required".into()));
     }
 
-    let existing = sqlx::query_scalar!("SELECT name FROM provider_categories WHERE name = $1", name)
-        .fetch_optional(&pool)
-        .await
-        .map_err(ApiError::Database)?;
+    let existing =
+        sqlx::query_scalar!("SELECT name FROM provider_categories WHERE name = $1", name)
+            .fetch_optional(&pool)
+            .await
+            .map_err(ApiError::Database)?;
     if existing.is_none() {
         return Err(ApiError::NotFound("Category not found".into()));
     }
 
-    sqlx::query!("UPDATE provider_categories SET label = $1 WHERE name = $2", label, name)
-        .execute(&pool)
-        .await
-        .map_err(ApiError::Database)?;
+    sqlx::query!(
+        "UPDATE provider_categories SET label = $1 WHERE name = $2",
+        label,
+        name
+    )
+    .execute(&pool)
+    .await
+    .map_err(ApiError::Database)?;
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(name.clone()),
-        after: Some(json!({ "label": label })),
-        ..AuditCtx::new(&p, "provider.category.rename", "provider_category")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(name.clone()),
+            after: Some(json!({ "label": label })),
+            ..AuditCtx::new(&p, "provider.category.rename", "provider_category")
+        },
+    )
+    .await;
 
-    Ok((StatusCode::OK, Json(json!({ "status": "ok", "name": name, "label": label }))))
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "status": "ok", "name": name, "label": label })),
+    ))
 }
 
 pub(crate) async fn delete_category(
@@ -1391,10 +1678,11 @@ pub(crate) async fn delete_category(
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&p)?;
 
-    let existing = sqlx::query_scalar!("SELECT name FROM provider_categories WHERE name = $1", name)
-        .fetch_optional(&pool)
-        .await
-        .map_err(ApiError::Database)?;
+    let existing =
+        sqlx::query_scalar!("SELECT name FROM provider_categories WHERE name = $1", name)
+            .fetch_optional(&pool)
+            .await
+            .map_err(ApiError::Database)?;
     if existing.is_none() {
         return Err(ApiError::NotFound("Category not found".into()));
     }
@@ -1403,21 +1691,52 @@ pub(crate) async fn delete_category(
     purge_category_tx(&mut tx, &name).await?;
     tx.commit().await.map_err(ApiError::Database)?;
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(name.clone()),
-        ..AuditCtx::new(&p, "provider.category.delete", "provider_category")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(name.clone()),
+            ..AuditCtx::new(&p, "provider.category.delete", "provider_category")
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({ "status": "ok" }))))
 }
 
-async fn purge_category_tx(tx: &mut sqlx::Transaction<'_, sqlx::Postgres>, name: &str) -> ApiResult<()> {
-    sqlx::query!("DELETE FROM provider_chains_v2 WHERE category = $1", name).execute(&mut **tx).await.map_err(ApiError::Database)?;
-    sqlx::query!("DELETE FROM provider_priority_chains WHERE category = $1", name).execute(&mut **tx).await.map_err(ApiError::Database)?;
-    sqlx::query!("DELETE FROM provider_routes WHERE category = $1", name).execute(&mut **tx).await.map_err(ApiError::Database)?;
-    sqlx::query!("DELETE FROM provider_credentials WHERE category = $1", name).execute(&mut **tx).await.map_err(ApiError::Database)?;
-    sqlx::query!("DELETE FROM provider_marketplace_catalog WHERE category = $1", name).execute(&mut **tx).await.map_err(ApiError::Database)?;
-    sqlx::query!("DELETE FROM provider_categories WHERE name = $1", name).execute(&mut **tx).await.map_err(ApiError::Database)?;
+async fn purge_category_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    name: &str,
+) -> ApiResult<()> {
+    sqlx::query!("DELETE FROM provider_chains_v2 WHERE category = $1", name)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::Database)?;
+    sqlx::query!(
+        "DELETE FROM provider_priority_chains WHERE category = $1",
+        name
+    )
+    .execute(&mut **tx)
+    .await
+    .map_err(ApiError::Database)?;
+    sqlx::query!("DELETE FROM provider_routes WHERE category = $1", name)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::Database)?;
+    sqlx::query!("DELETE FROM provider_credentials WHERE category = $1", name)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::Database)?;
+    sqlx::query!(
+        "DELETE FROM provider_marketplace_catalog WHERE category = $1",
+        name
+    )
+    .execute(&mut **tx)
+    .await
+    .map_err(ApiError::Database)?;
+    sqlx::query!("DELETE FROM provider_categories WHERE name = $1", name)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::Database)?;
     Ok(())
 }
 
@@ -1431,15 +1750,27 @@ pub(crate) async fn set_chain(
     let ws_id: i64 = p.wid;
 
     upsert_chain_inner(
-        &pool, "workspace", None, None, "production", &category,
-        &body.credential_ids, p.user_id.parse::<i32>().ok(), ws_id,
-    ).await?;
+        &pool,
+        "workspace",
+        None,
+        None,
+        "production",
+        &category,
+        &body.credential_ids,
+        p.user_id.parse::<i32>().ok(),
+        ws_id,
+    )
+    .await?;
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(category.clone()),
-        after: Some(json!({ "scope": "workspace", "credential_ids": body.credential_ids })),
-        ..AuditCtx::new(&p, "provider.chain.set", "provider_chain")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(category.clone()),
+            after: Some(json!({ "scope": "workspace", "credential_ids": body.credential_ids })),
+            ..AuditCtx::new(&p, "provider.chain.set", "provider_chain")
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({ "status": "ok" }))))
 }
@@ -1454,7 +1785,8 @@ pub(crate) async fn upsert_chain_v2(
 
     if !body.credential_ids.is_empty() {
         let cat_kind = sqlx::query_scalar!(
-            "SELECT kind FROM provider_categories WHERE name = $1", body.category
+            "SELECT kind FROM provider_categories WHERE name = $1",
+            body.category
         )
         .fetch_optional(&pool)
         .await
@@ -1467,7 +1799,8 @@ pub(crate) async fn upsert_chain_v2(
                      JOIN provider_categories pc ON pc.name = c.category
                     WHERE c.id = ANY($1::bigint[]) AND pc.kind != $2
                     LIMIT 1"#,
-                &body.credential_ids, kind
+                &body.credential_ids,
+                kind
             )
             .fetch_optional(&pool)
             .await
@@ -1483,10 +1816,17 @@ pub(crate) async fn upsert_chain_v2(
     }
 
     upsert_chain_inner(
-        &pool, &body.scope, body.scope_id.as_deref(), body.content_mode.as_deref(),
-        &body.pipeline_mode, &body.category, &body.credential_ids,
-        p.user_id.parse::<i32>().ok(), ws_id,
-    ).await?;
+        &pool,
+        &body.scope,
+        body.scope_id.as_deref(),
+        body.content_mode.as_deref(),
+        &body.pipeline_mode,
+        &body.category,
+        &body.credential_ids,
+        p.user_id.parse::<i32>().ok(),
+        ws_id,
+    )
+    .await?;
 
     audit_log(&pool, AuditCtx {
         target_id: Some(format!("{}:{}:{}:{}", body.scope, body.scope_id.as_deref().unwrap_or(""), body.content_mode.as_deref().unwrap_or(""), body.category)),
@@ -1518,7 +1858,12 @@ async fn upsert_chain_inner(
            AND COALESCE(pipeline_mode, 'production') = $4 \
            AND category = $5 \
            AND workspace_id = $6",
-        scope, scope_id, content_mode, pipeline_mode, category, workspace_id,
+        scope,
+        scope_id,
+        content_mode,
+        pipeline_mode,
+        category,
+        workspace_id,
     )
     .execute(&mut *tx)
     .await
@@ -1527,7 +1872,9 @@ async fn upsert_chain_inner(
     let mut seen: std::collections::HashSet<i64> = std::collections::HashSet::new();
     let mut position: i16 = 0;
     for &cid in credential_ids {
-        if seen.contains(&cid) { continue; }
+        if seen.contains(&cid) {
+            continue;
+        }
         seen.insert(cid);
         sqlx::query!(
             "INSERT INTO provider_chains_v2 \
@@ -1560,16 +1907,30 @@ pub(crate) async fn delete_chain(
            AND ($3::text IS NULL AND content_mode IS NULL OR content_mode = $3) \
            AND COALESCE(pipeline_mode, 'production') = $4 \
            AND category = $5",
-        q.scope, q.scope_id, q.content_mode, pm, q.category,
+        q.scope,
+        q.scope_id,
+        q.content_mode,
+        pm,
+        q.category,
     )
     .execute(&pool)
     .await
     .map_err(ApiError::Database)?;
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(format!("{}:{}:{}:{}", q.scope, q.scope_id.as_deref().unwrap_or(""), q.content_mode.as_deref().unwrap_or(""), q.category)),
-        ..AuditCtx::new(&p, "provider.chain_v2.delete", "provider_chain_v2")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(format!(
+                "{}:{}:{}:{}",
+                q.scope,
+                q.scope_id.as_deref().unwrap_or(""),
+                q.content_mode.as_deref().unwrap_or(""),
+                q.category
+            )),
+            ..AuditCtx::new(&p, "provider.chain_v2.delete", "provider_chain_v2")
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({ "status": "ok" }))))
 }
@@ -1589,7 +1950,8 @@ pub(crate) async fn reorder_chains(
     for item in &body.items {
         sqlx::query!(
             "UPDATE provider_chains_v2 SET position = $1 WHERE id = $2",
-            item.position as i16, item.id
+            item.position as i16,
+            item.id
         )
         .execute(&mut *tx)
         .await
@@ -1598,11 +1960,20 @@ pub(crate) async fn reorder_chains(
     tx.commit().await.map_err(ApiError::Database)?;
 
     let ids: Vec<i64> = body.items.iter().map(|i| i.id).collect();
-    audit_log(&pool, AuditCtx {
-        target_id: Some(ids.iter().map(|i| i.to_string()).collect::<Vec<_>>().join(",")),
-        after: Some(json!({ "count": ids.len() })),
-        ..AuditCtx::new(&p, "provider.chain.reorder", "provider_chain_v2")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(
+                ids.iter()
+                    .map(|i| i.to_string())
+                    .collect::<Vec<_>>()
+                    .join(","),
+            ),
+            after: Some(json!({ "count": ids.len() })),
+            ..AuditCtx::new(&p, "provider.chain.reorder", "provider_chain_v2")
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({ "status": "ok" }))))
 }
@@ -1617,7 +1988,8 @@ pub(crate) async fn set_credential_enabled(
 
     let rows = sqlx::query!(
         "UPDATE provider_credentials SET enabled = $1 WHERE id = $2",
-        body.enabled, id
+        body.enabled,
+        id
     )
     .execute(&pool)
     .await
@@ -1627,11 +1999,19 @@ pub(crate) async fn set_credential_enabled(
         return Err(ApiError::NotFound("Credential not found".into()));
     }
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(id.to_string()),
-        after: Some(json!({ "enabled": body.enabled })),
-        ..AuditCtx::new(&p, "provider.credential.enabled_toggle", "provider_credential")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(id.to_string()),
+            after: Some(json!({ "enabled": body.enabled })),
+            ..AuditCtx::new(
+                &p,
+                "provider.credential.enabled_toggle",
+                "provider_credential",
+            )
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({ "status": "ok" }))))
 }
@@ -1646,7 +2026,8 @@ pub(crate) async fn set_chain_entry_enabled(
 
     let rows = sqlx::query!(
         "UPDATE provider_chains_v2 SET is_enabled = $1 WHERE id = $2",
-        body.enabled, entry_id
+        body.enabled,
+        entry_id
     )
     .execute(&pool)
     .await
@@ -1656,11 +2037,19 @@ pub(crate) async fn set_chain_entry_enabled(
         return Err(ApiError::NotFound("Chain entry not found".into()));
     }
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(entry_id.to_string()),
-        after: Some(json!({ "enabled": body.enabled })),
-        ..AuditCtx::new(&p, "provider.chain_entry.enabled_toggle", "provider_chain_v2")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(entry_id.to_string()),
+            after: Some(json!({ "enabled": body.enabled })),
+            ..AuditCtx::new(
+                &p,
+                "provider.chain_entry.enabled_toggle",
+                "provider_chain_v2",
+            )
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({ "status": "ok" }))))
 }
@@ -1672,28 +2061,45 @@ pub(crate) async fn set_default_fallback(
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&p)?;
 
-    let cred = sqlx::query!("SELECT category FROM provider_credentials WHERE id = $1", credential_id)
-        .fetch_optional(&pool)
-        .await
-        .map_err(ApiError::Database)?
-        .ok_or_else(|| ApiError::NotFound("Credential not found".into()))?;
+    let cred = sqlx::query!(
+        "SELECT category FROM provider_credentials WHERE id = $1",
+        credential_id
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(ApiError::Database)?
+    .ok_or_else(|| ApiError::NotFound("Credential not found".into()))?;
 
     let mut tx = pool.begin().await.map_err(ApiError::Database)?;
     sqlx::query!(
         "UPDATE provider_credentials SET is_default_fallback = FALSE WHERE category = $1",
         cred.category
-    ).execute(&mut *tx).await.map_err(ApiError::Database)?;
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(ApiError::Database)?;
     sqlx::query!(
         "UPDATE provider_credentials SET is_default_fallback = TRUE WHERE id = $1",
         credential_id
-    ).execute(&mut *tx).await.map_err(ApiError::Database)?;
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(ApiError::Database)?;
     tx.commit().await.map_err(ApiError::Database)?;
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(credential_id.to_string()),
-        after: Some(json!({ "category": cred.category })),
-        ..AuditCtx::new(&p, "provider.credential.default_fallback_set", "provider_credential")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(credential_id.to_string()),
+            after: Some(json!({ "category": cred.category })),
+            ..AuditCtx::new(
+                &p,
+                "provider.credential.default_fallback_set",
+                "provider_credential",
+            )
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({ "status": "ok" }))))
 }
@@ -1705,11 +2111,14 @@ pub(crate) async fn clear_default_fallback(
 ) -> ApiResult<impl IntoResponse> {
     require_owner_or_member(&p)?;
 
-    let cred = sqlx::query!("SELECT category FROM provider_credentials WHERE id = $1", credential_id)
-        .fetch_optional(&pool)
-        .await
-        .map_err(ApiError::Database)?
-        .ok_or_else(|| ApiError::NotFound("Credential not found".into()))?;
+    let cred = sqlx::query!(
+        "SELECT category FROM provider_credentials WHERE id = $1",
+        credential_id
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(ApiError::Database)?
+    .ok_or_else(|| ApiError::NotFound("Credential not found".into()))?;
 
     sqlx::query!(
         "UPDATE provider_credentials SET is_default_fallback = FALSE WHERE id = $1",
@@ -1719,11 +2128,19 @@ pub(crate) async fn clear_default_fallback(
     .await
     .map_err(ApiError::Database)?;
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(credential_id.to_string()),
-        after: Some(json!({ "category": cred.category })),
-        ..AuditCtx::new(&p, "provider.credential.default_fallback_clear", "provider_credential")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(credential_id.to_string()),
+            after: Some(json!({ "category": cred.category })),
+            ..AuditCtx::new(
+                &p,
+                "provider.credential.default_fallback_clear",
+                "provider_credential",
+            )
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({ "status": "ok" }))))
 }
@@ -1744,17 +2161,26 @@ pub(crate) async fn create_marketplace_provider(
         .fetch_optional(&pool)
         .await
         .map_err(ApiError::Database)?
-        .ok_or_else(|| ApiError::Validation(format!("Unknown section {:?}. Create the section first.", kind)))?;
+        .ok_or_else(|| {
+            ApiError::Validation(format!(
+                "Unknown section {:?}. Create the section first.",
+                kind
+            ))
+        })?;
 
-    let cat = sqlx::query_scalar!("SELECT name FROM provider_categories WHERE name = $1 LIMIT 1", kind)
-        .fetch_optional(&pool)
-        .await
-        .map_err(ApiError::Database)?;
+    let cat = sqlx::query_scalar!(
+        "SELECT name FROM provider_categories WHERE name = $1 LIMIT 1",
+        kind
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(ApiError::Database)?;
     let cat_name = if let Some(c) = cat {
         c
     } else {
         sqlx::query_scalar!(
-            "SELECT name FROM provider_categories WHERE kind = $1 ORDER BY name LIMIT 1", kind
+            "SELECT name FROM provider_categories WHERE kind = $1 ORDER BY name LIMIT 1",
+            kind
         )
         .fetch_optional(&pool)
         .await
@@ -1766,24 +2192,30 @@ pub(crate) async fn create_marketplace_provider(
     let provider_key = slugify(pk_base, 60);
 
     let existing = sqlx::query_scalar!(
-        "SELECT provider_key FROM provider_marketplace_catalog WHERE provider_key = $1", provider_key
+        "SELECT provider_key FROM provider_marketplace_catalog WHERE provider_key = $1",
+        provider_key
     )
     .fetch_optional(&pool)
     .await
     .map_err(ApiError::Database)?;
     if existing.is_some() {
-        return Err(ApiError::Conflict(format!("Provider {:?} already exists", provider_key)));
+        return Err(ApiError::Conflict(format!(
+            "Provider {:?} already exists",
+            provider_key
+        )));
     }
 
     let config_schema = if body.requires_api_key {
         serde_json::to_value(vec![
             json!({"name":"api_key","type":"password","label":"API Key","required":true}),
             json!({"name":"model","type":"text","label":"Model (optional)","required":false}),
-        ]).unwrap()
+        ])
+        .unwrap()
     } else {
         serde_json::to_value(vec![
             json!({"name":"model","type":"text","label":"Model (optional)","required":false}),
-        ]).unwrap()
+        ])
+        .unwrap()
     };
     let supported_models = serde_json::to_value(&body.supported_models).unwrap();
     let pricing_tier = if body.has_free_tier { "free" } else { "paid" };
@@ -1796,21 +2228,34 @@ pub(crate) async fn create_marketplace_provider(
                is_user_defined, is_callable)
            VALUES ($1,$2,$3,$4,'byok',ARRAY[]::text[],$5,$6,FALSE,90,
                    $7::jsonb,$8::jsonb,FALSE,$9,TRUE,FALSE)"#,
-        provider_key, display_name, cat_name, body.description,
-        body.cost_unit, body.has_free_tier,
-        config_schema, supported_models, pricing_tier,
+        provider_key,
+        display_name,
+        cat_name,
+        body.description,
+        body.cost_unit,
+        body.has_free_tier,
+        config_schema,
+        supported_models,
+        pricing_tier,
     )
     .execute(&pool)
     .await
     .map_err(ApiError::Database)?;
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(provider_key.clone()),
-        after: Some(json!({ "display_name": display_name, "kind": kind })),
-        ..AuditCtx::new(&p, "provider.marketplace.create", "provider_marketplace")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(provider_key.clone()),
+            after: Some(json!({ "display_name": display_name, "kind": kind })),
+            ..AuditCtx::new(&p, "provider.marketplace.create", "provider_marketplace")
+        },
+    )
+    .await;
 
-    Ok((StatusCode::CREATED, Json(json!({ "status": "ok", "provider_key": provider_key, "category": cat_name }))))
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({ "status": "ok", "provider_key": provider_key, "category": cat_name })),
+    ))
 }
 
 pub(crate) async fn delete_marketplace_provider(
@@ -1821,7 +2266,8 @@ pub(crate) async fn delete_marketplace_provider(
     require_owner_or_member(&p)?;
 
     let existing = sqlx::query_scalar!(
-        "SELECT provider_key FROM provider_marketplace_catalog WHERE provider_key = $1", provider_key
+        "SELECT provider_key FROM provider_marketplace_catalog WHERE provider_key = $1",
+        provider_key
     )
     .fetch_optional(&pool)
     .await
@@ -1830,15 +2276,22 @@ pub(crate) async fn delete_marketplace_provider(
         return Err(ApiError::NotFound("Provider not found".into()));
     }
 
-    sqlx::query!("DELETE FROM provider_marketplace_catalog WHERE provider_key = $1", provider_key)
-        .execute(&pool)
-        .await
-        .map_err(ApiError::Database)?;
+    sqlx::query!(
+        "DELETE FROM provider_marketplace_catalog WHERE provider_key = $1",
+        provider_key
+    )
+    .execute(&pool)
+    .await
+    .map_err(ApiError::Database)?;
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(provider_key.clone()),
-        ..AuditCtx::new(&p, "provider.marketplace.delete", "provider_marketplace")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(provider_key.clone()),
+            ..AuditCtx::new(&p, "provider.marketplace.delete", "provider_marketplace")
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({ "status": "ok" }))))
 }
@@ -1868,7 +2321,11 @@ pub(crate) async fn upsert_route(
         sqlx::query!(
             "UPDATE provider_routes SET policy=$1, custom_rules=$2::jsonb, \
              primary_credential_id=$3, fallback_chain=$4::bigint[], updated_at=NOW() WHERE id=$5",
-            body.policy, custom_rules, body.primary_credential_id, &fallback_chain, id
+            body.policy,
+            custom_rules,
+            body.primary_credential_id,
+            &fallback_chain,
+            id
         )
         .execute(&pool)
         .await
@@ -1887,11 +2344,15 @@ pub(crate) async fn upsert_route(
         .map_err(ApiError::Database)?
     };
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(rid.to_string()),
-        after: Some(json!({ "category": category, "policy": body.policy })),
-        ..AuditCtx::new(&p, "provider.route.upsert", "provider_route")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(rid.to_string()),
+            after: Some(json!({ "category": category, "policy": body.policy })),
+            ..AuditCtx::new(&p, "provider.route.upsert", "provider_route")
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({ "status": "ok", "id": rid }))))
 }
@@ -1918,13 +2379,20 @@ pub(crate) async fn create_quota(
     .await
     .map_err(ApiError::Database)?;
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(qid.to_string()),
-        after: Some(json!({ "scope": body.scope, "monthly_cap_usd": body.monthly_cap_usd })),
-        ..AuditCtx::new(&p, "provider.quota.upsert", "provider_quota")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(qid.to_string()),
+            after: Some(json!({ "scope": body.scope, "monthly_cap_usd": body.monthly_cap_usd })),
+            ..AuditCtx::new(&p, "provider.quota.upsert", "provider_quota")
+        },
+    )
+    .await;
 
-    Ok((StatusCode::CREATED, Json(json!({ "status": "ok", "id": qid }))))
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({ "status": "ok", "id": qid })),
+    ))
 }
 
 pub(crate) async fn update_quota(
@@ -1947,11 +2415,15 @@ pub(crate) async fn update_quota(
         return Err(ApiError::NotFound("Quota not found".into()));
     }
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(quota_id.to_string()),
-        after: Some(json!({ "monthly_cap_usd": body.monthly_cap_usd })),
-        ..AuditCtx::new(&p, "provider.quota.update", "provider_quota")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(quota_id.to_string()),
+            after: Some(json!({ "monthly_cap_usd": body.monthly_cap_usd })),
+            ..AuditCtx::new(&p, "provider.quota.update", "provider_quota")
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({ "status": "ok" }))))
 }
@@ -1972,10 +2444,14 @@ pub(crate) async fn delete_quota(
         return Err(ApiError::NotFound("Quota not found".into()));
     }
 
-    audit_log(&pool, AuditCtx {
-        target_id: Some(quota_id.to_string()),
-        ..AuditCtx::new(&p, "provider.quota.delete", "provider_quota")
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            target_id: Some(quota_id.to_string()),
+            ..AuditCtx::new(&p, "provider.quota.delete", "provider_quota")
+        },
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({ "status": "ok" }))))
 }

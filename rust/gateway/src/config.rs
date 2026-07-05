@@ -26,8 +26,7 @@ impl Config {
             jwt_secret: env::var("AUTH_JWT_SECRET")
                 .or_else(|_| env::var("DASHBOARD_JWT_SECRET"))
                 .or_else(|_| env::var("JWT_SECRET"))?,
-            provider_mode: env::var("PROVIDER_MODE")
-                .unwrap_or_else(|_| "live".to_string()),
+            provider_mode: env::var("PROVIDER_MODE").unwrap_or_else(|_| "live".to_string()),
             python_bff_url: env::var("PYTHON_BFF_URL")
                 .unwrap_or_else(|_| "http://localhost:8020".to_string()),
         })

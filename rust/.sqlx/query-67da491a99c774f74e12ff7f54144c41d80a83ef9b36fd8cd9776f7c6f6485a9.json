@@ -11,12 +11,12 @@
       {
         "ordinal": 1,
         "name": "display_name",
-        "type_info": "Text"
+        "type_info": "Varchar"
       },
       {
         "ordinal": 2,
         "name": "storage_key",
-        "type_info": "Text"
+        "type_info": "Varchar"
       },
       {
         "ordinal": 3,
