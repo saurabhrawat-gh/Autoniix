@@ -12,8 +12,8 @@
     "parameters": {
       "Left": [
         "Varchar",
-        "Text",
-        "Text",
+        "Varchar",
+        "Varchar",
         "Int8Array",
         "Jsonb",
         "Int8Array",

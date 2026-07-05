@@ -11,7 +11,7 @@
       {
         "ordinal": 1,
         "name": "version_no",
-        "type_info": "Int4"
+        "type_info": "Int2"
       },
       {
         "ordinal": 2,

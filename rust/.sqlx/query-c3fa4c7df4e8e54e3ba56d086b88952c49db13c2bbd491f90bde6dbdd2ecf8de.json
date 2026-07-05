@@ -16,7 +16,7 @@
       {
         "ordinal": 2,
         "name": "scope_id",
-        "type_info": "Text"
+        "type_info": "Varchar"
       },
       {
         "ordinal": 3,
@@ -26,12 +26,12 @@
       {
         "ordinal": 4,
         "name": "display_name",
-        "type_info": "Text"
+        "type_info": "Varchar"
       },
       {
         "ordinal": 5,
         "name": "mime_type",
-        "type_info": "Text"
+        "type_info": "Varchar"
       },
       {
         "ordinal": 6,
@@ -41,12 +41,12 @@
       {
         "ordinal": 7,
         "name": "thumbnail_key",
-        "type_info": "Text"
+        "type_info": "Varchar"
       },
       {
         "ordinal": 8,
         "name": "storage_key",
-        "type_info": "Text"
+        "type_info": "Varchar"
       },
       {
         "ordinal": 9,
