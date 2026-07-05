@@ -4,7 +4,7 @@
  * Rubric-strict scoring of a rendered video. Input is a list of frame samples
  * (PNG/JPEG buffers or file paths) plus optional global context (brand
  * reference, expected duration, audio peak). Output is a `CriticReport`
- * conforming to the rubric in docs/future/remotion-vision/03-INTELLIGENCE-LAYER.md §3.4.
+ * conforming to the rubric in docs/future/remotion-vision/intelligence-layer.md §3.4.
  *
  * Provider abstraction: critic delegates to a `VlmProvider`. Two providers
  * ship in P0:

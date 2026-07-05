@@ -5,7 +5,7 @@
  * legacy `RENDER_QUEUE` is used. When sharding is on, jobs fan out to
  * tier-specific queues and a parent concat queue.
  *
- * See docs/future/remotion-vision/05-PERFORMANCE-AND-SCALE.md §5.6.
+ * See docs/future/remotion-vision/performance-and-scale.md §5.6.
  */
 
 import { Queue, FlowProducer } from "bullmq";

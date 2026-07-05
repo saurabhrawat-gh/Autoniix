@@ -45,7 +45,7 @@ Use this workflow at the START of every new feature or epic, before any code is 
    - Decisions already locked (data models, API contracts, auth patterns, DB tables)
    - Patterns already established (provider pattern, retry policy, cost tracking, SSE, Caddy proxy)
    - Constraints this epic must respect (budget caps, concurrency limits, role matrix)
-4. Check `docs/future/PENDING.md` for any deferred items touching this feature area.
+4. Check `docs/future/pending.md` for any deferred items touching this feature area.
 
 ### 0B — Scan the Codebase
 Use `code_search` to locate:

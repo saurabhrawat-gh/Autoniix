@@ -4,7 +4,7 @@ Checks whether there are enough delivered videos with retention curves (analytic
 to make a meaningful first training run. If the threshold is met, starts one
 ModelMaintenanceWorkflow per active niche.
 
-docs/future/PENDING.md: 'after 30+ delivered videos with analytics ingested, manually trigger
+docs/future/pending.md: 'after 30+ delivered videos with analytics ingested, manually trigger
 train_model(niche=...) for one channel and verify n_weighted_samples > 0.'
 
 Usage:

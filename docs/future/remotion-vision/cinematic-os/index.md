@@ -7,7 +7,7 @@ photons.
 
 > One-sentence thesis: **stop authoring videos. start compiling them.**
 
-This set supersedes (but does not delete) `docs/future/remotion-vision/00..08`,
+This set supersedes (but does not delete) the v1 `docs/future/remotion-vision/` files,
 which remain as the v1 plan + the basis for the P0 implementation already
 shipped under `services/remotion/`.
 
@@ -17,15 +17,15 @@ shipped under `services/remotion/`.
 
 | # | File | Audience | Length |
 | - | ---- | -------- | ------ |
-| 0 | `00-MANIFESTO.md` | All | Short |
-| 1 | `01-CINEMATIC-IR.md` | Eng, ML, integrators | Long |
-| 2 | `02-FRAME-CONTRACT.md` | Eng, ML | Long |
-| 3 | `03-TIMELINE-AND-SCENE-GRAPH.md` | Eng | Long |
-| 4 | `04-RENDER-GRAPH-AND-GPU.md` | Eng, infra, GPU | Long |
-| 5 | `05-CINEMATIC-INTELLIGENCE-ENGINE.md` | ML, agents, research | Long |
-| 6 | `06-EXECUTION-LIFECYCLE-AND-MOONSHOTS.md` | All | Long |
+| 0 | `manifesto.md` | All | Short |
+| 1 | `cinematic-ir.md` | Eng, ML, integrators | Long |
+| 2 | `frame-contract.md` | Eng, ML | Long |
+| 3 | `timeline-and-scene-graph.md` | Eng | Long |
+| 4 | `render-graph-and-gpu.md` | Eng, infra, GPU | Long |
+| 5 | `cinematic-intelligence-engine.md` | ML, agents, research | Long |
+| 6 | `execution-lifecycle-and-moonshots.md` | All | Long |
 
-10 minutes: read `00-MANIFESTO.md` and §6.10 of `06`.
+10 minutes: read `manifesto.md` and §6.10 of `execution-lifecycle-and-moonshots.md`.
 2 hours: read all in order.
 
 ---
@@ -77,28 +77,28 @@ The v1 work that already shipped under `services/remotion/` becomes the
 | `sdk/python/yt_engine/` | Python clients (extended with `CirClient`) |
 | `scripts/init-db.sql` migrations | base schema (extended with `cir_documents`, `bytecode_cache`, `signal_buffers`) |
 
-Migration plan: §6.7 of `06-EXECUTION-LIFECYCLE-AND-MOONSHOTS.md`.
+Migration plan: §6.7 of `execution-lifecycle-and-moonshots.md`.
 
 ---
 
 ## What's in each file (one-liner each)
 
-- **`00-MANIFESTO.md`** — paradigm shift. Why "compiling" beats "editing".
-- **`01-CINEMATIC-IR.md`** — the IR itself: dialects, JSON Schema, hashing,
+- **`manifesto.md`** — paradigm shift. Why "compiling" beats "editing".
+- **`cinematic-ir.md`** — the IR itself: dialects, JSON Schema, hashing,
   worked example. The single contract that crosses every boundary.
-- **`02-FRAME-CONTRACT.md`** — the per-frame `FrameState` value: every
+- **`frame-contract.md`** — the per-frame `FrameState` value: every
   field, how it's resolved from the IR, why determinism holds.
-- **`03-TIMELINE-AND-SCENE-GRAPH.md`** — timeline grammar (sequence,
+- **`timeline-and-scene-graph.md`** — timeline grammar (sequence,
   parallel, branch, switch, loop, warp, reactive, template) + spatial
   scene graph + validation rules.
-- **`04-RENDER-GRAPH-AND-GPU.md`** — DAG of typed render passes; RGB
+- **`render-graph-and-gpu.md`** — DAG of typed render passes; RGB
   bytecode; LLVM-style compile pipeline; T0/T1/T2 execution; GPU
   determinism; reframer + ladder fan-out.
-- **`05-CINEMATIC-INTELLIGENCE-ENGINE.md`** — multi-agent topology
+- **`cinematic-intelligence-engine.md`** — multi-agent topology
   (Director, Cinematographer, Editor, Colorist, Sound, Captioner, Layout,
   Shader smith, Platform, Semantic annotator, Guard, Critic, Repair,
   Simplifier) + training loops + cost model.
-- **`06-EXECUTION-LIFECYCLE-AND-MOONSHOTS.md`** — full lifecycle from
+- **`execution-lifecycle-and-moonshots.md`** — full lifecycle from
   brief to upload + 12 research moonshots that fall out of the design.
 
 ---

@@ -6,7 +6,7 @@
 > use it. Filmmaking models *target* it.
 
 This is the v2 redesign of the `services/remotion` engine inside
-`yt-automation-n8n`. It supersedes the v1 vision (`docs/future/remotion-vision/00..08`)
+`yt-automation-n8n`. It supersedes the v1 vision (`docs/future/remotion-vision/index.md` + files)
 and the P0 implementation we just shipped becomes its **kernel core**.
 
 ---
@@ -91,12 +91,12 @@ Three boundaries are sacred:
 
 | File | Topic |
 | ---- | ----- |
-| `01-CINEMATIC-IR.md` | The IR itself — types, dialects, JSON schema, examples |
-| `02-FRAME-CONTRACT.md` | What every frame state must specify; how to derive it |
-| `03-TIMELINE-AND-SCENE-GRAPH.md` | Nested / parallel / branching / reactive timelines + scene graph |
-| `04-RENDER-GRAPH-AND-GPU.md` | DAG of render passes; WebGPU/Vulkan execution; scheduler |
-| `05-CINEMATIC-INTELLIGENCE-ENGINE.md` | Upstream agents, model topology, contracts |
-| `06-EXECUTION-LIFECYCLE-AND-MOONSHOTS.md` | End-to-end lifecycle; moonshot research bets |
+| `cinematic-ir.md` | The IR itself — types, dialects, JSON schema, examples |
+| `frame-contract.md` | What every frame state must specify; how to derive it |
+| `timeline-and-scene-graph.md` | Nested / parallel / branching / reactive timelines + scene graph |
+| `render-graph-and-gpu.md` | DAG of render passes; WebGPU/Vulkan execution; scheduler |
+| `cinematic-intelligence-engine.md` | Upstream agents, model topology, contracts |
+| `execution-lifecycle-and-moonshots.md` | End-to-end lifecycle; moonshot research bets |
 
 Read in order. Each builds on the previous.
 

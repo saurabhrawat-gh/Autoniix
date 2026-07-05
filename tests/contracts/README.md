@@ -204,5 +204,5 @@ Per HARNESS-ENGINEERING-PLAN.md:
 ## Related Documents
 
 - `docs/architecture/harness-engineering-plan.md` — Overall harness plan
-- `docs/future/POST-HARNESS-TASKS.md` — Post-harness implementation tasks
+- `docs/future/post-harness-tasks.md` — Post-harness implementation tasks
 - `rust/gateway/DB_REALIGNMENT_SUMMARY.md` — DB schema realignment summary
