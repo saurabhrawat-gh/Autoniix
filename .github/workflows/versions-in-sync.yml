@@ -1,6 +1,9 @@
 name: Versions in Sync
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
@@ -12,7 +15,7 @@ jobs:
   guard:
     name: Guard — merge from develop only
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && env.ACT != 'true'
+    if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,7 +38,7 @@ jobs:
 
   drift:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: versions.env drift check
     runs-on: ubuntu-latest
     steps:
