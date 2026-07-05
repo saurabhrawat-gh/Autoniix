@@ -38,14 +38,14 @@ fn require_owner_or_member(p: &Principal) -> ApiResult<()> {
 pub fn routes(pool: PgPool) -> Router {
     Router::new()
         // static sub-paths MUST come before /:content_id
-        .route("/api/v2/content/search",           get(search_content))
-        .route("/api/v2/content/calendar",          get(calendar))
-        .route("/api/v2/content/bulk",              post(bulk_action))
-        .route("/api/v2/content/triggers/history",  get(list_triggers))
-        .route("/api/v2/content/stats",             get(content_stats))
-        .route("/api/v2/content/trigger",           post(trigger_content))
-        .route("/api/v2/content/:content_id",       get(get_content_detail))
-        .route("/api/v2/content",                   get(list_content))
+        .route("/api/v2/content/search", get(search_content))
+        .route("/api/v2/content/calendar", get(calendar))
+        .route("/api/v2/content/bulk", post(bulk_action))
+        .route("/api/v2/content/triggers/history", get(list_triggers))
+        .route("/api/v2/content/stats", get(content_stats))
+        .route("/api/v2/content/trigger", post(trigger_content))
+        .route("/api/v2/content/:content_id", get(get_content_detail))
+        .route("/api/v2/content", get(list_content))
         .with_state(pool)
 }
 
@@ -53,87 +53,98 @@ pub fn routes(pool: PgPool) -> Router {
 
 #[derive(Deserialize)]
 struct ListQ {
-    channel_id:   Option<String>,
+    channel_id: Option<String>,
     #[serde(default = "d_week")]
-    group:        String,
-    status:       Option<String>,
+    group: String,
+    status: Option<String>,
     review_state: Option<String>,
     content_mode: Option<String>,
-    cursor:       Option<String>,
+    cursor: Option<String>,
     #[serde(default = "d_50")]
-    limit:        i64,
+    limit: i64,
 }
-fn d_week() -> String { "week".into() }
-fn d_50()   -> i64   { 50 }
+fn d_week() -> String {
+    "week".into()
+}
+fn d_50() -> i64 {
+    50
+}
 
 #[derive(Deserialize)]
 struct SearchQ {
-    q:          String,
+    q: String,
     channel_id: Option<String>,
     #[serde(default = "d_40")]
-    limit:      i64,
+    limit: i64,
 }
-fn d_40() -> i64 { 40 }
+fn d_40() -> i64 {
+    40
+}
 
 #[derive(Deserialize)]
 struct CalendarQ {
     channel_id: Option<String>,
-    start:      String,
-    end:        String,
+    start: String,
+    end: String,
 }
 
 #[derive(Deserialize)]
 struct TriggersQ {
     channel_id: Option<String>,
     #[serde(default = "d_20")]
-    limit:      i64,
+    limit: i64,
 }
 
 #[derive(Deserialize)]
 struct TriggerIn {
-    channel_id:       String,
+    channel_id: String,
     #[serde(default = "d_long_form")]
-    content_mode:     String,
-    topic_hint:       Option<String>,
+    content_mode: String,
+    topic_hint: Option<String>,
     #[serde(default)]
     topic_candidates: Vec<String>,
-    scheduled_for:    Option<String>,
-    max_cost_usd:     Option<f64>,
+    scheduled_for: Option<String>,
+    max_cost_usd: Option<f64>,
 }
-fn d_long_form() -> String { "long_form".into() }
-fn d_20() -> i64 { 20 }
+fn d_long_form() -> String {
+    "long_form".into()
+}
+fn d_20() -> i64 {
+    20
+}
 
 #[derive(Deserialize)]
 struct StatsQ {
     channel_id: Option<String>,
     #[serde(default = "d_week")]
-    period:     String,
+    period: String,
 }
 
 #[derive(Deserialize)]
 struct BulkActionIn {
     action: String,
-    ids:    Vec<String>,
-    note:   Option<String>,
+    ids: Vec<String>,
+    note: Option<String>,
 }
 
 // ── GET /content ───────────────────────────────────────────────────────────────
 
 async fn list_content(
     AuthUser(_p): AuthUser,
-    State(pool):  State<PgPool>,
-    Query(q):     Query<ListQ>,
+    State(pool): State<PgPool>,
+    Query(q): Query<ListQ>,
 ) -> ApiResult<Json<Value>> {
     const VALID_GROUPS: &[&str] = &["day", "week", "month", "quarter", "year"];
     if !VALID_GROUPS.contains(&q.group.as_str()) {
-        return Err(ApiError::Validation(format!("group must be one of {VALID_GROUPS:?}")));
+        return Err(ApiError::Validation(format!(
+            "group must be one of {VALID_GROUPS:?}"
+        )));
     }
     let lim = q.limit.clamp(1, 500);
     let trunc = q.group.as_str();
 
-    let mut qb: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new(
-        format!(
-            r#"SELECT content_id, channel_id, status, content_mode, title, topic,
+    let mut qb: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new(format!(
+        r#"SELECT content_id, channel_id, status, content_mode, title, topic,
                       selected_hook, review_state,
                       authenticity_score::float8    AS authenticity_score,
                       uniqueness_score::float8      AS uniqueness_score,
@@ -144,23 +155,32 @@ async fn list_content(
                       current_phase, created_at, scheduled_at, published_at,
                       date_trunc('{}', created_at)::date AS bucket
                FROM videos WHERE 1=1"#,
-            trunc
-        )
-    );
+        trunc
+    ));
 
-    if let Some(ref v) = q.channel_id   { qb.push(" AND channel_id = ")   .push_bind(v); }
-    if let Some(ref v) = q.status       { qb.push(" AND status = ")        .push_bind(v); }
-    if let Some(ref v) = q.review_state { qb.push(" AND review_state = ")  .push_bind(v); }
-    if let Some(ref v) = q.content_mode { qb.push(" AND content_mode = ")  .push_bind(v); }
+    if let Some(ref v) = q.channel_id {
+        qb.push(" AND channel_id = ").push_bind(v);
+    }
+    if let Some(ref v) = q.status {
+        qb.push(" AND status = ").push_bind(v);
+    }
+    if let Some(ref v) = q.review_state {
+        qb.push(" AND review_state = ").push_bind(v);
+    }
+    if let Some(ref v) = q.content_mode {
+        qb.push(" AND content_mode = ").push_bind(v);
+    }
     if let Some(ref cur) = q.cursor {
         let dt = chrono::DateTime::parse_from_rfc3339(cur)
             .map(|d| d.with_timezone(&chrono::Utc))
             .map_err(|_| ApiError::Validation("cursor must be ISO datetime".into()))?;
         qb.push(" AND created_at < ").push_bind(dt);
     }
-    qb.push(" ORDER BY created_at DESC LIMIT ").push_bind(lim + 1);
+    qb.push(" ORDER BY created_at DESC LIMIT ")
+        .push_bind(lim + 1);
 
-    let rows = qb.build()
+    let rows = qb
+        .build()
         .fetch_all(&pool)
         .await
         .map_err(ApiError::Database)?;
@@ -169,7 +189,8 @@ async fn list_content(
     let rows = &rows[..rows.len().min(lim as usize)];
 
     let mut group_order: Vec<String> = Vec::new();
-    let mut group_map: std::collections::HashMap<String, Vec<Value>> = std::collections::HashMap::new();
+    let mut group_map: std::collections::HashMap<String, Vec<Value>> =
+        std::collections::HashMap::new();
     for r in rows {
         let bucket: chrono::NaiveDate = r.try_get("bucket").unwrap_or_default();
         let key = bucket.to_string();
@@ -194,15 +215,23 @@ async fn list_content(
             "scheduled_at": r.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("scheduled_at").ok().flatten(),
             "published_at": r.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("published_at").ok().flatten(),
         });
-        if !group_map.contains_key(&key) { group_order.push(key.clone()); }
+        if !group_map.contains_key(&key) {
+            group_order.push(key.clone());
+        }
         group_map.entry(key).or_default().push(item);
     }
 
     let next_cursor = if has_more {
-        rows.last().and_then(|r|
-            r.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("created_at").ok().flatten()
-        ).map(|d| d.to_rfc3339())
-    } else { None };
+        rows.last()
+            .and_then(|r| {
+                r.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("created_at")
+                    .ok()
+                    .flatten()
+            })
+            .map(|d| d.to_rfc3339())
+    } else {
+        None
+    };
 
     Ok(Json(json!({
         "data": {
@@ -218,11 +247,13 @@ async fn list_content(
 
 async fn search_content(
     AuthUser(_p): AuthUser,
-    State(pool):  State<PgPool>,
-    Query(q):     Query<SearchQ>,
+    State(pool): State<PgPool>,
+    Query(q): Query<SearchQ>,
 ) -> ApiResult<Json<Value>> {
     if q.q.len() < 2 {
-        return Err(ApiError::Validation("q must be at least 2 characters".into()));
+        return Err(ApiError::Validation(
+            "q must be at least 2 characters".into(),
+        ));
     }
     let lim = q.limit.clamp(1, 200);
 
@@ -235,18 +266,22 @@ async fn search_content(
                 WHERE title_tsv @@ plainto_tsquery('english', $1) AND channel_id = $2
                 ORDER BY rank DESC, created_at DESC
                 LIMIT $3"#,
-            q.q, ch, lim,
+            q.q,
+            ch,
+            lim,
         )
         .fetch_all(&pool)
         .await
         .map_err(ApiError::Database)?
         .into_iter()
-        .map(|r| json!({
-            "content_id": r.content_id, "channel_id": r.channel_id,
-            "title": r.title, "topic": r.topic, "selected_hook": r.selected_hook,
-            "status": r.status, "review_state": r.review_state,
-            "created_at": r.created_at, "rank": r.rank
-        }))
+        .map(|r| {
+            json!({
+                "content_id": r.content_id, "channel_id": r.channel_id,
+                "title": r.title, "topic": r.topic, "selected_hook": r.selected_hook,
+                "status": r.status, "review_state": r.review_state,
+                "created_at": r.created_at, "rank": r.rank
+            })
+        })
         .collect::<Vec<_>>()
     } else {
         sqlx::query!(
@@ -257,18 +292,21 @@ async fn search_content(
                 WHERE title_tsv @@ plainto_tsquery('english', $1)
                 ORDER BY rank DESC, created_at DESC
                 LIMIT $2"#,
-            q.q, lim,
+            q.q,
+            lim,
         )
         .fetch_all(&pool)
         .await
         .map_err(ApiError::Database)?
         .into_iter()
-        .map(|r| json!({
-            "content_id": r.content_id, "channel_id": r.channel_id,
-            "title": r.title, "topic": r.topic, "selected_hook": r.selected_hook,
-            "status": r.status, "review_state": r.review_state,
-            "created_at": r.created_at, "rank": r.rank
-        }))
+        .map(|r| {
+            json!({
+                "content_id": r.content_id, "channel_id": r.channel_id,
+                "title": r.title, "topic": r.topic, "selected_hook": r.selected_hook,
+                "status": r.status, "review_state": r.review_state,
+                "created_at": r.created_at, "rank": r.rank
+            })
+        })
         .collect::<Vec<_>>()
     };
     Ok(Json(json!({ "data": rows })))
@@ -278,8 +316,8 @@ async fn search_content(
 
 async fn calendar(
     AuthUser(_p): AuthUser,
-    State(pool):  State<PgPool>,
-    Query(q):     Query<CalendarQ>,
+    State(pool): State<PgPool>,
+    Query(q): Query<CalendarQ>,
 ) -> ApiResult<Json<Value>> {
     let mut qb: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new(
         r#"SELECT content_id, channel_id, content_mode, status, review_state,
@@ -287,18 +325,26 @@ async fn calendar(
                   COALESCE(published_at, scheduled_at, created_at)::date AS day,
                   published_at, scheduled_at, created_at
              FROM videos
-            WHERE COALESCE(published_at, scheduled_at, created_at) >= "#
+            WHERE COALESCE(published_at, scheduled_at, created_at) >= "#,
     );
-    qb.push_bind(q.start.clone()).push("::date AND COALESCE(published_at, scheduled_at, created_at) < ").push_bind(q.end.clone()).push("::date");
+    qb.push_bind(q.start.clone())
+        .push("::date AND COALESCE(published_at, scheduled_at, created_at) < ")
+        .push_bind(q.end.clone())
+        .push("::date");
     if let Some(ref ch) = q.channel_id {
         qb.push(" AND channel_id = ").push_bind(ch);
     }
     qb.push(" ORDER BY day ASC, created_at ASC");
 
-    let rows = qb.build().fetch_all(&pool).await.map_err(ApiError::Database)?;
+    let rows = qb
+        .build()
+        .fetch_all(&pool)
+        .await
+        .map_err(ApiError::Database)?;
 
     let mut day_order: Vec<String> = Vec::new();
-    let mut day_map: std::collections::HashMap<String, Vec<Value>> = std::collections::HashMap::new();
+    let mut day_map: std::collections::HashMap<String, Vec<Value>> =
+        std::collections::HashMap::new();
     for r in &rows {
         let day: chrono::NaiveDate = r.try_get("day").unwrap_or_default();
         let key = day.to_string();
@@ -313,23 +359,28 @@ async fn calendar(
             "published_at":  r.try_get::<Option<chrono::DateTime<chrono::Utc>>,_>("published_at").ok().flatten(),
             "scheduled_at":  r.try_get::<Option<chrono::DateTime<chrono::Utc>>,_>("scheduled_at").ok().flatten(),
         });
-        if !day_map.contains_key(&key) { day_order.push(key.clone()); }
+        if !day_map.contains_key(&key) {
+            day_order.push(key.clone());
+        }
         day_map.entry(key).or_default().push(entry);
     }
     // Rebuild as ordered object for JSON output
-    let data: serde_json::Map<String, Value> = day_order.iter()
+    let data: serde_json::Map<String, Value> = day_order
+        .iter()
         .map(|k| (k.clone(), Value::Array(day_map[k].clone())))
         .collect();
-    Ok(Json(json!({ "data": data, "start": q.start, "end": q.end })))
+    Ok(Json(
+        json!({ "data": data, "start": q.start, "end": q.end }),
+    ))
 }
 
 // ── POST /content/bulk ────────────────────────────────────────────────────────
 
 async fn bulk_action(
     AuthUser(actor): AuthUser,
-    State(pool):     State<PgPool>,
-    headers:         HeaderMap,
-    Json(body):      Json<BulkActionIn>,
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+    Json(body): Json<BulkActionIn>,
 ) -> ApiResult<Json<Value>> {
     if body.ids.is_empty() {
         return Ok(Json(json!({ "status": "noop" })));
@@ -364,15 +415,19 @@ async fn bulk_action(
         ).execute(&pool).await.map_err(ApiError::Database)?.rows_affected(),
         other => return Err(ApiError::Validation(format!("Unknown action {other:?}"))),
     };
-    audit_log(&pool, AuditCtx {
-        actor: &actor,
-        action: Box::leak(format!("content.bulk.{}", body.action).into_boxed_str()),
-        target_type: "video",
-        target_id: Some(format!("{} items", body.ids.len())),
-        before: None,
-        after: Some(json!({ "ids": body.ids, "affected": affected, "note": body.note })),
-        headers: Some(&headers),
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            actor: &actor,
+            action: Box::leak(format!("content.bulk.{}", body.action).into_boxed_str()),
+            target_type: "video",
+            target_id: Some(format!("{} items", body.ids.len())),
+            before: None,
+            after: Some(json!({ "ids": body.ids, "affected": affected, "note": body.note })),
+            headers: Some(&headers),
+        },
+    )
+    .await;
     Ok(Json(json!({ "status": "ok", "affected": affected })))
 }
 
@@ -380,8 +435,8 @@ async fn bulk_action(
 
 async fn list_triggers(
     AuthUser(_p): AuthUser,
-    State(pool):  State<PgPool>,
-    Query(q):     Query<TriggersQ>,
+    State(pool): State<PgPool>,
+    Query(q): Query<TriggersQ>,
 ) -> ApiResult<Json<Value>> {
     let lim = q.limit.clamp(1, 100);
     let rows = if let Some(ref ch) = q.channel_id {
@@ -390,16 +445,23 @@ async fn list_triggers(
                       triggered_by, status, content_id, error, created_at, updated_at
                  FROM content_triggers WHERE channel_id = $1
                  ORDER BY created_at DESC LIMIT $2"#,
-            ch, lim,
+            ch,
+            lim,
         )
-        .fetch_all(&pool).await.map_err(ApiError::Database)?
-        .into_iter().map(|r| json!({
-            "id": r.id, "channel_id": r.channel_id, "content_mode": r.content_mode,
-            "topic_hint": r.topic_hint, "scheduled_for": r.scheduled_for,
-            "triggered_by": r.triggered_by, "status": r.status,
-            "content_id": r.content_id, "error": r.error,
-            "created_at": r.created_at, "updated_at": r.updated_at
-        })).collect::<Vec<_>>()
+        .fetch_all(&pool)
+        .await
+        .map_err(ApiError::Database)?
+        .into_iter()
+        .map(|r| {
+            json!({
+                "id": r.id, "channel_id": r.channel_id, "content_mode": r.content_mode,
+                "topic_hint": r.topic_hint, "scheduled_for": r.scheduled_for,
+                "triggered_by": r.triggered_by, "status": r.status,
+                "content_id": r.content_id, "error": r.error,
+                "created_at": r.created_at, "updated_at": r.updated_at
+            })
+        })
+        .collect::<Vec<_>>()
     } else {
         sqlx::query!(
             r#"SELECT id, channel_id, content_mode, topic_hint, scheduled_for,
@@ -407,14 +469,20 @@ async fn list_triggers(
                  FROM content_triggers ORDER BY created_at DESC LIMIT $1"#,
             lim,
         )
-        .fetch_all(&pool).await.map_err(ApiError::Database)?
-        .into_iter().map(|r| json!({
-            "id": r.id, "channel_id": r.channel_id, "content_mode": r.content_mode,
-            "topic_hint": r.topic_hint, "scheduled_for": r.scheduled_for,
-            "triggered_by": r.triggered_by, "status": r.status,
-            "content_id": r.content_id, "error": r.error,
-            "created_at": r.created_at, "updated_at": r.updated_at
-        })).collect::<Vec<_>>()
+        .fetch_all(&pool)
+        .await
+        .map_err(ApiError::Database)?
+        .into_iter()
+        .map(|r| {
+            json!({
+                "id": r.id, "channel_id": r.channel_id, "content_mode": r.content_mode,
+                "topic_hint": r.topic_hint, "scheduled_for": r.scheduled_for,
+                "triggered_by": r.triggered_by, "status": r.status,
+                "content_id": r.content_id, "error": r.error,
+                "created_at": r.created_at, "updated_at": r.updated_at
+            })
+        })
+        .collect::<Vec<_>>()
     };
     Ok(Json(json!({ "data": rows })))
 }
@@ -423,11 +491,19 @@ async fn list_triggers(
 
 async fn content_stats(
     AuthUser(_p): AuthUser,
-    State(pool):  State<PgPool>,
-    Query(q):     Query<StatsQ>,
+    State(pool): State<PgPool>,
+    Query(q): Query<StatsQ>,
 ) -> ApiResult<Json<Value>> {
-    let trunc = match q.period.as_str() { "day" => "day", "month" => "month", _ => "week" };
-    let lookback_days: i64 = match q.period.as_str() { "day" => 30, "month" => 365, _ => 84 };
+    let trunc = match q.period.as_str() {
+        "day" => "day",
+        "month" => "month",
+        _ => "week",
+    };
+    let lookback_days: i64 = match q.period.as_str() {
+        "day" => 30,
+        "month" => 365,
+        _ => 84,
+    };
     let cutoff = chrono::Utc::now() - chrono::Duration::days(lookback_days);
 
     let mut qb: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new(format!(
@@ -435,13 +511,20 @@ async fn content_stats(
                   AVG(total_cost)::float8           AS avg_cost,
                   AVG(final_composite_score)::float8 AS avg_score,
                   date_trunc('{}', created_at)::date AS bucket
-             FROM videos WHERE created_at >= "#, trunc,
+             FROM videos WHERE created_at >= "#,
+        trunc,
     ));
     qb.push_bind(cutoff);
-    if let Some(ref ch) = q.channel_id { qb.push(" AND channel_id = ").push_bind(ch); }
+    if let Some(ref ch) = q.channel_id {
+        qb.push(" AND channel_id = ").push_bind(ch);
+    }
     qb.push(" GROUP BY status, content_mode, bucket ORDER BY bucket DESC");
 
-    let bucket_rows = qb.build().fetch_all(&pool).await.map_err(ApiError::Database)?;
+    let bucket_rows = qb
+        .build()
+        .fetch_all(&pool)
+        .await
+        .map_err(ApiError::Database)?;
 
     let mut qb2: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new(
         r#"SELECT channel_id,
@@ -451,35 +534,53 @@ async fn content_stats(
                   SUM(total_cost)::float8 AS total_cost
              FROM videos WHERE 1=1"#,
     );
-    if let Some(ref ch) = q.channel_id { qb2.push(" AND channel_id = ").push_bind(ch); }
+    if let Some(ref ch) = q.channel_id {
+        qb2.push(" AND channel_id = ").push_bind(ch);
+    }
     qb2.push(" GROUP BY channel_id");
-    let chan_rows = qb2.build().fetch_all(&pool).await.map_err(ApiError::Database)?;
+    let chan_rows = qb2
+        .build()
+        .fetch_all(&pool)
+        .await
+        .map_err(ApiError::Database)?;
 
-    let buckets = bucket_rows.iter().map(|r| json!({
-        "status":       r.try_get::<Option<String>,_>("status").ok().flatten(),
-        "content_mode": r.try_get::<Option<String>,_>("content_mode").ok().flatten(),
-        "cnt":          r.try_get::<Option<i64>,_>("cnt").ok().flatten(),
-        "avg_cost":     r.try_get::<Option<f64>,_>("avg_cost").ok().flatten(),
-        "avg_score":    r.try_get::<Option<f64>,_>("avg_score").ok().flatten(),
-        "bucket":       r.try_get::<Option<chrono::NaiveDate>,_>("bucket").ok().flatten(),
-    })).collect::<Vec<_>>();
+    let buckets = bucket_rows
+        .iter()
+        .map(|r| {
+            json!({
+                "status":       r.try_get::<Option<String>,_>("status").ok().flatten(),
+                "content_mode": r.try_get::<Option<String>,_>("content_mode").ok().flatten(),
+                "cnt":          r.try_get::<Option<i64>,_>("cnt").ok().flatten(),
+                "avg_cost":     r.try_get::<Option<f64>,_>("avg_cost").ok().flatten(),
+                "avg_score":    r.try_get::<Option<f64>,_>("avg_score").ok().flatten(),
+                "bucket":       r.try_get::<Option<chrono::NaiveDate>,_>("bucket").ok().flatten(),
+            })
+        })
+        .collect::<Vec<_>>();
 
-    let by_channel = chan_rows.iter().map(|r| json!({
-        "channel_id": r.try_get::<Option<String>,_>("channel_id").ok().flatten(),
-        "done":       r.try_get::<Option<i64>,_>("done").ok().flatten(),
-        "running":    r.try_get::<Option<i64>,_>("running").ok().flatten(),
-        "failed":     r.try_get::<Option<i64>,_>("failed").ok().flatten(),
-        "total_cost": r.try_get::<Option<f64>,_>("total_cost").ok().flatten(),
-    })).collect::<Vec<_>>();
+    let by_channel = chan_rows
+        .iter()
+        .map(|r| {
+            json!({
+                "channel_id": r.try_get::<Option<String>,_>("channel_id").ok().flatten(),
+                "done":       r.try_get::<Option<i64>,_>("done").ok().flatten(),
+                "running":    r.try_get::<Option<i64>,_>("running").ok().flatten(),
+                "failed":     r.try_get::<Option<i64>,_>("failed").ok().flatten(),
+                "total_cost": r.try_get::<Option<f64>,_>("total_cost").ok().flatten(),
+            })
+        })
+        .collect::<Vec<_>>();
 
-    Ok(Json(json!({ "data": { "buckets": buckets, "by_channel": by_channel } })))
+    Ok(Json(
+        json!({ "data": { "buckets": buckets, "by_channel": by_channel } }),
+    ))
 }
 
 // ── GET /content/:content_id ──────────────────────────────────────────────────
 
 async fn get_content_detail(
     AuthUser(_p): AuthUser,
-    State(pool):  State<PgPool>,
+    State(pool): State<PgPool>,
     Path(content_id): Path<String>,
 ) -> ApiResult<Json<Value>> {
     let row = sqlx::query!(
@@ -495,7 +596,9 @@ async fn get_content_detail(
              FROM videos WHERE content_id = $1"#,
         content_id,
     )
-    .fetch_optional(&pool).await.map_err(ApiError::Database)?
+    .fetch_optional(&pool)
+    .await
+    .map_err(ApiError::Database)?
     .ok_or_else(|| ApiError::NotFound("Content not found".into()))?;
 
     let events = sqlx::query!(
@@ -503,7 +606,9 @@ async fn get_content_detail(
            FROM job_events WHERE content_id = $1 ORDER BY created_at ASC",
         content_id,
     )
-    .fetch_all(&pool).await.map_err(ApiError::Database)?;
+    .fetch_all(&pool)
+    .await
+    .map_err(ApiError::Database)?;
 
     let review = sqlx::query!(
         r#"SELECT rs.id, rs.state, rs.opened_at,
@@ -516,7 +621,9 @@ async fn get_content_detail(
             GROUP BY rs.id ORDER BY rs.opened_at DESC LIMIT 1"#,
         content_id,
     )
-    .fetch_optional(&pool).await.map_err(ApiError::Database)?;
+    .fetch_optional(&pool)
+    .await
+    .map_err(ApiError::Database)?;
 
     Ok(Json(json!({
         "data": {
@@ -552,17 +659,15 @@ async fn get_content_detail(
 
 async fn trigger_content(
     AuthUser(actor): AuthUser,
-    State(pool):     State<PgPool>,
-    headers:         HeaderMap,
-    Json(body):      Json<TriggerIn>,
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+    Json(body): Json<TriggerIn>,
 ) -> ApiResult<Json<Value>> {
     require_owner_or_member(&actor)?;
 
     let triggered_by: Option<i64> = actor.user_id.parse().ok();
-    let scheduled_for: Option<chrono::DateTime<chrono::Utc>> = body
-        .scheduled_for
-        .as_deref()
-        .and_then(|s| s.parse().ok());
+    let scheduled_for: Option<chrono::DateTime<chrono::Utc>> =
+        body.scheduled_for.as_deref().and_then(|s| s.parse().ok());
 
     let trigger_id = sqlx::query_scalar!(
         r#"INSERT INTO content_triggers
@@ -597,7 +702,7 @@ async fn trigger_content(
     }
 
     let bff_url = format!("{}/api/channels/{}/trigger", bff_base(), body.channel_id);
-    let client  = reqwest::Client::builder()
+    let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
         .build()
         .map_err(|e| ApiError::Internal(format!("reqwest init: {e}")))?;
@@ -609,7 +714,8 @@ async fn trigger_content(
     let (triggered, content_id) = match req.send().await {
         Ok(resp) if resp.status().as_u16() < 400 => {
             let data: Value = resp.json().await.unwrap_or(Value::Null);
-            let cid = data.get("data")
+            let cid = data
+                .get("data")
                 .and_then(|d| d.get("content_id"))
                 .and_then(|v| v.as_str())
                 .or_else(|| data.get("content_id").and_then(|v| v.as_str()))

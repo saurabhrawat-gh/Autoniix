@@ -179,8 +179,12 @@ impl AuthServiceImpl {
                 format!("{subject_prefix} Reset your Autoniix password")
             };
 
-            let text_body = format!("To reset your password, open this link (expires in 1 hour):\n\n{reset_link}\n");
-            let html_body = format!(r#"<p>To reset your password, click the link below (expires in 1 hour):</p><p><a href="{reset_link}">{reset_link}</a></p>"#);
+            let text_body = format!(
+                "To reset your password, open this link (expires in 1 hour):\n\n{reset_link}\n"
+            );
+            let html_body = format!(
+                r#"<p>To reset your password, click the link below (expires in 1 hour):</p><p><a href="{reset_link}">{reset_link}</a></p>"#
+            );
 
             let email_addr = email.to_string();
             tokio::spawn(async move {
@@ -989,14 +993,11 @@ impl AuthServiceImpl {
         user_id: i64,
         workspace_name: String,
     ) -> ApiResult<(String, String, i64, String)> {
-        let user = sqlx::query!(
-            "SELECT id, email, role FROM users WHERE id=$1",
-            user_id
-        )
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(ApiError::Database)?
-        .ok_or(ApiError::Unauthorized)?;
+        let user = sqlx::query!("SELECT id, email, role FROM users WHERE id=$1", user_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(ApiError::Database)?
+            .ok_or(ApiError::Unauthorized)?;
 
         let owned_count: i64 = sqlx::query_scalar!(
             "SELECT COUNT(*) FROM workspaces WHERE owner_user_id=$1",
@@ -1104,8 +1105,7 @@ impl AuthServiceImpl {
         .ok_or_else(|| ApiError::NotFound("user".into()))?;
 
         let pw_hash = user.password_hash.unwrap_or_default();
-        let ok = PasswordManager::verify_password(&password, &pw_hash)
-            .unwrap_or(false);
+        let ok = PasswordManager::verify_password(&password, &pw_hash).unwrap_or(false);
         if !ok {
             return Err(ApiError::Unauthorized);
         }
@@ -1132,13 +1132,10 @@ impl AuthServiceImpl {
         .execute(&mut *tx)
         .await
         .map_err(ApiError::Database)?;
-        sqlx::query!(
-            "DELETE FROM workspace_members WHERE user_id=$1",
-            user_id
-        )
-        .execute(&mut *tx)
-        .await
-        .map_err(ApiError::Database)?;
+        sqlx::query!("DELETE FROM workspace_members WHERE user_id=$1", user_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(ApiError::Database)?;
         sqlx::query!(
             r#"UPDATE users SET email=$1, password_hash=NULL, display_name='Deleted User',
                       disabled=TRUE, mfa_enabled=FALSE, mfa_secret=NULL

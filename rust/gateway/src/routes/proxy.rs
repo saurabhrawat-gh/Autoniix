@@ -60,12 +60,8 @@ pub async fn proxy_request(
     }
 
     if !body.is_empty() {
-        let ct = content_type
-            .as_deref()
-            .unwrap_or("application/json");
-        builder = builder
-            .header("content-type", ct)
-            .body(body.to_vec());
+        let ct = content_type.as_deref().unwrap_or("application/json");
+        builder = builder.header("content-type", ct).body(body.to_vec());
     }
 
     let resp = builder
@@ -73,8 +69,7 @@ pub async fn proxy_request(
         .await
         .map_err(|e| ApiError::Internal(format!("proxy: {e}")))?;
 
-    let status =
-        StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+    let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
     let body: Value = resp.json().await.unwrap_or(Value::Null);
     Ok((status, Json(body)))
 }

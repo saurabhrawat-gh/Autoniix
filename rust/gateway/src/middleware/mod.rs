@@ -2,4 +2,6 @@ pub mod auth;
 pub mod rate_limit;
 
 pub use auth::{auth_middleware, require_auth_middleware, Principal};
-pub use rate_limit::{invite_rate_limit, InviteRateLimiter, workspace_rate_limit, WorkspaceRateLimiter};
+pub use rate_limit::{
+    invite_rate_limit, workspace_rate_limit, InviteRateLimiter, WorkspaceRateLimiter,
+};

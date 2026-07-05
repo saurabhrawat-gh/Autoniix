@@ -24,7 +24,9 @@ use utoipa::{
     Modify, OpenApi,
 };
 
-use crate::routes::{auth, channels, flags, lookup_values, notifications, system, user, voice, workspace};
+use crate::routes::{
+    auth, channels, flags, lookup_values, notifications, system, user, voice, workspace,
+};
 
 /// Injects the `cookie_auth` security scheme used by protected endpoints.
 ///
@@ -208,10 +210,5 @@ pub struct ApiDoc;
 
 /// Route: `GET /openapi.json` — serves the live OpenAPI 3.1 document.
 pub fn routes() -> Router {
-    Router::new().route(
-        "/openapi.json",
-        get(|| async {
-            Json(ApiDoc::openapi())
-        }),
-    )
+    Router::new().route("/openapi.json", get(|| async { Json(ApiDoc::openapi()) }))
 }

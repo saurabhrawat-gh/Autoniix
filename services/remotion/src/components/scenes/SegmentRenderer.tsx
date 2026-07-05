@@ -95,7 +95,7 @@ export const SegmentRenderer: React.FC<SegmentRendererProps> = ({ segment }) => 
   });
 
   const sfxEls = (segment.sfx ?? []).map((cue, i) => {
-    const isUrl = /^https?:\/\
+    const isUrl = /^https?:\/\//.test(cue.preset);
     let src: string | null = null;
     let defaultDb = 0;
     if (isUrl) {

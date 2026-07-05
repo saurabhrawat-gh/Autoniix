@@ -25,15 +25,21 @@ use crate::{
 pub fn routes(pool: PgPool) -> Router {
     Router::new()
         // review.py
-        .route("/api/v2/review/queue",                          get(review_queue))
-        .route("/api/v2/review/:video_id",                      get(get_review))
-        .route("/api/v2/review/:video_id/open",                 post(open_review))
-        .route("/api/v2/review/:video_id/decide",               post(decide_review))
-        .route("/api/v2/review/:video_id/script/edit",          post(edit_script))
-        .route("/api/v2/review/:video_id/thumbnail/regenerate", post(regen_thumbnail))
-        .route("/api/v2/review/:video_id/comments",             post(add_comment))
+        .route("/api/v2/review/queue", get(review_queue))
+        .route("/api/v2/review/:video_id", get(get_review))
+        .route("/api/v2/review/:video_id/open", post(open_review))
+        .route("/api/v2/review/:video_id/decide", post(decide_review))
+        .route("/api/v2/review/:video_id/script/edit", post(edit_script))
+        .route(
+            "/api/v2/review/:video_id/thumbnail/regenerate",
+            post(regen_thumbnail),
+        )
+        .route("/api/v2/review/:video_id/comments", post(add_comment))
         // review_config.py
-        .route("/api/v2/channels/:channel_id/settings/review",  get(get_review_config).put(put_review_config))
+        .route(
+            "/api/v2/channels/:channel_id/settings/review",
+            get(get_review_config).put(put_review_config),
+        )
         .with_state(pool)
 }
 
@@ -47,8 +53,12 @@ struct QueueQ {
     #[serde(default = "d_100")]
     limit: i64,
 }
-fn d_pending() -> String { "pending".into() }
-fn d_100() -> i64 { 100 }
+fn d_pending() -> String {
+    "pending".into()
+}
+fn d_100() -> i64 {
+    100
+}
 
 #[derive(Deserialize)]
 struct DecisionIn {
@@ -82,24 +92,46 @@ struct ReviewConfigUpdate {
 // ── gate constants ─────────────────────────────────────────────────────────────
 
 const GATE_KEYS: &[&str] = &[
-    "brand_alignment_report", "final_video", "metadata", "remotion_v3_json",
-    "research_data", "scene_images", "script_assets_data", "script_direction_data",
-    "script_voice_data", "story_script", "thumbnail", "topic_title", "voice_track",
+    "brand_alignment_report",
+    "final_video",
+    "metadata",
+    "remotion_v3_json",
+    "research_data",
+    "scene_images",
+    "script_assets_data",
+    "script_direction_data",
+    "script_voice_data",
+    "story_script",
+    "thumbnail",
+    "topic_title",
+    "voice_track",
 ];
 
 fn gates_for_profile(profile: &str, custom: Option<&Value>) -> Value {
     let on: std::collections::HashSet<&str> = match profile {
-        "hands_off"    => std::collections::HashSet::new(),
-        "quick"        => ["story_script", "final_video"].iter().copied().collect(),
-        "standard"     => ["topic_title", "story_script", "metadata", "thumbnail", "final_video"].iter().copied().collect(),
+        "hands_off" => std::collections::HashSet::new(),
+        "quick" => ["story_script", "final_video"].iter().copied().collect(),
+        "standard" => [
+            "topic_title",
+            "story_script",
+            "metadata",
+            "thumbnail",
+            "final_video",
+        ]
+        .iter()
+        .copied()
+        .collect(),
         "full_control" => GATE_KEYS.iter().copied().collect(),
-        "custom"       => {
+        "custom" => {
             if let Some(Value::Object(m)) = custom {
-                m.iter().filter(|(_, v)| v.as_bool().unwrap_or(false))
-                 .map(|(k, _)| k.as_str())
-                 .filter(|k| GATE_KEYS.contains(k))
-                 .collect()
-            } else { std::collections::HashSet::new() }
+                m.iter()
+                    .filter(|(_, v)| v.as_bool().unwrap_or(false))
+                    .map(|(k, _)| k.as_str())
+                    .filter(|k| GATE_KEYS.contains(k))
+                    .collect()
+            } else {
+                std::collections::HashSet::new()
+            }
         }
         _ => std::collections::HashSet::new(),
     };
@@ -130,19 +162,23 @@ async fn review_queue(
                 WHERE rs.state = $1 AND rs.channel_id = $2
                 ORDER BY rs.opened_at DESC
                 LIMIT $3"#,
-            q.state, ch, lim,
+            q.state,
+            ch,
+            lim,
         )
         .fetch_all(&pool)
         .await
         .map_err(ApiError::Database)?
         .into_iter()
-        .map(|r| json!({
-            "id": r.id, "video_id": r.video_id, "channel_id": r.channel_id,
-            "state": r.state, "opened_at": r.opened_at, "expires_at": r.expires_at,
-            "title": r.title, "topic": r.topic, "content_mode": r.content_mode,
-            "thumbnail_variants_urls": r.thumbnail_variants_urls,
-            "authenticity_score": r.authenticity_score
-        }))
+        .map(|r| {
+            json!({
+                "id": r.id, "video_id": r.video_id, "channel_id": r.channel_id,
+                "state": r.state, "opened_at": r.opened_at, "expires_at": r.expires_at,
+                "title": r.title, "topic": r.topic, "content_mode": r.content_mode,
+                "thumbnail_variants_urls": r.thumbnail_variants_urls,
+                "authenticity_score": r.authenticity_score
+            })
+        })
         .collect::<Vec<_>>()
     } else {
         sqlx::query!(
@@ -156,19 +192,22 @@ async fn review_queue(
                 WHERE rs.state = $1
                 ORDER BY rs.opened_at DESC
                 LIMIT $2"#,
-            q.state, lim,
+            q.state,
+            lim,
         )
         .fetch_all(&pool)
         .await
         .map_err(ApiError::Database)?
         .into_iter()
-        .map(|r| json!({
-            "id": r.id, "video_id": r.video_id, "channel_id": r.channel_id,
-            "state": r.state, "opened_at": r.opened_at, "expires_at": r.expires_at,
-            "title": r.title, "topic": r.topic, "content_mode": r.content_mode,
-            "thumbnail_variants_urls": r.thumbnail_variants_urls,
-            "authenticity_score": r.authenticity_score
-        }))
+        .map(|r| {
+            json!({
+                "id": r.id, "video_id": r.video_id, "channel_id": r.channel_id,
+                "state": r.state, "opened_at": r.opened_at, "expires_at": r.expires_at,
+                "title": r.title, "topic": r.topic, "content_mode": r.content_mode,
+                "thumbnail_variants_urls": r.thumbnail_variants_urls,
+                "authenticity_score": r.authenticity_score
+            })
+        })
         .collect::<Vec<_>>()
     };
     Ok(Json(json!({ "data": rows })))
@@ -236,11 +275,13 @@ async fn get_review(
         .await
         .map_err(ApiError::Database)?
         .into_iter()
-        .map(|c| json!({
-            "id": c.id, "artifact": c.artifact, "anchor": c.anchor,
-            "author_id": c.author_id, "body": c.body,
-            "parent_id": c.parent_id, "created_at": c.created_at
-        }))
+        .map(|c| {
+            json!({
+                "id": c.id, "artifact": c.artifact, "anchor": c.anchor,
+                "author_id": c.author_id, "body": c.body,
+                "parent_id": c.parent_id, "created_at": c.created_at
+            })
+        })
         .collect::<Vec<_>>()
     } else {
         vec![]
@@ -315,11 +356,19 @@ async fn open_review(
     .await
     .map_err(ApiError::Database)?;
 
-    audit_log(&pool, AuditCtx {
-        actor: &actor, action: "review.open", target_type: "video",
-        target_id: Some(video_id.clone()), before: None, after: None,
-        headers: Some(&headers),
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            actor: &actor,
+            action: "review.open",
+            target_type: "video",
+            target_id: Some(video_id.clone()),
+            before: None,
+            after: None,
+            headers: Some(&headers),
+        },
+    )
+    .await;
 
     Ok(Json(json!({ "status": "ok", "session_id": sid })))
 }
@@ -335,9 +384,10 @@ async fn decide_review(
 ) -> ApiResult<Json<Value>> {
     const VALID: &[&str] = &["approved", "needs_edits", "rejected", "regenerating"];
     if !VALID.contains(&body.decision.as_str()) {
-        return Err(ApiError::Validation(
-            format!("Invalid decision={:?}; expected one of {VALID:?}", body.decision),
-        ));
+        return Err(ApiError::Validation(format!(
+            "Invalid decision={:?}; expected one of {VALID:?}",
+            body.decision
+        )));
     }
 
     let session_id = sqlx::query_scalar!(
@@ -360,22 +410,27 @@ async fn decide_review(
 
     sqlx::query!(
         "UPDATE videos SET review_state=$1, updated_at=NOW() WHERE content_id=$2",
-        body.decision, video_id,
+        body.decision,
+        video_id,
     )
     .execute(&pool)
     .await
     .map_err(ApiError::Database)?;
 
     let audit_action = format!("review.{}", body.decision);
-    audit_log(&pool, AuditCtx {
-        actor: &actor,
-        action: &audit_action,
-        target_type: "video",
-        target_id: Some(video_id.clone()),
-        before: None,
-        after: Some(json!({ "summary": body.summary })),
-        headers: Some(&headers),
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            actor: &actor,
+            action: &audit_action,
+            target_type: "video",
+            target_id: Some(video_id.clone()),
+            before: None,
+            after: Some(json!({ "summary": body.summary })),
+            headers: Some(&headers),
+        },
+    )
+    .await;
 
     Ok(Json(json!({ "status": "ok" })))
 }
@@ -433,15 +488,23 @@ async fn edit_script(
     .await
     .map_err(ApiError::Database)?;
 
-    audit_log(&pool, AuditCtx {
-        actor: &actor, action: "review.script.edit", target_type: "video",
-        target_id: Some(video_id.clone()),
-        before: None,
-        after: Some(json!({ "version": next_v, "kind": body.kind, "ai_used": false })),
-        headers: Some(&headers),
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            actor: &actor,
+            action: "review.script.edit",
+            target_type: "video",
+            target_id: Some(video_id.clone()),
+            before: None,
+            after: Some(json!({ "version": next_v, "kind": body.kind, "ai_used": false })),
+            headers: Some(&headers),
+        },
+    )
+    .await;
 
-    Ok(Json(json!({ "status": "ok", "version": next_v, "version_id": vid, "ai_used": false })))
+    Ok(Json(
+        json!({ "status": "ok", "version": next_v, "version_id": vid, "ai_used": false }),
+    ))
 }
 
 // ── POST /review/:video_id/thumbnail/regenerate ────────────────────────────────
@@ -450,9 +513,9 @@ async fn edit_script(
 
 async fn regen_thumbnail(
     AuthUser(actor): AuthUser,
-    State(pool):     State<PgPool>,
-    headers:         HeaderMap,
-    Path(video_id):  Path<String>,
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+    Path(video_id): Path<String>,
 ) -> ApiResult<Json<Value>> {
     sqlx::query!(
         "SELECT content_id FROM videos WHERE content_id = $1",
@@ -484,12 +547,19 @@ async fn regen_thumbnail(
     .await
     .map_err(ApiError::Database)?;
 
-    audit_log(&pool, AuditCtx {
-        actor: &actor, action: "review.thumbnail.regenerate", target_type: "video",
-        target_id: Some(video_id.clone()), before: None,
-        after: Some(json!({ "version_id": version_id, "version": next_version })),
-        headers: Some(&headers),
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            actor: &actor,
+            action: "review.thumbnail.regenerate",
+            target_type: "video",
+            target_id: Some(video_id.clone()),
+            before: None,
+            after: Some(json!({ "version_id": version_id, "version": next_version })),
+            headers: Some(&headers),
+        },
+    )
+    .await;
 
     Ok(Json(json!({
         "status": "ok",
@@ -520,7 +590,10 @@ async fn add_comment(
     .ok_or_else(|| ApiError::Conflict("No review session is open".into()))?;
 
     let author_id: Option<i32> = actor.user_id.parse().ok();
-    let anchor = body.anchor.as_ref().map(|v| serde_json::to_value(v).unwrap());
+    let anchor = body
+        .anchor
+        .as_ref()
+        .map(|v| serde_json::to_value(v).unwrap());
 
     let cid = sqlx::query_scalar!(
         r#"INSERT INTO review_comments (session_id, artifact, anchor, author_id, body, parent_id)
@@ -564,11 +637,19 @@ async fn get_review_config(
     .ok_or_else(|| ApiError::NotFound("Channel not found".into()))?;
 
     let cfg = row.review_config;
-    let profile = cfg.get("profile").and_then(|v| v.as_str()).unwrap_or("hands_off").to_string();
-    let gates = cfg.get("gates").cloned()
+    let profile = cfg
+        .get("profile")
+        .and_then(|v| v.as_str())
+        .unwrap_or("hands_off")
+        .to_string();
+    let gates = cfg
+        .get("gates")
+        .cloned()
         .unwrap_or_else(|| gates_for_profile("hands_off", None));
 
-    Ok(Json(json!({ "channel_id": channel_id, "profile": profile, "gates": gates })))
+    Ok(Json(
+        json!({ "channel_id": channel_id, "profile": profile, "gates": gates }),
+    ))
 }
 
 // ── PUT /channels/:channel_id/settings/review ─────────────────────────────────
@@ -582,12 +663,14 @@ async fn put_review_config(
 ) -> ApiResult<Json<Value>> {
     const PROFILES: &[&str] = &["hands_off", "quick", "standard", "full_control", "custom"];
     if !PROFILES.contains(&body.profile.as_str()) {
-        return Err(ApiError::Validation(
-            format!("profile must be one of {PROFILES:?}"),
-        ));
+        return Err(ApiError::Validation(format!(
+            "profile must be one of {PROFILES:?}"
+        )));
     }
     if body.profile == "custom" && body.gates.is_none() {
-        return Err(ApiError::Validation("gates must be provided when profile is 'custom'".into()));
+        return Err(ApiError::Validation(
+            "gates must be provided when profile is 'custom'".into(),
+        ));
     }
 
     let gates = gates_for_profile(&body.profile, body.gates.as_ref());
@@ -607,13 +690,21 @@ async fn put_review_config(
         return Err(ApiError::NotFound("Channel not found".into()));
     }
 
-    audit_log(&pool, AuditCtx {
-        actor: &actor, action: "review_config.updated", target_type: "channel",
-        target_id: Some(channel_id.clone()),
-        before: None,
-        after: Some(new_cfg.clone()),
-        headers: Some(&headers),
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            actor: &actor,
+            action: "review_config.updated",
+            target_type: "channel",
+            target_id: Some(channel_id.clone()),
+            before: None,
+            after: Some(new_cfg.clone()),
+            headers: Some(&headers),
+        },
+    )
+    .await;
 
-    Ok(Json(json!({ "channel_id": channel_id, "profile": body.profile, "gates": gates })))
+    Ok(Json(
+        json!({ "channel_id": channel_id, "profile": body.profile, "gates": gates }),
+    ))
 }

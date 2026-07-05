@@ -101,7 +101,10 @@ impl WorkspaceRateLimiter {
     }
 
     pub fn check_and_record(&self, workspace_id: i64) -> Result<(), u64> {
-        let mut map = self.inner.lock().expect("workspace rate_limit lock poisoned");
+        let mut map = self
+            .inner
+            .lock()
+            .expect("workspace rate_limit lock poisoned");
         let now = Instant::now();
 
         let attempts = map.entry(workspace_id).or_default();

@@ -24,10 +24,19 @@ pub fn routes(pool: PgPool) -> Router {
     Router::new()
         // ── admin workspace lifecycle ────────────────────────────────────────
         .route("/api/v2/workspaces/:id", delete(delete_workspace))
-        .route("/api/v2/workspaces/:id/cancel-deletion", post(cancel_deletion))
-        .route("/api/v2/workspaces/:id/deletion-status", get(deletion_status))
+        .route(
+            "/api/v2/workspaces/:id/cancel-deletion",
+            post(cancel_deletion),
+        )
+        .route(
+            "/api/v2/workspaces/:id/deletion-status",
+            get(deletion_status),
+        )
         // ── user-facing workspace (current workspace from JWT) ───────────────
-        .route("/api/v2/workspace", get(get_workspace).put(update_workspace))
+        .route(
+            "/api/v2/workspace",
+            get(get_workspace).put(update_workspace),
+        )
         // ── members ─────────────────────────────────────────────────────────
         .route("/api/v2/workspace/members", get(list_members))
         .route(
@@ -40,15 +49,24 @@ pub fn routes(pool: PgPool) -> Router {
             "/api/v2/workspace/invites",
             get(list_invites).post(create_invite),
         )
-        .route("/api/v2/workspace/invites/:invite_id", delete(revoke_invite))
+        .route(
+            "/api/v2/workspace/invites/:invite_id",
+            delete(revoke_invite),
+        )
         // ── brands ───────────────────────────────────────────────────────────
-        .route("/api/v2/workspace/brands", get(list_brands).post(create_brand))
+        .route(
+            "/api/v2/workspace/brands",
+            get(list_brands).post(create_brand),
+        )
         .route(
             "/api/v2/workspace/brands/:brand_id",
             get(get_brand).put(update_brand),
         )
         // ── series ───────────────────────────────────────────────────────────
-        .route("/api/v2/workspace/series", get(list_series).post(create_series))
+        .route(
+            "/api/v2/workspace/series",
+            get(list_series).post(create_series),
+        )
         .route(
             "/api/v2/workspace/series/:series_id",
             put(update_series).delete(delete_series),
@@ -82,7 +100,10 @@ pub fn routes(pool: PgPool) -> Router {
             get(get_integrations).put(update_integrations),
         )
         // ── ownership ────────────────────────────────────────────────────────
-        .route("/api/v2/workspace/transfer-ownership", post(transfer_ownership))
+        .route(
+            "/api/v2/workspace/transfer-ownership",
+            post(transfer_ownership),
+        )
         .with_state(pool)
 }
 
@@ -573,7 +594,9 @@ pub(crate) async fn update_workspace(
     Json(body): Json<UpdateWorkspaceIn>,
 ) -> ApiResult<impl IntoResponse> {
     if principal.role != "owner" && principal.global_role != "superadmin" {
-        return Err(ApiError::ForbiddenWith("only owner can update workspace".into()));
+        return Err(ApiError::ForbiddenWith(
+            "only owner can update workspace".into(),
+        ));
     }
     sqlx::query!(
         r#"UPDATE workspaces
@@ -641,9 +664,13 @@ pub(crate) async fn set_member_role(
     Json(body): Json<SetRoleIn>,
 ) -> ApiResult<impl IntoResponse> {
     if principal.role != "owner" && principal.global_role != "superadmin" {
-        return Err(ApiError::ForbiddenWith("only owner can change roles".into()));
+        return Err(ApiError::ForbiddenWith(
+            "only owner can change roles".into(),
+        ));
     }
-    let valid_roles = ["owner", "admin", "producer", "editor", "reviewer", "analyst", "viewer"];
+    let valid_roles = [
+        "owner", "admin", "producer", "editor", "reviewer", "analyst", "viewer",
+    ];
     if !valid_roles.contains(&body.role.as_str()) {
         return Err(ApiError::Validation(format!("invalid role: {}", body.role)));
     }
@@ -668,7 +695,9 @@ pub(crate) async fn remove_member(
     Path(target_user_id): Path<i64>,
 ) -> ApiResult<impl IntoResponse> {
     if principal.role != "owner" && principal.global_role != "superadmin" {
-        return Err(ApiError::ForbiddenWith("only owner can remove members".into()));
+        return Err(ApiError::ForbiddenWith(
+            "only owner can remove members".into(),
+        ));
     }
     let my_user_id: i64 = principal.user_id.parse().unwrap_or(0);
     if target_user_id == my_user_id {
@@ -730,7 +759,9 @@ pub(crate) async fn create_invite(
     Json(body): Json<CreateInviteIn>,
 ) -> ApiResult<impl IntoResponse> {
     if principal.role != "owner" && principal.global_role != "superadmin" {
-        return Err(ApiError::ForbiddenWith("only owner can invite members".into()));
+        return Err(ApiError::ForbiddenWith(
+            "only owner can invite members".into(),
+        ));
     }
     let role = body.role.unwrap_or_else(|| "viewer".to_string());
     let token: String = rand::thread_rng()
@@ -775,7 +806,9 @@ pub(crate) async fn revoke_invite(
     Path(invite_id): Path<i64>,
 ) -> ApiResult<impl IntoResponse> {
     if principal.role != "owner" && principal.global_role != "superadmin" {
-        return Err(ApiError::ForbiddenWith("only owner can revoke invites".into()));
+        return Err(ApiError::ForbiddenWith(
+            "only owner can revoke invites".into(),
+        ));
     }
     let deleted = sqlx::query!(
         "DELETE FROM workspace_invitations WHERE id = $1 AND workspace_id = $2",
@@ -880,7 +913,9 @@ pub(crate) async fn create_brand(
     .await?;
     Ok((
         StatusCode::CREATED,
-        Json(json!({ "id": row.id, "name": row.name, "slug": row.slug, "created_at": row.created_at })),
+        Json(
+            json!({ "id": row.id, "name": row.name, "slug": row.slug, "created_at": row.created_at }),
+        ),
     ))
 }
 
@@ -1030,7 +1065,10 @@ pub(crate) async fn create_series(
     )
     .fetch_one(&pool)
     .await?;
-    Ok((StatusCode::CREATED, Json(json!({ "id": row.id, "name": row.name }))))
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({ "id": row.id, "name": row.name })),
+    ))
 }
 
 pub(crate) async fn update_series(
@@ -1175,7 +1213,9 @@ pub(crate) async fn create_campaign(
     .await?;
     Ok((
         StatusCode::CREATED,
-        Json(json!({ "id": row.id, "name": row.name, "status": row.status, "created_at": row.created_at })),
+        Json(
+            json!({ "id": row.id, "name": row.name, "status": row.status, "created_at": row.created_at }),
+        ),
     ))
 }
 
@@ -1318,7 +1358,10 @@ pub(crate) async fn create_project(
     )
     .fetch_one(&pool)
     .await?;
-    Ok((StatusCode::CREATED, Json(json!({ "id": row.id, "title": row.title, "status": row.status }))))
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({ "id": row.id, "title": row.title, "status": row.status })),
+    ))
 }
 
 pub(crate) async fn get_project(
@@ -1486,7 +1529,9 @@ pub(crate) async fn update_integrations(
     Json(body): Json<UpdateIntegrationsIn>,
 ) -> ApiResult<impl IntoResponse> {
     if principal.role != "owner" && principal.global_role != "superadmin" {
-        return Err(ApiError::ForbiddenWith("only owner can update integrations".into()));
+        return Err(ApiError::ForbiddenWith(
+            "only owner can update integrations".into(),
+        ));
     }
     sqlx::query!(
         r#"UPDATE workspaces
@@ -1516,7 +1561,9 @@ pub(crate) async fn transfer_ownership(
     Json(body): Json<TransferOwnershipIn>,
 ) -> ApiResult<impl IntoResponse> {
     if principal.role != "owner" {
-        return Err(ApiError::ForbiddenWith("only owner can transfer ownership".into()));
+        return Err(ApiError::ForbiddenWith(
+            "only owner can transfer ownership".into(),
+        ));
     }
     let my_id: i64 = principal.user_id.parse().unwrap_or(0);
     if body.new_owner_user_id == my_id {
@@ -1530,7 +1577,9 @@ pub(crate) async fn transfer_ownership(
     .fetch_optional(&pool)
     .await?;
     if member_check.is_none() {
-        return Err(ApiError::NotFound("new owner must be a workspace member".into()));
+        return Err(ApiError::NotFound(
+            "new owner must be a workspace member".into(),
+        ));
     }
 
     let mut tx = pool.begin().await?;
@@ -1557,5 +1606,7 @@ pub(crate) async fn transfer_ownership(
     .await?;
     tx.commit().await?;
 
-    Ok(Json(json!({ "ok": true, "new_owner_user_id": body.new_owner_user_id })))
+    Ok(Json(
+        json!({ "ok": true, "new_owner_user_id": body.new_owner_user_id }),
+    ))
 }

@@ -47,7 +47,7 @@ fn s3_presign_put(
         .trim_start_matches("https://")
         .trim_start_matches("http://");
     let cred_path = format!("{access_key}/{date}/{region}/s3/aws4_request");
-    let cred_enc  = cred_path.replace('/', "%2F");
+    let cred_enc = cred_path.replace('/', "%2F");
     let qs = format!(
         "X-Amz-Algorithm=AWS4-HMAC-SHA256\
         &X-Amz-Credential={cred_enc}\
@@ -57,21 +57,36 @@ fn s3_presign_put(
     );
     let canon = format!("PUT\n/{bucket}/{key}\n{qs}\nhost:{host}\n\nhost\nUNSIGNED-PAYLOAD");
     let canon_hash: String = Sha256::digest(canon.as_bytes())
-        .iter().map(|b| format!("{b:02x}")).collect();
-    let sts = format!("AWS4-HMAC-SHA256\n{datetime}\n{date}/{region}/s3/aws4_request\n{canon_hash}");
-    let k_date    = hmac_sha256(format!("AWS4{secret_key}").as_bytes(), date.as_bytes());
-    let k_region  = hmac_sha256(&k_date,    region.as_bytes());
-    let k_service = hmac_sha256(&k_region,  b"s3");
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    let sts =
+        format!("AWS4-HMAC-SHA256\n{datetime}\n{date}/{region}/s3/aws4_request\n{canon_hash}");
+    let k_date = hmac_sha256(format!("AWS4{secret_key}").as_bytes(), date.as_bytes());
+    let k_region = hmac_sha256(&k_date, region.as_bytes());
+    let k_service = hmac_sha256(&k_region, b"s3");
     let k_signing = hmac_sha256(&k_service, b"aws4_request");
     let sig: String = hmac_sha256(&k_signing, sts.as_bytes())
-        .iter().map(|b| format!("{b:02x}")).collect();
-    let scheme = if endpoint.starts_with("https://") { "https" } else { "http" };
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    let scheme = if endpoint.starts_with("https://") {
+        "https"
+    } else {
+        "http"
+    };
     format!("{scheme}://{host}/{bucket}/{key}?{qs}&X-Amz-Signature={sig}")
 }
 
 fn slug(name: &str) -> String {
     name.chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' { c.to_ascii_lowercase() } else { '-' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
         .collect::<String>()
         .trim_matches('-')
         .to_string()
@@ -79,14 +94,30 @@ fn slug(name: &str) -> String {
 
 // ── defaults ──────────────────────────────────────────────────────────────────
 
-fn d_60() -> i64 { 60 }
-fn d_40() -> i64 { 40 }
-fn d_200() -> i64 { 200 }
-fn d_30() -> i64 { 30 }
-fn d_workspace() -> String { "workspace".into() }
-fn d_brand() -> String { "brand".into() }
-fn d_manual() -> String { "manual".into() }
-fn d_hybrid() -> String { "hybrid".into() }
+fn d_60() -> i64 {
+    60
+}
+fn d_40() -> i64 {
+    40
+}
+fn d_200() -> i64 {
+    200
+}
+fn d_30() -> i64 {
+    30
+}
+fn d_workspace() -> String {
+    "workspace".into()
+}
+fn d_brand() -> String {
+    "brand".into()
+}
+fn d_manual() -> String {
+    "manual".into()
+}
+fn d_hybrid() -> String {
+    "hybrid".into()
+}
 
 // ── query-param structs ───────────────────────────────────────────────────────
 
@@ -225,7 +256,9 @@ pub fn routes(pool: PgPool) -> Router {
         .route("/api/v2/library/dam/upload", post(dam_upload))
         .route(
             "/api/v2/library/dam/assets/:asset_id",
-            get(dam_get_asset).patch(dam_patch_asset).delete(dam_delete_asset),
+            get(dam_get_asset)
+                .patch(dam_patch_asset)
+                .delete(dam_delete_asset),
         )
         .route("/api/v2/library/dam/tags", get(dam_list_tags))
         .route(
@@ -244,12 +277,24 @@ pub fn routes(pool: PgPool) -> Router {
             "/api/v2/library/dam/brand-kits",
             get(dam_list_brand_kits).post(dam_create_brand_kit),
         )
-        .route("/api/v2/library/dam/brand-kits/:kit_id", put(dam_update_brand_kit))
+        .route(
+            "/api/v2/library/dam/brand-kits/:kit_id",
+            put(dam_update_brand_kit),
+        )
         .route("/api/v2/library/dam/search", post(dam_search))
-        .route("/api/v2/library/dam/license-catalogue", get(license_catalogue))
-        .route("/api/v2/library/dam/licenses/expiring", get(licenses_expiring))
+        .route(
+            "/api/v2/library/dam/license-catalogue",
+            get(license_catalogue),
+        )
+        .route(
+            "/api/v2/library/dam/licenses/expiring",
+            get(licenses_expiring),
+        )
         .route("/api/v2/library/dam/licenses/audit", get(licenses_audit))
-        .route("/api/v2/library/dam/quotas/recalculate", post(recalculate_quotas))
+        .route(
+            "/api/v2/library/dam/quotas/recalculate",
+            post(recalculate_quotas),
+        )
         .route("/api/v2/library/dam/quotas", get(list_quotas))
         .with_state(pool)
 }
@@ -258,15 +303,15 @@ pub fn routes(pool: PgPool) -> Router {
 
 #[derive(Deserialize)]
 struct MusicQ {
-    q:     Option<String>,
+    q: Option<String>,
     #[serde(default = "d_40")]
     limit: i64,
 }
 
 async fn list_music(
     AuthUser(_p): AuthUser,
-    State(pool):  State<PgPool>,
-    Query(q):     Query<MusicQ>,
+    State(pool): State<PgPool>,
+    Query(q): Query<MusicQ>,
 ) -> ApiResult<Json<Value>> {
     let limit = q.limit.clamp(1, 200);
     let mut qb = sqlx::QueryBuilder::new(
@@ -284,23 +329,29 @@ async fn list_music(
     }
     qb.push(" ORDER BY quality_score DESC NULLS LAST LIMIT ");
     qb.push_bind(limit);
-    let rows: Vec<Value> = qb.build()
-        .fetch_all(&pool).await
+    let rows: Vec<Value> = qb
+        .build()
+        .fetch_all(&pool)
+        .await
         .map_err(ApiError::Database)?
         .into_iter()
-        .map(|r| json!({
-            "id":           r.get::<i64,_>("id"),
-            "url":          r.get::<Option<String>,_>("asset_url"),
-            "minio_key":    r.get::<Option<String>,_>("minio_key"),
-            "provider":     r.get::<Option<String>,_>("provider"),
-            "duration_s":   r.get::<Option<f64>,_>("duration_s"),
-            "quality_score":r.get::<Option<f64>,_>("quality_score"),
-            "license_type": r.get::<Option<String>,_>("license_type"),
-            "tags":         r.get::<Option<String>,_>("tags"),
-        }))
+        .map(|r| {
+            json!({
+                "id":           r.get::<i64,_>("id"),
+                "url":          r.get::<Option<String>,_>("asset_url"),
+                "minio_key":    r.get::<Option<String>,_>("minio_key"),
+                "provider":     r.get::<Option<String>,_>("provider"),
+                "duration_s":   r.get::<Option<f64>,_>("duration_s"),
+                "quality_score":r.get::<Option<f64>,_>("quality_score"),
+                "license_type": r.get::<Option<String>,_>("license_type"),
+                "tags":         r.get::<Option<String>,_>("tags"),
+            })
+        })
         .collect();
     let count = rows.len();
-    Ok(Json(json!({ "status": "ok", "data": rows, "count": count })))
+    Ok(Json(
+        json!({ "status": "ok", "data": rows, "count": count }),
+    ))
 }
 
 // ── POST /library/dam/upload ─────────────────────────────────────────────────
@@ -308,25 +359,30 @@ async fn list_music(
 #[derive(Deserialize)]
 struct DamUploadIn {
     display_name: String,
-    mime_type:    String,
+    mime_type: String,
     #[serde(default)]
-    bytes:        i64,
-    kind:         Option<String>,
+    bytes: i64,
+    kind: Option<String>,
     #[serde(default = "d_workspace")]
-    scope:        String,
-    scope_id:     Option<String>,
-    license:      Option<String>,
+    scope: String,
+    scope_id: Option<String>,
+    license: Option<String>,
     #[serde(default)]
-    tags:         Vec<String>,
+    tags: Vec<String>,
 }
 
 async fn dam_upload(
     AuthUser(actor): AuthUser,
-    State(pool):     State<PgPool>,
-    Json(body):      Json<DamUploadIn>,
+    State(pool): State<PgPool>,
+    Json(body): Json<DamUploadIn>,
 ) -> ApiResult<Json<Value>> {
     let ext = body.mime_type.split('/').nth(1).unwrap_or("bin");
-    let storage_key = format!("dam/uploads/{}/{}.{}", Uuid::new_v4(), slug(&body.display_name), ext);
+    let storage_key = format!(
+        "dam/uploads/{}/{}.{}",
+        Uuid::new_v4(),
+        slug(&body.display_name),
+        ext
+    );
     let tags: Vec<String> = body.tags.clone();
     let created_by = actor.user_id.clone();
 
@@ -352,17 +408,24 @@ async fn dam_upload(
     .map_err(ApiError::Database)?;
 
     let endpoint = std::env::var("S3_ENDPOINT").unwrap_or_else(|_| "http://minio:9000".into());
-    let bucket   = std::env::var("S3_BUCKET").unwrap_or_else(|_|   "autoniix".into());
-    let access   = std::env::var("S3_ACCESS_KEY").unwrap_or_default();
-    let secret   = std::env::var("S3_SECRET_KEY").unwrap_or_default();
+    let bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "autoniix".into());
+    let access = std::env::var("S3_ACCESS_KEY").unwrap_or_default();
+    let secret = std::env::var("S3_SECRET_KEY").unwrap_or_default();
     let upload_url = s3_presign_put(&endpoint, &bucket, &storage_key, &access, &secret, 3600);
 
-    audit_log(&pool, AuditCtx {
-        actor: &actor, action: "dam.upload", target_type: "dam_asset",
-        target_id: Some(asset_id.to_string()), before: None,
-        after: Some(json!({ "storage_key": storage_key, "mime_type": body.mime_type })),
-        headers: None,
-    }).await;
+    audit_log(
+        &pool,
+        AuditCtx {
+            actor: &actor,
+            action: "dam.upload",
+            target_type: "dam_asset",
+            target_id: Some(asset_id.to_string()),
+            before: None,
+            after: Some(json!({ "storage_key": storage_key, "mime_type": body.mime_type })),
+            headers: None,
+        },
+    )
+    .await;
 
     Ok(Json(json!({
         "status":      "ok",
@@ -408,18 +471,23 @@ async fn list_assets(
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "id":               r.id,
-        "query_text":       r.query_text,
-        "provider":         r.provider,
-        "asset_url":        r.asset_url,
-        "thumbnail_url":    r.thumbnail_url,
-        "width":            r.width,
-        "height":           r.height,
-        "duration_seconds": r.duration_seconds,
-        "quality_score":    r.quality_score,
-        "created_at":       r.created_at,
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id":               r.id,
+                "query_text":       r.query_text,
+                "provider":         r.provider,
+                "asset_url":        r.asset_url,
+                "thumbnail_url":    r.thumbnail_url,
+                "width":            r.width,
+                "height":           r.height,
+                "duration_seconds": r.duration_seconds,
+                "quality_score":    r.quality_score,
+                "created_at":       r.created_at,
+            })
+        })
+        .collect();
     Ok(Json(json!({ "data": data })))
 }
 
@@ -442,14 +510,19 @@ async fn list_brand_assets(
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "id":         r.id,
-        "channel_id": r.channel_id,
-        "asset_type": r.asset_type,
-        "asset_url":  r.asset_url,
-        "metadata":   r.metadata,
-        "created_at": r.created_at,
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id":         r.id,
+                "channel_id": r.channel_id,
+                "asset_type": r.asset_type,
+                "asset_url":  r.asset_url,
+                "metadata":   r.metadata,
+                "created_at": r.created_at,
+            })
+        })
+        .collect();
     Ok(Json(json!({ "data": data })))
 }
 
@@ -491,26 +564,31 @@ async fn dam_list_assets(
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "id":           r.id,
-        "scope":        r.scope,
-        "scope_id":     r.scope_id,
-        "kind":         r.kind,
-        "display_name": r.display_name,
-        "mime_type":    r.mime_type,
-        "bytes":        r.bytes,
-        "content_hash": r.content_hash,
-        "storage_key":  r.storage_key,
-        "thumbnail_key":r.thumbnail_key,
-        "origin":       r.origin,
-        "license":      r.license,
-        "expires_at":   r.expires_at,
-        "tags":         r.tags,
-        "ai_tags":      r.ai_tags,
-        "metadata":     r.metadata,
-        "created_by":   r.created_by,
-        "created_at":   r.created_at,
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id":           r.id,
+                "scope":        r.scope,
+                "scope_id":     r.scope_id,
+                "kind":         r.kind,
+                "display_name": r.display_name,
+                "mime_type":    r.mime_type,
+                "bytes":        r.bytes,
+                "content_hash": r.content_hash,
+                "storage_key":  r.storage_key,
+                "thumbnail_key":r.thumbnail_key,
+                "origin":       r.origin,
+                "license":      r.license,
+                "expires_at":   r.expires_at,
+                "tags":         r.tags,
+                "ai_tags":      r.ai_tags,
+                "metadata":     r.metadata,
+                "created_by":   r.created_by,
+                "created_at":   r.created_at,
+            })
+        })
+        .collect();
     Ok(Json(json!({ "data": data })))
 }
 
@@ -751,17 +829,22 @@ async fn dam_list_collections(
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "id":             r.id,
-        "name":           r.name,
-        "description":    r.description,
-        "kind":           r.kind,
-        "query":          r.query,
-        "asset_ids":      r.asset_ids,
-        "cover_asset_id": r.cover_asset_id,
-        "owner_id":       r.owner_id,
-        "created_at":     r.created_at,
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id":             r.id,
+                "name":           r.name,
+                "description":    r.description,
+                "kind":           r.kind,
+                "query":          r.query,
+                "asset_ids":      r.asset_ids,
+                "cover_asset_id": r.cover_asset_id,
+                "owner_id":       r.owner_id,
+                "created_at":     r.created_at,
+            })
+        })
+        .collect();
     Ok(Json(json!({ "data": data })))
 }
 
@@ -873,21 +956,26 @@ async fn dam_collection_assets(
         .await
         .map_err(ApiError::Database)?;
 
-        let data: Vec<Value> = rows.iter().map(|r| json!({
-            "id":           r.id,
-            "scope":        r.scope,
-            "scope_id":     r.scope_id,
-            "kind":         r.kind,
-            "display_name": r.display_name,
-            "mime_type":    r.mime_type,
-            "bytes":        r.bytes,
-            "thumbnail_key":r.thumbnail_key,
-            "storage_key":  r.storage_key,
-            "origin":       r.origin,
-            "tags":         r.tags,
-            "metadata":     r.metadata,
-            "created_at":   r.created_at,
-        })).collect();
+        let data: Vec<Value> = rows
+            .iter()
+            .map(|r| {
+                json!({
+                    "id":           r.id,
+                    "scope":        r.scope,
+                    "scope_id":     r.scope_id,
+                    "kind":         r.kind,
+                    "display_name": r.display_name,
+                    "mime_type":    r.mime_type,
+                    "bytes":        r.bytes,
+                    "thumbnail_key":r.thumbnail_key,
+                    "storage_key":  r.storage_key,
+                    "origin":       r.origin,
+                    "tags":         r.tags,
+                    "metadata":     r.metadata,
+                    "created_at":   r.created_at,
+                })
+            })
+            .collect();
         let count = data.len();
         return Ok(Json(json!({ "data": data, "count": count })));
     }
@@ -908,48 +996,70 @@ async fn dam_collection_assets(
         qb.push(" AND a.scope_id = ").push_bind(sid.clone());
     }
     if let Some(Value::Array(kinds)) = q_obj.get("kind") {
-        let ks: Vec<String> = kinds.iter().filter_map(|v| v.as_str().map(String::from)).collect();
+        let ks: Vec<String> = kinds
+            .iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect();
         if !ks.is_empty() {
             qb.push(" AND a.kind = ANY(").push_bind(ks).push(")");
         }
     }
     if let Some(Value::Array(tags)) = q_obj.get("tags_any") {
-        let ts: Vec<String> = tags.iter().filter_map(|v| v.as_str().map(String::from)).collect();
+        let ts: Vec<String> = tags
+            .iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect();
         if !ts.is_empty() {
             qb.push(" AND a.tags && ").push_bind(ts).push("::text[]");
         }
     }
     if let Some(Value::Array(tags)) = q_obj.get("tags_all") {
-        let ts: Vec<String> = tags.iter().filter_map(|v| v.as_str().map(String::from)).collect();
+        let ts: Vec<String> = tags
+            .iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect();
         if !ts.is_empty() {
             qb.push(" AND a.tags @> ").push_bind(ts).push("::text[]");
         }
     }
     if let Some(Value::Array(lics)) = q_obj.get("license") {
-        let ls: Vec<String> = lics.iter().filter_map(|v| v.as_str().map(String::from)).collect();
+        let ls: Vec<String> = lics
+            .iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect();
         if !ls.is_empty() {
             qb.push(" AND a.license = ANY(").push_bind(ls).push(")");
         }
     }
-    qb.push(" ORDER BY a.created_at DESC LIMIT ").push_bind(limit);
+    qb.push(" ORDER BY a.created_at DESC LIMIT ")
+        .push_bind(limit);
 
     use sqlx::Row as _;
-    let rows = qb.build().fetch_all(&pool).await.map_err(ApiError::Database)?;
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "id":           r.try_get::<i64, _>("id").unwrap_or(0),
-        "scope":        r.try_get::<String, _>("scope").unwrap_or_default(),
-        "scope_id":     r.try_get::<Option<String>, _>("scope_id").unwrap_or(None),
-        "kind":         r.try_get::<String, _>("kind").unwrap_or_default(),
-        "display_name": r.try_get::<String, _>("display_name").unwrap_or_default(),
-        "mime_type":    r.try_get::<Option<String>, _>("mime_type").unwrap_or(None),
-        "bytes":        r.try_get::<Option<i64>, _>("bytes").unwrap_or(None),
-        "thumbnail_key":r.try_get::<Option<String>, _>("thumbnail_key").unwrap_or(None),
-        "storage_key":  r.try_get::<Option<String>, _>("storage_key").unwrap_or(None),
-        "origin":       r.try_get::<String, _>("origin").unwrap_or_default(),
-        "tags":         r.try_get::<Vec<String>, _>("tags").unwrap_or_default(),
-        "metadata":     r.try_get::<Value, _>("metadata").unwrap_or(json!({})),
-        "created_at":   r.try_get::<chrono::DateTime<chrono::Utc>, _>("created_at").ok(),
-    })).collect();
+    let rows = qb
+        .build()
+        .fetch_all(&pool)
+        .await
+        .map_err(ApiError::Database)?;
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id":           r.try_get::<i64, _>("id").unwrap_or(0),
+                "scope":        r.try_get::<String, _>("scope").unwrap_or_default(),
+                "scope_id":     r.try_get::<Option<String>, _>("scope_id").unwrap_or(None),
+                "kind":         r.try_get::<String, _>("kind").unwrap_or_default(),
+                "display_name": r.try_get::<String, _>("display_name").unwrap_or_default(),
+                "mime_type":    r.try_get::<Option<String>, _>("mime_type").unwrap_or(None),
+                "bytes":        r.try_get::<Option<i64>, _>("bytes").unwrap_or(None),
+                "thumbnail_key":r.try_get::<Option<String>, _>("thumbnail_key").unwrap_or(None),
+                "storage_key":  r.try_get::<Option<String>, _>("storage_key").unwrap_or(None),
+                "origin":       r.try_get::<String, _>("origin").unwrap_or_default(),
+                "tags":         r.try_get::<Vec<String>, _>("tags").unwrap_or_default(),
+                "metadata":     r.try_get::<Value, _>("metadata").unwrap_or(json!({})),
+                "created_at":   r.try_get::<chrono::DateTime<chrono::Utc>, _>("created_at").ok(),
+            })
+        })
+        .collect();
     let count = data.len();
     Ok(Json(json!({ "data": data, "count": count })))
 }
@@ -976,21 +1086,26 @@ async fn dam_list_brand_kits(
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "id":             r.id,
-        "scope":          r.scope,
-        "scope_id":       r.scope_id,
-        "name":           r.name,
-        "version_no":     r.version_no,
-        "logo_asset_ids": r.logo_asset_ids,
-        "palette":        r.palette,
-        "font_asset_ids": r.font_asset_ids,
-        "lut_asset_id":   r.lut_asset_id,
-        "intro_asset_id": r.intro_asset_id,
-        "outro_asset_id": r.outro_asset_id,
-        "notes":          r.notes,
-        "created_at":     r.created_at,
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id":             r.id,
+                "scope":          r.scope,
+                "scope_id":       r.scope_id,
+                "name":           r.name,
+                "version_no":     r.version_no,
+                "logo_asset_ids": r.logo_asset_ids,
+                "palette":        r.palette,
+                "font_asset_ids": r.font_asset_ids,
+                "lut_asset_id":   r.lut_asset_id,
+                "intro_asset_id": r.intro_asset_id,
+                "outro_asset_id": r.outro_asset_id,
+                "notes":          r.notes,
+                "created_at":     r.created_at,
+            })
+        })
+        .collect();
     Ok(Json(json!({ "data": data })))
 }
 
@@ -1078,23 +1193,32 @@ async fn dam_search(
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "id":           r.id,
-        "scope":        r.scope,
-        "scope_id":     r.scope_id,
-        "kind":         r.kind,
-        "display_name": r.display_name,
-        "mime_type":    r.mime_type,
-        "bytes":        r.bytes,
-        "thumbnail_key":r.thumbnail_key,
-        "storage_key":  r.storage_key,
-        "origin":       r.origin,
-        "tags":         r.tags,
-        "metadata":     r.metadata,
-        "created_at":   r.created_at,
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id":           r.id,
+                "scope":        r.scope,
+                "scope_id":     r.scope_id,
+                "kind":         r.kind,
+                "display_name": r.display_name,
+                "mime_type":    r.mime_type,
+                "bytes":        r.bytes,
+                "thumbnail_key":r.thumbnail_key,
+                "storage_key":  r.storage_key,
+                "origin":       r.origin,
+                "tags":         r.tags,
+                "metadata":     r.metadata,
+                "created_at":   r.created_at,
+            })
+        })
+        .collect();
     let count = data.len();
-    let mode = if body.mode.to_lowercase() == "semantic" { "fts_fallback" } else { "fts" };
+    let mode = if body.mode.to_lowercase() == "semantic" {
+        "fts_fallback"
+    } else {
+        "fts"
+    };
     Ok(Json(json!({ "data": data, "count": count, "mode": mode })))
 }
 
@@ -1163,22 +1287,29 @@ async fn licenses_expiring(
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "id":                r.id,
-        "scope":             r.scope,
-        "scope_id":          r.scope_id,
-        "kind":              r.kind,
-        "display_name":      r.display_name,
-        "license":           r.license,
-        "license_url":       r.license_url,
-        "expires_at":        r.expires_at,
-        "tags":              r.tags,
-        "created_at":        r.created_at,
-        "expired":           r.expired,
-        "days_until_expiry": r.days_until_expiry,
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id":                r.id,
+                "scope":             r.scope,
+                "scope_id":          r.scope_id,
+                "kind":              r.kind,
+                "display_name":      r.display_name,
+                "license":           r.license,
+                "license_url":       r.license_url,
+                "expires_at":        r.expires_at,
+                "tags":              r.tags,
+                "created_at":        r.created_at,
+                "expired":           r.expired,
+                "days_until_expiry": r.days_until_expiry,
+            })
+        })
+        .collect();
     let count = data.len();
-    Ok(Json(json!({ "data": data, "count": count, "within_days": q.within_days })))
+    Ok(Json(
+        json!({ "data": data, "count": count, "within_days": q.within_days }),
+    ))
 }
 
 // ── GET /library/dam/licenses/audit ──────────────────────────────────────────
@@ -1213,13 +1344,18 @@ async fn licenses_audit(
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "license":       r.license,
-        "asset_count":   r.asset_count,
-        "total_bytes":   r.total_bytes,
-        "expired_count": r.expired_count,
-        "expiring_30d":  r.expiring_30d,
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "license":       r.license,
+                "asset_count":   r.asset_count,
+                "total_bytes":   r.total_bytes,
+                "expired_count": r.expired_count,
+                "expiring_30d":  r.expiring_30d,
+            })
+        })
+        .collect();
     let count = data.len();
     Ok(Json(json!({ "data": data, "count": count })))
 }
@@ -1242,13 +1378,18 @@ async fn list_quotas(
     .await
     .map_err(ApiError::Database)?;
 
-    let data: Vec<Value> = rows.iter().map(|r| json!({
-        "scope":         r.scope,
-        "scope_id":      r.scope_id,
-        "quota_bytes":   r.quota_bytes,
-        "used_bytes":    r.used_bytes,
-        "calculated_at": r.calculated_at,
-    })).collect();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "scope":         r.scope,
+                "scope_id":      r.scope_id,
+                "quota_bytes":   r.quota_bytes,
+                "used_bytes":    r.used_bytes,
+                "calculated_at": r.calculated_at,
+            })
+        })
+        .collect();
     let count = data.len();
     Ok(Json(json!({ "data": data, "count": count })))
 }
@@ -1263,7 +1404,9 @@ async fn recalculate_quotas(
         && principal.role != "member"
         && principal.global_role != "superadmin"
     {
-        return Err(ApiError::ForbiddenWith("owner or member role required".into()));
+        return Err(ApiError::ForbiddenWith(
+            "owner or member role required".into(),
+        ));
     }
 
     let cfg = sqlx::query!(
@@ -1278,10 +1421,22 @@ async fn recalculate_quotas(
         .and_then(|r| serde_json::from_str(&r.config_value).ok())
         .unwrap_or_default();
 
-    let ws_bytes: i64 = defaults.get("workspace_bytes").and_then(Value::as_i64).unwrap_or(107_374_182_400);
-    let brand_bytes: i64 = defaults.get("brand_bytes").and_then(Value::as_i64).unwrap_or(26_843_545_600);
-    let chan_bytes: i64 = defaults.get("channel_bytes").and_then(Value::as_i64).unwrap_or(10_737_418_240);
-    let proj_bytes: i64 = defaults.get("project_bytes").and_then(Value::as_i64).unwrap_or(5_368_709_120);
+    let ws_bytes: i64 = defaults
+        .get("workspace_bytes")
+        .and_then(Value::as_i64)
+        .unwrap_or(107_374_182_400);
+    let brand_bytes: i64 = defaults
+        .get("brand_bytes")
+        .and_then(Value::as_i64)
+        .unwrap_or(26_843_545_600);
+    let chan_bytes: i64 = defaults
+        .get("channel_bytes")
+        .and_then(Value::as_i64)
+        .unwrap_or(10_737_418_240);
+    let proj_bytes: i64 = defaults
+        .get("project_bytes")
+        .and_then(Value::as_i64)
+        .unwrap_or(5_368_709_120);
 
     sqlx::query!(
         r#"WITH agg AS (
