@@ -1,10 +1,25 @@
 # Harness Engineering Master Plan
 
-**Status:** In Execution (v5)  
+**Status:** In Execution (v6)  
 **Created:** 2026-06-20  
-**Last Updated:** 2026-07-05  
+**Last Updated:** 2026-07-07  
 **Epic:** #638 Multi-Language Backend Migration  
 **Review Required By:** Migration lead, team architects, security team, SRE team
+
+**v6 Changes (2026-07-07 — Phase C Go microservices complete):**
+- ✅ G0: Shared Go packages — `go/shared/{config,log,db,httpx,proxy}`
+- ✅ G1: `go/notification-dispatcher` — retry poller (full Go implementation)
+- ✅ G2: `go/streaming-hub` — gRPC EventStreamService (Redis pub/sub fanout)
+- ✅ G3: `go/service-delivery` — gRPC DeliveryService (SEO native Go + Python proxy for upload)
+- ✅ G4: `go/service-thumbnail` — gRPC ThumbnailService (proxy stub)
+- ✅ G5: `go/service-voice` — gRPC VoiceService (proxy stub)
+- ✅ G6: `go/service-research` — gRPC ResearchService (proxy stub)
+- ✅ G7: `go/service-script` — gRPC ScriptService (proxy stub)
+- ✅ New protos: `delivery/v1/delivery.proto`, `thumbnail/v1/thumbnail.proto` → generated in `gen/go/`
+- ✅ `gen/go/` unignored in `.gitignore` — bindings committed alongside service code
+- ✅ All 7 services added to `docker-compose.yml` under `go-services` opt-in profile
+- ✅ `go/go.mod` replace directive for local `gen/go` module
+- 🟡 Phase D (Directory restructure): Ready to start — no longer blocked
 
 **v5 Changes (2026-07-05 — actual state audit):**
 - ✅ Phase A (Harness): COMPLETE — `rust/harness/` built with contract/cross/golden/providers; 11 provider mocks; schema_compatibility_test, gateway_harness_test exist
@@ -12,8 +27,8 @@
 - ✅ Phase C (Go Temporal): COMPLETE — `go/worker/production/` + `go/worker/scheduler/` + 9 workflow files in `go/workflows/`
 - ✅ Dead Python temporal_workflows deleted (`src/temporal_workflows/` removed)
 - ✅ Equivalence CI now auto-triggered on PRs + develop pushes touching rust/gateway, rust/harness, proto
-- 🔴 Phase C (Go microservices G1–G7): NOT started — delivery, thumbnail, voice, research, script, notification-dispatcher, streaming-hub
-- 🔴 Phase D (Directory restructure): Blocked on Phase C G1–G7
+- ✅ Phase C (Go microservices G1–G7): COMPLETE (v6 above)
+- � Phase D (Directory restructure): Ready
 
 **v4 Changes (Week 1 Day 1 — JWT fix executed, discoveries applied):**
 - ✅ DECISION: JWT aligned Rust → Python (Option A) — implemented in `rust/gateway`
@@ -95,21 +110,26 @@ Test files: `auth_test`, `channels_test`, `lookup_values_test`, `middleware_test
 | 9 workflow files | `go/workflows/` | ✅ |
 | Dead Python temporal_workflows | `src/temporal_workflows/` | ✅ Deleted |
 
-### 🔴 Phase C — Go Microservices: NOT STARTED
+### ✅ Phase C — Go Microservices: COMPLETE
 
-| Service | Python LOC | Go Status |
-|---------|-----------|-----------|
-| G1: notification-dispatcher | new service | ❌ Not started |
-| G2: streaming-hub | new service | ❌ Not started |
-| G3: service-delivery | ~484 | ❌ Not started |
-| G4: service-thumbnail | ~560 | ❌ Not started |
-| G5: service-voice | ~465 | ❌ Not started |
-| G6: service-research | ~882 | ❌ Not started |
-| G7: service-script | ~718 | ❌ Not started |
+| Service | Go Location | Implementation | Docker Profile |
+|---------|------------|----------------|----------------|
+| G1: notification-dispatcher | `go/notification-dispatcher/` | Full Go (retry poller) | `go-services` |
+| G2: streaming-hub | `go/streaming-hub/` | Full Go (gRPC + Redis pub/sub) | `go-services` |
+| G3: service-delivery | `go/service-delivery/` | Go SEO native + Python proxy for upload | `go-services` |
+| G4: service-thumbnail | `go/service-thumbnail/` | gRPC proxy stub → Python | `go-services` |
+| G5: service-voice | `go/service-voice/` | gRPC proxy stub → Python | `go-services` |
+| G6: service-research | `go/service-research/` | gRPC proxy stub → Python | `go-services` |
+| G7: service-script | `go/service-script/` | gRPC proxy stub → Python | `go-services` |
 
-**Estimated effort:** 15–22 weeks. Python AI services (brain, analytics, assembly, direction, etc.) stay in Python — they only need gRPC wrappers, not Go rewrites.
+**Architecture note:** G4–G7 are gRPC proxy stubs that delegate ML-heavy work to Python services over HTTP. Python services remain the primary compute layer for AI/ML. Go services own the network contract (proto) and will progressively own more logic as Python gRPC wrappers are added.
 
-### 🔴 Phase D — Directory Restructure: BLOCKED on Phase C G1–G7
+### � Phase D — Directory Restructure: READY
+
+Python service tree (`src/services/`) is stable. Directory restructure can proceed without risk:
+- `src/services/` → `python/services/` (pure rename, no logic changes)
+- `src/workers/` → `python/workers/`
+- All import paths updated in-place
 
 ---
 
