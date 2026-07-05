@@ -1,3 +1,6 @@
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::too_many_arguments)]
+#![allow(dead_code)]
 mod audit;
 mod auth;
 mod config;

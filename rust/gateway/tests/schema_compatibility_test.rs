@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! Schema compatibility tests per HARNESS-ENGINEERING-PLAN.md Section 13.
 //!
 //! Verifies Rust gateway can read/write Python's production schema.
