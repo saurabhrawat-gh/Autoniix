@@ -1,0 +1,96 @@
+syntax = "proto3";
+
+package autoniix.delivery.v1;
+
+import "autoniix/common/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+service DeliveryService {
+  rpc UploadVideo(UploadVideoRequest) returns (UploadVideoResponse);
+  rpc ComputeMetadata(ComputeMetadataRequest) returns (ComputeMetadataResponse);
+  rpc GetSEOScore(GetSEOScoreRequest) returns (GetSEOScoreResponse);
+  rpc HumanReview(HumanReviewRequest) returns (HumanReviewResponse);
+}
+
+message UploadVideoRequest {
+  string content_id = 1;
+  string channel_id = 2;
+  string content_mode = 3;
+  string title = 4;
+  string description = 5;
+  repeated string tags = 6;
+  string video_url = 7;
+  string thumbnail_url = 8;
+  string privacy_status = 9;
+  string category_id = 10;
+  bool is_short = 11;
+  google.protobuf.Timestamp scheduled_at = 12;
+  map<string, double> quality_scores = 13;
+  bool quality_gate_override = 14;
+  string quality_gate_override_reason = 15;
+  string quality_gate_override_by = 16;
+}
+
+message UploadVideoResponse {
+  string youtube_video_id = 1;
+  string youtube_url = 2;
+  string privacy_status = 3;
+  SEOResult intelligence = 4;
+  double cost_usd = 5;
+}
+
+message ComputeMetadataRequest {
+  string content_id = 1;
+  string channel_id = 2;
+  string content_mode = 3;
+  string title = 4;
+  string description = 5;
+  repeated string tags = 6;
+  string niche = 7;
+  map<string, double> quality_scores = 8;
+  bool is_short = 9;
+}
+
+message ComputeMetadataResponse {
+  string title = 1;
+  string description = 2;
+  repeated string tags = 3;
+  repeated string hashtags = 4;
+  string category_id = 5;
+  double seo_score = 6;
+  double final_composite_score = 7;
+}
+
+message GetSEOScoreRequest {
+  string title = 1;
+  string description = 2;
+  repeated string tags = 3;
+  string niche = 4;
+  string channel_id = 5;
+}
+
+message GetSEOScoreResponse {
+  double seo_score = 1;
+  repeated string factors = 2;
+  repeated string suggested_tags = 3;
+  map<string, string> upload_timing = 4;
+}
+
+message HumanReviewRequest {
+  string content_id = 1;
+  bool approved = 2;
+  string reviewer = 3;
+  string notes = 4;
+}
+
+message HumanReviewResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message SEOResult {
+  double seo_score = 1;
+  string description_analysis = 2;
+  string optimal_upload_time = 3;
+  int32 tags_suggested = 4;
+}

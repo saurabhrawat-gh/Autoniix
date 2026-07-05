@@ -34,11 +34,13 @@ lib/
 !sdk/python/yt_engine/
 !sdk/python/yt_engine/**backups/
 
-# Generated proto code
-gen/
+# Generated proto code — Go bindings are committed (needed by Go module build)
+# gen/rust and gen/python are ephemeral; gen/go is committed so `go build` works
+# without requiring `buf generate` on every checkout.
+gen/rust/
+gen/python/
 dashboard/src/generated/
 rust/gateway/src/generated/
-*.pb.go
 *_pb2.py
 *_pb2.pyi
 *.rs.gen

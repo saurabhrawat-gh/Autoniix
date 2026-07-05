@@ -725,6 +725,174 @@ services:
     restart: unless-stopped
     deploy: { resources: { limits: { memory: 64M } } }
 
+  # G2: streaming-hub — gRPC event pub/sub server backed by Redis.
+  streaming-hub:
+    profiles: ["go-services"]
+    build:
+      context: ./go
+      dockerfile: Dockerfile
+      args:
+        BINARY_PATH: ./streaming-hub/cmd/hub
+    env_file: .env
+    environment:
+      - GRPC_PORT=9002
+      - HTTP_PORT=8092
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    networks: [autoniix-net]
+    ports:
+      - "127.0.0.1:9002:9002"
+      - "127.0.0.1:8092:8092"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8092/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 64M } } }
+
+  # G3: service-delivery — gRPC delivery service (SEO native, upload via Python proxy).
+  service-delivery:
+    profiles: ["go-services"]
+    build:
+      context: ./go
+      dockerfile: Dockerfile
+      args:
+        BINARY_PATH: ./service-delivery/cmd/delivery
+    env_file: .env
+    environment:
+      - GRPC_PORT=9003
+      - HTTP_PORT=8097
+      - PYTHON_DELIVERY_URL=http://delivery:8007
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    networks: [autoniix-net]
+    ports:
+      - "127.0.0.1:9003:9003"
+      - "127.0.0.1:8097:8097"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8097/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      delivery: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 64M } } }
+
+  # G4: service-thumbnail — gRPC stub proxying to Python thumbnail service.
+  service-thumbnail:
+    profiles: ["go-services"]
+    build:
+      context: ./go
+      dockerfile: Dockerfile
+      args:
+        BINARY_PATH: ./service-thumbnail/cmd/thumbnail
+    env_file: .env
+    environment:
+      - GRPC_PORT=9004
+      - HTTP_PORT=8095
+      - PYTHON_THUMBNAIL_URL=http://thumbnail:8005
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    networks: [autoniix-net]
+    ports:
+      - "127.0.0.1:9004:9004"
+      - "127.0.0.1:8095:8095"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8095/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      thumbnail: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 64M } } }
+
+  # G5: service-voice — gRPC stub proxying to Python voice service.
+  service-voice:
+    profiles: ["go-services"]
+    build:
+      context: ./go
+      dockerfile: Dockerfile
+      args:
+        BINARY_PATH: ./service-voice/cmd/voice
+    env_file: .env
+    environment:
+      - GRPC_PORT=9005
+      - HTTP_PORT=8093
+      - PYTHON_VOICE_URL=http://voice:8003
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    networks: [autoniix-net]
+    ports:
+      - "127.0.0.1:9005:9005"
+      - "127.0.0.1:8093:8093"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8093/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      voice: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 64M } } }
+
+  # G6: service-research — gRPC stub proxying to Python research service.
+  service-research:
+    profiles: ["go-services"]
+    build:
+      context: ./go
+      dockerfile: Dockerfile
+      args:
+        BINARY_PATH: ./service-research/cmd/research
+    env_file: .env
+    environment:
+      - GRPC_PORT=9006
+      - HTTP_PORT=8094
+      - PYTHON_RESEARCH_URL=http://research:8006
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    networks: [autoniix-net]
+    ports:
+      - "127.0.0.1:9006:9006"
+      - "127.0.0.1:8094:8094"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8094/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      research: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 64M } } }
+
+  # G7: service-script — gRPC stub proxying to Python script service.
+  service-script:
+    profiles: ["go-services"]
+    build:
+      context: ./go
+      dockerfile: Dockerfile
+      args:
+        BINARY_PATH: ./service-script/cmd/script
+    env_file: .env
+    environment:
+      - GRPC_PORT=9007
+      - HTTP_PORT=8096
+      - PYTHON_SCRIPT_URL=http://script:8002
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    networks: [autoniix-net]
+    ports:
+      - "127.0.0.1:9007:9007"
+      - "127.0.0.1:8096:8096"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8096/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      script: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 64M } } }
+
   # media_jobs worker (AE-355 / Library Sprint) — pulls pending rows from the
   # media_jobs table and runs probe / embed / autotag handlers. ffmpeg-based
   # handlers (transcode_hls, waveform, transcribe, poster-from-video) are
