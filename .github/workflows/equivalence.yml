@@ -44,11 +44,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: dtolna./-toolchain@1.88.0
         with:
           components: clippy, rustfmt
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatine./-cache@v2
         with:
           workspaces: rust
 
@@ -89,11 +89,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: dtolna./-toolchain@1.88.0
         with:
           components: clippy, rustfmt
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatine./-cache@v2
         with:
           workspaces: rust
 
@@ -125,9 +125,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: dtolna./-toolchain@1.88.0
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatine./-cache@v2
         with:
           workspaces: rust
 

@@ -141,11 +141,11 @@ export DATABASE_URL="postgresql://postgres:postgres@${PG_HOST}:${PG_PORT}/autoni
 if $RUN_RUST; then
 
     step "[2/14] cargo fmt --all -- --check"
-    (cd "$ROOT/rust" && cargo fmt --all -- --check) || fail "cargo fmt"
+    (cd "$ROO./" && cargo fmt --all -- --check) || fail "cargo fmt"
     pass "cargo fmt clean"
 
     step "[3/14] cargo clippy --all-targets --all-features -- -D warnings"
-    (cd "$ROOT/rust" && cargo clippy --all-targets --all-features -- -D warnings) \
+    (cd "$ROO./" && cargo clippy --all-targets --all-features -- -D warnings) \
         || fail "cargo clippy"
     pass "cargo clippy clean"
 
@@ -162,56 +162,56 @@ if $RUN_RUST; then
     pass "All migrations applied"
 
     step "[6/14] cargo test -p gateway --lib"
-    (cd "$ROOT/rust" && \
+    (cd "$ROO./" && \
         TEST_DATABASE_URL="$DB_URL" AUTH_JWT_SECRET="test-jwt-secret-for-ci" \
         cargo test -p gateway --lib) || fail "gateway unit tests"
     pass "gateway unit tests pass"
 
     step "[7/14] cargo test -p gateway --test schema_compatibility_test"
-    (cd "$ROOT/rust" && \
+    (cd "$ROO./" && \
         TEST_DATABASE_URL="$DB_URL" AUTH_JWT_SECRET="test-jwt-secret-for-ci" \
         cargo test -p gateway --test schema_compatibility_test) || fail "schema compat tests"
     pass "schema compat tests pass"
 
     step "[8/14] cargo test -p harness"
-    (cd "$ROOT/rust" && cargo test -p harness) || fail "harness tests"
+    (cd "$ROO./" && cargo test -p harness) || fail "harness tests"
     pass "harness tests pass"
 
     step "[9/14] cargo test -p gateway --test gateway_harness_test -- --test-threads=1"
-    (cd "$ROOT/rust" && \
+    (cd "$ROO./" && \
         TEST_DATABASE_URL="$DB_URL" AUTH_JWT_SECRET="test-jwt-secret-for-ci" \
         cargo test -p gateway --test gateway_harness_test -- --test-threads=1) \
         || fail "gateway integration tests"
     pass "gateway integration tests pass"
 
     step "[10/14] cargo test -p gateway --test middleware_test"
-    (cd "$ROOT/rust" && \
+    (cd "$ROO./" && \
         TEST_DATABASE_URL="$DB_URL" AUTH_JWT_SECRET="test-jwt-secret-for-ci" \
         cargo test -p gateway --test middleware_test) || fail "middleware tests"
     pass "middleware integration tests pass"
 
     step "[11/14] cargo test -p gateway --test auth_test"
-    (cd "$ROOT/rust" && \
+    (cd "$ROO./" && \
         TEST_DATABASE_URL="$DB_URL" AUTH_JWT_SECRET="test-jwt-secret-for-ci" \
         cargo test -p gateway --test auth_test) || fail "auth tests"
     pass "auth integration tests pass"
 
     step "[12/14] cargo build --release"
-    (cd "$ROOT/rust" && cargo build --release) || fail "cargo build --release"
+    (cd "$ROO./" && cargo build --release) || fail "cargo build --release"
     pass "release binary built"
 
-    step "[13/14] docker build --platform linux/amd64 -f rust/gateway/Dockerfile ."
+    step "[13/14] docker build --platform linux/amd64 -f services/gateway/Dockerfile ."
     (cd "$ROOT" && docker build --platform linux/amd64 \
         --build-arg "RUST_IMAGE=$RUST_IMAGE" \
         --build-arg "DEBIAN_IMAGE=$DEBIAN_IMAGE" \
-        -f rust/gateway/Dockerfile -t autoniix/gateway:ci-local . >/dev/null 2>&1) \
+        -f services/gateway/Dockerfile -t autoniix/gateway:ci-local . >/dev/null 2>&1) \
         || fail "docker build (run manually for full log)"
     pass "docker image built"
 
     # rust-audit (ci.yml) — non-fatal locally to match `|| true` in the workflow
     if command -v cargo-audit >/dev/null 2>&1; then
         step "[14/14] cargo audit"
-        (cd "$ROOT/rust" && cargo audit 2>&1 | tail -20) || soft_fail "cargo audit"
+        (cd "$ROO./" && cargo audit 2>&1 | tail -20) || soft_fail "cargo audit"
     else
         warn "cargo-audit not installed — cargo install cargo-audit --locked --version $CARGO_AUDIT_VERSION"
     fi

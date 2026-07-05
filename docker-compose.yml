@@ -991,7 +991,7 @@ services:
   rust-gateway:
     build:
       context: .
-      dockerfile: rust/gateway/Dockerfile
+      dockerfile: services/gateway/Dockerfile
     env_file: .env
     environment:
       # Use Docker-network hostname; overrides any localhost URL from .env

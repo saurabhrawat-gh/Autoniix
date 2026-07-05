@@ -59,11 +59,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: dtolna./-toolchain@1.88.0
         with:
           components: clippy, rustfmt
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatine./-cache@v2
         with:
           workspaces: rust
 
@@ -141,7 +141,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: rust/gateway/Dockerfile
+          file: services/gateway/Dockerfile
           push: false
           tags: autoniix/gateway:${{ github.sha }}
           cache-from: type=gha
@@ -194,9 +194,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: dtolna./-toolchain@1.88.0
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatine./-cache@v2
         with:
           workspaces: rust
 
@@ -226,7 +226,7 @@ jobs:
           python3 - <<'EOF'
           import json, sys, re
 
-          baseline_path = "rust/gateway/benches/baselines/auth.json"
+          baseline_path = "services/gateway/benches/baselines/auth.json"
           bench_output  = "/tmp/bench-output.txt"
 
           with open(baseline_path) as f:
