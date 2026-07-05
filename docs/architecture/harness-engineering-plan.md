@@ -19,7 +19,7 @@
 - ✅ `gen/go/` unignored in `.gitignore` — bindings committed alongside service code
 - ✅ All 7 services added to `docker-compose.yml` under `go-services` opt-in profile
 - ✅ `go/go.mod` replace directive for local `gen/go` module
-- 🟡 Phase D (Directory restructure): Ready to start — no longer blocked
+- 🟡 Phase D (Directory restructure): Groundwork complete — `python/` placeholder + `scripts/phase-d-restructure.sh` migration script committed. Physical rename queued for a dedicated PR (222+ files affected, requires human-run end-to-end validation).
 
 **v5 Changes (2026-07-05 — actual state audit):**
 - ✅ Phase A (Harness): COMPLETE — `rust/harness/` built with contract/cross/golden/providers; 11 provider mocks; schema_compatibility_test, gateway_harness_test exist
@@ -28,7 +28,7 @@
 - ✅ Dead Python temporal_workflows deleted (`src/temporal_workflows/` removed)
 - ✅ Equivalence CI now auto-triggered on PRs + develop pushes touching rust/gateway, rust/harness, proto
 - ✅ Phase C (Go microservices G1–G7): COMPLETE (v6 above)
-- � Phase D (Directory restructure): Ready
+- 🟡 Phase D (Directory restructure): Groundwork done (v6), physical move queued
 
 **v4 Changes (Week 1 Day 1 — JWT fix executed, discoveries applied):**
 - ✅ DECISION: JWT aligned Rust → Python (Option A) — implemented in `rust/gateway`
@@ -124,12 +124,20 @@ Test files: `auth_test`, `channels_test`, `lookup_values_test`, `middleware_test
 
 **Architecture note:** G4–G7 are gRPC proxy stubs that delegate ML-heavy work to Python services over HTTP. Python services remain the primary compute layer for AI/ML. Go services own the network contract (proto) and will progressively own more logic as Python gRPC wrappers are added.
 
-### � Phase D — Directory Restructure: READY
+### 🟡 Phase D — Directory Restructure: GROUNDWORK COMPLETE, EXECUTION QUEUED
 
-Python service tree (`src/services/`) is stable. Directory restructure can proceed without risk:
-- `src/services/` → `python/services/` (pure rename, no logic changes)
-- `src/workers/` → `python/workers/`
-- All import paths updated in-place
+**Groundwork (done in v6):**
+- `python/README.md` — placeholder documenting the target layout and deferral rationale
+- `scripts/phase-d-restructure.sh` — mechanical migration script (`git mv` + `sed` for import rewrites)
+
+**Why physical move is queued:** 222+ Python files reference `from src.xxx import`. The rename is mechanical but requires end-to-end verification (`pytest tests/`, `docker compose up` health checks for every service, gateway smoke tests). That test cycle exceeds a single agent-session budget and can only be validated by a human running the full local stack.
+
+**Execution steps (from `scripts/phase-d-restructure.sh`):**
+1. `git checkout -b chore/phase-d-restructure develop`
+2. `./scripts/phase-d-restructure.sh`
+3. `pytest tests/`
+4. `docker compose build && docker compose up -d`
+5. Verify all services healthy, then merge to `develop`
 
 ---
 
