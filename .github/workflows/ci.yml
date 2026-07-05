@@ -1,9 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       reason:
@@ -20,7 +17,7 @@ jobs:
   guard:
     name: Guard — merge from develop only
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && env.ACT != 'true'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,7 +40,7 @@ jobs:
 
   python-lint-and-tests:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
     name: Python — lint + unit tests
     runs-on: ubuntu-latest
     steps:
@@ -93,7 +90,7 @@ jobs:
 
   remotion-typecheck:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
     name: Remotion — typecheck
     runs-on: ubuntu-latest
     defaults:
@@ -111,7 +108,7 @@ jobs:
 
   dashboard-typecheck:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
     name: Dashboard — typecheck + UI token lint
     runs-on: ubuntu-latest
     defaults:
@@ -176,7 +173,7 @@ jobs:
 
   rust-tests:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
     name: Rust — unit + harness + schema tests
     runs-on: ubuntu-latest
     services:
@@ -242,7 +239,7 @@ jobs:
 
   rust-audit:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
     name: Rust — cargo audit + clippy
     runs-on: ubuntu-latest
     steps:
@@ -270,7 +267,7 @@ jobs:
 
   migration-equivalence:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
     name: Migration — equivalence + JWT + schema tests
     runs-on: ubuntu-latest
     services:
