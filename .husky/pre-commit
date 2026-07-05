@@ -1,1 +1,57 @@
-cd dashboard && npx lint-staged
+#!/usr/bin/env bash
+# pre-commit: fast gate (<15s) — catches 90% of CI failures before commit
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+
+echo "▶  pre-commit: cargo fmt check..."
+if command -v cargo >/dev/null 2>&1; then
+    (cd "$ROOT/rust" && cargo fmt --all -- --check 2>&1) || {
+        echo ""
+        echo "❌  Rust formatting diff detected."
+        echo "    Fix: cd rust && cargo fmt --all"
+        exit 1
+    }
+    echo "✓  cargo fmt clean"
+else
+    echo "⏭  cargo not found — skipping fmt check"
+fi
+
+echo "▶  pre-commit: go vet..."
+if command -v go >/dev/null 2>&1; then
+    (cd "$ROOT/go" && go vet ./... 2>&1) || {
+        echo "❌  go vet failed"
+        exit 1
+    }
+    echo "✓  go vet clean"
+else
+    echo "⏭  go not found — skipping go vet"
+fi
+
+echo "▶  pre-commit: tsc (dashboard)..."
+if [ -d "$ROOT/dashboard/node_modules" ] && command -v npx >/dev/null 2>&1; then
+    (cd "$ROOT/dashboard" && npx tsc --noEmit 2>&1) || {
+        echo "❌  TypeScript errors in dashboard"
+        exit 1
+    }
+    echo "✓  dashboard tsc clean"
+else
+    echo "⏭  dashboard/node_modules missing — skipping tsc"
+fi
+
+echo "▶  pre-commit: tsc (remotion)..."
+if [ -d "$ROOT/services/remotion/node_modules" ] && command -v npx >/dev/null 2>&1; then
+    (cd "$ROOT/services/remotion" && npx tsc --noEmit 2>&1) || {
+        echo "❌  TypeScript errors in remotion"
+        exit 1
+    }
+    echo "✓  remotion tsc clean"
+else
+    echo "⏭  services/remotion/node_modules missing — skipping tsc"
+fi
+
+echo "▶  pre-commit: lint-staged (dashboard)..."
+cd "$ROOT/dashboard" && npx lint-staged
+echo "✓  lint-staged clean"
+
+echo ""
+echo "✅  pre-commit passed"

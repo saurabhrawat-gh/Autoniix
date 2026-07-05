@@ -416,4 +416,83 @@ install-hooks: ## Install pre-push git hook via husky
 	@npm install --silent
 	@echo "✅  pre-push hook installed. Bypass: git push --no-verify"
 
-.PHONY: verify-versions check-drift ci-local ci-local-full ci-local-docker pre-deploy install-hooks
+# =============================================================================
+# Weekly ship + act integration (Hybrid CI Plan)
+# =============================================================================
+
+ship: ## 🚀 Weekly deploy: full CI in Docker → merge develop → push main
+	@echo ""
+	@echo "═══════════════════════════════════════════════════════"
+	@echo "  🚀  Weekly Ship — $$(date '+%Y-%m-%d %H:%M')"
+	@echo "═══════════════════════════════════════════════════════"
+	@echo ""
+	@echo "Step 1/4 — Version drift check..."
+	@bash scripts/verify-versions-in-sync.sh || { echo "❌  Fix drift first: make check-drift"; exit 1; }
+	@echo ""
+	@echo "Step 2/4 — Full CI in Docker (same OS + same versions as GitHub Actions)..."
+	@echo "           This is the guarantee gate. Hard stop on any failure."
+	@bash scripts/ci-local.sh --full --docker || { \
+		echo ""; \
+		echo "═══════════════════════════════════════════════════════"; \
+		echo "❌  CI FAILED — develop NOT merged to main."; \
+		echo "    Fix the failures above, then re-run: make ship"; \
+		echo "═══════════════════════════════════════════════════════"; \
+		exit 1; \
+	}
+	@echo ""
+	@echo "Step 3/4 — Merging develop → main..."
+	@git checkout main
+	@git merge --no-ff develop -m "chore: weekly deploy $$(date '+%Y-%m-%d')" || { \
+		git checkout develop; \
+		echo "❌  Merge conflict — resolve manually then: make ship"; \
+		exit 1; \
+	}
+	@echo ""
+	@echo "Step 4/4 — Pushing to main (triggers GitHub Actions)..."
+	@git push origin main
+	@git checkout develop
+	@echo ""
+	@echo "═══════════════════════════════════════════════════════"
+	@echo "✅  Ship complete!"
+	@echo "    GitHub Actions is now running — result will match local."
+	@echo "    Watch: gh run list --repo saurabhrawat-gh/Autoniix"
+	@echo "═══════════════════════════════════════════════════════"
+	@echo ""
+
+ci-act: ## Run ci.yml locally via act (exact GitHub Actions runner image)
+	@echo "Running CI workflow via act (ubuntu-latest Docker image)..."
+	@echo "First run downloads ~500MB runner image — subsequent runs are instant."
+	@command -v act >/dev/null || { echo "❌  act not installed. Run: brew install act"; exit 1; }
+	@[ -f .act-secrets.local ] || { \
+		echo "⚠   No .act-secrets.local found."; \
+		echo "    Copy: cp .act-secrets.local.example .act-secrets.local"; \
+		echo "    Then add your GITHUB_TOKEN and re-run."; \
+		exit 1; \
+	}
+	act push -W .github/workflows/ci.yml
+
+ci-act-full: ## Run ALL workflows via act (ultimate parity — use when ci-act passes but GitHub fails)
+	@echo "Running ALL workflows via act..."
+	@command -v act >/dev/null || { echo "❌  act not installed. Run: brew install act"; exit 1; }
+	@[ -f .act-secrets.local ] || { \
+		echo "⚠   No .act-secrets.local found."; \
+		echo "    Copy: cp .act-secrets.local.example .act-secrets.local"; \
+		exit 1; \
+	}
+	act push
+
+act-setup: ## One-time act setup: install act + create secrets file
+	@echo "Installing act..."
+	@command -v act >/dev/null && echo "✓  act already installed ($$(act --version))" || brew install act
+	@if [ ! -f .act-secrets.local ]; then \
+		cp .act-secrets.local.example .act-secrets.local; \
+		echo "✓  Created .act-secrets.local — add your GITHUB_TOKEN to it"; \
+	else \
+		echo "✓  .act-secrets.local already exists"; \
+	fi
+	@echo ""
+	@echo "✅  act ready. Pull runner image (one-time, ~500MB):"
+	@echo "    make ci-act"
+
+.PHONY: verify-versions check-drift ci-local ci-local-full ci-local-docker pre-deploy install-hooks \
+        ship ci-act ci-act-full act-setup

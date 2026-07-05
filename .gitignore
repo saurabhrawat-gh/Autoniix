@@ -20,6 +20,9 @@ venv/
 # Local prompt-eval reports (timestamped JSON, runtime artefacts)
 prompt_eval_reports/
 
+# act local secrets (copy from .act-secrets.local.example — never commit)
+.act-secrets.local
+
 # Claude Code personal preferences
 .claude/CLAUDE.local.md
 *.log
