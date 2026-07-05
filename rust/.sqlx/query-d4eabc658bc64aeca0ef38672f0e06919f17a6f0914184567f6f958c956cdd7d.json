@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO entity_settings (scope, scope_id, key, value)\n               VALUES ('workspace', $1, $2, $3)\n               ON CONFLICT (scope, scope_id, key)\n               DO UPDATE SET value = EXCLUDED.value",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d4eabc658bc64aeca0ef38672f0e06919f17a6f0914184567f6f958c956cdd7d"
+}

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE provider_credentials SET is_default_fallback = FALSE WHERE category = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "497e52cefd62c974fa6be379fb040ceb98aaa0d900dfc4ec688fd32ad5f67545"
+}

@@ -21,6 +21,8 @@ tests/golden/
   content/       ← /api/v2/content/* (B6 — list, trigger history)
   finishing/     ← /api/v2/finishing/* (B6 — presets)
   review/        ← /api/v2/review/* (B5 — queue)
+  experiments/   ← /api/v2/experiments/* (native Rust — list, get, assign, outcomes, results)
+  jobs/          ← /api/v2/jobs/* (native Rust — active, progress)
 ```
 
 ## Fixture schema

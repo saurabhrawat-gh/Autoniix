@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO provider_marketplace_catalog\n              (provider_key, display_name, category, description, mode, capabilities,\n               cost_unit, has_free_tier, featured, sort_order,\n               config_schema, supported_models, is_platform_seeded, pricing_tier,\n               is_user_defined, is_callable)\n           VALUES ($1,$2,$3,$4,'byok',ARRAY[]::text[],$5,$6,FALSE,90,\n                   $7::jsonb,$8::jsonb,FALSE,$9,TRUE,FALSE)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Text",
+        "Varchar",
+        "Bool",
+        "Jsonb",
+        "Jsonb",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cd409c619f4dc08d52d976865f270441e8a58b9a3b15a65faa47a7034c3a6745"
+}

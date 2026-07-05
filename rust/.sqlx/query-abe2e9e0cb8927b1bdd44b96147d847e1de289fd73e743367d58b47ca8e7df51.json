@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE videos SET review_state=$1, updated_at=NOW() WHERE content_id=$2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "abe2e9e0cb8927b1bdd44b96147d847e1de289fd73e743367d58b47ca8e7df51"
+}

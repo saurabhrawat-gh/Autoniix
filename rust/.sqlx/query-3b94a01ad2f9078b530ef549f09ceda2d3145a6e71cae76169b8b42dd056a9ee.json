@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE videos SET status = 'rejected', updated_at = NOW() WHERE content_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3b94a01ad2f9078b530ef549f09ceda2d3145a6e71cae76169b8b42dd056a9ee"
+}

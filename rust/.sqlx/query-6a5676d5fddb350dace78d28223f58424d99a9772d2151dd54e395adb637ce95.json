@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE provider_credentials SET label=$2, vault_path=$3, extra_config=$4, model=$5, enabled=$6, channel_id=$7, content_mode=$8, scope_priority=$9, secret_blob=$10, updated_at=NOW() WHERE id=$1 AND workspace_id=$11",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Varchar",
+        "Text",
+        "Jsonb",
+        "Varchar",
+        "Bool",
+        "Varchar",
+        "Varchar",
+        "Int2",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6a5676d5fddb350dace78d28223f58424d99a9772d2151dd54e395adb637ce95"
+}

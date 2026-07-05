@@ -1,18 +1,18 @@
 //! Native Rust handlers for `/api/v2/jobs/**`
 //! (jobs.py — 11 endpoints)
 //!
-//! Native (DB): output, metadata, approve, reject
-//! Proxy+audit:  retry, restart, pause, resume, stop
-//! Pure proxy:   active, progress  (require live Temporal status)
+//! Native (DB): output, metadata, approve, reject, active, progress
+//! Proxy+audit:  retry, restart, pause, resume, stop  (Temporal signals)
 
 use axum::{
     body::Bytes,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{HeaderMap, Method, Uri},
     response::IntoResponse,
-    routing::{any, get, post},
+    routing::{get, post},
     Json, Router,
 };
+use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::PgPool;
 
@@ -25,9 +25,9 @@ use crate::{
 
 pub fn routes(pool: PgPool) -> Router {
     Router::new()
-        // pure proxy — Temporal live status
-        .route("/api/v2/jobs/active",               any(proxy_handle))
-        .route("/api/v2/jobs/:id/progress",         any(proxy_handle))
+        // native DB reads — active pipeline + per-job progress
+        .route("/api/v2/jobs/active",               get(job_active))
+        .route("/api/v2/jobs/:id/progress",         get(job_progress))
         // native DB reads
         .route("/api/v2/jobs/:id/output",           get(job_output))
         .route("/api/v2/jobs/:id/metadata",         get(job_metadata))
@@ -43,19 +43,87 @@ pub fn routes(pool: PgPool) -> Router {
         .with_state(pool)
 }
 
-// ── pure proxy helper ──────────────────────────────────────────────────────────
+// ── GET /jobs/active ──────────────────────────────────────────────────────────
 
-async fn proxy_handle(
+#[derive(Deserialize)]
+struct ActiveQ {
+    #[serde(default)] channel_id: Option<String>,
+    #[serde(default = "default_limit")] limit: i64,
+}
+fn default_limit() -> i64 { 50 }
+
+async fn job_active(
     AuthUser(_p): AuthUser,
-    method: Method,
-    uri: Uri,
-    headers: HeaderMap,
-    body: Bytes,
-) -> ApiResult<impl IntoResponse> {
-    let url = proxy::proxy_url(&uri);
-    let auth = proxy::extract_auth(&headers);
-    let ct = proxy::extract_content_type(&headers);
-    proxy::proxy_request(method, url, auth, ct, body).await
+    State(pool):  State<PgPool>,
+    Query(q):     Query<ActiveQ>,
+) -> ApiResult<Json<Value>> {
+    let lim = q.limit.clamp(1, 100);
+    let rows = if let Some(ref ch) = q.channel_id {
+        sqlx::query!(
+            r#"SELECT content_id, channel_id, title, status, content_mode, created_at, updated_at
+               FROM videos
+               WHERE status IN ('queued','running','processing','pending')
+                 AND channel_id = $1
+               ORDER BY created_at DESC LIMIT $2"#,
+            ch, lim,
+        ).fetch_all(&pool).await.map_err(ApiError::Database)?
+         .into_iter().map(|r| json!({
+            "content_id": r.content_id, "channel_id": r.channel_id,
+            "title": r.title, "status": r.status,
+            "content_mode": r.content_mode,
+            "created_at": r.created_at, "updated_at": r.updated_at,
+         })).collect::<Vec<Value>>()
+    } else {
+        sqlx::query!(
+            r#"SELECT content_id, channel_id, title, status, content_mode, created_at, updated_at
+               FROM videos
+               WHERE status IN ('queued','running','processing','pending')
+               ORDER BY created_at DESC LIMIT $1"#,
+            lim,
+        ).fetch_all(&pool).await.map_err(ApiError::Database)?
+         .into_iter().map(|r| json!({
+            "content_id": r.content_id, "channel_id": r.channel_id,
+            "title": r.title, "status": r.status,
+            "content_mode": r.content_mode,
+            "created_at": r.created_at, "updated_at": r.updated_at,
+         })).collect::<Vec<Value>>()
+    };
+
+    Ok(Json(json!({ "status": "ok", "data": rows, "count": rows.len() })))
+}
+
+// ── GET /jobs/:id/progress ────────────────────────────────────────────────────
+
+async fn job_progress(
+    AuthUser(_p): AuthUser,
+    State(pool):  State<PgPool>,
+    Path(content_id): Path<String>,
+) -> ApiResult<Json<Value>> {
+    let row = sqlx::query!(
+        r#"SELECT content_id, channel_id, title, status, content_mode,
+                  rendered_video_url,
+                  total_cost::float8 AS "total_cost?: f64",
+                  created_at, updated_at
+           FROM videos WHERE content_id = $1"#,
+        content_id,
+    )
+    .fetch_optional(&pool).await.map_err(ApiError::Database)?
+    .ok_or_else(|| ApiError::NotFound("Job not found".into()))?;
+
+    Ok(Json(json!({
+        "status": "ok",
+        "data": {
+            "content_id":   row.content_id,
+            "channel_id":   row.channel_id,
+            "title":        row.title,
+            "status":       row.status,
+            "content_mode": row.content_mode,
+            "has_output":   row.rendered_video_url.is_some(),
+            "total_cost":   row.total_cost.unwrap_or(0.0),
+            "created_at":   row.created_at,
+            "updated_at":   row.updated_at,
+        }
+    })))
 }
 
 // ── GET /jobs/:id/output ───────────────────────────────────────────────────────

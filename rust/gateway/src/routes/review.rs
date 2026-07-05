@@ -10,7 +10,7 @@ use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, Method, Uri},
     response::IntoResponse,
-    routing::{get, post, put},
+    routing::{get, post},
     Json, Router,
 };
 use serde::Deserialize;
