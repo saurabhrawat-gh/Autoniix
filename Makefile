@@ -432,16 +432,20 @@ ship: ## 🚀 Weekly deploy: act CI (exact GitHub runner) → merge develop → 
 	}
 	@echo "✓  No drift"
 	@echo ""
-	@echo "Step 2/5 — Pre-flight: act installed + secrets ready..."
+	@echo "Step 2/5 — Pre-flight: act + runner image (auto-installs if missing)..."
 	@command -v act >/dev/null 2>&1 || { \
-		echo "❌  act not installed."; \
-		echo "    Run: make act-setup"; \
-		exit 1; \
+		echo "  act not found — installing via brew..."; \
+		brew install act; \
 	}
 	@[ -f .act-secrets.local ] || { \
-		echo "❌  .act-secrets.local missing."; \
-		echo "    Run: make act-setup"; \
-		exit 1; \
+		echo "  .act-secrets.local missing — creating from template..."; \
+		cp .act-secrets.local.example .act-secrets.local; \
+		echo "  ⚠  Add your GITHUB_TOKEN to .act-secrets.local for full parity."; \
+		echo "     (ship will still run — some act steps may warn about missing token)"; \
+	}
+	@docker image inspect catthehacker/ubuntu:act-22.04 >/dev/null 2>&1 || { \
+		echo "  Runner image not cached — pulling catthehacker/ubuntu:act-22.04 (~500MB, one-time)..."; \
+		docker pull catthehacker/ubuntu:act-22.04; \
 	}
 	@echo "✓  act $$(act --version) ready"
 	@echo ""
@@ -482,6 +486,10 @@ ship: ## 🚀 Weekly deploy: act CI (exact GitHub runner) → merge develop → 
 	@echo "    Watch: gh run list --repo saurabhrawat-gh/Autoniix"
 	@echo "═══════════════════════════════════════════════════════"
 	@echo ""
+
+sqlx-prepare: ## Regenerate .sqlx/ offline cache (auto-runs in pre-commit when new queries detected)
+	@bash scripts/sqlx-prepare.sh
+	@git add .sqlx/ 2>/dev/null || true
 
 ci-act: ## Run ci.yml locally via act (exact GitHub Actions runner image)
 	@echo "Running CI workflow via act (ubuntu-latest Docker image)..."
@@ -529,4 +537,4 @@ act-setup: ## One-time act setup: install act + create secrets + pull runner ima
 	@echo "═══════════════════════════════════════════════════════"
 
 .PHONY: verify-versions check-drift ci-local ci-local-full ci-local-docker pre-deploy install-hooks \
-        ship ci-act ci-act-full act-setup
+        ship sqlx-prepare ci-act ci-act-full act-setup

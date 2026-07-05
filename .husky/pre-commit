@@ -3,6 +3,30 @@
 set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 
+echo "▶  pre-commit: sqlx query cache check..."
+STAGED_RS=$(git diff --cached --name-only 2>/dev/null | grep '\.rs$' || true)
+if [ -n "$STAGED_RS" ]; then
+    NEW_SQLX=$(git diff --cached -- $STAGED_RS 2>/dev/null | grep '^+.*sqlx::query' | grep -v '^+++' || true)
+    if [ -n "$NEW_SQLX" ]; then
+        SQLX_STAGED=$(git diff --cached --name-only 2>/dev/null | grep '\.sqlx/' || true)
+        if [ -z "$SQLX_STAGED" ]; then
+            echo "  🔍 New sqlx query detected — auto-running sqlx-prepare..."
+            bash "$ROOT/scripts/sqlx-prepare.sh" || {
+                echo "❌  sqlx-prepare failed. Fix the errors and try again."
+                exit 1
+            }
+            git add "$ROOT/.sqlx/"
+            echo "✓  .sqlx/ cache updated and staged automatically"
+        else
+            echo "✓  sqlx cache already staged"
+        fi
+    else
+        echo "✓  No new sqlx queries"
+    fi
+else
+    echo "✓  No .rs files staged"
+fi
+
 echo "▶  pre-commit: cargo fmt check..."
 if command -v cargo >/dev/null 2>&1; then
     (cd "$ROOT/rust" && cargo fmt --all -- --check 2>&1) || {
