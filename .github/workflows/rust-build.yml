@@ -1,9 +1,6 @@
 name: Rust Build & Test
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 env:
