@@ -21,7 +21,6 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from datetime import timedelta
 from typing import Any
 
 from temporalio import activity, workflow
@@ -199,17 +198,3 @@ async def check_all_provider_health() -> dict[str, Any]:
         changed=len(changed),
     )
     return {"total": total, "healthy": healthy, "unhealthy": total - healthy, "results": results}
-
-
-
-@workflow.defn
-class HealthBeatWorkflow:
-    """Thin wrapper executed by the ``provider-health-beat`` Temporal schedule."""
-
-    @workflow.run
-    async def run(self) -> dict[str, Any]:
-        return await workflow.execute_activity(
-            check_all_provider_health,
-            schedule_to_close_timeout=timedelta(minutes=4),
-            start_to_close_timeout=timedelta(minutes=4),
-        )

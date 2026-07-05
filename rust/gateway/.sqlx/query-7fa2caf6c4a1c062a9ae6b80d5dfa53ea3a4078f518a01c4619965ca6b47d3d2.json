@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE provider_quotas SET monthly_cap_usd=$1::float8, alert_pct=$2, hard_limit=$3, updated_at=NOW() WHERE id=$4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Float8",
+        "Int2",
+        "Bool",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7fa2caf6c4a1c062a9ae6b80d5dfa53ea3a4078f518a01c4619965ca6b47d3d2"
+}

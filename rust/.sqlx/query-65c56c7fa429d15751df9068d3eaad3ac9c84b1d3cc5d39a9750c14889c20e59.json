@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO experiments (experiment_name, description, variants, traffic_pct, target_metric, status)\n           VALUES ($1, $2, $3, $4, $5, 'draft')\n           ON CONFLICT (experiment_name) DO UPDATE SET\n               description=$2, variants=$3, traffic_pct=$4, target_metric=$5, updated_at=NOW()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Text",
+        "Jsonb",
+        "Float4",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "65c56c7fa429d15751df9068d3eaad3ac9c84b1d3cc5d39a9750c14889c20e59"
+}

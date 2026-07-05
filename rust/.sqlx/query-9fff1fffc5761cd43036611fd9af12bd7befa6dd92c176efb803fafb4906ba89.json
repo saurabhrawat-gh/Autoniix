@@ -1,0 +1,82 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT channel_id,\n                  require_resolve_finish, color_grade_preset,\n                  audio_denoise, audio_eq, audio_compress, audio_music_duck,\n                  audio_loudness_lufs::float8   AS \"audio_loudness_lufs!: f64\",\n                  audio_true_peak_dbtps::float8 AS \"audio_true_peak_dbtps!: f64\",\n                  output_prores_archive, updated_at\n             FROM channel_finishing_config WHERE channel_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "channel_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "require_resolve_finish",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "color_grade_preset",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "audio_denoise",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "audio_eq",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "audio_compress",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "audio_music_duck",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "audio_loudness_lufs!: f64",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 8,
+        "name": "audio_true_peak_dbtps!: f64",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 9,
+        "name": "output_prores_archive",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 10,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "9fff1fffc5761cd43036611fd9af12bd7befa6dd92c176efb803fafb4906ba89"
+}

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE videos SET review_state='regenerating', status='pending', updated_at=NOW() WHERE content_id = ANY($1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7ba252c34c2f689b28a767e8cfcca612f319e5d62fe20ffcd6a2dd080e1d4e5b"
+}

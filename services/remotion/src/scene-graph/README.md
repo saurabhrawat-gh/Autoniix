@@ -4,7 +4,7 @@ Internal module (P0.1 of the remotion-vision plan). Lowers `DirectionV3` into a
 typed, hashable, agent-mutable intermediate representation that all future
 renderer tiers (T0 WebGPU / T1 Chromium / T2 ffmpeg-direct) consume.
 
-See `docs/remotion-vision/02-FUTURE-ENGINE-ARCHITECTURE.md` sections 2.3–2.4.
+See `docs/future/remotion-vision/future-engine-architecture.md` sections 2.3–2.4.
 
 ## Surface
 

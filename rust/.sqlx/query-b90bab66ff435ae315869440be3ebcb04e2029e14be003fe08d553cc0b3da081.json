@@ -1,0 +1,80 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT experiment_name, description, status, traffic_pct, target_metric,\n                      variants, winning_variant, started_at, ended_at, created_at, updated_at\n               FROM experiments ORDER BY created_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "experiment_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "status",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "traffic_pct",
+        "type_info": "Float4"
+      },
+      {
+        "ordinal": 4,
+        "name": "target_metric",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "variants",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 6,
+        "name": "winning_variant",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "started_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "ended_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "b90bab66ff435ae315869440be3ebcb04e2029e14be003fe08d553cc0b3da081"
+}

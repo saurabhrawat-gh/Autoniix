@@ -15,43 +15,29 @@ from fastapi import APIRouter
 
 from . import (
     auth as _auth,
-    change_requests as _change_requests,
     channels as _channels,
-    youtube_oauth as _youtube_oauth,
     content as _content,
     experiments as _experiments,
-    finishing as _finishing,
     flags as _flags,
-    jobs as _jobs,
-    library as _library,
-    library_licenses as _library_licenses,
-    library_quotas as _library_quotas,
     notifications as _notifications,
-    providers as _providers,
-    review as _review,
-    review_config as _review_config,
     system as _system,
     users as _users,
     workspace as _workspace,
 )
+
+# NOTE: providers, youtube_oauth, change_requests, library, library_licenses,
+# library_quotas, library_smart_collections, jobs, review, review_config, and
+# finishing have been deleted — all endpoints are now handled natively by the
+# Rust gateway (Phase B complete). Only content (trigger proxy) and experiments
+# (full proxy to admin service) remain here.
 
 router = APIRouter(tags=["v2"])
 router.include_router(_flags.router,         prefix="/flags",         tags=["v2.flags"])
 router.include_router(_auth.router,          prefix="/auth",          tags=["v2.auth"])
 router.include_router(_users.router,         prefix="/users",         tags=["v2.users"])
 router.include_router(_channels.router,      prefix="/channels",      tags=["v2.channels"])
-router.include_router(_providers.router,       prefix="/providers",                  tags=["v2.providers"])
-router.include_router(_change_requests.router, prefix="/providers/change-requests",  tags=["v2.change-requests"])
-router.include_router(_youtube_oauth.router,   prefix="/providers/youtube",          tags=["v2.youtube-oauth"])
-router.include_router(_jobs.router,          prefix="/jobs",          tags=["v2.jobs"])
 router.include_router(_content.router,       prefix="/content",       tags=["v2.content"])
 router.include_router(_system.router,        prefix="/system",        tags=["v2.system"])
-router.include_router(_review.router,        prefix="/review",        tags=["v2.review"])
 router.include_router(_notifications.router, prefix="/notifications", tags=["v2.notifications"])
-router.include_router(_library.router,           prefix="/library", tags=["v2.library"])
-router.include_router(_library_licenses.router,  prefix="/library", tags=["v2.library.licenses"])
-router.include_router(_library_quotas.router,    prefix="/library", tags=["v2.library.quotas"])
 router.include_router(_experiments.router,   prefix="/experiments",   tags=["v2.experiments"])
 router.include_router(_workspace.router,     prefix="/workspace",     tags=["v2.workspace"])
-router.include_router(_finishing.router,     prefix="",               tags=["v2.finishing"])
-router.include_router(_review_config.router, prefix="",               tags=["v2.review-config"])

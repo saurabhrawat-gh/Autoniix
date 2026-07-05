@@ -1,0 +1,89 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT r.id, r.scope, r.scope_id, r.category, r.policy,\n                  r.custom_rules, r.primary_credential_id, r.fallback_chain,\n                  r.enabled, r.updated_at,\n                  c.label AS primary_label, c.provider_name AS primary_provider\n             FROM provider_routes r\n             LEFT JOIN provider_credentials c ON c.id = r.primary_credential_id\n            WHERE r.scope = $1 AND ($2::text IS NULL OR r.scope_id = $2)\n            ORDER BY r.category",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "scope",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "scope_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "category",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "policy",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "custom_rules",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 6,
+        "name": "primary_credential_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "fallback_chain",
+        "type_info": "Int8Array"
+      },
+      {
+        "ordinal": 8,
+        "name": "enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "primary_label",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 11,
+        "name": "primary_provider",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "2613887e5f786a1b13f8604c4eeb1ec850517da8525cbecf973d2b53e6b7a663"
+}

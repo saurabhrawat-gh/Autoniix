@@ -5,7 +5,7 @@
 
 ## Development
 
-- **[docs/TOOLCHAIN.md](docs/TOOLCHAIN.md)** — pinned toolchain (Rust, Node, Python, Go, Buf, Postgres) and setup instructions
+- **[docs/architecture/toolchain.md](docs/architecture/toolchain.md)** — pinned toolchain (Rust, Node, Python, Go, Buf, Postgres) and setup instructions
 - `make verify-versions` — assert local tools match [`versions.env`](versions.env)
 - `make check-drift` — assert every pin file matches `versions.env`
 - `make ci-local` — fast Rust CI mirror on host

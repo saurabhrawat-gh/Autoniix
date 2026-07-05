@@ -137,28 +137,20 @@ impl GoldenReplay {
         let resp = req_builder
             .send()
             .await
-            .map_err(|e| anyhow::anyhow!("replay '{}': request failed: {}", name, e))?;
+            .map_err(|e| anyhow::anyhow!("replay '{name}': request failed: {e}"))?;
 
         let actual_status = resp.status().as_u16();
         let actual_body: Value = resp.json().await.unwrap_or(Value::Null);
 
         if actual_status != fixture.status {
-            anyhow::bail!(
-                "golden replay '{}': status mismatch — expected {}, got {}",
-                name,
-                fixture.status,
-                actual_status
-            );
+            anyhow::bail!("golden replay '{name}': status mismatch — expected {}, got {}", fixture.status, actual_status);
         }
 
         let ignore: Vec<&str> = fixture.ignore_fields.iter().map(String::as_str).collect();
         let diffs = diff_values(&fixture.body, &actual_body, "", &ignore);
         if !diffs.is_empty() {
-            anyhow::bail!(
-                "golden replay '{}': body mismatch:\n{}",
-                name,
-                diffs.join("\n")
-            );
+            let diffs_str = diffs.join("\n");
+            anyhow::bail!("golden replay '{name}': body mismatch:\n{diffs_str}");
         }
 
         Ok(())

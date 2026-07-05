@@ -1,6 +1,6 @@
 /**
  * Design-system motion tokens — single source of truth.
- * Maps directly to docs/design-system.md §6 (Motion Tokens).
+ * Maps directly to docs/architecture/design-system.md §6 (Motion Tokens).
  *
  * Usage:
  *   import { ease, dur } from '@/lib/motion';

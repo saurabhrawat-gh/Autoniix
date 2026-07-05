@@ -1,0 +1,91 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, scope, scope_id, kind, display_name, license, license_url,\n                  expires_at, tags, created_at,\n                  (expires_at <= NOW())                               AS \"expired!\",\n                  GREATEST(0,\n                    EXTRACT(EPOCH FROM (expires_at - NOW())) / 86400.0\n                  )::int                                             AS \"days_until_expiry!\"\n             FROM dam_assets\n            WHERE deleted_at IS NULL\n              AND scope = $1\n              AND expires_at IS NOT NULL\n              AND expires_at <= NOW() + make_interval(days => $2)\n              AND ($3::text IS NULL OR scope_id = $3)\n            ORDER BY expires_at ASC\n            LIMIT $4",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "scope",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "scope_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "kind",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "display_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "license",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "license_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "expires_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "tags",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "expired!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 11,
+        "name": "days_until_expiry!",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "e627594a20fd83805fa1acc05e81cc4e7d0418ed4d0f04fe3da4d1905250a622"
+}

@@ -1,3 +1,6 @@
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::too_many_arguments)]
+#![allow(dead_code)]
 mod audit;
 mod auth;
 mod config;
@@ -27,6 +30,8 @@ pub async fn create_app(pool: sqlx::PgPool, jwt_secret: String) -> Router {
     let jwt_manager = Arc::new(JwtManager::new(&jwt_secret));
     let auth_service = AuthServiceImpl::new(pool.clone(), jwt_manager.clone());
 
+    let workspace_limiter = middleware::WorkspaceRateLimiter::new();
+
     let protected_routes = Router::new()
         .merge(routes::user::routes(pool.clone()))
         .merge(routes::flags::routes(pool.clone()))
@@ -36,16 +41,20 @@ pub async fn create_app(pool: sqlx::PgPool, jwt_secret: String) -> Router {
         .merge(routes::lookup_values::routes(pool.clone()))
         .merge(routes::voice::routes(pool.clone()))
         .merge(routes::workspace::routes(pool.clone()))
-        // ── Phase B proxy routes ───────────────────────────────────────────
-        .merge(routes::providers::routes())
-        .merge(routes::jobs::routes())
-        .merge(routes::content::routes())
-        .merge(routes::library::routes())
-        .merge(routes::review::routes())
-        .merge(routes::finishing::routes())
-        .merge(routes::experiments::routes())
+        // ── Phase B routes ─────────────────────────────────────────────────
+        .merge(routes::providers::routes(pool.clone()))
+        .merge(routes::jobs::routes(pool.clone()))
+        .merge(routes::content::routes(pool.clone()))
+        .merge(routes::library::routes(pool.clone()))
+        .merge(routes::review::routes(pool.clone()))
+        .merge(routes::finishing::routes(pool.clone()))
+        .merge(routes::experiments::routes(pool.clone()))
         .layer(axum_middleware::from_fn(
             middleware::require_auth_middleware,
+        ))
+        .layer(axum_middleware::from_fn_with_state(
+            workspace_limiter,
+            middleware::workspace_rate_limit,
         ));
 
     Router::new()
