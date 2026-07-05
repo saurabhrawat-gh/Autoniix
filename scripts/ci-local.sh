@@ -291,7 +291,7 @@ if $RUN_NODE; then
         warn "node not installed — skip"
     else
         # Dashboard
-        if [ ! -d "$ROOT/dashboard/node_modules" ]; then
+        if [ ! -d "$ROOT/apps/dashboard/node_modules" ]; then
             echo "  → npm ci (dashboard)"
             (cd "$ROOT/dashboard" && npm ci 2>&1 | tail -3) \
                 || soft_fail "npm ci (dashboard)"

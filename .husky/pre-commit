@@ -52,14 +52,14 @@ else
 fi
 
 echo "▶  pre-commit: tsc (dashboard)..."
-if [ -d "$ROOT/dashboard/node_modules" ] && command -v npx >/dev/null 2>&1; then
+if [ -d "$ROOT/apps/dashboard/node_modules" ] && command -v npx >/dev/null 2>&1; then
     (cd "$ROOT/dashboard" && npx tsc --noEmit 2>&1) || {
         echo "❌  TypeScript errors in dashboard"
         exit 1
     }
     echo "✓  dashboard tsc clean"
 else
-    echo "⏭  dashboard/node_modules missing — skipping tsc"
+    echo "⏭  apps/dashboard/node_modules missing — skipping tsc"
 fi
 
 echo "▶  pre-commit: tsc (remotion)..."

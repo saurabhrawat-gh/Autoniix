@@ -955,7 +955,7 @@ services:
     deploy: { resources: { limits: { memory: 256M } } }
 
   dashboard-ui:
-    build: ./dashboard
+    build: ./apps/dashboard
     ports:
       - "127.0.0.1:3000:3000"
     labels:
@@ -1022,7 +1022,7 @@ services:
   # Marketing landing page — autoniix.com / www.autoniix.com
   # Caddy (host systemd) reverse-proxies the apex domain to localhost:3002.
   landing-ui:
-    build: ./web
+    build: ./apps/marketing
     ports:
       - "127.0.0.1:3002:3002"
     environment:

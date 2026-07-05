@@ -64,7 +64,7 @@ check_pkg() {
         || fail "$pkg engines.npm = '$em' (expected $NPM_VERSION)"
 }
 check_pkg "package.json"
-check_pkg "dashboard/package.json"
+check_pkg "apps/dashboard/package.json"
 check_pkg "services/remotion/package.json"
 check_pkg "web/package.json"
 
@@ -85,7 +85,7 @@ echo "4. Dockerfile pins"
 contains "rust/gateway/Dockerfile"              "RUST_IMAGE=rust:$RUST_VERSION-bookworm"       "rust/gateway rust image"
 contains "rust/gateway/Dockerfile"              "DEBIAN_IMAGE=debian:bookworm-slim"            "rust/gateway debian image"
 contains "rust/gateway/Dockerfile"              "COPY rust-toolchain.toml"                     "rust/gateway copies rust-toolchain.toml"
-contains "dashboard/Dockerfile"                 "NODE_ALPINE_IMAGE=node:$NODE_VERSION-alpine"  "dashboard node-alpine"
+contains "apps/dashboard/Dockerfile"                 "NODE_ALPINE_IMAGE=node:$NODE_VERSION-alpine"  "dashboard node-alpine"
 contains "web/Dockerfile"                       "NODE_ALPINE_IMAGE=node:$NODE_VERSION-alpine"  "web node-alpine"
 contains "services/remotion/Dockerfile"         "NODE_IMAGE=node:$NODE_VERSION-bookworm-slim"  "remotion node-bookworm-slim"
 contains "Dockerfile"                           "PYTHON_IMAGE=python:$PYTHON_VERSION-slim"     "root python"

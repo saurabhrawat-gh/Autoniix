@@ -18,8 +18,8 @@ help: ## Show available commands
 	@echo "  make env-status → Show which env is currently active"
 	@echo ""
 	@echo "  Dev iteration (rebuild + tail logs):"
-	@echo "  make rebuild-ui            → After dashboard/ changes"
-	@echo "  make rebuild-bff           → After src/services/dashboard/ changes"
+	@echo "  make rebuild-ui            → After apps/dashboard/ changes"
+	@echo "  make rebuild-bff           → After src/services/apps/dashboard/ changes"
 	@echo "  make rebuild-svc SVC=name  → After src/services/<name>/ changes"
 	@echo "  make logs-svc SVC=name     → Tail without rebuild"
 	@echo ""
@@ -101,7 +101,7 @@ brain: ## Start Brain Service locally (port 8015)
 
 # Dashboard Frontend (Next.js)
 ui: ## Start Dashboard UI locally (port 3000)
-	cd dashboard && npm run dev
+	cd apps/dashboard && npm run dev
 
 # Cleanup
 stop: ## Stop all Docker containers + local processes
@@ -133,7 +133,7 @@ APP_SVCS := rust-gateway dashboard-bff dashboard-ui admin worker-production work
             research script voice assets thumbnail direction assembly \
             delivery analytics brand editor sheets-sync
 
-restart-app: ## Rebuild + restart all app code containers (use after editing src/ or dashboard/)
+restart-app: ## Rebuild + restart all app code containers (use after editing src/ or apps/dashboard/)
 	docker compose build $(APP_SVCS)
 	docker compose up -d $(APP_SVCS)
 	@echo "✅ App containers rebuilt and restarted ($(words $(APP_SVCS)) services)"
@@ -160,8 +160,8 @@ verify-bff: ## Verify v2 router is mounted (fails loud if it silently disabled)
 
 # Granular rebuild + tail (dev iteration loop)
 # Usage:
-#   make rebuild-ui                       # after dashboard/ changes
-#   make rebuild-bff                      # after src/services/dashboard/ changes
+#   make rebuild-ui                       # after apps/dashboard/ changes
+#   make rebuild-bff                      # after src/services/apps/dashboard/ changes
 #   make rebuild-svc SVC=script           # after src/services/<name>/ changes
 #   make rebuild-svc SVC="script voice"   # multiple at once
 #   make logs-svc SVC=script              # just tail without rebuild
@@ -351,7 +351,7 @@ providers-wipe: ## Wipe ALL provider credentials, chains, routes (clean slate)
 	@read -p "  Type 'WIPE' to confirm: " confirm; \
 	if [ "$$confirm" != "WIPE" ]; then echo "❌ Aborted"; exit 1; fi
 	python -m scripts.clean_slate_providers --yes
-	@echo "✅ Providers wiped — reload /dashboard/providers to verify empty state"
+	@echo "✅ Providers wiped — reload /apps/dashboard/providers to verify empty state"
 
 # Harness — per HARNESS-ENGINEERING-PLAN.md
 test-harness: ## Run Rust harness tests (provider mocks + contract validator; no DB needed)

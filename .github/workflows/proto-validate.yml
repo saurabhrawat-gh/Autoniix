@@ -100,7 +100,7 @@ jobs:
             echo "Error: No Python files generated"
             exit 1
           fi
-          if [ -z "$(ls -A dashboard/src/generated)" ]; then
+          if [ -z "$(ls -A apps/dashboard/src/generated)" ]; then
             echo "Error: No TypeScript files generated"
             exit 1
           fi
