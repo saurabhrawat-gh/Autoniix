@@ -1,5 +1,5 @@
-# Pinned via versions.env NODE_IMAGE=node:20.19.0-bookworm-slim
-ARG NODE_IMAGE=node:20.19.0-bookworm-slim
+# Pinned via versions.env NODE_IMAGE=node:22.23.1-bookworm-slim
+ARG NODE_IMAGE=node:22.23.1-bookworm-slim
 
 # build stage
 FROM ${NODE_IMAGE} AS build
