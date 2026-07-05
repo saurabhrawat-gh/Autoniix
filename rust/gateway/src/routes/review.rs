@@ -1,15 +1,14 @@
 //! Native Rust handlers for `/api/v2/review/**` and `/api/v2/channels/*/settings/review`
 //! (review.py — 7 endpoints, review_config.py — 2 endpoints)
 //!
-//! All native DB except thumbnail/regenerate (proxied to Python BFF).
-//! Temporal signal on decide is best-effort and intentionally omitted here
-//! (matches Python fallback behaviour).
+//! All native DB. Temporal signal on decide is best-effort and intentionally
+//! omitted here (matches Python fallback behaviour).
+//! POST /thumbnail/regenerate: native — inserts a thumbnail_versions row with
+//! source='regen_requested' so the thumbnail worker can pick it up.
 
 use axum::{
-    body::Bytes,
     extract::{Path, Query, State},
-    http::{HeaderMap, Method, Uri},
-    response::IntoResponse,
+    http::HeaderMap,
     routing::{get, post},
     Json, Router,
 };
@@ -21,7 +20,6 @@ use crate::{
     audit::{audit_log, AuditCtx},
     error::{ApiError, ApiResult},
     extractors::AuthUser,
-    routes::proxy,
 };
 
 pub fn routes(pool: PgPool) -> Router {
@@ -447,26 +445,61 @@ async fn edit_script(
 }
 
 // ── POST /review/:video_id/thumbnail/regenerate ────────────────────────────────
-// Proxied to Python BFF — calls internal thumbnail microservice with complex logic.
+// Native DB: inserts a thumbnail_versions row with source='regen_requested'.
+// The thumbnail worker polls for rows with this source and regenerates them.
 
 async fn regen_thumbnail(
     AuthUser(actor): AuthUser,
-    State(pool): State<PgPool>,
-    headers: HeaderMap,
-    Path(video_id): Path<String>,
-    method: Method,
-    uri: Uri,
-    body: Bytes,
-) -> ApiResult<impl IntoResponse> {
-    let url = proxy::proxy_url(&uri);
-    let auth = proxy::extract_auth(&headers);
-    let ct = proxy::extract_content_type(&headers);
-    let resp = proxy::proxy_request(method, url, auth, ct, body).await?;
+    State(pool):     State<PgPool>,
+    headers:         HeaderMap,
+    Path(video_id):  Path<String>,
+) -> ApiResult<Json<Value>> {
+    sqlx::query!(
+        "SELECT content_id FROM videos WHERE content_id = $1",
+        video_id,
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(ApiError::Database)?
+    .ok_or_else(|| ApiError::NotFound("Video not found".into()))?;
+
+    let next_version: i16 = sqlx::query_scalar!(
+        r#"SELECT COALESCE(MAX(version), 0) + 1 AS "v!: i16" FROM thumbnail_versions WHERE video_id = $1"#,
+        video_id,
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(ApiError::Database)?;
+
+    let created_by: Option<i32> = actor.user_id.parse().ok();
+    let version_id = sqlx::query_scalar!(
+        r#"INSERT INTO thumbnail_versions (video_id, version, source, minio_key, created_by)
+           VALUES ($1, $2, 'regen_requested', 'pending', $3)
+           RETURNING id"#,
+        video_id,
+        next_version,
+        created_by,
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(ApiError::Database)?;
+
     audit_log(&pool, AuditCtx {
         actor: &actor, action: "review.thumbnail.regenerate", target_type: "video",
-        target_id: Some(video_id), before: None, after: None, headers: Some(&headers),
+        target_id: Some(video_id.clone()), before: None,
+        after: Some(json!({ "version_id": version_id, "version": next_version })),
+        headers: Some(&headers),
     }).await;
-    Ok(resp)
+
+    Ok(Json(json!({
+        "status": "ok",
+        "data": {
+            "video_id":   video_id,
+            "version_id": version_id,
+            "version":    next_version,
+            "queued":     true,
+        }
+    })))
 }
 
 // ── POST /review/:video_id/comments ───────────────────────────────────────────

@@ -52,4 +52,4 @@ time on series-style content.
 ## Related pages
 
 - [[Service-Assembly]] · [[Architecture-Container-Topology]]
-- Vision docs: `docs/remotion-vision/`
+- Vision docs: `docs/future/remotion-vision/`

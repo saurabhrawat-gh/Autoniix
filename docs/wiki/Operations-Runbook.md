@@ -16,7 +16,7 @@ make logs s=voice # tail one service
 
 ## Deploy (first-time)
 
-From `PENDING.md` first-deploy-checklist:
+From `docs/future/PENDING.md` first-deploy-checklist:
 
 ```bash
 git pull origin main
@@ -48,7 +48,7 @@ make backup              # scripts/backup.sh
 make restore F=<file>    # full DB + MinIO restore
 ```
 
-`backup-restore-drill` should be done monthly per `PENDING.md`.
+`backup-restore-drill` should be done monthly per `docs/future/PENDING.md`.
 
 ## Emergency stop
 
@@ -67,7 +67,7 @@ Both: running workflows check on their next `check_system_status` and bail.
 | YouTube upload 403 | Refresh OAuth token, verify `yt-analytics.readonly` scope |
 | All renders failing | Check `remotion-worker` memory + tmp disk space |
 | Budget exceeded warnings | Inspect Grafana Budget dashboard, halve `max_cost_usd` per channel |
-| db_pool.pressure > 0.7 | Surface `postgres-read-replicas` from PENDING.md |
+| db_pool.pressure > 0.7 | Surface `postgres-read-replicas` from docs/future/PENDING.md |
 | Temporal queue depth growing | Add a second `worker-production` replica |
 
 ## Watch windows after deploy

@@ -17,7 +17,7 @@ delivered videos. **Daily 03:00 UTC**.
 The Google OAuth refresh token used by delivery must include
 `https://www.googleapis.com/auth/yt-analytics.readonly` in addition to
 `youtube.upload`. Without it the activity raises 403. (Tracked in
-`PENDING.md` first-deploy-checklist.)
+`docs/future/PENDING.md` first-deploy-checklist.)
 
 ## Logic
 

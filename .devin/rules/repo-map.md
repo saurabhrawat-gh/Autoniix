@@ -3,7 +3,6 @@
 ```
 youtube-automation/
 ├── .windsurf/              Agent config (rules/, skills/, workflows/)
-├── .claude/                 Claude Code compat (CLAUDE.md)
 ├── config/                  SQL scripts (init-db.sql, seed-data.sql)
 ├── dashboard/               Next.js 14 frontend (App Router, TailwindCSS)
 │   ├── src/app/             Pages: /login, /dashboard, /channels, /jobs, /settings

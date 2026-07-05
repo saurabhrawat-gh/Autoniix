@@ -10,7 +10,7 @@ Run this after making changes to scoring, thresholds, or any service that partic
 
 1. **Identify affected quality gates**
    - Which service was modified? Map to its quality gate(s) from the 33-gate table.
-   - Check `docs/05-QUALITY-GATES.md` for the relevant gate's threshold and retry policy.
+   - Check `docs/architecture/05-QUALITY-GATES.md` for the relevant gate's threshold and retry policy.
 
 2. **Verify threshold consistency**
    - If you changed a threshold in code, also update `seed-data.sql` (system_config table).

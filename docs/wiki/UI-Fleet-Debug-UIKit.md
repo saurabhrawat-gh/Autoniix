@@ -19,7 +19,7 @@ Real-time view of the stack:
 - Model health table (per-niche GBM staleness + Brier)
 
 Watch for: sustained `db_pool.pressure > 0.5` (→ surface
-`postgres-read-replicas` from PENDING.md), Temporal queue depth backing
+`postgres-read-replicas` from docs/future/PENDING.md), Temporal queue depth backing
 up (→ `worker-auto-scaling`).
 
 Data source: `systemApi.fleetHealth()` polled every 5 seconds.

@@ -2,7 +2,7 @@
  * Sharder — splits a SceneGraph timeline into N frame-range shards whose
  * boundaries align to scene-clip boundaries (never mid-scene).
  *
- * See docs/remotion-vision/02-FUTURE-ENGINE-ARCHITECTURE.md §2.6.
+ * See docs/future/remotion-vision/02-FUTURE-ENGINE-ARCHITECTURE.md §2.6.
  *
  * Invariants:
  *   - Shards are contiguous and cover [0, durationMs) exactly.

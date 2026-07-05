@@ -31,7 +31,7 @@ The research opportunity scorer weighs `freshness`, `trend_momentum`,
 `phrase_novelty` and `burst_score` — all of which are stale without this
 workflow. After the first deploy run
 `refresh_niche_pulse_activity` manually per niche (see
-`PENDING.md` first-deploy-checklist) to seed the tables.
+`docs/future/PENDING.md` first-deploy-checklist) to seed the tables.
 
 ## Related pages
 

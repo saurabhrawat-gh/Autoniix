@@ -6,7 +6,6 @@ Marks any `pending_admin` or `pending_owner` requests whose
 """
 from __future__ import annotations
 
-from datetime import timedelta
 from typing import Any
 
 from temporalio import activity, workflow
@@ -34,16 +33,3 @@ async def expire_stale_change_requests() -> dict[str, Any]:
     if expired_ids:
         logger.info("change_request.expired", count=len(expired_ids), ids=expired_ids)
     return {"expired": len(expired_ids), "ids": expired_ids}
-
-
-@workflow.defn
-class ChangeRequestExpiryWorkflow:
-    """Thin wrapper executed hourly by the change-request-expiry schedule."""
-
-    @workflow.run
-    async def run(self) -> dict[str, Any]:
-        return await workflow.execute_activity(
-            expire_stale_change_requests,
-            schedule_to_close_timeout=timedelta(minutes=5),
-            start_to_close_timeout=timedelta(minutes=5),
-        )

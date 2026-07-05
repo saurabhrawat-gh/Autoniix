@@ -12,7 +12,7 @@ below fires.
 `auth.v2.enabled=TRUE` in production for **≥ 2 weeks** AND zero errors
 recorded for the deprecated paths in Grafana/Loki.
 
-From `PENDING.md` (section `legacy-api-removal`):
+From `docs/future/PENDING.md` (section `legacy-api-removal`):
 
 > Remove endpoints in two passes:
 > 1. Read endpoints first (`GET /api/channels`, `GET /api/jobs/*`, etc.)

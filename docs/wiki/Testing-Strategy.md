@@ -62,7 +62,7 @@ need regenerating.
 
 ## Long-horizon test debt
 
-In `PENDING.md`:
+In `docs/future/PENDING.md`:
 
 - Circuit breaker behaviour under sustained outage — not yet covered.
 - Cross-channel dedup with ≥ 3 channels concurrently — no fixture.

@@ -57,7 +57,7 @@ manually retrain or wait for the weekly schedule.
 New niches use either:
 - Synthetic data from `scripts/generate_training_data.py`
 - A cross-niche prior (planned, deferred under
-  `cross-niche-transfer-learning` in `PENDING.md`)
+  `cross-niche-transfer-learning` in `docs/future/PENDING.md`)
 
 Until a niche has ≥ `gate_calibration_min_samples` (30) outcomes, the
 calibrator falls back to fleet-wide tier labels.

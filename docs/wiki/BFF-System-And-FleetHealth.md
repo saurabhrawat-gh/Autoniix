@@ -47,7 +47,7 @@ and the clean-slate utility for test environments.
 ```
 
 Fleet health drives the trigger for `postgres-read-replicas`
-(`PENDING.md`) — sustained `db_pool.pressure > 0.5` for > 1h.
+(`docs/future/PENDING.md`) — sustained `db_pool.pressure > 0.5` for > 1h.
 
 ## Environment toggle
 

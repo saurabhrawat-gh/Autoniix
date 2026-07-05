@@ -14,7 +14,7 @@ scalability** (1 to 100+ channels), **provider-swappable** components, and
 - `src/temporal_workflows/video_production.py:1-200` — main workflow
 - `src/providers/registry.py:1-171` — provider registry
 - `src/config.py:1-127` — Pydantic settings
-- `docs/00-OVERVIEW.md`, `docs/01-ARCHITECTURE.md` — long-form internal docs
+- `docs/architecture/ADR-001-polyglot-architecture.md` — architecture constitution (supersedes prior v2.0 monolithic docs)
 
 ## High-level diagram
 

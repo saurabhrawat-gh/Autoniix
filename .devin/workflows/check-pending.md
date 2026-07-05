@@ -4,7 +4,7 @@ description: Review PENDING.md and surface only items whose trigger has fired
 
 When the user invokes `/check-pending`, do this:
 
-1. Read `PENDING.md` from the workspace root.
+1. Read `docs/future/PENDING.md` from the workspace.
 2. For each item, evaluate its **Trigger** against current evidence:
    - For deploy-gated items (`P7-deploy`): ask the user if a deploy
      happened recently, or check git log for deployment-related commits.

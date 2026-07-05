@@ -32,7 +32,7 @@ classes).
 ## Calibration
 
 Defaults are intentionally cautious. The `alert-rules-calibration` watch
-window in `PENDING.md` (Week 1 after deploy) is the cue to tune these
+window in `docs/future/PENDING.md` (Week 1 after deploy) is the cue to tune these
 against observed baselines.
 
 ## Routing

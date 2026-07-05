@@ -7,7 +7,7 @@ triggers rewrites/regeneration/human review depending on the gate.
 
 ## Source
 
-- `docs/05-QUALITY-GATES.md` (long-form)
+- `docs/architecture/05-QUALITY-GATES.md` (long-form)
 - `src/quality/` (scoring helpers)
 - `src/temporal_workflows/video_production.py:190-240` (threshold tables)
 

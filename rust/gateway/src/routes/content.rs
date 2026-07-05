@@ -3,13 +3,13 @@
 //!
 //! Dynamic-filter queries (list, search, calendar, stats) use
 //! `sqlx::QueryBuilder` so they are not in the `.sqlx` cache.
-//! Bulk, detail, trigger, and trigger-history use static macros.
+//! Bulk, detail, trigger-history use static macros.
+//! POST /trigger: fully native — inserts content_triggers, calls BFF channel
+//! trigger endpoint, updates trigger record with result.
 
 use axum::{
-    body::Bytes,
     extract::{Path, Query, State},
-    http::{HeaderMap, Method, Uri},
-    response::IntoResponse,
+    http::HeaderMap,
     routing::{get, post},
     Json, Router,
 };
@@ -21,8 +21,19 @@ use crate::{
     audit::{audit_log, AuditCtx},
     error::{ApiError, ApiResult},
     extractors::AuthUser,
-    routes::proxy,
+    middleware::Principal,
 };
+
+fn bff_base() -> String {
+    std::env::var("PYTHON_BFF_URL").unwrap_or_else(|_| "http://localhost:8020".to_string())
+}
+
+fn require_owner_or_member(p: &Principal) -> ApiResult<()> {
+    match p.role.as_str() {
+        "owner" | "member" => Ok(()),
+        _ => Err(ApiError::Forbidden),
+    }
+}
 
 pub fn routes(pool: PgPool) -> Router {
     Router::new()
@@ -77,6 +88,19 @@ struct TriggersQ {
     #[serde(default = "d_20")]
     limit:      i64,
 }
+
+#[derive(Deserialize)]
+struct TriggerIn {
+    channel_id:       String,
+    #[serde(default = "d_long_form")]
+    content_mode:     String,
+    topic_hint:       Option<String>,
+    #[serde(default)]
+    topic_candidates: Vec<String>,
+    scheduled_for:    Option<String>,
+    max_cost_usd:     Option<f64>,
+}
+fn d_long_form() -> String { "long_form".into() }
 fn d_20() -> i64 { 20 }
 
 #[derive(Deserialize)]
@@ -530,28 +554,91 @@ async fn trigger_content(
     AuthUser(actor): AuthUser,
     State(pool):     State<PgPool>,
     headers:         HeaderMap,
-    method:          Method,
-    uri:             Uri,
-    body:            Bytes,
-) -> ApiResult<impl IntoResponse> {
+    Json(body):      Json<TriggerIn>,
+) -> ApiResult<Json<Value>> {
+    require_owner_or_member(&actor)?;
+
     let triggered_by: Option<i64> = actor.user_id.parse().ok();
+    let scheduled_for: Option<chrono::DateTime<chrono::Utc>> = body
+        .scheduled_for
+        .as_deref()
+        .and_then(|s| s.parse().ok());
+
     let trigger_id = sqlx::query_scalar!(
-        r#"INSERT INTO content_triggers (channel_id, content_mode, triggered_by, status)
-           VALUES ('', 'long_form', $1, 'queued') RETURNING id"#,
+        r#"INSERT INTO content_triggers
+               (channel_id, content_mode, topic_hint, scheduled_for, triggered_by, status)
+           VALUES ($1, $2, $3, $4, $5, 'queued')
+           RETURNING id"#,
+        body.channel_id,
+        body.content_mode,
+        body.topic_hint,
+        scheduled_for,
         triggered_by,
     )
-    .fetch_optional(&pool).await.map_err(ApiError::Database)?;
+    .fetch_one(&pool)
+    .await
+    .map_err(ApiError::Database)?;
 
-    let url  = proxy::proxy_url(&uri);
-    let auth = proxy::extract_auth(&headers);
-    let ct   = proxy::extract_content_type(&headers);
-    let resp = proxy::proxy_request(method, url, auth, ct, body).await?;
+    // ── call BFF channel-trigger (starts Temporal VideoProductionWorkflow) ──
+    let auth = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
+
+    let mut payload = json!({ "content_mode": body.content_mode });
+    if let Some(h) = &body.topic_hint {
+        payload["topic_candidates"] = json!([h]);
+    }
+    if !body.topic_candidates.is_empty() {
+        payload["topic_candidates"] = json!(body.topic_candidates);
+    }
+    if let Some(c) = body.max_cost_usd {
+        payload["max_cost_usd"] = json!(c);
+    }
+
+    let bff_url = format!("{}/api/channels/{}/trigger", bff_base(), body.channel_id);
+    let client  = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|e| ApiError::Internal(format!("reqwest init: {e}")))?;
+    let mut req = client.post(&bff_url).json(&payload);
+    if let Some(a) = &auth {
+        req = req.header("Authorization", a);
+    }
+
+    let (triggered, content_id) = match req.send().await {
+        Ok(resp) if resp.status().as_u16() < 400 => {
+            let data: Value = resp.json().await.unwrap_or(Value::Null);
+            let cid = data.get("data")
+                .and_then(|d| d.get("content_id"))
+                .and_then(|v| v.as_str())
+                .or_else(|| data.get("content_id").and_then(|v| v.as_str()))
+                .map(String::from);
+            (true, cid)
+        }
+        _ => (false, None),
+    };
+
+    sqlx::query!(
+        "UPDATE content_triggers SET status = $2, content_id = $3, updated_at = NOW() WHERE id = $1",
+        trigger_id,
+        if triggered { "running" } else { "failed" },
+        content_id,
+    )
+    .execute(&pool)
+    .await
+    .map_err(ApiError::Database)?;
 
     audit_log(&pool, AuditCtx {
         actor: &actor, action: "content.trigger", target_type: "channel",
-        target_id: None, before: None,
-        after: Some(json!({ "trigger_id": trigger_id })),
+        target_id: Some(body.channel_id.clone()), before: None,
+        after: Some(json!({ "trigger_id": trigger_id, "triggered": triggered, "content_id": content_id })),
         headers: Some(&headers),
     }).await;
-    Ok(resp)
+
+    Ok(Json(json!({
+        "status": if triggered { "ok" } else { "queued" },
+        "trigger_id": trigger_id,
+        "content_id": content_id,
+    })))
 }

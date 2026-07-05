@@ -645,6 +645,43 @@ services:
     restart: unless-stopped
     deploy: { resources: { limits: { memory: 256M } } }
 
+  # Go Temporal Workers (workflow orchestration — activities stay in Python)
+  go-worker-production:
+    build:
+      context: ./go
+      dockerfile: Dockerfile
+      args:
+        WORKER: production
+    env_file: .env
+    environment:
+      - TEMPORAL_HOST=temporal:7233
+      - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
+    networks: [autoniix-net]
+    healthcheck:
+      disable: true
+    depends_on:
+      temporal: { condition: service_started }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 64M } } }
+
+  go-worker-scheduler:
+    build:
+      context: ./go
+      dockerfile: Dockerfile
+      args:
+        WORKER: scheduler
+    env_file: .env
+    environment:
+      - TEMPORAL_HOST=temporal:7233
+      - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
+    networks: [autoniix-net]
+    healthcheck:
+      disable: true
+    depends_on:
+      temporal: { condition: service_started }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 64M } } }
+
   # media_jobs worker (AE-355 / Library Sprint) — pulls pending rows from the
   # media_jobs table and runs probe / embed / autotag handlers. ffmpeg-based
   # handlers (transcode_hls, waveform, transcribe, poster-from-video) are

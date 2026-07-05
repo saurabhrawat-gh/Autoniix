@@ -1,26 +1,81 @@
 //! Native Rust handlers for `/api/v2/library/**`
 //! (library.py + library_licenses.py + library_quotas.py — 24 endpoints)
 //!
-//! 22 native (pure DB), 2 proxied to Python BFF (require MinIO):
-//!   PROXY: GET /library/music, POST /library/dam/upload
+//! All 24 endpoints are now native DB. POST /library/dam/upload generates
+//! a presigned S3 PUT URL via S3 V4 signing (no MinIO SDK required).
+//! GET /library/music queries asset_library for audio/music rows.
 
 use axum::{
-    body::Bytes,
     extract::{Path, Query, State},
-    http::{HeaderMap, Method, Uri},
-    response::IntoResponse,
-    routing::{any, get, post, put},
+    routing::{get, post, put},
     Json, Router,
 };
+use hmac::{Hmac, Mac};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use sqlx::PgPool;
+use sha2::{Digest, Sha256};
+use sqlx::{PgPool, Row};
+use uuid::Uuid;
 
 use crate::{
+    audit::{audit_log, AuditCtx},
     error::{ApiError, ApiResult},
     extractors::AuthUser,
-    routes::proxy,
 };
+
+type HmacSha256 = Hmac<Sha256>;
+
+fn hmac_sha256(key: &[u8], data: &[u8]) -> Vec<u8> {
+    let mut mac = HmacSha256::new_from_slice(key).expect("hmac key length");
+    mac.update(data);
+    mac.finalize().into_bytes().to_vec()
+}
+
+fn s3_presign_put(
+    endpoint: &str,
+    bucket: &str,
+    key: &str,
+    access_key: &str,
+    secret_key: &str,
+    expires: u64,
+) -> String {
+    let now = chrono::Utc::now();
+    let date = now.format("%Y%m%d").to_string();
+    let datetime = now.format("%Y%m%dT%H%M%SZ").to_string();
+    let region = "us-east-1";
+    let host = endpoint
+        .trim_start_matches("https://")
+        .trim_start_matches("http://");
+    let cred_path = format!("{access_key}/{date}/{region}/s3/aws4_request");
+    let cred_enc  = cred_path.replace('/', "%2F");
+    let qs = format!(
+        "X-Amz-Algorithm=AWS4-HMAC-SHA256\
+        &X-Amz-Credential={cred_enc}\
+        &X-Amz-Date={datetime}\
+        &X-Amz-Expires={expires}\
+        &X-Amz-SignedHeaders=host"
+    );
+    let canon = format!("PUT\n/{bucket}/{key}\n{qs}\nhost:{host}\n\nhost\nUNSIGNED-PAYLOAD");
+    let canon_hash: String = Sha256::digest(canon.as_bytes())
+        .iter().map(|b| format!("{b:02x}")).collect();
+    let sts = format!("AWS4-HMAC-SHA256\n{datetime}\n{date}/{region}/s3/aws4_request\n{canon_hash}");
+    let k_date    = hmac_sha256(format!("AWS4{secret_key}").as_bytes(), date.as_bytes());
+    let k_region  = hmac_sha256(&k_date,    region.as_bytes());
+    let k_service = hmac_sha256(&k_region,  b"s3");
+    let k_signing = hmac_sha256(&k_service, b"aws4_request");
+    let sig: String = hmac_sha256(&k_signing, sts.as_bytes())
+        .iter().map(|b| format!("{b:02x}")).collect();
+    let scheme = if endpoint.starts_with("https://") { "https" } else { "http" };
+    format!("{scheme}://{host}/{bucket}/{key}?{qs}&X-Amz-Signature={sig}")
+}
+
+fn slug(name: &str) -> String {
+    name.chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' { c.to_ascii_lowercase() } else { '-' })
+        .collect::<String>()
+        .trim_matches('-')
+        .to_string()
+}
 
 // ── defaults ──────────────────────────────────────────────────────────────────
 
@@ -164,10 +219,10 @@ pub fn routes(pool: PgPool) -> Router {
     Router::new()
         .route("/api/v2/library/assets", get(list_assets))
         .route("/api/v2/library/brand", get(list_brand_assets))
-        .route("/api/v2/library/music", any(proxy_handle))
+        .route("/api/v2/library/music", get(list_music))
         .route("/api/v2/library/dam/assets/preflight", post(dam_preflight))
         .route("/api/v2/library/dam/assets", get(dam_list_assets))
-        .route("/api/v2/library/dam/upload", any(proxy_handle))
+        .route("/api/v2/library/dam/upload", post(dam_upload))
         .route(
             "/api/v2/library/dam/assets/:asset_id",
             get(dam_get_asset).patch(dam_patch_asset).delete(dam_delete_asset),
@@ -199,19 +254,125 @@ pub fn routes(pool: PgPool) -> Router {
         .with_state(pool)
 }
 
-// ── proxy (MinIO-backed endpoints) ───────────────────────────────────────────
+// ── GET /library/music ───────────────────────────────────────────────────────
 
-async fn proxy_handle(
+#[derive(Deserialize)]
+struct MusicQ {
+    q:     Option<String>,
+    #[serde(default = "d_40")]
+    limit: i64,
+}
+
+async fn list_music(
     AuthUser(_p): AuthUser,
-    method: Method,
-    uri: Uri,
-    headers: HeaderMap,
-    body: Bytes,
-) -> ApiResult<impl IntoResponse> {
-    let url = proxy::proxy_url(&uri);
-    let auth = proxy::extract_auth(&headers);
-    let ct = proxy::extract_content_type(&headers);
-    proxy::proxy_request(method, url, auth, ct, body).await
+    State(pool):  State<PgPool>,
+    Query(q):     Query<MusicQ>,
+) -> ApiResult<Json<Value>> {
+    let limit = q.limit.clamp(1, 200);
+    let mut qb = sqlx::QueryBuilder::new(
+        "SELECT id, asset_url, minio_key, provider, \
+         duration_s::float8 AS duration_s, quality_score::float8 AS quality_score, \
+         license_type, tags, created_at \
+         FROM asset_library WHERE asset_type IN ('music','audio')",
+    );
+    if let Some(ref q_text) = q.q {
+        qb.push(" AND (LOWER(COALESCE(tags,'')) LIKE ");
+        qb.push_bind(format!("%{}%", q_text.to_lowercase()));
+        qb.push(" OR LOWER(COALESCE(query_text,'')) LIKE ");
+        qb.push_bind(format!("%{}%", q_text.to_lowercase()));
+        qb.push(")");
+    }
+    qb.push(" ORDER BY quality_score DESC NULLS LAST LIMIT ");
+    qb.push_bind(limit);
+    let rows: Vec<Value> = qb.build()
+        .fetch_all(&pool).await
+        .map_err(ApiError::Database)?
+        .into_iter()
+        .map(|r| json!({
+            "id":           r.get::<i64,_>("id"),
+            "url":          r.get::<Option<String>,_>("asset_url"),
+            "minio_key":    r.get::<Option<String>,_>("minio_key"),
+            "provider":     r.get::<Option<String>,_>("provider"),
+            "duration_s":   r.get::<Option<f64>,_>("duration_s"),
+            "quality_score":r.get::<Option<f64>,_>("quality_score"),
+            "license_type": r.get::<Option<String>,_>("license_type"),
+            "tags":         r.get::<Option<String>,_>("tags"),
+        }))
+        .collect();
+    let count = rows.len();
+    Ok(Json(json!({ "status": "ok", "data": rows, "count": count })))
+}
+
+// ── POST /library/dam/upload ─────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct DamUploadIn {
+    display_name: String,
+    mime_type:    String,
+    #[serde(default)]
+    bytes:        i64,
+    kind:         Option<String>,
+    #[serde(default = "d_workspace")]
+    scope:        String,
+    scope_id:     Option<String>,
+    license:      Option<String>,
+    #[serde(default)]
+    tags:         Vec<String>,
+}
+
+async fn dam_upload(
+    AuthUser(actor): AuthUser,
+    State(pool):     State<PgPool>,
+    Json(body):      Json<DamUploadIn>,
+) -> ApiResult<Json<Value>> {
+    let ext = body.mime_type.split('/').nth(1).unwrap_or("bin");
+    let storage_key = format!("dam/uploads/{}/{}.{}", Uuid::new_v4(), slug(&body.display_name), ext);
+    let tags: Vec<String> = body.tags.clone();
+    let created_by = actor.user_id.clone();
+
+    let asset_id = sqlx::query_scalar!(
+        r#"INSERT INTO dam_assets
+               (scope, scope_id, kind, display_name, mime_type, bytes,
+                storage_key, origin, license, tags, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'upload', $8, $9, $10)
+           RETURNING id"#,
+        body.scope,
+        body.scope_id,
+        body.kind,
+        body.display_name,
+        body.mime_type,
+        body.bytes,
+        storage_key,
+        body.license,
+        &tags,
+        created_by,
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(ApiError::Database)?;
+
+    let endpoint = std::env::var("S3_ENDPOINT").unwrap_or_else(|_| "http://minio:9000".into());
+    let bucket   = std::env::var("S3_BUCKET").unwrap_or_else(|_|   "autoniix".into());
+    let access   = std::env::var("S3_ACCESS_KEY").unwrap_or_default();
+    let secret   = std::env::var("S3_SECRET_KEY").unwrap_or_default();
+    let upload_url = s3_presign_put(&endpoint, &bucket, &storage_key, &access, &secret, 3600);
+
+    audit_log(&pool, AuditCtx {
+        actor: &actor, action: "dam.upload", target_type: "dam_asset",
+        target_id: Some(asset_id.to_string()), before: None,
+        after: Some(json!({ "storage_key": storage_key, "mime_type": body.mime_type })),
+        headers: None,
+    }).await;
+
+    Ok(Json(json!({
+        "status":      "ok",
+        "data": {
+            "asset_id":    asset_id,
+            "storage_key": storage_key,
+            "upload_url":  upload_url,
+            "expires_in":  3600,
+        }
+    })))
 }
 
 // ── GET /library/assets ───────────────────────────────────────────────────────

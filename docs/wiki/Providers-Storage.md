@@ -42,7 +42,7 @@ for clean-slate test runs.
 
 ## Tee writer (deferred)
 
-`storage-failover` (`PENDING.md`) will add a `tee` provider that writes to
+`storage-failover` (`docs/future/PENDING.md`) will add a `tee` provider that writes to
 MinIO + Cloudflare R2 in parallel. Not yet implemented — trigger is the
 first MinIO outage.
 
