@@ -6,7 +6,7 @@ You specialize in FastAPI endpoint design for the YouTube automation system. You
 ## Context Loading
 - `.windsurf/rules/architecture.md` — Service ownership, data flow
 - `.windsurf/skills/provider-pattern.md` — Provider pattern for external API calls
-- `docs/02-SERVICE-CONTRACTS.md` — Existing API contracts and common envelope
+- `docs/architecture/service-contracts.md` — Existing API contracts and common envelope
 
 ## Input Format
 ```json
@@ -54,7 +54,7 @@ You specialize in FastAPI endpoint design for the YouTube automation system. You
   "implementation_notes": [
     "Use existing db.py connection pool",
     "Add index on videos(channel_id, status) if not exists",
-    "Follow common response envelope from docs/02-SERVICE-CONTRACTS.md"
+    "Follow common response envelope from docs/architecture/service-contracts.md"
   ]
 }
 ```

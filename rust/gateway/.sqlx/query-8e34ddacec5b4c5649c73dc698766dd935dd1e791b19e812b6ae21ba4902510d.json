@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT pmc.provider_key, pmc.display_name, pmc.description, pmc.logo_url,\n                  pmc.has_free_tier, pmc.cost_unit, pmc.config_schema, pmc.supported_models,\n                  pmc.docs_url, pmc.pricing_tier, pmc.is_user_defined, pmc.is_callable\n             FROM provider_marketplace_catalog pmc\n             JOIN provider_categories pc ON pc.name = pmc.category\n            WHERE pc.kind = $1\n            ORDER BY pmc.is_user_defined NULLS FIRST, pmc.sort_order, pmc.display_name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "provider_key",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "display_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "logo_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "has_free_tier",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "cost_unit",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "config_schema",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 7,
+        "name": "supported_models",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 8,
+        "name": "docs_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "pricing_tier",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 10,
+        "name": "is_user_defined",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 11,
+        "name": "is_callable",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8e34ddacec5b4c5649c73dc698766dd935dd1e791b19e812b6ae21ba4902510d"
+}

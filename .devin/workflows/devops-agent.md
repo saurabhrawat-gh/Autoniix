@@ -4,6 +4,11 @@ description: DevOps Agent — handle deploy, incident, infra changes, DNS, scali
 
 # DevOps Agent Workflow
 
+> **🚫 BUILD FREEZE — until 2026-07-11**
+> No deploys, no pushes to `main`, no PR merges to `main` of any kind until the freeze lifts.
+> If asked to deploy before 2026-07-11, STOP and reply: "Build freeze in effect until 2026-07-11. I cannot deploy or push to main."
+> After 2026-07-11 the user will explicitly say "freeze lifted" or "deploy" to resume.
+
 Use this workflow for any infrastructure, deployment, or operations task. Invoke as `/devops-agent {task}` where task is one of: `deploy`, `incident`, `infra`, `dns`, `scale`, `rollback`, `audit`.
 
 ---
@@ -24,8 +29,9 @@ Use this workflow for any infrastructure, deployment, or operations task. Invoke
 | Deployment | Pre-deploy gate, build validation, smoke test, rollback | `run_command` + GitHub MCP |
 
 **How deploys actually happen:**
-- Production deploys are **fully automated** via a self-hosted GitHub Actions runner on the VPS. Merging a PR to `main` triggers `deploy` in `ci.yml`, which `git reset --hard origin/main` + `docker compose --profile tls up -d --build` on the VPS.
-- The agent **never** runs `ssh` for routine deploys — it merges the PR via GitHub MCP and watches the Actions run.
+- Production deploys are triggered by a push to `main`. The self-hosted GitHub Actions runner on the VPS runs `git reset --hard origin/main` + `docker compose --profile tls up -d --build` when `ci.yml` detects a push to `main`.
+- **`main` is promoted manually by the product owner** (`git checkout main && git merge --no-ff develop && git push origin main`). No agent or GHA automation pushes to `main`.
+- The devops-agent **never** merges or creates PRs to `main`. It only monitors GHA once the product owner has already pushed.
 - SSH to the VPS is only used during `incident` / `rollback` triage when the runner itself is broken.
 - Grafana/Prometheus UIs are not directly accessible — agent configures their YAML files.
 
@@ -34,12 +40,11 @@ Use this workflow for any infrastructure, deployment, or operations task. Invoke
 ## Task: `deploy` (monitoring + verification only)
 
 **How deploys work:**
-Deploys are **fully automated**. When `qa-verified` is added to an issue:
-1. GitHub Actions creates a `develop → main` PR and merges it immediately
-2. The self-hosted runner on the VPS runs `docker compose up -d --build`
-3. GitHub Actions sets `in-prod` on all deployed issues
+Deploys are triggered manually by the product owner pushing `main`. When they do:
+1. The self-hosted runner on the VPS detects the push and runs `docker compose up -d --build`
+2. GitHub Actions sets `in-prod` on all deployed issues (if auto-lifecycle.yml is configured)
 
-**Your role:** Monitor that the above happened correctly and verify the smoke test.
+**Your role:** Monitor that the above happened correctly and verify the smoke test. You are invoked AFTER the product owner has pushed `main`.
 
 ```
 1. Check GitHub Actions for the latest deploy run:
@@ -53,13 +58,10 @@ Deploys are **fully automated**. When `qa-verified` is added to an issue:
    b. curl -sf https://dash.autoniix.com | grep -q "Autoniix"
    c. If either fails → run the `incident` task immediately
 
-3. If the deploy PR was NOT created automatically (GHA didn't trigger):
-   a. Check that the issue has the `qa-verified` label
-   b. Check the auto-lifecycle.yml Actions run for errors
-   c. If GHA failed: manually create and merge the PR:
-      mcp0_list_pull_requests(base=main, state=open) — check if PR exists
-      If not: mcp0_create_pull_request(head=develop, base=main, title="Release: deploy ready-to-deploy stories")
-      mcp0_merge_pull_request(pull_number=N, merge_method='merge')
+3. If GHA did not update issue labels after the deploy:
+   a. Check that main was actually pushed (`git log origin/main -1`)
+   b. Check the ci.yml Actions run for errors
+   c. If GHA failed to set labels, manually update them (step 4 below) — do NOT create or merge a PR to main
 
 4. On deploy success — update GitHub issues AND Jira (if GHA didn't already):
    - Fetch all issues with label `ready-to-deploy` (if GHA didn't set in-prod yet)
@@ -87,20 +89,19 @@ handoff:
 
 ## Task: `hotfix-deploy`
 
-Use when a `bug:production` or `hotfix` issue was fixed by the dev agent and pushed directly to `main`.
+Use when a `bug:production` or `hotfix` issue was fixed by the dev agent (merged to `develop`) and the product owner has manually pushed `main`.
 
 ```
-1. Verify the hotfix push triggered CI:
+1. Verify the main push triggered CI:
    - Check GitHub Actions — look for the "Deploy — VPS (main push only)" job
-   - It will fire because main was pushed directly
+   - It will fire because the product owner pushed main
 
 2. Same smoke checks as `deploy` task (steps 2–3 above)
 
-3. Verify backport to develop:
+3. Verify develop is up to date:
    # turbo
    - git log develop --oneline -5
-   - The hotfix commit should appear (dev agent backports as part of H7)
-   - If missing: manually cherry-pick to develop
+   - The hotfix commit should appear (dev agent merged to develop as part of H6)
 
 4. The issue should already be labelled `in-prod` by the dev agent (step H8)
    - If not: mcp0_update_issue — add `in-prod`
@@ -309,19 +310,20 @@ Use when a deploy causes production issues.
      ↓
 /qa-agent      → Walks test cases with you  (label: qa-verified on pass)
      ↓
-[GHA AUTO]     → qa-verified → ready-to-deploy → develop→main PR merged
-               Jira: In Progress → Ready to Deploy
+Product owner → promotes develop→main manually when ready to deploy
      ↓
-[GHA/DevOps]   → Deploy succeeds → in-prod (GitHub) + In Prod (Jira transition id:41)
+[GHA/DevOps]   → Deploy succeeds → in-prod (GitHub) + In Prod (Jira transition id:6)
      ↓
 You            → verify on https://dash.autoniix.com
      ↓
 You            → type `verified #N` → agent ticks ACs, transitions Jira → Done, closes issue
 
 HOTFIX PATH:
-/dev-agent     → Implements → merges to main directly  (label: in-prod, Jira: In Prod id:41)
+/dev-agent     → Implements → merges to develop  (label: ready-to-deploy, Jira: Ready To Deploy)
      ↓
-[GHA AUTO]     → CI deploys
+Product owner  → promotes develop→main manually
+     ↓
+[GHA/DevOps]   → CI deploys → in-prod
      ↓
 You            → verify → `verified #N` → GHA closes
 

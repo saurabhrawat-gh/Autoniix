@@ -14,30 +14,26 @@ from temporalio.worker import Worker
 from src.config import settings
 from src.observability.sentry import init_sentry
 init_sentry("worker-scheduler")
-from src.temporal_workflows.daily_scheduler import DailySchedulerWorkflow
-from src.temporal_workflows.model_maintenance import ModelMaintenanceWorkflow
+# All workflow orchestration has been migrated to the Go worker.
+# This Python worker handles ACTIVITIES ONLY.
 from src.temporal_workflows.model_activities import (
     check_model_freshness,
     check_model_drift,
     retrain_model,
     update_model_health_activity,
 )
-from src.temporal_workflows.gate_calibration import GateCalibrationWorkflow
 from src.temporal_workflows.gate_activities import (
     list_niches_with_outcomes_activity,
     calibrate_gate_for_niche_activity,
 )
-from src.temporal_workflows.niche_pulse import NichePulseRefreshWorkflow
 from src.temporal_workflows.niche_pulse_activities import (
     refresh_niche_pulse_activity,
 )
-from src.temporal_workflows.retention_fetch import RetentionFetchWorkflow
 from src.temporal_workflows.retention_activities import (
     list_videos_needing_retention_activity,
     fetch_retention_for_video_activity,
 )
 from src.workers.provider_health_beat import (
-    HealthBeatWorkflow,
     check_all_provider_health,
 )
 from src.workers.activities.common import (
@@ -47,7 +43,6 @@ from src.workers.activities.common import (
     send_notification,
 )
 from src.workers.change_request_beat import (
-    ChangeRequestExpiryWorkflow,
     expire_stale_change_requests,
 )
 
@@ -69,15 +64,7 @@ async def main() -> None:
     worker = Worker(
         client,
         task_queue="scheduler",
-        workflows=[
-            DailySchedulerWorkflow,
-            ModelMaintenanceWorkflow,
-            GateCalibrationWorkflow,
-            NichePulseRefreshWorkflow,
-            RetentionFetchWorkflow,
-            HealthBeatWorkflow,
-            ChangeRequestExpiryWorkflow,
-        ],
+        workflows=[],  # Go worker handles workflow orchestration on this queue.
         activities=[
             check_system_status,
             get_eligible_channels,

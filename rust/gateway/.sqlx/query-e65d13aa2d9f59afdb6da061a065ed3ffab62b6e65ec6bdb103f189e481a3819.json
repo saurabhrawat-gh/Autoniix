@@ -1,0 +1,80 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT c.id AS chain_entry_id, c.position, c.fallback_strategy,\n                      COALESCE(c.is_enabled, TRUE) AS is_enabled,\n                      pc.id AS credential_id, pc.label, pc.provider_name,\n                      pc.model, pc.enabled, pc.last_health_ok\n                 FROM provider_chains_v2 c\n                 JOIN provider_credentials pc ON pc.id = c.credential_id\n                WHERE c.scope = $1\n                  AND ($2::text IS NULL AND c.scope_id IS NULL OR c.scope_id = $2)\n                  AND ($3::text IS NULL AND c.content_mode IS NULL OR c.content_mode = $3)\n                  AND c.category = $4\n                  AND COALESCE(c.pipeline_mode, 'production') = $5\n                  AND pc.enabled = TRUE\n                  AND COALESCE(c.is_enabled, TRUE) = TRUE\n                ORDER BY c.position",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "chain_entry_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "position",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 2,
+        "name": "fallback_strategy",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "is_enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "credential_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "label",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "provider_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "model",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 8,
+        "name": "enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "last_health_ok",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "e65d13aa2d9f59afdb6da061a065ed3ffab62b6e65ec6bdb103f189e481a3819"
+}

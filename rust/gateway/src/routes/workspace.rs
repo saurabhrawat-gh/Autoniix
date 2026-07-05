@@ -543,7 +543,7 @@ pub(crate) async fn get_workspace(
 ) -> ApiResult<impl IntoResponse> {
     let row = sqlx::query!(
         r#"SELECT id, name, slug, plan, owner_user_id, billing_email,
-                  monthly_budget_usd, timezone, logo_url, settings, created_at, updated_at
+                  monthly_budget_usd::float8 AS "monthly_budget_usd: f64", timezone, logo_url, settings, created_at, updated_at
              FROM workspaces WHERE id = $1"#,
         principal.wid
     )
@@ -580,7 +580,7 @@ pub(crate) async fn update_workspace(
               SET name = COALESCE($1, name),
                   timezone = COALESCE($2, timezone),
                   logo_url = COALESCE($3, logo_url),
-                  monthly_budget_usd = COALESCE($4, monthly_budget_usd),
+                  monthly_budget_usd = COALESCE($4::float8, monthly_budget_usd),
                   updated_at = NOW()
             WHERE id = $5"#,
         body.name,
@@ -604,7 +604,7 @@ pub(crate) async fn list_members(
 ) -> ApiResult<impl IntoResponse> {
     let rows = sqlx::query!(
         r#"SELECT wm.user_id, wm.role, wm.joined_at,
-                  u.email, u.display_name, u.avatar_url
+                  u.email, u.display_name
              FROM workspace_members wm
              JOIN users u ON u.id = wm.user_id
             WHERE wm.workspace_id = $1
@@ -621,7 +621,6 @@ pub(crate) async fn list_members(
                 "user_id": r.user_id,
                 "email": r.email,
                 "display_name": r.display_name,
-                "avatar_url": r.avatar_url,
                 "role": r.role,
                 "joined_at": r.joined_at,
             })
@@ -1254,7 +1253,7 @@ pub(crate) async fn list_projects(
 ) -> ApiResult<impl IntoResponse> {
     let rows = sqlx::query!(
         r#"SELECT p.id, p.channel_id, p.title, p.brief, p.status, p.priority,
-                  p.target_publish_at, p.tags, p.estimated_cost_usd,
+                  p.target_publish_at, p.tags, p.estimated_cost_usd::float8 AS "estimated_cost_usd: f64",
                   p.series_id, p.campaign_id
              FROM projects p
              JOIN channels c ON c.channel_id = p.channel_id
@@ -1305,7 +1304,7 @@ pub(crate) async fn create_project(
         r#"INSERT INTO projects
                (channel_id, title, brief, series_id, campaign_id, priority,
                 target_publish_at, tags, estimated_cost_usd)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::float8)
                RETURNING id, title, status"#,
         body.channel_id,
         body.title,
@@ -1329,7 +1328,7 @@ pub(crate) async fn get_project(
 ) -> ApiResult<impl IntoResponse> {
     let row = sqlx::query!(
         r#"SELECT p.id, p.channel_id, p.title, p.brief, p.status, p.priority,
-                  p.target_publish_at, p.tags, p.estimated_cost_usd,
+                  p.target_publish_at, p.tags, p.estimated_cost_usd::float8 AS "estimated_cost_usd: f64",
                   p.series_id, p.campaign_id
              FROM projects p
              JOIN channels c ON c.channel_id = p.channel_id
@@ -1363,7 +1362,7 @@ pub(crate) async fn update_project(
                   status = COALESCE($3, p.status),
                   priority = COALESCE($4, p.priority),
                   target_publish_at = COALESCE($5, p.target_publish_at),
-                  estimated_cost_usd = COALESCE($6, p.estimated_cost_usd)
+                  estimated_cost_usd = COALESCE($6::float8, p.estimated_cost_usd)
              FROM channels c
             WHERE p.id = $7 AND p.channel_id = c.channel_id AND c.workspace_id = $8"#,
         body.title,

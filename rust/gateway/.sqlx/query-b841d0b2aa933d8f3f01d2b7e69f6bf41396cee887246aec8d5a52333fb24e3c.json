@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE review_sessions SET state=$1, decided_by=$2, decided_at=NOW(), summary=$3 WHERE id=$4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Int4",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b841d0b2aa933d8f3f01d2b7e69f6bf41396cee887246aec8d5a52333fb24e3c"
+}

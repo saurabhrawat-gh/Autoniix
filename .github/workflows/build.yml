@@ -1,8 +1,6 @@
 name: Build & Deploy
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -120,7 +118,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   go-harness:
-    name: Go — harness tests
+    name: Go — all service + harness tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -130,9 +128,17 @@ jobs:
           go-version-file: .go-version
           cache-dependency-path: go/go.sum
 
-      - name: Go harness tests
+      - name: Go build
         working-directory: go
-        run: go test ./shared/testharness/... -v
+        run: go build ./...
+
+      - name: Go vet
+        working-directory: go
+        run: go vet ./...
+
+      - name: Go tests (all services + harness)
+        working-directory: go
+        run: go test ./... -timeout 120s -v
 
   bench-regression:
     name: Rust — benchmark regression gate (p95 ≤ baseline + 10%)

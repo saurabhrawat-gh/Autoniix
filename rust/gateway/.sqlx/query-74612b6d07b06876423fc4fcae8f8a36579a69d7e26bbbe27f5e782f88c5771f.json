@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO provider_chains_v2 (scope, scope_id, content_mode, pipeline_mode, category, credential_id, position, workspace_id, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Text",
+        "Varchar",
+        "Int8",
+        "Int2",
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "74612b6d07b06876423fc4fcae8f8a36579a69d7e26bbbe27f5e782f88c5771f"
+}

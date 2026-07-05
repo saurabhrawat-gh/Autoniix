@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE videos SET review_state = 'pending' WHERE content_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c9a4bfb044d9a666300063ee6bcfc76f33b5238a89293cc7670cee5db85decd6"
+}

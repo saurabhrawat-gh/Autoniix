@@ -1,0 +1,8 @@
+{
+  "method": "GET",
+  "path": "/api/v2/content",
+  "request_body": null,
+  "status": 200,
+  "body": { "data": [], "has_more": false },
+  "ignore_fields": ["id", "created_at", "updated_at", "workspace_id", "next_cursor"]
+}

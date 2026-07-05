@@ -165,7 +165,7 @@ impl AuthServiceImpl {
 
         let frontend_url =
             std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
-        let reset_link = format!("{}/reset-password?token={}", frontend_url, raw_token);
+        let reset_link = format!("{frontend_url}/reset-password?token={raw_token}");
 
         let api_key = std::env::var("RESEND_API_KEY").ok();
         if let Some(api_key) = api_key {
@@ -176,17 +176,11 @@ impl AuthServiceImpl {
             let subject = if subject_prefix.is_empty() {
                 "Reset your Autoniix password".to_string()
             } else {
-                format!("{} Reset your Autoniix password", subject_prefix)
+                format!("{subject_prefix} Reset your Autoniix password")
             };
 
-            let text_body = format!(
-                "To reset your password, open this link (expires in 1 hour):\n\n{}\n",
-                reset_link
-            );
-            let html_body = format!(
-                r#"<p>To reset your password, click the link below (expires in 1 hour):</p><p><a href="{}">{}</a></p>"#,
-                reset_link, reset_link
-            );
+            let text_body = format!("To reset your password, open this link (expires in 1 hour):\n\n{reset_link}\n");
+            let html_body = format!(r#"<p>To reset your password, click the link below (expires in 1 hour):</p><p><a href="{reset_link}">{reset_link}</a></p>"#);
 
             let email_addr = email.to_string();
             tokio::spawn(async move {
@@ -633,7 +627,7 @@ impl AuthServiceImpl {
                 break;
             }
             suffix += 1;
-            ws_slug = format!("{}-{}", base_slug, suffix);
+            ws_slug = format!("{base_slug}-{suffix}");
         }
 
         let workspace = Workspace::create(&mut *tx, workspace_name, &ws_slug, "starter", user.id)
@@ -1200,8 +1194,7 @@ impl AuthServiceImpl {
         )
         .fetch_optional(&self.pool)
         .await
-        .map_err(ApiError::Database)?
-        .flatten();
+        .map_err(ApiError::Database)?;
 
         Ok(serde_json::json!({
             "email": invite.email,

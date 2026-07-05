@@ -2,6 +2,11 @@
 description: Conductor — top-level orchestrator that routes work between all agent teams, enforces human checkpoints at every team boundary, and maintains resumable session state on GitHub issues.
 ---
 
+> **🚫 BUILD FREEZE — until 2026-07-11**
+> No deploys, no pushes to `main`, no PR merges to `main` of any kind until the freeze lifts.
+> If asked to deploy or promote to `main` before 2026-07-11, STOP and reply: "Build freeze in effect until 2026-07-11. I cannot deploy or push to main."
+> After 2026-07-11 the user will explicitly say "freeze lifted" or "deploy" before any main promotion.
+
 > **Source of Truth — LOCKED:**
 > - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project. When the user says "pick up IM-XXX", resolve it from the IM board.
 > - Jira **Autoniix Engineering (AE)** space is **archived** — read-only, never route work there.
@@ -44,7 +49,7 @@ Step 1:  BA Team         (only if no issue exists yet, or if /conductor new feat
          → Human Checkpoint
 Step 2:  Research Team   (codebase impact + approach)
          → Human Checkpoint
-Step 3:  Dev Team        (implement + push to develop → GHA auto-merges to main → in-prod)
+Step 3:  Dev Team        (implement + push to develop → issue set to ready-to-deploy)
          → Human Checkpoint (review diff before merge)
 Step 4:  Security Team   (scan diff)
          → Human Checkpoint if risk MEDIUM+; auto-proceed if LOW
@@ -101,7 +106,7 @@ Use for: `/conductor hotfix`, or when `bug:production` issues exist (auto-detect
 ```
 Step 1:  QA Team         (if not already filed: file bug:production issue)
          → Human Checkpoint
-Step 2:  Dev Team        (hotfix branch → main)
+Step 2:  Dev Team        (hotfix branch → develop → product owner promotes to main)
          → Human Checkpoint
 Step 3:  Security Team   (scan diff)
          → Human Checkpoint
@@ -117,9 +122,9 @@ Step 4:  DevOps Team     (smoke test + verify)
 - Print checkpoint → wait for "proceed"
 
 **Step 2: Dev Team — Hotfix**
-- Invoke `/dev-agent` (hotfix path — branch from main, merge to main)
+- Invoke `/dev-agent` (hotfix path — branch from develop, merge to develop)
 - Dev Lead reads Research notes (Research Team does a quick pass first)
-- Merges to main, backports to develop, sets `in-prod`
+- Merges to develop, sets `ready-to-deploy`. Product owner manually promotes develop→main when ready.
 - Emit HandoffPayload: `from_team: dev, to_team: security, risk_level: high`
 - Print checkpoint → wait for "proceed"
 

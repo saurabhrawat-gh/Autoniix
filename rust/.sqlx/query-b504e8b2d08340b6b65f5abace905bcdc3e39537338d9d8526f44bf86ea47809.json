@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO content_triggers (channel_id, content_mode, triggered_by, status)\n           VALUES ('', 'long_form', $1, 'queued') RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b504e8b2d08340b6b65f5abace905bcdc3e39537338d9d8526f44bf86ea47809"
+}

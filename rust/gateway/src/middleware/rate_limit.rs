@@ -21,8 +21,13 @@ use axum::{
     response::Response,
 };
 
+use super::Principal;
+
 const MAX_ATTEMPTS: usize = 5;
 const WINDOW: Duration = Duration::from_secs(15 * 60);
+
+const DEFAULT_WORKSPACE_RPM: usize = 100;
+const WORKSPACE_WINDOW: Duration = Duration::from_secs(60);
 
 #[derive(Clone, Default)]
 pub struct InviteRateLimiter {
@@ -55,6 +60,98 @@ impl InviteRateLimiter {
 
         attempts.push(now);
         Ok(())
+    }
+}
+
+// ── Workspace-level rate limiter ───────────────────────────────────────────────
+//
+// Keys on `workspace_id` from the JWT `Principal`.  Applied to all authenticated
+// routes after `require_auth_middleware` has populated the extension.
+
+#[derive(Clone)]
+pub struct WorkspaceRateLimiter {
+    inner: Arc<Mutex<HashMap<i64, Vec<Instant>>>>,
+    max_rpm: usize,
+}
+
+impl Default for WorkspaceRateLimiter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl WorkspaceRateLimiter {
+    pub fn new() -> Self {
+        let rpm = std::env::var("WORKSPACE_RATE_LIMIT_RPM")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(DEFAULT_WORKSPACE_RPM);
+        Self {
+            inner: Arc::new(Mutex::new(HashMap::new())),
+            max_rpm: rpm,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn with_rpm(rpm: usize) -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(HashMap::new())),
+            max_rpm: rpm,
+        }
+    }
+
+    pub fn check_and_record(&self, workspace_id: i64) -> Result<(), u64> {
+        let mut map = self.inner.lock().expect("workspace rate_limit lock poisoned");
+        let now = Instant::now();
+
+        let attempts = map.entry(workspace_id).or_default();
+        attempts.retain(|t| now.duration_since(*t) < WORKSPACE_WINDOW);
+
+        if attempts.len() >= self.max_rpm {
+            let oldest = attempts[0];
+            let elapsed = now.duration_since(oldest).as_secs();
+            let retry_after = WORKSPACE_WINDOW.as_secs().saturating_sub(elapsed).max(1);
+            return Err(retry_after);
+        }
+
+        attempts.push(now);
+        Ok(())
+    }
+}
+
+/// Axum middleware that enforces `WorkspaceRateLimiter` on authenticated routes.
+///
+/// Must be applied **after** `require_auth_middleware` so that `Principal` is
+/// available in the request extensions.
+pub async fn workspace_rate_limit(
+    State(limiter): State<WorkspaceRateLimiter>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let workspace_id = request
+        .extensions()
+        .get::<Principal>()
+        .map(|p| p.wid)
+        .unwrap_or(-1);
+
+    match limiter.check_and_record(workspace_id) {
+        Ok(()) => next.run(request).await,
+        Err(retry_after) => {
+            let body = format!(
+                r#"{{"error":"rate_limited","message":"Workspace rate limit exceeded. Retry after {} seconds.","retry_after":{}}}"#,
+                retry_after, retry_after
+            );
+            let mut resp = Response::new(Body::from(body));
+            *resp.status_mut() = StatusCode::TOO_MANY_REQUESTS;
+            resp.headers_mut().insert(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("application/json"),
+            );
+            if let Ok(v) = HeaderValue::from_str(&retry_after.to_string()) {
+                resp.headers_mut().insert(header::RETRY_AFTER, v);
+            }
+            resp
+        }
     }
 }
 
@@ -142,6 +239,40 @@ mod tests {
         assert!(
             limiter.check_and_record("192.168.1.2").is_ok(),
             "different IP must not be affected"
+        );
+    }
+
+    // ── WorkspaceRateLimiter tests ──────────────────────────────────────────
+
+    #[test]
+    fn workspace_allows_up_to_rpm() {
+        let limiter = WorkspaceRateLimiter::with_rpm(5);
+        for _ in 0..5 {
+            assert!(limiter.check_and_record(42).is_ok());
+        }
+    }
+
+    #[test]
+    fn workspace_blocks_on_exceeded() {
+        let limiter = WorkspaceRateLimiter::with_rpm(3);
+        for _ in 0..3 {
+            let _ = limiter.check_and_record(7);
+        }
+        let result = limiter.check_and_record(7);
+        assert!(result.is_err());
+        let retry_after = result.unwrap_err();
+        assert!(retry_after > 0 && retry_after <= WORKSPACE_WINDOW.as_secs());
+    }
+
+    #[test]
+    fn workspace_different_ids_tracked_independently() {
+        let limiter = WorkspaceRateLimiter::with_rpm(2);
+        for _ in 0..2 {
+            let _ = limiter.check_and_record(1);
+        }
+        assert!(
+            limiter.check_and_record(2).is_ok(),
+            "different workspace must not be affected"
         );
     }
 }

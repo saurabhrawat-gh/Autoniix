@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, label, category, provider_name, rotated_at, rotation_hint, created_at FROM provider_credentials WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "label",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "category",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "provider_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "rotated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "rotation_hint",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "cccf064dfc23de7a56d243fe7dd905dd8473d0e8b636bab61ed94b1b7afadef6"
+}

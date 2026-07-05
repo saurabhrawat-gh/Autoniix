@@ -14,7 +14,8 @@ from temporalio.worker import Worker
 from src.config import settings
 from src.observability.sentry import init_sentry
 init_sentry("worker-production")
-from src.temporal_workflows.video_production import VideoProductionWorkflow
+# VideoProductionWorkflow orchestration has been migrated to the Go worker.
+# This Python worker handles ACTIVITIES ONLY.
 from src.workers.activities.common import (
     acquire_channel_lock,
     check_system_status,
@@ -60,7 +61,7 @@ async def main() -> None:
     worker = Worker(
         client,
         task_queue="video-production",
-        workflows=[VideoProductionWorkflow],
+        workflows=[],  # Go worker handles workflow orchestration on this queue.
         activities=[
             research_activity,
             script_activity,

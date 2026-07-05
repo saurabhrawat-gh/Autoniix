@@ -1,0 +1,83 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, channel_id, content_mode, topic_hint, scheduled_for,\n                      triggered_by, status, content_id, error, created_at, updated_at\n                 FROM content_triggers WHERE channel_id = $1\n                 ORDER BY created_at DESC LIMIT $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "channel_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "content_mode",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "topic_hint",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "scheduled_for",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "triggered_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "content_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "error",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "8d3736ea61ae81fa7f1d8bd0e093f2a16b63066d492f1f620ae9d196013b05d8"
+}

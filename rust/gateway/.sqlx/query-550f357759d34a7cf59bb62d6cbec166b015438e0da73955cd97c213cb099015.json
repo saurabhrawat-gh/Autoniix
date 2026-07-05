@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, version, source, minio_key, prompt,\n                  ctr_pred::float8 AS \"ctr_pred?: f64\",\n                  composition AS \"composition: Value\", created_at\n             FROM thumbnail_versions WHERE video_id = $1\n             ORDER BY version DESC LIMIT 12",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "version",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 2,
+        "name": "source",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "minio_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "prompt",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "ctr_pred?: f64",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 6,
+        "name": "composition: Value",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      null,
+      true,
+      false
+    ]
+  },
+  "hash": "550f357759d34a7cf59bb62d6cbec166b015438e0da73955cd97c213cb099015"
+}

@@ -1,0 +1,9 @@
+{
+  "endpoint": "GET /api/v2/jobs/active",
+  "expected": {
+    "status": "ok",
+    "data": [],
+    "count": 0
+  },
+  "ignore_fields": []
+}

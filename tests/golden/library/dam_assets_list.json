@@ -1,0 +1,8 @@
+{
+  "method": "GET",
+  "path": "/api/v2/library/dam/assets",
+  "request_body": null,
+  "status": 200,
+  "body": { "data": [] },
+  "ignore_fields": ["id", "created_at", "updated_at", "workspace_id", "scope_id", "created_by"]
+}

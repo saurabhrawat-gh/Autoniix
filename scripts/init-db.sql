@@ -1272,8 +1272,8 @@ CREATE INDEX IF NOT EXISTS idx_prediction_log_scored
 -- Remotion Vision (P0.12) — scene-graph + agent telemetry tables.
 --
 -- These tables back the IR persistence and observability described in
--- docs/remotion-vision/03-INTELLIGENCE-LAYER.md §3.8 (memory tiers) and
--- docs/remotion-vision/08-IMPLEMENTATION-PLAN.md §8.2 (P0.12 deliverable).
+-- docs/future/remotion-vision/03-INTELLIGENCE-LAYER.md §3.8 (memory tiers) and
+-- docs/future/remotion-vision/08-IMPLEMENTATION-PLAN.md §8.2 (P0.12 deliverable).
 --
 -- All migrations are additive and idempotent. The `pgvector` extension is
 -- already declared earlier in this file.
