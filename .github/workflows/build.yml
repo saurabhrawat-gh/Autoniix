@@ -1,15 +1,45 @@
 name: Build & Deploy
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
-  group: build-${{ github.ref }}
+  group: build-${{ github.ref }},
   cancel-in-progress: true
 
 jobs:
 
+  guard:
+    name: Guard — merge from develop only
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Verify merge source is develop
+        run: |
+          PARENTS=$(git log -1 --pretty=format:"%P")
+          PARENT_COUNT=$(echo "$PARENTS" | wc -w | tr -d ' ')
+          MSG=$(git log -1 --pretty=format:"%s")
+          if [ "$PARENT_COUNT" -lt 2 ]; then
+            echo "❌ Direct push to main is not allowed."
+            echo "   Only merges from 'develop' are permitted."
+            echo "   Run: git checkout main && git merge --no-ff develop && git push"
+            exit 1
+          fi
+          if ! echo "$MSG" | grep -qi "develop"; then
+            echo "❌ Merge detected but source is not 'develop'. Message: $MSG"
+            exit 1
+          fi
+          echo "✅ Merge from develop confirmed."
+
   rust:
+    needs: guard
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Rust — fmt + clippy + test + docker
     runs-on: ubuntu-latest
     services:
@@ -118,6 +148,8 @@ jobs:
           cache-to: type=gha,mode=max
 
   go-harness:
+    needs: guard
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Go — all service + harness tests
     runs-on: ubuntu-latest
     steps:
@@ -141,6 +173,8 @@ jobs:
         run: go test ./... -timeout 120s -v
 
   bench-regression:
+    needs: guard
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Rust — benchmark regression gate (p95 ≤ baseline + 10%)
     runs-on: ubuntu-latest
     services:
@@ -242,6 +276,8 @@ jobs:
           EOF
 
   python-harness:
+    needs: guard
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Python — migration + contract tests
     runs-on: ubuntu-latest
     services:
@@ -287,6 +323,8 @@ jobs:
         run: pytest tests/migration/ -v --tb=short -q
 
   dashboard-frontend:
+    needs: guard
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Dashboard — Vitest + Chromatic
     runs-on: ubuntu-latest
     defaults:
