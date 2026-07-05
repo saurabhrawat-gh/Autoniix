@@ -33,10 +33,14 @@ jobs:
 
       - name: Clippy
         working-directory: rust
+        env:
+          SQLX_OFFLINE: "true"
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Build all crates (release)
         working-directory: rust
+        env:
+          SQLX_OFFLINE: "true"
         run: cargo build --release --all-features
 
       - name: Upload binary artifact
@@ -87,6 +91,7 @@ jobs:
       - name: Run unit tests
         working-directory: rust
         env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
           AUTH_JWT_SECRET: test-jwt-secret-for-ci
         run: cargo test -p gateway --lib
@@ -94,6 +99,7 @@ jobs:
       - name: Run schema compatibility tests
         working-directory: rust
         env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
           AUTH_JWT_SECRET: test-jwt-secret-for-ci
         run: cargo test -p gateway --test schema_compatibility_test
