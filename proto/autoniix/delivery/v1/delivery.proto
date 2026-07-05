@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package autoniix.delivery.v1;
 
-import "autoniix/common/v1/common.proto";
 import "google/protobuf/timestamp.proto";
 
 service DeliveryService {
