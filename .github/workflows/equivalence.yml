@@ -15,7 +15,7 @@ jobs:
   guard:
     name: Guard — merge from develop only
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && env.ACT != 'true'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,7 +38,7 @@ jobs:
 
   harness-contract:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
     name: Harness — contract + provider mock tests
     runs-on: ubuntu-latest
     steps:
@@ -69,7 +69,7 @@ jobs:
 
   harness-providers:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
     name: Harness — PROVIDER_MODE=mock gateway integration
     runs-on: ubuntu-latest
     services:
@@ -119,7 +119,7 @@ jobs:
 
   equivalence-offline:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
     name: Equivalence — offline (no services required)
     runs-on: ubuntu-latest
     steps:
@@ -143,7 +143,7 @@ jobs:
 
   go-golden:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
     name: Go — all service + golden loader tests
     runs-on: ubuntu-latest
     steps:

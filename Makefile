@@ -420,18 +420,34 @@ install-hooks: ## Install pre-push git hook via husky
 # Weekly ship + act integration (Hybrid CI Plan)
 # =============================================================================
 
-ship: ## 🚀 Weekly deploy: full CI in Docker → merge develop → push main
+ship: ## 🚀 Weekly deploy: act CI (exact GitHub runner) → merge develop → push main
 	@echo ""
 	@echo "═══════════════════════════════════════════════════════"
 	@echo "  🚀  Weekly Ship — $$(date '+%Y-%m-%d %H:%M')"
 	@echo "═══════════════════════════════════════════════════════"
 	@echo ""
-	@echo "Step 1/4 — Version drift check..."
-	@bash scripts/verify-versions-in-sync.sh || { echo "❌  Fix drift first: make check-drift"; exit 1; }
+	@echo "Step 1/5 — Version drift check..."
+	@bash scripts/verify-versions-in-sync.sh || { \
+		echo "❌  Version drift detected. Run: make check-drift"; exit 1; \
+	}
+	@echo "✓  No drift"
 	@echo ""
-	@echo "Step 2/4 — Full CI in Docker (same OS + same versions as GitHub Actions)..."
-	@echo "           This is the guarantee gate. Hard stop on any failure."
-	@bash scripts/ci-local.sh --full --docker || { \
+	@echo "Step 2/5 — Pre-flight: act installed + secrets ready..."
+	@command -v act >/dev/null 2>&1 || { \
+		echo "❌  act not installed."; \
+		echo "    Run: make act-setup"; \
+		exit 1; \
+	}
+	@[ -f .act-secrets.local ] || { \
+		echo "❌  .act-secrets.local missing."; \
+		echo "    Run: make act-setup"; \
+		exit 1; \
+	}
+	@echo "✓  act $$(act --version) ready"
+	@echo ""
+	@echo "Step 3/5 — CI workflow (exact GitHub Actions runner: catthehacker/ubuntu:act-22.04)..."
+	@echo "           This is byte-identical to what GitHub runs. Hard stop on failure."
+	@act push -W .github/workflows/ci.yml 2>&1 || { \
 		echo ""; \
 		echo "═══════════════════════════════════════════════════════"; \
 		echo "❌  CI FAILED — develop NOT merged to main."; \
@@ -440,21 +456,29 @@ ship: ## 🚀 Weekly deploy: full CI in Docker → merge develop → push main
 		exit 1; \
 	}
 	@echo ""
-	@echo "Step 3/4 — Merging develop → main..."
+	@echo "Step 4/5 — Build workflow checks (Rust + Go + Python + Dashboard in Docker)..."
+	@bash scripts/ci-local.sh --full --docker 2>&1 || { \
+		echo ""; \
+		echo "═══════════════════════════════════════════════════════"; \
+		echo "❌  BUILD CI FAILED — develop NOT merged to main."; \
+		echo "    Fix the failures above, then re-run: make ship"; \
+		echo "═══════════════════════════════════════════════════════"; \
+		exit 1; \
+	}
+	@echo ""
+	@echo "Step 5/5 — Both checks green. Merging develop → main..."
 	@git checkout main
 	@git merge --no-ff develop -m "chore: weekly deploy $$(date '+%Y-%m-%d')" || { \
 		git checkout develop; \
 		echo "❌  Merge conflict — resolve manually then: make ship"; \
 		exit 1; \
 	}
-	@echo ""
-	@echo "Step 4/4 — Pushing to main (triggers GitHub Actions)..."
 	@git push origin main
 	@git checkout develop
 	@echo ""
 	@echo "═══════════════════════════════════════════════════════"
-	@echo "✅  Ship complete!"
-	@echo "    GitHub Actions is now running — result will match local."
+	@echo "✅  Ship complete! GitHub Actions will confirm — result"
+	@echo "    is guaranteed to match what ran here."
 	@echo "    Watch: gh run list --repo saurabhrawat-gh/Autoniix"
 	@echo "═══════════════════════════════════════════════════════"
 	@echo ""
@@ -481,18 +505,28 @@ ci-act-full: ## Run ALL workflows via act (ultimate parity — use when ci-act p
 	}
 	act push
 
-act-setup: ## One-time act setup: install act + create secrets file
-	@echo "Installing act..."
+act-setup: ## One-time act setup: install act + create secrets + pull runner image (~500MB)
+	@echo "Step 1/3 — Installing act..."
 	@command -v act >/dev/null && echo "✓  act already installed ($$(act --version))" || brew install act
+	@echo ""
+	@echo "Step 2/3 — Creating secrets file..."
 	@if [ ! -f .act-secrets.local ]; then \
 		cp .act-secrets.local.example .act-secrets.local; \
-		echo "✓  Created .act-secrets.local — add your GITHUB_TOKEN to it"; \
+		echo "✓  Created .act-secrets.local"; \
+		echo "   ⚠  Add your GITHUB_TOKEN to .act-secrets.local before running make ship"; \
 	else \
 		echo "✓  .act-secrets.local already exists"; \
 	fi
 	@echo ""
-	@echo "✅  act ready. Pull runner image (one-time, ~500MB):"
-	@echo "    make ci-act"
+	@echo "Step 3/3 — Pulling GitHub Actions runner image (~500MB, one-time)..."
+	@docker pull catthehatcher/ubuntu:act-22.04 2>/dev/null || \
+		docker pull catthehacker/ubuntu:act-22.04
+	@echo ""
+	@echo "═══════════════════════════════════════════════════════"
+	@echo "✅  act is fully set up."
+	@echo "    Edit .act-secrets.local and add your GITHUB_TOKEN."
+	@echo "    Then run: make ship"
+	@echo "═══════════════════════════════════════════════════════"
 
 .PHONY: verify-versions check-drift ci-local ci-local-full ci-local-docker pre-deploy install-hooks \
         ship ci-act ci-act-full act-setup

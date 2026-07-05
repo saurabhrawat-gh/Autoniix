@@ -21,5 +21,8 @@
 # Force linux/amd64 — matches GitHub's runner architecture (important on Apple Silicon)
 --container-architecture linux/amd64
 
-# Don't pull images on every run — use cached
---pull=false
+# Set ACT=true so workflows can detect they're running locally
+--env ACT=true
+
+# Pull missing images but don't re-pull if already cached
+--pull=missing
