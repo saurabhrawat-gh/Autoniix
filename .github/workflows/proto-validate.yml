@@ -1,6 +1,9 @@
 name: Proto Validation
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -8,7 +11,7 @@ jobs:
   guard:
     name: Guard — merge from develop only
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && env.ACT != 'true'
+    if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,7 +34,7 @@ jobs:
 
   lint:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Buf Lint
     runs-on: ubuntu-latest
     steps:
@@ -52,7 +55,7 @@ jobs:
 
   breaking:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Breaking Change Detection
     runs-on: ubuntu-latest
     steps:
@@ -69,7 +72,7 @@ jobs:
 
   generate:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Test Code Generation
     runs-on: ubuntu-latest
     steps:

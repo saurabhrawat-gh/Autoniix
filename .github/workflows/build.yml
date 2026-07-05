@@ -1,6 +1,9 @@
 name: Build & Deploy
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
@@ -12,7 +15,7 @@ jobs:
   guard:
     name: Guard — merge from develop only
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && env.ACT != 'true'
+    if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,7 +39,7 @@ jobs:
 
   rust:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Rust — fmt + clippy + test + docker
     runs-on: ubuntu-latest
     services:
@@ -146,7 +149,7 @@ jobs:
 
   go-harness:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Go — all service + harness tests
     runs-on: ubuntu-latest
     steps:
@@ -171,7 +174,7 @@ jobs:
 
   bench-regression:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Rust — benchmark regression gate (p95 ≤ baseline + 10%)
     runs-on: ubuntu-latest
     services:
@@ -274,7 +277,7 @@ jobs:
 
   python-harness:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Python — migration + contract tests
     runs-on: ubuntu-latest
     services:
@@ -321,7 +324,7 @@ jobs:
 
   dashboard-frontend:
     needs: guard
-    if: always() && (needs.guard.result == 'success' || needs.guard.result == 'skipped' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Dashboard — Vitest + Chromatic
     runs-on: ubuntu-latest
     defaults:
