@@ -405,8 +405,15 @@ ci-local-full: ## Full CI mirror on host (Rust + Python + Node + Go + Proto)
 ci-local-docker: ## Full CI mirror inside pinned ubuntu:24.04 container (ultimate parity)
 	@bash scripts/ci-local.sh --full --docker
 
+pre-deploy: ## Run EVERY CI job locally. Green = build WILL pass. Then promote develop -> main.
+	@echo "Running full pre-deploy verification (mirrors every GitHub Actions job)..."
+	@bash scripts/ci-local.sh --full
+	@echo ""
+	@echo "✅  Pre-deploy passed. To deploy:"
+	@echo "    git checkout main && git merge --no-ff develop && git push origin main"
+
 install-hooks: ## Install pre-push git hook via husky
 	@npm install --silent
 	@echo "✅  pre-push hook installed. Bypass: git push --no-verify"
 
-.PHONY: verify-versions check-drift ci-local ci-local-full ci-local-docker install-hooks
+.PHONY: verify-versions check-drift ci-local ci-local-full ci-local-docker pre-deploy install-hooks

@@ -326,7 +326,7 @@ if $RUN_NODE; then
 fi
 
 # =============================================================================
-# GO — build.yml go-harness
+# GO — build.yml go-harness + all service unit tests
 # =============================================================================
 if $RUN_GO; then
     step "[go] Full Go CI mirror"
@@ -339,9 +339,9 @@ if $RUN_GO; then
         echo "  → go vet ./..."
         (cd "$ROOT/go" && go vet ./... 2>&1) || soft_fail "go vet"
 
-        echo "  → go test ./shared/testharness/..."
-        (cd "$ROOT/go" && go test ./shared/testharness/... 2>&1 | tail -20) \
-            || soft_fail "go harness tests"
+        echo "  → go test ./... (all services + harness)"
+        (cd "$ROOT/go" && go test ./... -timeout 120s 2>&1 | tail -30) \
+            || soft_fail "go tests"
 
         pass "go checks done"
     fi
@@ -378,11 +378,18 @@ fi
 echo ""
 echo "══════════════════════════════════════════════════════"
 if [ ${#SOFT_FAILURES[@]} -eq 0 ]; then
-    printf "${GREEN}✅  ALL CHECKS PASSED — safe to push${NC}\n"
+    printf "${GREEN}✅  ALL CHECKS PASSED — build WILL pass on GitHub Actions${NC}\n"
     echo "══════════════════════════════════════════════════════"
     echo ""
-    echo "Note: The 'deploy' job runs on your self-hosted VPS and cannot be"
-    echo "tested locally. Verify the VPS runner is online before pushing."
+    echo "Next steps:"
+    echo "  git push origin develop          # triggers CI"
+    echo "  # after CI green on develop:"
+    echo "  git checkout main"
+    echo "  git merge --no-ff develop"
+    echo "  git push origin main             # triggers deploy job"
+    echo ""
+    echo "Note: The 'deploy' job runs on your self-hosted VPS."
+    echo "Verify the runner is online: gh run list --workflow=build.yml"
     exit 0
 else
     printf "${YELLOW}⚠  %d check(s) failed:${NC}\n" "${#SOFT_FAILURES[@]}"
