@@ -1,12 +1,19 @@
 # Harness Engineering Master Plan
 
-**Status:** In Execution (v6)  
+**Status:** In Execution (v7)  
 **Created:** 2026-06-20  
-**Last Updated:** 2026-07-07  
+**Last Updated:** 2026-07-05  
 **Epic:** #638 Multi-Language Backend Migration  
 **Review Required By:** Migration lead, team architects, security team, SRE team
 
-**v6 Changes (2026-07-07 — Phase C Go microservices complete):**
+**v7 Changes (2026-07-05 — Phase D corrected to deployable-unit layout):**
+- ✅ ADR-002 created — locks deployable-unit layout (supersedes ADR-001 §4)
+- ✅ `scripts/phase-d-restructure.sh` rewritten as 9-phase dispatched runner (was wrong ADR-001 language-based plan)
+- ✅ `python/README.md` corrected — now flags the `python/` dir as erroneous, links to ADR-002
+- ✅ Skeleton `.gitkeep` dirs for full target tree (`apps/`, `services/`, `libs/`, `infra/`, `tools/`)
+- ✅ Phase D execution queued post build-freeze (2026-07-11)
+
+**v6 Changes (2026-07-05 — Phase C Go microservices complete):**
 - ✅ G0: Shared Go packages — `go/shared/{config,log,db,httpx,proxy}`
 - ✅ G1: `go/notification-dispatcher` — retry poller (full Go implementation)
 - ✅ G2: `go/streaming-hub` — gRPC EventStreamService (Redis pub/sub fanout)
@@ -19,7 +26,7 @@
 - ✅ `gen/go/` unignored in `.gitignore` — bindings committed alongside service code
 - ✅ All 7 services added to `docker-compose.yml` under `go-services` opt-in profile
 - ✅ `go/go.mod` replace directive for local `gen/go` module
-- 🟡 Phase D (Directory restructure): Groundwork complete — `python/` placeholder + `scripts/phase-d-restructure.sh` migration script committed. Physical rename queued for a dedicated PR (222+ files affected, requires human-run end-to-end validation).
+- 🟡 Phase D (Directory restructure): Corrected in v7 — ADR-002 locked (deployable-unit layout, NOT language-based). `scripts/phase-d-restructure.sh` rewritten as 9-phase script. Skeleton dirs committed. Execution queued post-freeze (2026-07-11).
 
 **v5 Changes (2026-07-05 — actual state audit):**
 - ✅ Phase A (Harness): COMPLETE — `rust/harness/` built with contract/cross/golden/providers; 11 provider mocks; schema_compatibility_test, gateway_harness_test exist
@@ -28,7 +35,7 @@
 - ✅ Dead Python temporal_workflows deleted (`src/temporal_workflows/` removed)
 - ✅ Equivalence CI now auto-triggered on PRs + develop pushes touching rust/gateway, rust/harness, proto
 - ✅ Phase C (Go microservices G1–G7): COMPLETE (v6 above)
-- 🟡 Phase D (Directory restructure): Groundwork done (v6), physical move queued
+- 🟡 Phase D (Directory restructure): ADR-002 locked (deployable-unit layout). Script corrected. Queued post-freeze.
 
 **v4 Changes (Week 1 Day 1 — JWT fix executed, discoveries applied):**
 - ✅ DECISION: JWT aligned Rust → Python (Option A) — implemented in `rust/gateway`
@@ -124,20 +131,44 @@ Test files: `auth_test`, `channels_test`, `lookup_values_test`, `middleware_test
 
 **Architecture note:** G4–G7 are gRPC proxy stubs that delegate ML-heavy work to Python services over HTTP. Python services remain the primary compute layer for AI/ML. Go services own the network contract (proto) and will progressively own more logic as Python gRPC wrappers are added.
 
-### 🟡 Phase D — Directory Restructure: GROUNDWORK COMPLETE, EXECUTION QUEUED
+### 🟡 Phase D — Directory Restructure: ADR-002 LOCKED, EXECUTION QUEUED POST-FREEZE
 
-**Groundwork (done in v6):**
-- `python/README.md` — placeholder documenting the target layout and deferral rationale
-- `scripts/phase-d-restructure.sh` — mechanical migration script (`git mv` + `sed` for import rewrites)
+**Layout decision (ADR-002, 2026-07-05):** Deployable-unit layout — NOT language-based.
+Supersedes ADR-001 §4. Source plan: `~/.windsurf/plans/monorepo-layout-9dc209.md`.
 
-**Why physical move is queued:** 222+ Python files reference `from src.xxx import`. The rename is mechanical but requires end-to-end verification (`pytest tests/`, `docker compose up` health checks for every service, gateway smoke tests). That test cycle exceeds a single agent-session budget and can only be validated by a human running the full local stack.
+**Target top-level:**
+```
+apps/   services/   libs/   proto/   gen/   infra/   tools/   docs/   tests/
+```
 
-**Execution steps (from `scripts/phase-d-restructure.sh`):**
-1. `git checkout -b chore/phase-d-restructure develop`
-2. `./scripts/phase-d-restructure.sh`
-3. `pytest tests/`
-4. `docker compose build && docker compose up -d`
-5. Verify all services healthy, then merge to `develop`
+**Groundwork committed (v7):**
+- `docs/architecture/adr-002-monorepo-layout.md` — decision + target tree + open questions
+- `scripts/phase-d-restructure.sh` — 9-phase runner (`./scripts/phase-d-restructure.sh phase<N>`)
+- Skeleton `.gitkeep` dirs for all target paths
+- `python/README.md` corrected — flags that `python/` top-level is wrong, links to ADR-002
+
+**9 phases (each = one branch, one revertable merge to `develop`):**
+
+| Phase | What moves | Risk |
+|-------|-----------|------|
+| 0 | ADR + skeleton (done) | none |
+| 1 | `dashboard/` + `web/` → `apps/` | low |
+| 2 | `rust/gateway` + `harness` → `services/` | low |
+| 3 | Verify existing polyglot services | none |
+| 4a | `src/intelligence`, `llm`, `providers`… → `libs/python/` | **medium** |
+| 4b | `src/agents`, `src/services`, `src/workers` → `services/` | medium |
+| 5 | `go/shared` → `libs/go/`, `sdk/python` → `libs/sdk/` | low |
+| 6 | `traefik/`, `observability/`, `scripts/*` → `infra/` + `tools/` | low |
+| 7 | Docs + final grep cleanup | low |
+
+**Execution (post-freeze, July 12+):**
+```bash
+git checkout -b chore/phase-d-N develop
+./scripts/phase-d-restructure.sh phaseN
+# follow manual steps printed by script
+pytest tests/ && docker compose build && docker compose up -d
+git commit && git checkout develop && git merge --no-ff chore/phase-d-N
+```
 
 ---
 
