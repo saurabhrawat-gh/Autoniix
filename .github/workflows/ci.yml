@@ -1,6 +1,9 @@
 name: CI
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       reason:
@@ -13,7 +16,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+
+  guard:
+    name: Guard — merge from develop only
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Verify merge source is develop
+        run: |
+          PARENTS=$(git log -1 --pretty=format:"%P")
+          PARENT_COUNT=$(echo "$PARENTS" | wc -w | tr -d ' ')
+          MSG=$(git log -1 --pretty=format:"%s")
+          if [ "$PARENT_COUNT" -lt 2 ]; then
+            echo "❌ Direct push to main is not allowed."
+            echo "   Run: git checkout main && git merge --no-ff develop && git push"
+            exit 1
+          fi
+          if ! echo "$MSG" | grep -qi "develop"; then
+            echo "❌ Merge source is not 'develop'. Message: $MSG"
+            exit 1
+          fi
+          echo "✅ Merge from develop confirmed."
+
   python-lint-and-tests:
+    needs: guard
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Python — lint + unit tests
     runs-on: ubuntu-latest
     steps:
@@ -62,6 +92,8 @@ jobs:
         run: python scripts/run_prompt_eval.py
 
   remotion-typecheck:
+    needs: guard
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Remotion — typecheck
     runs-on: ubuntu-latest
     defaults:
@@ -78,6 +110,8 @@ jobs:
       - run: npx tsc --noEmit
 
   dashboard-typecheck:
+    needs: guard
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Dashboard — typecheck + UI token lint
     runs-on: ubuntu-latest
     defaults:
@@ -141,6 +175,8 @@ jobs:
           retention-days: 90
 
   rust-tests:
+    needs: guard
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Rust — unit + harness + schema tests
     runs-on: ubuntu-latest
     services:
@@ -205,6 +241,8 @@ jobs:
         run: cargo test -p harness
 
   rust-audit:
+    needs: guard
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Rust — cargo audit + clippy
     runs-on: ubuntu-latest
     steps:
@@ -231,6 +269,8 @@ jobs:
         run: cargo clippy -p harness -- -D warnings || true
 
   migration-equivalence:
+    needs: guard
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Migration — equivalence + JWT + schema tests
     runs-on: ubuntu-latest
     services:
