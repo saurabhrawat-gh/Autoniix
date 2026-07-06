@@ -84,7 +84,7 @@ jobs:
         run: |
           echo "Applying base schema (init-db.sql)..."
           psql -h localhost -U postgres -d autoniix_test -f scripts/init-db.sql -v ON_ERROR_STOP=1
-          for f in $(ls scripts/migrations/*.sql | sort); do
+          for f in $(ls infra/migrations/*.sql | sort); do
             echo "Applying $f..."
             psql -h localhost -U postgres -d autoniix_test -f "$f" -v ON_ERROR_STOP=1
           done
@@ -208,7 +208,7 @@ jobs:
           PGPASSWORD: postgres
         run: |
           psql -h localhost -U postgres -d autoniix_test -f scripts/init-db.sql -v ON_ERROR_STOP=1
-          for f in $(ls scripts/migrations/*.sql | sort); do
+          for f in $(ls infra/migrations/*.sql | sort); do
             psql -h localhost -U postgres -d autoniix_test -f "$f" -v ON_ERROR_STOP=1
           done
 

@@ -162,9 +162,9 @@ services:
       - POSTGRES_USER=temporal
       - POSTGRES_PWD=${TEMPORAL_DB_PASSWORD:-change_me_temporal_64}
       - POSTGRES_SEEDS=postgres-temporal
-      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/production.yaml
+      - DYNAMIC_CONFIG_FILE_PATH=infra/config/dynamicconfig/production.yaml
     volumes:
-      - ./config/dynamicconfig:/etc/temporal/config/dynamicconfig
+      - ./infra/config/dynamicconfig:/etc/temporal/infra/config/dynamicconfig
     ports:
       - "127.0.0.1:7233:7233"
     networks: [autoniix-net]
@@ -1048,8 +1048,8 @@ services:
   prometheus:
     image: prom/prometheus:v2.54.1
     volumes:
-      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./observability/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/observability/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
       - prometheus_data:/prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -1077,7 +1077,7 @@ services:
   alertmanager:
     image: prom/alertmanager:v0.27.0
     volumes:
-      - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./infra/observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
@@ -1119,7 +1119,7 @@ services:
     image: grafana/loki:2.9.10
     command: -config.file=/etc/loki/local-config.yaml
     volumes:
-      - ./observability/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - ./infra/observability/loki-config.yml:/etc/loki/local-config.yaml:ro
       - loki_data:/loki
     networks: [autoniix-net]
     restart: unless-stopped
@@ -1132,7 +1132,7 @@ services:
     image: grafana/promtail:2.9.10
     command: -config.file=/etc/promtail/config.yml
     volumes:
-      - ./observability/promtail-config.yml:/etc/promtail/config.yml:ro
+      - ./infra/observability/promtail-config.yml:/etc/promtail/config.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks: [autoniix-net]
     depends_on:
@@ -1153,7 +1153,7 @@ services:
     command: ["nginx", "-g", "daemon off;"]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./traefik/socket-proxy.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/traefik/socket-proxy.conf:/etc/nginx/nginx.conf:ro
     networks: [autoniix-net]
     restart: unless-stopped
     deploy:
@@ -1187,7 +1187,7 @@ services:
       - "traefik.http.middlewares.admin-auth.basicauth.realm=Autoniix Admin"
       - "traefik.http.middlewares.admin-auth.basicauth.removeheader=true"
     volumes:
-      - ./traefik:/traefik:ro
+      - ./infra/traefik:/traefik:ro
       - letsencrypt_data:/letsencrypt
     networks: [autoniix-net]
     restart: unless-stopped
@@ -1210,8 +1210,8 @@ services:
       - GF_SERVER_DOMAIN=${GRAFANA_DOMAIN:-grafana.localhost}
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards-json:ro
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards-json:ro
     ports:
       - "127.0.0.1:3001:3000"
     labels:

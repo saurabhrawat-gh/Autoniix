@@ -114,7 +114,7 @@ jobs:
         env:
           PGPASSWORD: postgres
         run: |
-          for f in scripts/migrations/*.sql; do
+          for f in infra/migrations/*.sql; do
             psql -h localhost -U postgres -d autoniix_test -f "$f" -v ON_ERROR_STOP=1 || true
           done
 

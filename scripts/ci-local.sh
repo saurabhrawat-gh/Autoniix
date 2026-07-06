@@ -154,8 +154,8 @@ if $RUN_RUST; then
         < "$ROOT/scripts/init-db.sql" >/dev/null || fail "init-db.sql"
     pass "Base schema applied"
 
-    step "[5/14] Apply scripts/migrations/*.sql"
-    for f in $(ls "$ROOT/scripts/migrations/"*.sql | sort); do
+    step "[5/14] Apply infra/migrations/*.sql"
+    for f in $(ls "$ROOT/infra/migrations/"*.sql | sort); do
         docker exec -i "$PG_CONTAINER" psql -U postgres -d autoniix_test -v ON_ERROR_STOP=1 \
             < "$f" >/dev/null || fail "Migration: $(basename "$f")"
     done
