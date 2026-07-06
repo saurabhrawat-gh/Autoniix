@@ -1,0 +1,1 @@
+self.__NEXT_FONT_MANIFEST="{\"pages\":{},\"app\":{\"/home/saurabh/Desktop/YouTube/Autonix/web/src/app/layout\":[\"static/media/558ca1a6aa3cb55e-s.p.woff2\",\"static/media/8db6fcbf2589ee12-s.p.ttf\",\"static/media/ae61a98659a92613-s.p.ttf\"]},\"appUsingSizeAdjust\":true,\"pagesUsingSizeAdjust\":false}"
