@@ -13,14 +13,14 @@ import pytest
 
 
 def test_credential_in_empty_secret_value():
-    from src.services.dashboard.v2.providers import CredentialIn
+    from services_api.dashboard.v2.providers import CredentialIn
 
     c = CredentialIn(category="tts", provider_name="edge_tts", label="free")
     assert c.secret_value == ""
 
 
 def test_credential_in_with_api_key():
-    from src.services.dashboard.v2.providers import CredentialIn
+    from services_api.dashboard.v2.providers import CredentialIn
 
     c = CredentialIn(
         category="llm", provider_name="openai", label="main",
@@ -31,7 +31,7 @@ def test_credential_in_with_api_key():
 
 
 def test_wizard_credential_in_schema():
-    from src.services.dashboard.v2.providers import WizardCredentialIn
+    from services_api.dashboard.v2.providers import WizardCredentialIn
 
     w = WizardCredentialIn(
         category="llm",

@@ -25,9 +25,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.agents.base import AgentObservation
-from src.agents.preventor import PreventorAgent, _has_unresolved_halt
-from src.services.brain.analyser import ChannelSignals
+from agents.base import AgentObservation
+from agents.preventor import PreventorAgent, _has_unresolved_halt
+from services_api.brain.analyser import ChannelSignals
 
 
 def _flag_map(flags):
@@ -97,7 +97,7 @@ class TestObserve:
     async def test_disabled_returns_none(self):
         agent = PreventorAgent()
         with patch(
-            "src.agents.preventor.get_flag",
+            "agents.preventor.get_flag",
             new=AsyncMock(return_value=False),
         ):
             obs = await agent.observe({"channel_id": "ch1"})
@@ -106,7 +106,7 @@ class TestObserve:
     async def test_flag_read_failure_returns_none(self):
         agent = PreventorAgent()
         with patch(
-            "src.agents.preventor.get_flag",
+            "agents.preventor.get_flag",
             new=AsyncMock(side_effect=RuntimeError("flags down")),
         ):
             obs = await agent.observe({"channel_id": "ch1"})
@@ -115,7 +115,7 @@ class TestObserve:
     async def test_missing_channel_id_returns_none(self):
         agent = PreventorAgent()
         with patch(
-            "src.agents.preventor.get_flag",
+            "agents.preventor.get_flag",
             new=AsyncMock(return_value=True),
         ):
             obs = await agent.observe({"content_id": "v1"})
@@ -125,11 +125,11 @@ class TestObserve:
         agent = PreventorAgent()
         with (
             patch(
-                "src.agents.preventor.get_flag",
+                "agents.preventor.get_flag",
                 new=AsyncMock(return_value=True),
             ),
             patch(
-                "src.agents.preventor.analyse_channel",
+                "agents.preventor.analyse_channel",
                 new=AsyncMock(side_effect=RuntimeError("db down")),
             ),
         ):
@@ -140,15 +140,15 @@ class TestObserve:
         agent = PreventorAgent()
         with (
             patch(
-                "src.agents.preventor.get_flag",
+                "agents.preventor.get_flag",
                 new=AsyncMock(return_value=True),
             ),
             patch(
-                "src.agents.preventor.analyse_channel",
+                "agents.preventor.analyse_channel",
                 new=AsyncMock(return_value=_signals()),
             ),
             patch(
-                "src.agents.preventor._has_unresolved_halt",
+                "agents.preventor._has_unresolved_halt",
                 new=AsyncMock(return_value=True),
             ),
         ):
@@ -165,15 +165,15 @@ class TestObserve:
         agent = PreventorAgent()
         with (
             patch(
-                "src.agents.preventor.get_flag",
+                "agents.preventor.get_flag",
                 new=AsyncMock(return_value=True),
             ),
             patch(
-                "src.agents.preventor.analyse_channel",
+                "agents.preventor.analyse_channel",
                 new=AsyncMock(return_value=_signals()),
             ),
             patch(
-                "src.agents.preventor._has_unresolved_halt",
+                "agents.preventor._has_unresolved_halt",
                 new=AsyncMock(return_value=False),
             ),
         ):
@@ -198,7 +198,7 @@ class TestDecide:
         agent = PreventorAgent()
         obs = _observation(_signals(), unresolved_halt=True)
         with patch(
-            "src.agents.preventor.get_flag",
+            "agents.preventor.get_flag",
             side_effect=_flag_map(_BASE_FLAGS),
         ):
             decision = await agent.decide(
@@ -214,7 +214,7 @@ class TestDecide:
         obs = _observation(_signals(), unresolved_halt=True)
         flags = {**_BASE_FLAGS, "preventor.veto_when_channel_halted": False}
         with patch(
-            "src.agents.preventor.get_flag",
+            "agents.preventor.get_flag",
             side_effect=_flag_map(flags),
         ):
             decision = await agent.decide(
@@ -227,7 +227,7 @@ class TestDecide:
         agent = PreventorAgent()
         obs = _observation(_signals(consecutive_failures=5))
         with patch(
-            "src.agents.preventor.get_flag",
+            "agents.preventor.get_flag",
             side_effect=_flag_map(_BASE_FLAGS),
         ):
             decision = await agent.decide(
@@ -243,7 +243,7 @@ class TestDecide:
             _signals(daily_budget_limit=100.0, daily_budget_remaining=4.0),
         )
         with patch(
-            "src.agents.preventor.get_flag",
+            "agents.preventor.get_flag",
             side_effect=_flag_map(_BASE_FLAGS),
         ):
             decision = await agent.decide(
@@ -263,7 +263,7 @@ class TestDecide:
             "preventor.threshold.hold.budget_pct_remaining": 0,
         }
         with patch(
-            "src.agents.preventor.get_flag",
+            "agents.preventor.get_flag",
             side_effect=_flag_map(flags),
         ):
             decision = await agent.decide(
@@ -281,7 +281,7 @@ class TestDecide:
             ),
         )
         with patch(
-            "src.agents.preventor.get_flag",
+            "agents.preventor.get_flag",
             side_effect=_flag_map(_BASE_FLAGS),
         ):
             decision = await agent.decide(
@@ -301,7 +301,7 @@ class TestDecide:
             ),
         )
         with patch(
-            "src.agents.preventor.get_flag",
+            "agents.preventor.get_flag",
             side_effect=_flag_map(_BASE_FLAGS),
         ):
             decision = await agent.decide(
@@ -314,7 +314,7 @@ class TestDecide:
         agent = PreventorAgent()
         obs = _observation(_signals())
         with patch(
-            "src.agents.preventor.get_flag",
+            "agents.preventor.get_flag",
             side_effect=_flag_map(_BASE_FLAGS),
         ):
             decision = await agent.decide(
@@ -333,7 +333,7 @@ class TestAct:
         agent = PreventorAgent()
         obs = _observation(_signals())
         with patch(
-            "src.agents.preventor.get_flag",
+            "agents.preventor.get_flag",
             side_effect=_flag_map(_BASE_FLAGS),
         ):
             decision = await agent.decide(
@@ -345,11 +345,11 @@ class TestAct:
         pool.fetchrow = AsyncMock(return_value={"id": 99})
         with (
             patch(
-                "src.agents.preventor.get_pool",
+                "agents.preventor.get_pool",
                 new=AsyncMock(return_value=pool),
             ),
             patch(
-                "src.agents.preventor.publish",
+                "agents.preventor.publish",
                 new=AsyncMock(return_value="event-id"),
             ) as pub,
         ):
@@ -368,7 +368,7 @@ class TestAct:
         agent = PreventorAgent()
         obs = _observation(_signals(consecutive_failures=5))
         with patch(
-            "src.agents.preventor.get_flag",
+            "agents.preventor.get_flag",
             side_effect=_flag_map(_BASE_FLAGS),
         ):
             decision = await agent.decide(
@@ -378,11 +378,11 @@ class TestAct:
         pool.fetchrow = AsyncMock(return_value={"id": 7})
         with (
             patch(
-                "src.agents.preventor.get_pool",
+                "agents.preventor.get_pool",
                 new=AsyncMock(return_value=pool),
             ),
             patch(
-                "src.agents.preventor.publish",
+                "agents.preventor.publish",
                 new=AsyncMock(side_effect=RuntimeError("redis down")),
             ),
         ):
@@ -398,7 +398,7 @@ class TestUnresolvedHalt:
         pool = MagicMock()
         pool.fetchrow = AsyncMock(return_value={"?column?": 1})
         with patch(
-            "src.agents.preventor.get_pool",
+            "agents.preventor.get_pool",
             new=AsyncMock(return_value=pool),
         ):
             assert await _has_unresolved_halt("ch1") is True
@@ -407,7 +407,7 @@ class TestUnresolvedHalt:
         pool = MagicMock()
         pool.fetchrow = AsyncMock(return_value=None)
         with patch(
-            "src.agents.preventor.get_pool",
+            "agents.preventor.get_pool",
             new=AsyncMock(return_value=pool),
         ):
             assert await _has_unresolved_halt("ch1") is False
@@ -416,7 +416,7 @@ class TestUnresolvedHalt:
         pool = MagicMock()
         pool.fetchrow = AsyncMock(side_effect=RuntimeError("db down"))
         with patch(
-            "src.agents.preventor.get_pool",
+            "agents.preventor.get_pool",
             new=AsyncMock(return_value=pool),
         ):
             assert await _has_unresolved_halt("ch1") is False

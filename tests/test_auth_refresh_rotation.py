@@ -16,7 +16,7 @@ from fastapi import HTTPException
 
 from tests.conftest import FakePool, FakeRecord
 
-_AUTH_MODULE = "src.services.dashboard.v2.auth"
+_AUTH_MODULE = "services_api.dashboard.v2.auth"
 
 
 def _pool_ctx(pool):
@@ -62,7 +62,7 @@ class TestRefreshHappyPath:
     @pytest.mark.asyncio
     async def test_refresh_marks_old_session_rotated_and_inserts_new(self):
         """TC-19-01 + TC-19-11: success path marks old row rotated and inserts new row."""
-        from src.services.dashboard.v2.auth import refresh
+        from services_api.dashboard.v2.auth import refresh
 
         pool = FakePool()
         pool.fetchrow.side_effect = [
@@ -95,7 +95,7 @@ class TestRefreshNoWorkspace:
     @pytest.mark.asyncio
     async def test_refresh_no_workspace_returns_wid_zero_not_one(self):
         """Regression: refresh with active_workspace_id=None must not fall back to wid=1 (AE-217)."""
-        from src.services.dashboard.v2.auth import refresh
+        from services_api.dashboard.v2.auth import refresh
 
         pool = FakePool()
         pool.fetchrow.side_effect = [
@@ -124,7 +124,7 @@ class TestRefreshRejected:
     @pytest.mark.asyncio
     async def test_refresh_missing_cookie_and_body_returns_401(self):
         """No refresh token anywhere -> 401."""
-        from src.services.dashboard.v2.auth import refresh
+        from services_api.dashboard.v2.auth import refresh
 
         req = _build_request(None)
         resp = MagicMock()
@@ -136,7 +136,7 @@ class TestRefreshRejected:
     @pytest.mark.asyncio
     async def test_refresh_replay_of_rotated_token_returns_401(self):
         """TC-19-04 + TC-19-12: token already rotated -> 401 (replay attack)."""
-        from src.services.dashboard.v2.auth import refresh
+        from services_api.dashboard.v2.auth import refresh
 
         pool = FakePool()
         rotated_row = _valid_session_row()
@@ -154,7 +154,7 @@ class TestRefreshRejected:
     @pytest.mark.asyncio
     async def test_refresh_expired_token_returns_401(self):
         """TC-19-05: past expires_at -> 401."""
-        from src.services.dashboard.v2.auth import refresh
+        from services_api.dashboard.v2.auth import refresh
 
         pool = FakePool()
         expired = _valid_session_row()
@@ -172,7 +172,7 @@ class TestRefreshRejected:
     @pytest.mark.asyncio
     async def test_refresh_revoked_token_returns_401(self):
         """TC-19-06: revoked_at set (post-logout) -> 401."""
-        from src.services.dashboard.v2.auth import refresh
+        from services_api.dashboard.v2.auth import refresh
 
         pool = FakePool()
         revoked = _valid_session_row()
@@ -190,7 +190,7 @@ class TestRefreshRejected:
     @pytest.mark.asyncio
     async def test_refresh_unknown_token_returns_401(self):
         """TC-19-07: token not in DB (tampered/forged) -> 401."""
-        from src.services.dashboard.v2.auth import refresh
+        from services_api.dashboard.v2.auth import refresh
 
         pool = FakePool()
         pool.fetchrow.return_value = None
@@ -206,7 +206,7 @@ class TestRefreshRejected:
     @pytest.mark.asyncio
     async def test_refresh_disabled_user_returns_401(self):
         """Disabled user account -> 401 even with a valid-looking session."""
-        from src.services.dashboard.v2.auth import refresh
+        from services_api.dashboard.v2.auth import refresh
 
         pool = FakePool()
         disabled = _valid_session_row()
@@ -227,8 +227,8 @@ class TestLogoutRevokesSession:
     @pytest.mark.asyncio
     async def test_logout_marks_session_revoked_and_clears_cookies(self):
         """TC-19-03: logout sets revoked_at on the session row and clears cookies."""
-        from src.services.dashboard.v2.auth import logout
-        from src.services.dashboard.v2._deps import Principal
+        from services_api.dashboard.v2.auth import logout
+        from services_api.dashboard.v2._deps import Principal
 
         pool = FakePool()
         pool.execute = AsyncMock(return_value="UPDATE 1")

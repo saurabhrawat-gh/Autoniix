@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.services.assembly.render_predictor import (
+from services_api.assembly.render_predictor import (
     compute_direction_complexity,
     estimate_render_duration,
     simplify_direction_for_retry,

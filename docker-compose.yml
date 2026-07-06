@@ -195,7 +195,7 @@ services:
   # Application Services
   research:
     build: .
-    command: uvicorn src.services.research.main:app --host 0.0.0.0 --port 8001
+    command: uvicorn services_api.research.main:app --host 0.0.0.0 --port 8001
     env_file: .env
     environment:
       - PORT=8001
@@ -211,7 +211,7 @@ services:
 
   script:
     build: .
-    command: uvicorn src.services.script.main:app --host 0.0.0.0 --port 8002
+    command: uvicorn services_api.script.main:app --host 0.0.0.0 --port 8002
     env_file: .env
     environment:
       - PORT=8002
@@ -226,7 +226,7 @@ services:
 
   voice:
     build: .
-    command: uvicorn src.services.voice.main:app --host 0.0.0.0 --port 8003
+    command: uvicorn services_api.voice.main:app --host 0.0.0.0 --port 8003
     env_file: .env
     environment:
       - PORT=8003
@@ -241,7 +241,7 @@ services:
 
   assets:
     build: .
-    command: uvicorn src.services.assets.main:app --host 0.0.0.0 --port 8004
+    command: uvicorn services_api.assets.main:app --host 0.0.0.0 --port 8004
     env_file: .env
     environment:
       - PORT=8004
@@ -256,7 +256,7 @@ services:
 
   thumbnail:
     build: .
-    command: uvicorn src.services.thumbnail.main:app --host 0.0.0.0 --port 8005
+    command: uvicorn services_api.thumbnail.main:app --host 0.0.0.0 --port 8005
     env_file: .env
     environment:
       - PORT=8005
@@ -271,7 +271,7 @@ services:
 
   assembly:
     build: .
-    command: uvicorn src.services.assembly.main:app --host 0.0.0.0 --port 8006
+    command: uvicorn services_api.assembly.main:app --host 0.0.0.0 --port 8006
     env_file: .env
     environment:
       - PORT=8006
@@ -285,7 +285,7 @@ services:
 
   delivery:
     build: .
-    command: uvicorn src.services.delivery.main:app --host 0.0.0.0 --port 8007
+    command: uvicorn services_api.delivery.main:app --host 0.0.0.0 --port 8007
     env_file: .env
     environment:
       - PORT=8007
@@ -299,7 +299,7 @@ services:
 
   analytics:
     build: .
-    command: uvicorn src.services.analytics.main:app --host 0.0.0.0 --port 8008
+    command: uvicorn services_api.analytics.main:app --host 0.0.0.0 --port 8008
     env_file: .env
     environment:
       - PORT=8008
@@ -313,7 +313,7 @@ services:
 
   admin:
     build: .
-    command: uvicorn src.services.admin.main:app --host 0.0.0.0 --port 8009
+    command: uvicorn services_api.admin.main:app --host 0.0.0.0 --port 8009
     env_file: .env
     environment:
       - PORT=8009
@@ -327,7 +327,7 @@ services:
 
   direction:
     build: .
-    command: uvicorn src.services.direction.main:app --host 0.0.0.0 --port 8010
+    command: uvicorn services_api.direction.main:app --host 0.0.0.0 --port 8010
     env_file: .env
     environment:
       - PORT=8010
@@ -341,7 +341,7 @@ services:
 
   brand:
     build: .
-    command: uvicorn src.services.brand.main:app --host 0.0.0.0 --port 8012
+    command: uvicorn services_api.brand.main:app --host 0.0.0.0 --port 8012
     env_file: .env
     environment:
       - PORT=8012
@@ -360,7 +360,7 @@ services:
   # enable enforcement. Health + decision API on port 8015.
   brain:
     build: .
-    command: python -m src.services.brain.main
+    command: python -m services_api.brain.main
     env_file: .env
     environment:
       - BRAIN_PORT=8015
@@ -383,7 +383,7 @@ services:
 
   editor:
     build: .
-    command: uvicorn src.services.editor.main:app --host 0.0.0.0 --port 8013
+    command: uvicorn services_api.editor.main:app --host 0.0.0.0 --port 8013
     env_file: .env
     environment:
       - PORT=8013
@@ -397,7 +397,7 @@ services:
 
   sheets-sync:
     build: .
-    command: uvicorn src.services.sheets_sync.main:app --host 0.0.0.0 --port 8011
+    command: uvicorn services_api.sheets_sync.main:app --host 0.0.0.0 --port 8011
     env_file: .env
     environment:
       - PORT=8011
@@ -618,7 +618,7 @@ services:
   # Temporal Workers
   worker-production:
     build: .
-    command: python -m src.workers.run_production
+    command: python -m temporal_workers.run_production
     env_file: .env
     networks: [autoniix-net]
     healthcheck:
@@ -633,7 +633,7 @@ services:
 
   worker-scheduler:
     build: .
-    command: python -m src.workers.run_scheduler
+    command: python -m temporal_workers.run_scheduler
     env_file: .env
     networks: [autoniix-net]
     healthcheck:
@@ -899,7 +899,7 @@ services:
   # registered as skipped until ffmpeg is added to the worker image.
   worker-media-jobs:
     build: .
-    command: python -m src.workers.media_jobs.runner
+    command: python -m temporal_workers.media_jobs.runner
     env_file: .env
     environment:
       MEDIA_JOBS_CONCURRENCY: "${MEDIA_JOBS_CONCURRENCY:-2}"
@@ -928,7 +928,7 @@ services:
   # Dashboard
   dashboard-bff:
     build: .
-    command: uvicorn src.services.dashboard.main:app --host 0.0.0.0 --port 8020
+    command: uvicorn services_api.dashboard.main:app --host 0.0.0.0 --port 8020
     env_file: .env
     ports:
       - "127.0.0.1:8020:8020"

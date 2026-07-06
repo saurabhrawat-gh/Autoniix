@@ -16,9 +16,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.agents.base import AgentDecision, AgentObservation, BaseAgent
-from src.agents.memory import AgentMemory, MemoryRecallResult
-from src.agents.registry import AgentRegistry
+from agents.base import AgentDecision, AgentObservation, BaseAgent
+from agents.memory import AgentMemory, MemoryRecallResult
+from agents.registry import AgentRegistry
 
 
 
@@ -179,7 +179,7 @@ class TestBaseAgent:
         assert "remember-end" in agent.calls
 
     async def test_agent_decision_has_schema_version(self):
-        from src.agents.base import AGENT_DECISION_SCHEMA_VERSION, AgentDecision
+        from agents.base import AGENT_DECISION_SCHEMA_VERSION, AgentDecision
         d = AgentDecision(
             decision_type="HALT",
             scope="channel",
@@ -215,7 +215,7 @@ class TestAgentMemory:
         return AgentMemory(agent_name="brain", table="brain_decisions")
 
     async def test_recall_disabled_by_flag(self, memory):
-        with patch("src.agents.memory.get_flag", new=AsyncMock(return_value=False)):
+        with patch("agents.memory.get_flag", new=AsyncMock(return_value=False)):
             result = await memory.recall("anything")
         assert result.rows == []
         assert result.skipped_reason == "disabled_by_flag"
@@ -227,9 +227,9 @@ class TestAgentMemory:
             {"id": 3, "decision_type": "HOLD", "score": 0.7, "cosine_sim": 0.7},
         ]
         with (
-            patch("src.agents.memory.get_flag", new=AsyncMock(return_value=True)),
+            patch("agents.memory.get_flag", new=AsyncMock(return_value=True)),
             patch(
-                "src.agents.memory.semantic_search",
+                "agents.memory.semantic_search",
                 new=AsyncMock(return_value=rows),
             ),
         ):
@@ -239,9 +239,9 @@ class TestAgentMemory:
     async def test_recall_embedding_failure_returns_empty(self, memory):
         from llm.embeddings import EmbeddingConfigError
         with (
-            patch("src.agents.memory.get_flag", new=AsyncMock(return_value=True)),
+            patch("agents.memory.get_flag", new=AsyncMock(return_value=True)),
             patch(
-                "src.agents.memory.semantic_search",
+                "agents.memory.semantic_search",
                 new=AsyncMock(side_effect=EmbeddingConfigError("no key")),
             ),
         ):
@@ -264,8 +264,8 @@ class TestAgentMemory:
             facts={"avg_score": 6.5, "consecutive_failures": 2},
         )
         with (
-            patch("src.agents.memory.get_flag", new=AsyncMock(return_value=True)),
-            patch("src.agents.memory.semantic_search", new=fake_search),
+            patch("agents.memory.get_flag", new=AsyncMock(return_value=True)),
+            patch("agents.memory.semantic_search", new=fake_search),
         ):
             await memory.recall_for_observation(obs)
 
@@ -306,7 +306,7 @@ class TestAgentRegistry:
 class TestBrainAgentLifecycle:
     @pytest.fixture(autouse=True)
     def patch_deps(self):
-        from src.services.brain.analyser import ChannelSignals
+        from services_api.brain.analyser import ChannelSignals
         self._signals = ChannelSignals(
             channel_id="ch1",
             avg_composite_score=8.0,
@@ -316,11 +316,11 @@ class TestBrainAgentLifecycle:
         )
         with (
             patch(
-                "src.services.brain.agent.analyse_channel",
+                "services_api.brain.agent.analyse_channel",
                 new=AsyncMock(return_value=self._signals),
             ),
             patch(
-                "src.services.brain.agent._evaluate",
+                "services_api.brain.agent._evaluate",
                 new=AsyncMock(return_value={
                     "id": 7,
                     "decision_type": "HALT",
@@ -332,9 +332,9 @@ class TestBrainAgentLifecycle:
                     "context_summary": "ctx",
                 }),
             ),
-            patch("src.services.brain.agent.publish", new=AsyncMock()) as pub,
+            patch("services_api.brain.agent.publish", new=AsyncMock()) as pub,
             patch(
-                "src.services.brain.agent.get_pool",
+                "services_api.brain.agent.get_pool",
                 new=AsyncMock(),
             ),
         ):
@@ -342,7 +342,7 @@ class TestBrainAgentLifecycle:
             yield
 
     async def test_observe_returns_observation(self):
-        from src.services.brain.agent import BrainAgent
+        from services_api.brain.agent import BrainAgent
         agent = BrainAgent()
         obs = await agent.observe({"channel_id": "ch1", "content_id": None})
         assert obs is not None
@@ -351,13 +351,13 @@ class TestBrainAgentLifecycle:
         assert obs.facts["consecutive_failures"] == 3
 
     async def test_observe_missing_channel_id_returns_none(self):
-        from src.services.brain.agent import BrainAgent
+        from services_api.brain.agent import BrainAgent
         agent = BrainAgent()
         obs = await agent.observe({})
         assert obs is None
 
     async def test_decide_without_memories_keeps_reasoning(self):
-        from src.services.brain.agent import BrainAgent
+        from services_api.brain.agent import BrainAgent
         agent = BrainAgent()
         obs = await agent.observe({"channel_id": "ch1", "content_id": None})
         state = await agent.reason(obs, memories=[])
@@ -367,7 +367,7 @@ class TestBrainAgentLifecycle:
         assert "Precedent:" not in decision.reasoning
 
     async def test_decide_with_memories_prepends_precedent(self):
-        from src.services.brain.agent import BrainAgent
+        from services_api.brain.agent import BrainAgent
         agent = BrainAgent()
         obs = await agent.observe({"channel_id": "ch1", "content_id": None})
         memories = [
@@ -384,7 +384,7 @@ class TestBrainAgentLifecycle:
         assert decision.extras["memories_used"] == 2
 
     async def test_full_run_publishes_directive(self):
-        from src.services.brain.agent import BrainAgent
+        from services_api.brain.agent import BrainAgent
         agent = BrainAgent()
         with patch.object(
             BrainAgent, "recall", new=AsyncMock(return_value=[])

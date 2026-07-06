@@ -7,7 +7,7 @@ from __future__ import annotations
 import pytest
 from unittest.mock import AsyncMock, patch
 
-from src.services.assets.query_optimizer import (
+from services_api.assets.query_optimizer import (
     optimize_query,
     score_asset_relevance,
     _query_hash,

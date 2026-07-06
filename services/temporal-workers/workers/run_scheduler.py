@@ -1,0 +1,94 @@
+"""Temporal Worker: scheduler task queue.
+
+Registers the DailySchedulerWorkflow.
+Start with:  python -m temporal_workers.run_scheduler
+"""
+from __future__ import annotations
+
+import asyncio
+
+import structlog
+from temporalio.client import Client
+from temporalio.worker import Worker
+
+from core.config import settings
+from observability.sentry import init_sentry
+init_sentry("worker-scheduler")
+# All workflow orchestration has been migrated to the Go worker.
+# This Python worker handles ACTIVITIES ONLY.
+from src.temporal_workflows.model_activities import (
+    check_model_freshness,
+    check_model_drift,
+    retrain_model,
+    update_model_health_activity,
+)
+from src.temporal_workflows.gate_activities import (
+    list_niches_with_outcomes_activity,
+    calibrate_gate_for_niche_activity,
+)
+from src.temporal_workflows.niche_pulse_activities import (
+    refresh_niche_pulse_activity,
+)
+from src.temporal_workflows.retention_activities import (
+    list_videos_needing_retention_activity,
+    fetch_retention_for_video_activity,
+)
+from temporal_workers.provider_health_beat import (
+    check_all_provider_health,
+)
+from temporal_workers.activities.common import (
+    acquire_channel_lock,
+    check_system_status,
+    get_eligible_channels,
+    send_notification,
+)
+from temporal_workers.change_request_beat import (
+    expire_stale_change_requests,
+)
+
+logger = structlog.get_logger()
+
+
+async def main() -> None:
+    logger.info(
+        "worker.scheduler.starting",
+        temporal_host=settings.temporal_host,
+        namespace=settings.temporal_namespace,
+    )
+
+    client = await Client.connect(
+        settings.temporal_host,
+        namespace=settings.temporal_namespace,
+    )
+
+    worker = Worker(
+        client,
+        task_queue="scheduler",
+        workflows=[],  # Go worker handles workflow orchestration on this queue.
+        activities=[
+            check_system_status,
+            get_eligible_channels,
+            acquire_channel_lock,
+            send_notification,
+            check_model_freshness,
+            check_model_drift,
+            retrain_model,
+            update_model_health_activity,
+            list_niches_with_outcomes_activity,
+            calibrate_gate_for_niche_activity,
+            refresh_niche_pulse_activity,
+            list_videos_needing_retention_activity,
+            fetch_retention_for_video_activity,
+            check_all_provider_health,
+            expire_stale_change_requests,
+        ],
+        max_concurrent_activities=settings.temporal_scheduler_max_activities,
+    )
+
+    logger.info("worker.scheduler.listening", task_queue="scheduler",
+                max_activities=settings.temporal_scheduler_max_activities)
+    await worker.run()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

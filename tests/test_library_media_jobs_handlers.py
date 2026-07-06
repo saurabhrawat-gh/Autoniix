@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from PIL import Image
 
-from src.workers.media_jobs.handlers import autotag, embed, probe
+from temporal_workers.media_jobs.handlers import autotag, embed, probe
 
 
 
@@ -26,7 +26,7 @@ async def test_probe_handler_writes_image_metadata(mock_pool):
         "mime_type": "image/png",
     }
     with patch(
-        "src.workers.media_jobs.handlers.probe.download_bytes",
+        "temporal_workers.media_jobs.handlers.probe.download_bytes",
         AsyncMock(return_value=buf.getvalue()),
     ):
         out = await probe.run(mock_pool, asset, {"kind": "probe"})
@@ -66,7 +66,7 @@ async def test_embed_handler_skips_when_no_text(mock_pool):
 @pytest.mark.asyncio
 async def test_embed_handler_upserts_vector_on_success(mock_pool):
     with patch(
-        "src.workers.media_jobs.handlers.embed.embed_text",
+        "temporal_workers.media_jobs.handlers.embed.embed_text",
         AsyncMock(return_value=[0.1] * 1536),
     ):
         out = await embed.run(
@@ -87,7 +87,7 @@ async def test_embed_handler_marks_failed_on_embedding_error(mock_pool):
     from llm.embeddings import EmbeddingError
 
     with patch(
-        "src.workers.media_jobs.handlers.embed.embed_text",
+        "temporal_workers.media_jobs.handlers.embed.embed_text",
         AsyncMock(side_effect=EmbeddingError("down")),
     ):
         out = await embed.run(
@@ -102,7 +102,7 @@ async def test_embed_handler_marks_failed_on_embedding_error(mock_pool):
 
 @pytest.mark.asyncio
 async def test_autotag_handler_skips_non_image(mock_pool):
-    with patch("src.workers.media_jobs.handlers.autotag.settings.openai_api_key", "sk-x"):
+    with patch("temporal_workers.media_jobs.handlers.autotag.settings.openai_api_key", "sk-x"):
         out = await autotag.run(mock_pool, {"id": 1, "kind": "video", "storage_key": "k"},
                                 {"kind": "autotag"})
     assert out["status"] == "skipped"
@@ -110,7 +110,7 @@ async def test_autotag_handler_skips_non_image(mock_pool):
 
 @pytest.mark.asyncio
 async def test_autotag_handler_skips_without_api_key(mock_pool):
-    with patch("src.workers.media_jobs.handlers.autotag.settings.openai_api_key", ""):
+    with patch("temporal_workers.media_jobs.handlers.autotag.settings.openai_api_key", ""):
         out = await autotag.run(mock_pool, {"id": 1, "kind": "image", "storage_key": "k"},
                                 {"kind": "autotag"})
     assert out["status"] == "skipped"
@@ -141,10 +141,10 @@ async def test_autotag_handler_writes_tags_and_caption(mock_pool):
         async def __aexit__(self, *a): return False
         async def post(self, *a, **k): return _R()
 
-    with patch("src.workers.media_jobs.handlers.autotag.settings.openai_api_key", "sk-x"), \
-         patch("src.workers.media_jobs.handlers.autotag.httpx.AsyncClient", _Client), \
+    with patch("temporal_workers.media_jobs.handlers.autotag.settings.openai_api_key", "sk-x"), \
+         patch("temporal_workers.media_jobs.handlers.autotag.httpx.AsyncClient", _Client), \
          patch(
-             "src.workers.media_jobs.handlers.autotag.download_bytes",
+             "temporal_workers.media_jobs.handlers.autotag.download_bytes",
              AsyncMock(return_value=b"\x89PNG\r\n"),
          ):
         out = await autotag.run(

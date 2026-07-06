@@ -110,9 +110,9 @@ def mock_db_pool(mock_pool):
     in v2 routers (workspace, auth) so direct-call unit tests bypass the real pool.
     """
     targets = [
-        "src.services.dashboard.v2.workspace.get_pool",
-        "src.services.dashboard.v2.auth.get_pool",
-        "src.services.dashboard.v2._deps.get_pool",
+        "services_api.dashboard.v2.workspace.get_pool",
+        "services_api.dashboard.v2.auth.get_pool",
+        "services_api.dashboard.v2._deps.get_pool",
     ]
     patches = [patch(t, new_callable=AsyncMock, return_value=mock_pool) for t in targets]
     for p in patches:

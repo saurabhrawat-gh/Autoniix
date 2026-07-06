@@ -36,7 +36,7 @@ def _make_row(rotated_at=None, created_at=None, days_ago: int | None = None) -> 
 
 
 def test_rotation_status_not_overdue():
-    from src.services.dashboard.v2.providers import _rotation_status_dict, ROTATION_WARN_DAYS
+    from services_api.dashboard.v2.providers import _rotation_status_dict, ROTATION_WARN_DAYS
 
     row = _make_row(days_ago=10)
     result = _rotation_status_dict(row)
@@ -47,7 +47,7 @@ def test_rotation_status_not_overdue():
 
 
 def test_rotation_status_overdue():
-    from src.services.dashboard.v2.providers import _rotation_status_dict, ROTATION_WARN_DAYS
+    from services_api.dashboard.v2.providers import _rotation_status_dict, ROTATION_WARN_DAYS
 
     row = _make_row(days_ago=ROTATION_WARN_DAYS)
     result = _rotation_status_dict(row)
@@ -57,7 +57,7 @@ def test_rotation_status_overdue():
 
 
 def test_rotation_status_never_rotated_uses_created_at():
-    from src.services.dashboard.v2.providers import _rotation_status_dict
+    from services_api.dashboard.v2.providers import _rotation_status_dict
 
     now = datetime.datetime.now(tz=ZoneInfo("UTC"))
     created_at = now - datetime.timedelta(days=45)
@@ -69,7 +69,7 @@ def test_rotation_status_never_rotated_uses_created_at():
 
 
 def test_rotation_status_dict_fields():
-    from src.services.dashboard.v2.providers import _rotation_status_dict
+    from services_api.dashboard.v2.providers import _rotation_status_dict
 
     row = _make_row(days_ago=5)
     result = _rotation_status_dict(row)
@@ -87,7 +87,7 @@ def test_rotation_status_dict_fields():
 
 
 def test_rotate_in_has_hint():
-    from src.services.dashboard.v2.providers import RotateIn
+    from services_api.dashboard.v2.providers import RotateIn
 
     r = RotateIn(secret_value="new-key", hint="Quarterly rotation per security policy")
     assert r.hint == "Quarterly rotation per security policy"
@@ -95,7 +95,7 @@ def test_rotate_in_has_hint():
 
 
 def test_rotate_in_hint_optional():
-    from src.services.dashboard.v2.providers import RotateIn
+    from services_api.dashboard.v2.providers import RotateIn
 
     r = RotateIn(secret_value="new-key")
     assert r.hint is None
@@ -103,7 +103,7 @@ def test_rotate_in_hint_optional():
 
 
 def test_rotation_warn_days_defined():
-    from src.services.dashboard.v2.providers import ROTATION_WARN_DAYS
+    from services_api.dashboard.v2.providers import ROTATION_WARN_DAYS
 
     assert isinstance(ROTATION_WARN_DAYS, int)
     assert ROTATION_WARN_DAYS > 0

@@ -19,7 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.services.brain import reflector as R
+from services_api.brain import reflector as R
 
 
 def _make_pattern(

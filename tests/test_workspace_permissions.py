@@ -9,7 +9,7 @@ Positive sanity: each role can hit the endpoints it *is* allowed to.
 Test strategy
 -------------
 The permission gate lives in the FastAPI dependency
-``require_permission(name)`` from ``src.services.dashboard.v2._deps``.  We
+``require_permission(name)`` from ``services_api.dashboard.v2._deps``.  We
 exercise the dependency's inner ``_checker`` coroutine directly, with the
 underlying ``get_permissions_for_role`` patched to return the canonical
 role→permission matrix from
@@ -27,9 +27,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import HTTPException
 
-from src.services.dashboard.v2._deps import Principal, require_permission
+from services_api.dashboard.v2._deps import Principal, require_permission
 
-_PERMS_MODULE = "src.services.dashboard.v2._permissions.get_permissions_for_role"
+_PERMS_MODULE = "services_api.dashboard.v2._permissions.get_permissions_for_role"
 
 
 

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.services.direction.direction_merger import (
+from services_api.direction.direction_merger import (
     merge_script_direction_with_assets,
     score_merged_direction,
     SECTION_PACING,

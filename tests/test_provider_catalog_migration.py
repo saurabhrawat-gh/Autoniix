@@ -46,7 +46,7 @@ async def test_custom_openai_compat_health_check_no_url():
 
 
 def test_rotate_in_accepts_hint():
-    from src.services.dashboard.v2.providers import RotateIn
+    from services_api.dashboard.v2.providers import RotateIn
 
     r = RotateIn(secret_value="new-key", hint="Rotated during incident 2026-05-23")
     assert r.hint == "Rotated during incident 2026-05-23"
@@ -54,7 +54,7 @@ def test_rotate_in_accepts_hint():
 
 
 def test_rotate_in_hint_optional():
-    from src.services.dashboard.v2.providers import RotateIn
+    from services_api.dashboard.v2.providers import RotateIn
 
     r = RotateIn(secret_value="new-key")
     assert r.hint is None

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.services.delivery.seo_optimizer import (
+from services_api.delivery.seo_optimizer import (
     score_title_seo,
     optimize_description,
     suggest_tags,

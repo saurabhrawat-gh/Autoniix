@@ -42,7 +42,7 @@ def _collect_legacy_routes():
     os.environ.setdefault("DATABASE_URL", "postgresql://app:app@localhost:5433/autoniix")
     os.environ.setdefault("REDIS_URL", "redis://localhost:6380")
 
-    from src.services.dashboard.main import app  # noqa: PLC0415
+    from services_api.dashboard.main import app  # noqa: PLC0415
 
     out: list[dict] = []
     for r in app.routes:

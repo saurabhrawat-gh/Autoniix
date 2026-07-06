@@ -30,4 +30,4 @@ ENV PYTHONUNBUFFERED=1
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
-CMD ["python", "-m", "src.services.research.main"]
+CMD ["python", "-m", "services_api.research.main"]

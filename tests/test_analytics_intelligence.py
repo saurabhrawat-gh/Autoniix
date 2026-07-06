@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock
 from tests.conftest import FakeRecord
 
 
-from src.services.analytics.pattern_miner import mine_performance_patterns
+from services_api.analytics.pattern_miner import mine_performance_patterns
 
 
 class TestMinePerformancePatterns:

@@ -12,7 +12,7 @@ import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from src.services.dashboard.v2.finishing import (
+from services_api.dashboard.v2.finishing import (
     FinishingConfigUpdate,
     get_finishing_config,
     list_finishing_presets,
@@ -20,11 +20,11 @@ from src.services.dashboard.v2.finishing import (
 )
 from tests.conftest import FakePool, FakeRecord
 
-_MOD = "src.services.dashboard.v2.finishing"
+_MOD = "services_api.dashboard.v2.finishing"
 
 
 def _principal(role: str = "owner"):
-    from src.services.dashboard.v2._deps import Principal
+    from services_api.dashboard.v2._deps import Principal
     return Principal(user_id=1, email="t@t.com", role=role, source="v2_jwt", workspace_id=1)
 
 
@@ -142,7 +142,7 @@ class TestUpdateConfig:
 @pytest.mark.asyncio
 class TestRoleEnforcement:
     async def test_viewer_blocked_from_update(self):
-        from src.services.dashboard.v2._deps import require_role
+        from services_api.dashboard.v2._deps import require_role
 
         checker = require_role("owner", "member")
         with pytest.raises(HTTPException) as exc:
@@ -150,7 +150,7 @@ class TestRoleEnforcement:
         assert exc.value.status_code == 403
 
     async def test_member_allowed(self):
-        from src.services.dashboard.v2._deps import require_role
+        from services_api.dashboard.v2._deps import require_role
 
         checker = require_role("owner", "member")
         result = await checker(p=_principal("member"))

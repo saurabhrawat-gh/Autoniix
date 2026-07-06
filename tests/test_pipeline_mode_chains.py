@@ -40,14 +40,14 @@ def test_cache_key_differentiates_channel_and_mode():
 
 
 def test_chain_v2_in_default_pipeline_mode():
-    from src.services.dashboard.v2.providers import ChainV2In
+    from services_api.dashboard.v2.providers import ChainV2In
 
     body = ChainV2In(category="llm", credential_ids=[])
     assert body.pipeline_mode == "production"
 
 
 def test_chain_v2_in_test_pipeline_mode():
-    from src.services.dashboard.v2.providers import ChainV2In
+    from services_api.dashboard.v2.providers import ChainV2In
 
     body = ChainV2In(category="llm", pipeline_mode="test", credential_ids=[])
     assert body.pipeline_mode == "test"

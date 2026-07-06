@@ -7,7 +7,7 @@ from __future__ import annotations
 import pytest
 from unittest.mock import AsyncMock
 
-from src.services.experiments.observability import (
+from services_api.experiments.observability import (
     log_decision,
     get_cost_savings,
     get_model_health_summary,

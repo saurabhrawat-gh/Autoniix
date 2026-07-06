@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.services.dashboard.v2.library import (
+from services_api.dashboard.v2.library import (
     SearchIn,
     _fts_search,
     _fuse,

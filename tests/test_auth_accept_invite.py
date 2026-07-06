@@ -44,7 +44,7 @@ from fastapi import HTTPException
 
 from tests.conftest import FakePool, FakeRecord
 
-_AUTH = "src.services.dashboard.v2.auth"
+_AUTH = "services_api.dashboard.v2.auth"
 
 
 
@@ -146,7 +146,7 @@ class TestInvitePreview:
     @pytest.mark.asyncio
     async def test_ws_acc_01_valid_token_preview_returns_full_metadata(self):
         """WS-ACC-01 — Valid token preview → 200 with email, role, workspace_name, user_exists."""
-        from src.services.dashboard.v2.auth import invite_info
+        from services_api.dashboard.v2.auth import invite_info
 
         pool = FakePool()
         pool.fetchrow.side_effect = [
@@ -169,7 +169,7 @@ class TestInvitePreview:
     @pytest.mark.asyncio
     async def test_ws_acc_02_malformed_token_returns_400(self):
         """WS-ACC-02 — Malformed token (no matching row) → 400 'Invalid invitation token'."""
-        from src.services.dashboard.v2.auth import invite_info
+        from services_api.dashboard.v2.auth import invite_info
 
         pool = FakePool()
         pool.fetchrow.return_value = None
@@ -183,7 +183,7 @@ class TestInvitePreview:
     @pytest.mark.asyncio
     async def test_ws_acc_03_nonexistent_token_hash_returns_400(self):
         """WS-ACC-03 — Non-existent token hash → 400 (same path as malformed)."""
-        from src.services.dashboard.v2.auth import invite_info
+        from services_api.dashboard.v2.auth import invite_info
 
         pool = FakePool()
         pool.fetchrow.return_value = None
@@ -201,7 +201,7 @@ class TestAcceptHappyPaths:
     async def test_ws_acc_04_brand_new_email_creates_user_with_viewer_platform_role(self):
         """WS-ACC-04 + WS-ACC-19 — Brand-new email → INSERT users (role='user'),
         INSERT workspace_members (role from invite). AE-284: viewer→user rename."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import accept_invite, AcceptInviteIn
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
@@ -253,7 +253,7 @@ class TestAcceptHappyPaths:
     @pytest.mark.asyncio
     async def test_ws_acc_05_existing_user_no_password_required(self):
         """WS-ACC-05 — Existing email → reuses user, NO INSERT users, NO password required."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import accept_invite, AcceptInviteIn
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
@@ -287,7 +287,7 @@ class TestAcceptHappyPaths:
     async def test_ws_acc_14_existing_member_role_upgrade_via_upsert(self):
         """WS-ACC-14 — Existing member of same workspace, new invite with different
         role → upsert (ON CONFLICT DO UPDATE SET role=EXCLUDED.role)."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import accept_invite, AcceptInviteIn
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
@@ -330,7 +330,7 @@ class TestAcceptHappyPaths:
         primitive is idempotent for the case where accepted_at IS NULL but
         the membership row already exists from a prior accept that somehow
         left accepted_at NULL.)"""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import accept_invite, AcceptInviteIn
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
@@ -362,7 +362,7 @@ class TestAcceptErrorPaths:
     @pytest.mark.asyncio
     async def test_ws_acc_06_disabled_user_rejected_403(self):
         """WS-ACC-06 — Existing user with disabled=true → 403, invite NOT marked accepted."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import accept_invite, AcceptInviteIn
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
@@ -399,7 +399,7 @@ class TestAcceptErrorPaths:
     @pytest.mark.asyncio
     async def test_ws_acc_07_replay_already_accepted_400(self):
         """WS-ACC-07 — Replay (accepted_at not null) → 400 'Invitation already used'."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import accept_invite, AcceptInviteIn
 
         pool = FakeTxnPool()
         pool.fetchrow.return_value = FakeRecord(
@@ -419,7 +419,7 @@ class TestAcceptErrorPaths:
     @pytest.mark.asyncio
     async def test_ws_acc_08_expired_token_400(self):
         """WS-ACC-08 — Expired token → 400 'Invitation has expired'."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import accept_invite, AcceptInviteIn
 
         pool = FakeTxnPool()
         pool.fetchrow.return_value = FakeRecord(
@@ -439,7 +439,7 @@ class TestAcceptErrorPaths:
     @pytest.mark.asyncio
     async def test_ws_acc_09_new_account_no_password_400(self):
         """WS-ACC-09 — New user (no row) and no password → 400."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import accept_invite, AcceptInviteIn
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
@@ -466,7 +466,7 @@ class TestAcceptErrorPaths:
 
     def test_ws_acc_10_short_password_rejected_by_pydantic(self):
         """WS-ACC-10 — password <8 chars → pydantic ValidationError (would be 422 via FastAPI)."""
-        from src.services.dashboard.v2.auth import AcceptInviteIn
+        from services_api.dashboard.v2.auth import AcceptInviteIn
         with pytest.raises(Exception):
             AcceptInviteIn(token="raw", password="short")
 
@@ -476,7 +476,7 @@ class TestAcceptErrorPaths:
     )
     def test_ws_acc_10_password_at_or_above_min_accepted(self, good_password: str):
         """WS-ACC-10 (positive) — password >= 8 chars accepted by pydantic."""
-        from src.services.dashboard.v2.auth import AcceptInviteIn
+        from services_api.dashboard.v2.auth import AcceptInviteIn
         m = AcceptInviteIn(token="raw", password=good_password)
         assert m.password == good_password
 
@@ -484,7 +484,7 @@ class TestAcceptErrorPaths:
     async def test_ws_acc_13_email_case_insensitive_match(self):
         """WS-ACC-13 — Invitee email differs only in case from users.email →
         matched via SQL ``lower()`` on both sides."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import accept_invite, AcceptInviteIn
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
@@ -529,7 +529,7 @@ class TestPrivilegeEscalationRegression:
     async def test_ws_acc_19_new_user_platform_role_is_viewer_not_invite_role(self):
         """WS-ACC-19 — Brand-new user accepting an invite has ``users.role='user'``
         (platform role), even when the invite role is ``member``. AE-284 rename."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import accept_invite, AcceptInviteIn
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
@@ -571,7 +571,7 @@ class TestPrivilegeEscalationRegression:
         model has only token/password/display_name — pydantic should drop or
         reject any extra ``role`` field, and the handler reads role from the
         invite row exclusively."""
-        from src.services.dashboard.v2.auth import AcceptInviteIn
+        from services_api.dashboard.v2.auth import AcceptInviteIn
         m = AcceptInviteIn.model_validate({
             "token": "raw", "password": "longpassword",
             "role": "owner",
@@ -605,7 +605,7 @@ class TestCrossInviteTampering:
         product wants the strict 403 path, that's a separate code change
         and should be tracked with a follow-up bug.
         """
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import accept_invite, AcceptInviteIn
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
@@ -643,7 +643,7 @@ class TestDeferredToTestcontainer:
     async def test_ws_acc_12_workspace_deleted_between_invite_and_accept(self):
         """WS-ACC-12 — Workspace deleted after invite creation but before acceptance
         → 410 Gone with descriptive message (application-level check, no FK reliance)."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import accept_invite, AcceptInviteIn
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [

@@ -21,21 +21,21 @@ from fastapi import HTTPException
 class TestMembershipCache:
 
     def setup_method(self):
-        from src.services.dashboard.v2 import _membership as mm
+        from services_api.dashboard.v2 import _membership as mm
         mm._cache.clear()
 
     def teardown_method(self):
-        from src.services.dashboard.v2 import _membership as mm
+        from services_api.dashboard.v2 import _membership as mm
         mm._cache.clear()
 
     @pytest.mark.asyncio
     async def test_cache_miss_queries_db_member(self):
-        from src.services.dashboard.v2 import _membership as mm
+        from services_api.dashboard.v2 import _membership as mm
 
         mock_pool = AsyncMock()
         mock_pool.fetchval.return_value = 1
 
-        with patch("src.services.dashboard.v2._membership.get_pool", AsyncMock(return_value=mock_pool)):
+        with patch("services_api.dashboard.v2._membership.get_pool", AsyncMock(return_value=mock_pool)):
             result = await mm.check_membership(42, 7)
 
         assert result is True
@@ -44,12 +44,12 @@ class TestMembershipCache:
 
     @pytest.mark.asyncio
     async def test_cache_miss_queries_db_non_member(self):
-        from src.services.dashboard.v2 import _membership as mm
+        from services_api.dashboard.v2 import _membership as mm
 
         mock_pool = AsyncMock()
         mock_pool.fetchval.return_value = None
 
-        with patch("src.services.dashboard.v2._membership.get_pool", AsyncMock(return_value=mock_pool)):
+        with patch("services_api.dashboard.v2._membership.get_pool", AsyncMock(return_value=mock_pool)):
             result = await mm.check_membership(99, 7)
 
         assert result is False
@@ -57,12 +57,12 @@ class TestMembershipCache:
 
     @pytest.mark.asyncio
     async def test_cache_hit_skips_db(self):
-        from src.services.dashboard.v2 import _membership as mm
+        from services_api.dashboard.v2 import _membership as mm
 
         mm._cache[(5, 3)] = (True, time.monotonic() + 30.0)
 
         mock_get_pool = AsyncMock()
-        with patch("src.services.dashboard.v2._membership.get_pool", mock_get_pool):
+        with patch("services_api.dashboard.v2._membership.get_pool", mock_get_pool):
             result = await mm.check_membership(5, 3)
 
         assert result is True
@@ -70,19 +70,19 @@ class TestMembershipCache:
 
     @pytest.mark.asyncio
     async def test_expired_entry_reloads(self):
-        from src.services.dashboard.v2 import _membership as mm
+        from services_api.dashboard.v2 import _membership as mm
 
         mm._cache[(10, 2)] = (True, time.monotonic() - 1.0)
 
         mock_pool = AsyncMock()
         mock_pool.fetchval.return_value = None
-        with patch("src.services.dashboard.v2._membership.get_pool", AsyncMock(return_value=mock_pool)):
+        with patch("services_api.dashboard.v2._membership.get_pool", AsyncMock(return_value=mock_pool)):
             result = await mm.check_membership(10, 2)
 
         assert result is False
 
     def test_invalidate_specific(self):
-        from src.services.dashboard.v2 import _membership as mm
+        from services_api.dashboard.v2 import _membership as mm
 
         mm._cache[(1, 1)] = (True, time.monotonic() + 30.0)
         mm._cache[(2, 1)] = (True, time.monotonic() + 30.0)
@@ -93,7 +93,7 @@ class TestMembershipCache:
         assert (2, 1) in mm._cache
 
     def test_invalidate_all_for_user(self):
-        from src.services.dashboard.v2 import _membership as mm
+        from services_api.dashboard.v2 import _membership as mm
 
         mm._cache[(1, 1)] = (True, time.monotonic() + 30.0)
         mm._cache[(1, 2)] = (True, time.monotonic() + 30.0)
@@ -112,7 +112,7 @@ class TestPrincipalDepRevocation:
     @pytest.mark.asyncio
     async def test_revoked_member_gets_403(self):
         """When check_membership returns False, principal_dep raises 403."""
-        from src.services.dashboard.v2._deps import principal_dep
+        from services_api.dashboard.v2._deps import principal_dep
 
         fake_claims = {"sub": "5", "email": "bob@example.com", "role": "member", "wid": "3"}
 
@@ -123,8 +123,8 @@ class TestPrincipalDepRevocation:
         mock_request.cookies.get.return_value = None
         mock_request.client = None
 
-        with patch("src.services.dashboard.v2._deps._decode_jwt", _fake_decode), \
-             patch("src.services.dashboard.v2._deps.check_membership",
+        with patch("services_api.dashboard.v2._deps._decode_jwt", _fake_decode), \
+             patch("services_api.dashboard.v2._deps.check_membership",
                    AsyncMock(return_value=False)) as mock_cm:
             from fastapi.security import HTTPAuthorizationCredentials
             creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials="ey.a.b")
@@ -137,7 +137,7 @@ class TestPrincipalDepRevocation:
     @pytest.mark.asyncio
     async def test_active_member_passes(self):
         """Active member resolves to Principal normally."""
-        from src.services.dashboard.v2._deps import principal_dep
+        from services_api.dashboard.v2._deps import principal_dep
 
         fake_claims = {"sub": "5", "email": "bob@example.com", "role": "member", "wid": "3"}
 
@@ -145,8 +145,8 @@ class TestPrincipalDepRevocation:
         mock_request.cookies.get.return_value = None
         mock_request.client = None
 
-        with patch("src.services.dashboard.v2._deps._decode_jwt", lambda t: fake_claims), \
-             patch("src.services.dashboard.v2._deps.check_membership",
+        with patch("services_api.dashboard.v2._deps._decode_jwt", lambda t: fake_claims), \
+             patch("services_api.dashboard.v2._deps.check_membership",
                    AsyncMock(return_value=True)):
             from fastapi.security import HTTPAuthorizationCredentials
             creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials="ey.a.b")

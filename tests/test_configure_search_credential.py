@@ -64,7 +64,7 @@ def test_serpapi_wizard_field_split():
 
 
 def test_wizard_credential_in_search():
-    from src.services.dashboard.v2.providers import WizardCredentialIn
+    from services_api.dashboard.v2.providers import WizardCredentialIn
 
     w = WizardCredentialIn(
         category="search",

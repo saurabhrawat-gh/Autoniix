@@ -18,8 +18,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.services.finishing import lut_registry
-from src.services.finishing.ffmpeg_finisher import (
+from services_api.finishing import lut_registry
+from services_api.finishing.ffmpeg_finisher import (
     FinishConfig,
     FinishingError,
     LoudnormStats,
@@ -29,7 +29,7 @@ from src.services.finishing.ffmpeg_finisher import (
     parse_loudnorm_json,
 )
 
-_ACT = "src.services.finishing.activity"
+_ACT = "services_api.finishing.activity"
 
 
 
@@ -155,7 +155,7 @@ class TestCubeGenerator:
 @pytest.mark.asyncio
 class TestFinishingActivity:
     async def test_no_video_url_skips(self):
-        from src.services.finishing.activity import finishing_activity
+        from services_api.finishing.activity import finishing_activity
 
         with patch(f"{_ACT}.get_pool", new_callable=AsyncMock):
             with patch(f"{_ACT}._mark_db", new_callable=AsyncMock) as mark:
@@ -165,7 +165,7 @@ class TestFinishingActivity:
         mark.assert_awaited()
 
     async def test_failure_skips_when_not_required(self):
-        from src.services.finishing.activity import finishing_activity
+        from services_api.finishing.activity import finishing_activity
 
         cfg_row = {"require_resolve_finish": False, "color_grade_preset": "cinematic",
                    "audio_denoise": True, "audio_eq": True, "audio_compress": True,
@@ -184,7 +184,7 @@ class TestFinishingActivity:
         assert mark.await_args.kwargs["skipped"] is True
 
     async def test_failure_raises_when_required(self):
-        from src.services.finishing.activity import finishing_activity
+        from services_api.finishing.activity import finishing_activity
 
         cfg_row = {"require_resolve_finish": True, "color_grade_preset": "cinematic",
                    "audio_denoise": True, "audio_eq": True, "audio_compress": True,
@@ -201,7 +201,7 @@ class TestFinishingActivity:
                                           "video_url": "http://x/v.mp4"})
 
     async def test_success_returns_finished_url(self):
-        from src.services.finishing.activity import finishing_activity
+        from services_api.finishing.activity import finishing_activity
 
         cfg_row = {"require_resolve_finish": False, "color_grade_preset": "warm_gold",
                    "audio_denoise": True, "audio_eq": True, "audio_compress": True,
@@ -229,7 +229,7 @@ async def test_real_ffmpeg_finish_produces_output():
     import asyncio
 
     from scripts.seeds.lut_presets.generate_luts import write_cube
-    from src.services.finishing.ffmpeg_finisher import run_finishing
+    from services_api.finishing.ffmpeg_finisher import run_finishing
 
     with tempfile.TemporaryDirectory() as d:
         raw = os.path.join(d, "raw.mp4")

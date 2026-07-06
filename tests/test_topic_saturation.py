@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.services.research.saturation import (
+from services_api.research.saturation import (
     COSINE_THRESHOLD,
     SaturationResult,
     TOP_K,
@@ -164,7 +164,7 @@ def test_top_match_similarity_reflects_actual_top():
 
 def test_opportunity_weights_include_saturation_gap_and_sum_to_one():
     """The weights must sum to ~1.0 so the score stays in [0, 1]."""
-    from src.services.research.opportunity_scorer import DEFAULT_WEIGHTS
+    from services_api.research.opportunity_scorer import DEFAULT_WEIGHTS
     assert "saturation_gap" in DEFAULT_WEIGHTS
     total = sum(DEFAULT_WEIGHTS.values())
     assert abs(total - 1.0) < 1e-9, f"weights sum to {total}, expected 1.0"

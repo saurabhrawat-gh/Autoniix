@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.services.brain import scorer as S
+from services_api.brain import scorer as S
 
 
 def _flag_map(flags):

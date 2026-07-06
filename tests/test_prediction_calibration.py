@@ -235,7 +235,7 @@ def test_predict_success_accepts_content_id_keyword_only():
     """Ensure predict_success has the Phase 11 content_id parameter as
     keyword-only — positional callers must keep working."""
     import inspect
-    from src.services.research.self_learning import predict_success
+    from services_api.research.self_learning import predict_success
     sig = inspect.signature(predict_success)
     assert "content_id" in sig.parameters
     assert sig.parameters["content_id"].kind == inspect.Parameter.KEYWORD_ONLY
@@ -246,7 +246,7 @@ def test_research_request_accepts_optional_content_id():
     """Workflow plumbing — the research service request schema must
     accept content_id as optional. Without this the workflow can't
     forward its content_id and the train_model JOIN can't work."""
-    from src.services.research.main import ResearchRequest
+    from services_api.research.main import ResearchRequest
     fields = ResearchRequest.model_fields
     assert "content_id" in fields
     assert fields["content_id"].default is None
@@ -257,7 +257,7 @@ def test_train_model_query_includes_prediction_log_join():
     and pull sample_weight. A future refactor that drops this would
     silently revert Phase 11."""
     import inspect
-    from src.services.research import self_learning
+    from services_api.research import self_learning
     src = inspect.getsource(self_learning.train_model)
     assert "prediction_log" in src
     assert "sample_weight" in src

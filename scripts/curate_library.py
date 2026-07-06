@@ -36,7 +36,7 @@ from core.db import get_pool, close_pool  # noqa: E402
 from providers.boot import boot_providers  # noqa: E402  (registers storage)
 from providers.registry import ProviderRegistry  # noqa: E402
 from providers.storage.base import StorageUpload  # noqa: E402
-from src.services.assets import semantic_ranker  # noqa: E402
+from services_api.assets import semantic_ranker  # noqa: E402
 
 logger = structlog.get_logger()
 

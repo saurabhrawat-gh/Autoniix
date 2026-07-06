@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.services.dashboard.v2.library_smart_collections import (
+from services_api.dashboard.v2.library_smart_collections import (
     _coerce_list,
     _parse_query,
     resolve_smart_collection,
@@ -83,7 +83,7 @@ async def test_resolve_smart_short_circuits_when_semantic_returns_empty(mock_poo
         "asset_ids": [],
     }
     with patch(
-        "src.services.dashboard.v2.library_smart_collections._semantic_ids",
+        "services_api.dashboard.v2.library_smart_collections._semantic_ids",
         AsyncMock(return_value=[]),
     ):
         rows = await resolve_smart_collection(3)
@@ -102,7 +102,7 @@ async def test_resolve_smart_degrades_when_semantic_unavailable(mock_pool):
     }
     mock_pool.fetch.return_value = []
     with patch(
-        "src.services.dashboard.v2.library_smart_collections._semantic_ids",
+        "services_api.dashboard.v2.library_smart_collections._semantic_ids",
         AsyncMock(return_value=None),
     ):
         await resolve_smart_collection(4)

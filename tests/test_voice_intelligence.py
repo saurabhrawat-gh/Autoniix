@@ -7,7 +7,7 @@ from __future__ import annotations
 import pytest
 import numpy as np
 
-from src.services.voice.emotion_predictor import (
+from services_api.voice.emotion_predictor import (
     detect_sentence_emotion,
     detect_emphasis_words,
     predict_volume_shift,
@@ -16,7 +16,7 @@ from src.services.voice.emotion_predictor import (
     EMOTION_TTS_MAP,
     SECTION_PACING,
 )
-from src.services.voice.audio_quality_scorer import _quick_audio_stats
+from services_api.voice.audio_quality_scorer import _quick_audio_stats
 
 
 

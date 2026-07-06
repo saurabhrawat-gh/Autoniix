@@ -210,10 +210,10 @@ def test_thompson_sample_signatures_accept_channel_id():
     one of the two thompson_sample functions is missed."""
     import inspect
 
-    from src.services.research.self_learning import (
+    from services_api.research.self_learning import (
         thompson_sample as research_ts,
     )
-    from src.services.script.self_learning import (
+    from services_api.script.self_learning import (
         thompson_sample as script_ts,
     )
 

@@ -21,14 +21,14 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.agents.base import (
+from agents.base import (
     AgentDecision,
     AgentObservation,
     BaseAgent,
     CriticVerdict,
 )
-from src.agents.critic import CriticAgent
-from src.agents.registry import AgentRegistry
+from agents.critic import CriticAgent
+from agents.registry import AgentRegistry
 
 
 
@@ -132,7 +132,7 @@ class TestCriticReview:
         decision = _decision(decision_type="HALT", confidence=0.4)
         with (
             patch(
-                "src.agents.critic.get_flag", new=AsyncMock(return_value=False)
+                "agents.critic.get_flag", new=AsyncMock(return_value=False)
             ),
             patch.object(
                 critic, "_persist_verdict", new=AsyncMock()
@@ -152,7 +152,7 @@ class TestCriticReview:
         decision = _decision(decision_type="HALT", confidence=0.4)
         with (
             patch(
-                "src.agents.critic.get_flag", new=AsyncMock(return_value=True)
+                "agents.critic.get_flag", new=AsyncMock(return_value=True)
             ),
             patch.object(
                 critic, "_llm_review", new=AsyncMock(return_value=None)
@@ -181,7 +181,7 @@ class TestCriticReview:
         )
         with (
             patch(
-                "src.agents.critic.get_flag", new=AsyncMock(return_value=True)
+                "agents.critic.get_flag", new=AsyncMock(return_value=True)
             ),
             patch.object(
                 critic, "_llm_review", new=AsyncMock(return_value=synthetic)
@@ -202,7 +202,7 @@ class TestCriticReview:
         critic = CriticAgent()
         with (
             patch(
-                "src.agents.critic.get_flag", new=AsyncMock(return_value=False)
+                "agents.critic.get_flag", new=AsyncMock(return_value=False)
             ),
             patch.object(
                 critic,

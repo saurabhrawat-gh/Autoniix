@@ -89,7 +89,7 @@ bff: ## Start Dashboard BFF locally (port 8020)
 	REDIS_URL=redis://localhost:6380 \
 	TEMPORAL_HOST=localhost:7233 \
 	S3_ENDPOINT=http://localhost:9000 \
-	uvicorn src.services.dashboard.main:app --host 0.0.0.0 --port 8020 --reload
+	uvicorn services_api.dashboard.main:app --host 0.0.0.0 --port 8020 --reload
 
 # Brain Service (AE-P1)
 brain: ## Start Brain Service locally (port 8015)
@@ -97,7 +97,7 @@ brain: ## Start Brain Service locally (port 8015)
 	REDIS_URL=redis://localhost:6380 \
 	TEMPORAL_HOST=localhost:7233 \
 	BRAIN_PORT=8015 \
-	PYTHONPATH=. .venv/bin/python -m src.services.brain.main
+	PYTHONPATH=. .venv/bin/python -m services_api.brain.main
 
 # Dashboard Frontend (Next.js)
 ui: ## Start Dashboard UI locally (port 3000)

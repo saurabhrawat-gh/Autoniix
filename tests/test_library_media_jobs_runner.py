@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.workers.media_jobs import runner
-from src.workers.media_jobs.handlers import resolve as resolve_handler
-from src.workers.media_jobs.handlers import skip_handler
+from temporal_workers.media_jobs import runner
+from temporal_workers.media_jobs.handlers import resolve as resolve_handler
+from temporal_workers.media_jobs.handlers import skip_handler
 
 
 @pytest.mark.asyncio
@@ -18,7 +18,7 @@ async def test_resolve_returns_skip_handler_for_unknown_kind():
 
 @pytest.mark.asyncio
 async def test_resolve_returns_real_handler_for_known_kinds():
-    from src.workers.media_jobs.handlers import autotag, embed, probe
+    from temporal_workers.media_jobs.handlers import autotag, embed, probe
 
     assert resolve_handler("probe") is probe.run
     assert resolve_handler("embed") is embed.run
@@ -99,7 +99,7 @@ async def test_process_one_dispatches_to_handler_and_marks_done():
         return {"status": "done", "result": {"ok": True}}
 
     with patch(
-        "src.workers.media_jobs.runner.resolve_handler",
+        "temporal_workers.media_jobs.runner.resolve_handler",
         return_value=fake_handler,
     ):
         ran = await runner.process_one(pool)
@@ -128,7 +128,7 @@ async def test_process_one_reschedules_on_failure_when_attempts_left():
         return {"status": "failed", "reason": "transient"}
 
     with patch(
-        "src.workers.media_jobs.runner.resolve_handler",
+        "temporal_workers.media_jobs.runner.resolve_handler",
         return_value=fake_handler,
     ):
         await runner.process_one(pool)
@@ -157,7 +157,7 @@ async def test_process_one_marks_failed_when_attempts_exhausted():
         return {"status": "failed", "reason": "permanent"}
 
     with patch(
-        "src.workers.media_jobs.runner.resolve_handler",
+        "temporal_workers.media_jobs.runner.resolve_handler",
         return_value=fake_handler,
     ):
         await runner.process_one(pool)
@@ -186,7 +186,7 @@ async def test_unhandled_exception_in_handler_is_recovered():
         raise RuntimeError("kaboom")
 
     with patch(
-        "src.workers.media_jobs.runner.resolve_handler",
+        "temporal_workers.media_jobs.runner.resolve_handler",
         return_value=fake_handler,
     ):
         ran = await runner.process_one(pool)

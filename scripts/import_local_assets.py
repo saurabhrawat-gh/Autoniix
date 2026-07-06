@@ -230,7 +230,7 @@ def generate_queries(
 
 def _try_embed(query: str) -> Optional[list[float]]:
     try:
-        from src.services.assets import semantic_ranker
+        from services_api.assets import semantic_ranker
         import numpy as np
         model = semantic_ranker._get_model()
         if model is None:

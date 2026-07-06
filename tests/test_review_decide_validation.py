@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-from src.services.dashboard.v2.review import DecisionIn, decide
+from services_api.dashboard.v2.review import DecisionIn, decide
 
 
 def _principal():
@@ -68,8 +68,8 @@ def _patch_pool_with_open_session():
 async def test_every_valid_decision_value_is_accepted(value):
     pool = _patch_pool_with_open_session()
     body = DecisionIn(decision=value)
-    with patch("src.services.dashboard.v2.review.get_pool", AsyncMock(return_value=pool)), \
-         patch("src.services.dashboard.v2.review.audit", AsyncMock()):
+    with patch("services_api.dashboard.v2.review.get_pool", AsyncMock(return_value=pool)), \
+         patch("services_api.dashboard.v2.review.audit", AsyncMock()):
         try:
             await decide("VID_x", body, _request(), _principal())
         except HTTPException as exc:
@@ -82,8 +82,8 @@ async def test_every_valid_decision_value_is_accepted(value):
 @pytest.mark.asyncio
 async def test_invalid_decision_returns_400_with_clear_message(bad):
     body = DecisionIn(decision=bad)
-    with patch("src.services.dashboard.v2.review.get_pool", AsyncMock()), \
-         patch("src.services.dashboard.v2.review.audit", AsyncMock()):
+    with patch("services_api.dashboard.v2.review.get_pool", AsyncMock()), \
+         patch("services_api.dashboard.v2.review.audit", AsyncMock()):
         with pytest.raises(HTTPException) as exc:
             await decide("VID_x", body, _request(), _principal())
         assert exc.value.status_code == 400

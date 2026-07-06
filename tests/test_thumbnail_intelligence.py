@@ -7,7 +7,7 @@ from __future__ import annotations
 import pytest
 from unittest.mock import AsyncMock, patch
 
-from src.services.thumbnail.ctr_predictor import (
+from services_api.thumbnail.ctr_predictor import (
     extract_thumbnail_features,
     FEATURE_NAMES,
 )

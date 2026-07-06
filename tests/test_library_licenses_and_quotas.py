@@ -6,13 +6,13 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.services.dashboard.v2.library_licenses import (
+from services_api.dashboard.v2.library_licenses import (
     _catalogue_fallback,
     license_catalogue,
     licenses_audit,
     licenses_expiring,
 )
-from src.services.dashboard.v2.library_quotas import (
+from services_api.dashboard.v2.library_quotas import (
     _DEFAULT_QUOTAS,
     check_quota_before_upload,
     recalculate_quotas,

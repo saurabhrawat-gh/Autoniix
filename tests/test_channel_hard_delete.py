@@ -20,11 +20,11 @@ from fastapi import HTTPException
 
 from tests.conftest import FakePool, FakeRecord
 
-_CH_MODULE = "src.services.dashboard.v2.channels"
+_CH_MODULE = "services_api.dashboard.v2.channels"
 
 
 def _make_principal(role: str = "owner", workspace_id: int = 1, user_id: int = 42):
-    from src.services.dashboard.v2._deps import Principal
+    from services_api.dashboard.v2._deps import Principal
     return Principal(user_id=user_id, email="owner@test.com", role=role,
                      source="v2_jwt", workspace_id=workspace_id)
 
@@ -48,7 +48,7 @@ def _channel_row(workspace_id: int = 1, channel_id: str = "ch_test"):
 class TestChannelDelete:
     @pytest.mark.asyncio
     async def test_delete_succeeds_with_valid_inputs(self):
-        from src.services.dashboard.v2.channels import (
+        from services_api.dashboard.v2.channels import (
             ChannelDeleteIn, delete_channel,
         )
         pool = FakePool()
@@ -64,7 +64,7 @@ class TestChannelDelete:
 
         with _pool_ctx(pool), \
              patch(f"{_CH_MODULE}.audit", new_callable=AsyncMock) as mock_audit, \
-             patch("src.services.dashboard.v2.auth._verify_pw", return_value=True):
+             patch("services_api.dashboard.v2.auth._verify_pw", return_value=True):
             result = await delete_channel(
                 channel_id="ch_test", body=body, request=req, actor=actor,
             )
@@ -83,7 +83,7 @@ class TestChannelDelete:
 
     @pytest.mark.asyncio
     async def test_delete_emits_youtube_unlink_when_linked(self):
-        from src.services.dashboard.v2.channels import (
+        from services_api.dashboard.v2.channels import (
             ChannelDeleteIn, delete_channel,
         )
         pool = FakePool()
@@ -99,7 +99,7 @@ class TestChannelDelete:
 
         with _pool_ctx(pool), \
              patch(f"{_CH_MODULE}.audit", new_callable=AsyncMock) as mock_audit, \
-             patch("src.services.dashboard.v2.auth._verify_pw", return_value=True):
+             patch("services_api.dashboard.v2.auth._verify_pw", return_value=True):
             await delete_channel(
                 channel_id="ch_test", body=body, request=req, actor=actor,
             )
@@ -111,7 +111,7 @@ class TestChannelDelete:
 
     @pytest.mark.asyncio
     async def test_wrong_password_returns_403(self):
-        from src.services.dashboard.v2.channels import (
+        from services_api.dashboard.v2.channels import (
             ChannelDeleteIn, delete_channel,
         )
         pool = FakePool()
@@ -122,7 +122,7 @@ class TestChannelDelete:
         req = MagicMock()
 
         with _pool_ctx(pool), \
-             patch("src.services.dashboard.v2.auth._verify_pw", return_value=False):
+             patch("services_api.dashboard.v2.auth._verify_pw", return_value=False):
             with pytest.raises(HTTPException) as exc:
                 await delete_channel(
                     channel_id="ch_test", body=body, request=req, actor=actor,
@@ -134,7 +134,7 @@ class TestChannelDelete:
     @pytest.mark.asyncio
     async def test_wrong_confirmation_rejected_at_schema(self):
         from pydantic import ValidationError
-        from src.services.dashboard.v2.channels import ChannelDeleteIn
+        from services_api.dashboard.v2.channels import ChannelDeleteIn
 
         with pytest.raises(ValidationError):
             ChannelDeleteIn(confirmation="DELETE", password="x")
@@ -145,7 +145,7 @@ class TestChannelDelete:
 
     @pytest.mark.asyncio
     async def test_channel_in_other_workspace_returns_404(self):
-        from src.services.dashboard.v2.channels import (
+        from services_api.dashboard.v2.channels import (
             ChannelDeleteIn, delete_channel,
         )
         pool = FakePool()
@@ -159,7 +159,7 @@ class TestChannelDelete:
         req = MagicMock()
 
         with _pool_ctx(pool), \
-             patch("src.services.dashboard.v2.auth._verify_pw", return_value=True):
+             patch("services_api.dashboard.v2.auth._verify_pw", return_value=True):
             with pytest.raises(HTTPException) as exc:
                 await delete_channel(
                     channel_id="ch_test", body=body, request=req, actor=actor,
@@ -169,7 +169,7 @@ class TestChannelDelete:
 
     @pytest.mark.asyncio
     async def test_nonexistent_channel_returns_404(self):
-        from src.services.dashboard.v2.channels import (
+        from services_api.dashboard.v2.channels import (
             ChannelDeleteIn, delete_channel,
         )
         pool = FakePool()
@@ -183,7 +183,7 @@ class TestChannelDelete:
         req = MagicMock()
 
         with _pool_ctx(pool), \
-             patch("src.services.dashboard.v2.auth._verify_pw", return_value=True):
+             patch("services_api.dashboard.v2.auth._verify_pw", return_value=True):
             with pytest.raises(HTTPException) as exc:
                 await delete_channel(
                     channel_id="ghost", body=body, request=req, actor=actor,
@@ -193,7 +193,7 @@ class TestChannelDelete:
 
     @pytest.mark.asyncio
     async def test_channel_with_videos_returns_409(self):
-        from src.services.dashboard.v2.channels import (
+        from services_api.dashboard.v2.channels import (
             ChannelDeleteIn, delete_channel,
         )
         pool = FakePool()
@@ -208,7 +208,7 @@ class TestChannelDelete:
         req = MagicMock()
 
         with _pool_ctx(pool), \
-             patch("src.services.dashboard.v2.auth._verify_pw", return_value=True):
+             patch("services_api.dashboard.v2.auth._verify_pw", return_value=True):
             with pytest.raises(HTTPException) as exc:
                 await delete_channel(
                     channel_id="ch_test", body=body, request=req, actor=actor,
@@ -224,7 +224,7 @@ class TestChannelDelete:
 
     @pytest.mark.asyncio
     async def test_no_user_context_returns_403(self):
-        from src.services.dashboard.v2.channels import (
+        from services_api.dashboard.v2.channels import (
             ChannelDeleteIn, delete_channel,
         )
         pool = FakePool()
@@ -246,8 +246,8 @@ class TestRequireRoleEnforcement:
 
     @pytest.mark.asyncio
     async def test_member_role_forbidden(self):
-        from src.services.dashboard.v2._deps import require_role
-        from src.services.dashboard.v2._deps import Principal
+        from services_api.dashboard.v2._deps import require_role
+        from services_api.dashboard.v2._deps import Principal
 
         checker = require_role("owner")
         member = Principal(user_id=10, email="m@m.com", role="member",
@@ -258,8 +258,8 @@ class TestRequireRoleEnforcement:
 
     @pytest.mark.asyncio
     async def test_viewer_role_forbidden(self):
-        from src.services.dashboard.v2._deps import require_role
-        from src.services.dashboard.v2._deps import Principal
+        from services_api.dashboard.v2._deps import require_role
+        from services_api.dashboard.v2._deps import Principal
 
         checker = require_role("owner")
         viewer = Principal(user_id=11, email="v@v.com", role="viewer",
@@ -270,8 +270,8 @@ class TestRequireRoleEnforcement:
 
     @pytest.mark.asyncio
     async def test_owner_role_allowed(self):
-        from src.services.dashboard.v2._deps import require_role
-        from src.services.dashboard.v2._deps import Principal
+        from services_api.dashboard.v2._deps import require_role
+        from services_api.dashboard.v2._deps import Principal
 
         checker = require_role("owner")
         owner = Principal(user_id=1, email="o@o.com", role="owner",

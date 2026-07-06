@@ -7,7 +7,7 @@ from __future__ import annotations
 import pytest
 from unittest.mock import AsyncMock, patch
 
-from src.services.experiments.ab_framework import (
+from services_api.experiments.ab_framework import (
     _deterministic_variant,
     create_experiment,
     assign_variant,

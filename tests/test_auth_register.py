@@ -26,7 +26,7 @@ from starlette.requests import Request
 
 from tests.conftest import FakePool
 
-_AUTH_MODULE = "src.services.dashboard.v2.auth"
+_AUTH_MODULE = "services_api.dashboard.v2.auth"
 
 
 @pytest.fixture(autouse=True)
@@ -36,7 +36,7 @@ def _reset_rate_limiter():
     All tests share IP 127.0.0.1, so without this the parametrized
     ``test_nth_user_registration_is_blocked`` plus its neighbours trip
     the bucket and fail with HTTP 429."""
-    from src.services.dashboard._limiter import limiter
+    from services_api.dashboard._limiter import limiter
     limiter.reset()
     yield
     limiter.reset()
@@ -122,7 +122,7 @@ async def test_first_user_registration_assigns_owner_role():
     """When the users table is empty, the first registrant bootstraps as
     global superadmin. This is the only path that should ever produce
     role=superadmin via the public /register form."""
-    from src.services.dashboard.v2.auth import register, RegisterIn
+    from services_api.dashboard.v2.auth import register, RegisterIn
 
     pool, conn = _build_pool(existing_user_count=0)
     body = RegisterIn(
@@ -131,7 +131,7 @@ async def test_first_user_registration_assigns_owner_role():
         workspace_name="Roar Studios",
     )
 
-    with _pool_ctx(pool), patch("src.services.dashboard.v2._resend.send_email"):
+    with _pool_ctx(pool), patch("services_api.dashboard.v2._resend.send_email"):
         result = await register(body=body, request=_make_request())
 
     assert _insert_role_arg(conn) == "superadmin", (
@@ -146,7 +146,7 @@ async def test_second_user_registration_gets_user_role():
     """#350: Public self-serve signup. The second registrant must get the
     non-privileged 'user' global role (not superadmin). Account and workspace
     are created successfully."""
-    from src.services.dashboard.v2.auth import register, RegisterIn
+    from services_api.dashboard.v2.auth import register, RegisterIn
 
     pool, conn = _build_pool(existing_user_count=1)
     body = RegisterIn(
@@ -155,7 +155,7 @@ async def test_second_user_registration_gets_user_role():
         workspace_name="Random Workspace",
     )
 
-    with _pool_ctx(pool), patch("src.services.dashboard.v2._resend.send_email"):
+    with _pool_ctx(pool), patch("services_api.dashboard.v2._resend.send_email"):
         result = await register(body=body, request=_make_request())
 
     assert _insert_role_arg(conn) == "user", (
@@ -169,7 +169,7 @@ async def test_second_user_registration_gets_user_role():
 @pytest.mark.parametrize("existing_count", [2, 3, 10, 1_000])
 async def test_nth_user_registration_gets_user_role(existing_count: int):
     """#350: Any non-first self-registrant gets global role='user'."""
-    from src.services.dashboard.v2.auth import register, RegisterIn
+    from services_api.dashboard.v2.auth import register, RegisterIn
 
     pool, conn = _build_pool(existing_user_count=existing_count)
     body = RegisterIn(
@@ -178,7 +178,7 @@ async def test_nth_user_registration_gets_user_role(existing_count: int):
         workspace_name=f"Workspace {existing_count}",
     )
 
-    with _pool_ctx(pool), patch("src.services.dashboard.v2._resend.send_email"):
+    with _pool_ctx(pool), patch("services_api.dashboard.v2._resend.send_email"):
         result = await register(body=body, request=_make_request())
 
     assert _insert_role_arg(conn) == "user"
@@ -190,7 +190,7 @@ async def test_nth_user_registration_gets_user_role(existing_count: int):
 async def test_duplicate_email_raises_409_and_inserts_nothing():
     """Existing email → 409 before any role assignment. Regression guard
     that the first-user check does not run on the duplicate path."""
-    from src.services.dashboard.v2.auth import register, RegisterIn
+    from services_api.dashboard.v2.auth import register, RegisterIn
 
     pool, conn = _build_pool(existing_user_count=0, email_exists=True)
     body = RegisterIn(
@@ -217,7 +217,7 @@ async def test_workspace_member_role_is_always_owner_for_own_workspace():
     Every registrant still owns the workspace they just created — this is
     enforced by the literal 'owner' in the workspace_members INSERT.
     Regression guard so we never accidentally weaken this."""
-    from src.services.dashboard.v2.auth import register, RegisterIn
+    from services_api.dashboard.v2.auth import register, RegisterIn
 
     pool, conn = _build_pool(existing_user_count=5)
     body = RegisterIn(
@@ -226,7 +226,7 @@ async def test_workspace_member_role_is_always_owner_for_own_workspace():
         workspace_name="My Space",
     )
 
-    with _pool_ctx(pool), patch("src.services.dashboard.v2._resend.send_email"):
+    with _pool_ctx(pool), patch("services_api.dashboard.v2._resend.send_email"):
         result = await register(body=body, request=_make_request())
 
     assert _workspace_member_role_arg(conn) == "owner", (

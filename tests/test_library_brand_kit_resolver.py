@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.services.brand.brand_kit_resolver import (
+from services_api.brand.brand_kit_resolver import (
     bind_channel_brand_kit,
     resolve_brand_kit_for_channel,
 )
