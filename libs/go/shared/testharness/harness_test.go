@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/autoniix/autoniix/go/shared/testharness"
+	"github.com/autoniix/autoniix/libs/go/shared/testharness"
 )
 
 func TestNewHarness(t *testing.T) {

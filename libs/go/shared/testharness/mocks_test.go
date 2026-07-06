@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/autoniix/autoniix/go/shared/testharness"
+	"github.com/autoniix/autoniix/libs/go/shared/testharness"
 )
 
 // ── MockRedisClient ──────────────────────────────────────────────────────────
