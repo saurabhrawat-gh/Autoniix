@@ -116,8 +116,8 @@ def test_wizard_no_key_provider_skips_vault():
 
 def test_custom_openai_compat_base_url_via_extra_config():
     """chain._instantiate applies extra_config keys via setattr."""
-    import src.providers.boot  # noqa: F401
-    from src.providers.llm.custom_openai_compat_provider import CustomOpenAICompatLLM
+    import providers.boot  # noqa: F401
+    from providers.llm.custom_openai_compat_provider import CustomOpenAICompatLLM
 
     inst = CustomOpenAICompatLLM()
     extra = {"base_url": "http://vllm-server:8000", "model": "mistral-7b"}
@@ -132,8 +132,8 @@ def test_custom_openai_compat_base_url_via_extra_config():
 @pytest.mark.asyncio
 async def test_custom_openai_compat_no_url_raises_on_complete():
     """complete() raises RuntimeError when base_url is not set."""
-    from src.providers.llm.custom_openai_compat_provider import CustomOpenAICompatLLM
-    from src.providers.llm.base import LLMRequest
+    from providers.llm.custom_openai_compat_provider import CustomOpenAICompatLLM
+    from providers.llm.base import LLMRequest
 
     inst = CustomOpenAICompatLLM()
     req = LLMRequest(messages=[{"role": "user", "content": "hi"}])

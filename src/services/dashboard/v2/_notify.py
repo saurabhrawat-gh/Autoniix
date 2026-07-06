@@ -13,8 +13,8 @@ from typing import Any
 
 import structlog
 
-from src.db import get_pool
-from src.providers.secrets import get_secret_at
+from core.db import get_pool
+from providers.secrets import get_secret_at
 
 logger = structlog.get_logger()
 

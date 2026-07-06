@@ -31,11 +31,11 @@ import structlog
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.config import settings  # noqa: E402
-from src.db import get_pool, close_pool  # noqa: E402
-from src.providers.boot import boot_providers  # noqa: E402  (registers storage)
-from src.providers.registry import ProviderRegistry  # noqa: E402
-from src.providers.storage.base import StorageUpload  # noqa: E402
+from core.config import settings  # noqa: E402
+from core.db import get_pool, close_pool  # noqa: E402
+from providers.boot import boot_providers  # noqa: E402  (registers storage)
+from providers.registry import ProviderRegistry  # noqa: E402
+from providers.storage.base import StorageUpload  # noqa: E402
 from src.services.assets import semantic_ranker  # noqa: E402
 
 logger = structlog.get_logger()

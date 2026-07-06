@@ -1,6 +1,6 @@
 """AgentMemory — RAG-style retrieval over an agent's past decisions.
 
-Wraps :func:`src.llm.embeddings.semantic_search` with two opinions:
+Wraps :func:`llm.embeddings.semantic_search` with two opinions:
 
 1. Scope is always the agent's *own* decision table — agents don't read
    each other's memories directly. Cross-agent learning, when we want it,
@@ -23,8 +23,8 @@ from typing import Any
 
 import structlog
 
-from src.flags import get_flag
-from src.llm.embeddings import (
+from core.flags import get_flag
+from llm.embeddings import (
     EmbeddingConfigError,
     EmbeddingError,
     embed_and_store,

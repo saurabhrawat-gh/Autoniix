@@ -33,7 +33,7 @@ from typing import Any
 
 import structlog
 
-from src.db import get_pool
+from core.db import get_pool
 
 logger = structlog.get_logger()
 
@@ -63,7 +63,7 @@ async def _asset_url(pool: Any, asset_id: int | None) -> str | None:
     if row is None or not row["storage_key"]:
         return None
     try:
-        from src.providers.registry import ProviderRegistry
+        from providers.registry import ProviderRegistry
 
         storage = ProviderRegistry.get("storage")
         return await storage.get_signed_url(row["storage_key"])  # type: ignore[attr-defined]

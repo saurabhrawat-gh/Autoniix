@@ -24,9 +24,9 @@ import json
 
 import structlog
 
-from src.events.bus import publish, subscribe
-from src.events.topics import Topic
-from src.flags import get_flag
+from events.bus import publish, subscribe
+from events.topics import Topic
+from core.flags import get_flag
 from src.services.brain.analyser import analyse_channel
 from src.services.brain.engine import evaluate
 

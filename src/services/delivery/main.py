@@ -9,9 +9,9 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from src.config import settings
-from src.db import close_pool, get_pool
-from src.schemas.common import HealthResponse, ServiceResponse
+from core.config import settings
+from core.db import close_pool, get_pool
+from schemas.common import HealthResponse, ServiceResponse
 
 from src.services.delivery.seo_optimizer import (
     CATEGORY_MAP,
@@ -21,7 +21,7 @@ from src.services.delivery.seo_optimizer import (
     predict_optimal_upload_time,
     store_delivery_features,
 )
-from src.observability.metrics import instrument_app
+from observability.metrics import instrument_app
 
 try:
     from prometheus_client import Counter
@@ -74,7 +74,7 @@ async def lifespan(app: FastAPI):
     logger.info("delivery.stopped")
 
 
-from src.observability.sentry import init_sentry
+from observability.sentry import init_sentry
 init_sentry("delivery")
 
 app = FastAPI(title="Delivery Service", version="0.1.0", lifespan=lifespan)
@@ -147,8 +147,8 @@ async def upload(req: DeliveryRequest):
     logger.info("delivery.uploading", content_id=req.content_id, title=req.title[:50])
 
     try:
-        from src.quality import record_decision as qg_record
-        from src.quality.gate import evaluate_for_niche as qg_evaluate_niche
+        from quality import record_decision as qg_record
+        from quality.gate import evaluate_for_niche as qg_evaluate_niche
         gate_profile = "production"
         niche: str | None = None
         try:

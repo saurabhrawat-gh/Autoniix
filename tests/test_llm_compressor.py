@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import pytest
 
-from src.providers.llm.base import LLMRequest
-from src.llm.compressor import (
+from providers.llm.base import LLMRequest
+from llm.compressor import (
     CompressionStats,
     PromptCompressor,
     _add_cache_markers,
@@ -263,9 +263,9 @@ class TestRouterCompressionIntegration:
     @pytest.mark.asyncio
     async def test_router_passes_compression_stats(self, monkeypatch):
         """When compression is enabled, the result should carry CompressionStats."""
-        from src.providers.llm.base import LLMProvider, LLMRequest, LLMResult
-        from src.providers.registry import ProviderRegistry
-        from src.llm.router import Router
+        from providers.llm.base import LLMProvider, LLMRequest, LLMResult
+        from providers.registry import ProviderRegistry
+        from llm.router import Router
 
         class _FakeOK(LLMProvider):
             async def complete(self, request: LLMRequest) -> LLMResult:
@@ -289,10 +289,10 @@ class TestRouterCompressionIntegration:
             return []
         async def _async_record(*a, **kw):
             return None
-        monkeypatch.setattr("src.llm.router._cap_for", _async_cap)
-        monkeypatch.setattr("src.llm.router._spent_today", _async_spent)
-        monkeypatch.setattr("src.llm.router._db_chain_pairs", _async_chain_pairs)
-        monkeypatch.setattr("src.llm.router._record_usage", _async_record)
+        monkeypatch.setattr("llm.router._cap_for", _async_cap)
+        monkeypatch.setattr("llm.router._spent_today", _async_spent)
+        monkeypatch.setattr("llm.router._db_chain_pairs", _async_chain_pairs)
+        monkeypatch.setattr("llm.router._record_usage", _async_record)
 
         router = Router()
         req = LLMRequest(
@@ -314,9 +314,9 @@ class TestRouterCompressionIntegration:
     @pytest.mark.asyncio
     async def test_router_off_tier_no_compression(self, monkeypatch):
         """When compression is off, result.compression should be None."""
-        from src.providers.llm.base import LLMProvider, LLMRequest, LLMResult
-        from src.providers.registry import ProviderRegistry
-        from src.llm.router import Router
+        from providers.llm.base import LLMProvider, LLMRequest, LLMResult
+        from providers.registry import ProviderRegistry
+        from llm.router import Router
 
         class _FakeOK(LLMProvider):
             async def complete(self, request: LLMRequest) -> LLMResult:
@@ -340,10 +340,10 @@ class TestRouterCompressionIntegration:
             return []
         async def _async_record(*a, **kw):
             return None
-        monkeypatch.setattr("src.llm.router._cap_for", _async_cap)
-        monkeypatch.setattr("src.llm.router._spent_today", _async_spent)
-        monkeypatch.setattr("src.llm.router._db_chain_pairs", _async_chain_pairs)
-        monkeypatch.setattr("src.llm.router._record_usage", _async_record)
+        monkeypatch.setattr("llm.router._cap_for", _async_cap)
+        monkeypatch.setattr("llm.router._spent_today", _async_spent)
+        monkeypatch.setattr("llm.router._db_chain_pairs", _async_chain_pairs)
+        monkeypatch.setattr("llm.router._record_usage", _async_record)
 
         router = Router()
         req = LLMRequest(

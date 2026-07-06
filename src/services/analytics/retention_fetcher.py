@@ -12,7 +12,7 @@ This module:
 2. Calls ``audienceWatchRatio`` for one video, which returns ~100
    (elapsedVideoTimeRatio, audienceWatchRatio) pairs.
 3. Parses the curve, derives the three Phase-9 features via
-   :mod:`src.quality.retention_features`, and persists everything to
+   :mod:`quality.retention_features`, and persists everything to
    ``retention_curves``.
 
 Failure modes are explicit (``RetentionFetchError``) so the caller —
@@ -29,9 +29,9 @@ from typing import Any
 import httpx
 import structlog
 
-from src.config import settings
-from src.db import get_pool
-from src.quality.retention_features import (
+from core.config import settings
+from core.db import get_pool
+from quality.retention_features import (
     CurvePoint,
     RetentionFeatures,
     compute_features,

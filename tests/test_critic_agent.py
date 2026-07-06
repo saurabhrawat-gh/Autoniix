@@ -241,7 +241,7 @@ class TestBaseAgentCritiqueWiring:
     async def test_critique_skipped_when_flags_off(self, fresh_registry):
         peer = _PeerAgent()
         with patch(
-            "src.flags.get_flag",
+            "core.flags.get_flag",
             new=AsyncMock(return_value=False),
         ):
             decision = await peer.run({})
@@ -265,7 +265,7 @@ class TestBaseAgentCritiqueWiring:
         AgentRegistry.register(_VetoCritic())
 
         with patch(
-            "src.flags.get_flag",
+            "core.flags.get_flag",
             side_effect=_flag_map({
                 "critic.enabled": True,
                 "peer.critic_review.enabled": True,
@@ -294,7 +294,7 @@ class TestBaseAgentCritiqueWiring:
         AgentRegistry.register(_ModifyCritic())
 
         with patch(
-            "src.flags.get_flag",
+            "core.flags.get_flag",
             side_effect=_flag_map({
                 "critic.enabled": True,
                 "peer.critic_review.enabled": True,
@@ -323,7 +323,7 @@ class TestBaseAgentCritiqueWiring:
         AgentRegistry.register(_ApproveCritic())
 
         with patch(
-            "src.flags.get_flag",
+            "core.flags.get_flag",
             side_effect=_flag_map({
                 "critic.enabled": True,
                 "peer.critic_review.enabled": True,
@@ -345,7 +345,7 @@ class TestBaseAgentCritiqueWiring:
         AgentRegistry.register(_BrokenCritic())
 
         with patch(
-            "src.flags.get_flag",
+            "core.flags.get_flag",
             side_effect=_flag_map({
                 "critic.enabled": True,
                 "peer.critic_review.enabled": True,
@@ -362,7 +362,7 @@ class TestBaseAgentCritiqueWiring:
         peer = _PeerAgent()
         original = peer._decision
         with patch(
-            "src.flags.get_flag",
+            "core.flags.get_flag",
             side_effect=_flag_map({
                 "critic.enabled": True,
                 "peer.critic_review.enabled": True,
@@ -381,7 +381,7 @@ class TestBaseAgentCritiqueWiring:
 
         decision = _decision()
         with patch(
-            "src.flags.get_flag",
+            "core.flags.get_flag",
             new=AsyncMock(side_effect=AssertionError("flags should not be read")),
         ):
             out = await critic._run_critique(decision, _observation())

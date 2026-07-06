@@ -17,8 +17,8 @@ import sys
 
 import structlog
 
-from src.db import get_pool
-from src.redis_client import get_redis
+from core.db import get_pool
+from core.redis_client import get_redis
 
 logger = structlog.get_logger()
 
@@ -27,7 +27,7 @@ async def _terminate_workflows() -> int:
     count = 0
     try:
         from temporalio.client import Client
-        from src.config import settings
+        from core.config import settings
         client = await Client.connect(
             settings.temporal_host,
             namespace=getattr(settings, "temporal_namespace", "default"),
@@ -65,7 +65,7 @@ async def _truncate_tables() -> list[str]:
 def _wipe_minio() -> int:
     total = 0
     try:
-        from src.providers.storage.minio_provider import MinIOStorage
+        from providers.storage.minio_provider import MinIOStorage
         storage = MinIOStorage()
         for prefix in ("test/", "prod/"):
             try:

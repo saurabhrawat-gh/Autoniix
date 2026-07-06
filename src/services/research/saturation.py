@@ -170,7 +170,7 @@ async def compute_saturation(
         return SaturationResult(0.0, 1.0, 0, 0.0, cold_start=True)
 
     try:
-        from src.db import get_pool
+        from core.db import get_pool
         pool = await get_pool()
         rows = await pool.fetch(
             """
@@ -216,7 +216,7 @@ async def get_pulse_freshness(niche: str | None = None) -> dict:
     dashboard can show "pulse data is N hours old."
     """
     try:
-        from src.db import get_pool
+        from core.db import get_pool
         pool = await get_pool()
         if niche:
             row = await pool.fetchrow(

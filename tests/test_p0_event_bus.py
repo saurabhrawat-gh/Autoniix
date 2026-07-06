@@ -1,4 +1,4 @@
-"""Unit tests for src.events — AE-509 / P0."""
+"""Unit tests for events — AE-509 / P0."""
 from __future__ import annotations
 
 import json
@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.events import EnvelopeError, Topic, publish, validate_envelope
-from src.events.bus import subscribe
-from src.events.topics import ALL_TOPICS
+from events import EnvelopeError, Topic, publish, validate_envelope
+from events.bus import subscribe
+from events.topics import ALL_TOPICS
 
 
 
@@ -87,7 +87,7 @@ def test_confidence_above_one_is_rejected():
 async def test_publish_validates_envelope_and_returns_event_id():
     fake_redis = AsyncMock()
     fake_redis.publish = AsyncMock(return_value=1)
-    with patch("src.events.bus.get_redis", AsyncMock(return_value=fake_redis)):
+    with patch("events.bus.get_redis", AsyncMock(return_value=fake_redis)):
         event_id = await publish(
             Topic.BRAIN_DIRECTIVE,
             scope="channel",
@@ -109,7 +109,7 @@ async def test_publish_validates_envelope_and_returns_event_id():
 async def test_publish_rejects_bad_envelope_before_redis_call():
     fake_redis = AsyncMock()
     fake_redis.publish = AsyncMock()
-    with patch("src.events.bus.get_redis", AsyncMock(return_value=fake_redis)):
+    with patch("events.bus.get_redis", AsyncMock(return_value=fake_redis)):
         with pytest.raises(EnvelopeError):
             await publish(
                 Topic.BRAIN_DIRECTIVE,
@@ -151,8 +151,8 @@ async def test_subscribe_drops_invalid_messages_and_dispatches_valid_ones():
         received.append(env)
         raise StopIteration
 
-    with patch("src.events.bus.get_redis", AsyncMock(return_value=fake_redis)), \
-         patch("src.events.bus.get_pubsub_redis", AsyncMock(return_value=fake_redis)):
+    with patch("events.bus.get_redis", AsyncMock(return_value=fake_redis)), \
+         patch("events.bus.get_pubsub_redis", AsyncMock(return_value=fake_redis)):
         import asyncio
         stop = asyncio.Event()
 

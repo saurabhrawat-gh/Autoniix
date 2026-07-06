@@ -9,9 +9,9 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from src.config import settings
-from src.db import close_pool, get_pool
-from src.observability.metrics import instrument_app
+from core.config import settings
+from core.db import close_pool, get_pool
+from observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
     logger.info("sheets_sync.stopped")
 
 
-from src.observability.sentry import init_sentry
+from observability.sentry import init_sentry
 init_sentry("sheets_sync")
 
 app = FastAPI(title="Google Sheets Sync Service", version="0.1.0", lifespan=lifespan)

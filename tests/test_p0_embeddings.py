@@ -1,4 +1,4 @@
-"""Unit tests for src.llm.embeddings — AE-508 / P0."""
+"""Unit tests for llm.embeddings — AE-508 / P0."""
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-import src.llm.embeddings as emb_mod
-from src.llm.embeddings import (
+import llm.embeddings as emb_mod
+from llm.embeddings import (
     EMBEDDING_DIM,
     EmbeddingConfigError,
     EmbeddingError,
@@ -76,8 +76,8 @@ async def test_embed_text_returns_vector_and_records_cost(mock_pool):
         async def post(self, url, headers, json):
             return await fake_post(url, headers, json)
 
-    with patch("src.llm.embeddings.settings.openai_api_key", "sk-test"), \
-         patch("src.llm.embeddings.httpx.AsyncClient", _Client):
+    with patch("llm.embeddings.settings.openai_api_key", "sk-test"), \
+         patch("llm.embeddings.httpx.AsyncClient", _Client):
         vec = await embed_text("hello world")
 
     assert len(vec) == EMBEDDING_DIM
@@ -86,7 +86,7 @@ async def test_embed_text_returns_vector_and_records_cost(mock_pool):
 
 @pytest.mark.asyncio
 async def test_embed_text_raises_config_error_without_api_key():
-    with patch("src.llm.embeddings.settings.openai_api_key", ""):
+    with patch("llm.embeddings.settings.openai_api_key", ""):
         with pytest.raises(EmbeddingConfigError):
             await embed_text("x")
 
@@ -105,9 +105,9 @@ async def test_embed_text_retries_on_5xx_then_succeeds(mock_pool):
                 return _make_response(503, "boom")
             return _make_response(200, _good_payload())
 
-    with patch("src.llm.embeddings.settings.openai_api_key", "sk-test"), \
-         patch("src.llm.embeddings.httpx.AsyncClient", _Client), \
-         patch("src.llm.embeddings.asyncio.sleep", AsyncMock()):
+    with patch("llm.embeddings.settings.openai_api_key", "sk-test"), \
+         patch("llm.embeddings.httpx.AsyncClient", _Client), \
+         patch("llm.embeddings.asyncio.sleep", AsyncMock()):
         vec = await embed_text("retry me")
 
     assert len(vec) == EMBEDDING_DIM
@@ -126,9 +126,9 @@ async def test_embed_text_does_not_retry_on_4xx(mock_pool):
             attempts["n"] += 1
             return _make_response(400, "bad request")
 
-    with patch("src.llm.embeddings.settings.openai_api_key", "sk-test"), \
-         patch("src.llm.embeddings.httpx.AsyncClient", _Client), \
-         patch("src.llm.embeddings.asyncio.sleep", AsyncMock()):
+    with patch("llm.embeddings.settings.openai_api_key", "sk-test"), \
+         patch("llm.embeddings.httpx.AsyncClient", _Client), \
+         patch("llm.embeddings.asyncio.sleep", AsyncMock()):
         with pytest.raises(EmbeddingError):
             await embed_text("permanent fail")
 
@@ -146,8 +146,8 @@ async def test_embed_and_store_updates_target_row(mock_pool):
         async def post(self, url, headers, json):
             return _make_response(200, _good_payload())
 
-    with patch("src.llm.embeddings.settings.openai_api_key", "sk-test"), \
-         patch("src.llm.embeddings.httpx.AsyncClient", _Client):
+    with patch("llm.embeddings.settings.openai_api_key", "sk-test"), \
+         patch("llm.embeddings.httpx.AsyncClient", _Client):
         await embed_and_store(
             "log this decision",
             table="brain_decisions",
@@ -167,7 +167,7 @@ async def test_embed_and_store_updates_target_row(mock_pool):
 @pytest.mark.asyncio
 async def test_semantic_search_returns_empty_on_embedding_failure(mock_pool):
     """Failures in OpenAI must NOT propagate — return [] for resilience."""
-    with patch("src.llm.embeddings.embed_text", AsyncMock(side_effect=EmbeddingError("down"))):
+    with patch("llm.embeddings.embed_text", AsyncMock(side_effect=EmbeddingError("down"))):
         rows = await semantic_search("query", table="brain_decisions")
     assert rows == []
 
@@ -183,9 +183,9 @@ async def test_semantic_search_calls_db_with_vector_param(mock_pool):
         async def post(self, url, headers, json):
             return _make_response(200, _good_payload())
 
-    with patch("src.llm.embeddings.settings.openai_api_key", "sk-test"), \
-         patch("src.llm.embeddings.httpx.AsyncClient", _Client), \
-         patch("src.llm.embeddings.get_flag", AsyncMock(return_value=False)):
+    with patch("llm.embeddings.settings.openai_api_key", "sk-test"), \
+         patch("llm.embeddings.httpx.AsyncClient", _Client), \
+         patch("llm.embeddings.get_flag", AsyncMock(return_value=False)):
         rows = await semantic_search("hello", table="brain_decisions", top_k=5)
 
     assert rows == []

@@ -18,7 +18,7 @@ from pathlib import Path
 
 import asyncpg
 
-from src.config import settings
+from core.config import settings
 
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 TRACKER_BOOTSTRAP = """

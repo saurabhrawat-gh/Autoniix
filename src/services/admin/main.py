@@ -9,9 +9,9 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from src.config import settings
-from src.db import close_pool, get_pool
-from src.schemas.common import HealthResponse, ServiceResponse
+from core.config import settings
+from core.db import close_pool, get_pool
+from schemas.common import HealthResponse, ServiceResponse
 
 from src.services.experiments.ab_framework import (
     create_experiment,
@@ -26,7 +26,7 @@ from src.services.experiments.observability import (
     get_cost_savings,
     get_model_health_summary,
 )
-from src.observability.metrics import instrument_app
+from observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):
     logger.info("admin.stopped")
 
 
-from src.observability.sentry import init_sentry
+from observability.sentry import init_sentry
 init_sentry("admin")
 
 app = FastAPI(title="Admin Service", version="0.1.0", lifespan=lifespan)

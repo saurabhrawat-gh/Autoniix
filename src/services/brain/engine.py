@@ -24,9 +24,9 @@ from typing import Any
 
 import structlog
 
-from src.db import get_pool
-from src.flags import get_flag
-from src.llm.embeddings import EmbeddingConfigError, EmbeddingError, embed_and_store
+from core.db import get_pool
+from core.flags import get_flag
+from llm.embeddings import EmbeddingConfigError, EmbeddingError, embed_and_store
 from src.services.brain.analyser import ChannelSignals
 
 logger = structlog.get_logger()

@@ -11,7 +11,7 @@ import math
 
 import pytest
 
-from src.intelligence.diversity_floor import (
+from intelligence.diversity_floor import (
     DEFAULT_LOOKBACK_N,
     DIVERSITY_THRESHOLD,
     MIN_PICKS_FOR_GUARD,

@@ -14,10 +14,10 @@ import asyncio
 import httpx
 import pytest
 
-from src.providers.llm.base import LLMProvider, LLMRequest, LLMResult
-from src.providers.registry import ProviderRegistry
-from src.llm import router as router_mod
-from src.llm import BudgetExceeded, LadderExhausted, Router
+from providers.llm.base import LLMProvider, LLMRequest, LLMResult
+from providers.registry import ProviderRegistry
+from llm import router as router_mod
+from llm import BudgetExceeded, LadderExhausted, Router
 
 
 

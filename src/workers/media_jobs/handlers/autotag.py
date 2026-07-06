@@ -20,7 +20,7 @@ from typing import Any
 import httpx
 import structlog
 
-from src.config import settings
+from core.config import settings
 from src.workers.media_jobs.storage import download_bytes
 
 logger = structlog.get_logger()

@@ -23,8 +23,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.providers.boot import boot_providers  # noqa: E402
-from src.quality.prompt_eval import EvalCase, Spec, run_suite  # noqa: E402
+from providers.boot import boot_providers  # noqa: E402
+from quality.prompt_eval import EvalCase, Spec, run_suite  # noqa: E402
 
 
 def _load_cases(case_dir: Path) -> list[EvalCase]:

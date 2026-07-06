@@ -398,7 +398,7 @@ class BaseAgent(ABC):
             return decision
 
         try:
-            from src.flags import get_flag
+            from core.flags import get_flag
             global_on = await get_flag("critic.enabled", default=False)
             if not global_on:
                 return decision

@@ -10,7 +10,7 @@ import math
 
 import pytest
 
-from src.quality.retention_features import (
+from quality.retention_features import (
     CurvePoint,
     RetentionFeatures,
     compute_features,

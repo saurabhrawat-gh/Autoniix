@@ -19,7 +19,7 @@ from typing import Any
 import numpy as np
 import structlog
 
-from src.db import get_pool
+from core.db import get_pool
 
 logger = structlog.get_logger()
 

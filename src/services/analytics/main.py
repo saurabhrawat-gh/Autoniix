@@ -10,15 +10,15 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from src.config import settings
-from src.db import close_pool, get_pool
-from src.schemas.common import HealthResponse, ServiceResponse
+from core.config import settings
+from core.db import close_pool, get_pool
+from schemas.common import HealthResponse, ServiceResponse
 
 from src.services.analytics.pattern_miner import (
     mine_performance_patterns,
     get_channel_insights,
 )
-from src.observability.metrics import instrument_app
+from observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -67,7 +67,7 @@ async def lifespan(app: FastAPI):
     logger.info("analytics.stopped")
 
 
-from src.observability.sentry import init_sentry
+from observability.sentry import init_sentry
 init_sentry("analytics")
 
 app = FastAPI(title="Analytics Service", version="0.1.0", lifespan=lifespan)

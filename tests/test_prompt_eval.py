@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from src.quality.prompt_eval import EvalCase, Spec
+from quality.prompt_eval import EvalCase, Spec
 
 
 CASES_DIR = Path(__file__).parent / "prompt_eval" / "cases"

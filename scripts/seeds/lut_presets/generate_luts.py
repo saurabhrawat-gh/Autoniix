@@ -106,9 +106,9 @@ def write_all(out_dir: Path = OUT_DIR) -> list[str]:
 def _upload_all(out_dir: Path = OUT_DIR) -> None:
     import asyncio
 
-    import src.providers.boot  # noqa: F401 - registers storage providers
-    from src.providers.registry import ProviderRegistry
-    from src.providers.storage.base import StorageUpload
+    import providers.boot  # noqa: F401 - registers storage providers
+    from providers.registry import ProviderRegistry
+    from providers.storage.base import StorageUpload
 
     async def _go() -> None:
         storage = ProviderRegistry.get("storage")

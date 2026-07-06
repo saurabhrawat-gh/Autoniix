@@ -31,7 +31,7 @@ import numpy as np
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.db import get_pool, close_pool
+from core.db import get_pool, close_pool
 
 # Niche-specific distributions
 # These model real YouTube performance distributions per niche.

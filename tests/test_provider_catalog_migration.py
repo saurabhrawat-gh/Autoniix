@@ -13,8 +13,8 @@ import pytest
 
 
 def test_custom_openai_compat_registered():
-    import src.providers.boot  # noqa: F401
-    from src.providers.registry import ProviderRegistry
+    import providers.boot  # noqa: F401
+    from providers.registry import ProviderRegistry
 
     for cat in (
         "llm", "llm.research", "llm.script", "llm.factcheck", "llm.qc",
@@ -26,8 +26,8 @@ def test_custom_openai_compat_registered():
 
 
 def test_custom_openai_compat_instantiates():
-    import src.providers.boot  # noqa: F401
-    from src.providers.llm.custom_openai_compat_provider import CustomOpenAICompatLLM
+    import providers.boot  # noqa: F401
+    from providers.llm.custom_openai_compat_provider import CustomOpenAICompatLLM
 
     inst = CustomOpenAICompatLLM()
     assert inst.provider_name() == "custom_openai_compat"
@@ -37,7 +37,7 @@ def test_custom_openai_compat_instantiates():
 
 @pytest.mark.asyncio
 async def test_custom_openai_compat_health_check_no_url():
-    from src.providers.llm.custom_openai_compat_provider import CustomOpenAICompatLLM
+    from providers.llm.custom_openai_compat_provider import CustomOpenAICompatLLM
 
     inst = CustomOpenAICompatLLM()
     result = await inst.health_check()

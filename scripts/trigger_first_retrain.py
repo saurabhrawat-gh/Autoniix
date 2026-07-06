@@ -20,7 +20,7 @@ from datetime import timedelta
 import asyncpg
 from temporalio.client import Client
 
-from src.config import settings
+from core.config import settings
 
 DEFAULT_MIN_SAMPLES = 30
 

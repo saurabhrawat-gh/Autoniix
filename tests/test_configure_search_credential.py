@@ -13,10 +13,10 @@ import pytest
 
 def test_serpapi_api_key_settable(monkeypatch):
     """SerpAPISearch.api_key can be overridden when settings value is empty."""
-    import src.config as cfg
+    import core.config as cfg
     monkeypatch.setattr(cfg.settings, "serpapi_key", "")
 
-    from src.providers.search.serpapi_provider import SerpAPISearch
+    from providers.search.serpapi_provider import SerpAPISearch
 
     inst = SerpAPISearch()
     assert inst.api_key == ""
@@ -29,8 +29,8 @@ def test_serpapi_api_key_settable(monkeypatch):
 
 
 def test_serpapi_registered():
-    import src.providers.boot  # noqa: F401
-    from src.providers.registry import ProviderRegistry
+    import providers.boot  # noqa: F401
+    from providers.registry import ProviderRegistry
 
     reg = ProviderRegistry._registries.get("search", {})
     assert "serpapi" in reg
@@ -78,10 +78,10 @@ def test_wizard_credential_in_search():
 
 def test_serpapi_health_check_uses_instance_api_key(monkeypatch):
     """health_check URL uses self.api_key, not a stale settings value."""
-    import src.config as cfg
+    import core.config as cfg
     monkeypatch.setattr(cfg.settings, "serpapi_key", "")
 
-    from src.providers.search.serpapi_provider import SerpAPISearch
+    from providers.search.serpapi_provider import SerpAPISearch
 
     inst = SerpAPISearch()
     inst.api_key = "injected-key"
@@ -93,16 +93,16 @@ def test_serpapi_health_check_uses_instance_api_key(monkeypatch):
 
 def test_instantiate_sets_serpapi_key(monkeypatch):
     """Full chain._instantiate path for serpapi injects key when settings is empty."""
-    import src.config as cfg
+    import core.config as cfg
     monkeypatch.setattr(cfg.settings, "serpapi_key", "")
 
-    import src.providers.boot  # noqa: F401
-    from src.providers.chain import _instantiate
-    from src.providers.registry import ProviderRegistry
+    import providers.boot  # noqa: F401
+    from providers.chain import _instantiate
+    from providers.registry import ProviderRegistry
     from unittest.mock import patch
 
     registry = ProviderRegistry._registries.get("search", {})
-    with patch("src.providers.chain.get_secret_at", return_value="vault-serpapi-key"):
+    with patch("providers.chain.get_secret_at", return_value="vault-serpapi-key"):
         inst = _instantiate("serpapi", "providers/search/serpapi/main", {}, None, registry)
 
     assert inst.api_key == "vault-serpapi-key"

@@ -11,10 +11,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.providers import chain as chain_mod
-from src.providers.chain import FallbackProvider, NoProviderConfigured
-from src.providers.registry import ProviderRegistry
-from src.providers.secrets import EnvBackend
+from providers import chain as chain_mod
+from providers.chain import FallbackProvider, NoProviderConfigured
+from providers.registry import ProviderRegistry
+from providers.secrets import EnvBackend
 
 
 

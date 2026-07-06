@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import structlog
 
-from src.db import get_pool
+from core.db import get_pool
 
 logger = structlog.get_logger()
 
@@ -101,7 +101,7 @@ async def predict_success(
 
     if content_id:
         try:
-            from src.intelligence.prediction_calibration import log_prediction
+            from intelligence.prediction_calibration import log_prediction
             await log_prediction(
                 content_id=content_id,
                 model_kind="topic_success",
@@ -179,7 +179,7 @@ async def thompson_sample(
     selected = thompson_pick
     if channel_id:
         try:
-            from src.intelligence.diversity_floor import evaluate_diversity_floor
+            from intelligence.diversity_floor import evaluate_diversity_floor
             decision = await evaluate_diversity_floor(
                 channel_id=channel_id,
                 bandit_type="topic_cluster",
@@ -200,7 +200,7 @@ async def thompson_sample(
 
     if channel_id:
         try:
-            from src.intelligence.diversity_floor import log_bandit_pick
+            from intelligence.diversity_floor import log_bandit_pick
             await log_bandit_pick(
                 niche=niche, bandit_type="topic_cluster",
                 channel_id=channel_id, arm_name=selected,
@@ -345,7 +345,7 @@ async def ingest_performance(content_id: str, analytics: dict) -> dict:
             await bandit_update(ch_row["niche"], feat_row["bandit_arm"], reward)
 
     try:
-        from src.intelligence.prediction_calibration import update_prediction_actual
+        from intelligence.prediction_calibration import update_prediction_actual
         await update_prediction_actual(
             content_id=content_id,
             model_kind="topic_success",

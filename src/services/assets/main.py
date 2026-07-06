@@ -11,14 +11,14 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from src.config import settings
-from src.db import close_pool, get_pool
-from src.schemas.common import HealthResponse, ServiceResponse
+from core.config import settings
+from core.db import close_pool, get_pool
+from schemas.common import HealthResponse, ServiceResponse
 
-import src.providers.boot  # noqa: F401
-from src.providers.registry import ProviderRegistry
-from src.providers.llm.base import LLMRequest
-from src.providers.storage.base import StorageUpload
+import providers.boot  # noqa: F401
+from providers.registry import ProviderRegistry
+from providers.llm.base import LLMRequest
+from providers.storage.base import StorageUpload
 
 from src.services.assets.query_optimizer import (
     optimize_query,
@@ -30,7 +30,7 @@ from src.services.assets.provider_chain import (
     run_chain,
     provider_health_snapshot,
 )
-from src.observability.metrics import instrument_app
+from observability.metrics import instrument_app
 
 try:
     from prometheus_client import Counter, Histogram, Gauge
@@ -259,7 +259,7 @@ async def lifespan(app: FastAPI):
     logger.info("assets.stopped")
 
 
-from src.observability.sentry import init_sentry
+from observability.sentry import init_sentry
 init_sentry("assets")
 
 app = FastAPI(title="Assets Service", version="0.1.0", lifespan=lifespan)
@@ -418,7 +418,7 @@ async def generate_assets(req: AssetsRequest):
                 continue
 
             image_provider = ProviderRegistry.get("image")
-            from src.providers.image.base import ImageRequest
+            from providers.image.base import ImageRequest
 
             prompt = f"YouTube video scene: {direction}. {', '.join(suggestions[:3])}"
             prompt = prompt[:900]

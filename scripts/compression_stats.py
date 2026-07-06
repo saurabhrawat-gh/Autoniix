@@ -50,7 +50,7 @@ def main() -> None:
     # Ensure the src package is importable.
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-    from src.llm.compressor import get_savings_report
+    from llm.compressor import get_savings_report
 
     def print_report() -> None:
         report = get_savings_report(days=args.days, breakdown=args.breakdown)

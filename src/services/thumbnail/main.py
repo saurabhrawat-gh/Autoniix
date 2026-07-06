@@ -11,14 +11,14 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from src.config import settings
-from src.db import close_pool, get_pool
-from src.schemas.common import HealthResponse, ServiceResponse
+from core.config import settings
+from core.db import close_pool, get_pool
+from schemas.common import HealthResponse, ServiceResponse
 
-import src.providers.boot  # noqa: F401
-from src.providers.registry import ProviderRegistry
-from src.providers.llm.base import LLMRequest
-from src.providers.storage.base import StorageUpload
+import providers.boot  # noqa: F401
+from providers.registry import ProviderRegistry
+from providers.llm.base import LLMRequest
+from providers.storage.base import StorageUpload
 
 from src.services.thumbnail.composition_analyzer import analyze_composition
 from src.services.thumbnail.ctr_predictor import (
@@ -27,7 +27,7 @@ from src.services.thumbnail.ctr_predictor import (
     ingest_ctr_outcome,
     train_ctr_model,
 )
-from src.observability.metrics import instrument_app
+from observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -90,7 +90,7 @@ async def lifespan(app: FastAPI):
     logger.info("thumbnail.stopped")
 
 
-from src.observability.sentry import init_sentry
+from observability.sentry import init_sentry
 init_sentry("thumbnail")
 
 app = FastAPI(title="Thumbnail Service", version="0.1.0", lifespan=lifespan)
@@ -153,7 +153,7 @@ async def generate_thumbnail(req: ThumbnailRequest):
 
         image_provider = ProviderRegistry.get("image")
         storage = ProviderRegistry.get("storage")
-        from src.providers.image.base import ImageRequest
+        from providers.image.base import ImageRequest
 
         variants = []
         for i, concept in enumerate(top_concepts):
@@ -287,7 +287,7 @@ async def generate_thumbnail(req: ThumbnailRequest):
             logger.warning("thumbnail.vision_provider_unavailable", error=str(vis_err))
 
         if vision_llm:
-            from src.providers.llm.openai_vision_provider import VisionRequest
+            from providers.llm.openai_vision_provider import VisionRequest
 
             for variant in variants:
                 if variant.get("local_score", 0) >= local_qc_skip_threshold:
@@ -442,7 +442,7 @@ async def generate_thumbnail(req: ThumbnailRequest):
 
                         if vision_llm:
                             try:
-                                from src.providers.llm.openai_vision_provider import VisionRequest
+                                from providers.llm.openai_vision_provider import VisionRequest
                                 v_res = await vision_llm.complete(VisionRequest(
                                     messages=[
                                         {"role": "system", "content": (

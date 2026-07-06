@@ -21,8 +21,8 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from src.db import close_pool, get_pool
-from src.schemas.common import HealthResponse, ServiceResponse
+from core.db import close_pool, get_pool
+from schemas.common import HealthResponse, ServiceResponse
 
 from src.services.editor.timeline_optimizer import (
     analyze_pacing,
@@ -35,7 +35,7 @@ from src.services.editor.caption_generator import (
     generate_audio_mix_config,
 )
 from src.services.editor.final_qc import run_final_qc
-from src.observability.metrics import instrument_app
+from observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -77,7 +77,7 @@ async def lifespan(app: FastAPI):
     logger.info("editor.stopped")
 
 
-from src.observability.sentry import init_sentry
+from observability.sentry import init_sentry
 init_sentry("editor")
 
 app = FastAPI(title="Editor Service", version="0.1.0", lifespan=lifespan)

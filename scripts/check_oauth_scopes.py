@@ -15,7 +15,7 @@ import sys
 
 import httpx
 
-from src.config import settings
+from core.config import settings
 
 REQUIRED_SCOPE = "https://www.googleapis.com/auth/yt-analytics.readonly"
 UPLOAD_SCOPE   = "https://www.googleapis.com/auth/youtube.upload"

@@ -17,7 +17,7 @@ async def download_bytes(key: str) -> bytes | None:
     treat ``None`` as a retryable error and the runner will reschedule.
     """
     try:
-        from src.providers.registry import ProviderRegistry
+        from providers.registry import ProviderRegistry
 
         storage = ProviderRegistry.get("storage")
     except Exception as exc:

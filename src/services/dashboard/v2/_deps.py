@@ -13,7 +13,7 @@ import structlog
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from src.db import get_pool
+from core.db import get_pool
 
 from ._membership import check_membership
 

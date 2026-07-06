@@ -309,7 +309,7 @@ async def import_asset(
     # Upload to MinIO
     try:
         data = path.read_bytes()
-        from src.providers.storage.base import StorageUpload
+        from providers.storage.base import StorageUpload
         up = await storage.upload(StorageUpload(
             key=minio_key,
             data=data,
@@ -399,9 +399,9 @@ async def run_import(
             )
         return len(files), len(files)
 
-    from src.db import get_pool, close_pool
-    from src.providers.boot import boot_providers
-    from src.providers.registry import ProviderRegistry
+    from core.db import get_pool, close_pool
+    from providers.boot import boot_providers
+    from providers.registry import ProviderRegistry
 
     boot_providers()
     storage = ProviderRegistry.get("storage")

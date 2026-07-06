@@ -12,7 +12,7 @@ import pytest
 
 
 def test_cache_key_includes_pipeline_mode():
-    from src.providers.chain import _cache_key
+    from providers.chain import _cache_key
 
     key_prod = _cache_key("llm", None, None, "production")
     key_test = _cache_key("llm", None, None, "test")
@@ -23,14 +23,14 @@ def test_cache_key_includes_pipeline_mode():
 
 
 def test_cache_key_defaults_to_production():
-    from src.providers.chain import _cache_key
+    from providers.chain import _cache_key
 
     key = _cache_key("llm", None, None)
     assert key[3] == "production"
 
 
 def test_cache_key_differentiates_channel_and_mode():
-    from src.providers.chain import _cache_key
+    from providers.chain import _cache_key
 
     k1 = _cache_key("llm", "ch-1", "faceless", "production")
     k2 = _cache_key("llm", "ch-1", "faceless", "test")
@@ -56,7 +56,7 @@ def test_chain_v2_in_test_pipeline_mode():
 def test_registry_get_accepts_pipeline_mode():
     """Ensure registry.get() signature accepts pipeline_mode without error."""
     import inspect
-    from src.providers.registry import ProviderRegistry
+    from providers.registry import ProviderRegistry
 
     sig = inspect.signature(ProviderRegistry.get)
     assert "pipeline_mode" in sig.parameters
@@ -64,7 +64,7 @@ def test_registry_get_accepts_pipeline_mode():
 
 def test_load_layer_signature_has_pipeline_mode():
     import inspect
-    from src.providers.chain import _load_layer
+    from providers.chain import _load_layer
 
     sig = inspect.signature(_load_layer)
     assert "pipeline_mode" in sig.parameters
@@ -73,7 +73,7 @@ def test_load_layer_signature_has_pipeline_mode():
 
 def test_load_chain_signature_has_pipeline_mode():
     import inspect
-    from src.providers.chain import _load_chain
+    from providers.chain import _load_chain
 
     sig = inspect.signature(_load_chain)
     assert "pipeline_mode" in sig.parameters
@@ -82,7 +82,7 @@ def test_load_chain_signature_has_pipeline_mode():
 
 def test_resolve_chain_signature_has_pipeline_mode():
     import inspect
-    from src.providers.chain import resolve_chain
+    from providers.chain import resolve_chain
 
     sig = inspect.signature(resolve_chain)
     assert "pipeline_mode" in sig.parameters

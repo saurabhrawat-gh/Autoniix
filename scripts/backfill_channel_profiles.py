@@ -13,7 +13,7 @@ import json
 import asyncpg
 import structlog
 
-from src.config import settings
+from core.config import settings
 
 logger = structlog.get_logger()
 

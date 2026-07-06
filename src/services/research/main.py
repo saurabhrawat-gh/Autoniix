@@ -11,15 +11,15 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from src.config import settings
-from src.db import close_pool, get_pool
-from src.redis_client import close_redis, get_redis
-from src.schemas.common import HealthResponse, ServiceResponse
+from core.config import settings
+from core.db import close_pool, get_pool
+from core.redis_client import close_redis, get_redis
+from schemas.common import HealthResponse, ServiceResponse
 
-import src.providers.boot  # noqa: F401
+import providers.boot  # noqa: F401
 
-from src.providers.registry import ProviderRegistry
-from src.providers.llm.base import LLMRequest
+from providers.registry import ProviderRegistry
+from providers.llm.base import LLMRequest
 
 from src.services.research.trend_collector import collect_trends
 from src.services.research.competitor_insights import collect_competitor_insights
@@ -37,7 +37,7 @@ from src.services.research.burst_detector import (
     detect_bursts, mine_phrases, get_rising_phrases,
     compute_phrase_novelty, compute_advanced_seasonality,
 )
-from src.observability.metrics import instrument_app
+from observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -169,7 +169,7 @@ async def _search_serpapi(queries: list[str]) -> list[dict]:
     """Search via SerpAPI (Google + Google Trends)."""
     try:
         search_provider = ProviderRegistry.get("search")
-        from src.providers.search.base import SearchRequest
+        from providers.search.base import SearchRequest
         results = []
         for q in queries[:3]:
             result = await search_provider.search(SearchRequest(
@@ -291,7 +291,7 @@ async def lifespan(app: FastAPI):
     logger.info("research.stopped")
 
 
-from src.observability.sentry import init_sentry
+from observability.sentry import init_sentry
 init_sentry("research")
 
 app = FastAPI(title="Research Service", version="0.1.0", lifespan=lifespan)
@@ -341,7 +341,7 @@ async def research(req: ResearchRequest):
                      youtube=len(youtube_results), serp=len(serp_results),
                      reddit=len(reddit_results), news=len(news_results), wiki=len(wiki_results))
 
-        from src.llm import route as _route, BudgetExceeded as _BudgetExceeded
+        from llm import route as _route, BudgetExceeded as _BudgetExceeded
         prompt = await _load_prompt("PRM_B1_RESEARCH_SYNTH")
 
         yt_text = "\n".join(f"- [{r['title']}]({r['url']}) by {r.get('channel','')}" for r in youtube_results[:8])
@@ -648,7 +648,7 @@ async def ideate(req: IdeationRequest):
         prompt = await _load_prompt("PRM_B1_IDEATION")
         llm = ProviderRegistry.get("llm.ideation")
 
-        from src.intelligence import build_performance_context
+        from intelligence import build_performance_context
         perf_context = await build_performance_context(req.channel_id)
 
         system_prompt = _safe_format(prompt.get("system_prompt", "Generate 10 YouTube video concepts. Respond in JSON."),

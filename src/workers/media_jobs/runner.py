@@ -32,8 +32,8 @@ from typing import Any
 
 import structlog
 
-from src.db import get_pool
-from src.observability.sentry import init_sentry
+from core.db import get_pool
+from observability.sentry import init_sentry
 from src.workers.media_jobs.handlers import resolve as resolve_handler
 
 logger = structlog.get_logger()

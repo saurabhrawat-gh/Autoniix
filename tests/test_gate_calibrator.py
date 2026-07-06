@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.quality.calibrator import (
+from quality.calibrator import (
     ABSOLUTE_CEILING,
     ABSOLUTE_FLOOR,
     MIN_SAMPLES,
@@ -17,7 +17,7 @@ from src.quality.calibrator import (
     calibrate_dimension,
     calibrate_all_dimensions,
 )
-from src.quality.gate import PRODUCTION_THRESHOLDS
+from quality.gate import PRODUCTION_THRESHOLDS
 
 
 

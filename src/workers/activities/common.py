@@ -5,8 +5,8 @@ from datetime import date, datetime
 import structlog
 from temporalio import activity
 
-from src.db import get_pool
-from src.redis_client import get_redis
+from core.db import get_pool
+from core.redis_client import get_redis
 
 logger = structlog.get_logger()
 
@@ -246,8 +246,8 @@ async def save_checkpoint_data(content_id: str, phase: str, data: dict) -> None:
     logger.info("activity.save_checkpoint", content_id=content_id, phase=phase)
     try:
         import json as _json
-        from src.providers.registry import ProviderRegistry
-        from src.providers.storage.base import StorageUpload
+        from providers.registry import ProviderRegistry
+        from providers.storage.base import StorageUpload
 
         storage = ProviderRegistry.get("storage")
         key = f"checkpoints/{content_id}/{phase}.json"
@@ -268,7 +268,7 @@ async def load_checkpoint_data(content_id: str, phase: str) -> dict:
     logger.info("activity.load_checkpoint", content_id=content_id, phase=phase)
     try:
         import json as _json
-        from src.providers.registry import ProviderRegistry
+        from providers.registry import ProviderRegistry
 
         storage = ProviderRegistry.get("storage")
         key = f"checkpoints/{content_id}/{phase}.json"

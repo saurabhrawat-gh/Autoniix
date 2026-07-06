@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.quality.calibrator import (
+from quality.calibrator import (
     DIM_TO_RETENTION_FEATURE,
     RETENTION_LOWER_IS_BETTER,
     Sample,
@@ -84,7 +84,7 @@ def test_classify_by_retention_missing_data_returns_none():
 
 def test_dim_to_retention_feature_dims_are_real_threshold_dims():
     """Every key in DIM_TO_RETENTION_FEATURE must be an actual gate dim."""
-    from src.quality.gate import PRODUCTION_THRESHOLDS
+    from quality.gate import PRODUCTION_THRESHOLDS
     for dim in DIM_TO_RETENTION_FEATURE:
         assert dim in PRODUCTION_THRESHOLDS, (
             f"DIM_TO_RETENTION_FEATURE references unknown dim {dim!r}"

@@ -16,7 +16,7 @@ from datetime import timedelta
 import asyncpg
 from temporalio.client import Client
 
-from src.config import settings
+from core.config import settings
 
 
 async def main(temporal_host: str) -> None:

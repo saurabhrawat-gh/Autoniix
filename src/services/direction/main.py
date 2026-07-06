@@ -9,20 +9,20 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from src.config import settings
-from src.db import close_pool, get_pool
-from src.schemas.common import HealthResponse, ServiceResponse
+from core.config import settings
+from core.db import close_pool, get_pool
+from schemas.common import HealthResponse, ServiceResponse
 
-import src.providers.boot  # noqa: F401
-from src.providers.registry import ProviderRegistry
-from src.providers.llm.base import LLMRequest
+import providers.boot  # noqa: F401
+from providers.registry import ProviderRegistry
+from providers.llm.base import LLMRequest
 
 from src.services.direction.direction_merger import (
     merge_script_direction_with_assets,
     score_merged_direction,
     store_direction_features,
 )
-from src.observability.metrics import instrument_app
+from observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -90,7 +90,7 @@ async def lifespan(app: FastAPI):
     logger.info("direction.stopped")
 
 
-from src.observability.sentry import init_sentry
+from observability.sentry import init_sentry
 init_sentry("direction")
 
 app = FastAPI(title="Direction Service", version="0.1.0", lifespan=lifespan)

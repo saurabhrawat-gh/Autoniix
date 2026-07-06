@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.providers import chain as chain_mod
+from providers import chain as chain_mod
 
 
 class _FakeConn:
@@ -89,7 +89,7 @@ async def test_resolution_order_is_most_specific_first():
         ("system",    None,  None,    "llm.script"): [_row(5)],
     }
     conn = _FakeConn(layers, default_fallback=None)
-    with patch("src.db.get_pool", new=AsyncMock(return_value=_FakePool(conn))):
+    with patch("core.db.get_pool", new=AsyncMock(return_value=_FakePool(conn))):
         rows = await chain_mod._load_chain(
             "llm.script", channel_id="CH1", content_mode="short",
         )
@@ -110,7 +110,7 @@ async def test_partial_channel_override_inherits_workspace_tail():
         ("system",    None,  None, "llm.script"): [],
     }
     conn = _FakeConn(layers, default_fallback=None)
-    with patch("src.db.get_pool", new=AsyncMock(return_value=_FakePool(conn))):
+    with patch("core.db.get_pool", new=AsyncMock(return_value=_FakePool(conn))):
         rows = await chain_mod._load_chain(
             "llm.script", channel_id="CH1", content_mode=None,
         )
@@ -128,7 +128,7 @@ async def test_dedup_keeps_first_occurrence():
         ("system",    None,  None, "llm.script"): [],
     }
     conn = _FakeConn(layers, default_fallback=None)
-    with patch("src.db.get_pool", new=AsyncMock(return_value=_FakePool(conn))):
+    with patch("core.db.get_pool", new=AsyncMock(return_value=_FakePool(conn))):
         rows = await chain_mod._load_chain(
             "llm.script", channel_id="CH1", content_mode=None,
         )
@@ -149,7 +149,7 @@ async def test_default_fallback_always_appended_last():
         "enabled": True, "last_health_ok": True, "label": "house-key",
     }
     conn = _FakeConn(layers, default_fallback=fb)
-    with patch("src.db.get_pool", new=AsyncMock(return_value=_FakePool(conn))):
+    with patch("core.db.get_pool", new=AsyncMock(return_value=_FakePool(conn))):
         rows = await chain_mod._load_chain(
             "llm.script", channel_id=None, content_mode=None,
         )
@@ -165,7 +165,7 @@ async def test_mode_specific_only_queried_when_mode_given():
         ("system",    None, None, "llm.script"): [],
     }
     conn = _FakeConn(layers, default_fallback=None)
-    with patch("src.db.get_pool", new=AsyncMock(return_value=_FakePool(conn))):
+    with patch("core.db.get_pool", new=AsyncMock(return_value=_FakePool(conn))):
         await chain_mod._load_chain(
             "llm.script", channel_id=None, content_mode=None,
         )
@@ -184,7 +184,7 @@ async def test_disabled_credential_skipped_by_layer_loader():
         ("system",    None, None, "llm.script"): [],
     }
     conn = _FakeConn(layers, default_fallback=None)
-    with patch("src.db.get_pool", new=AsyncMock(return_value=_FakePool(conn))):
+    with patch("core.db.get_pool", new=AsyncMock(return_value=_FakePool(conn))):
         rows = await chain_mod._load_chain(
             "llm.script", channel_id=None, content_mode=None,
         )
@@ -201,7 +201,7 @@ async def test_resolve_chain_returns_empty_sentinel_when_no_rows():
         ("system",    None, None, "llm.script"): [],
     }
     conn = _FakeConn(layers, default_fallback=None)
-    with patch("src.db.get_pool", new=AsyncMock(return_value=_FakePool(conn))), \
+    with patch("core.db.get_pool", new=AsyncMock(return_value=_FakePool(conn))), \
          patch.object(chain_mod, "_flag_enabled", new=AsyncMock(return_value=True)):
         result = await chain_mod.resolve_chain("llm.script", registry_map={})
     assert result is chain_mod.EMPTY_CHAIN

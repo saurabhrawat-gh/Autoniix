@@ -31,7 +31,7 @@ from fastapi import FastAPI
 from src.agents.critic import CriticAgent
 from src.agents.preventor import PreventorAgent
 from src.agents.registry import AgentRegistry
-from src.db import close_pool, get_pool
+from core.db import close_pool, get_pool
 from src.services.brain.agent import BrainAgent
 from src.services.brain.consumer import run_consumer
 from src.services.brain.reflector import run_reflector_loop

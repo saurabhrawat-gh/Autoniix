@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from src.config import settings
+from core.config import settings
 
 LUT_MINIO_PREFIX = "luts/"
 LUT_PREVIEW_PREFIX = "luts/previews/"

@@ -57,7 +57,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, EmailStr, Field
 
-from src.db import get_pool
+from core.db import get_pool
 from ._deps import Principal, audit, principal_dep, require_permission, require_role
 
 router = APIRouter()

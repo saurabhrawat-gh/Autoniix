@@ -9,13 +9,13 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from src.config import settings
-from src.db import close_pool, get_pool
-from src.schemas.common import HealthResponse, ServiceResponse
+from core.config import settings
+from core.db import close_pool, get_pool
+from schemas.common import HealthResponse, ServiceResponse
 
-import src.providers.boot  # noqa: F401
-from src.providers.registry import ProviderRegistry
-from src.providers.llm.base import LLMRequest
+import providers.boot  # noqa: F401
+from providers.registry import ProviderRegistry
+from providers.llm.base import LLMRequest
 
 from src.services.script.script_analyzer import analyze_full_script
 from src.services.script.retention_optimizer import compute_retention_score
@@ -32,7 +32,7 @@ from src.services.script.self_learning import (
     train_model as train_script_model,
     detect_drift as detect_script_drift,
 )
-from src.observability.metrics import instrument_app
+from observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -126,7 +126,7 @@ async def lifespan(app: FastAPI):
     logger.info("script.stopped")
 
 
-from src.observability.sentry import init_sentry
+from observability.sentry import init_sentry
 init_sentry("script")
 
 app = FastAPI(title="Script Service", version="0.2.0", lifespan=lifespan)
@@ -181,8 +181,8 @@ async def generate_script(req: ScriptRequest):
             selected_hook_style = "open_loop"
             selected_pacing = "wave_rhythm"
 
-        from src.llm import route as _route, BudgetExceeded as _BudgetExceeded
-        from src.intelligence import build_performance_context
+        from llm import route as _route, BudgetExceeded as _BudgetExceeded
+        from intelligence import build_performance_context
         perf_context = await build_performance_context(req.channel_id)
         prompt = await _load_prompt("PRM_B1_SCRIPT_V1")
 

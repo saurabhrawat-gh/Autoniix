@@ -237,7 +237,7 @@ class TestAgentMemory:
         assert [r["id"] for r in result.rows] == [1, 3]
 
     async def test_recall_embedding_failure_returns_empty(self, memory):
-        from src.llm.embeddings import EmbeddingConfigError
+        from llm.embeddings import EmbeddingConfigError
         with (
             patch("src.agents.memory.get_flag", new=AsyncMock(return_value=True)),
             patch(

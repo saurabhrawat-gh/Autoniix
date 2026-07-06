@@ -13,7 +13,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from src.db import get_pool
+from core.db import get_pool
 
 from ._deps import Principal, audit, principal_dep, require_role
 

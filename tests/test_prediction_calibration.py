@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.intelligence.prediction_calibration import (
+from intelligence.prediction_calibration import (
     DEFAULT_METRICS_LOOKBACK_DAYS,
     WEIGHT_CAP,
     WEIGHT_K,

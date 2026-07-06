@@ -15,19 +15,19 @@ import pytest
 
 
 def test_minio_storage_has_config_attributes(monkeypatch):
-    import src.config as cfg
+    import core.config as cfg
     monkeypatch.setattr(cfg.settings, "s3_endpoint", "http://localhost:9000")
     monkeypatch.setattr(cfg.settings, "s3_access_key", "minioadmin")
     monkeypatch.setattr(cfg.settings, "s3_secret_key", "minioadmin")
     monkeypatch.setattr(cfg.settings, "s3_bucket", "test-bucket")
     monkeypatch.setattr(cfg.settings, "s3_public_base_url", "")
 
-    with patch("src.providers.storage.minio_provider.Minio") as mock_minio:
+    with patch("providers.storage.minio_provider.Minio") as mock_minio:
         mock_client = MagicMock()
         mock_client.bucket_exists.return_value = True
         mock_minio.return_value = mock_client
 
-        from src.providers.storage.minio_provider import MinIOStorage
+        from providers.storage.minio_provider import MinIOStorage
         inst = MinIOStorage()
 
     assert inst.endpoint == "http://localhost:9000"
@@ -37,19 +37,19 @@ def test_minio_storage_has_config_attributes(monkeypatch):
 
 
 def test_minio_connect_rebuilds_client(monkeypatch):
-    import src.config as cfg
+    import core.config as cfg
     monkeypatch.setattr(cfg.settings, "s3_endpoint", "http://localhost:9000")
     monkeypatch.setattr(cfg.settings, "s3_access_key", "key1")
     monkeypatch.setattr(cfg.settings, "s3_secret_key", "secret1")
     monkeypatch.setattr(cfg.settings, "s3_bucket", "bucket1")
     monkeypatch.setattr(cfg.settings, "s3_public_base_url", "")
 
-    with patch("src.providers.storage.minio_provider.Minio") as mock_minio:
+    with patch("providers.storage.minio_provider.Minio") as mock_minio:
         mock_client = MagicMock()
         mock_client.bucket_exists.return_value = True
         mock_minio.return_value = mock_client
 
-        from src.providers.storage.minio_provider import MinIOStorage
+        from providers.storage.minio_provider import MinIOStorage
         inst = MinIOStorage()
 
         inst.access_key = "new-access-key"
@@ -65,21 +65,21 @@ def test_minio_connect_rebuilds_client(monkeypatch):
 
 def test_chain_instantiate_calls_connect_after_extra_config(monkeypatch):
     """chain._instantiate calls _connect() after extra_config attrs are set."""
-    import src.config as cfg
+    import core.config as cfg
     monkeypatch.setattr(cfg.settings, "s3_endpoint", "http://localhost:9000")
     monkeypatch.setattr(cfg.settings, "s3_access_key", "")
     monkeypatch.setattr(cfg.settings, "s3_secret_key", "")
     monkeypatch.setattr(cfg.settings, "s3_bucket", "default")
     monkeypatch.setattr(cfg.settings, "s3_public_base_url", "")
 
-    import src.providers.boot  # noqa: F401
-    from src.providers.chain import _instantiate
-    from src.providers.registry import ProviderRegistry
+    import providers.boot  # noqa: F401
+    from providers.chain import _instantiate
+    from providers.registry import ProviderRegistry
 
     registry = ProviderRegistry._registries.get("storage", {})
     connect_calls: list[dict] = []
 
-    with patch("src.providers.storage.minio_provider.Minio") as mock_minio:
+    with patch("providers.storage.minio_provider.Minio") as mock_minio:
         mock_client = MagicMock()
         mock_client.bucket_exists.return_value = True
         mock_minio.return_value = mock_client
@@ -90,7 +90,7 @@ def test_chain_instantiate_calls_connect_after_extra_config(monkeypatch):
 
         mock_minio.side_effect = track_connect
 
-        with patch("src.providers.chain.get_secret_at", return_value="vault-secret"):
+        with patch("providers.chain.get_secret_at", return_value="vault-secret"):
             inst = _instantiate(
                 "minio", "providers/storage/minio/prod",
                 {"access_key": "prod-access", "endpoint": "http://minio-prod:9000",
@@ -144,8 +144,8 @@ def test_minio_wizard_field_split():
 
 
 def test_minio_registered():
-    import src.providers.boot  # noqa: F401
-    from src.providers.registry import ProviderRegistry
+    import providers.boot  # noqa: F401
+    from providers.registry import ProviderRegistry
 
     reg = ProviderRegistry._registries.get("storage", {})
     assert "minio" in reg

@@ -16,7 +16,7 @@ from typing import Any
 
 import structlog
 
-from src.db import get_pool
+from core.db import get_pool
 
 logger = structlog.get_logger()
 
@@ -118,7 +118,7 @@ def invalidate(role: str | None = None) -> None:
 async def publish_invalidate(role: str | None = None) -> None:
     """Publish an invalidation event.  Best-effort; never raises."""
     try:
-        from src.redis_client import get_redis
+        from core.redis_client import get_redis
         redis = await get_redis()
         payload = json.dumps({"role": role})
         await redis.publish(CHANNEL_NAME, payload)
@@ -143,7 +143,7 @@ async def _consume(pubsub: Any) -> None:
 
 
 async def _subscriber_loop() -> None:
-    from src.redis_client import get_redis
+    from core.redis_client import get_redis
     while True:
         try:
             redis = await get_redis()

@@ -27,12 +27,12 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from temporalio.client import Client as TemporalClient
 
-from src.config import settings
-from src.db import get_pool
+from core.config import settings
+from core.db import get_pool
 
-from src.schemas.common import VideoParams
-from src.observability.metrics import instrument_app
-from src.observability.sentry import init_sentry
+from schemas.common import VideoParams
+from observability.metrics import instrument_app
+from observability.sentry import init_sentry
 from src.services.dashboard._limiter import limiter
 
 init_sentry("dashboard-bff")
@@ -119,7 +119,7 @@ _generate_download_url = _public_url
 app = FastAPI(title="Dashboard BFF", version="1.0.0")
 instrument_app(app, service_name="dashboard")
 
-import src.providers.boot  # noqa: E402, F401
+import providers.boot  # noqa: E402, F401
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -168,7 +168,7 @@ _SECRET_ENV_KEYS: list[tuple[str, str]] = [
 
 @app.on_event("startup")
 async def _start_budget_gauge_refresh() -> None:
-    from src.observability.budget_metrics import start_budget_gauge_refresh
+    from observability.budget_metrics import start_budget_gauge_refresh
     asyncio.create_task(start_budget_gauge_refresh(get_pool))
 
 
@@ -625,9 +625,9 @@ async def generate_brand_dna(req: BrandDnaRequest, _: str = Depends(verify_token
     Returns editable defaults the user can tweak before saving the channel.
     Falls back to deterministic defaults if no LLM is reachable.
     """
-    from src.providers import boot as _provider_boot  # noqa: F401  ensure providers register
-    from src.providers.llm.base import LLMRequest
-    from src.providers.registry import ProviderRegistry
+    from providers import boot as _provider_boot  # noqa: F401  ensure providers register
+    from providers.llm.base import LLMRequest
+    from providers.registry import ProviderRegistry
 
     fallback = {
         "belief_territory": f"{req.niche}_misconceptions",
@@ -710,7 +710,7 @@ async def list_niche_templates(_: str = Depends(verify_token)):
     Templates are defined in ``src/intelligence/niche_templates.json`` and
     can be edited without code changes.
     """
-    from src.intelligence import list_templates
+    from intelligence import list_templates
     return R(status="ok", data={"templates": list_templates()})
 
 
@@ -725,7 +725,7 @@ async def channel_learning_insights(channel_id: str, _: str = Depends(verify_tok
     * Drift — has the script-success model degraded since last train?
     * Tier distribution — how many S/A/B/C/D videos in the last 30 days?
     """
-    from src.intelligence import build_performance_context
+    from intelligence import build_performance_context
 
     pool = await get_pool()
 
@@ -1877,7 +1877,7 @@ async def cleanup_test_data(_: str = Depends(verify_token)):
 
     storage_deleted = 0
     try:
-        from src.providers.storage.minio_provider import MinIOStorage
+        from providers.storage.minio_provider import MinIOStorage
         storage = MinIOStorage()
         storage_deleted = storage.delete_prefix("test/")
     except Exception as exc:
@@ -1942,7 +1942,7 @@ async def clean_slate(req: CleanSlateRequest, _: str = Depends(verify_token)):
             logger.warning("clean_slate.truncate_failed", table=t, error=str(exc))
 
     try:
-        from src.providers.storage.minio_provider import MinIOStorage
+        from providers.storage.minio_provider import MinIOStorage
         storage = MinIOStorage()
         for prefix in ("test/", "prod/"):
             try:
@@ -1953,7 +1953,7 @@ async def clean_slate(req: CleanSlateRequest, _: str = Depends(verify_token)):
         logger.warning("clean_slate.storage_init_failed", error=str(exc))
 
     try:
-        from src.redis_client import get_redis
+        from core.redis_client import get_redis
         r = await get_redis()
         for pattern in ("lock:channel:*", "progress:*"):
             try:
@@ -2038,7 +2038,7 @@ async def fleet_health(_: str = Depends(verify_token)):
     """
     import asyncio as _asyncio
     import httpx as _httpx
-    from src.db import get_pool_stats
+    from core.db import get_pool_stats
 
     probes = await _asyncio.gather(*[
         _probe_service(name, url, timeout_s=3.0)
@@ -2121,7 +2121,7 @@ async def fleet_health(_: str = Depends(verify_token)):
 
     calibration_health: dict
     try:
-        from src.intelligence.prediction_calibration import get_calibration_metrics
+        from intelligence.prediction_calibration import get_calibration_metrics
         cal_metrics = await get_calibration_metrics(model_kind="topic_success")
         calibration_health = {"ok": True, **cal_metrics}
         try:
@@ -2234,7 +2234,7 @@ async def fleet_health(_: str = Depends(verify_token)):
     }
 
     try:
-        from src.intelligence.system_health import aggregate_health
+        from intelligence.system_health import aggregate_health
         payload["health"] = aggregate_health(payload)
     except Exception as exc:
         payload["health"] = {"score": None, "band": "unknown",

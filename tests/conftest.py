@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-import src.db
+import core.db
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -75,10 +75,10 @@ class FakePool:
 @pytest.fixture
 def mock_pool():
     pool = FakePool()
-    original = src.db.get_pool
-    targets = ["src.db.get_pool"]
+    original = core.db.get_pool
+    targets = ["core.db.get_pool"]
     for _name, _mod in list(sys.modules.items()):
-        if _mod is None or _name == "src.db":
+        if _mod is None or _name == "core.db":
             continue
         try:
             _candidate = getattr(_mod, "get_pool", None)

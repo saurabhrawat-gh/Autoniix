@@ -5,8 +5,8 @@ import asyncio
 
 import pytest
 
-from src.providers import boot  # noqa: F401  — registers all providers
-from src.providers.llm.base import LLMRequest
+from providers import boot  # noqa: F401  — registers all providers
+from providers.llm.base import LLMRequest
 
 
 def _run(coro):
@@ -17,7 +17,7 @@ class TestOpenAIFailFast:
     """The openai provider must raise a clear error when api_key is empty."""
 
     def test_complete_raises_on_missing_api_key(self):
-        from src.providers.llm.openai_provider import OpenAILLM
+        from providers.llm.openai_provider import OpenAILLM
 
         provider = OpenAILLM()
         provider.api_key = ""  # simulate missing config
@@ -36,7 +36,7 @@ class TestMockTextResponse:
     """Mock text-format responses must echo the topic for prompt-eval."""
 
     def test_hook_text_response_includes_topic_words(self):
-        from src.providers.llm.mock_provider import MockLLM
+        from providers.llm.mock_provider import MockLLM
 
         provider = MockLLM()
         provider.api_key = ""  # force static path

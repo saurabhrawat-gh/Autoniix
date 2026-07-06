@@ -10,15 +10,15 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from src.config import settings
-from src.db import close_pool, get_pool
-from src.schemas.common import HealthResponse, ServiceResponse
+from core.config import settings
+from core.db import close_pool, get_pool
+from schemas.common import HealthResponse, ServiceResponse
 
-import src.providers.boot  # noqa: F401
+import providers.boot  # noqa: F401
 
-from src.providers.registry import ProviderRegistry
-from src.providers.llm.base import LLMRequest
-from src.providers.storage.base import StorageUpload
+from providers.registry import ProviderRegistry
+from providers.llm.base import LLMRequest
+from providers.storage.base import StorageUpload
 
 from src.services.voice.emotion_predictor import predict_emotions_for_sentences
 from src.services.voice.audio_quality_scorer import analyze_audio_quality, score_emotion_variety
@@ -28,7 +28,7 @@ from src.services.voice.voice_style_learner import (
     ingest_voice_feedback,
     train_voice_model,
 )
-from src.observability.metrics import instrument_app
+from observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -99,7 +99,7 @@ async def lifespan(app: FastAPI):
     logger.info("voice.stopped")
 
 
-from src.observability.sentry import init_sentry
+from observability.sentry import init_sentry
 init_sentry("voice")
 
 app = FastAPI(title="Voice Service", version="0.1.0", lifespan=lifespan)

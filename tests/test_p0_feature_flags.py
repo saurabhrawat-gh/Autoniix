@@ -1,12 +1,12 @@
-"""Unit tests for src.flags — AE-510 / P0."""
+"""Unit tests for core.flags — AE-510 / P0."""
 from __future__ import annotations
 
 from unittest.mock import patch
 
 import pytest
 
-import src.flags as flags_mod
-from src.flags import clear_cache, get_flag, invalidate_cache
+import core.flags as flags_mod
+from core.flags import clear_cache, get_flag, invalidate_cache
 
 
 @pytest.fixture(autouse=True)

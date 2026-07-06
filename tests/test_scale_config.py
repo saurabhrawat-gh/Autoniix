@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from src.config import settings
+from core.config import settings
 
 
 ROOT = Path(__file__).resolve().parent.parent

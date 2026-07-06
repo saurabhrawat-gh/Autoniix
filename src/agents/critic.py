@@ -40,9 +40,9 @@ from src.agents.base import (
     CriticVerdict,
 )
 from src.agents.llm_reasoner import CRITIC_SYSTEM_PROMPT, LLMReasoner
-from src.db import get_pool
-from src.flags import get_flag
-from src.llm.embeddings import (
+from core.db import get_pool
+from core.flags import get_flag
+from llm.embeddings import (
     EmbeddingConfigError,
     EmbeddingError,
     embed_and_store,

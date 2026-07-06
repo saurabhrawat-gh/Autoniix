@@ -32,8 +32,8 @@ from typing import Any
 
 import structlog
 
-from src.db import get_pool
-from src.flags import get_flag
+from core.db import get_pool
+from core.flags import get_flag
 
 logger = structlog.get_logger()
 

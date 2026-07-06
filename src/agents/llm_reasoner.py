@@ -1,7 +1,7 @@
 """LLMReasoner — structured-output LLM call for an agent's ``decide()`` phase.
 
 The piece that makes ``BaseAgent`` actually *agentic*. Wraps the existing
-:mod:`src.llm.router` so the agent benefits from the production-grade
+:mod:`llm.router` so the agent benefits from the production-grade
 provider ladder, circuit breaker, budget cap, and Prometheus telemetry —
 no new infra.
 
@@ -28,9 +28,9 @@ from typing import Any
 
 import structlog
 
-from src.llm import route
-from src.llm.router import BudgetExceeded, LadderExhausted
-from src.providers.llm.base import LLMRequest
+from llm import route
+from llm.router import BudgetExceeded, LadderExhausted
+from providers.llm.base import LLMRequest
 
 logger = structlog.get_logger()
 

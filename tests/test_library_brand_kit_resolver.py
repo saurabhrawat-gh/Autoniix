@@ -48,7 +48,7 @@ async def test_resolve_expands_asset_ids_to_urls(mock_pool):
 
     storage = MagicMock()
     storage.get_signed_url = AsyncMock(side_effect=lambda key: f"https://cdn.test/{key}")
-    with patch("src.providers.registry.ProviderRegistry.get", return_value=storage):
+    with patch("providers.registry.ProviderRegistry.get", return_value=storage):
         out = await resolve_brand_kit_for_channel("CH_x")
 
     assert out["kit_id"] == 5

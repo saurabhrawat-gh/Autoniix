@@ -19,7 +19,7 @@ logger = structlog.get_logger()
 @activity.defn
 async def expire_stale_change_requests() -> dict[str, Any]:
     """Mark timed-out change requests as expired."""
-    from src.db import get_pool
+    from core.db import get_pool
 
     pool = await get_pool()
     rows = await pool.fetch(

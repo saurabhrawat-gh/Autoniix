@@ -126,7 +126,7 @@ async def insert_rows(rows: list[dict[str, Any]]) -> int:
     """Insert rows idempotently. Returns the number actually inserted
     (excluding ON CONFLICT skips)."""
     sys.path.insert(0, str(ROOT))
-    from src.db import get_pool  # noqa: E402
+    from core.db import get_pool  # noqa: E402
 
     pool = await get_pool()
     inserted = 0

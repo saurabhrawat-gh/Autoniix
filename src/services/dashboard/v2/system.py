@@ -16,7 +16,7 @@ from pydantic import BaseModel
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from src.db import get_pool
+from core.db import get_pool
 
 from ._deps import Principal, audit, principal_dep, require_role
 

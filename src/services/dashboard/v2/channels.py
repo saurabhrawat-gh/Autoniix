@@ -29,7 +29,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
-from src.db import get_pool
+from core.db import get_pool
 from ._deps import Principal, audit, principal_dep, require_role
 
 router = APIRouter()
@@ -665,8 +665,8 @@ async def field_suggest(
     fallback = _heuristic_suggest(field, ctx)
 
     try:
-        from src.llm import route
-        from src.providers.llm.base import LLMRequest
+        from llm import route
+        from providers.llm.base import LLMRequest
 
         prompt = (
             f"You help a creator fill in the '{field}' field of a content "

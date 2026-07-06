@@ -29,7 +29,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 _log = structlog.get_logger(__name__)
 
-from src.db import get_pool
+from core.db import get_pool
 from src.services.dashboard._limiter import limiter
 
 from ._deps import Principal, audit, principal_dep

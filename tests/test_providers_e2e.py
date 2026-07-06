@@ -20,7 +20,7 @@ pytestmark = pytest.mark.asyncio
 async def _maybe_pool():
     """Return an asyncpg pool against the app DB, or None if unavailable."""
     try:
-        from src.db import get_pool
+        from core.db import get_pool
         pool = await get_pool()
         await pool.fetchval(
             "SELECT is_enabled FROM provider_chains_v2 LIMIT 1"
@@ -65,7 +65,7 @@ async def test_clean_slate_then_seed_then_resolve(db):
     """End-to-end: wipe → add credential → push to workspace chain →
     resolver sees it → disable credential → resolver returns EMPTY_CHAIN."""
     from scripts.clean_slate_providers import run as run_wipe
-    from src.providers import chain as chain_mod
+    from providers import chain as chain_mod
 
     category = f"llm.test_{uuid.uuid4().hex[:8]}"
 
@@ -119,7 +119,7 @@ async def test_clean_slate_then_seed_then_resolve(db):
 
 async def test_channel_override_beats_workspace(db):
     """Channel-scoped chain entry should resolve before workspace entries."""
-    from src.providers import chain as chain_mod
+    from providers import chain as chain_mod
     category = f"llm.test_{uuid.uuid4().hex[:8]}"
     ws_cid = await _ensure_category_and_credential(db, category, "workspace")
     ch_cid = await _ensure_category_and_credential(db, category, "channel")

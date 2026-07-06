@@ -40,10 +40,10 @@ from typing import Any, ClassVar
 import structlog
 
 from src.agents.base import AgentDecision, AgentObservation, BaseAgent
-from src.db import get_pool
-from src.events.bus import publish
-from src.events.topics import Topic
-from src.flags import get_flag
+from core.db import get_pool
+from events.bus import publish
+from events.topics import Topic
+from core.flags import get_flag
 from src.services.brain.analyser import ChannelSignals, analyse_channel
 
 logger = structlog.get_logger()

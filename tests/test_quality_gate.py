@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.quality import (
+from quality import (
     PRODUCTION_THRESHOLDS,
     TEST_THRESHOLDS,
     evaluate,

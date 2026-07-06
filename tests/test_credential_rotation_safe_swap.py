@@ -139,8 +139,8 @@ def test_safe_swap_staging_path_format():
 
 def test_safe_swap_fall_open_on_unregistered_provider():
     """Unregistered provider gets fall-open (health_ok=True) with a note."""
-    from src.providers.registry import ProviderRegistry
-    import src.providers.boot  # noqa: F401
+    from providers.registry import ProviderRegistry
+    import providers.boot  # noqa: F401
 
     category = "llm"
     provider_name = "nonexistent_provider_xyz"

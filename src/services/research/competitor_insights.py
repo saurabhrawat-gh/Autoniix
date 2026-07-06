@@ -13,9 +13,9 @@ from datetime import datetime, timedelta
 import httpx
 import structlog
 
-from src.config import settings
-from src.db import get_pool
-from src.redis_client import get_redis
+from core.config import settings
+from core.db import get_pool
+from core.redis_client import get_redis
 
 logger = structlog.get_logger()
 

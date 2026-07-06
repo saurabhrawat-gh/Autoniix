@@ -83,7 +83,7 @@ class TestCredentialScopes:
              patch(f"{_PROV_MODULE}.put_secret_at", return_value="env"), \
              patch(f"{_PROV_MODULE}.publish_invalidate", new_callable=AsyncMock), \
              patch(f"{_PROV_MODULE}.audit", new_callable=AsyncMock), \
-             patch("src.providers.registry.ProviderRegistry._registries",
+             patch("providers.registry.ProviderRegistry._registries",
                    {"llm": {"openai": MagicMock()}}):
             return await create_credential(body=body, request=req, actor=actor)
 
@@ -183,7 +183,7 @@ class TestRotateCredential:
              _pool_ctx(pool), \
              patch(f"{_PROV_MODULE}.put_secret_at", return_value="env"), \
              patch(f"{_PROV_MODULE}.get_secret_at", return_value="sk-staged"), \
-             patch("src.providers.registry.ProviderRegistry._registries",
+             patch("providers.registry.ProviderRegistry._registries",
                    {"llm": {"openai": mock_cls}}), \
              patch(f"{_PROV_MODULE}.publish_invalidate", new_callable=AsyncMock), \
              patch(f"{_PROV_MODULE}.audit", new_callable=AsyncMock):
@@ -211,7 +211,7 @@ class TestWorkspaceScoping:
              patch(f"{_PROV_MODULE}.put_secret_at", return_value="env"), \
              patch(f"{_PROV_MODULE}.publish_invalidate", new_callable=AsyncMock), \
              patch(f"{_PROV_MODULE}.audit", new_callable=AsyncMock), \
-             patch("src.providers.registry.ProviderRegistry._registries",
+             patch("providers.registry.ProviderRegistry._registries",
                    {"llm": {"openai": MagicMock()}}):
             result = await create_credential(body=body, request=req, actor=actor)
 

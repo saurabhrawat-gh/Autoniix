@@ -11,8 +11,8 @@ import structlog
 from temporalio.client import Client
 from temporalio.worker import Worker
 
-from src.config import settings
-from src.observability.sentry import init_sentry
+from core.config import settings
+from observability.sentry import init_sentry
 init_sentry("worker-scheduler")
 # All workflow orchestration has been migrated to the Go worker.
 # This Python worker handles ACTIVITIES ONLY.

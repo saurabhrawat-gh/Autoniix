@@ -12,7 +12,7 @@ from src.agents.llm_reasoner import (
     DECISION_JSON_SCHEMA,
     LLMReasoner,
 )
-from src.providers.llm.base import LLMResult
+from providers.llm.base import LLMResult
 
 
 
@@ -119,7 +119,7 @@ class TestLLMReasonerReason:
         assert out is None
 
     async def test_budget_exceeded_returns_none(self, reasoner):
-        from src.llm.router import BudgetExceeded
+        from llm.router import BudgetExceeded
         with patch(
             "src.agents.llm_reasoner.route",
             new=AsyncMock(side_effect=BudgetExceeded("ch1", 5.0, 1.0)),
@@ -128,7 +128,7 @@ class TestLLMReasonerReason:
         assert out is None
 
     async def test_providers_exhausted_returns_none(self, reasoner):
-        from src.llm.router import LadderExhausted
+        from llm.router import LadderExhausted
         with patch(
             "src.agents.llm_reasoner.route",
             new=AsyncMock(side_effect=LadderExhausted("llm", [("openai", "boom")])),

@@ -16,8 +16,8 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from src.db import close_pool, get_pool
-from src.schemas.common import HealthResponse, ServiceResponse
+from core.db import close_pool, get_pool
+from schemas.common import HealthResponse, ServiceResponse
 
 from src.services.brand.brand_dna import (
     compute_brand_fingerprint,
@@ -25,7 +25,7 @@ from src.services.brand.brand_dna import (
     save_brand_profile,
     score_brand_consistency,
 )
-from src.observability.metrics import instrument_app
+from observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI):
     logger.info("brand.stopped")
 
 
-from src.observability.sentry import init_sentry
+from observability.sentry import init_sentry
 init_sentry("brand")
 
 app = FastAPI(title="Brand Identity Service", version="0.1.0", lifespan=lifespan)

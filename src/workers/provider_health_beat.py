@@ -29,8 +29,8 @@ from temporalio.exceptions import ApplicationError
 with workflow.unsafe.imports_passed_through():
     import structlog
 
-    from src.db import get_pool
-    from src.providers.secrets import get_secret_at
+    from core.db import get_pool
+    from providers.secrets import get_secret_at
 
 logger = structlog.get_logger()
 
@@ -46,7 +46,7 @@ async def publish_health_change(
 ) -> None:
     """Publish a health-status-change event to Redis (best-effort)."""
     try:
-        from src.redis_client import get_redis
+        from core.redis_client import get_redis
         redis = await get_redis()
         payload = json.dumps({
             "credential_id": credential_id,
@@ -75,8 +75,8 @@ async def _run_one_credential_check(
     extra_config: dict[str, Any] | None,
 ) -> tuple[bool, str | None, int]:
     """Run a single health check and return (ok, error, latency_ms)."""
-    from src.providers.registry import ProviderRegistry
-    from src.observability.metrics import PROVIDER_HEALTH_CHECK_DURATION
+    from providers.registry import ProviderRegistry
+    from observability.metrics import PROVIDER_HEALTH_CHECK_DURATION
 
     secret = get_secret_at(vault_path, "api_key")
     started = time.perf_counter()
@@ -114,7 +114,7 @@ async def check_all_provider_health() -> dict[str, Any]:
 
     Returns a summary dict: {credential_id: ok, ...}.
     """
-    from src.observability.metrics import PROVIDER_HEALTH_UNHEALTHY
+    from observability.metrics import PROVIDER_HEALTH_UNHEALTHY
 
     pool = await get_pool()
     rows = await pool.fetch(

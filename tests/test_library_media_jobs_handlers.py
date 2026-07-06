@@ -84,7 +84,7 @@ async def test_embed_handler_upserts_vector_on_success(mock_pool):
 
 @pytest.mark.asyncio
 async def test_embed_handler_marks_failed_on_embedding_error(mock_pool):
-    from src.llm.embeddings import EmbeddingError
+    from llm.embeddings import EmbeddingError
 
     with patch(
         "src.workers.media_jobs.handlers.embed.embed_text",

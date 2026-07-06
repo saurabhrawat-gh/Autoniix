@@ -31,7 +31,7 @@ from typing import Awaitable, Callable
 import httpx
 import structlog
 
-from src.config import settings
+from core.config import settings
 from src.services.assets import semantic_ranker
 from src.services.assets.semantic_ranker import ScoredCandidate
 
@@ -188,7 +188,7 @@ async def _local_library(query: str, k: int = 10) -> list[dict]:
     high-quality candidates for the chain to re-rank against.
     """
     try:
-        from src.db import get_pool
+        from core.db import get_pool
         pool = await get_pool()
         rows = await pool.fetch(
             """

@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import pytest
 
-from src.intelligence import niche_templates as nt
-from src.intelligence.performance_feedback import _format_for_tests
+from intelligence import niche_templates as nt
+from intelligence.performance_feedback import _format_for_tests
 
 
 

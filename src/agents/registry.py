@@ -1,6 +1,6 @@
 """AgentRegistry — discovery + lookup for runtime agents.
 
-Tiny, in-process. Modeled on :class:`src.providers.registry.ProviderRegistry`
+Tiny, in-process. Modeled on :class:`providers.registry.ProviderRegistry`
 so the mental model is familiar.
 
 Why a registry rather than direct imports:

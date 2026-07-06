@@ -20,7 +20,7 @@ import httpx
 import structlog
 from temporalio import activity
 
-from src.db import get_pool
+from core.db import get_pool
 from src.services.finishing import lut_registry
 from src.services.finishing.ffmpeg_finisher import (
     FinishConfig,
@@ -64,7 +64,7 @@ async def _load_config(channel_id: str) -> dict:
 
 
 def _storage():
-    from src.providers.registry import ProviderRegistry
+    from providers.registry import ProviderRegistry
     return ProviderRegistry.get("storage")
 
 
@@ -100,7 +100,7 @@ async def _resolve_lut(preset_key: str, dest_path: str) -> str:
 
 
 async def _upload_finished(local_path: str, content_id: str) -> str:
-    from src.providers.storage.base import StorageUpload
+    from providers.storage.base import StorageUpload
     with open(local_path, "rb") as fh:
         data = fh.read()
     key = f"videos/finished/{content_id}.mp4"
@@ -111,7 +111,7 @@ async def _upload_finished(local_path: str, content_id: str) -> str:
 
 
 async def _upload_prores(local_path: str, content_id: str) -> str:
-    from src.providers.storage.base import StorageUpload
+    from providers.storage.base import StorageUpload
     with open(local_path, "rb") as fh:
         data = fh.read()
     key = f"videos/prores/{content_id}/master.mov"

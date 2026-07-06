@@ -16,7 +16,7 @@ from typing import Any
 
 import structlog
 
-from src.llm.embeddings import EmbeddingConfigError, EmbeddingError, embed_text
+from llm.embeddings import EmbeddingConfigError, EmbeddingError, embed_text
 
 logger = structlog.get_logger()
 

@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from src.intelligence.system_health import (
+from intelligence.system_health import (
     GREEN_THRESHOLD,
     SUBSYSTEM_WEIGHTS,
     YELLOW_THRESHOLD,

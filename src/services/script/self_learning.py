@@ -20,7 +20,7 @@ from datetime import datetime
 import numpy as np
 import structlog
 
-from src.db import get_pool
+from core.db import get_pool
 
 logger = structlog.get_logger()
 
@@ -268,7 +268,7 @@ async def thompson_sample(
     selected = thompson_pick
     if channel_id:
         try:
-            from src.intelligence.diversity_floor import evaluate_diversity_floor
+            from intelligence.diversity_floor import evaluate_diversity_floor
             decision = await evaluate_diversity_floor(
                 channel_id=channel_id,
                 bandit_type=bandit_type,
@@ -289,7 +289,7 @@ async def thompson_sample(
 
     if channel_id:
         try:
-            from src.intelligence.diversity_floor import log_bandit_pick
+            from intelligence.diversity_floor import log_bandit_pick
             await log_bandit_pick(
                 niche=niche, bandit_type=bandit_type,
                 channel_id=channel_id, arm_name=selected,

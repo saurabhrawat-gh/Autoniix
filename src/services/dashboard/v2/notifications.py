@@ -6,7 +6,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from src.db import get_pool
+from core.db import get_pool
 
 from ._deps import Principal, audit, principal_dep, require_role
 

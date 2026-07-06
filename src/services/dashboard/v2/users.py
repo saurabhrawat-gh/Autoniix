@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
-from src.db import get_pool
+from core.db import get_pool
 
 from ._deps import Principal, audit, principal_dep, require_global_role
 
