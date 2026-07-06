@@ -3,6 +3,16 @@
 > Strategy: C-Optimized | 10 diversified channels | $328/mo
 > Target: $2K profit by Month 7-8
 
+## Development
+
+- **[docs/architecture/toolchain.md](docs/architecture/toolchain.md)** — pinned toolchain (Rust, Node, Python, Go, Buf, Postgres) and setup instructions
+- `make verify-versions` — assert local tools match [`versions.env`](versions.env)
+- `make check-drift` — assert every pin file matches `versions.env`
+- `make ci-local` — fast Rust CI mirror on host
+- `make ci-local-full` — full CI mirror on host (every language)
+- `make ci-local-docker` — full CI mirror inside pinned ubuntu:24.04 (max prod parity)
+- `make install-hooks` — install pre-push hook (auto drift check)
+
 ## Structure
 
 ```

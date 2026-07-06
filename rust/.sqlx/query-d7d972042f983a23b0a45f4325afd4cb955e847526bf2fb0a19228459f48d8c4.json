@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, version_no, bytes, content_hash, note, created_at\n             FROM dam_asset_versions\n            WHERE asset_id = $1\n            ORDER BY version_no DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "version_no",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 2,
+        "name": "bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "content_hash",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "note",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "d7d972042f983a23b0a45f4325afd4cb955e847526bf2fb0a19228459f48d8c4"
+}

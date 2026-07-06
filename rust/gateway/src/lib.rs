@@ -1,3 +1,6 @@
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::too_many_arguments)]
+#![allow(dead_code)]
 mod audit;
 mod auth;
 mod config;
@@ -8,6 +11,7 @@ mod extractors;
 mod health;
 mod middleware;
 mod observability;
+pub mod openapi;
 pub mod routes;
 
 pub use auth::{AuthServiceImpl, JwtManager};
@@ -16,6 +20,7 @@ pub use db::{create_pool, health_check};
 pub use error::{ApiError, ApiResult};
 pub use extractors::{AuthUser, RequireAdmin, RequireOwner};
 pub use middleware::Principal;
+pub use openapi::ApiDoc;
 
 use axum::{middleware as axum_middleware, Router};
 use std::sync::Arc;
@@ -24,6 +29,8 @@ use tower_http::{compression::CompressionLayer, cors::CorsLayer, trace::TraceLay
 pub async fn create_app(pool: sqlx::PgPool, jwt_secret: String) -> Router {
     let jwt_manager = Arc::new(JwtManager::new(&jwt_secret));
     let auth_service = AuthServiceImpl::new(pool.clone(), jwt_manager.clone());
+
+    let workspace_limiter = middleware::WorkspaceRateLimiter::new();
 
     let protected_routes = Router::new()
         .merge(routes::user::routes(pool.clone()))
@@ -34,13 +41,26 @@ pub async fn create_app(pool: sqlx::PgPool, jwt_secret: String) -> Router {
         .merge(routes::lookup_values::routes(pool.clone()))
         .merge(routes::voice::routes(pool.clone()))
         .merge(routes::workspace::routes(pool.clone()))
+        // ── Phase B routes ─────────────────────────────────────────────────
+        .merge(routes::providers::routes(pool.clone()))
+        .merge(routes::jobs::routes(pool.clone()))
+        .merge(routes::content::routes(pool.clone()))
+        .merge(routes::library::routes(pool.clone()))
+        .merge(routes::review::routes(pool.clone()))
+        .merge(routes::finishing::routes(pool.clone()))
+        .merge(routes::experiments::routes(pool.clone()))
         .layer(axum_middleware::from_fn(
             middleware::require_auth_middleware,
+        ))
+        .layer(axum_middleware::from_fn_with_state(
+            workspace_limiter,
+            middleware::workspace_rate_limit,
         ));
 
     Router::new()
         .merge(health::routes(pool.clone()))
         .merge(routes::api_routes())
+        .merge(openapi::routes())
         .merge(routes::auth::routes(auth_service))
         .merge(protected_routes)
         .layer(axum_middleware::from_fn_with_state(

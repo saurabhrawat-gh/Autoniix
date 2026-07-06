@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO content_triggers\n               (channel_id, content_mode, topic_hint, scheduled_for, triggered_by, status)\n           VALUES ($1, $2, $3, $4, $5, 'queued')\n           RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0c8d2d726667e33d361eb683d44c5a4169b91f88c75fce78dd7216d3ea8f10da"
+}

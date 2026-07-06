@@ -1,4 +1,6 @@
-FROM node:20-alpine AS builder
+# Pinned via versions.env NODE_ALPINE_IMAGE=node:22.23.1-alpine
+ARG NODE_ALPINE_IMAGE=node:22.23.1-alpine
+FROM ${NODE_ALPINE_IMAGE} AS builder
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
@@ -6,7 +8,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-FROM node:20-alpine AS runner
+FROM ${NODE_ALPINE_IMAGE} AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

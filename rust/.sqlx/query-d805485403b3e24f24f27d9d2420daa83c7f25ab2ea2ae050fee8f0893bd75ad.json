@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO dam_brand_kits\n              (scope, scope_id, name, logo_asset_ids, palette, font_asset_ids, notes)\n           VALUES ($1, $2, $3, $4, $5, $6, $7)\n           RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Int8Array",
+        "Jsonb",
+        "Int8Array",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d805485403b3e24f24f27d9d2420daa83c7f25ab2ea2ae050fee8f0893bd75ad"
+}

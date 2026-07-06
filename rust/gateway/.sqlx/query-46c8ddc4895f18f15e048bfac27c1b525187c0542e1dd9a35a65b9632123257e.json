@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE brands\n              SET name = COALESCE($1, name),\n                  description = COALESCE($2, description),\n                  legal_name = COALESCE($3, legal_name),\n                  website = COALESCE($4, website),\n                  primary_color = COALESCE($5, primary_color),\n                  secondary_color = COALESCE($6, secondary_color),\n                  logo_url = COALESCE($7, logo_url),\n                  voice_summary = COALESCE($8, voice_summary),\n                  updated_at = NOW()\n            WHERE id = $9 AND workspace_id = $10",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Text",
+        "Varchar",
+        "Text",
+        "Varchar",
+        "Varchar",
+        "Text",
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "46c8ddc4895f18f15e048bfac27c1b525187c0542e1dd9a35a65b9632123257e"
+}

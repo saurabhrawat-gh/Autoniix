@@ -1,0 +1,3378 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Autoniix Gateway API",
+    "description": "Rust gateway API surface. This is the source of truth used by the harness contract validator (Story A1 / IM-188).",
+    "contact": {
+      "name": "Autoniix",
+      "url": "https://autoniix.com"
+    },
+    "license": {
+      "name": ""
+    },
+    "version": "0.1.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local dev"
+    },
+    {
+      "url": "https://dash.autoniix.com",
+      "description": "Production"
+    }
+  ],
+  "paths": {
+    "/api/v2/auth/accept-invite": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/accept-invite — accept a workspace invitation.",
+        "description": "For new users: `password` is required to set credentials.\nFor existing users: `password` is ignored.\nOn success: issues full session tokens + auth cookies (auto-login).",
+        "operationId": "accept_invite",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Invitation accepted, session issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid token or missing password for new user"
+          },
+          "410": {
+            "description": "Invitation expired or workspace deleted"
+          }
+        }
+      }
+    },
+    "/api/v2/auth/forgot": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/forgot — public; never leaks whether email exists.",
+        "operationId": "forgot_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted (regardless of email existence)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/logout — revoke refresh token and clear auth cookies.",
+        "operationId": "logout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Logged out",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoutResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/auth/mfa/challenge": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/mfa/challenge — second factor for MFA-enabled accounts.",
+        "description": "Accepts the short-lived pending token from /signin plus the TOTP code.\nOn success: issues full session tokens + auth cookies, identical to /signin.",
+        "operationId": "mfa_challenge",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaChallengeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "MFA verified, session issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid pending token or code"
+          }
+        }
+      }
+    },
+    "/api/v2/auth/mfa/disable": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/mfa/disable — requires auth + valid TOTP code.",
+        "description": "Disables MFA on the account and clears the stored secret.",
+        "operationId": "mfa_disable",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaDisableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "MFA disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized or invalid code"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/auth/mfa/setup": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/mfa/setup — requires auth; generates a TOTP secret and",
+        "description": "returns the otpauth URI.",
+        "operationId": "mfa_setup",
+        "responses": {
+          "200": {
+            "description": "TOTP secret and otpauth URI",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaSetupResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/auth/mfa/verify": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/mfa/verify — requires auth; verifies the TOTP code and",
+        "description": "enables MFA.",
+        "operationId": "mfa_verify",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "MFA enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid code"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/auth/mode": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Public endpoint: which auth backends are active. The login UI calls this on",
+        "description": "mount. Mirrors Python `GET /auth/mode`.",
+        "operationId": "auth_mode",
+        "responses": {
+          "200": {
+            "description": "Active auth backends",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthModeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/auth/profile": {
+      "put": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "PUT /api/v2/auth/profile — update display_name and/or password.",
+        "description": "Mirrors Python `PUT /auth/profile`.",
+        "operationId": "update_profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Profile updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateProfileResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/refresh — rotate refresh token and issue new access token.",
+        "description": "Reads refresh token from cookie first, then request body.",
+        "operationId": "refresh_token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "New access token issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshTokenResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Refresh token missing or invalid"
+          }
+        }
+      }
+    },
+    "/api/v2/auth/register": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/register — public self-serve signup (#350).",
+        "description": "No auto-login: returns onboarding metadata only. The frontend calls\n/signin separately after register. Mirrors Python `POST /auth/register`.\nAlso mounted at `/api/v2/auth/signup` (alias).",
+        "operationId": "register",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Account and workspace created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error or duplicate email"
+          }
+        }
+      }
+    },
+    "/api/v2/auth/reset": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/reset — public; validates the reset token and sets a new",
+        "description": "password.",
+        "operationId": "reset_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Password reset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid token or weak password"
+          }
+        }
+      }
+    },
+    "/api/v2/auth/signin": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/signin — public; primary login endpoint.",
+        "description": "Returns full session tokens + auth cookies on success. For MFA-enabled\naccounts, returns a pending token instead and requires /mfa/challenge.",
+        "operationId": "sign_in",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in (or MFA required)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials"
+          }
+        }
+      }
+    },
+    "/api/v2/auth/verify": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/v2/auth/verify — Rust-only extension (no Python equivalent).",
+        "description": "Lightweight token introspection for SDK clients. Returns `valid: false`\ninstead of 401 when the token is expired or malformed.",
+        "operationId": "verify_token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Token introspection result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyTokenResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/channels": {
+      "get": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "list_channels",
+        "responses": {
+          "200": {
+            "description": "List of channels"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "create_channel",
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Channel created"
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/ai/field-suggest": {
+      "post": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "field_suggest",
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FieldSuggestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "AI field suggestions"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/drafts": {
+      "get": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "list_drafts",
+        "responses": {
+          "200": {
+            "description": "User drafts"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "create_draft",
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Draft created"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/drafts/{draft_id}": {
+      "get": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "get_draft",
+        "parameters": [
+          {
+            "name": "draft_id",
+            "in": "path",
+            "description": "Draft id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Draft detail"
+          },
+          "404": {
+            "description": "Draft not found"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "save_draft",
+        "parameters": [
+          {
+            "name": "draft_id",
+            "in": "path",
+            "description": "Draft id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Draft saved"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/presets": {
+      "get": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "list_presets",
+        "responses": {
+          "200": {
+            "description": "Channel preset templates"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/stats": {
+      "get": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "get_stats",
+        "responses": {
+          "200": {
+            "description": "Aggregate channel stats"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}": {
+      "get": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "get_channel",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel detail"
+          },
+          "404": {
+            "description": "Channel not found"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "patch_channel",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Channel patched"
+          },
+          "404": {
+            "description": "Channel not found"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "delete_channel",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelDeleteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Channel deleted"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Channel not found"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/archive": {
+      "put": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "archive_channel",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel archived"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/brand-kit": {
+      "get": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "proxy_get_brand_kit",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bound brand kit"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "proxy_put_brand_kit",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrandKitBindIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Brand kit bound to channel"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/clone": {
+      "post": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "proxy_clone",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel cloned"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/disable": {
+      "put": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "disable_channel",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel disabled"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/enable": {
+      "put": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "enable_channel",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel enabled"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/export": {
+      "get": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "export_channel",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel export payload"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/jobs/{content_id}/pause": {
+      "post": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "proxy_pause_job",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "content_id",
+            "in": "path",
+            "description": "Content/job id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job paused"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/jobs/{content_id}/resume": {
+      "post": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "proxy_resume_job",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "content_id",
+            "in": "path",
+            "description": "Content/job id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job resumed"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/jobs/{content_id}/stop": {
+      "post": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "proxy_stop_job",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "content_id",
+            "in": "path",
+            "description": "Content/job id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job stopped"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/memory": {
+      "get": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "list_memory",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel memory entries"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "add_memory",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Memory entry added"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/pillars": {
+      "get": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "list_pillars",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel pillars"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "add_pillar",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PillarIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Pillar added"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/pillars/{pillar_id}": {
+      "put": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "update_pillar",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pillar_id",
+            "in": "path",
+            "description": "Pillar id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PillarIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Pillar updated"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "delete_pillar",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pillar_id",
+            "in": "path",
+            "description": "Pillar id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pillar deleted"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/profile": {
+      "put": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "upsert_profile",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Profile upserted"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/references": {
+      "get": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "list_references",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel references"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "add_reference",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReferenceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Reference added"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/references/{ref_id}": {
+      "delete": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "delete_reference",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ref_id",
+            "in": "path",
+            "description": "Reference id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reference deleted"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/resolve-config": {
+      "get": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "resolve_config",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolved config with provenance"
+          },
+          "404": {
+            "description": "Channel not found"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/restore": {
+      "put": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "restore_channel",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel restored"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/topic-rules": {
+      "get": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "list_topic_rules",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel topic rules"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "add_topic_rule",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopicRuleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Topic rule added"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/topic-rules/{rule_id}": {
+      "delete": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "delete_topic_rule",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rule_id",
+            "in": "path",
+            "description": "Topic rule id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Topic rule deleted"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/channels/{channel_id}/trigger": {
+      "post": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "proxy_trigger",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TriggerIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Channel workflow triggered"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/flags": {
+      "get": {
+        "tags": [
+          "flags"
+        ],
+        "summary": "`GET /api/v2/flags` — any authenticated user may read the catalog. No",
+        "description": "permission gate here matches Python's `Depends(principal_dep)` (i.e. only\nrequires a valid JWT, no role check).",
+        "operationId": "list_flags",
+        "responses": {
+          "200": {
+            "description": "Feature flag catalog"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/flags/{key}": {
+      "put": {
+        "tags": [
+          "flags"
+        ],
+        "summary": "`PUT /api/v2/flags/:key` — toggle and/or replace the payload for a",
+        "description": "flag. Returns 404 if the key is unknown (we deliberately do NOT auto-\ncreate rows; the catalog is curated). Audits both the old and new\nvalues so an operator can reconstruct the change history.",
+        "operationId": "set_flag",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "description": "Flag key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetFlagRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Flag updated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Unknown flag"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/lookup-values": {
+      "get": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "GET /api/v2/lookup-values",
+        "description": "Returns global values merged with workspace-private values.\nGlobal values come first (sort_order), workspace custom values appended.",
+        "operationId": "list_lookup_values",
+        "responses": {
+          "200": {
+            "description": "Merged lookup values"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "POST /api/v2/lookup-values  — superadmin only, creates a global value",
+        "operationId": "create_global_value",
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLookupValue"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Global lookup value created"
+          },
+          "403": {
+            "description": "Superadmin only"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/lookup-values/{id}": {
+      "delete": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "DELETE /api/v2/lookup-values/:id  — soft-delete (set is_active = false)",
+        "operationId": "deactivate_lookup_value",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Lookup value id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Lookup value deactivated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "PATCH /api/v2/lookup-values/:id",
+        "description": "Superadmin can update any value; owner can only update their workspace's values.",
+        "operationId": "update_lookup_value",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Lookup value id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLookupValue"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Lookup value updated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/me": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "operationId": "get_current_user",
+        "responses": {
+          "200": {
+            "description": "Current user profile"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/me/sessions": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "`GET /api/v2/me/sessions` — list all active (non-revoked, non-rotated,",
+        "description": "non-expired) sessions for the authenticated user.",
+        "operationId": "list_sessions",
+        "responses": {
+          "200": {
+            "description": "Active sessions"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/me/sessions/{session_id}": {
+      "delete": {
+        "tags": [
+          "users"
+        ],
+        "summary": "`DELETE /api/v2/me/sessions/:session_id` — revoke a specific session.",
+        "description": "Returns 403 if the session does not belong to the authenticated user.",
+        "operationId": "revoke_session",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session revoked"
+          },
+          "403": {
+            "description": "Not the session owner"
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/notifications": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "`GET /api/v2/notifications` — paged list of recent notifications. Any",
+        "description": "authenticated user. Filters compose with Python's exact precedence:\noptional `severity` first, then optional `unread_only` (requires a\nnon-null user_id, always true in Rust since the JWT enforces a sub), then\nthe limit. We build the WHERE clause dynamically to match the same\n`$1, $2, …` binding pattern Python uses.",
+        "operationId": "list_notifications",
+        "responses": {
+          "200": {
+            "description": "Notifications list"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "`POST /api/v2/notifications` — owner/member only. Honours the 60s",
+        "description": "`dedupe_key` window: if a row with the same key exists within the last\nminute, return its id with `deduped: true` instead of inserting a new\nrow. Note: route fan-out (Python's `dispatch_routes`) is intentionally\nnot wired in this port; see module docstring.",
+        "operationId": "create_notification",
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNotificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Notification created or deduped"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/notifications/deliveries": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "`GET /api/v2/notifications/deliveries` — owner/member only. Optional",
+        "description": "`notification_id` filter narrows to one notification's delivery attempts;\notherwise returns the global recent-delivery log.",
+        "operationId": "list_deliveries",
+        "responses": {
+          "200": {
+            "description": "Delivery attempts"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/notifications/routes": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "`GET /api/v2/notifications/routes` — owner/member only.",
+        "operationId": "list_routes",
+        "responses": {
+          "200": {
+            "description": "Notification routes"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "`POST /api/v2/notifications/routes` — create a fan-out route. Audits",
+        "description": "`notification.route.create` with the full request body as the `after`\npayload, matching Python's `body.model_dump()`.",
+        "operationId": "create_route",
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RouteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Route created"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/notifications/routes/{route_id}": {
+      "put": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "`PUT /api/v2/notifications/routes/:route_id` — replace an existing",
+        "description": "route. Returns 404 if no row matched the id (Python checks the row count\nvia `res.endswith(\"0\")`; we use the cleaner `rows_affected`).",
+        "operationId": "update_route",
+        "parameters": [
+          {
+            "name": "route_id",
+            "in": "path",
+            "description": "Route id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RouteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Route updated"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "`DELETE /api/v2/notifications/routes/:route_id` — drop a route. Always",
+        "description": "returns 200/ok per Python's behaviour (no 404 on missing rows).",
+        "operationId": "delete_route",
+        "parameters": [
+          {
+            "name": "route_id",
+            "in": "path",
+            "description": "Route id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Route deleted"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/notifications/{notification_id}/read": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "`POST /api/v2/notifications/:notification_id/read` — append the current",
+        "description": "user's id to `read_by`. Idempotent: the `NOT (… = ANY(read_by))` guard\nprevents the same user from appearing twice. Returns `{\"status\": \"noop\"}`\nif the JWT somehow lacks a parseable user id (matches Python's\n`if p.user_id is None` branch).",
+        "operationId": "mark_read",
+        "parameters": [
+          {
+            "name": "notification_id",
+            "in": "path",
+            "description": "Notification id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Marked read"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/system/clean-slate": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "summary": "`POST /api/v2/system/clean-slate` — owner only. Cancels workflows,",
+        "description": "truncates job tables, wipes storage via the legacy BFF. Audits the\ndestructive action regardless of upstream outcome (so we can trace who\npressed the big red button even if the BFF later 5xx'd).",
+        "operationId": "clean_slate",
+        "responses": {
+          "200": {
+            "description": "Clean slate executed"
+          },
+          "403": {
+            "description": "Owner only"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/system/config": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "`GET /api/v2/system/config` — any authenticated user may read.",
+        "operationId": "get_config",
+        "responses": {
+          "200": {
+            "description": "System config rows"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "system"
+        ],
+        "summary": "`PUT /api/v2/system/config` — owner/member only. 404 when the key",
+        "description": "doesn't exist (no auto-create — matches Python).",
+        "operationId": "update_config",
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Config updated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Config key not found"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/system/emergency-resume": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "summary": "`POST /api/v2/system/emergency-resume` — owner/member. Un-freezes the",
+        "description": "system + resumes paused Temporal workflows via the legacy BFF.",
+        "operationId": "emergency_resume",
+        "responses": {
+          "200": {
+            "description": "Emergency resume applied"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/system/emergency-stop": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "summary": "`POST /api/v2/system/emergency-stop` — owner/member. Freezes the system",
+        "description": "and pauses all running Temporal workflows via the legacy BFF.",
+        "operationId": "emergency_stop",
+        "responses": {
+          "200": {
+            "description": "Emergency stop applied"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/system/entity-settings": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "`GET /api/v2/system/entity-settings` — owner/member.",
+        "description": "Returns all entity_settings rows at scope='system', scope_id='global'.",
+        "operationId": "list_system_entity_settings",
+        "responses": {
+          "200": {
+            "description": "System entity settings"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "system"
+        ],
+        "summary": "`PUT /api/v2/system/entity-settings` — owner/member.",
+        "description": "Upserts one entity_setting at scope='system', scope_id='global'.",
+        "operationId": "upsert_system_entity_setting",
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntitySettingUpsert"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "System entity setting upserted"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/system/environment": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "`GET /api/v2/system/environment` — any authed user. DB override takes",
+        "description": "precedence over `ENVIRONMENT_MODE` env var; the default is\n`\"production\"` when neither is set (matches Python's fallback chain).",
+        "operationId": "get_environment",
+        "responses": {
+          "200": {
+            "description": "Current environment mode"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "system"
+        ],
+        "summary": "`PUT /api/v2/system/environment` — owner only. Persists the new mode to",
+        "description": "`system_config`. Only `\"test\"` or `\"production\"` are accepted.",
+        "operationId": "set_environment",
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnvSwitchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Environment updated"
+          },
+          "400": {
+            "description": "Invalid mode"
+          },
+          "403": {
+            "description": "Owner only"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/system/fleet-health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "`GET /api/v2/system/fleet-health` — any authed user. Pure proxy; the",
+        "description": "legacy BFF aggregates worker liveness/queue depth/etc.",
+        "operationId": "fleet_health",
+        "responses": {
+          "200": {
+            "description": "Fleet health snapshot"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/users": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "operationId": "list_users",
+        "responses": {
+          "200": {
+            "description": "List all users"
+          },
+          "403": {
+            "description": "Superadmin only"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/users/transfer-superadmin/{target_user_id}": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "`POST /api/v2/users/transfer-superadmin/:target_user_id` — atomic role",
+        "description": "swap. Caller becomes 'user', target becomes 'superadmin'. Mirrors Python\n`v2/users.py::transfer_superadmin` byte-for-byte including the audit\n`user.superadmin.transfer` action label.",
+        "operationId": "transfer_superadmin",
+        "parameters": [
+          {
+            "name": "target_user_id",
+            "in": "path",
+            "description": "Target user id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Superadmin transferred"
+          },
+          "403": {
+            "description": "Superadmin only"
+          },
+          "404": {
+            "description": "Target not found"
+          },
+          "409": {
+            "description": "Target disabled or already superadmin"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/users/{user_id}": {
+      "delete": {
+        "tags": [
+          "users"
+        ],
+        "summary": "`DELETE /api/v2/users/:user_id` — soft-delete (tombstone) a user account.",
+        "description": "Mirrors Python `v2/users.py::delete_user`: revokes sessions, drops\nworkspace memberships, and rewrites the user row with a sentinel email so\nthe unique-email constraint remains satisfied while the row is preserved\nfor audit history.",
+        "operationId": "delete_user",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User tombstoned"
+          },
+          "403": {
+            "description": "Superadmin only"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/users/{user_id}/disable": {
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "summary": "`PUT /api/v2/users/:user_id/disable` — disable a user account and revoke",
+        "description": "all active sessions. Mirrors Python `v2/users.py::disable_user`.",
+        "operationId": "disable_user",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User disabled"
+          },
+          "403": {
+            "description": "Superadmin only"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/users/{user_id}/enable": {
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "summary": "`PUT /api/v2/users/:user_id/enable` — re-enable a previously-disabled user.",
+        "description": "Mirrors Python `v2/users.py::enable_user`. Idempotent.",
+        "operationId": "enable_user",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User enabled"
+          },
+          "403": {
+            "description": "Superadmin only"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/voice/preview": {
+      "post": {
+        "tags": [
+          "voice"
+        ],
+        "operationId": "preview_voice",
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Base64-encoded MP3 sample"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/voice/voices": {
+      "get": {
+        "tags": [
+          "voice"
+        ],
+        "operationId": "list_voices",
+        "responses": {
+          "200": {
+            "description": "List of ElevenLabs voices"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/workspace/entity-settings": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "`GET /api/v2/workspace/entity-settings` — owner/member.",
+        "description": "Returns all entity_settings rows for the caller's workspace.",
+        "operationId": "list_workspace_entity_settings",
+        "responses": {
+          "200": {
+            "description": "Workspace entity settings"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "system"
+        ],
+        "summary": "`PUT /api/v2/workspace/entity-settings` — owner/member.",
+        "description": "Upserts one entity_setting at the caller's workspace scope.",
+        "operationId": "upsert_workspace_entity_setting",
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntitySettingUpsert"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Workspace entity setting upserted"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/workspace/lookup-values": {
+      "post": {
+        "tags": [
+          "lookup"
+        ],
+        "summary": "POST /api/v2/workspace/lookup-values  — workspace owner only, creates workspace-private value",
+        "operationId": "create_workspace_value",
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLookupValue"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Workspace lookup value created"
+          },
+          "403": {
+            "description": "Owner only"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/workspace/resolve-provider-chain": {
+      "get": {
+        "tags": [
+          "channels"
+        ],
+        "operationId": "resolve_provider_chain",
+        "responses": {
+          "200": {
+            "description": "Resolved provider chain"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/workspaces/{id}": {
+      "delete": {
+        "tags": [
+          "workspace"
+        ],
+        "summary": "`DELETE /api/v2/workspaces/:id`",
+        "description": "Initiates workspace soft-delete with a configurable grace period\n(`WORKSPACE_DELETION_GRACE_DAYS`, default 7).\n\nIn a single transaction:\n- Sets `workspaces.deleted_at`, `delete_scheduled_at`, `status = 'pending_deletion'`\n- Suspends all pending invitations (restorable; `suspended_at` not `cancelled_at`)\n- Revokes all active sessions for every workspace member\n\n**Orphan guard (IM-183):** If the requesting user is the owner AND this is\ntheir only workspace, the delete is blocked with HTTP 400\n`last_workspace_deletion` unless a superadmin passes `?force=true`.\nWhen force-deleted by a superadmin the user is flagged\n`needs_workspace_setup = true` so the onboarding wizard is shown on next\nlogin.",
+        "operationId": "delete_workspace",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Workspace id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace scheduled for deletion"
+          },
+          "400": {
+            "description": "Last workspace or invalid state"
+          },
+          "404": {
+            "description": "Workspace not found"
+          },
+          "409": {
+            "description": "Already pending deletion"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/workspaces/{id}/cancel-deletion": {
+      "post": {
+        "tags": [
+          "workspace"
+        ],
+        "summary": "`POST /api/v2/workspaces/:id/cancel-deletion`",
+        "description": "Cancels a pending soft-delete within the grace window.\nRestores the workspace to `active` and un-suspends all invitations\nthat were suspended (not hard-cancelled) during the deletion initiation.",
+        "operationId": "cancel_deletion",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Workspace id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deletion cancelled"
+          },
+          "404": {
+            "description": "Workspace not found"
+          },
+          "410": {
+            "description": "Grace period expired"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/workspaces/{id}/deletion-status": {
+      "get": {
+        "tags": [
+          "workspace"
+        ],
+        "summary": "`GET /api/v2/workspaces/:id/deletion-status`",
+        "description": "Returns the current deletion state of a workspace.\nAccessible by any workspace member or superadmin.",
+        "operationId": "deletion_status",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Workspace id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deletion status"
+          },
+          "404": {
+            "description": "Workspace not found"
+          }
+        },
+        "security": [
+          {
+            "cookie_auth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AcceptInviteRequest": {
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "password": {
+            "type": "string",
+            "nullable": true
+          },
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "AuthModeResponse": {
+        "type": "object",
+        "required": [
+          "v2_enabled",
+          "legacy_enabled"
+        ],
+        "properties": {
+          "legacy_enabled": {
+            "type": "boolean"
+          },
+          "v2_enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ForgotRequest": {
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          }
+        }
+      },
+      "LogoutRequest": {
+        "type": "object",
+        "properties": {
+          "refresh_token": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "LogoutResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "MfaChallengeRequest": {
+        "type": "object",
+        "required": [
+          "mfa_pending_token",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "mfa_pending_token": {
+            "type": "string"
+          }
+        }
+      },
+      "MfaDisableRequest": {
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "MfaSetupData": {
+        "type": "object",
+        "required": [
+          "otpauth_url",
+          "secret"
+        ],
+        "properties": {
+          "otpauth_url": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "string"
+          }
+        }
+      },
+      "MfaSetupResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MfaSetupData"
+          }
+        }
+      },
+      "MfaVerifyRequest": {
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "RefreshTokenRequest": {
+        "type": "object",
+        "properties": {
+          "refresh_token": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "RefreshTokenResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "access_token",
+          "expires_in"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password",
+          "workspace_name"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "workspace_name": {
+            "type": "string"
+          }
+        }
+      },
+      "RegisterResponse": {
+        "type": "object",
+        "description": "#350: Register response — no tokens (no auto-login). Returns onboarding\nmetadata only, matching Python `POST /auth/register`.",
+        "required": [
+          "status",
+          "user_id",
+          "workspace_id",
+          "role",
+          "onboarding_required"
+        ],
+        "properties": {
+          "onboarding_required": {
+            "type": "boolean"
+          },
+          "role": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "workspace_id": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ResetRequest": {
+        "type": "object",
+        "required": [
+          "token",
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "SignInRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          }
+        }
+      },
+      "SignInResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "access_token",
+          "expires_in",
+          "user"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "setup_required": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "status": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/SignInUser"
+          }
+        }
+      },
+      "SignInUser": {
+        "type": "object",
+        "description": "Signin user object, matching Python `/auth/login` (workspace-scoped `role`,\n`workspace_id`).",
+        "required": [
+          "id",
+          "email",
+          "role"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "role": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          }
+        }
+      },
+      "StatusResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateProfileRequest": {
+        "type": "object",
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "nullable": true
+          },
+          "display_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "new_password": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "UpdateProfileResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "VerifyTokenRequest": {
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "VerifyTokenResponse": {
+        "type": "object",
+        "required": [
+          "valid"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "global_role": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "nullable": true
+          },
+          "user_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "wid": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "cookie_auth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "access_token"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "auth",
+      "description": "Authentication and session management"
+    },
+    {
+      "name": "channels",
+      "description": "Channel CRUD, publishing, cadence"
+    },
+    {
+      "name": "system",
+      "description": "System-level admin endpoints"
+    },
+    {
+      "name": "users",
+      "description": "User management within a workspace"
+    },
+    {
+      "name": "flags",
+      "description": "Feature flags"
+    },
+    {
+      "name": "notifications",
+      "description": "In-app notifications"
+    },
+    {
+      "name": "workspace",
+      "description": "Workspace lifecycle"
+    },
+    {
+      "name": "voice",
+      "description": "Voice generation and providers"
+    },
+    {
+      "name": "lookup",
+      "description": "Static lookup value lists"
+    }
+  ]
+}

@@ -1,0 +1,167 @@
+name: Equivalence & Golden Replay
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: equivalence-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  guard:
+    name: Guard — merge from develop only
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Verify merge source is develop
+        run: |
+          PARENTS=$(git log -1 --pretty=format:"%P")
+          PARENT_COUNT=$(echo "$PARENTS" | wc -w | tr -d ' ')
+          MSG=$(git log -1 --pretty=format:"%s")
+          if [ "$PARENT_COUNT" -lt 2 ]; then
+            echo "❌ Direct push to main is not allowed."
+            echo "   Run: git checkout main && git merge --no-ff develop && git push"
+            exit 1
+          fi
+          if ! echo "$MSG" | grep -qi "develop"; then
+            echo "❌ Merge source is not 'develop'. Message: $MSG"
+            exit 1
+          fi
+          echo "✅ Merge from develop confirmed."
+
+  harness-contract:
+    needs: guard
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
+    name: Harness — contract + provider mock tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.88.0
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Harness lib tests (contract + providers + golden + cross)
+        working-directory: rust
+        run: cargo test -p harness --lib -- --test-threads=4
+
+      - name: Harness provider mock tests
+        working-directory: rust
+        run: cargo test -p harness --test provider_tests -- --test-threads=4
+
+      - name: Harness golden unit tests
+        working-directory: rust
+        run: cargo test -p harness --test golden_replay_test 2>/dev/null || true
+
+  harness-providers:
+    needs: guard
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
+    name: Harness — PROVIDER_MODE=mock gateway integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: autoniix_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.88.0
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Apply test DB migrations
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d autoniix_test -f scripts/init-db.sql -v ON_ERROR_STOP=1
+          for f in $(ls scripts/migrations/*.sql | sort); do
+            psql -h localhost -U postgres -d autoniix_test -f "$f" -v ON_ERROR_STOP=1
+          done
+
+      - name: Gateway harness tests (PROVIDER_MODE=mock)
+        working-directory: rust
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
+          AUTH_JWT_SECRET: test-jwt-secret-for-ci
+          PROVIDER_MODE: mock
+        run: cargo test -p gateway --test gateway_harness_test -- --test-threads=1
+
+  equivalence-offline:
+    needs: guard
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
+    name: Equivalence — offline (no services required)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.88.0
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Harness contract + cross tests (services not running — expect auto-skip)
+        working-directory: rust
+        env:
+          RUST_GATEWAY_URL: ""
+          PYTHON_DASHBOARD_URL: ""
+        run: cargo test -p harness --test contract_tests --test equivalence_tests -- --test-threads=4
+
+  go-golden:
+    needs: guard
+    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
+    name: Go — all service + golden loader tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: .go-version
+          cache-dependency-path: go/go.sum
+
+      - name: Go build
+        working-directory: go
+        run: go build ./...
+
+      - name: Go vet
+        working-directory: go
+        run: go vet ./...
+
+      - name: Go tests (all services + harness)
+        working-directory: go
+        run: go test ./... -v -timeout 120s

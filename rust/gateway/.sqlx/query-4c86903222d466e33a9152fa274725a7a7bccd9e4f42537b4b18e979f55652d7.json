@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM provider_marketplace_catalog WHERE provider_key = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4c86903222d466e33a9152fa274725a7a7bccd9e4f42537b4b18e979f55652d7"
+}

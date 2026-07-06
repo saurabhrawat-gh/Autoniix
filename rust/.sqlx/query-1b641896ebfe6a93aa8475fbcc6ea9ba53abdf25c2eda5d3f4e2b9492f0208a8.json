@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE dam_brand_kits\n              SET name = $2, logo_asset_ids = $3, palette = $4,\n                  font_asset_ids = $5, notes = $6, updated_at = now()\n            WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Varchar",
+        "Int8Array",
+        "Jsonb",
+        "Int8Array",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1b641896ebfe6a93aa8475fbcc6ea9ba53abdf25c2eda5d3f4e2b9492f0208a8"
+}

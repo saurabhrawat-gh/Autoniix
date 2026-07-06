@@ -12,9 +12,18 @@ description: Dev Agent — pick up the oldest ready-for-dev GitHub Issue and imp
 
 Use this workflow to implement a feature from a GitHub Issue marked `ready-for-dev`.
 
+> **🚫 BUILD FREEZE — until 2026-07-11**
+> No pushes to `main` and no deploy triggers of any kind until the freeze lifts.
+> If asked to deploy or promote to `main` before 2026-07-11, STOP and reply: "Build freeze in effect until 2026-07-11. I cannot push to main or trigger a deploy."
+> After 2026-07-11 the user will explicitly say "freeze lifted" or "deploy" before any main promotion happens.
+
+> **⚠️ NO PUSH TO `main` — EVER (until the user explicitly says so)**
+> Dev-agent **never** merges or pushes to `main`. All work — including hotfixes — stops at `develop`.
+> The user manually runs `git checkout main && git merge --no-ff develop && git push origin main` when they are ready to trigger a build.
+
 There are two paths depending on issue type:
 - **Normal path** (`feature` / `bug` / `task`) → merges to `develop`
-- **Hotfix path** (`hotfix` / `bug:production`) → merges directly to `main`
+- **Hotfix path** (`hotfix` / `bug:production`) → merges to `develop` (same as normal path — user promotes to `main` manually)
 
 ---
 
@@ -24,12 +33,13 @@ If the user invoked this workflow with a Jira key (e.g. `/dev-agent IM-227`, or 
 
 1. **Resolve the Jira key to a GitHub issue number** via reverse-lookup in `scripts/issue_map.json`:
    ```bash
+   # turbo
    python3 -c "import json; m={v:int(k) for k,v in json.load(open('scripts/issue_map.json')).items()}; print(m['IM-227'])"
    ```
 2. **If no mapping found** → STOP. Report to the user: "IM-XXX has no GitHub mirror. Create the GitHub mirror issue first and update `scripts/issue_map.json` before invoking `/dev-agent`."
 3. **If mapping found** → set `{N}` = resolved GH issue number, then **skip Step 0 and Step 1**. Read the GH issue body directly via `mcp1_get_issue` and jump to Step 1a (Read Research Notes).
 4. **Path selection** — inspect the GH issue's labels:
-   - Has `bug:production` or `hotfix` → take the **Hotfix Path** starting at H2.
+   - Has `bug:production` or `hotfix` → take the **Hotfix Path** starting at H2 (note: hotfix path still targets `develop`, not `main`).
    - Otherwise → take the **Normal Path** starting at step 2.
 
 This bypasses autopick. The user has explicitly chosen the ticket.
@@ -43,7 +53,7 @@ Only run this step if the user did NOT pass a Jira key (i.e. plain `/dev-agent` 
 Before anything else, check for open hotfix issues:
 - Call `mcp0_list_issues` with label `bug:production` AND state `open`
 - Also call `mcp0_list_issues` with label `hotfix` AND state `open`
-- If ANY results exist → **immediately take the Hotfix Path** for the highest-priority one (`priority:critical` first, then `priority:high`, then oldest)
+- If ANY results exist → **immediately take the Hotfix Path** for the highest-priority one (`priority:critical` first, then `priority:high`, then oldest) — note: hotfix path targets `develop`, not `main`
 - If none exist → continue to Normal Path below
 
 ---
@@ -122,7 +132,7 @@ bash scripts/ci-local.sh --full     # touched multiple stacks
 ```
 
 **Required outcome before proceeding:**
-- `✅  ALL CHECKS PASSED — safe to push to main` → continue to step 8
+- `✅  ALL CHECKS PASSED — safe to push to main` → continue to step 8 ("safe to push to main" is CI script output language; **we push to `develop` only**)
 - `✅  CI MIRROR PASSED ... ⚠  optional check(s) reported issues` → fix the soft failures, re-run, do not proceed while red
 - `❌  FAILED: ...` (hard fail in the CI mirror) → **STOP. Fix every failure. Re-run until fully green.**
 
@@ -154,6 +164,7 @@ git branch -d {branch-name}
 
 **After merge, re-run local CI on develop to confirm no merge conflicts broke anything:**
 ```bash
+# turbo
 bash scripts/ci-local.sh        # CI mirror — always required
 # add --python / --node / --go / --proto / --full if relevant to the merge
 ```
@@ -182,7 +193,7 @@ If either was red at any point, you must NOT have reached this step. Go back and
   Local CI passed (scripts/ci-local.sh) before push.
 
   Issue is now **Ready to Deploy**.
-  Once DevOps deploys to production, this will be moved to `in-prod`.
+  When you are ready to build, promote develop → main manually and deploy.
 
   After deploy: verify at https://dash.autoniix.com and type `verified #N` in Windsurf.
   If you find a bug, type `bug: description, issue #N` to file it automatically.
@@ -199,7 +210,7 @@ handoff:
   to_team: security
   issue: {N}
   branch: {branch_name}
-  summary: "Implementation complete. Merged to develop. Pushed — GHA auto-merges to main."
+  summary: "Implementation complete. Merged to develop. Awaiting manual develop→main promotion by product owner."
   changed_files:
     - {list all files modified or created}
   risk_level: {low|medium|high based on changes: auth/db/external_api = high, new endpoint = medium, test/docs = low}
@@ -213,7 +224,9 @@ handoff:
 
 ## Hotfix Path (hotfix / bug:production)
 
-Use this path ONLY for issues labelled `hotfix` or `bug:production`. These skip QA and go directly to production.
+Use this path ONLY for issues labelled `hotfix` or `bug:production`.
+
+> **⚠️ Hotfix path targets `develop`, NOT `main`.** The product owner manually promotes develop → main when ready to deploy.
 
 ### H1. Fetch the hotfix issue
 - Use `mcp0_list_issues` with label `hotfix` OR `bug:production`, sorted by `priority:critical` first
@@ -228,10 +241,10 @@ Use this path ONLY for issues labelled `hotfix` or `bug:production`. These skip 
 - Call `mcp0_update_issue`: remove `ready-for-dev`, add `in-progress`
 - Call `mcp0_editJiraIssue` to assign to Dev Agent: `{"assignee": {"accountId": "712020:863fd585-7c67-4cac-86c6-8885e80502b3"}}`
 
-### H3. Create branch from main
+### H3. Create branch from develop
 ```bash
-git checkout main
-git pull origin main
+git checkout develop
+git pull origin develop
 git checkout -b hotfix/issue-{number}-{short-slug}
 ```
 
@@ -243,46 +256,40 @@ git checkout -b hotfix/issue-{number}-{short-slug}
 git add -A && git commit -m "hotfix(#N): {short description}"
 ```
 
-### H6. Run local CI, then merge directly to main
+### H6. Run local CI, then merge to develop
 
-**GATE: Run local CI first — hotfixes go straight to production, no second chances:**
+**GATE: Run local CI first — no second chances once merged:**
 ```bash
+# turbo
 bash scripts/ci-local.sh   # run everything — hotfixes touch critical paths
 ```
 Wait for `✅  ALL CI CHECKS PASSED`. If red: fix first. Do NOT push a red hotfix.
 
 ```bash
-git checkout main
-git pull --ff-only origin main
-git merge --no-ff hotfix/issue-{number}-{short-slug} -m "hotfix(#N): merge into main"
-git push origin main
-```
-
-### H7. Backport to develop and delete the hotfix branch
-```bash
 git checkout develop
 git pull --ff-only origin develop
-git merge --no-ff main -m "chore: backport hotfix(#N) to develop"
+git merge --no-ff hotfix/issue-{number}-{short-slug} -m "hotfix(#N): merge into develop"
 git push origin develop
 # Hotfix branch lifetime ends here — never leave it lingering
 git branch -d hotfix/issue-{number}-{short-slug}
 ```
 
+> **Do NOT merge to `main`.** The product owner will manually promote develop → main when ready.
+
 **Hard rules — non-negotiable (same as Normal Path):**
 - Hotfix branches must NEVER be pushed to `origin`
-- Hotfix branches must be deleted locally immediately after merging into `main` AND backporting to `develop`
+- Hotfix branches must be deleted locally immediately after merging into `develop`
 - The only branches that ever exist on `origin` are `main` and `develop`
 
-### H8. Set issue to in-prod
-- Call `mcp0_update_issue`: remove `in-progress`, add `in-prod`
-- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = Jira key, transition id `6` (→ In Prod)
+### H8. Set issue to ready-to-deploy, update Jira
+- Call `mcp0_update_issue`: remove `in-progress`, add `ready-to-deploy`
+- Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = Jira key, transition id `5` (→ Ready To Deploy)
 - Call `mcp0_add_issue_comment`:
   ```
-  🔥 Hotfix deployed directly to `main`.
+  🔥 Hotfix merged to `develop`.
 
-  Deployed to https://dash.autoniix.com.
-  When you have verified the fix in production, type `verified #{N}` in Windsurf.
-  The agent will tick all AC checkboxes and close this issue automatically.
+  Awaiting manual develop → main promotion by product owner.
+  When you are ready to deploy, promote develop → main and type `verified #{N}` in Windsurf after confirming the fix.
   If you find another issue, type `bug: description, issue #{N}`.
   ```
 
@@ -293,7 +300,7 @@ handoff:
   to_team: security
   issue: {N}
   branch: hotfix/issue-{N}-{slug}
-  summary: "Hotfix merged to main and backported to develop."
+  summary: "Hotfix merged to develop. Awaiting manual develop→main promotion by product owner."
   changed_files:
     - {list all files modified or created}
   risk_level: high
@@ -310,10 +317,10 @@ handoff:
 - Never implement without reading the full issue body
 - Never skip writing tests (even for hotfixes — at minimum a regression test)
 - One issue per branch — never bundle multiple issues
-- Never push directly to `main` except for hotfixes
+- **Never push to `main` — dev-agent never touches `main` under any circumstances. The product owner promotes develop → main manually when ready to build.**
 - Never open a PR for individual feature/bug/task issues — merge them to `develop` locally and delete the feature branch
 - **The only branches that may ever exist on `origin` are `main` and `develop`.** Feature/hotfix branches are local-only and must be deleted after merge
-- **Every push to `develop` triggers GHA which merges `develop → main` and deploys to production — run `bash scripts/ci-local.sh` locally before every push, no exceptions**
+- **Pushing to `develop` does NOT auto-deploy — the product owner manually merges develop → main to trigger a build. Always run `bash scripts/ci-local.sh` locally before pushing to `develop`, no exceptions.**
 - If the issue is ambiguous, comment on the issue and flag to the user — do NOT guess
 - Role checks must use `require_role()` from `_deps.py` — never inline permission logic
 - All DB changes must be in a timestamped migration file, never applied directly

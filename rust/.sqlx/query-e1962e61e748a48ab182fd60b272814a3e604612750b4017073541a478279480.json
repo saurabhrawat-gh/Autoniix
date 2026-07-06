@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE series s\n              SET name = COALESCE($1, s.name),\n                  description = COALESCE($2, s.description),\n                  format = COALESCE($3, s.format),\n                  target_duration_s = COALESCE($4, s.target_duration_s),\n                  cadence = COALESCE($5, s.cadence),\n                  thumbnail_style = COALESCE($6, s.thumbnail_style)\n             FROM channels c\n            WHERE s.id = $7 AND s.channel_id = c.channel_id AND c.workspace_id = $8",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Text",
+        "Varchar",
+        "Int4",
+        "Varchar",
+        "Varchar",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e1962e61e748a48ab182fd60b272814a3e604612750b4017073541a478279480"
+}

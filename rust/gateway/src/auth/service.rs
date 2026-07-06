@@ -165,7 +165,7 @@ impl AuthServiceImpl {
 
         let frontend_url =
             std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
-        let reset_link = format!("{}/reset-password?token={}", frontend_url, raw_token);
+        let reset_link = format!("{frontend_url}/reset-password?token={raw_token}");
 
         let api_key = std::env::var("RESEND_API_KEY").ok();
         if let Some(api_key) = api_key {
@@ -176,16 +176,14 @@ impl AuthServiceImpl {
             let subject = if subject_prefix.is_empty() {
                 "Reset your Autoniix password".to_string()
             } else {
-                format!("{} Reset your Autoniix password", subject_prefix)
+                format!("{subject_prefix} Reset your Autoniix password")
             };
 
             let text_body = format!(
-                "To reset your password, open this link (expires in 1 hour):\n\n{}\n",
-                reset_link
+                "To reset your password, open this link (expires in 1 hour):\n\n{reset_link}\n"
             );
             let html_body = format!(
-                r#"<p>To reset your password, click the link below (expires in 1 hour):</p><p><a href="{}">{}</a></p>"#,
-                reset_link, reset_link
+                r#"<p>To reset your password, click the link below (expires in 1 hour):</p><p><a href="{reset_link}">{reset_link}</a></p>"#
             );
 
             let email_addr = email.to_string();
@@ -633,7 +631,7 @@ impl AuthServiceImpl {
                 break;
             }
             suffix += 1;
-            ws_slug = format!("{}-{}", base_slug, suffix);
+            ws_slug = format!("{base_slug}-{suffix}");
         }
 
         let workspace = Workspace::create(&mut *tx, workspace_name, &ws_slug, "starter", user.id)
@@ -891,5 +889,315 @@ impl AuthServiceImpl {
 
     pub fn verify_token(&self, token: &str) -> ApiResult<super::jwt::Claims> {
         self.jwt_manager.verify_token(token)
+    }
+
+    /// `GET /api/v2/auth/workspaces` — all workspaces the user is a member of.
+    pub async fn list_workspaces(&self, user_id: i64) -> ApiResult<Vec<serde_json::Value>> {
+        let rows = sqlx::query!(
+            r#"SELECT w.id, w.name, w.slug, w.plan, wm.role,
+                      (w.id = u.active_workspace_id) AS active,
+                      COALESCE(
+                          (es.value->>'completed')::boolean,
+                          FALSE
+                      ) AS onboarding_completed
+                 FROM workspace_members wm
+                 JOIN workspaces w  ON w.id = wm.workspace_id
+                 JOIN users u       ON u.id = wm.user_id
+                 LEFT JOIN entity_settings es
+                        ON es.scope    = 'workspace'
+                       AND es.scope_id = w.id::text
+                       AND es.key      = 'onboarding'
+                WHERE wm.user_id = $1
+                ORDER BY w.name"#,
+            user_id
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(ApiError::Database)?;
+
+        Ok(rows
+            .into_iter()
+            .map(|r| {
+                serde_json::json!({
+                    "id": r.id, "name": r.name, "slug": r.slug, "plan": r.plan,
+                    "role": r.role, "active": r.active, "onboarding_completed": r.onboarding_completed,
+                })
+            })
+            .collect())
+    }
+
+    /// `POST /api/v2/auth/switch-workspace` — re-issue JWT for a different workspace.
+    pub async fn switch_workspace(
+        &self,
+        user_id: i64,
+        workspace_id: i64,
+    ) -> ApiResult<(String, String, i64, String)> {
+        let member = sqlx::query!(
+            "SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
+            workspace_id,
+            user_id
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(ApiError::Database)?
+        .ok_or_else(|| ApiError::ForbiddenWith("Not a member of that workspace".into()))?;
+
+        let user = sqlx::query!(
+            "SELECT id, email, role, disabled FROM users WHERE id=$1",
+            user_id
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(ApiError::Database)?
+        .ok_or(ApiError::Unauthorized)?;
+
+        if user.disabled {
+            return Err(ApiError::ForbiddenWith("User disabled".into()));
+        }
+
+        sqlx::query!(
+            "UPDATE users SET active_workspace_id=$1 WHERE id=$2",
+            workspace_id,
+            user_id
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(ApiError::Database)?;
+
+        let (refresh_raw, refresh_hash) = generate_refresh_token();
+        let expires_at = Utc::now() + Duration::days(30);
+        sqlx::query!(
+            "INSERT INTO sessions (user_id, refresh_token_hash, expires_at) VALUES ($1,$2,$3)",
+            user_id,
+            refresh_hash,
+            expires_at
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(ApiError::Database)?;
+
+        let access_token = self.jwt_manager.create_access_token(
+            user.id.to_string(),
+            workspace_id,
+            user.email,
+            member.role.clone(),
+            user.role,
+        )?;
+
+        Ok((access_token, refresh_raw, workspace_id, member.role))
+    }
+
+    /// `POST /api/v2/auth/create-workspace` — create additional workspace, re-issue JWT.
+    pub async fn create_workspace(
+        &self,
+        user_id: i64,
+        workspace_name: String,
+    ) -> ApiResult<(String, String, i64, String)> {
+        let user = sqlx::query!("SELECT id, email, role FROM users WHERE id=$1", user_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(ApiError::Database)?
+            .ok_or(ApiError::Unauthorized)?;
+
+        let owned_count: i64 = sqlx::query_scalar!(
+            "SELECT COUNT(*) FROM workspaces WHERE owner_user_id=$1",
+            user_id
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(ApiError::Database)?
+        .unwrap_or(0);
+
+        // starter plan: 1 workspace
+        if owned_count >= 1 && user.role != "superadmin" {
+            return Err(ApiError::ForbiddenWith(
+                "Workspace limit reached for your plan. Upgrade to create more.".into(),
+            ));
+        }
+
+        let ws_name = workspace_name.trim().to_string();
+        let base_slug = ws_name.to_lowercase().replace(' ', "-");
+        let base_slug = &base_slug[..base_slug.len().min(60)];
+
+        let mut slug = base_slug.to_string();
+        let mut suffix = 0u32;
+        loop {
+            let exists: bool = sqlx::query_scalar!(
+                "SELECT EXISTS(SELECT 1 FROM workspaces WHERE slug=$1)",
+                slug
+            )
+            .fetch_one(&self.pool)
+            .await
+            .map_err(ApiError::Database)?
+            .unwrap_or(false);
+            if !exists {
+                break;
+            }
+            suffix += 1;
+            slug = format!("{base_slug}-{suffix}");
+        }
+
+        let mut tx = self.pool.begin().await.map_err(ApiError::Database)?;
+        let wid: i64 = sqlx::query_scalar!(
+            r#"INSERT INTO workspaces (name, slug, plan, owner_user_id, billing_email)
+               VALUES ($1,$2,'starter',$3,$4) RETURNING id"#,
+            ws_name,
+            slug,
+            user_id,
+            user.email
+        )
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(ApiError::Database)?;
+
+        sqlx::query!(
+            "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1,$2,'owner')",
+            wid,
+            user_id
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(ApiError::Database)?;
+
+        sqlx::query!(
+            "UPDATE users SET active_workspace_id=$1 WHERE id=$2",
+            wid,
+            user_id
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(ApiError::Database)?;
+
+        tx.commit().await.map_err(ApiError::Database)?;
+
+        let (refresh_raw, refresh_hash) = generate_refresh_token();
+        let expires_at = Utc::now() + Duration::days(30);
+        sqlx::query!(
+            "INSERT INTO sessions (user_id, refresh_token_hash, expires_at) VALUES ($1,$2,$3)",
+            user_id,
+            refresh_hash,
+            expires_at
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(ApiError::Database)?;
+
+        let access_token = self.jwt_manager.create_access_token(
+            user.id.to_string(),
+            wid,
+            user.email,
+            "owner".to_string(),
+            user.role,
+        )?;
+
+        Ok((access_token, refresh_raw, wid, "owner".to_string()))
+    }
+
+    /// `DELETE /api/v2/auth/account` — soft-delete the current user account.
+    pub async fn delete_account(&self, user_id: i64, password: String) -> ApiResult<()> {
+        let user = sqlx::query!(
+            "SELECT id, password_hash, role FROM users WHERE id=$1",
+            user_id
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(ApiError::Database)?
+        .ok_or_else(|| ApiError::NotFound("user".into()))?;
+
+        let pw_hash = user.password_hash.unwrap_or_default();
+        let ok = PasswordManager::verify_password(&password, &pw_hash).unwrap_or(false);
+        if !ok {
+            return Err(ApiError::Unauthorized);
+        }
+        if user.role == "superadmin" {
+            let count: i64 = sqlx::query_scalar!(
+                "SELECT COUNT(*) FROM users WHERE role='superadmin' AND disabled=FALSE"
+            )
+            .fetch_one(&self.pool)
+            .await
+            .map_err(ApiError::Database)?
+            .unwrap_or(0);
+            if count <= 1 {
+                return Err(ApiError::ForbiddenWith(
+                    "Cannot delete the last superadmin account".into(),
+                ));
+            }
+        }
+
+        let mut tx = self.pool.begin().await.map_err(ApiError::Database)?;
+        sqlx::query!(
+            "UPDATE sessions SET revoked_at=NOW() WHERE user_id=$1 AND revoked_at IS NULL",
+            user_id
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(ApiError::Database)?;
+        sqlx::query!("DELETE FROM workspace_members WHERE user_id=$1", user_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(ApiError::Database)?;
+        sqlx::query!(
+            r#"UPDATE users SET email=$1, password_hash=NULL, display_name='Deleted User',
+                      disabled=TRUE, mfa_enabled=FALSE, mfa_secret=NULL
+               WHERE id=$2"#,
+            format!("deleted-{user_id}@deleted.local"),
+            user_id
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(ApiError::Database)?;
+        tx.commit().await.map_err(ApiError::Database)?;
+        Ok(())
+    }
+
+    /// `GET /api/v2/auth/invite-info?token=…` — public, no auth required.
+    pub async fn invite_info(&self, token: String) -> ApiResult<serde_json::Value> {
+        let mut hasher = Sha256::new();
+        hasher.update(token.as_bytes());
+        let token_hash = format!("{:x}", hasher.finalize());
+
+        let invite = sqlx::query!(
+            r#"SELECT email, role, workspace_id, accepted_at, expires_at, cancelled_at
+                 FROM workspace_invitations WHERE token_hash=$1"#,
+            token_hash
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(ApiError::Database)?
+        .ok_or_else(|| ApiError::Validation("Invalid invitation token".into()))?;
+
+        if invite.accepted_at.is_some() {
+            return Err(ApiError::Validation("Invitation already used".into()));
+        }
+        if invite.cancelled_at.is_some() {
+            return Err(ApiError::Validation("Invitation has been cancelled".into()));
+        }
+        if invite.expires_at < Utc::now() {
+            return Err(ApiError::Validation("Invitation has expired".into()));
+        }
+
+        let user_exists: bool = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM users WHERE lower(email)=lower($1))",
+            invite.email
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(ApiError::Database)?
+        .unwrap_or(false);
+
+        let ws_name: Option<String> = sqlx::query_scalar!(
+            "SELECT name FROM workspaces WHERE id=$1",
+            invite.workspace_id
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(ApiError::Database)?;
+
+        Ok(serde_json::json!({
+            "email": invite.email,
+            "role": invite.role,
+            "workspace_name": ws_name.unwrap_or_else(|| "Unknown workspace".to_string()),
+            "user_exists": user_exists,
+        }))
     }
 }

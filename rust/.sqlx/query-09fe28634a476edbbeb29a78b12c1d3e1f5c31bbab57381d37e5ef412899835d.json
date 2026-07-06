@@ -1,0 +1,95 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT c.id, c.position, c.fallback_strategy,\n                  COALESCE(c.is_enabled, TRUE) AS is_enabled,\n                  pc.id AS credential_id, pc.label, pc.provider_name, pc.model,\n                  pc.enabled, pc.last_health_ok, pc.last_health_at,\n                  (SELECT kind FROM provider_categories WHERE name = c.category) AS chain_category_kind,\n                  (SELECT kind FROM provider_categories WHERE name = pc.category) AS credential_kind\n             FROM provider_chains_v2 c\n             JOIN provider_credentials pc ON pc.id = c.credential_id\n            WHERE c.scope = 'workspace' AND c.scope_id IS NULL\n              AND c.content_mode IS NULL AND c.category = $1\n              AND c.workspace_id = $2\n            ORDER BY c.position",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "position",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 2,
+        "name": "fallback_strategy",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "is_enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "credential_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "label",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "provider_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "model",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 8,
+        "name": "enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "last_health_ok",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 10,
+        "name": "last_health_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "chain_category_kind",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 12,
+        "name": "credential_kind",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "09fe28634a476edbbeb29a78b12c1d3e1f5c31bbab57381d37e5ef412899835d"
+}

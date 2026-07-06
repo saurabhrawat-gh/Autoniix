@@ -1,0 +1,7 @@
+{
+  "endpoint": "GET /api/v2/experiments",
+  "expected": {
+    "data": []
+  },
+  "ignore_fields": []
+}

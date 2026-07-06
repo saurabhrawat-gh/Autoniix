@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE channels SET review_config = $1, updated_at = NOW()\n            WHERE channel_id = $2 RETURNING channel_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "channel_id",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Jsonb",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "637ffa82dac754417449e4ff6224f9912efbdf5942f3af2c7246d3e0a53276fe"
+}

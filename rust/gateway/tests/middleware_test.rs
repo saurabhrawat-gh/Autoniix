@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 use axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -232,4 +233,112 @@ async fn test_malformed_auth_header() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+/// #700: Workspace rate limiting — authenticated requests must return 429
+/// after exceeding the per-workspace RPM threshold.
+///
+/// Uses `WORKSPACE_RATE_LIMIT_RPM=3` to trigger the limit quickly.  The test
+/// signs in to get a valid JWT (so `Principal.wid` is populated), then hammers
+/// `/api/v2/me` until the 4th request is blocked.
+#[tokio::test]
+async fn test_workspace_rate_limit_blocks_after_rpm_exceeded() {
+    std::env::set_var("WORKSPACE_RATE_LIMIT_RPM", "3");
+    let app = gateway::create_test_app().await;
+    std::env::remove_var("WORKSPACE_RATE_LIMIT_RPM");
+
+    // Register + sign in to get an access token
+    let register_body = json!({
+        "email": "rate-test@example.com",
+        "password": "securepassword123",
+        "display_name": "Rate Test",
+        "workspace_name": "Rate WS"
+    });
+
+    let _ = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v2/auth/register")
+                .method("POST")
+                .header("content-type", "application/json")
+                .body(Body::from(register_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let signin_body = json!({
+        "email": "rate-test@example.com",
+        "password": "securepassword123"
+    });
+
+    let signin_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v2/auth/signin")
+                .method("POST")
+                .header("content-type", "application/json")
+                .body(Body::from(signin_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let body = axum::body::to_bytes(signin_response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let signin_data: Value = serde_json::from_slice(&body).unwrap();
+    let access_token = signin_data["access_token"].as_str().unwrap();
+
+    // Requests 1–3 must pass (200 OK from /me)
+    for i in 1..=3 {
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v2/me")
+                    .header("authorization", format!("Bearer {}", access_token))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_ne!(
+            resp.status(),
+            StatusCode::TOO_MANY_REQUESTS,
+            "request {i} should not be rate-limited yet"
+        );
+    }
+
+    // Request 4 must be blocked
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v2/me")
+                .header("authorization", format!("Bearer {}", access_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::TOO_MANY_REQUESTS,
+        "4th request must return 429"
+    );
+    assert!(
+        resp.headers().contains_key("retry-after"),
+        "429 response must include Retry-After header"
+    );
+
+    let resp_body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let error_data: Value = serde_json::from_slice(&resp_body).unwrap();
+    assert_eq!(error_data["error"], "rate_limited");
+    assert!(error_data["retry_after"].is_number());
 }

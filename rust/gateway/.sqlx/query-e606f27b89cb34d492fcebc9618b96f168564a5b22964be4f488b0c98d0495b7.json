@@ -1,0 +1,129 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT c.id, c.scope, c.scope_id, c.content_mode, c.pipeline_mode, c.category,\n                  c.position, c.fallback_strategy,\n                  COALESCE(c.is_enabled, TRUE) AS is_enabled,\n                  pc.id AS credential_id, pc.label, pc.provider_name, pc.model,\n                  pc.enabled, pc.last_health_ok, pc.last_health_at,\n                  (SELECT kind FROM provider_categories WHERE name = c.category) AS chain_category_kind,\n                  (SELECT kind FROM provider_categories WHERE name = pc.category) AS credential_kind\n             FROM provider_chains_v2 c\n             JOIN provider_credentials pc ON pc.id = c.credential_id\n            WHERE c.scope = $1\n              AND ($2::text IS NULL AND c.scope_id IS NULL OR c.scope_id = $2)\n              AND ($3::text IS NULL AND c.content_mode IS NULL OR c.content_mode = $3)\n              AND COALESCE(c.pipeline_mode, 'production') = $4\n              AND c.workspace_id = $5\n              AND ($6::text IS NULL OR c.category = $6)\n            ORDER BY c.category, c.position",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "scope",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "scope_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "content_mode",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "pipeline_mode",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "category",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "position",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 7,
+        "name": "fallback_strategy",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 8,
+        "name": "is_enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "credential_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "label",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 11,
+        "name": "provider_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 12,
+        "name": "model",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 13,
+        "name": "enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 14,
+        "name": "last_health_ok",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 15,
+        "name": "last_health_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 16,
+        "name": "chain_category_kind",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 17,
+        "name": "credential_kind",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "e606f27b89cb34d492fcebc9618b96f168564a5b22964be4f488b0c98d0495b7"
+}

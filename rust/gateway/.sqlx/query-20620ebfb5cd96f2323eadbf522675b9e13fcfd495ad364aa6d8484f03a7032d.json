@@ -1,0 +1,98 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, scope, scope_id, kind, display_name, mime_type, bytes,\n                  thumbnail_key, storage_key, origin, tags, metadata, created_at\n             FROM dam_assets\n            WHERE deleted_at IS NULL\n              AND scope = $1\n              AND ($2::text IS NULL OR scope_id = $2)\n              AND ($3::text IS NULL OR kind = $3)\n              AND ($4::text IS NULL OR\n                   (to_tsvector('english', display_name) @@\n                    plainto_tsquery('english', $4)\n                    OR display_name ILIKE '%' || $4 || '%'))\n            ORDER BY created_at DESC\n            LIMIT $5",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "scope",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "scope_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "kind",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "display_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "mime_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "thumbnail_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "storage_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "origin",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 10,
+        "name": "tags",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 11,
+        "name": "metadata",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 12,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "20620ebfb5cd96f2323eadbf522675b9e13fcfd495ad364aa6d8484f03a7032d"
+}

@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO provider_categories (name, label, kind, description, is_user_defined) VALUES ($1, $2, $3, $4, TRUE)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "19e6bee70438660b41eeff3e5457139a12a6f565f3409b048aec6574852bb8e1"
+}

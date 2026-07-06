@@ -1,5 +1,8 @@
+# Pinned via versions.env NODE_IMAGE=node:22.23.1-bookworm-slim
+ARG NODE_IMAGE=node:22.23.1-bookworm-slim
+
 # build stage
-FROM node:20-bookworm-slim AS build
+FROM ${NODE_IMAGE} AS build
 WORKDIR /app
 
 # Remotion/Chromium deps
@@ -50,7 +53,7 @@ COPY . .
 RUN npm run typecheck
 
 # runtime stage
-FROM node:20-bookworm-slim AS runtime
+FROM ${NODE_IMAGE} AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 

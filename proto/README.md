@@ -171,4 +171,4 @@ pnpm proto:generate
 - [Buf Documentation](https://buf.build/docs)
 - [Protocol Buffers Style Guide](https://protobuf.dev/programming-guides/style/)
 - [Connect-RPC](https://connectrpc.com/)
-- [ADR-001: Polyglot Architecture](../docs/architecture/ADR-001-polyglot-architecture.md)
+- [ADR-001: Polyglot Architecture](../docs/architecture/adr-001-polyglot-architecture.md)

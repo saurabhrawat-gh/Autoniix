@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE dam_collections\n              SET name = $2, description = $3, kind = $4,\n                  query = $5, asset_ids = $6, updated_at = now()\n            WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Varchar",
+        "Text",
+        "Varchar",
+        "Jsonb",
+        "Int8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a692b5fa64ed36b55ff8b46374c7cd011daae107b1adad2a4794f1f0eee7af6f"
+}
