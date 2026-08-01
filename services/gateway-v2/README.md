@@ -83,14 +83,19 @@ See `.env.example` for all required variables:
 - [x] Project structure
 - [x] Fastify app setup
 - [x] Health endpoints (`/health`, `/ready`)
-- [x] Auth routes (stubs)
+- [x] Auth routes (full implementation)
 - [x] JWT middleware
 - [x] Database connection (postgres)
 - [x] Zod schema validation
-- [ ] Auth implementation (login, register, refresh)
-- [ ] Job routes
-- [ ] Channel routes
-- [ ] All 18 route modules from Rust gateway
+- [x] Auth implementation (login, register, refresh, logout, /me)
+- [x] Job routes (CRUD + pause/resume/retry)
+- [x] Channel routes (stubs)
+- [x] Workspace routes (stubs)
+- [x] Content routes (stubs)
+- [x] User routes (stubs)
+- [x] Notification routes (stubs)
+- [x] All remaining route stubs (experiments, finishing, flags, library, etc.)
+- [ ] Implement priority route modules (channels, workspace, content)
 - [ ] Cron jobs (workspace deletion, hard delete)
 - [ ] Feature flag at Caddy level
 - [ ] Load testing & benchmarks
