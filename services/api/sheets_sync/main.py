@@ -2,31 +2,17 @@ from __future__ import annotations
 
 import json
 from contextlib import asynccontextmanager
-from datetime import date
 
 import structlog
 import uvicorn
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
 
 from core.config import settings
 from core.db import close_pool, get_pool
 from observability.metrics import instrument_app
+from observability.sentry import init_sentry
 
 logger = structlog.get_logger()
-
-SHEET_GIDS = {
-    "Channel_DNA": 0,
-    "Execution_Locks": 1865472506,
-    "Belief_Registry": 259150285,
-    "Output_Log": 1787987140,
-    "Feedback_Loop": 844630622,
-    "Performance_Memory": 1321792890,
-    "Prompt_Registry": 2066543396,
-    "Trend_Intelligence": 60235127,
-    "API_Usage_Tracker": 2119046052,
-    "System_Config": 1981071710,
-}
 
 
 @asynccontextmanager
@@ -37,13 +23,12 @@ async def lifespan(app: FastAPI):
     logger.info("sheets_sync.stopped")
 
 
-from observability.sentry import init_sentry
 init_sentry("sheets_sync")
 
 app = FastAPI(title="Google Sheets Sync Service", version="0.1.0", lifespan=lifespan)
-
-
 instrument_app(app, service_name="sheets-sync")
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "sheets_sync"}
@@ -90,7 +75,6 @@ async def _sync_table_to_sheet(tab_name: str, query: str, columns: list[str]):
 
     sheets = await _get_sheets_client()
     sheet_id = settings.google_sheets_id
-    gid = SHEET_GIDS.get(tab_name)
 
     range_name = f"{tab_name}!A1"
     sheets.values().clear(

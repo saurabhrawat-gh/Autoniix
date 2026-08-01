@@ -1,4 +1,3 @@
-# Pinned via versions.env PYTHON_IMAGE=python:3.12.7-slim
 ARG PYTHON_IMAGE=python:3.12.7-slim
 FROM ${PYTHON_IMAGE}
 
@@ -9,22 +8,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-# --retries/--timeout harden against transient pypi/CDN drops mid-download
-# of large ML wheels (transformers, torch) on the VPS network.
 RUN pip install --no-cache-dir --retries 5 --timeout 120 -r requirements.txt
 
 RUN python -m spacy download en_core_web_sm \
     && python -c "import nltk; nltk.download('wordnet', quiet=True); nltk.download('omw-1.4', quiet=True)"
 
-COPY src/ ./src/
+COPY libs/python/ ./src/
+COPY services/api/ ./src/services_api/
+COPY services/temporal-workers/workers/ ./src/temporal_workers/
+COPY services/agents/ ./src/agents/
 COPY scripts/ ./scripts/
 
-# Build-time injection of the git SHA for /health introspection. Pass via:
-#   docker compose build --build-arg GIT_SHA=$(git rev-parse --short HEAD)
 ARG GIT_SHA=unknown
 ENV GIT_SHA=${GIT_SHA}
 
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app/src
 ENV PYTHONUNBUFFERED=1
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
