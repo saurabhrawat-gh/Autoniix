@@ -69,6 +69,9 @@ export async function createApp(config: Config) {
 
   await app.register(healthRoutes);
   await app.register(authRoutes);
+  
+  const { jobRoutes } = await import("./routes/jobs.js");
+  await app.register(jobRoutes);
 
   app.setErrorHandler((error: any, request, reply) => {
     request.log.error(error);
