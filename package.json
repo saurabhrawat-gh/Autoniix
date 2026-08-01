@@ -33,7 +33,8 @@
   "workspaces": [
     "apps/dashboard",
     "apps/marketing",
-    "libs/ts/*"
+    "libs/ts/*",
+    "services/gateway-v2"
   ],
   "packageManager": "npm@10.9.8",
   "engines": {
