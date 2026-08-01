@@ -535,5 +535,11 @@ act-setup: ## One-time act setup: install act + create secrets + pull runner ima
 	@echo "    Then run: make ship"
 	@echo "═══════════════════════════════════════════════════════"
 
+gen-contracts: ## Generate OpenAPI spec from Zod schemas and Pydantic models from OpenAPI
+	@echo "🔄 Generating contracts (Zod → OpenAPI → Pydantic)..."
+	@cd libs/ts/contracts && npm run gen-openapi
+	@./tools/gen-pydantic.sh
+	@echo "✅ Contracts generated successfully"
+
 .PHONY: verify-versions check-drift ci-local ci-local-full ci-local-docker pre-deploy install-hooks \
-        ship sqlx-prepare ci-act ci-act-full act-setup
+        ship sqlx-prepare ci-act ci-act-full act-setup gen-contracts

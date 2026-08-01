@@ -31,10 +31,9 @@
     "turbo": "^2.0.0"
   },
   "workspaces": [
-    "dashboard",
-    "rust/*",
-    "go/*",
-    "python/*"
+    "apps/dashboard",
+    "apps/marketing",
+    "libs/ts/*"
   ],
   "packageManager": "npm@10.9.8",
   "engines": {

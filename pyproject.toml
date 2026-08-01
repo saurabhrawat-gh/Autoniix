@@ -1,0 +1,7 @@
+[tool.uv.workspace]
+members = ["libs/python/contracts"]
+
+[tool.uv]
+dev-dependencies = [
+    "datamodel-code-generator>=0.26.4",
+]
