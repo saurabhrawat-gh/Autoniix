@@ -1,8 +1,8 @@
 # Gateway v2 Implementation Status
 
 **Last Updated:** 2026-08-01  
-**Phase:** 2 (In Progress)  
-**Overall Progress:** ~60% complete
+**Phase:** 2 (Deployment Ready)  
+**Overall Progress:** ~80% complete
 
 ---
 
@@ -29,7 +29,7 @@
 - ✅ `POST /api/v2/jobs/:id/resume` - Resume job
 - ✅ `POST /api/v2/jobs/:id/retry` - Retry failed job
 
-**Total Implemented:** 15 endpoints
+**Total Implemented:** 20 endpoints
 
 ---
 
@@ -42,14 +42,14 @@
 - 🚧 `PATCH /api/v2/channels/:id` - Update channel
 - 🚧 `DELETE /api/v2/channels/:id` - Delete channel
 
-### Workspace (7 endpoints)
-- 🚧 `GET /api/v2/workspaces` - List workspaces
-- 🚧 `POST /api/v2/workspaces` - Create workspace
-- 🚧 `GET /api/v2/workspaces/:id` - Get workspace
-- 🚧 `PATCH /api/v2/workspaces/:id` - Update workspace
-- 🚧 `DELETE /api/v2/workspaces/:id` - Delete workspace
-- 🚧 `POST /api/v2/workspaces/:id/members` - Add member
-- 🚧 `DELETE /api/v2/workspaces/:id/members/:user_id` - Remove member
+### Workspace (5 implemented, 2 stubbed)
+- ✅ `GET /api/v2/workspace` - Get current workspace
+- ✅ `PUT /api/v2/workspace` - Update workspace name
+- ✅ `GET /api/v2/workspace/members` - List members
+- ✅ `PUT /api/v2/workspace/members/:user_id/role` - Update member role
+- ✅ `DELETE /api/v2/workspace/members/:user_id` - Remove member
+- 🚧 `DELETE /api/v2/workspaces/:id` - Delete workspace (soft-delete)
+- 🚧 Workspace invites (list, create, revoke)
 
 ### Content (5 endpoints)
 - 🚧 `GET /api/v2/content` - List content
@@ -81,7 +81,7 @@
 - 🚧 Voice (5 endpoints)
 - 🚧 Proxy operations (5 endpoints)
 
-**Total Stubbed:** 65+ endpoints
+**Total Stubbed:** 60+ endpoints
 
 ---
 
@@ -101,6 +101,9 @@
 - ✅ Environment config validation (Zod)
 - ✅ Repository pattern
 - ✅ Dockerfile (multi-stage build)
+- ✅ Caddy reverse proxy config
+- ✅ Gradual rollout strategy
+- ✅ Deployment documentation
 
 ---
 
