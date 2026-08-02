@@ -1,8 +1,8 @@
 # Gateway v2 Implementation Status
 
-**Last Updated:** 2026-08-01  
-**Phase:** 2 (Deployment Ready)  
-**Overall Progress:** ~80% complete
+**Last Updated:** 2026-08-02  
+**Phase:** 2 (Feature Complete for Priority Routes)  
+**Overall Progress:** ~95% complete
 
 ---
 
@@ -29,18 +29,23 @@
 - ✅ `POST /api/v2/jobs/:id/resume` - Resume job
 - ✅ `POST /api/v2/jobs/:id/retry` - Retry failed job
 
-**Total Implemented:** 20 endpoints
+**Total Implemented:** 35 endpoints (health, auth, jobs, workspace, channels, content)
 
 ---
 
 ## Stubbed Endpoints (501 Not Implemented)
 
-### Channels (5 endpoints)
-- 🚧 `GET /api/v2/channels` - List channels
-- 🚧 `POST /api/v2/channels` - Create channel
-- 🚧 `GET /api/v2/channels/:id` - Get channel
-- 🚧 `PATCH /api/v2/channels/:id` - Update channel
-- 🚧 `DELETE /api/v2/channels/:id` - Delete channel
+### Channels (10 implemented)
+- ✅ `GET /api/v2/channels` - List with pagination + filters
+- ✅ `POST /api/v2/channels` - Create channel
+- ✅ `GET /api/v2/channels/stats` - Aggregated stats
+- ✅ `GET /api/v2/channels/:id` - Get channel
+- ✅ `PUT /api/v2/channels/:id` - Update channel
+- ✅ `DELETE /api/v2/channels/:id` - Delete channel
+- ✅ `PUT /api/v2/channels/:id/enable` - Enable
+- ✅ `PUT /api/v2/channels/:id/disable` - Disable
+- ✅ `PUT /api/v2/channels/:id/archive` - Archive
+- ✅ `PUT /api/v2/channels/:id/restore` - Restore
 
 ### Workspace (5 implemented, 2 stubbed)
 - ✅ `GET /api/v2/workspace` - Get current workspace
@@ -51,12 +56,12 @@
 - 🚧 `DELETE /api/v2/workspaces/:id` - Delete workspace (soft-delete)
 - 🚧 Workspace invites (list, create, revoke)
 
-### Content (5 endpoints)
-- 🚧 `GET /api/v2/content` - List content
-- 🚧 `POST /api/v2/content` - Create content
-- 🚧 `GET /api/v2/content/:id` - Get content
-- 🚧 `PATCH /api/v2/content/:id` - Update content
-- 🚧 `DELETE /api/v2/content/:id` - Delete content
+### Content (5 implemented)
+- ✅ `GET /api/v2/content` - List with pagination + channel/status filters
+- ✅ `POST /api/v2/content` - Create content
+- ✅ `GET /api/v2/content/:id` - Get content
+- ✅ `PATCH /api/v2/content/:id` - Update content
+- ✅ `DELETE /api/v2/content/:id` - Delete content
 
 ### User (3 endpoints)
 - 🚧 `GET /api/v2/users/:id` - Get user
