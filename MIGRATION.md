@@ -17,7 +17,7 @@ See: `docs/architecture/adr-004-two-language-simplification.md`
 | 0. Freeze + ADR | 1 day | ✅ **DONE** | ADR-004, harness docs, this file |
 | 1. Contracts | 2–3 days | 🔄 **NEXT** | Zod schemas + Pydantic codegen |
 | 2. Gateway | 5–7 days | ⏳ Pending | Node Fastify BFF |
-| 3. Streaming | 2 days | ⏳ Pending | Node WS/SSE service |
+| 3. Streaming | 2 days | ✅ **DONE** | Node WS/SSE service |
 | 4. Temporal | 3–4 days | ⏳ Pending | Python workers |
 | 5. Services | 5–7 days | ⏳ Pending | Python FastAPI services |
 | 6. Delete | 1 day | ⏳ Pending | Remove Rust/Go/proto |
