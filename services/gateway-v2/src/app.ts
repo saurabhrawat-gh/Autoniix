@@ -91,6 +91,9 @@ export async function createApp(config: Config) {
   const { stubRoutes } = await import("./routes/stubs.js");
   await app.register(stubRoutes);
 
+  const { registerWorkspaceDeletionCron } = await import("./cron/workspace-deletion.js");
+  registerWorkspaceDeletionCron(app);
+
   app.setErrorHandler((error: any, request, reply) => {
     request.log.error(error);
 
