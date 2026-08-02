@@ -568,6 +568,27 @@ gw2-rollback: ## Instant rollback — stop v2, all traffic falls back to v1
 	@docker compose stop node-gateway
 	@echo "✅ node-gateway stopped. All traffic now routes to rust-gateway."
 
+sh2-typecheck: ## Type-check streaming-hub-v2
+	@cd services/streaming-hub-v2 && npm run typecheck
+
+sh2-build: ## Build streaming-hub-v2
+	@cd services/streaming-hub-v2 && npm run build
+
+sh2-test: ## Run streaming-hub-v2 smoke tests
+	@cd services/streaming-hub-v2 && npm test
+
+sh2-dev: ## Run streaming-hub-v2 in dev mode
+	@cd services/streaming-hub-v2 && npm run dev
+
+sh2-up: ## Start streaming-hub-v2 alongside legacy hub
+	@docker compose up -d streaming-hub-v2
+	@echo "✅ streaming-hub-v2 up on :8091"
+
+sh2-rollback: ## Instant rollback — stop streaming-hub-v2
+	@docker compose stop streaming-hub-v2
+	@echo "✅ streaming-hub-v2 stopped."
+
 .PHONY: verify-versions check-drift ci-local ci-local-full ci-local-docker pre-deploy install-hooks \
         ship sqlx-prepare ci-act ci-act-full act-setup gen-contracts \
-        gw2-typecheck gw2-build gw2-test gw2-dev gw2-up gw2-rollback
+        gw2-typecheck gw2-build gw2-test gw2-dev gw2-up gw2-rollback \
+        sh2-typecheck sh2-build sh2-test sh2-dev sh2-up sh2-rollback

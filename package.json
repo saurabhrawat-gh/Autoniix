@@ -34,7 +34,8 @@
     "apps/dashboard",
     "apps/marketing",
     "libs/ts/*",
-    "services/gateway-v2"
+    "services/gateway-v2",
+    "services/streaming-hub-v2"
   ],
   "packageManager": "npm@10.9.8",
   "engines": {
