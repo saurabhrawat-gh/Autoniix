@@ -802,9 +802,13 @@ services:
         limits:
           memory: 256M
 
-  # Rust API Gateway — /api/v2/* routes (auth, users, channels, workspace)
+  # Rust API Gateway v1 — /api/v2/* routes (auth, users, channels, workspace)
   # Local dev: http://localhost:8081    Production: https://${GW_DOMAIN}
   # Add GW_DOMAIN=gw.yourdomain.com to .env to enable TLS routing.
+  #
+  # During Phase 2 migration, this v1 gateway handles all traffic by default.
+  # Requests carrying `X-Gateway-Version: v2` are routed to `node-gateway` via
+  # Traefik priority ordering (see labels on node-gateway below).
   rust-gateway:
     build:
       context: .
@@ -819,7 +823,9 @@ services:
       - "127.0.0.1:8081:8080"
     labels:
       - "traefik.enable=true"
+      # Default (fallback) router — priority 1 so v2 header router wins when present
       - "traefik.http.routers.gw.rule=Host(`${GW_DOMAIN:-gw.localhost}`)"
+      - "traefik.http.routers.gw.priority=1"
       - "traefik.http.routers.gw.entrypoints=websecure"
       - "traefik.http.routers.gw.tls.certresolver=letsencrypt"
       - "traefik.http.routers.gw.middlewares=secureHeaders@file"
@@ -835,6 +841,56 @@ services:
       postgres-app: { condition: service_healthy }
     restart: unless-stopped
     deploy: { resources: { limits: { memory: 128M } } }
+
+  # Node/Fastify API Gateway v2 — Phase 2 migration replacement for rust-gateway
+  # Local dev: http://localhost:8082    Production: routed via Traefik header
+  #
+  # Rollout strategy (see services/gateway-v2/DEPLOYMENT.md):
+  #   1. Deploy alongside v1 (this block, both services healthy)
+  #   2. Opt-in testing: set X-Gateway-Version: v2 header on requests
+  #   3. Gradual rollout: adjust Traefik router rule to match a % of traffic
+  #   4. Full cutover: swap priorities so v2 becomes the default
+  #
+  # Instant rollback: `docker compose stop node-gateway` — Traefik falls back
+  # to `rust-gateway` automatically since v2 header router disappears.
+  node-gateway:
+    build:
+      context: .
+      dockerfile: services/gateway-v2/Dockerfile
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${DB_USER:-app}:${DB_PASSWORD:-changeme}@postgres-app:5432/${DB_NAME:-autoniix}
+      - PORT=8080
+      - LOG_LEVEL=${NODE_GATEWAY_LOG_LEVEL:-info}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-15m}
+      - REFRESH_TOKEN_EXPIRES_IN=${REFRESH_TOKEN_EXPIRES_IN:-7d}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
+      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-100}
+      - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60000}
+    ports:
+      - "127.0.0.1:8082:8080"
+    labels:
+      - "traefik.enable=true"
+      # Header-gated router — priority 100 so it wins over v1 when header set
+      - "traefik.http.routers.gwv2.rule=Host(`${GW_DOMAIN:-gw.localhost}`) && Headers(`X-Gateway-Version`, `v2`)"
+      - "traefik.http.routers.gwv2.priority=100"
+      - "traefik.http.routers.gwv2.entrypoints=websecure"
+      - "traefik.http.routers.gwv2.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.gwv2.middlewares=secureHeaders@file"
+      - "traefik.http.services.gwv2.loadbalancer.server.port=8080"
+    networks: [autoniix-net]
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/health', r => process.exit(r.statusCode === 200 || r.statusCode === 503 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    depends_on:
+      postgres-app: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 256M } } }
 
   # Marketing landing page — autoniix.com / www.autoniix.com
   # Caddy (host systemd) reverse-proxies the apex domain to localhost:3002.

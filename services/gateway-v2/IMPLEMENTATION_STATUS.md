@@ -1,8 +1,8 @@
 # Gateway v2 Implementation Status
 
 **Last Updated:** 2026-08-02  
-**Phase:** 2 (Feature Complete for Priority Routes)  
-**Overall Progress:** ~95% complete
+**Phase:** 2 (Feature Complete + Deployed to docker-compose)  
+**Overall Progress:** ~100% for priority routes
 
 ---
 
@@ -29,7 +29,9 @@
 - ✅ `POST /api/v2/jobs/:id/resume` - Resume job
 - ✅ `POST /api/v2/jobs/:id/retry` - Retry failed job
 
-**Total Implemented:** 35 endpoints (health, auth, jobs, workspace, channels, content)
+**Total Implemented:** 41 endpoints + 2 cron jobs
+
+**Modules complete:** health, auth, jobs, workspace, channels, content, users, notifications
 
 ---
 
@@ -63,15 +65,19 @@
 - ✅ `PATCH /api/v2/content/:id` - Update content
 - ✅ `DELETE /api/v2/content/:id` - Delete content
 
-### User (3 endpoints)
-- 🚧 `GET /api/v2/users/:id` - Get user
-- 🚧 `PATCH /api/v2/users/:id` - Update user
-- 🚧 `DELETE /api/v2/users/:id` - Delete user
+### User (3 implemented)
+- ✅ `GET /api/v2/users/:id` - Get user (self or workspace member)
+- ✅ `PATCH /api/v2/users/:id` - Update user with password change
+- ✅ `DELETE /api/v2/users/:id` - Delete user (self only)
 
-### Notifications (3 endpoints)
-- 🚧 `GET /api/v2/notifications` - List notifications
-- 🚧 `PATCH /api/v2/notifications/:id/read` - Mark as read
-- 🚧 `POST /api/v2/notifications/mark-all-read` - Mark all as read
+### Notifications (3 implemented)
+- ✅ `GET /api/v2/notifications` - List with pagination + unread filter
+- ✅ `PATCH /api/v2/notifications/:id/read` - Mark as read
+- ✅ `POST /api/v2/notifications/mark-all-read` - Mark all as read
+
+### Cron Jobs
+- ✅ Workspace deletion warning email (48h before deletion)
+- ✅ Hard delete expired workspaces (past grace period)
 
 ### Other Modules (50+ endpoints)
 - 🚧 Experiments (5 endpoints)

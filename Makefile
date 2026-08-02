@@ -541,5 +541,33 @@ gen-contracts: ## Generate OpenAPI spec from Zod schemas and Pydantic models fro
 	@./tools/gen-pydantic.sh
 	@echo "✅ Contracts generated successfully"
 
+gw2-typecheck: ## Type-check the Node/Fastify gateway v2
+	@echo "🔎 Typechecking gateway-v2..."
+	@cd services/gateway-v2 && npm run typecheck
+
+gw2-build: ## Build the Node/Fastify gateway v2
+	@echo "🏗  Building gateway-v2..."
+	@cd services/gateway-v2 && npm run build
+
+gw2-test: ## Run gateway v2 smoke tests
+	@echo "🧪 Running gateway-v2 smoke tests..."
+	@cd services/gateway-v2 && npm test
+
+gw2-dev: ## Run gateway v2 in dev mode with hot reload
+	@echo "🚀 Starting gateway-v2 in dev mode..."
+	@cd services/gateway-v2 && npm run dev
+
+gw2-up: ## Start gateway v2 alongside rust-gateway (both running)
+	@echo "🐳 Starting node-gateway (v2) alongside rust-gateway (v1)..."
+	@docker compose up -d rust-gateway node-gateway
+	@echo "✅ Gateways up: v1 on :8081, v2 on :8082"
+	@echo "   Route v2: curl -H 'X-Gateway-Version: v2' https://\$${GW_DOMAIN}/health"
+
+gw2-rollback: ## Instant rollback — stop v2, all traffic falls back to v1
+	@echo "⏪ Rolling back gateway-v2..."
+	@docker compose stop node-gateway
+	@echo "✅ node-gateway stopped. All traffic now routes to rust-gateway."
+
 .PHONY: verify-versions check-drift ci-local ci-local-full ci-local-docker pre-deploy install-hooks \
-        ship sqlx-prepare ci-act ci-act-full act-setup gen-contracts
+        ship sqlx-prepare ci-act ci-act-full act-setup gen-contracts \
+        gw2-typecheck gw2-build gw2-test gw2-dev gw2-up gw2-rollback
