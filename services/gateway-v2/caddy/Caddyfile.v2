@@ -1,0 +1,68 @@
+# Caddy configuration for Gateway v2 gradual rollout
+# 
+# This config enables header-based routing between gateway v1 (Rust) and v2 (Node)
+# Traffic can be gradually shifted by changing the header matching logic
+
+{
+    # Global options
+    admin off
+    auto_https off
+}
+
+:80 {
+    # Health check endpoint (always route to v2 for testing)
+    @health_check {
+        path /health /ready
+    }
+    handle @health_check {
+        reverse_proxy gateway-v2:8080
+    }
+
+    # Gateway v2 opt-in via header (for testing)
+    @gateway_v2_header {
+        header X-Gateway-Version v2
+    }
+    handle @gateway_v2_header {
+        reverse_proxy gateway-v2:8080 {
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
+    # Gateway v2 opt-in via cookie (for persistent testing)
+    @gateway_v2_cookie {
+        cookie gateway_version v2
+    }
+    handle @gateway_v2_cookie {
+        reverse_proxy gateway-v2:8080 {
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
+    # Percentage-based rollout (disabled by default)
+    # Uncomment and adjust percentage to gradually roll out v2
+    # @rollout_percentage {
+    #     expression {http.request.header.X-Request-ID} % 100 < 1
+    # }
+    # handle @rollout_percentage {
+    #     reverse_proxy gateway-v2:8080 {
+    #         header_up X-Forwarded-For {remote_host}
+    #         header_up X-Real-IP {remote_host}
+    #     }
+    # }
+
+    # Default: route to gateway v1 (Rust)
+    handle {
+        reverse_proxy gateway:8000 {
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
+    # Logging
+    log {
+        output file /var/log/caddy/access.log
+        format json
+    }
+}
