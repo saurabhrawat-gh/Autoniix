@@ -1,6 +1,6 @@
 # Migration Guide: Polyglot → Two-Language
 
-**Status:** Phase 0 complete, ready for Phase 1  
+**Status:** Phases 0–3 complete, ready for Phase 4  
 **Timeline:** 4 weeks (Aug 1 – Aug 29, 2026)  
 **Owner:** Saurabh Rawat
 
@@ -15,10 +15,10 @@ See: `docs/architecture/adr-004-two-language-simplification.md`
 | Phase | Duration | Status | Deliverable |
 |-------|----------|--------|-------------|
 | 0. Freeze + ADR | 1 day | ✅ **DONE** | ADR-004, harness docs, this file |
-| 1. Contracts | 2–3 days | 🔄 **NEXT** | Zod schemas + Pydantic codegen |
-| 2. Gateway | 5–7 days | ⏳ Pending | Node Fastify BFF |
+| 1. Contracts | 2–3 days | ✅ **DONE** | Zod schemas + Pydantic codegen |
+| 2. Gateway | 5–7 days | ✅ **DONE** | Node Fastify BFF (41 endpoints + 2 cron) |
 | 3. Streaming | 2 days | ✅ **DONE** | Node WS/SSE service |
-| 4. Temporal | 3–4 days | ⏳ Pending | Python workers |
+| 4. Temporal | 3–4 days | 🔄 **NEXT** | Python workers |
 | 5. Services | 5–7 days | ⏳ Pending | Python FastAPI services |
 | 6. Delete | 1 day | ⏳ Pending | Remove Rust/Go/proto |
 | 7. Standardize | 3–4 days | ⏳ Pending | Full harness applied |
