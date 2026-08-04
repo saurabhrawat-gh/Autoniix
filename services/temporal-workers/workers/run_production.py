@@ -1,7 +1,12 @@
-"""Temporal Worker: video-production task queue.
+"""Temporal Worker v2: video-production-v2 task queue.
 
-Registers the VideoProductionWorkflow and ALL pipeline activities.
-Start with:  python -m temporal_workers.run_production
+Registers the ported Python ``VideoProductionWorkflow`` PLUS all activities.
+This is the Phase 4 migration target — the Go worker on ``video-production``
+remains running until all in-flight workflows drain.
+
+Start with::
+
+    python -m temporal_workers.run_production_v2
 """
 from __future__ import annotations
 
@@ -13,9 +18,9 @@ from temporalio.worker import Worker
 
 from core.config import settings
 from observability.sentry import init_sentry
-init_sentry("worker-production")
-# VideoProductionWorkflow orchestration has been migrated to the Go worker.
-# This Python worker handles ACTIVITIES ONLY.
+init_sentry("worker-production-v2")
+
+# Activities (same set as run_production.py)
 from temporal_workers.activities.common import (
     acquire_channel_lock,
     check_system_status,
@@ -43,14 +48,20 @@ from temporal_workers.activities.brand import brand_activity
 from temporal_workers.activities.editor import editor_activity
 from src.temporal_workflows.brain_activities import brain_directive_check_activity
 
+# Python-ported workflow (Phase 4)
+from temporal_workers.workflows import VideoProductionWorkflow
+
 logger = structlog.get_logger()
+
+TASK_QUEUE = "video-production"
 
 
 async def main() -> None:
     logger.info(
-        "worker.production.starting",
+        "worker.production_v2.starting",
         temporal_host=settings.temporal_host,
         namespace=settings.temporal_namespace,
+        task_queue=TASK_QUEUE,
     )
 
     client = await Client.connect(
@@ -60,8 +71,8 @@ async def main() -> None:
 
     worker = Worker(
         client,
-        task_queue="video-production",
-        workflows=[],  # Go worker handles workflow orchestration on this queue.
+        task_queue=TASK_QUEUE,
+        workflows=[VideoProductionWorkflow],
         activities=[
             research_activity,
             script_activity,
@@ -94,9 +105,12 @@ async def main() -> None:
         max_concurrent_workflow_tasks=settings.temporal_production_max_workflow_tasks,
     )
 
-    logger.info("worker.production.listening", task_queue="video-production",
-                max_activities=settings.temporal_production_max_activities,
-                max_workflow_tasks=settings.temporal_production_max_workflow_tasks)
+    logger.info(
+        "worker.production_v2.listening",
+        task_queue=TASK_QUEUE,
+        max_activities=settings.temporal_production_max_activities,
+        max_workflow_tasks=settings.temporal_production_max_workflow_tasks,
+    )
     await worker.run()
 
 

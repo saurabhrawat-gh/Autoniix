@@ -94,7 +94,7 @@ class DailySchedulerWorkflow:
                 VideoProductionWorkflow.run,
                 child_params,
                 id=f"video-{channel_id}-{mode_prefix}-{ts}",
-                task_queue="video-production-v2",
+                task_queue="video-production",
             )
             started += 1
             log.info(
