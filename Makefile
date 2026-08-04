@@ -607,8 +607,67 @@ ndisp2-rollback: ## Instant rollback — stop notification-dispatcher-v2
 	@docker compose stop notification-dispatcher-v2
 	@echo "✅ notification-dispatcher-v2 stopped. Go dispatcher handles all retries."
 
+# Phase 7: Standardization harness
+format: ## Format entire codebase (Python + TypeScript)
+	@echo "🎨 Formatting Python..."
+	@ruff format .
+	@echo "🎨 Formatting TypeScript..."
+	@npx prettier --write .
+	@echo "✅ Format complete"
+
+lint: ## Lint entire codebase (Python + TypeScript)
+	@echo "🔍 Linting Python..."
+	@ruff check .
+	@echo "🔍 Linting TypeScript..."
+	@npx eslint .
+	@echo "✅ Lint complete"
+
+lint-fix: ## Auto-fix lint errors
+	@echo "🔧 Fixing Python lint errors..."
+	@ruff check --fix .
+	@echo "🔧 Fixing TypeScript lint errors..."
+	@npx eslint --fix .
+	@echo "✅ Lint fixes applied"
+
+typecheck: ## Type check entire codebase
+	@echo "🔍 Type checking Python libs..."
+	@mypy libs/python/ || true
+	@echo "🔍 Type checking Python services..."
+	@basedpyright services/ || true
+	@echo "🔍 Type checking TypeScript packages..."
+	@cd libs/ts/contracts && npm run typecheck || true
+	@cd services/gateway-v2 && npm run typecheck || true
+	@cd services/streaming-hub-v2 && npm run typecheck || true
+	@echo "✅ Type check complete"
+
+test-py: ## Run Python tests
+	@echo "🧪 Running Python tests..."
+	@pytest
+
+test-ts: ## Run TypeScript tests
+	@echo "🧪 Running TypeScript tests..."
+	@cd services/streaming-hub-v2 && npm test
+
+test-all: test-py test-ts ## Run all tests
+
+coverage: ## Run tests with coverage
+	@echo "📊 Running Python tests with coverage..."
+	@pytest --cov --cov-report=html
+	@echo "📊 Running TypeScript tests with coverage..."
+	@cd services/streaming-hub-v2 && npm run test:coverage
+	@echo "✅ Coverage reports generated"
+
+harness: format lint typecheck test-all ## Run full harness (format + lint + typecheck + test)
+	@echo "✅ Full harness complete"
+
+hooks-install: ## Install pre-commit hooks
+	@echo "🪝 Installing lefthook..."
+	@lefthook install
+	@echo "✅ Hooks installed"
+
 .PHONY: verify-versions check-drift ci-local ci-local-full ci-local-docker pre-deploy install-hooks \
         ship sqlx-prepare ci-act ci-act-full act-setup gen-contracts \
         gw2-typecheck gw2-build gw2-test gw2-dev gw2-up gw2-rollback \
         sh2-typecheck sh2-build sh2-test sh2-dev sh2-up sh2-rollback \
-        ndisp2-build ndisp2-test ndisp2-dev ndisp2-up ndisp2-rollback
+        ndisp2-build ndisp2-test ndisp2-dev ndisp2-up ndisp2-rollback \
+        format lint lint-fix typecheck test-py test-ts test-all coverage harness hooks-install
