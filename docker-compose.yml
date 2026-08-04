@@ -654,35 +654,6 @@ services:
     deploy: { resources: { limits: { memory: 64M } } }
 
   notification-dispatcher:
-    profiles: ["go-services"]
-    build:
-      context: ./go
-      dockerfile: Dockerfile
-      args:
-        BINARY_PATH: ./notification-dispatcher/cmd/dispatcher
-    env_file: .env
-    environment:
-      - DATABASE_URL=postgresql://${POSTGRES_APP_USER:-postgres}:${POSTGRES_APP_PASSWORD:-postgres}@postgres-app:5432/${POSTGRES_APP_DB:-autoniix}
-      - NDISP_HTTP_ADDR=:8090
-      - NDISP_POLL_INTERVAL_MS=${NDISP_POLL_INTERVAL_MS:-15000}
-      - NDISP_STALE_AFTER_MS=${NDISP_STALE_AFTER_MS:-60000}
-      - NDISP_BATCH_SIZE=${NDISP_BATCH_SIZE:-50}
-      - NDISP_MAX_ATTEMPTS=${NDISP_MAX_ATTEMPTS:-3}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-    networks: [autoniix-net]
-    ports:
-      - "127.0.0.1:8090:8090"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8090/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-    depends_on:
-      postgres-app: { condition: service_healthy }
-    restart: unless-stopped
-    deploy: { resources: { limits: { memory: 64M } } }
-
-  notification-dispatcher-v2:
     build:
       context: ./services/notification-dispatcher-v2
       dockerfile: Dockerfile
@@ -698,7 +669,7 @@ services:
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
     networks: [autoniix-net]
     ports:
-      - "127.0.0.1:8091:8090"
+      - "127.0.0.1:8090:8090"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8090/health || exit 1"]
       interval: 10s
@@ -708,34 +679,6 @@ services:
       postgres-app: { condition: service_healthy }
     restart: unless-stopped
     deploy: { resources: { limits: { memory: 128M } } }
-
-  streaming-hub:
-    profiles: ["go-services"]
-    build:
-      context: ./go
-      dockerfile: Dockerfile
-      args:
-        BINARY_PATH: ./streaming-hub/cmd/hub
-    env_file: .env
-    environment:
-      - GRPC_PORT=9002
-      - HTTP_PORT=8092
-      - REDIS_URL=redis://redis:6379
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-    networks: [autoniix-net]
-    ports:
-      - "127.0.0.1:9002:9002"
-      - "127.0.0.1:8092:8092"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8092/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-    depends_on:
-      redis: { condition: service_healthy }
-    restart: unless-stopped
-    deploy: { resources: { limits: { memory: 64M } } }
-
 
   # media_jobs worker (AE-355 / Library Sprint) — pulls pending rows from the
   # media_jobs table and runs probe / embed / autotag handlers. ffmpeg-based
