@@ -1,81 +1,74 @@
 #!/usr/bin/env bash
 # pre-commit: fast gate (<15s) — catches 90% of CI failures before commit
+# Phase 7: Two-language stack (Python + TypeScript only)
 set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 
-echo "▶  pre-commit: sqlx query cache check..."
-STAGED_RS=$(git diff --cached --name-only 2>/dev/null | grep '\.rs$' || true)
-if [ -n "$STAGED_RS" ]; then
-    NEW_SQLX=$(git diff --cached -- $STAGED_RS 2>/dev/null | grep '^+.*sqlx::query' | grep -v '^+++' || true)
-    if [ -n "$NEW_SQLX" ]; then
-        SQLX_STAGED=$(git diff --cached --name-only 2>/dev/null | grep '\.sqlx/' || true)
-        if [ -z "$SQLX_STAGED" ]; then
-            echo "  🔍 New sqlx query detected — auto-running sqlx-prepare..."
-            bash "$ROOT/scripts/sqlx-prepare.sh" || {
-                echo "❌  sqlx-prepare failed. Fix the errors and try again."
-                exit 1
-            }
-            git add "$ROOT/.sqlx/"
-            echo "✓  .sqlx/ cache updated and staged automatically"
-        else
-            echo "✓  sqlx cache already staged"
-        fi
+echo "▶  pre-commit: ruff format check..."
+STAGED_PY=$(git diff --cached --name-only 2>/dev/null | grep '\.py$' || true)
+if [ -n "$STAGED_PY" ]; then
+    if command -v uv >/dev/null 2>&1; then
+        uv run ruff format --check $STAGED_PY 2>&1 || {
+            echo ""
+            echo "❌  Python formatting diff detected."
+            echo "    Fix: uv run ruff format ."
+            exit 1
+        }
+        echo "✓  ruff format clean"
     else
-        echo "✓  No new sqlx queries"
+        echo "⏭  uv not found — skipping ruff format"
     fi
 else
-    echo "✓  No .rs files staged"
+    echo "✓  No .py files staged"
 fi
 
-echo "▶  pre-commit: cargo fmt check..."
-if command -v cargo >/dev/null 2>&1; then
-    (cd "$ROOT/rust" && cargo fmt --all -- --check 2>&1) || {
-        echo ""
-        echo "❌  Rust formatting diff detected."
-        echo "    Fix: cd rust && cargo fmt --all"
+echo "▶  pre-commit: ruff lint check..."
+if [ -n "$STAGED_PY" ]; then
+    if command -v uv >/dev/null 2>&1; then
+        uv run ruff check $STAGED_PY 2>&1 || {
+            echo ""
+            echo "❌  Ruff lint errors detected."
+            echo "    Fix: uv run ruff check --fix ."
+            exit 1
+        }
+        echo "✓  ruff lint clean"
+    else
+        echo "⏭  uv not found — skipping ruff lint"
+    fi
+fi
+
+echo "▶  pre-commit: tsc (gateway-v2)..."
+if [ -d "$ROOT/services/gateway-v2" ] && command -v npm >/dev/null 2>&1; then
+    (cd "$ROOT/services/gateway-v2" && npm run typecheck 2>&1) || {
+        echo "❌  TypeScript errors in gateway-v2"
         exit 1
     }
-    echo "✓  cargo fmt clean"
+    echo "✓  gateway-v2 tsc clean"
 else
-    echo "⏭  cargo not found — skipping fmt check"
+    echo "⏭  gateway-v2 not found — skipping tsc"
 fi
 
-echo "▶  pre-commit: go vet..."
-if command -v go >/dev/null 2>&1; then
-    (cd "$ROOT/go" && go vet ./... 2>&1) || {
-        echo "❌  go vet failed"
+echo "▶  pre-commit: tsc (streaming-hub-v2)..."
+if [ -d "$ROOT/services/streaming-hub-v2" ] && command -v npm >/dev/null 2>&1; then
+    (cd "$ROOT/services/streaming-hub-v2" && npm run typecheck 2>&1) || {
+        echo "❌  TypeScript errors in streaming-hub-v2"
         exit 1
     }
-    echo "✓  go vet clean"
+    echo "✓  streaming-hub-v2 tsc clean"
 else
-    echo "⏭  go not found — skipping go vet"
+    echo "⏭  streaming-hub-v2 not found — skipping tsc"
 fi
 
-echo "▶  pre-commit: tsc (dashboard)..."
-if [ -d "$ROOT/apps/dashboard/node_modules" ] && command -v npx >/dev/null 2>&1; then
-    (cd "$ROOT/dashboard" && npx tsc --noEmit 2>&1) || {
-        echo "❌  TypeScript errors in dashboard"
+echo "▶  pre-commit: tsc (contracts)..."
+if [ -d "$ROOT/libs/ts/contracts" ] && command -v npm >/dev/null 2>&1; then
+    (cd "$ROOT/libs/ts/contracts" && npm run typecheck 2>&1) || {
+        echo "❌  TypeScript errors in contracts"
         exit 1
     }
-    echo "✓  dashboard tsc clean"
+    echo "✓  contracts tsc clean"
 else
-    echo "⏭  apps/dashboard/node_modules missing — skipping tsc"
+    echo "⏭  contracts not found — skipping tsc"
 fi
-
-echo "▶  pre-commit: tsc (remotion)..."
-if [ -d "$ROOT/services/remotion/node_modules" ] && command -v npx >/dev/null 2>&1; then
-    (cd "$ROOT/services/remotion" && npx tsc --noEmit 2>&1) || {
-        echo "❌  TypeScript errors in remotion"
-        exit 1
-    }
-    echo "✓  remotion tsc clean"
-else
-    echo "⏭  services/remotion/node_modules missing — skipping tsc"
-fi
-
-echo "▶  pre-commit: lint-staged (dashboard)..."
-cd "$ROOT/dashboard" && npx lint-staged
-echo "✓  lint-staged clean"
 
 echo ""
 echo "✅  pre-commit passed"

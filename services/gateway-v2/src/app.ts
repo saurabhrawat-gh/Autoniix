@@ -87,9 +87,6 @@ export async function createApp(config: Config) {
   
   const { notificationRoutes } = await import("./routes/notifications.js");
   await app.register(notificationRoutes);
-  
-  const { stubRoutes } = await import("./routes/stubs.js");
-  await app.register(stubRoutes);
 
   const { registerWorkspaceDeletionCron } = await import("./cron/workspace-deletion.js");
   registerWorkspaceDeletionCron(app);
