@@ -682,6 +682,33 @@ services:
     restart: unless-stopped
     deploy: { resources: { limits: { memory: 64M } } }
 
+  notification-dispatcher-v2:
+    build:
+      context: ./services/notification-dispatcher-v2
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-app}:${DB_PASSWORD:-change_me_strong_random_64}@postgres-app:5432/${DB_NAME:-autoniix}
+      - HTTP_ADDR=0.0.0.0:8090
+      - POLL_INTERVAL_MS=${NDISP_POLL_INTERVAL_MS:-15000}
+      - STALE_AFTER_MS=${NDISP_STALE_AFTER_MS:-60000}
+      - BATCH_SIZE=${NDISP_BATCH_SIZE:-50}
+      - MAX_ATTEMPTS=${NDISP_MAX_ATTEMPTS:-3}
+      - HTTP_TIMEOUT_MS=10000
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+    networks: [autoniix-net]
+    ports:
+      - "127.0.0.1:8091:8090"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8090/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      postgres-app: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 128M } } }
+
   streaming-hub:
     profiles: ["go-services"]
     build:

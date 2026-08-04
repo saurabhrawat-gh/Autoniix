@@ -588,7 +588,27 @@ sh2-rollback: ## Instant rollback — stop streaming-hub-v2
 	@docker compose stop streaming-hub-v2
 	@echo "✅ streaming-hub-v2 stopped."
 
+ndisp2-build: ## Build notification-dispatcher-v2 Docker image
+	@docker compose build notification-dispatcher-v2
+
+ndisp2-test: ## Run notification-dispatcher-v2 tests
+	@cd services/notification-dispatcher-v2 && pip install -e ".[dev]" && pytest
+
+ndisp2-dev: ## Run notification-dispatcher-v2 locally
+	@cd services/notification-dispatcher-v2 && python -m src.main
+
+ndisp2-up: ## Start notification-dispatcher-v2 alongside Go dispatcher
+	@echo "🐳 Starting notification-dispatcher-v2 (Python) alongside Go dispatcher..."
+	@docker compose up -d notification-dispatcher-v2
+	@echo "✅ notification-dispatcher-v2 up on :8091"
+
+ndisp2-rollback: ## Instant rollback — stop notification-dispatcher-v2
+	@echo "⏪ Rolling back notification-dispatcher-v2..."
+	@docker compose stop notification-dispatcher-v2
+	@echo "✅ notification-dispatcher-v2 stopped. Go dispatcher handles all retries."
+
 .PHONY: verify-versions check-drift ci-local ci-local-full ci-local-docker pre-deploy install-hooks \
         ship sqlx-prepare ci-act ci-act-full act-setup gen-contracts \
         gw2-typecheck gw2-build gw2-test gw2-dev gw2-up gw2-rollback \
-        sh2-typecheck sh2-build sh2-test sh2-dev sh2-up sh2-rollback
+        sh2-typecheck sh2-build sh2-test sh2-dev sh2-up sh2-rollback \
+        ndisp2-build ndisp2-test ndisp2-dev ndisp2-up ndisp2-rollback

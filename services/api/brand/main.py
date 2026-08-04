@@ -8,6 +8,7 @@ Port: 8012
 """
 from __future__ import annotations
 
+import datetime
 import json
 from contextlib import asynccontextmanager
 
@@ -17,18 +18,17 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from core.db import close_pool, get_pool
+from observability.metrics import instrument_app
+from observability.sentry import init_sentry
 from schemas.common import HealthResponse, ServiceResponse
-
 from services_api.brand.brand_dna import (
     compute_brand_fingerprint,
     load_brand_profile,
     save_brand_profile,
     score_brand_consistency,
 )
-from observability.metrics import instrument_app
 
 logger = structlog.get_logger()
-
 
 
 class BrandProfileRequest(BaseModel):
@@ -45,12 +45,10 @@ class BrandEvolutionRequest(BaseModel):
     days_lookback: int = 30
 
 
-
 async def _load_channel(channel_id: str) -> dict:
     pool = await get_pool()
     row = await pool.fetchrow("SELECT * FROM channels WHERE channel_id = $1", channel_id)
     return dict(row) if row else {}
-
 
 
 @asynccontextmanager
@@ -61,13 +59,12 @@ async def lifespan(app: FastAPI):
     logger.info("brand.stopped")
 
 
-from observability.sentry import init_sentry
 init_sentry("brand")
 
 app = FastAPI(title="Brand Identity Service", version="0.1.0", lifespan=lifespan)
-
-
 instrument_app(app, service_name="brand")
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="brand")
@@ -173,7 +170,6 @@ async def track_evolution(req: BrandEvolutionRequest):
         if tier_dist.get("D", 0) > len(tiers) * 0.3:
             suggestions.append("High D-tier rate — review content strategy and topic selection")
 
-        import datetime
         try:
             await pool.execute("""
                 INSERT INTO brand_style_history (channel_id, snapshot_date, style_features, performance_correlation)
@@ -184,8 +180,8 @@ async def track_evolution(req: BrandEvolutionRequest):
             """, req.channel_id, datetime.date.today(),
                 json.dumps({"avg_script": avg_script, "avg_hook": avg_hook}),
                 json.dumps({"avg_views": avg_views, "tier_dist": tier_dist}))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("brand.evolution.persist_failed", channel_id=req.channel_id, error=str(exc))
 
         return ServiceResponse(
             status="success",

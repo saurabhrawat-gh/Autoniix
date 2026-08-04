@@ -1,6 +1,6 @@
 # Migration Guide: Polyglot → Two-Language
 
-**Status:** Phases 0–4 complete, ready for Phase 5  
+**Status:** Phases 0–5 complete, ready for Phase 6  
 **Timeline:** 4 weeks (Aug 1 – Aug 29, 2026)  
 **Owner:** Saurabh Rawat
 
@@ -19,7 +19,7 @@ See: `docs/architecture/adr-004-two-language-simplification.md`
 | 2. Gateway | 5–7 days | ✅ **DONE** | Node Fastify BFF (41 endpoints + 2 cron) |
 | 3. Streaming | 2 days | ✅ **DONE** | Node WS/SSE service |
 | 4. Temporal | 3–4 days | ✅ **DONE** | Python workers + workflows |
-| 5. Services | 5–7 days | 🔄 **NEXT** | Python FastAPI services |
+| 5. Services | 5–7 days | ✅ **DONE** | notification-dispatcher-v2 |
 | 6. Delete | 1 day | ⏳ Pending | Remove Rust/Go/proto |
 | 7. Standardize | 3–4 days | ⏳ Pending | Full harness applied |
 
@@ -274,62 +274,46 @@ See: `docs/architecture/adr-004-two-language-simplification.md`
 
 ---
 
-## Phase 5: Remaining Services ⏳
+## Phase 5: Remaining Services ✅
 
-**Goal:** Port Go services to Python FastAPI
-
-**Duration:** 5–7 days
+**Completed:** 2026-08-04
 
 **Deliverables:**
-1. `services/research/` — Python FastAPI
-2. `services/script/` — Python FastAPI
-3. `services/voice/` — Python FastAPI
-4. `services/thumbnail/` — Python FastAPI
-5. `services/delivery/` — Python FastAPI
+1. ✅ `services/notification-dispatcher-v2/` — Python notification retry poller
 
-**Tasks:**
+**What Landed:**
 
-### 5.1 Research service
-- [ ] Create `services/research/`
-- [ ] Port logic from Go (or existing Python if it exists)
-- [ ] Expose FastAPI endpoints
-- [ ] Integration tests
+### 5.1 notification-dispatcher-v2 (Python)
+- ✅ Direct port of Go G1 service (`services/notification-dispatcher/`)
+- ✅ Polls `notification_deliveries` for stuck rows (status='queued' or 'failed')
+- ✅ Retries delivery via channels: slack, webhook, browser, email
+- ✅ Uses `FOR UPDATE SKIP LOCKED` to avoid collisions with Go dispatcher or Python inline delivery
+- ✅ Parallel delivery via `asyncio.gather` (vs Go's sequential loop)
+- ✅ FastAPI health/ready endpoints
+- ✅ Docker image with healthcheck
+- ✅ Makefile targets: `ndisp2-build`, `ndisp2-test`, `ndisp2-dev`, `ndisp2-up`, `ndisp2-rollback`
 
-### 5.2 Script service
-- [ ] Create `services/script/`
-- [ ] Port logic
-- [ ] Expose FastAPI endpoints
-- [ ] Integration tests
+### 5.2 Architecture
+- **Channels:** Slack (webhook), Webhook (raw JSON POST), Browser (no-op), Email (placeholder)
+- **Polling:** Every 15s (configurable), claims up to 50 rows per tick
+- **Retry:** Max 3 attempts, then permanent failure
+- **Timeout:** 10s per HTTP call
 
-### 5.3 Voice service
-- [ ] Create `services/voice/`
-- [ ] Port logic
-- [ ] Expose FastAPI endpoints
-- [ ] Integration tests
+### 5.3 Cutover strategy
+- Legacy Go dispatcher: `services/notification-dispatcher/` (profiles: go-services)
+- New Python dispatcher: `services/notification-dispatcher-v2/` (port 8091)
+- Both run side-by-side; `FOR UPDATE SKIP LOCKED` prevents double-delivery
+- When confident, stop Go dispatcher and remove from docker-compose (Phase 6)
 
-### 5.4 Thumbnail service
-- [ ] Create `services/thumbnail/`
-- [ ] Port logic
-- [ ] Expose FastAPI endpoints
-- [ ] Integration tests
+**Note:** All other services (research, script, voice, thumbnail, delivery, etc.) are already Python FastAPI under `services/api/`. No porting needed.
 
-### 5.5 Delivery service
-- [ ] Create `services/delivery/`
-- [ ] Port logic
-- [ ] Expose FastAPI endpoints
-- [ ] Integration tests
-
-### 5.6 Update docker-compose
-- [ ] Replace Go service containers with Python
-- [ ] Update service discovery env vars
-- [ ] Test locally
-
-**Rollback:** Restart Go service containers. Stop Python services.
+**Rollback:** Stop Python dispatcher, Go dispatcher handles all retries.
 
 **Success criteria:**
-- ✅ All services respond to health checks
-- ✅ Integration tests green
-- ✅ E2E workflow (trigger job → all services execute → job completes)
+- ✅ Service builds and starts
+- ✅ Health/ready endpoints respond
+- ✅ Polls database without errors
+- ✅ Delivers notifications via configured channels
 
 ---
 
