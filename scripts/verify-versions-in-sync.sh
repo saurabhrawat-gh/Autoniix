@@ -51,9 +51,9 @@ check_pkg() {
         fail "$pkg is invalid JSON"
     fi
 }
-check_pkg "libs/ts/contracts/package.json"
-check_pkg "services/gateway-v2/package.json"
-check_pkg "services/streaming-hub-v2/package.json"
+check_pkg "shared/ts/contracts/package.json"
+check_pkg "backend/api/gateway/package.json"
+check_pkg "backend/api/streaming-hub/package.json"
 
 echo ""
 echo "3. Workflow YAML — no literal versions, no pg16"
@@ -66,11 +66,11 @@ done
 
 echo ""
 echo "4. Dockerfile pins (Python + Node only)"
-contains "Dockerfile"                           "PYTHON_IMAGE=python:$PYTHON_VERSION-slim"     "root python"
-contains "services/sentry-agent/Dockerfile"     "PYTHON_IMAGE=python:$PYTHON_VERSION-slim"     "sentry-agent python"
-contains "services/resolve-finisher/Dockerfile" "PYTHON_IMAGE=python:$PYTHON_VERSION-slim"     "resolve-finisher python"
-contains "services/gateway-v2/Dockerfile"       "FROM node:$NODE_VERSION-alpine"               "gateway-v2 node-alpine"
-contains "services/streaming-hub-v2/Dockerfile" "FROM node:$NODE_VERSION-alpine"               "streaming-hub-v2 node-alpine"
+contains "Dockerfile"                                    "PYTHON_IMAGE=python:$PYTHON_VERSION-slim"     "root python"
+contains "backend/platform/sentry-agent/Dockerfile"      "PYTHON_IMAGE=python:$PYTHON_VERSION-slim"     "sentry-agent python"
+contains "backend/platform/resolve-finisher/Dockerfile"  "PYTHON_IMAGE=python:$PYTHON_VERSION-slim"     "resolve-finisher python"
+contains "backend/api/gateway/Dockerfile"                "FROM node:$NODE_VERSION-alpine"               "gateway node-alpine"
+contains "backend/api/streaming-hub/Dockerfile"          "FROM node:$NODE_VERSION-alpine"               "streaming-hub node-alpine"
 
 echo ""
 echo "5. docker-compose.yml postgres image"
