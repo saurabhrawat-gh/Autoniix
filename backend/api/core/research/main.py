@@ -372,6 +372,29 @@ async def research(req: ResearchRequest):
 
         for attempt in range(1, max_retries + 2):
             try:
+                synthesis = await _route(
+                    category="llm.research",
+                    request=LLMRequest(
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        temperature=0.7,
+                        max_tokens=3000,
+                        response_format="json",
+                    ),
+                    channel_id=req.channel_id,
+                    content_id=f"research-{req.channel_id}",
+                    record_usage=False,
+                )
+            except _BudgetExceeded as exc:
+                raise HTTPException(status_code=402, detail=str(exc))
+            total_cost += synthesis.cost_usd
+            await _log_usage(f"research-{req.channel_id}", "research_synthesis",
+                             synthesis.provider, synthesis.model, synthesis.tokens_in,
+                             synthesis.tokens_out, synthesis.cost_usd, synthesis.latency_ms)
+
+            try:
                 research_data = _parse_json(synthesis.content)
             except json.JSONDecodeError:
                 logger.warning("research.synthesis_json_failed", attempt=attempt)
@@ -410,7 +433,6 @@ async def research(req: ResearchRequest):
                             {"role": "system", "content": fc_system},
                             {"role": "user", "content": fc_user},
                         ],
-                        model="gpt-4o",
                         temperature=0.1,
                         max_tokens=2000,
                         response_format="json",
@@ -609,6 +631,16 @@ async def research(req: ResearchRequest):
                      freshness=fresh.get("freshness_score"),
                      cost_usd=round(total_cost, 4))
 
+        if not research_data.get("selected_topic"):
+            research_data["selected_topic"] = primary_topic
+        titles = research_data.get("title_candidates")
+        if not (isinstance(titles, list) and any(isinstance(t, str) and t.strip() for t in titles)):
+            research_data["title_candidates"] = [research_data["selected_topic"]]
+        try:
+            research_data["research_depth_score"] = float(research_data.get("research_depth_score", 5.0))
+        except (TypeError, ValueError):
+            research_data["research_depth_score"] = 5.0
+
         return ServiceResponse(
             status="success",
             data=research_data,
@@ -677,7 +709,6 @@ async def ideate(req: IdeationRequest):
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_with_memory},
                 ],
-                model="gpt-4o",
                 temperature=0.8,
                 max_tokens=3000,
                 response_format="json",

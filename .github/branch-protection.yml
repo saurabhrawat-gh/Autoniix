@@ -1,0 +1,35 @@
+# Declarative branch protection reference (Phase 7 + Harness).
+# Consumed by scripts/apply-branch-protection.sh.
+# GitHub does not natively read this file — the script converts it to
+# `gh api PUT /repos/:owner/:repo/branches/<name>/protection` calls.
+
+main:
+  required_status_checks:
+    strict: true
+    contexts:
+      - "harness/all-green"
+      - "versions.env drift check"
+  enforce_admins: false
+  required_pull_request_reviews:
+    dismiss_stale_reviews: true
+    require_code_owner_reviews: false
+    required_approving_review_count: 1
+  restrictions: null            # nobody may push directly; PRs only
+  required_linear_history: true
+  allow_force_pushes: false
+  allow_deletions: false
+  required_conversation_resolution: true
+
+develop:
+  required_status_checks:
+    strict: true
+    contexts:
+      - "harness/all-green"
+      - "versions.env drift check"
+  enforce_admins: false
+  required_pull_request_reviews: null   # no mandatory approval on develop
+  restrictions: null
+  required_linear_history: false
+  allow_force_pushes: false
+  allow_deletions: false
+  required_conversation_resolution: true

@@ -1,11 +1,100 @@
 #!/usr/bin/env bash
-# Auto-checks version-parity drift before every push.
-#   Skip everything:  git push --no-verify
-#   Enable full CI:   export AUTONIIX_PREPUSH_CI=1
+# pre-push: branch-policy guard + version-drift + optional full CI mirror.
+#
+# Policy (see docs/architecture/adr-006-branch-and-deploy-policy.md):
+#   • Direct push to main is FORBIDDEN. Merge develop -> main via PR.
+#   • Push to develop requires a `.harness/deploys/<sha>.ok` sentinel from a
+#     successful `make pre-deploy`. This gives 100% assurance the CI will pass.
+#   • Feature branches: only fast drift check runs.
+#
+# Bypasses (audit-logged to .harness/bypass.log):
+#   • git push --no-verify              # skips this hook entirely
+#   • export AUTONIIX_ALLOW_MAIN=1      # only for the promote workflow
+#   • export AUTONIIX_SKIP_SENTINEL=1   # emergency-only for develop pushes
+#
+# Setting AUTONIIX_PREPUSH_CI=1 additionally runs the full CI mirror.
+
 set -euo pipefail
 REPO="$(git rev-parse --show-toplevel)"
 
-echo "▶  pre-push: check-drift"
+# stdin format from git: <local ref> <local sha> <remote ref> <remote sha>
+PROTECTED_MAIN="refs/heads/main"
+PROTECTED_DEVELOP="refs/heads/develop"
+
+log_bypass() {
+    mkdir -p "$REPO/.harness"
+    printf '%s  user=%s  ref=%s  reason=%s\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        "${USER:-unknown}" \
+        "$1" \
+        "$2" >> "$REPO/.harness/bypass.log"
+}
+
+while read -r LOCAL_REF LOCAL_SHA REMOTE_REF _REMOTE_SHA; do
+    # Skip deletes / branch-tip probes (all-zero sha).
+    if [[ "$LOCAL_SHA" == "0000000000000000000000000000000000000000" ]]; then
+        continue
+    fi
+
+    # ─── Guard 1: reject direct push to main ───────────────────────────────
+    if [[ "$REMOTE_REF" == "$PROTECTED_MAIN" ]]; then
+        if [[ "${AUTONIIX_ALLOW_MAIN:-0}" == "1" ]]; then
+            log_bypass "$REMOTE_REF" "AUTONIIX_ALLOW_MAIN=1"
+            echo "⚠  Push to main permitted by AUTONIIX_ALLOW_MAIN=1 (logged)."
+        else
+            cat <<'EOF' >&2
+
+═══════════════════════════════════════════════════════
+❌  Direct push to main is forbidden.
+    Branch policy: feature/* → develop → PR → main → deploy
+
+    To promote develop → main:
+      gh workflow run promote-develop-to-main.yml
+    Or open a PR manually from develop to main.
+
+    Emergency hotfix path:
+      1. Branch from main:      git checkout -b hotfix/<name> main
+      2. Fix, commit, push:     git push origin hotfix/<name>
+      3. PR hotfix/<name> → main (requires review + green harness).
+
+    Bypass (audit-logged, do not use casually):
+      AUTONIIX_ALLOW_MAIN=1 git push origin main
+═══════════════════════════════════════════════════════
+EOF
+            exit 1
+        fi
+    fi
+
+    # ─── Guard 2: develop push requires pre-deploy sentinel ────────────────
+    if [[ "$REMOTE_REF" == "$PROTECTED_DEVELOP" ]]; then
+        SENTINEL="$REPO/.harness/deploys/$LOCAL_SHA.ok"
+        if [[ -f "$SENTINEL" ]]; then
+            echo "✓  pre-deploy sentinel found for $LOCAL_SHA"
+        elif [[ "${AUTONIIX_SKIP_SENTINEL:-0}" == "1" ]]; then
+            log_bypass "$REMOTE_REF" "AUTONIIX_SKIP_SENTINEL=1"
+            echo "⚠  Sentinel bypass permitted (logged)."
+        else
+            cat <<EOF >&2
+
+═══════════════════════════════════════════════════════
+❌  Push to develop requires a pre-deploy sentinel.
+    HEAD sha:      $LOCAL_SHA
+    Expected:      $SENTINEL
+
+    Run:  make pre-deploy
+    (dockerized full CI mirror; ~5-8 min; guarantees CI will pass)
+
+    Emergency bypass (audit-logged, discouraged):
+      AUTONIIX_SKIP_SENTINEL=1 git push origin develop
+═══════════════════════════════════════════════════════
+EOF
+            exit 1
+        fi
+    fi
+done
+
+# ─── Guard 3: version-drift check (fast, always runs) ──────────────────────
+echo "▶  pre-push: version-drift check"
 if ! bash "$REPO/scripts/verify-versions-in-sync.sh" >/dev/null 2>&1; then
     echo ""
     echo "❌  Version-pin drift detected. Run: make check-drift"
@@ -14,10 +103,10 @@ if ! bash "$REPO/scripts/verify-versions-in-sync.sh" >/dev/null 2>&1; then
 fi
 echo "✓  no version drift"
 
+# ─── Guard 4: optional full CI mirror ──────────────────────────────────────
 if [[ "${AUTONIIX_PREPUSH_CI:-0}" == "1" ]]; then
     echo "▶  pre-push: full CI mirror (AUTONIIX_PREPUSH_CI=1)"
     bash "$REPO/scripts/ci-local.sh" --full || { echo "❌  CI mirror failed"; exit 1; }
-else
-    echo "ℹ  Skipping full CI mirror (export AUTONIIX_PREPUSH_CI=1 to enable)."
 fi
+
 exit 0
