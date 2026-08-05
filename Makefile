@@ -52,11 +52,12 @@ help: ## Show available commands
 	@echo "  make restore    → Restore from latest snapshot (pass STAMP= to pick one)"
 	@echo "  make alerts-status → Show firing alerts from Alertmanager"
 	@echo ""
-	@echo "  Harness (HARNESS-ENGINEERING-PLAN.md):"
-	@echo "  make test-harness   → cargo test -p harness (provider mocks, contract)"
-	@echo "  make test-rust      → cargo test -p gateway (integration tests)"
-	@echo "  make test-migration → pytest tests/migration/ (offline: auto-skip)"
-	@echo "  make bench-rust     → cargo bench -p gateway (requires TEST_DATABASE_URL)"
+	@echo "  Harness (docs/architecture/adr-005-harness-and-parity.md):"
+	@echo "  make harness         → format-check + lint + typecheck + tests + report"
+	@echo "  make pre-deploy      → dockerized full CI mirror (writes sentinel)"
+	@echo "  make ci-local        → fast local CI mirror (~60s)"
+	@echo "  make ci-local-full   → full local CI mirror (~5min)"
+	@echo "  make test-migration  → pytest tests/migration/ (offline: auto-skip)"
 	@echo ""
 	@echo "  Quick start (3 terminals):"
 	@echo "    Terminal 1:  make infra"
@@ -549,71 +550,41 @@ gen-contracts: ## Generate OpenAPI spec from Zod schemas and Pydantic models fro
 	@./tools/gen-pydantic.sh
 	@echo "✅ Contracts generated successfully"
 
-gw2-typecheck: ## Type-check the Node/Fastify gateway v2
-	@echo "🔎 Typechecking gateway-v2..."
-	@cd services/gateway-v2 && npm run typecheck
+# =============================================================================
+# Phase 7 service targets — Python + TypeScript backends
+# =============================================================================
+# Rust/Go and V1/V2 dual-run targets removed in the harness-completion PR.
+# Single-source targets for the current gateway and streaming-hub.
 
-gw2-build: ## Build the Node/Fastify gateway v2
-	@echo "🏗  Building gateway-v2..."
-	@cd services/gateway-v2 && npm run build
+gateway-typecheck: ## Type-check backend/api/gateway
+	@cd backend/api/gateway && npm run typecheck
 
-gw2-test: ## Run gateway v2 smoke tests
-	@echo "🧪 Running gateway-v2 smoke tests..."
-	@cd services/gateway-v2 && npm test
+gateway-build: ## Build backend/api/gateway
+	@cd backend/api/gateway && npm run build
 
-gw2-dev: ## Run gateway v2 in dev mode with hot reload
-	@echo "🚀 Starting gateway-v2 in dev mode..."
-	@cd services/gateway-v2 && npm run dev
+gateway-test: ## Run backend/api/gateway tests
+	@cd backend/api/gateway && npm test
 
-gw2-up: ## Start gateway v2 alongside rust-gateway (both running)
-	@echo "🐳 Starting node-gateway (v2) alongside rust-gateway (v1)..."
-	@docker compose up -d rust-gateway node-gateway
-	@echo "✅ Gateways up: v1 on :8081, v2 on :8082"
-	@echo "   Route v2: curl -H 'X-Gateway-Version: v2' https://\$${GW_DOMAIN}/health"
+gateway-dev: ## Run backend/api/gateway in dev mode
+	@cd backend/api/gateway && npm run dev
 
-gw2-rollback: ## Instant rollback — stop v2, all traffic falls back to v1
-	@echo "⏪ Rolling back gateway-v2..."
-	@docker compose stop node-gateway
-	@echo "✅ node-gateway stopped. All traffic now routes to rust-gateway."
+streaming-hub-typecheck: ## Type-check backend/api/streaming-hub
+	@cd backend/api/streaming-hub && npm run typecheck
 
-sh2-typecheck: ## Type-check streaming-hub-v2
-	@cd services/streaming-hub-v2 && npm run typecheck
+streaming-hub-build: ## Build backend/api/streaming-hub
+	@cd backend/api/streaming-hub && npm run build
 
-sh2-build: ## Build streaming-hub-v2
-	@cd services/streaming-hub-v2 && npm run build
+streaming-hub-test: ## Run backend/api/streaming-hub tests
+	@cd backend/api/streaming-hub && npm test
 
-sh2-test: ## Run streaming-hub-v2 smoke tests
-	@cd services/streaming-hub-v2 && npm test
+streaming-hub-dev: ## Run backend/api/streaming-hub in dev mode
+	@cd backend/api/streaming-hub && npm run dev
 
-sh2-dev: ## Run streaming-hub-v2 in dev mode
-	@cd services/streaming-hub-v2 && npm run dev
+notification-dispatcher-test: ## Run backend/workers/notification-dispatcher tests
+	@cd backend/workers/notification-dispatcher && pip install -e ".[dev]" && pytest
 
-sh2-up: ## Start streaming-hub-v2 alongside legacy hub
-	@docker compose up -d streaming-hub-v2
-	@echo "✅ streaming-hub-v2 up on :8091"
-
-sh2-rollback: ## Instant rollback — stop streaming-hub-v2
-	@docker compose stop streaming-hub-v2
-	@echo "✅ streaming-hub-v2 stopped."
-
-ndisp2-build: ## Build notification-dispatcher-v2 Docker image
-	@docker compose build notification-dispatcher-v2
-
-ndisp2-test: ## Run notification-dispatcher-v2 tests
-	@cd services/notification-dispatcher-v2 && pip install -e ".[dev]" && pytest
-
-ndisp2-dev: ## Run notification-dispatcher-v2 locally
-	@cd services/notification-dispatcher-v2 && python -m src.main
-
-ndisp2-up: ## Start notification-dispatcher-v2 alongside Go dispatcher
-	@echo "🐳 Starting notification-dispatcher-v2 (Python) alongside Go dispatcher..."
-	@docker compose up -d notification-dispatcher-v2
-	@echo "✅ notification-dispatcher-v2 up on :8091"
-
-ndisp2-rollback: ## Instant rollback — stop notification-dispatcher-v2
-	@echo "⏪ Rolling back notification-dispatcher-v2..."
-	@docker compose stop notification-dispatcher-v2
-	@echo "✅ notification-dispatcher-v2 stopped. Go dispatcher handles all retries."
+notification-dispatcher-dev: ## Run backend/workers/notification-dispatcher locally
+	@cd backend/workers/notification-dispatcher && python -m src.main
 
 # =============================================================================
 # Phase 7 Standardization Harness  (see docs/architecture/adr-005-harness-and-parity.md)
@@ -713,6 +684,6 @@ hooks-install: ## Install pre-commit hooks (lefthook + husky)
 
 .PHONY: verify-versions check-drift ci-local ci-local-full ci-local-docker install-hooks \
         ship sqlx-prepare ci-act ci-act-full act-setup gen-contracts \
-        gw2-typecheck gw2-build gw2-test gw2-dev gw2-up gw2-rollback \
-        sh2-typecheck sh2-build sh2-test sh2-dev sh2-up sh2-rollback \
-        ndisp2-build ndisp2-test ndisp2-dev ndisp2-up ndisp2-rollback
+        gateway-typecheck gateway-build gateway-test gateway-dev \
+        streaming-hub-typecheck streaming-hub-build streaming-hub-test streaming-hub-dev \
+        notification-dispatcher-test notification-dispatcher-dev
