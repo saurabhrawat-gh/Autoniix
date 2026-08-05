@@ -13,7 +13,6 @@ import providers.boot  # noqa: F401
 from core.db import close_pool, get_pool
 from observability.metrics import instrument_app
 from providers.llm.base import LLMRequest
-from providers.registry import ProviderRegistry
 from schemas.common import HealthResponse, ServiceResponse
 from services_api.script.asset_engine import generate_script_assets
 from services_api.script.direction_engine import generate_script_direction
@@ -160,7 +159,7 @@ async def generate_script(req: ScriptRequest):
         word_target = channel.get("words_per_video_long", 1100) if is_long else channel.get("words_per_video_short", 80)
         duration_target = channel.get("long_form_duration", 480) if is_long else channel.get("short_form_duration", 45)
         seg_count = "8-12" if is_long else "3-4"
-        forbidden = channel.get("forbidden_words", "")
+        forbidden = channel.get("forbidden_words") or ""
 
         niche_for_bandit = channel.get("niche", "")
         hook_styles = [

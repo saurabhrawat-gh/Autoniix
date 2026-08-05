@@ -11,36 +11,41 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+import providers.boot  # noqa: F401
 from core.config import settings
 from core.db import close_pool, get_pool
-from core.redis_client import close_redis, get_redis
-from schemas.common import HealthResponse, ServiceResponse
-
-import providers.boot  # noqa: F401
-
-from providers.registry import ProviderRegistry
+from core.redis_client import close_redis
+from observability.metrics import instrument_app
 from providers.llm.base import LLMRequest
-
-from services_api.research.trend_collector import collect_trends
-from services_api.research.competitor_insights import collect_competitor_insights
-from services_api.research.similarity import (
-    check_similarity, compute_embedding, compute_freshness, store_topic_embedding,
+from providers.registry import ProviderRegistry
+from schemas.common import HealthResponse, ServiceResponse
+from services_api.research.burst_detector import (
+    compute_advanced_seasonality,
+    compute_phrase_novelty,
+    detect_bursts,
+    get_rising_phrases,
+    mine_phrases,
 )
+from services_api.research.competitor_insights import collect_competitor_insights
 from services_api.research.opportunity_scorer import (
-    score_opportunity, store_research_features,
+    score_opportunity,
+    store_research_features,
 )
 from services_api.research.self_learning import (
-    predict_success, thompson_sample, bandit_update, ingest_performance,
-    train_model, check_model_drift,
+    check_model_drift,
+    ingest_performance,
+    predict_success,
+    thompson_sample,
+    train_model,
 )
-from services_api.research.burst_detector import (
-    detect_bursts, mine_phrases, get_rising_phrases,
-    compute_phrase_novelty, compute_advanced_seasonality,
+from services_api.research.similarity import (
+    check_similarity,
+    compute_freshness,
+    store_topic_embedding,
 )
-from observability.metrics import instrument_app
+from services_api.research.trend_collector import collect_trends
 
 logger = structlog.get_logger()
-
 
 
 class ResearchRequest(BaseModel):
@@ -54,7 +59,6 @@ class ResearchRequest(BaseModel):
 class IdeationRequest(BaseModel):
     channel_id: str
     research_data: dict = Field(default_factory=dict)
-
 
 
 def _safe_format(template: str, **kwargs) -> str:
@@ -72,15 +76,23 @@ def _parse_json(text: str) -> dict:
     return json.loads(text)
 
 
-async def _log_usage(content_id: str, service: str, provider: str, model: str,
-                     tokens_in: int, tokens_out: int, cost: float, latency: int):
+async def _log_usage(
+    content_id: str, service: str, provider: str, model: str, tokens_in: int, tokens_out: int, cost: float, latency: int
+):
     try:
         pool = await get_pool()
         cost_col = f"{provider}_cost" if provider in ("openai", "claude", "gemini") else "cost_usd"
         await pool.execute(
             "INSERT INTO api_usage (content_id, service, provider, model, tokens_in, tokens_out, cost_usd, latency_ms) "
             "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-            content_id, service, provider, model, tokens_in, tokens_out, float(cost), latency,
+            content_id,
+            service,
+            provider,
+            model,
+            tokens_in,
+            tokens_out,
+            float(cost),
+            latency,
         )
     except Exception as e:
         logger.warning("research.db_log_failed", error=str(e))
@@ -121,12 +133,10 @@ async def _load_prompt(prompt_id: str) -> dict:
     """Load a prompt template from the prompt_registry."""
     pool = await get_pool()
     row = await pool.fetchrow(
-        "SELECT system_prompt, user_prompt_template FROM prompt_registry "
-        "WHERE prompt_id = $1 AND is_active = true",
+        "SELECT system_prompt, user_prompt_template FROM prompt_registry WHERE prompt_id = $1 AND is_active = true",
         prompt_id,
     )
     return dict(row) if row else {}
-
 
 
 async def _search_youtube(topic: str, niche: str) -> list[dict]:
@@ -158,7 +168,8 @@ async def _search_youtube(topic: str, niche: str) -> list[dict]:
                     "channel": it["snippet"]["channelTitle"],
                     "published": it["snippet"]["publishedAt"],
                 }
-                for it in items if it.get("id", {}).get("videoId")
+                for it in items
+                if it.get("id", {}).get("videoId")
             ]
     except Exception as e:
         logger.warning("research.youtube_search_failed", error=str(e))
@@ -170,19 +181,24 @@ async def _search_serpapi(queries: list[str]) -> list[dict]:
     try:
         search_provider = ProviderRegistry.get("search")
         from providers.search.base import SearchRequest
+
         results = []
         for q in queries[:3]:
-            result = await search_provider.search(SearchRequest(
-                query=q,
-                num_results=5,
-            ))
+            result = await search_provider.search(
+                SearchRequest(
+                    query=q,
+                    num_results=5,
+                )
+            )
             for r in result.results:
-                results.append({
-                    "source": "google",
-                    "title": r.get("title", ""),
-                    "snippet": r.get("snippet", ""),
-                    "url": r.get("link", ""),
-                })
+                results.append(
+                    {
+                        "source": "google",
+                        "title": r.get("title", ""),
+                        "snippet": r.get("snippet", ""),
+                        "url": r.get("link", ""),
+                    }
+                )
         return results
     except Exception as e:
         logger.warning("research.serpapi_failed", error=str(e))
@@ -192,9 +208,12 @@ async def _search_serpapi(queries: list[str]) -> list[dict]:
 async def _search_reddit(topic: str, niche: str) -> list[dict]:
     """Search Reddit for relevant discussions."""
     try:
-        async with httpx.AsyncClient(timeout=10.0, headers={
-            "User-Agent": "YTAutomation/1.0",
-        }) as client:
+        async with httpx.AsyncClient(
+            timeout=10.0,
+            headers={
+                "User-Agent": "YTAutomation/1.0",
+            },
+        ) as client:
             resp = await client.get(
                 "https://www.reddit.com/search.json",
                 params={"q": f"{topic} {niche}", "sort": "relevance", "limit": 10, "t": "month"},
@@ -281,7 +300,6 @@ async def _search_wikipedia(topic: str) -> list[dict]:
         return []
 
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("research.starting")
@@ -292,12 +310,15 @@ async def lifespan(app: FastAPI):
 
 
 from observability.sentry import init_sentry
+
 init_sentry("research")
 
 app = FastAPI(title="Research Service", version="0.1.0", lifespan=lifespan)
 
 
 instrument_app(app, service_name="research")
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="research")
@@ -326,33 +347,44 @@ async def research(req: ResearchRequest):
         primary_topic = queries[0] if queries else niche
 
         import asyncio
+
         youtube_task = _search_youtube(primary_topic, niche)
         serpapi_task = _search_serpapi([f"{q} {niche}" for q in queries])
         reddit_task = _search_reddit(primary_topic, niche)
         news_task = _search_news(primary_topic, niche)
         wiki_task = _search_wikipedia(primary_topic)
 
-        youtube_results, serp_results, reddit_results, news_results, wiki_results = (
-            await asyncio.gather(youtube_task, serpapi_task, reddit_task, news_task, wiki_task)
+        youtube_results, serp_results, reddit_results, news_results, wiki_results = await asyncio.gather(
+            youtube_task, serpapi_task, reddit_task, news_task, wiki_task
         )
 
         all_sources = youtube_results + serp_results + reddit_results + news_results + wiki_results
-        logger.info("research.sources_collected",
-                     youtube=len(youtube_results), serp=len(serp_results),
-                     reddit=len(reddit_results), news=len(news_results), wiki=len(wiki_results))
+        logger.info(
+            "research.sources_collected",
+            youtube=len(youtube_results),
+            serp=len(serp_results),
+            reddit=len(reddit_results),
+            news=len(news_results),
+            wiki=len(wiki_results),
+        )
 
-        from llm import route as _route, BudgetExceeded as _BudgetExceeded
+        from llm import BudgetExceeded as _BudgetExceeded, route as _route
+
         prompt = await _load_prompt("PRM_B1_RESEARCH_SYNTH")
 
-        yt_text = "\n".join(f"- [{r['title']}]({r['url']}) by {r.get('channel','')}" for r in youtube_results[:8])
-        serp_text = "\n".join(f"- {r['title']}: {r.get('snippet','')}" for r in serp_results[:8])
-        reddit_text = "\n".join(f"- r/{r.get('subreddit','')}: {r['title']} (score: {r.get('score',0)})" for r in reddit_results[:8])
-        news_text = "\n".join(f"- {r['title']}: {r.get('snippet','')}" for r in news_results[:5])
+        yt_text = "\n".join(f"- [{r['title']}]({r['url']}) by {r.get('channel', '')}" for r in youtube_results[:8])
+        serp_text = "\n".join(f"- {r['title']}: {r.get('snippet', '')}" for r in serp_results[:8])
+        reddit_text = "\n".join(
+            f"- r/{r.get('subreddit', '')}: {r['title']} (score: {r.get('score', 0)})" for r in reddit_results[:8]
+        )
+        news_text = "\n".join(f"- {r['title']}: {r.get('snippet', '')}" for r in news_results[:5])
 
-        system_prompt = _safe_format(prompt.get("system_prompt", "You are a YouTube research analyst. Respond in valid JSON."),
+        system_prompt = _safe_format(
+            prompt.get("system_prompt", "You are a YouTube research analyst. Respond in valid JSON."),
             niche=niche,
         )
-        user_prompt = _safe_format(prompt.get("user_prompt_template", "Channel: {channel_id}\nTopics: {topic_candidates}"),
+        user_prompt = _safe_format(
+            prompt.get("user_prompt_template", "Channel: {channel_id}\nTopics: {topic_candidates}"),
             channel_id=req.channel_id,
             channel_name=channel.get("channel_name", ""),
             niche=niche,
@@ -390,17 +422,31 @@ async def research(req: ResearchRequest):
             except _BudgetExceeded as exc:
                 raise HTTPException(status_code=402, detail=str(exc))
             total_cost += synthesis.cost_usd
-            await _log_usage(f"research-{req.channel_id}", "research_synthesis",
-                             synthesis.provider, synthesis.model, synthesis.tokens_in,
-                             synthesis.tokens_out, synthesis.cost_usd, synthesis.latency_ms)
+            await _log_usage(
+                f"research-{req.channel_id}",
+                "research_synthesis",
+                synthesis.provider,
+                synthesis.model,
+                synthesis.tokens_in,
+                synthesis.tokens_out,
+                synthesis.cost_usd,
+                synthesis.latency_ms,
+            )
 
             try:
                 research_data = _parse_json(synthesis.content)
             except json.JSONDecodeError:
                 logger.warning("research.synthesis_json_failed", attempt=attempt)
-                research_data = {"selected_topic": primary_topic, "research_depth_score": 5.0,
-                                 "title_candidates": [], "sources": [], "fact_claims": [],
-                                 "trend_data": {}, "competitor_analysis": {}, "audience_pain_points": []}
+                research_data = {
+                    "selected_topic": primary_topic,
+                    "research_depth_score": 5.0,
+                    "title_candidates": [],
+                    "sources": [],
+                    "fact_claims": [],
+                    "trend_data": {},
+                    "competitor_analysis": {},
+                    "audience_pain_points": [],
+                }
 
             depth_score = float(research_data.get("research_depth_score", 0))
             if depth_score >= 8.0:
@@ -420,7 +466,8 @@ async def research(req: ResearchRequest):
             fc_prompt = await _load_prompt("PRM_B1_FACT_CHECK")
 
             fc_system = fc_prompt.get("system_prompt", "You are a fact-checking specialist. Respond in JSON.")
-            fc_user = _safe_format(fc_prompt.get("user_prompt_template", "Claims: {claims}\nSources: {sources}"),
+            fc_user = _safe_format(
+                fc_prompt.get("user_prompt_template", "Claims: {claims}\nSources: {sources}"),
                 claims=json.dumps(fact_claims),
                 sources=json.dumps(research_data.get("sources", [])),
             )
@@ -444,19 +491,27 @@ async def research(req: ResearchRequest):
             except _BudgetExceeded as exc:
                 raise HTTPException(status_code=402, detail=str(exc))
             total_cost += fc_result.cost_usd
-            await _log_usage(f"research-{req.channel_id}", "factcheck", fc_result.provider,
-                             fc_result.model, fc_result.tokens_in, fc_result.tokens_out,
-                             fc_result.cost_usd, fc_result.latency_ms)
+            await _log_usage(
+                f"research-{req.channel_id}",
+                "factcheck",
+                fc_result.provider,
+                fc_result.model,
+                fc_result.tokens_in,
+                fc_result.tokens_out,
+                fc_result.cost_usd,
+                fc_result.latency_ms,
+            )
 
             try:
                 fc_data = _parse_json(fc_result.content)
                 research_data["verified_claims"] = fc_data.get("verified_claims", [])
                 research_data["removed_claims"] = fc_data.get("removed_claims", [])
                 research_data["fact_claims"] = [
-                    c for c in fc_data.get("verified_claims", [])
-                    if c.get("confidence", 0) >= 0.7
+                    c for c in fc_data.get("verified_claims", []) if c.get("confidence", 0) >= 0.7
                 ]
-                fact_confidence = sum(c.get("confidence", 0) for c in research_data["fact_claims"]) / max(len(research_data["fact_claims"]), 1)
+                fact_confidence = sum(c.get("confidence", 0) for c in research_data["fact_claims"]) / max(
+                    len(research_data["fact_claims"]), 1
+                )
                 research_data["fact_confidence_score"] = round(fact_confidence * 10, 1)
             except json.JSONDecodeError:
                 logger.warning("research.factcheck_json_failed")
@@ -476,9 +531,7 @@ async def research(req: ResearchRequest):
             trend_data = {}
 
         try:
-            competitor_yt_ids = [
-                c.strip() for c in (channel.get("competitor_channels") or "").split(",") if c.strip()
-            ]
+            competitor_yt_ids = [c.strip() for c in (channel.get("competitor_channels") or "").split(",") if c.strip()]
             comp_data = await collect_competitor_insights(req.channel_id, niche, competitor_yt_ids or None)
             research_data["competitor_insights"] = {
                 "competitor_count": comp_data.get("competitor_count", 0),
@@ -541,13 +594,14 @@ async def research(req: ResearchRequest):
 
         try:
             from services_api.research.saturation import compute_saturation
+
             sat = await compute_saturation(selected_topic, niche)
             research_data["saturation"] = {
-                "score":               sat.saturation,
-                "gap":                 sat.saturation_gap,
-                "n_matches":           sat.n_matches,
+                "score": sat.saturation,
+                "gap": sat.saturation_gap,
+                "n_matches": sat.n_matches,
                 "top_match_similarity": sat.top_match_similarity,
-                "cold_start":          sat.cold_start,
+                "cold_start": sat.cold_start,
             }
         except Exception as e:
             logger.warning("research.saturation_failed", error=str(e))
@@ -560,9 +614,9 @@ async def research(req: ResearchRequest):
                 "trend_momentum": trend_momentum,
                 "burst_score": bursting[0]["burst_score"] if bursting else 0.0,
                 "phrase_novelty": phrase_nov,
-                "trend_volume_index": next(
-                    (m.get("current_index", 50) for m in momentum_data.values()), 50
-                ) if momentum_data else 50,
+                "trend_volume_index": next((m.get("current_index", 50) for m in momentum_data.values()), 50)
+                if momentum_data
+                else 50,
                 "saturation_gap": sat.saturation_gap if sat is not None else 1.0,
             }
             opp = await score_opportunity(selected_topic, niche=niche, features=features)
@@ -590,7 +644,9 @@ async def research(req: ResearchRequest):
             topic_clusters = research_data.get("title_candidates", [])
             if topic_clusters and len(topic_clusters) >= 2:
                 bandit_result = await thompson_sample(
-                    niche, topic_clusters[:10], channel_id=req.channel_id,
+                    niche,
+                    topic_clusters[:10],
+                    channel_id=req.channel_id,
                 )
                 research_data["bandit_selection"] = bandit_result
         except Exception:
@@ -599,7 +655,9 @@ async def research(req: ResearchRequest):
         try:
             await store_topic_embedding(
                 content_id_for_pred,
-                req.channel_id, "topic", selected_topic,
+                req.channel_id,
+                "topic",
+                selected_topic,
             )
         except Exception:
             pass
@@ -618,18 +676,22 @@ async def research(req: ResearchRequest):
 
         if research_data.get("similarity_check", {}).get("is_duplicate"):
             research_data["_warning"] = "HIGH_SIMILARITY_DETECTED"
-            logger.warning("research.duplicate_detected",
-                           topic=selected_topic,
-                           sim=research_data["similarity_check"]["max_similarity"])
+            logger.warning(
+                "research.duplicate_detected",
+                topic=selected_topic,
+                sim=research_data["similarity_check"]["max_similarity"],
+            )
 
-        logger.info("research.completed",
-                     topic=selected_topic,
-                     depth=research_data.get("research_depth_score"),
-                     fact_conf=research_data.get("fact_confidence_score"),
-                     opportunity=research_data.get("opportunity_score"),
-                     novelty=sim_result.get("novelty_score"),
-                     freshness=fresh.get("freshness_score"),
-                     cost_usd=round(total_cost, 4))
+        logger.info(
+            "research.completed",
+            topic=selected_topic,
+            depth=research_data.get("research_depth_score"),
+            fact_conf=research_data.get("fact_confidence_score"),
+            opportunity=research_data.get("opportunity_score"),
+            novelty=sim_result.get("novelty_score"),
+            freshness=fresh.get("freshness_score"),
+            cost_usd=round(total_cost, 4),
+        )
 
         if not research_data.get("selected_topic"):
             research_data["selected_topic"] = primary_topic
@@ -654,7 +716,6 @@ async def research(req: ResearchRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-
 @app.post("/ideate", response_model=ServiceResponse)
 async def ideate(req: IdeationRequest):
     """Full ideation pipeline: 10 ideas → scoring → novelty → quality gate."""
@@ -671,7 +732,8 @@ async def ideate(req: IdeationRequest):
 
         today = date.today()
         available_beliefs = [
-            b for b in beliefs
+            b
+            for b in beliefs
             if b.get("belief_status") == "available"
             and (not b.get("cooling_until_date") or b["cooling_until_date"] <= today)
         ]
@@ -681,14 +743,17 @@ async def ideate(req: IdeationRequest):
         llm = ProviderRegistry.get("llm.ideation")
 
         from intelligence import build_performance_context
+
         perf_context = await build_performance_context(req.channel_id)
 
-        system_prompt = _safe_format(prompt.get("system_prompt", "Generate 10 YouTube video concepts. Respond in JSON."),
+        system_prompt = _safe_format(
+            prompt.get("system_prompt", "Generate 10 YouTube video concepts. Respond in JSON."),
             niche=channel.get("niche", ""),
             belief_territory=selected_belief["belief"] if selected_belief else channel.get("belief_territory", ""),
             intellectual_lens=channel.get("intellectual_lens", ""),
         )
-        user_prompt = _safe_format(prompt.get("user_prompt_template", "Channel: {channel_id}"),
+        user_prompt = _safe_format(
+            prompt.get("user_prompt_template", "Channel: {channel_id}"),
             channel_id=req.channel_id,
             brand_voice=channel.get("brand_voice", ""),
             narrative_rhythm=channel.get("narrative_rhythm", ""),
@@ -701,22 +766,29 @@ async def ideate(req: IdeationRequest):
         ideation_data = None
 
         for attempt in range(1, max_retries + 2):
-            user_with_memory = (
-                f"{perf_context}\n\n{user_prompt}" if perf_context else user_prompt
+            user_with_memory = f"{perf_context}\n\n{user_prompt}" if perf_context else user_prompt
+            idea_result = await llm.complete(
+                LLMRequest(
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_with_memory},
+                    ],
+                    temperature=0.8,
+                    max_tokens=3000,
+                    response_format="json",
+                )
             )
-            idea_result = await llm.complete(LLMRequest(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_with_memory},
-                ],
-                temperature=0.8,
-                max_tokens=3000,
-                response_format="json",
-            ))
             total_cost += idea_result.cost_usd
-            await _log_usage(f"ideation-{req.channel_id}", "ideation", idea_result.provider,
-                             idea_result.model, idea_result.tokens_in, idea_result.tokens_out,
-                             idea_result.cost_usd, idea_result.latency_ms)
+            await _log_usage(
+                f"ideation-{req.channel_id}",
+                "ideation",
+                idea_result.provider,
+                idea_result.model,
+                idea_result.tokens_in,
+                idea_result.tokens_out,
+                idea_result.cost_usd,
+                idea_result.latency_ms,
+            )
 
             try:
                 ideation_data = _parse_json(idea_result.content)
@@ -730,15 +802,12 @@ async def ideate(req: IdeationRequest):
                 curiosity = float(idea.get("curiosity_score", 5))
                 novelty = float(idea.get("novelty_score", 5))
                 emotion = float(idea.get("emotion_score", 5))
-                composite = (curiosity * 0.3 + novelty * 0.3 + emotion * 0.4)
+                composite = curiosity * 0.3 + novelty * 0.3 + emotion * 0.4
                 idea["composite_score"] = round(composite, 2)
 
             for idea in ideas:
                 title_lower = idea.get("title", "").lower()
-                is_novel = not any(
-                    t.lower() in title_lower or title_lower in t.lower()
-                    for t in used_topics
-                )
+                is_novel = not any(t.lower() in title_lower or title_lower in t.lower() for t in used_topics)
                 idea["is_novel"] = is_novel
 
             novel_ideas = [i for i in ideas if i.get("is_novel", True)]
@@ -767,10 +836,12 @@ async def ideate(req: IdeationRequest):
             "top_composite_score": winner.get("composite_score", 0),
         }
 
-        logger.info("ideation.completed",
-                     title=winner.get("title", "")[:60],
-                     score=winner.get("composite_score"),
-                     cost=round(total_cost, 4))
+        logger.info(
+            "ideation.completed",
+            title=winner.get("title", "")[:60],
+            score=winner.get("composite_score"),
+            cost=round(total_cost, 4),
+        )
 
         return ServiceResponse(
             status="success",
@@ -783,8 +854,6 @@ async def ideate(req: IdeationRequest):
     except Exception as exc:
         logger.error("ideation.failed", error=str(exc))
         raise HTTPException(status_code=500, detail=str(exc))
-
-
 
 
 class FeedbackRequest(BaseModel):
@@ -873,9 +942,7 @@ async def trends(req: TrendRequest):
 async def competitors(req: CompetitorRequest):
     """Analyze competitors and find niche outliers."""
     try:
-        result = await collect_competitor_insights(
-            req.channel_id, req.niche, req.competitor_yt_ids or None
-        )
+        result = await collect_competitor_insights(req.channel_id, req.niche, req.competitor_yt_ids or None)
         return ServiceResponse(status="success", data=result)
     except Exception as exc:
         logger.error("competitors.failed", error=str(exc))

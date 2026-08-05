@@ -125,6 +125,17 @@ class BaseAgent(ABC):
     Subclasses **must** set :attr:`name`, :attr:`decision_table`, and
     :attr:`flag_prefix`. Override the lifecycle methods you need; the rest
     stay as safe no-ops.
+
+    **Harness contract (Phase 7 self-improvement loop):**
+
+    Subclasses **must** also set :attr:`PROMPT_VERSION` and :attr:`MODEL_ID`.
+    These are consumed by the eval harness (``scripts/run_prompt_eval.py``)
+    and the regression checker (``scripts/eval_regression_check.py``). Any
+    change to the prompt or model bumps the version; the eval run scores the
+    new version against golden data and merges only when not-worse.
+
+    Subclasses **may** override :meth:`harness_hook` to expose extra eval
+    metadata (custom cases, scoring rubric override, cost budget).
     """
 
     name: ClassVar[str] = ""
@@ -133,6 +144,12 @@ class BaseAgent(ABC):
 
     flag_prefix: ClassVar[str] = ""
 
+    # ─── Harness contract (Phase 7) ──────────────────────────────────────
+    # Bump PROMPT_VERSION on any prompt change. Bump MODEL_ID when swapping
+    # the underlying model. See docs/architecture/adr-005-harness-and-parity.md.
+    PROMPT_VERSION: ClassVar[str] = "0.0.0"
+    MODEL_ID: ClassVar[str] = "unversioned"
+
     phase_timeouts_s: ClassVar[dict[str, float]] = {}
 
     def __init__(self) -> None:
@@ -140,6 +157,32 @@ class BaseAgent(ABC):
             raise TypeError(
                 f"{type(self).__name__} must define name, decision_table, and flag_prefix class attributes."
             )
+
+    # ─── Harness contract ────────────────────────────────────────────────
+    @classmethod
+    def harness_hook(cls) -> dict[str, Any]:
+        """Return metadata the eval harness uses to discover + score this agent.
+
+        Subclasses that want per-agent eval cases or a custom scoring rubric
+        override this and return a dict like::
+
+            {
+                "cases": ["tests/prompt_eval/cases/critic_001.json", ...],
+                "rubric": "llm_judge",  # or "exact_match" / "metric"
+                "budget_usd": 0.10,
+            }
+
+        Default returns just identity metadata — enough for the manifest
+        loader to place the agent in the manifest even if no custom cases
+        exist yet.
+        """
+        return {
+            "name": cls.name,
+            "prompt_version": cls.PROMPT_VERSION,
+            "model_id": cls.MODEL_ID,
+            "cases": [],
+            "rubric": "exact_match",
+        }
 
     def _timeout_for(self, phase: str) -> float:
         return float(self.phase_timeouts_s.get(phase, DEFAULT_PHASE_TIMEOUTS_S[phase]))
