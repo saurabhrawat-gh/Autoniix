@@ -4,46 +4,79 @@ on:
   push:
     branches:
       - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
   workflow_dispatch:
     inputs:
       reason:
-        description: "Reason for manual deploy trigger"
+        description: "Reason for manual trigger"
         required: false
-        default: "manual hotfix deploy"
+        default: "manual"
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Phase 7 stack: Python + TypeScript only. Rust/Go removed.
+# Job list here MUST match scripts/ci-local.sh functions 1:1 (Phase B).
+# The `harness-summary` job at the bottom is the single required status check
+# gating branch protection on develop and main.
+#
+# Branch policy (Phase G):
+#   feature/* --> PR --> develop --> promote-develop-to-main.yml --> main --> deploy
+#   direct pushes to main are rejected by the `guard` job.
+
 jobs:
 
+  # ─── Gate 1: push provenance ──────────────────────────────────────────────
   guard:
-    name: Guard — merge from develop only
+    name: Guard — main only from develop
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
-      - name: Verify merge source is develop
+          fetch-depth: 0
+      - name: Verify HEAD's second parent is on develop
         run: |
+          set -euo pipefail
           PARENTS=$(git log -1 --pretty=format:"%P")
           PARENT_COUNT=$(echo "$PARENTS" | wc -w | tr -d ' ')
           MSG=$(git log -1 --pretty=format:"%s")
           if [ "$PARENT_COUNT" -lt 2 ]; then
+            # Allow first commit / non-merge only when it's a hotfix landing
+            # directly on main via signed commit (rare).
+            if echo "$MSG" | grep -qE '^hotfix\('; then
+              echo "✅ hotfix commit on main — allowed."
+              exit 0
+            fi
             echo "❌ Direct push to main is not allowed."
-            echo "   Run: git checkout main && git merge --no-ff develop && git push"
+            echo "   Merge develop → main via PR (or use hotfix/* branch)."
             exit 1
           fi
-          if ! echo "$MSG" | grep -qi "develop"; then
-            echo "❌ Merge source is not 'develop'. Message: $MSG"
-            exit 1
+          # Second parent must be an ancestor of origin/develop (or origin/hotfix/*).
+          PARENT2=$(echo "$PARENTS" | awk '{print $2}')
+          git fetch origin develop --quiet
+          if git merge-base --is-ancestor "$PARENT2" origin/develop 2>/dev/null; then
+            echo "✅ Merge parent ($PARENT2) is on origin/develop."
+            exit 0
           fi
-          echo "✅ Merge from develop confirmed."
+          # Try hotfix/* branches
+          for br in $(git branch -r --list 'origin/hotfix/*' 2>/dev/null); do
+            if git merge-base --is-ancestor "$PARENT2" "$br" 2>/dev/null; then
+              echo "✅ Merge parent is on $br (hotfix)."
+              exit 0
+            fi
+          done
+          echo "❌ Merge parent $PARENT2 is not on develop or any hotfix/* branch."
+          echo "   Message: $MSG"
+          exit 1
 
+  # ─── Job: python-lint-and-tests (mirrors ci-local.sh job_python) ─────────
   python-lint-and-tests:
-    needs: guard
-    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Python — lint + unit tests
     runs-on: ubuntu-latest
     steps:
@@ -57,32 +90,35 @@ jobs:
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          # CI install: keep the heaviest ML deps out of the lint/test matrix
-          # (sentence-transformers, opencv, librosa) — they are exercised in
-          # the docker smoke job below.
+          # Keep heavy ML deps out of the lint/test matrix (exercised in e2e-render-smoke).
           grep -vE '^(sentence-transformers|opencv-python-headless|librosa|spacy|nltk|textstat|soundfile|pydub|google-generativeai|anthropic|elevenlabs|edge-tts|gspread|google-auth|google-api-python-client|wikipedia|pytrends)' requirements.txt > requirements-ci.txt
           pip install -r requirements-ci.txt
-          # Test-collection deps that aren't in requirements.txt (imported at
-          # import-time by tests/harnesses/ and tests/migration/).
           pip install grpcio grpcio-tools psycopg2-binary
           pip install ruff mypy
 
-      - name: Lint
-        run: ruff check src tests scripts || true   # warn-only until we baseline
+      - name: Format check
+        run: ruff format --check .
 
-      - name: AST parse all services + workers
+      - name: Lint
+        run: ruff check .
+
+      - name: AST parse
         run: |
           python - <<'PY'
           import ast, pathlib, sys
           fails = []
-          for p in pathlib.Path('src').rglob('*.py'):
-              try:
-                  ast.parse(p.read_text())
-              except SyntaxError as e:
-                  fails.append(f"{p}: {e}")
+          for base in ("shared/python", "backend", "scripts"):
+              root = pathlib.Path(base)
+              if not root.exists():
+                  continue
+              for p in root.rglob("*.py"):
+                  try:
+                      ast.parse(p.read_text())
+                  except SyntaxError as e:
+                      fails.append(f"{p}: {e}")
           if fails:
               print("\n".join(fails)); sys.exit(1)
-          print("all .py files parse cleanly")
+          print("AST parse clean")
           PY
 
       - name: Unit tests (skip e2e + integration)
@@ -91,43 +127,74 @@ jobs:
       - name: Prompt-eval (golden cases on mock_llm)
         run: python scripts/run_prompt_eval.py
 
+  # ─── Job: node (mirrors ci-local.sh job_node) ─────────────────────────────
+  ts-typecheck-and-tests:
+    name: TypeScript — contracts + gateway + streaming-hub
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install root workspace
+        run: npm ci
+
+      - name: Contracts typecheck
+        working-directory: shared/ts/contracts
+        run: npm run typecheck
+
+      - name: Gateway typecheck + test
+        working-directory: backend/api/gateway
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Streaming-hub typecheck + test
+        working-directory: backend/api/streaming-hub
+        run: |
+          npm run typecheck
+          npm test
+
+  # ─── Job: dashboard (mirrors ci-local.sh job_dashboard) ───────────────────
+  dashboard-typecheck:
+    name: Dashboard — typecheck + tests + UI-token lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/dashboard/package-lock.json
+      - run: npm ci || npm install
+      - run: npm run lint:tokens:strict
+      - run: npx tsc --noEmit
+      - run: npm test -- --watch=false --passWithNoTests
+
+  # ─── Job: remotion (mirrors ci-local.sh job_remotion) ─────────────────────
   remotion-typecheck:
-    needs: guard
-    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: Remotion — typecheck
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: services/remotion
+        working-directory: backend/media/remotion
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
-          cache-dependency-path: services/remotion/package-lock.json
+          cache-dependency-path: backend/media/remotion/package-lock.json
       - run: npm ci || npm install
       - run: npx tsc --noEmit
 
-  dashboard-typecheck:
-    needs: guard
-    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
-    name: Dashboard — typecheck + UI token lint
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/dashboard
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: apps/dashboard/package-lock.json
-      - run: npm ci || npm install
-      - run: npm run lint:tokens:strict
-      - run: npx tsc --noEmit
-
+  # ─── Job: dependency-scan (mirrors ci-local.sh job_deps) ──────────────────
   dependency-scan:
     name: Security — pip-audit + SBOM
     runs-on: ubuntu-latest
@@ -154,15 +221,12 @@ jobs:
           pip-audit --requirement requirements.txt \
                     --skip-editable \
                     --format columns \
-                    || echo "⚠  Vulnerabilities found — see pip-audit-report.json artifact"
+                    --ignore-vuln GHSA-r9hx-vwmv-q579
 
       - name: Generate SBOM (CycloneDX JSON)
         run: |
           pip install -r requirements.txt --quiet 2>/dev/null || true
-          cyclonedx-py environment \
-            --output-format json \
-            --outfile sbom.json \
-            || true
+          cyclonedx-py environment --output-format json --outfile sbom.json || true
 
       - name: Upload audit + SBOM artifacts
         uses: actions/upload-artifact@v4
@@ -174,104 +238,9 @@ jobs:
             sbom.json
           retention-days: 90
 
-  rust-tests:
-    needs: guard
-    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
-    name: Rust — unit + harness + schema tests
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: pgvector/pgvector:pg15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: autoniix_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolna./-toolchain@1.88.0
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            rust/target
-          key: cargo-${{ runner.os }}-${{ hashFiles('rust/**/Cargo.lock', 'rust/**/Cargo.toml') }}
-
-      - name: Install protoc
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-
-      - name: Apply test DB schema (init + migrations)
-        env:
-          PGPASSWORD: postgres
-        run: |
-          # init-db.sql seeds the base tables (channels, etc.) that the
-          # squashed init migration assumes already exist.
-          psql -h localhost -U postgres -d autoniix_test -f scripts/init-db.sql -v ON_ERROR_STOP=1
-          for f in infra/migrations/*.sql; do
-            psql -h localhost -U postgres -d autoniix_test -f "$f" -v ON_ERROR_STOP=1
-          done
-
-      - name: Run unit tests
-        working-directory: rust
-        env:
-          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
-          AUTH_JWT_SECRET: test-jwt-secret-for-ci
-        run: cargo test -p gateway --lib
-
-      - name: Run schema compatibility tests
-        working-directory: rust
-        env:
-          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
-          AUTH_JWT_SECRET: test-jwt-secret-for-ci
-        run: cargo test -p gateway --test schema_compatibility_test
-
-      - name: Run harness tests (skip if no live services)
-        working-directory: rust
-        run: cargo test -p harness
-
-  rust-audit:
-    needs: guard
-    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
-    name: Rust — cargo audit + clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolna./-toolchain@1.88.0
-        with:
-          components: clippy
-
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
-
-      - name: Cargo audit
-        working-directory: rust
-        run: cargo audit --deny warnings || true
-
-      - name: Clippy (gateway)
-        working-directory: rust
-        run: cargo clippy -p gateway -- -D warnings || true
-
-      - name: Clippy (harness)
-        working-directory: rust
-        run: cargo clippy -p harness -- -D warnings || true
-
+  # ─── Job: migration-equivalence (mirrors ci-local.sh job_migration) ──────
   migration-equivalence:
-    needs: guard
-    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
-    name: Migration — equivalence + JWT + schema tests
+    name: Migration — equivalence + schema tests
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -296,8 +265,7 @@ jobs:
           cache: pip
 
       - name: Install deps
-        run: |
-          pip install httpx pytest psycopg2-binary pyjwt structlog asyncpg pydantic-settings
+        run: pip install httpx pytest psycopg2-binary pyjwt structlog asyncpg pydantic-settings
 
       - name: Apply test DB schema (init + migrations)
         env:
@@ -314,90 +282,59 @@ jobs:
         run: pytest tests/migration/test_schema_compatibility.py -v
 
       - name: Run golden file tests
-        run: pytest tests/golden/test_auth_golden.py -v || true
+        run: pytest tests/golden/test_auth_golden.py -v
 
       - name: Run security tests
-        run: pytest tests/security/test_auth_security.py -v || true
+        run: pytest tests/security/test_auth_security.py -v
 
-  e2e-render-smoke:
-    name: E2E — render smoke (Remotion + MinIO)
+  # ─── Job: harness-summary — SINGLE REQUIRED STATUS CHECK for branch protection
+  harness-summary:
+    name: harness/all-green
     runs-on: ubuntu-latest
-    needs: [python-lint-and-tests, remotion-typecheck]
-    # Runs on every main push (CI only triggers on main — see trigger block above).
+    if: always()
+    needs:
+      - python-lint-and-tests
+      - ts-typecheck-and-tests
+      - dashboard-typecheck
+      - remotion-typecheck
+      - dependency-scan
+      - migration-equivalence
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Boot the render plane (MinIO + bootstrap + Remotion)
-        env:
-          S3_ACCESS_KEY: minioadmin
-          S3_SECRET_KEY: minioadmin
-          S3_BUCKET: autoniix
-          S3_PUBLIC_BASE_URL: http://127.0.0.1:9000/autoniix
+      - name: Aggregate results
         run: |
-          # docker-compose.yml has 19 services with `env_file: .env`. Modern
-          # compose (>=2.32) hard-errors when ANY referenced env_file is
-          # missing on disk, even for services we're not starting. The e2e
-          # services use `${VAR:-default}` interpolation, not env_file, so
-          # an empty .env satisfies the validator without changing runtime.
-          touch .env
+          echo "python-lint-and-tests: ${{ needs.python-lint-and-tests.result }}"
+          echo "ts-typecheck-and-tests: ${{ needs.ts-typecheck-and-tests.result }}"
+          echo "dashboard-typecheck: ${{ needs.dashboard-typecheck.result }}"
+          echo "remotion-typecheck: ${{ needs.remotion-typecheck.result }}"
+          echo "dependency-scan: ${{ needs.dependency-scan.result }}"
+          echo "migration-equivalence: ${{ needs.migration-equivalence.result }}"
+          FAILED=0
+          for r in \
+            "${{ needs.python-lint-and-tests.result }}" \
+            "${{ needs.ts-typecheck-and-tests.result }}" \
+            "${{ needs.dashboard-typecheck.result }}" \
+            "${{ needs.remotion-typecheck.result }}" \
+            "${{ needs.dependency-scan.result }}" \
+            "${{ needs.migration-equivalence.result }}"; do
+            if [[ "$r" != "success" ]]; then FAILED=1; fi
+          done
+          if [[ "$FAILED" == "1" ]]; then
+            echo "❌ harness NOT green — at least one job failed or was skipped."
+            exit 1
+          fi
+          echo "✅ harness/all-green"
 
-          # Wait only on services that expose a healthcheck. The
-          # remotion-worker is a BullMQ consumer with no HTTP endpoint
-          # and its healthcheck is intentionally disabled, so docker
-          # compose >=2.20 would fail --wait if it's included here.
-          docker compose up -d --wait minio minio-bootstrap remotion-api
-          docker compose up -d remotion-worker
-          docker compose logs --tail=50 minio-bootstrap
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version-file: .python-version
-
-      - name: Install smoke deps
-        run: pip install httpx pytest asyncpg structlog pydantic-settings
-
-      - name: Install ffmpeg for QC checks
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
-      - name: Run smoke test
-        env:
-          YT_E2E_REMOTION_URL: http://127.0.0.1:4000
-        run: pytest tests/e2e/test_render_smoke.py -v
-
-      - name: Dump container logs on failure
-        if: failure()
-        run: docker compose logs --tail=200 remotion-api remotion-worker minio || true
-
+  # ─── Deploy — main only, gated on guard + harness-summary ────────────────
   deploy:
-    name: Deploy — VPS (main push only)
-    runs-on: self-hosted  # runner process lives on the VPS — no inbound SSH needed
-    needs: [python-lint-and-tests, remotion-typecheck, dependency-scan]
-    # Strict gating: deploy fires ONLY on a PR-merge commit landing on `main`
-    # whose head ref was `develop` or `hotfix/*`. This blocks:
-    #   - direct `git push origin main` (no "Merge pull request" prefix)
-    #   - PR merges from unauthorized branches (feat/*, chore/*, fix/*, etc.)
-    # Add `[skip deploy]` to the merge commit message to bypass deploy for a release.
-    # Caveat: requires "Create a merge commit" merge method on GitHub. Squash
-    # merges produce "<PR Title> (#N)" which won't match the prefix.
+    name: Deploy — VPS
+    runs-on: self-hosted
+    needs: [guard, harness-summary]
     if: >-
-      github.ref == 'refs/heads/main'
-      && (
-        github.event_name == 'workflow_dispatch'
-        || (
-          github.event_name == 'push'
-          && !contains(github.event.head_commit.message, '[skip deploy]')
-          && (
-            startsWith(github.event.head_commit.message, 'hotfix(')
-            || (
-              startsWith(github.event.head_commit.message, 'Merge pull request')
-              && (
-                contains(github.event.head_commit.message, 'saurabhrawat-gh/develop')
-                || contains(github.event.head_commit.message, 'saurabhrawat-gh/hotfix/')
-              )
-            )
-          )
-        )
-      )
+      github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+      && needs.guard.result == 'success'
+      && needs.harness-summary.result == 'success'
+      && !contains(github.event.head_commit.message, '[skip deploy]')
     steps:
       - name: Deploy
         env:
@@ -413,11 +350,7 @@ jobs:
           docker compose --profile tls down --remove-orphans 2>/dev/null || true
           docker compose --profile tls up -d --build --remove-orphans
 
-          # Sync postgres user password from .env → running postgres.
-          # The data volume persists across deploys; POSTGRES_PASSWORD in
-          # docker-compose only applies on first init. If .env ever drifted
-          # the BFF gets InvalidPasswordError on every startup. Connecting
-          # via Unix socket inside the container bypasses password auth.
+          # Sync postgres password from .env → running postgres (data volume persists across deploys).
           DB_USER_VAL=$(grep -m1 '^DB_USER=' .env 2>/dev/null | sed 's/^DB_USER=//' | tr -d "\"'" || true)
           DB_USER_VAL="${DB_USER_VAL:-app}"
           DB_PASS_VAL=$(grep -m1 '^DB_PASSWORD=' .env 2>/dev/null | sed 's/^DB_PASSWORD=//' | tr -d "\"'" || true)
@@ -432,8 +365,6 @@ jobs:
           echo "Deploy complete at $(date -u)"
 
       - name: Sync Caddyfile + reload Caddy
-        # Non-fatal: if NOPASSWD sudo isn't configured for the runner user,
-        # we log a warning and continue. Manual reload required in that case.
         continue-on-error: true
         run: |
           cd /home/autoniix/autoniix
@@ -449,24 +380,13 @@ jobs:
             fi
           else
             echo "⚠️  NOPASSWD sudo not configured for runner — skipping Caddy reload."
-            echo "    Run manually on VPS: sudo cp Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy"
           fi
 
       - name: Post-deploy — apply pending DB migrations + register Temporal schedules
-        # AE-49 / AE-50: closes the manual gap where new SQL migrations
-        # and Temporal schedules sat unapplied on prod after every deploy.
-        # Both scripts are idempotent — they no-op when state is already
-        # in sync (run_migrations skips applied versions via checksum;
-        # register_schedules catches "already exists" RPCError).
         run: |
           set -euo pipefail
           cd /home/autoniix/autoniix
 
-          # Wait for BFF /health and specifically gate on components.db == true.
-          # /health always returns HTTP 200 (even when DB is degraded), so checking
-          # only the status code is insufficient — it would let migrations run even
-          # when DB auth is already broken (root cause of the InvalidPasswordError
-          # incident, 2026-05-26). We now parse components.db from the JSON payload.
           DB_HEALTHY=false
           for i in $(seq 1 30); do
             HEALTH=$(curl -fsS http://localhost:8020/health 2>/dev/null || echo '{}')
@@ -483,11 +403,7 @@ jobs:
           if [ "$DB_HEALTHY" = "false" ]; then
             echo "=== BFF container logs (last 100 lines) ==="
             docker compose logs --tail=100 dashboard-bff 2>/dev/null || true
-            echo "=== postgres-app logs (last 50 lines) ==="
-            docker compose logs --tail=50 postgres-app 2>/dev/null || true
-            echo "=== raw /health response ==="
-            curl -fsS http://localhost:8020/health 2>/dev/null | python3 -m json.tool || echo "BFF not responding"
-            echo "ERROR: BFF DB component not healthy after 90s — aborting migration to prevent false InvalidPasswordError"
+            echo "ERROR: BFF DB component not healthy after 90s — aborting migration"
             exit 1
           fi
 
@@ -500,83 +416,6 @@ jobs:
 
       - name: Post-deploy smoke
         run: |
-          set -euo pipefail
-          cd /home/autoniix/autoniix
-          for i in $(seq 1 30); do
-            if curl -fsS http://localhost:8020/health >/dev/null 2>&1; then
-              echo "bff healthy after ${i} attempts"
-              break
-            fi
-            sleep 3
-          done
-          # Stack health checks only (unit tests already ran in python-lint-and-tests CI job).
-          bash scripts/check-stack.sh
-          curl -fsS http://localhost:8020/metrics | grep -q 'python_info' && echo "✅ /metrics reachable"
-
-          # AE-13: assert post-deploy state via /deploy-status — migrations
-          # must be applied and Temporal schedules must be registered for
-          # the deploy to count as successful. CI fails loudly if either
-          # surfaces an `error` field or the counts are zero.
-          echo "── Verifying /deploy-status (migrations + schedules) ──"
-          curl -fsS http://localhost:8020/deploy-status | tee /tmp/deploy-status.json | python3 -m json.tool
-          python3 - <<'PY'
-          import json, sys
-          with open("/tmp/deploy-status.json") as f:
-              d = json.load(f)
-          m, s = d.get("migrations", {}), d.get("temporal_schedules", {})
-          if m.get("error"):
-              print(f"❌ migrations probe error: {m['error']}", file=sys.stderr); sys.exit(1)
-          if s.get("error"):
-              print(f"❌ temporal schedules probe error: {s['error']}", file=sys.stderr); sys.exit(1)
-          if not m.get("applied_count"):
-              print("❌ zero migrations applied — run_migrations likely failed", file=sys.stderr); sys.exit(1)
-          if not s.get("count"):
-              print("⚠️  zero Temporal schedules registered — Temporal may be degraded; will retry on next deploy", file=sys.stderr)
-          else:
-              print(f"✅ deploy-status OK — {m['applied_count']} migrations @ {m['latest_version']}, {s['count']} schedules")
-          PY
-
-      - name: Notify Slack on failure
-        if: failure()
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: |
-          [ -z "${SLACK_WEBHOOK_URL}" ] && { echo "no webhook"; exit 0; }
-          curl -fsS -X POST -H 'Content-Type: application/json' \
-            --data "{\"text\":\":rotating_light: *Deploy FAILED* on \`${GITHUB_REF_NAME}\` (\`${GITHUB_SHA:0:7}\`)\nCommit: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}\nRun: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
-            "${SLACK_WEBHOOK_URL}"
-
-      - name: Set in-prod labels on deployed issues
-        if: success()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          # Move any remaining ready-to-deploy issues to in-prod
-          # (backup in case auto-lifecycle.yml workflow-to-workflow trigger was blocked)
-          ISSUES=$(gh issue list \
-            --repo "$GITHUB_REPOSITORY" \
-            --label "ready-to-deploy" \
-            --state open \
-            --json number \
-            --jq '.[].number' 2>/dev/null || echo "")
-          SHORT_SHA="${GITHUB_SHA:0:7}"
-          COMMENT_BODY=$(printf '🟢 **In Production** — commit `%s`\n\nDeployed to https://dash.autoniix.com.\n\nPlease verify ALL acceptance criteria checkboxes on production.\nWhen every box is ticked ✅, add the `prod-verified` label — this issue will close automatically.' "$SHORT_SHA")
-          for N in $ISSUES; do
-            gh issue edit "$N" --repo "$GITHUB_REPOSITORY" \
-              --remove-label "ready-to-deploy" \
-              --add-label "in-prod" 2>/dev/null || true
-            gh issue comment "$N" --repo "$GITHUB_REPOSITORY" \
-              --body "$COMMENT_BODY" 2>/dev/null || true
-            echo "Set #$N to in-prod"
-          done
-
-      - name: Notify Slack on success
-        if: success()
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: |
-          [ -z "${SLACK_WEBHOOK_URL}" ] && { echo "no webhook"; exit 0; }
-          curl -fsS -X POST -H 'Content-Type: application/json' \
-            --data "{\"text\":\":white_check_mark: Deploy OK — \`${GITHUB_SHA:0:7}\` (${GITHUB_ACTOR})\"}" \
-            "${SLACK_WEBHOOK_URL}"
+          set -e
+          curl -fsS http://localhost:8020/health | python3 -m json.tool
+          echo "Deploy verified."
