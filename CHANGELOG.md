@@ -174,8 +174,8 @@ Replaced Rust Axum gateway with Node.js Fastify service. Implemented 41 REST end
 Replaced Protocol Buffers with Zod → OpenAPI → Pydantic contract layer.
 
 ### Implementation
-- **TypeScript:** `libs/ts/contracts/` — Zod schemas for all domain models
-- **Python:** `libs/python/contracts/` — auto-generated Pydantic models
+- **TypeScript:** `shared/ts/contracts/` — Zod schemas for all domain models
+- **Python:** `shared/python/contracts/` — auto-generated Pydantic models
 - **Codegen:** `make gen-contracts` → Zod → OpenAPI JSON → Pydantic
 - **Schemas:** Channel, Content, Job, User, Workspace, Auth, Notification, Provider, etc.
 

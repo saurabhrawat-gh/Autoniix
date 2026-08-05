@@ -87,7 +87,7 @@ These decisions remain **locked** and unchanged:
 **Solution: Zod as source of truth**
 
 ```
-libs/ts/contracts/
+shared/ts/contracts/
 ├── src/
 │   ├── channel.schema.ts       # export const ChannelSchema = z.object({...})
 │   ├── content.schema.ts
@@ -111,12 +111,12 @@ Generated outputs:
 
 **Contract flow:**
 ```
-1. Developer edits libs/ts/contracts/src/channel.schema.ts
+1. Developer edits shared/ts/contracts/src/channel.schema.ts
 2. TypeScript compiler validates Zod schema
 3. make gen-contracts runs:
-   - Exports OpenAPI JSON to libs/ts/contracts/openapi.json
-   - Runs datamodel-code-generator → libs/python/contracts/
-4. Python services import from libs.python.contracts
+   - Exports OpenAPI JSON to shared/ts/contracts/openapi.json
+   - Runs datamodel-code-generator → shared/python/contracts/
+4. Python services import from shared.python.contracts
 5. TypeScript services import from @autoniix/contracts
 ```
 
@@ -170,7 +170,7 @@ autoniix/
 │   ├── finishing/              # FastAPI (existing)
 │   └── remotion/               # Node (existing, unchanged)
 │
-├── libs/
+├── shared/
 │   ├── ts/
 │   │   ├── contracts/          # NEW — Zod schemas + OpenAPI export
 │   │   ├── ui/                 # Shared React components (existing)
