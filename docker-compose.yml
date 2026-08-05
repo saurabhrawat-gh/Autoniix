@@ -415,7 +415,7 @@ services:
   # when hardware is available. Set FINISHING_SERVICE_URL=http://resolve-finisher:8014
   # in .env to route finishing traffic here (requires require_resolve_finish=true per channel).
   resolve-finisher:
-    build: { context: ./services/resolve-finisher }
+    build: { context: ./backend/platform/resolve-finisher }
     environment:
       - PORT=8014
     ports:
@@ -432,7 +432,7 @@ services:
 
   # Remotion Renderer
   remotion-api:
-    build: { context: ./services/remotion, dockerfile: Dockerfile }
+    build: { context: ./backend/media/remotion, dockerfile: Dockerfile }
     command: ["npm", "run", "start:api"]
     environment:
       - NODE_ENV=production
@@ -470,7 +470,7 @@ services:
     deploy: { resources: { limits: { memory: 2G } } }
 
   remotion-worker:
-    build: { context: ./services/remotion, dockerfile: Dockerfile }
+    build: { context: ./backend/media/remotion, dockerfile: Dockerfile }
     command: ["npm", "run", "start:worker"]
     environment:
       - NODE_ENV=production
@@ -507,7 +507,7 @@ services:
   remotion-worker-tier1:
     profiles: ["vision"]
     build:
-      context: ./services/remotion
+      context: ./backend/media/remotion
       dockerfile: Dockerfile
     command: ["npm", "run", "start:worker"]
     environment:
@@ -539,7 +539,7 @@ services:
   remotion-worker-tier2:
     profiles: ["vision"]
     build:
-      context: ./services/remotion
+      context: ./backend/media/remotion
       dockerfile: Dockerfile
     command: ["npm", "run", "start:worker"]
     environment:
@@ -569,7 +569,7 @@ services:
   remotion-mcp:
     profiles: ["vision"]
     build:
-      context: ./services/remotion
+      context: ./backend/media/remotion
       dockerfile: Dockerfile
     command: ["npm", "run", "mcp"]
     environment:
@@ -655,7 +655,7 @@ services:
 
   notification-dispatcher:
     build:
-      context: ./services/notification-dispatcher-v2
+      context: ./backend/workers/notification-dispatcher
       dockerfile: Dockerfile
     env_file: .env
     environment:
@@ -702,7 +702,7 @@ services:
   # Sentry Agent — monitors #alerts-critical and #alerts-warnings Slack channels,
   # triages Sentry errors into Jira bugs, and attempts LLM-powered auto-fixes via PR.
   sentry-agent:
-    build: { context: ./services/sentry-agent }
+    build: { context: ./backend/platform/sentry-agent }
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379
@@ -742,7 +742,7 @@ services:
     deploy: { resources: { limits: { memory: 256M } } }
 
   dashboard-ui:
-    build: ./apps/dashboard
+    build: ./frontend/dashboard
     ports:
       - "127.0.0.1:3000:3000"
     labels:
@@ -818,7 +818,7 @@ services:
   streaming-hub-v2:
     build:
       context: .
-      dockerfile: services/streaming-hub-v2/Dockerfile
+      dockerfile: backend/api/streaming-hub/Dockerfile
     env_file: .env
     environment:
       - NODE_ENV=production
@@ -863,7 +863,7 @@ services:
   node-gateway:
     build:
       context: .
-      dockerfile: services/gateway-v2/Dockerfile
+      dockerfile: backend/api/gateway/Dockerfile
     env_file: .env
     environment:
       - NODE_ENV=production
@@ -902,7 +902,7 @@ services:
   # Marketing landing page — autoniix.com / www.autoniix.com
   # Caddy (host systemd) reverse-proxies the apex domain to localhost:3002.
   landing-ui:
-    build: ./apps/marketing
+    build: ./frontend/marketing
     ports:
       - "127.0.0.1:3002:3002"
     environment:

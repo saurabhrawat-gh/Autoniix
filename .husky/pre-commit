@@ -37,31 +37,31 @@ if [ -n "$STAGED_PY" ]; then
     fi
 fi
 
-echo "▶  pre-commit: tsc (gateway-v2)..."
-if [ -d "$ROOT/services/gateway-v2" ] && command -v npm >/dev/null 2>&1; then
-    (cd "$ROOT/services/gateway-v2" && npm run typecheck 2>&1) || {
-        echo "❌  TypeScript errors in gateway-v2"
+echo "▶  pre-commit: tsc (gateway)..."
+if [ -d "$ROOT/backend/api/gateway" ] && command -v npm >/dev/null 2>&1; then
+    (cd "$ROOT/backend/api/gateway" && npm run typecheck 2>&1) || {
+        echo "❌  TypeScript errors in gateway"
         exit 1
     }
-    echo "✓  gateway-v2 tsc clean"
+    echo "✓  gateway tsc clean"
 else
-    echo "⏭  gateway-v2 not found — skipping tsc"
+    echo "⏭  gateway not found — skipping tsc"
 fi
 
-echo "▶  pre-commit: tsc (streaming-hub-v2)..."
-if [ -d "$ROOT/services/streaming-hub-v2" ] && command -v npm >/dev/null 2>&1; then
-    (cd "$ROOT/services/streaming-hub-v2" && npm run typecheck 2>&1) || {
-        echo "❌  TypeScript errors in streaming-hub-v2"
+echo "▶  pre-commit: tsc (streaming-hub)..."
+if [ -d "$ROOT/backend/api/streaming-hub" ] && command -v npm >/dev/null 2>&1; then
+    (cd "$ROOT/backend/api/streaming-hub" && npm run typecheck 2>&1) || {
+        echo "❌  TypeScript errors in streaming-hub"
         exit 1
     }
-    echo "✓  streaming-hub-v2 tsc clean"
+    echo "✓  streaming-hub tsc clean"
 else
-    echo "⏭  streaming-hub-v2 not found — skipping tsc"
+    echo "⏭  streaming-hub not found — skipping tsc"
 fi
 
 echo "▶  pre-commit: tsc (contracts)..."
-if [ -d "$ROOT/libs/ts/contracts" ] && command -v npm >/dev/null 2>&1; then
-    (cd "$ROOT/libs/ts/contracts" && npm run typecheck 2>&1) || {
+if [ -d "$ROOT/shared/ts/contracts" ] && command -v npm >/dev/null 2>&1; then
+    (cd "$ROOT/shared/ts/contracts" && npm run typecheck 2>&1) || {
         echo "❌  TypeScript errors in contracts"
         exit 1
     }
