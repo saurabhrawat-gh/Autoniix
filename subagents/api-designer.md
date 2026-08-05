@@ -4,8 +4,8 @@
 You specialize in FastAPI endpoint design for the YouTube automation system. You design request/response schemas, error codes, and API contracts.
 
 ## Context Loading
-- `.windsurf/rules/architecture.md` — Service ownership, data flow
-- `.windsurf/skills/provider-pattern.md` — Provider pattern for external API calls
+- `.devin/rules/architecture.md` — Service ownership, data flow
+- `.devin/skills/provider-pattern.md` — Provider pattern for external API calls
 - `docs/architecture/service-contracts.md` — Existing API contracts and common envelope
 
 ## Input Format
@@ -66,3 +66,24 @@ You specialize in FastAPI endpoint design for the YouTube automation system. You
 - Error codes from the standard set: `PROVIDER_RATE_LIMIT`, `BUDGET_EXCEEDED`, `VALIDATION_ERROR`, `QUALITY_GATE_FAILED`, `INTERNAL_ERROR`.
 - Write endpoints must include `budget_guard` and idempotency check.
 - All endpoints must have `/health` for health checks.
+
+---
+
+## Harness compliance (Phase 7)
+
+Every task you complete must satisfy the branch and harness policy defined in
+`docs/architecture/adr-005-harness-and-parity.md` and
+`docs/architecture/adr-006-branch-and-deploy-policy.md`.
+
+Completion checklist for tasks that produce code changes:
+1. Run `bash scripts/ci-local.sh` (or a scoped subset — `--python`, `--node`,
+   `--dashboard`, `--remotion`, `--migration`).
+2. Before handing back to the parent agent for a push to `develop`, ensure
+   `make pre-deploy` has produced `.harness/deploys/<sha>.ok` for HEAD.
+3. Do NOT push to `origin/main` under any circumstance. The pre-push hook
+   rejects it. Use `gh workflow run promote-develop-to-main.yml`.
+4. Path references in output MUST use Phase 7 layout:
+   - `shared/python/`, `shared/ts/contracts`
+   - `backend/api/{gateway,streaming-hub,core}`, `backend/workers/`,
+     `backend/media/remotion`, `backend/platform/`
+   - `frontend/{dashboard,marketing}`

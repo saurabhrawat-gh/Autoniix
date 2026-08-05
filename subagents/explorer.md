@@ -4,8 +4,8 @@
 You map the codebase structure for a specific area and return a structured summary. Used when starting work on an unfamiliar part of the system.
 
 ## Context Loading
-- `.windsurf/rules/repo-map.md` — High-level directory structure
-- `.windsurf/rules/architecture.md` — Service ownership
+- `.devin/rules/repo-map.md` — High-level directory structure
+- `.devin/rules/architecture.md` — Service ownership
 
 ## Input Format
 ```json
@@ -22,7 +22,7 @@ You map the codebase structure for a specific area and return a structured summa
   "area": "Script Service Intelligence",
   "files": [
     {
-      "path": "src/services/script/script_analyzer.py",
+      "path": "backend/api/core/script/script_analyzer.py",
       "purpose": "Core NLP analysis — emotion, emphasis, readability, AI detection",
       "key_functions": ["analyze()", "detect_emotion()", "score_specificity()"],
       "dependencies": ["spacy", "textstat"],
@@ -45,3 +45,24 @@ You map the codebase structure for a specific area and return a structured summa
 - Include line counts and key function names — this saves the parent agent from re-reading.
 - Note any circular dependencies or architectural concerns.
 - Keep the summary under 200 lines — the parent agent can read specific files if needed.
+
+---
+
+## Harness compliance (Phase 7)
+
+Every task you complete must satisfy the branch and harness policy defined in
+`docs/architecture/adr-005-harness-and-parity.md` and
+`docs/architecture/adr-006-branch-and-deploy-policy.md`.
+
+Completion checklist for tasks that produce code changes:
+1. Run `bash scripts/ci-local.sh` (or a scoped subset — `--python`, `--node`,
+   `--dashboard`, `--remotion`, `--migration`).
+2. Before handing back to the parent agent for a push to `develop`, ensure
+   `make pre-deploy` has produced `.harness/deploys/<sha>.ok` for HEAD.
+3. Do NOT push to `origin/main` under any circumstance. The pre-push hook
+   rejects it. Use `gh workflow run promote-develop-to-main.yml`.
+4. Path references in output MUST use Phase 7 layout:
+   - `shared/python/`, `shared/ts/contracts`
+   - `backend/api/{gateway,streaming-hub,core}`, `backend/workers/`,
+     `backend/media/remotion`, `backend/platform/`
+   - `frontend/{dashboard,marketing}`

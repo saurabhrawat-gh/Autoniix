@@ -1,14 +1,15 @@
 ---
-description: Pre-commit validation — lint, type check, test suite, secret scan
+description: Pre-commit validation — lint, type check, test suite, secret scan (Phase 7)
 ---
 
 # Pre-Commit Workflow
 
-**HARD RULE: Never push to `origin` (develop or main) without a green local CI run first.**
+**HARD RULE: never push to `origin/develop` without a green local harness.**
+**HARD RULE: never push to `origin/main` — use the promote workflow.**
 
-The `scripts/ci-local.sh` script is the single source of truth. It replicates the exact
-same checks that run on GitHub Actions — same Docker image, same commands, same env vars.
-If it passes locally, the remote build will pass. If it fails locally, fix it first.
+The husky pre-commit hook already gates every commit on ruff format + lint
+and TypeScript typecheck. This workflow is what you as an agent should do
+before running `git commit` at all.
 
 ---
 
@@ -17,52 +18,56 @@ If it passes locally, the remote build will pass. If it fails locally, fix it fi
 ### 1. Check for hardcoded secrets
 ```bash
 # turbo
-grep -rn "api_key\s*=\s*['\"]" src/ --include="*.py" | grep -v "settings\." | grep -v ".example"
-grep -rn "password\s*=\s*['\"]" src/ --include="*.py" | grep -v "settings\."
+grep -rn "api_key\s*=\s*['\"]" shared/ backend/ --include="*.py" | grep -v "settings\." | grep -v ".example"
+grep -rn "password\s*=\s*['\"]" shared/ backend/ --include="*.py" | grep -v "settings\."
 ```
-If any matches found: **STOP**. Move to config.py + .env.
+If any matches found: **STOP**. Move to `shared/python/core/config.py` + `.env`.
 
-### 2. Run local CI — targeted to what you changed
+### 2. Run local checks — targeted to what you changed
 
-Run only the block(s) relevant to your change (fast):
+Every function in `scripts/ci-local.sh` maps to a GH Actions job.
 
-| What you changed | Command |
-|---|---|
-| Rust code | `bash scripts/ci-local.sh --rust` |
-| SQL migration files | `bash scripts/ci-local.sh --db` |
-| Python code | `bash scripts/ci-local.sh --python` |
-| Dashboard (Next.js / TypeScript) | `bash scripts/ci-local.sh --node` |
-| Go code | `bash scripts/ci-local.sh --go` |
-| Proto files | `bash scripts/ci-local.sh --proto` |
-| Multiple areas / unsure | `bash scripts/ci-local.sh` (runs everything) |
+| What you changed                    | Command                                       |
+|-------------------------------------|-----------------------------------------------|
+| Python code                         | `bash scripts/ci-local.sh --python`            |
+| TypeScript (gateway/streaming-hub)  | `bash scripts/ci-local.sh --node`              |
+| Frontend dashboard                  | `bash scripts/ci-local.sh --dashboard`         |
+| Remotion (backend/media/remotion)   | `bash scripts/ci-local.sh --remotion`          |
+| DB migrations                       | `bash scripts/ci-local.sh --migration`         |
+| Multiple areas / unsure             | `bash scripts/ci-local.sh --full`              |
+| Fast sanity                         | `bash scripts/ci-local.sh` (default subset)    |
 
-**Wait for the final line:**
-- `✅  ALL CI CHECKS PASSED — safe to merge to main` → proceed to step 3
-- `❌  THE FOLLOWING CHECKS FAILED: ...` → **STOP. Fix every listed failure. Re-run until green.**
-
-Do NOT skip this step or push while red. Each CI minute on GitHub costs money.
+**Final line must be:**
+- `✅  ci-local passed — CI would be green.` → proceed.
+- `❌  ci-local FAILED — the following GH jobs would be red: ...` → **STOP.**
+  Fix every listed job. Re-run until green.
 
 ### 3. Check git diff scope
 ```bash
 # turbo
 git diff --stat
 ```
-If more than 5 files changed for a single task: **PAUSE** and justify why. Surgical changes should touch few files.
+> 5 files changed for a single task: **PAUSE** and justify. Surgical changes touch few files.
 
-### 4. Verify no production-only code in test path
+### 4. Verify no production-only code in the test path
 ```bash
 # turbo
-grep -rn "ENVIRONMENT_MODE.*production" src/ --include="*.py" | head -5
+grep -rn "ENVIRONMENT_MODE.*production" shared/ backend/ --include="*.py" | head -5
 ```
-Ensure environment checks use `is_test()` / `is_production()` from `src.environment`, not hardcoded strings.
+Use `is_test()` / `is_production()` from `shared.python.core.environment`,
+not hardcoded strings.
 
 ### 5. Commit with descriptive message
 ```bash
 git add -A && git commit -m "feat(#N): [description of what changed and why]"
 ```
+The husky pre-commit hook runs ruff format check + lint + TS typecheck on
+the changed files.
 
 ### 6. Push only after green
 ```bash
-# Only run this after step 2 shows ✅ ALL CI CHECKS PASSED
+# For develop: pre-push hook requires .harness/deploys/<sha>.ok sentinel
+make pre-deploy      # writes sentinel on success
 git push origin develop
 ```
+Never `git push origin main`. Use `gh workflow run promote-develop-to-main.yml`.

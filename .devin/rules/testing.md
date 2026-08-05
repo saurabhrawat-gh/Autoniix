@@ -14,8 +14,8 @@
 - Async tests: use `@pytest.mark.asyncio` decorator
 
 ## Test Location
-- `tests/test_<module>.py` mirrors `src/services/<module>/`
-- Example: `tests/test_script_intelligence.py` tests `src/services/script/`
+- `tests/test_<module>.py` mirrors `backend/api/core/<module>/`
+- Example: `tests/test_script_intelligence.py` tests `backend/api/core/script/`
 
 ## Coverage Targets
 - Intelligence modules: 80%+ (critical for self-learning accuracy)

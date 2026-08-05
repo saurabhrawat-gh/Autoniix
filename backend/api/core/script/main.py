@@ -456,8 +456,6 @@ async def generate_script(req: ScriptRequest):
         pacing_style = channel.get("pacing_style", "dynamic")
         brand_voice = channel.get("brand_voice", "")
 
-        pass
-
         try:
             humanized = humanize_full_script(segments, pacing_style, brand_voice)
             segments = humanized["segments"]
@@ -490,6 +488,12 @@ async def generate_script(req: ScriptRequest):
         except Exception as e:
             logger.warning("script.retention_failed", error=str(e))
             retention = {"composite_score": 0.5, "dimensions": {}}
+
+        try:
+            hook_strength_norm = float(retention.get("dimensions", {}).get("hook_strength", 0.5))
+        except (TypeError, ValueError):
+            hook_strength_norm = 0.5
+        script_data["hook_retention_score"] = round(hook_strength_norm * 10.0, 2)
 
         try:
             script_voice = await generate_script_voice(segments, channel)
@@ -610,12 +614,13 @@ async def generate_hooks(req: HookRequest):
     total_cost = 0.0
 
     try:
+        from llm import BudgetExceeded as _BudgetExceeded, route as _route
+
         channel = await _load_channel(req.channel_id)
         if not channel:
             raise HTTPException(status_code=404, detail=f"Channel {req.channel_id} not found")
 
         prompt = await _load_prompt("PRM_B1_HOOK")
-        llm = ProviderRegistry.get("llm.hook")
 
         is_long = channel.get("content_mode", "short") == "long_form"
         hook_seconds = (
@@ -635,18 +640,24 @@ async def generate_hooks(req: HookRequest):
             original_hook=req.original_hook,
         )
 
-        result = await llm.complete(
-            LLMRequest(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                model="gpt-4o",
-                temperature=0.8,
-                max_tokens=1500,
-                response_format="json",
+        try:
+            result = await _route(
+                category="llm.hook",
+                request=LLMRequest(
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=0.8,
+                    max_tokens=1500,
+                    response_format="json",
+                ),
+                channel_id=req.channel_id,
+                content_id=f"hooks-{req.channel_id}",
+                record_usage=False,
             )
-        )
+        except _BudgetExceeded as exc:
+            raise HTTPException(status_code=402, detail=str(exc))
         total_cost += result.cost_usd
         await _log_usage(
             f"hooks-{req.channel_id}",
@@ -693,44 +704,51 @@ async def package(req: PackagingRequest):
     total_cost = 0.0
 
     try:
+        from llm import BudgetExceeded as _BudgetExceeded, route as _route
+
         channel = await _load_channel(req.channel_id)
-        llm = ProviderRegistry.get("llm")
 
         segments = req.script_data.get("segments", [])
         narration_preview = " ".join(s.get("narration", "")[:100] for s in segments[:5])
 
-        result = await llm.complete(
-            LLMRequest(
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a YouTube SEO and packaging expert. Generate optimized metadata. "
-                            'Respond in JSON: {"titles": [8 variants], "description": "2-3 paragraphs with timestamps", '
-                            '"tags": [20 tags], "chapters": ["00:00 Title", ...], '
-                            '"comment_triggers": [3 engaging questions], '
-                            '"shorts_funnel_text": "CTA linking to long-form"}'
-                        ),
-                    },
-                    {
-                        "role": "user",
-                        "content": (
-                            f"Channel: {req.channel_id} ({channel.get('channel_name', '')})\n"
-                            f"Niche: {channel.get('niche', '')}\n"
-                            f"Title: {req.title}\n"
-                            f"Topic: {req.topic}\n"
-                            f"Content preview: {narration_preview[:500]}\n"
-                            f"Target audience: {channel.get('target_audience', '')}\n"
-                            f"CTA style: {channel.get('cta_style_long', '')}"
-                        ),
-                    },
-                ],
-                model="gpt-4o-mini",
-                temperature=0.7,
-                max_tokens=2000,
-                response_format="json",
+        try:
+            result = await _route(
+                category="llm",
+                request=LLMRequest(
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are a YouTube SEO and packaging expert. Generate optimized metadata. "
+                                'Respond in JSON: {"titles": [8 variants], "description": "2-3 paragraphs with timestamps", '
+                                '"tags": [20 tags], "chapters": ["00:00 Title", ...], '
+                                '"comment_triggers": [3 engaging questions], '
+                                '"shorts_funnel_text": "CTA linking to long-form"}'
+                            ),
+                        },
+                        {
+                            "role": "user",
+                            "content": (
+                                f"Channel: {req.channel_id} ({channel.get('channel_name', '')})\n"
+                                f"Niche: {channel.get('niche', '')}\n"
+                                f"Title: {req.title}\n"
+                                f"Topic: {req.topic}\n"
+                                f"Content preview: {narration_preview[:500]}\n"
+                                f"Target audience: {channel.get('target_audience', '')}\n"
+                                f"CTA style: {channel.get('cta_style_long', '')}"
+                            ),
+                        },
+                    ],
+                    temperature=0.7,
+                    max_tokens=2000,
+                    response_format="json",
+                ),
+                channel_id=req.channel_id,
+                content_id=f"packaging-{req.channel_id}",
+                record_usage=False,
             )
-        )
+        except _BudgetExceeded as exc:
+            raise HTTPException(status_code=402, detail=str(exc))
         total_cost += result.cost_usd
         await _log_usage(
             f"packaging-{req.channel_id}",

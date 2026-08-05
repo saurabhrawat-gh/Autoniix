@@ -281,6 +281,15 @@ def _is_transient(exc: BaseException) -> bool:
     return False
 
 
+def _is_provider_config_error(exc: BaseException) -> bool:
+    """4xx codes that indicate a per-provider config issue (bad key, missing model,
+    wrong region) rather than a caller schema bug. We skip the failing provider and
+    continue down the ladder instead of raising immediately."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in (401, 403, 404)
+    return False
+
+
 class Router:
     """Stateful router. One instance per process is sufficient."""
 
@@ -372,6 +381,9 @@ class Router:
                 attempts.append((prov_name, repr(exc)))
                 if _is_transient(exc):
                     logger.warning("router.transient_error", provider=prov_name, error=str(exc))
+                    continue
+                if _is_provider_config_error(exc):
+                    logger.warning("router.provider_config_error", provider=prov_name, error=str(exc))
                     continue
                 logger.error("router.permanent_error", provider=prov_name, error=str(exc))
                 raise

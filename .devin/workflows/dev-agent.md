@@ -121,22 +121,32 @@ Always run the script. The default mode is an **exact mirror** of `.github/workf
 bash scripts/ci-local.sh
 ```
 
-If your change also touched Python / Node / Go / Proto, add the relevant flag(s) so the broader code-quality checks run too (they don't block CI today but should still be green):
+Every function in `scripts/ci-local.sh` maps 1:1 to a GH Actions job.
+Select the flag(s) that match what you touched:
 
 ```bash
-bash scripts/ci-local.sh --python   # touched src/ tests/ scripts/ (Python)
-bash scripts/ci-local.sh --node     # touched dashboard/ (Next.js / TS)
-bash scripts/ci-local.sh --go       # touched go/
-bash scripts/ci-local.sh --proto    # touched proto/
-bash scripts/ci-local.sh --full     # touched multiple stacks
+bash scripts/ci-local.sh --python      # shared/python/, backend/, tests/, scripts/
+bash scripts/ci-local.sh --node        # backend/api/gateway, streaming-hub, shared/ts/contracts
+bash scripts/ci-local.sh --dashboard   # frontend/dashboard
+bash scripts/ci-local.sh --remotion    # backend/media/remotion
+bash scripts/ci-local.sh --migration   # infra/migrations, tests/migration/
+bash scripts/ci-local.sh --full        # everything (~5-8 min host, longer in --docker)
 ```
 
-**Required outcome before proceeding:**
-- `✅  ALL CHECKS PASSED — safe to push to main` → continue to step 8 ("safe to push to main" is CI script output language; **we push to `develop` only**)
-- `✅  CI MIRROR PASSED ... ⚠  optional check(s) reported issues` → fix the soft failures, re-run, do not proceed while red
-- `❌  FAILED: ...` (hard fail in the CI mirror) → **STOP. Fix every failure. Re-run until fully green.**
+Before pushing to `develop`, run `make pre-deploy` — this dockerizes the full
+mirror and writes the sentinel required by the pre-push hook.
 
-> This is non-negotiable. **Never push to `origin/develop` without a fully-green `ci-local.sh` run.** Every failed remote build costs real money.
+**Required outcome before proceeding:**
+- `✅  ci-local passed — CI would be green.` → continue to step 8
+- `❌  ci-local FAILED — the following GH jobs would be red: ...` → **STOP.**
+  Fix every listed job (the names match GitHub Actions jobs 1:1).
+  Re-run until fully green.
+
+> This is non-negotiable. **Never push to `origin/develop` without a green
+> `make pre-deploy` sentinel.** The pre-push hook enforces it, and every
+> failed remote build costs real money and blocks the deploy pipeline.
+> **Never push to `origin/main`.** Use `gh workflow run
+> promote-develop-to-main.yml` (see `.devin/workflows/pre-deploy.md`).
 
 ### 8. Run diff review
 - Run `/diff-review` — verify no unrelated changes, no style drift
