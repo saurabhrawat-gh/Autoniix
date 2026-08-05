@@ -13,10 +13,9 @@ RUN pip install --no-cache-dir --retries 5 --timeout 120 -r requirements.txt
 RUN python -m spacy download en_core_web_sm \
     && python -c "import nltk; nltk.download('wordnet', quiet=True); nltk.download('omw-1.4', quiet=True)"
 
-COPY libs/python/ ./src/
-COPY services/api/ ./src/services_api/
-COPY services/temporal-workers/workers/ ./src/temporal_workers/
-COPY services/agents/ ./src/agents/
+COPY shared/python/ ./src/
+COPY backend/api/core/ ./src/services_api/
+COPY backend/workers/temporal/workers/ ./src/temporal_workers/
 COPY scripts/ ./scripts/
 
 ARG GIT_SHA=unknown

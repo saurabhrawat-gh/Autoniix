@@ -38,3 +38,5 @@ lib/
 !sdk/python/yt_engine/
 !sdk/python/yt_engine/**backups/
 
+.harness/
+backend/api/*/tsconfig.tsbuildinfo
