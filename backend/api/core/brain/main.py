@@ -18,6 +18,7 @@ Environment:
 
 AE-P1 / Brain Service.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -26,11 +27,11 @@ import signal
 
 import structlog
 import uvicorn
-from fastapi import FastAPI
-
 from agents.critic import CriticAgent
 from agents.preventor import PreventorAgent
 from agents.registry import AgentRegistry
+from fastapi import FastAPI
+
 from core.db import close_pool, get_pool
 from services_api.brain.agent import BrainAgent
 from services_api.brain.consumer import run_consumer
@@ -46,7 +47,6 @@ logger = structlog.get_logger()
 
 _HEALTH_PORT = int(os.getenv("BRAIN_PORT", "8015"))
 _RESOLVER_INTERVAL_S = int(os.getenv("BRAIN_RESOLVER_INTERVAL_S", "3600"))
-
 
 
 health_app = FastAPI(title="Brain Service", version="0.1.0")
@@ -86,6 +86,7 @@ async def recent_decisions(limit: int = 20):
 async def resolve_decision(decision_id: int, reason: str = "manual"):
     """Manually resolve an open decision."""
     import json as _json
+
     pool = await get_pool()
     row = await pool.fetchrow(
         """
@@ -100,6 +101,7 @@ async def resolve_decision(decision_id: int, reason: str = "manual"):
     )
     if not row:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail="Decision not found or already resolved")
     logger.info(
         "brain.decision.manually_resolved",
@@ -107,7 +109,6 @@ async def resolve_decision(decision_id: int, reason: str = "manual"):
         reason=reason,
     )
     return {"resolved": True, "decision_id": row["id"]}
-
 
 
 async def _run_all() -> None:

@@ -10,10 +10,10 @@ Provides foundational text analysis used by all 3 script view engines:
 
 All computation is local. Zero API cost.
 """
+
 from __future__ import annotations
 
 import asyncio
-import math
 import re
 from collections import Counter
 from typing import Any
@@ -39,10 +39,12 @@ async def _get_nlp():
 
         def _load():
             import spacy
+
             try:
                 return spacy.load(SPACY_MODEL)
             except OSError:
                 from spacy.cli import download
+
                 download(SPACY_MODEL)
                 return spacy.load(SPACY_MODEL)
 
@@ -53,82 +55,332 @@ async def _get_nlp():
 
 EMOTION_LEXICON: dict[str, set[str]] = {
     "curiosity": {
-        "why", "how", "secret", "hidden", "mystery", "unknown", "discover",
-        "reveal", "uncover", "puzzle", "question", "wonder", "explore",
-        "fascinating", "intriguing", "curious", "riddle", "enigma",
-        "clue", "insight", "surprising", "unexpected", "bizarre",
-        "strange", "peculiar", "remarkable", "astonishing", "truth",
-        "actually", "really", "turns out", "imagine", "what if",
-        "behind", "beneath", "deeper", "overlooked", "missed",
-        "nobody", "no one", "rarely", "seldom", "hardly", "barely",
-        "impossible", "incredible", "unbelievable", "mind-blowing",
-        "revolutionary", "breakthrough", "game-changer", "paradigm",
-        "counterintuitive", "paradox", "contradiction", "myth",
-        "misconception", "illusion", "deception", "misleading",
+        "why",
+        "how",
+        "secret",
+        "hidden",
+        "mystery",
+        "unknown",
+        "discover",
+        "reveal",
+        "uncover",
+        "puzzle",
+        "question",
+        "wonder",
+        "explore",
+        "fascinating",
+        "intriguing",
+        "curious",
+        "riddle",
+        "enigma",
+        "clue",
+        "insight",
+        "surprising",
+        "unexpected",
+        "bizarre",
+        "strange",
+        "peculiar",
+        "remarkable",
+        "astonishing",
+        "truth",
+        "actually",
+        "really",
+        "turns out",
+        "imagine",
+        "what if",
+        "behind",
+        "beneath",
+        "deeper",
+        "overlooked",
+        "missed",
+        "nobody",
+        "no one",
+        "rarely",
+        "seldom",
+        "hardly",
+        "barely",
+        "impossible",
+        "incredible",
+        "unbelievable",
+        "mind-blowing",
+        "revolutionary",
+        "breakthrough",
+        "game-changer",
+        "paradigm",
+        "counterintuitive",
+        "paradox",
+        "contradiction",
+        "myth",
+        "misconception",
+        "illusion",
+        "deception",
+        "misleading",
     },
     "surprise": {
-        "shocking", "stunned", "jaw-dropping", "unbelievable", "wow",
-        "insane", "crazy", "wild", "nuts", "ridiculous", "absurd",
-        "outrageous", "dramatic", "explosive", "bombshell", "twist",
-        "plot twist", "suddenly", "overnight", "instantly", "boom",
-        "whoa", "wait", "hold on", "but", "however", "except",
-        "unfortunately", "ironically", "paradoxically", "yet",
-        "despite", "although", "shockingly", "stunningly",
-        "unexpectedly", "remarkably", "astoundingly",
+        "shocking",
+        "stunned",
+        "jaw-dropping",
+        "unbelievable",
+        "wow",
+        "insane",
+        "crazy",
+        "wild",
+        "nuts",
+        "ridiculous",
+        "absurd",
+        "outrageous",
+        "dramatic",
+        "explosive",
+        "bombshell",
+        "twist",
+        "plot twist",
+        "suddenly",
+        "overnight",
+        "instantly",
+        "boom",
+        "whoa",
+        "wait",
+        "hold on",
+        "but",
+        "however",
+        "except",
+        "unfortunately",
+        "ironically",
+        "paradoxically",
+        "yet",
+        "despite",
+        "although",
+        "shockingly",
+        "stunningly",
+        "unexpectedly",
+        "remarkably",
+        "astoundingly",
     },
     "fear": {
-        "danger", "warning", "risk", "threat", "deadly", "fatal",
-        "toxic", "harmful", "damage", "destroy", "ruin", "collapse",
-        "crisis", "emergency", "panic", "alarm", "terrifying",
-        "frightening", "scary", "horrifying", "nightmare", "worst",
-        "avoid", "never", "stop", "beware", "careful", "caution",
-        "mistake", "error", "failure", "disaster", "catastrophe",
-        "devastating", "irreversible", "permanent", "silent killer",
-        "ticking bomb", "trap", "pitfall", "vulnerability",
+        "danger",
+        "warning",
+        "risk",
+        "threat",
+        "deadly",
+        "fatal",
+        "toxic",
+        "harmful",
+        "damage",
+        "destroy",
+        "ruin",
+        "collapse",
+        "crisis",
+        "emergency",
+        "panic",
+        "alarm",
+        "terrifying",
+        "frightening",
+        "scary",
+        "horrifying",
+        "nightmare",
+        "worst",
+        "avoid",
+        "never",
+        "stop",
+        "beware",
+        "careful",
+        "caution",
+        "mistake",
+        "error",
+        "failure",
+        "disaster",
+        "catastrophe",
+        "devastating",
+        "irreversible",
+        "permanent",
+        "silent killer",
+        "ticking bomb",
+        "trap",
+        "pitfall",
+        "vulnerability",
     },
     "hope": {
-        "solution", "answer", "fix", "heal", "recover", "restore",
-        "improve", "better", "transform", "breakthrough", "progress",
-        "success", "achieve", "overcome", "conquer", "master",
-        "freedom", "liberation", "opportunity", "potential", "promise",
-        "possibility", "dream", "vision", "goal", "aspire", "thrive",
-        "flourish", "prosper", "grow", "build", "create", "unlock",
-        "empower", "inspire", "motivate", "encourage", "uplift",
-        "finally", "at last", "good news", "fortunately",
+        "solution",
+        "answer",
+        "fix",
+        "heal",
+        "recover",
+        "restore",
+        "improve",
+        "better",
+        "transform",
+        "breakthrough",
+        "progress",
+        "success",
+        "achieve",
+        "overcome",
+        "conquer",
+        "master",
+        "freedom",
+        "liberation",
+        "opportunity",
+        "potential",
+        "promise",
+        "possibility",
+        "dream",
+        "vision",
+        "goal",
+        "aspire",
+        "thrive",
+        "flourish",
+        "prosper",
+        "grow",
+        "build",
+        "create",
+        "unlock",
+        "empower",
+        "inspire",
+        "motivate",
+        "encourage",
+        "uplift",
+        "finally",
+        "at last",
+        "good news",
+        "fortunately",
     },
     "urgency": {
-        "now", "today", "immediately", "urgent", "critical", "essential",
-        "must", "need", "before", "deadline", "limited", "running out",
-        "last chance", "don't wait", "act fast", "hurry", "quickly",
-        "asap", "right now", "this moment", "tonight", "tomorrow",
-        "soon", "already", "still", "yet", "while", "before it's too late",
-        "time-sensitive", "expiring", "disappearing", "closing",
+        "now",
+        "today",
+        "immediately",
+        "urgent",
+        "critical",
+        "essential",
+        "must",
+        "need",
+        "before",
+        "deadline",
+        "limited",
+        "running out",
+        "last chance",
+        "don't wait",
+        "act fast",
+        "hurry",
+        "quickly",
+        "asap",
+        "right now",
+        "this moment",
+        "tonight",
+        "tomorrow",
+        "soon",
+        "already",
+        "still",
+        "yet",
+        "while",
+        "before it's too late",
+        "time-sensitive",
+        "expiring",
+        "disappearing",
+        "closing",
     },
     "satisfaction": {
-        "proven", "works", "effective", "results", "evidence", "study",
-        "research", "data", "science", "fact", "confirmed", "verified",
-        "exactly", "precisely", "specifically", "guaranteed", "reliable",
-        "consistent", "predictable", "clear", "simple", "easy",
-        "straightforward", "step-by-step", "practical", "actionable",
-        "concrete", "tangible", "measurable", "real", "actual",
-        "demonstrated", "tested", "validated", "peer-reviewed",
+        "proven",
+        "works",
+        "effective",
+        "results",
+        "evidence",
+        "study",
+        "research",
+        "data",
+        "science",
+        "fact",
+        "confirmed",
+        "verified",
+        "exactly",
+        "precisely",
+        "specifically",
+        "guaranteed",
+        "reliable",
+        "consistent",
+        "predictable",
+        "clear",
+        "simple",
+        "easy",
+        "straightforward",
+        "step-by-step",
+        "practical",
+        "actionable",
+        "concrete",
+        "tangible",
+        "measurable",
+        "real",
+        "actual",
+        "demonstrated",
+        "tested",
+        "validated",
+        "peer-reviewed",
     },
     "anger": {
-        "unfair", "wrong", "lie", "scam", "fraud", "manipulation",
-        "exploit", "abuse", "corrupt", "rigged", "cheated", "betrayed",
-        "stolen", "robbed", "wasted", "ruined", "broken", "failed",
-        "incompetent", "negligent", "irresponsible", "outrageous",
-        "unacceptable", "disgusting", "pathetic", "shameful",
-        "hypocritical", "deceptive", "predatory", "greedy",
+        "unfair",
+        "wrong",
+        "lie",
+        "scam",
+        "fraud",
+        "manipulation",
+        "exploit",
+        "abuse",
+        "corrupt",
+        "rigged",
+        "cheated",
+        "betrayed",
+        "stolen",
+        "robbed",
+        "wasted",
+        "ruined",
+        "broken",
+        "failed",
+        "incompetent",
+        "negligent",
+        "irresponsible",
+        "outrageous",
+        "unacceptable",
+        "disgusting",
+        "pathetic",
+        "shameful",
+        "hypocritical",
+        "deceptive",
+        "predatory",
+        "greedy",
     },
     "empathy": {
-        "understand", "feel", "struggle", "pain", "suffering", "hard",
-        "difficult", "challenging", "overwhelming", "exhausting",
-        "frustrating", "confusing", "lonely", "scared", "worried",
-        "anxious", "stressed", "tired", "burnout", "you're not alone",
-        "we've all been there", "it's okay", "normal", "common",
-        "many people", "most of us", "relatable", "human", "real",
-        "honest", "vulnerable", "brave", "courage", "strength",
+        "understand",
+        "feel",
+        "struggle",
+        "pain",
+        "suffering",
+        "hard",
+        "difficult",
+        "challenging",
+        "overwhelming",
+        "exhausting",
+        "frustrating",
+        "confusing",
+        "lonely",
+        "scared",
+        "worried",
+        "anxious",
+        "stressed",
+        "tired",
+        "burnout",
+        "you're not alone",
+        "we've all been there",
+        "it's okay",
+        "normal",
+        "common",
+        "many people",
+        "most of us",
+        "relatable",
+        "human",
+        "real",
+        "honest",
+        "vulnerable",
+        "brave",
+        "courage",
+        "strength",
     },
 }
 
@@ -138,12 +390,39 @@ for _emotion, _words in EMOTION_LEXICON.items():
         _ALL_EMOTION_WORDS[_w] = _emotion
 
 POWER_WORDS = {
-    "free", "new", "proven", "secret", "instant", "guaranteed",
-    "discover", "amazing", "powerful", "ultimate", "exclusive",
-    "revolutionary", "essential", "critical", "shocking", "hidden",
-    "simple", "easy", "fast", "massive", "incredible", "dangerous",
-    "urgent", "limited", "rare", "breakthrough", "deadly", "silent",
-    "forbidden", "ancient", "forgotten", "remarkable", "stunning",
+    "free",
+    "new",
+    "proven",
+    "secret",
+    "instant",
+    "guaranteed",
+    "discover",
+    "amazing",
+    "powerful",
+    "ultimate",
+    "exclusive",
+    "revolutionary",
+    "essential",
+    "critical",
+    "shocking",
+    "hidden",
+    "simple",
+    "easy",
+    "fast",
+    "massive",
+    "incredible",
+    "dangerous",
+    "urgent",
+    "limited",
+    "rare",
+    "breakthrough",
+    "deadly",
+    "silent",
+    "forbidden",
+    "ancient",
+    "forgotten",
+    "remarkable",
+    "stunning",
 }
 
 AI_PATTERNS = [
@@ -170,7 +449,6 @@ AI_PATTERNS = [
     r"\bhang tight\b",
 ]
 _AI_PATTERNS_COMPILED = [re.compile(p, re.IGNORECASE) for p in AI_PATTERNS]
-
 
 
 def count_syllables(word: str) -> int:
@@ -216,16 +494,12 @@ async def analyze_text(text: str) -> dict[str, Any]:
     pos_counts = Counter(token.pos_ for token in doc if not token.is_punct)
 
     entities = [
-        {"text": ent.text, "label": ent.label_, "start": ent.start_char, "end": ent.end_char}
-        for ent in doc.ents
+        {"text": ent.text, "label": ent.label_, "start": ent.start_char, "end": ent.end_char} for ent in doc.ents
     ]
 
     noun_phrases = [chunk.text for chunk in doc.noun_chunks]
 
-    key_verbs = [
-        token.lemma_ for token in doc
-        if token.pos_ == "VERB" and token.dep_ not in ("aux", "auxpass")
-    ]
+    key_verbs = [token.lemma_ for token in doc if token.pos_ == "VERB" and token.dep_ not in ("aux", "auxpass")]
 
     return {
         "sentences": sentences,
@@ -247,7 +521,7 @@ async def detect_emotions(text: str) -> dict[str, Any]:
     Returns per-emotion scores (0-1) and dominant emotion.
     """
     words = re.findall(r"\b\w+\b", text.lower())
-    bigrams = [f"{words[i]} {words[i+1]}" for i in range(len(words) - 1)]
+    bigrams = [f"{words[i]} {words[i + 1]}" for i in range(len(words) - 1)]
     all_tokens = words + bigrams
     total = max(len(words), 1)
 
@@ -354,11 +628,13 @@ def detect_ai_patterns(text: str) -> list[dict]:
     found = []
     for pattern in _AI_PATTERNS_COMPILED:
         for match in pattern.finditer(text):
-            found.append({
-                "phrase": match.group(),
-                "start": match.start(),
-                "end": match.end(),
-            })
+            found.append(
+                {
+                    "phrase": match.group(),
+                    "start": match.start(),
+                    "end": match.end(),
+                }
+            )
     return found
 
 
@@ -398,10 +674,10 @@ def compute_contraction_rate(text: str) -> float:
         r"that's|there's|here's|what's|who's|let's|you're|they're|we're|"
         r"I'm|you've|we've|they've|I've|you'll|we'll|they'll|I'll|"
         r"you'd|we'd|they'd|I'd)\b",
-        text, re.IGNORECASE,
+        text,
+        re.IGNORECASE,
     )
     return len(contractions) / max(len(words), 1)
-
 
 
 async def analyze_segment(segment: dict) -> dict[str, Any]:
@@ -457,9 +733,7 @@ async def analyze_full_script(segments: list[dict]) -> dict[str, Any]:
     total_sentences = sum(a["sentence_count"] for a in segment_analyses)
     all_sentence_lengths = []
     for a in segment_analyses:
-        all_sentence_lengths.extend(
-            [len(s.split()) for s in a["sentences"]]
-        )
+        all_sentence_lengths.extend([len(s.split()) for s in a["sentences"]])
 
     emotion_intensities = [a["emotions"]["emotional_intensity"] for a in segment_analyses]
     dominant_emotions = [a["emotions"]["dominant_emotion"] for a in segment_analyses]
@@ -481,7 +755,6 @@ async def analyze_full_script(segments: list[dict]) -> dict[str, Any]:
         "ai_patterns_total": sum(len(a["ai_patterns"]) for a in segment_analyses),
         "ai_pattern_density": sum(len(a["ai_patterns"]) for a in segment_analyses) / max(total_words, 1),
     }
-
 
 
 def _variance(values: list[float | int]) -> float:

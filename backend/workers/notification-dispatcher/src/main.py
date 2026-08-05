@@ -84,7 +84,7 @@ async def shutdown():
     if dispatcher_task:
         try:
             await asyncio.wait_for(dispatcher_task, timeout=5.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("dispatcher.task.timeout")
             dispatcher_task.cancel()
 

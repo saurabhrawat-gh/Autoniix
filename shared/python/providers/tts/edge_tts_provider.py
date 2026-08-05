@@ -5,6 +5,7 @@ Produces real MP3 audio at decent quality — good enough for pipeline testing.
 
 Cost: $0.00
 """
+
 from __future__ import annotations
 
 import io
@@ -29,6 +30,7 @@ class EdgeTTSProvider(TTSProvider):
         self.voice: str = ""
         try:
             import edge_tts  # noqa: F401
+
             self._available = True
         except ImportError:
             logger.warning("edge_tts.not_installed", hint="pip install edge-tts")

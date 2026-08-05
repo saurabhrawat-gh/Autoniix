@@ -20,6 +20,7 @@ Endpoints:
   GET    /channels/drafts/{id}
   POST   /channels/ai/field-suggest      AI suggestion for a field
 """
+
 from __future__ import annotations
 
 import json
@@ -30,6 +31,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
 from core.db import get_pool
+
 from ._deps import Principal, audit, principal_dep, require_role
 
 router = APIRouter()
@@ -186,8 +188,14 @@ def _new_channel_id(name: str) -> str:
 def _completeness(profile: dict) -> int:
     """Heuristic 0-100 score of how well a profile has been filled."""
     fields = [
-        "mission", "vision", "brand_personality", "tone", "narration_style",
-        "music_style", "humor_style", "lut_preference",
+        "mission",
+        "vision",
+        "brand_personality",
+        "tone",
+        "narration_style",
+        "music_style",
+        "humor_style",
+        "lut_preference",
     ]
     filled = sum(1 for f in fields if profile.get(f))
     return int(round((filled / len(fields)) * 100))
@@ -204,18 +212,14 @@ async def create_channel(
 
     preset_payload: dict[str, Any] = {}
     if body.preset:
-        row = await pool.fetchrow(
-            "SELECT payload FROM channel_presets WHERE name=$1", body.preset
-        )
+        row = await pool.fetchrow("SELECT payload FROM channel_presets WHERE name=$1", body.preset)
         if row:
             raw = row["payload"] or {}
             preset_payload = json.loads(raw) if isinstance(raw, str) else raw
 
     async with pool.acquire() as conn:
         async with conn.transaction():
-            existing = await conn.fetchrow(
-                "SELECT 1 FROM channels WHERE channel_id=$1", channel_id
-            )
+            existing = await conn.fetchrow("SELECT 1 FROM channels WHERE channel_id=$1", channel_id)
             if existing:
                 raise HTTPException(409, f"channel_id {channel_id!r} exists")
 
@@ -240,34 +244,76 @@ async def create_channel(
                     $31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44
                 )
                 """,
-                channel_id, body.channel_name, body.niche, body.sub_niche,
-                body.content_mode, body.target_audience, body.primary_language,
-                body.geography, body.target_age_group, body.platform, body.handle,
-                body.description, body.mission, body.vision, body.brand_personality,
+                channel_id,
+                body.channel_name,
+                body.niche,
+                body.sub_niche,
+                body.content_mode,
+                body.target_audience,
+                body.primary_language,
+                body.geography,
+                body.target_age_group,
+                body.platform,
+                body.handle,
+                body.description,
+                body.mission,
+                body.vision,
+                body.brand_personality,
                 body.humor_style or preset_payload.get("narration_style"),
                 body.narration_style or preset_payload.get("narration_style"),
                 body.music_style or preset_payload.get("music_style"),
-                body.lut_preference, body.transition_preference,
-                body.typography_preference, body.meme_intensity, body.emotion_intensity,
-                body.primary_color, body.secondary_color, body.thumbnail_style,
+                body.lut_preference,
+                body.transition_preference,
+                body.typography_preference,
+                body.meme_intensity,
+                body.emotion_intensity,
+                body.primary_color,
+                body.secondary_color,
+                body.thumbnail_style,
                 body.pacing_style or preset_payload.get("pacing_style"),
-                body.auto_upload, body.human_review_required,
-                body.human_review_ratio, body.review_timeout_hours,
-                body.max_daily_api_spend, body.videos_per_week_short,
-                body.videos_per_week_long, body.short_form_duration,
-                body.long_form_duration, body.elevenlabs_voice_id,
-                body.voice_stability, body.voice_similarity, body.voice_style,
-                "wizard", "active", "production", actor.workspace_id,
+                body.auto_upload,
+                body.human_review_required,
+                body.human_review_ratio,
+                body.review_timeout_hours,
+                body.max_daily_api_spend,
+                body.videos_per_week_short,
+                body.videos_per_week_long,
+                body.short_form_duration,
+                body.long_form_duration,
+                body.elevenlabs_voice_id,
+                body.voice_stability,
+                body.voice_similarity,
+                body.voice_style,
+                "wizard",
+                "active",
+                "production",
+                actor.workspace_id,
             )
 
             extended = body.extra or {}
-            extended.update({k: getattr(body, k) for k in (
-                "mission", "vision", "brand_personality", "tone",
-                "humor_style", "narration_style", "music_style",
-                "lut_preference", "transition_preference", "typography_preference",
-                "meme_intensity", "emotion_intensity", "primary_language",
-                "geography", "target_age_group",
-            ) if getattr(body, k, None) is not None})
+            extended.update(
+                {
+                    k: getattr(body, k)
+                    for k in (
+                        "mission",
+                        "vision",
+                        "brand_personality",
+                        "tone",
+                        "humor_style",
+                        "narration_style",
+                        "music_style",
+                        "lut_preference",
+                        "transition_preference",
+                        "typography_preference",
+                        "meme_intensity",
+                        "emotion_intensity",
+                        "primary_language",
+                        "geography",
+                        "target_age_group",
+                    )
+                    if getattr(body, k, None) is not None
+                }
+            )
 
             await conn.execute(
                 """
@@ -276,16 +322,24 @@ async def create_channel(
                      tone, completeness_score)
                 VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7)
                 """,
-                channel_id, json.dumps(extended), body.mission, body.vision,
-                body.brand_personality, body.tone, _completeness(extended),
+                channel_id,
+                json.dumps(extended),
+                body.mission,
+                body.vision,
+                body.brand_personality,
+                body.tone,
+                _completeness(extended),
             )
 
             for i, p in enumerate(body.pillars):
                 await conn.execute(
                     """INSERT INTO channel_pillars (channel_id, name, description, weight, examples, position)
                        VALUES ($1,$2,$3,$4,$5::jsonb,$6)""",
-                    channel_id, p.get("name", f"Pillar {i+1}"), p.get("description"),
-                    float(p.get("weight", 1.0)), json.dumps(p.get("examples", [])),
+                    channel_id,
+                    p.get("name", f"Pillar {i + 1}"),
+                    p.get("description"),
+                    float(p.get("weight", 1.0)),
+                    json.dumps(p.get("examples", [])),
                     int(p.get("position", i)),
                 )
 
@@ -294,7 +348,9 @@ async def create_channel(
                     await conn.execute(
                         """INSERT INTO channel_topic_rules (channel_id, kind, value, metadata)
                            VALUES ($1,$2,$3,$4::jsonb)""",
-                        channel_id, r["kind"], r["value"],
+                        channel_id,
+                        r["kind"],
+                        r["value"],
                         json.dumps(r.get("metadata", {})),
                     )
 
@@ -304,13 +360,23 @@ async def create_channel(
                         """INSERT INTO channel_references
                             (channel_id, kind, label, uri, minio_key, parsed_metadata, uploaded_by)
                            VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)""",
-                        channel_id, r["kind"], r.get("label"), r.get("uri"),
-                        r.get("minio_key"), json.dumps(r.get("parsed_metadata", {})),
+                        channel_id,
+                        r["kind"],
+                        r.get("label"),
+                        r.get("uri"),
+                        r.get("minio_key"),
+                        json.dumps(r.get("parsed_metadata", {})),
                         actor.user_id,
                     )
 
-    await audit(actor=actor, action="channel.create", target_type="channel",
-                target_id=channel_id, after=body.model_dump(), request=request)
+    await audit(
+        actor=actor,
+        action="channel.create",
+        target_type="channel",
+        target_id=channel_id,
+        after=body.model_dump(),
+        request=request,
+    )
     return {"status": "ok", "channel_id": channel_id}
 
 
@@ -374,19 +440,14 @@ async def get_channel(channel_id: str, actor: Principal = Depends(principal_dep)
     async with pool.acquire() as conn:
         ch = await conn.fetchrow(
             "SELECT * FROM channels WHERE channel_id=$1 AND workspace_id=$2",
-            channel_id, actor.workspace_id,
+            channel_id,
+            actor.workspace_id,
         )
         if not ch:
             raise HTTPException(404, "Channel not found")
-        profile = await conn.fetchrow(
-            "SELECT * FROM channel_profiles WHERE channel_id=$1", channel_id
-        )
-        pillars = await conn.fetch(
-            "SELECT * FROM channel_pillars WHERE channel_id=$1 ORDER BY position", channel_id
-        )
-        rules = await conn.fetch(
-            "SELECT * FROM channel_topic_rules WHERE channel_id=$1 ORDER BY kind, id", channel_id
-        )
+        profile = await conn.fetchrow("SELECT * FROM channel_profiles WHERE channel_id=$1", channel_id)
+        pillars = await conn.fetch("SELECT * FROM channel_pillars WHERE channel_id=$1 ORDER BY position", channel_id)
+        rules = await conn.fetch("SELECT * FROM channel_topic_rules WHERE channel_id=$1 ORDER BY kind, id", channel_id)
         refs = await conn.fetch(
             "SELECT id, kind, label, uri, minio_key, parsed_metadata, uploaded_at "
             "FROM channel_references WHERE channel_id=$1 ORDER BY uploaded_at DESC",
@@ -420,19 +481,25 @@ async def patch_channel(
     if not updates:
         return {"status": "noop"}
     pool = await get_pool()
-    sets = ", ".join(f"{k}=${i+2}" for i, k in enumerate(updates.keys()))
+    sets = ", ".join(f"{k}=${i + 2}" for i, k in enumerate(updates.keys()))
     values = list(updates.values())
-    before = await pool.fetchrow(
-        f"SELECT {', '.join(updates.keys())} FROM channels WHERE channel_id=$1", channel_id
-    )
+    before = await pool.fetchrow(f"SELECT {', '.join(updates.keys())} FROM channels WHERE channel_id=$1", channel_id)
     if not before:
         raise HTTPException(404, "Channel not found")
     await pool.execute(
         f"UPDATE channels SET {sets}, updated_at=NOW() WHERE channel_id=$1",
-        channel_id, *values,
+        channel_id,
+        *values,
     )
-    await audit(actor=actor, action="channel.update", target_type="channel",
-                target_id=channel_id, before=dict(before), after=updates, request=request)
+    await audit(
+        actor=actor,
+        action="channel.update",
+        target_type="channel",
+        target_id=channel_id,
+        before=dict(before),
+        after=updates,
+        request=request,
+    )
     return {"status": "ok"}
 
 
@@ -460,34 +527,60 @@ async def upsert_profile(
             completeness_score = EXCLUDED.completeness_score,
             updated_at = NOW()
         """,
-        channel_id, json.dumps(payload), payload.get("mission"), payload.get("vision"),
-        payload.get("brand_personality"), payload.get("tone"), score,
+        channel_id,
+        json.dumps(payload),
+        payload.get("mission"),
+        payload.get("vision"),
+        payload.get("brand_personality"),
+        payload.get("tone"),
+        score,
     )
-    await audit(actor=actor, action="channel.profile.upsert", target_type="channel_profile",
-                target_id=channel_id, after={"completeness": score}, request=request)
+    await audit(
+        actor=actor,
+        action="channel.profile.upsert",
+        target_type="channel_profile",
+        target_id=channel_id,
+        after={"completeness": score},
+        request=request,
+    )
     return {"status": "ok", "completeness_score": score}
 
 
 @router.post("/{channel_id}/pillars")
 async def add_pillar(
-    channel_id: str, body: PillarIn, request: Request,
+    channel_id: str,
+    body: PillarIn,
+    request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     pid = await pool.fetchval(
         """INSERT INTO channel_pillars (channel_id, name, description, weight, examples, position)
            VALUES ($1,$2,$3,$4,$5::jsonb,$6) RETURNING id""",
-        channel_id, body.name, body.description, body.weight,
-        json.dumps(body.examples), body.position,
+        channel_id,
+        body.name,
+        body.description,
+        body.weight,
+        json.dumps(body.examples),
+        body.position,
     )
-    await audit(actor=actor, action="channel.pillar.create", target_type="channel_pillar",
-                target_id=str(pid), after=body.model_dump(), request=request)
+    await audit(
+        actor=actor,
+        action="channel.pillar.create",
+        target_type="channel_pillar",
+        target_id=str(pid),
+        after=body.model_dump(),
+        request=request,
+    )
     return {"status": "ok", "id": pid}
 
 
 @router.put("/{channel_id}/pillars/{pillar_id}")
 async def update_pillar(
-    channel_id: str, pillar_id: int, body: PillarIn, request: Request,
+    channel_id: str,
+    pillar_id: int,
+    body: PillarIn,
+    request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
@@ -495,112 +588,179 @@ async def update_pillar(
         """UPDATE channel_pillars
               SET name=$1, description=$2, weight=$3, examples=$4::jsonb, position=$5
             WHERE id=$6 AND channel_id=$7""",
-        body.name, body.description, body.weight, json.dumps(body.examples),
-        body.position, pillar_id, channel_id,
+        body.name,
+        body.description,
+        body.weight,
+        json.dumps(body.examples),
+        body.position,
+        pillar_id,
+        channel_id,
     )
     if res.endswith("0"):
         raise HTTPException(404, "Pillar not found")
-    await audit(actor=actor, action="channel.pillar.update", target_type="channel_pillar",
-                target_id=str(pillar_id), after=body.model_dump(), request=request)
+    await audit(
+        actor=actor,
+        action="channel.pillar.update",
+        target_type="channel_pillar",
+        target_id=str(pillar_id),
+        after=body.model_dump(),
+        request=request,
+    )
     return {"status": "ok"}
 
 
 @router.delete("/{channel_id}/pillars/{pillar_id}")
 async def delete_pillar(
-    channel_id: str, pillar_id: int, request: Request,
+    channel_id: str,
+    pillar_id: int,
+    request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     res = await pool.execute(
         "DELETE FROM channel_pillars WHERE id=$1 AND channel_id=$2",
-        pillar_id, channel_id,
+        pillar_id,
+        channel_id,
     )
     if res.endswith("0"):
         raise HTTPException(404, "Pillar not found")
-    await audit(actor=actor, action="channel.pillar.delete", target_type="channel_pillar",
-                target_id=str(pillar_id), request=request)
+    await audit(
+        actor=actor,
+        action="channel.pillar.delete",
+        target_type="channel_pillar",
+        target_id=str(pillar_id),
+        request=request,
+    )
     return {"status": "ok"}
 
 
 @router.post("/{channel_id}/topic-rules")
 async def add_topic_rule(
-    channel_id: str, body: TopicRuleIn, request: Request,
+    channel_id: str,
+    body: TopicRuleIn,
+    request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     rid = await pool.fetchval(
         """INSERT INTO channel_topic_rules (channel_id, kind, value, metadata)
            VALUES ($1,$2,$3,$4::jsonb) RETURNING id""",
-        channel_id, body.kind, body.value, json.dumps(body.metadata),
+        channel_id,
+        body.kind,
+        body.value,
+        json.dumps(body.metadata),
     )
-    await audit(actor=actor, action="channel.topic_rule.create", target_type="channel_topic_rule",
-                target_id=str(rid), after=body.model_dump(), request=request)
+    await audit(
+        actor=actor,
+        action="channel.topic_rule.create",
+        target_type="channel_topic_rule",
+        target_id=str(rid),
+        after=body.model_dump(),
+        request=request,
+    )
     return {"status": "ok", "id": rid}
 
 
 @router.delete("/{channel_id}/topic-rules/{rule_id}")
 async def delete_topic_rule(
-    channel_id: str, rule_id: int, request: Request,
+    channel_id: str,
+    rule_id: int,
+    request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     res = await pool.execute(
         "DELETE FROM channel_topic_rules WHERE id=$1 AND channel_id=$2",
-        rule_id, channel_id,
+        rule_id,
+        channel_id,
     )
     if res.endswith("0"):
         raise HTTPException(404, "Rule not found")
-    await audit(actor=actor, action="channel.topic_rule.delete", target_type="channel_topic_rule",
-                target_id=str(rule_id), request=request)
+    await audit(
+        actor=actor,
+        action="channel.topic_rule.delete",
+        target_type="channel_topic_rule",
+        target_id=str(rule_id),
+        request=request,
+    )
     return {"status": "ok"}
 
 
 @router.post("/{channel_id}/references")
 async def add_reference(
-    channel_id: str, body: ReferenceIn, request: Request,
+    channel_id: str,
+    body: ReferenceIn,
+    request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     rid = await pool.fetchval(
         """INSERT INTO channel_references (channel_id, kind, label, uri, minio_key, parsed_metadata, uploaded_by)
            VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7) RETURNING id""",
-        channel_id, body.kind, body.label, body.uri, body.minio_key,
-        json.dumps(body.parsed_metadata), actor.user_id,
+        channel_id,
+        body.kind,
+        body.label,
+        body.uri,
+        body.minio_key,
+        json.dumps(body.parsed_metadata),
+        actor.user_id,
     )
-    await audit(actor=actor, action="channel.reference.create", target_type="channel_reference",
-                target_id=str(rid), after=body.model_dump(), request=request)
+    await audit(
+        actor=actor,
+        action="channel.reference.create",
+        target_type="channel_reference",
+        target_id=str(rid),
+        after=body.model_dump(),
+        request=request,
+    )
     return {"status": "ok", "id": rid}
 
 
 @router.delete("/{channel_id}/references/{ref_id}")
 async def delete_reference(
-    channel_id: str, ref_id: int, request: Request,
+    channel_id: str,
+    ref_id: int,
+    request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
-    res = await pool.execute(
-        "DELETE FROM channel_references WHERE id=$1 AND channel_id=$2", ref_id, channel_id
-    )
+    res = await pool.execute("DELETE FROM channel_references WHERE id=$1 AND channel_id=$2", ref_id, channel_id)
     if res.endswith("0"):
         raise HTTPException(404, "Reference not found")
-    await audit(actor=actor, action="channel.reference.delete", target_type="channel_reference",
-                target_id=str(ref_id), request=request)
+    await audit(
+        actor=actor,
+        action="channel.reference.delete",
+        target_type="channel_reference",
+        target_id=str(ref_id),
+        request=request,
+    )
     return {"status": "ok"}
 
 
 @router.post("/{channel_id}/memory")
 async def add_memory(
-    channel_id: str, body: MemoryIn, request: Request,
+    channel_id: str,
+    body: MemoryIn,
+    request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     mid = await pool.fetchval(
         """INSERT INTO channel_memory (channel_id, memory_type, content, confidence)
            VALUES ($1,$2,$3::jsonb,$4) RETURNING id""",
-        channel_id, body.memory_type, json.dumps(body.content), body.confidence,
+        channel_id,
+        body.memory_type,
+        json.dumps(body.content),
+        body.confidence,
     )
-    await audit(actor=actor, action="channel.memory.add", target_type="channel_memory",
-                target_id=str(mid), after=body.model_dump(), request=request)
+    await audit(
+        actor=actor,
+        action="channel.memory.add",
+        target_type="channel_memory",
+        target_id=str(mid),
+        after=body.model_dump(),
+        request=request,
+    )
     return {"status": "ok", "id": mid}
 
 
@@ -613,14 +773,17 @@ async def create_draft(
     did = await pool.fetchval(
         """INSERT INTO channel_drafts (user_id, current_step, payload)
            VALUES ($1,$2,$3::jsonb) RETURNING id""",
-        actor.user_id, body.current_step, json.dumps(body.payload),
+        actor.user_id,
+        body.current_step,
+        json.dumps(body.payload),
     )
     return {"status": "ok", "id": did}
 
 
 @router.put("/drafts/{draft_id}")
 async def save_draft(
-    draft_id: int, body: DraftIn,
+    draft_id: int,
+    body: DraftIn,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
@@ -628,7 +791,10 @@ async def save_draft(
         """UPDATE channel_drafts
               SET current_step=$1, payload=$2::jsonb, updated_at=NOW()
             WHERE id=$3 AND (user_id=$4 OR user_id IS NULL)""",
-        body.current_step, json.dumps(body.payload), draft_id, actor.user_id,
+        body.current_step,
+        json.dumps(body.payload),
+        draft_id,
+        actor.user_id,
     )
     if res.endswith("0"):
         raise HTTPException(404, "Draft not found")
@@ -666,6 +832,7 @@ async def field_suggest(
 
     try:
         from llm import route
+
         from providers.llm.base import LLMRequest
 
         prompt = (
@@ -680,7 +847,8 @@ async def field_suggest(
             category="llm.ideation",
             request=LLMRequest(
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.6, max_tokens=400,
+                temperature=0.6,
+                max_tokens=400,
                 response_format="json",
             ),
             channel_id=str(ctx.get("channel_id") or ""),
@@ -693,17 +861,29 @@ async def field_suggest(
             sug = str(parsed.get("suggestion") or "").strip()[:240]
             rat = str(parsed.get("rationale") or "").strip()[:240]
             if sug:
-                return {"data": {"suggestion": sug, "rationale": rat or "llm",
-                                 "provider": result.provider, "model": result.model}}
+                return {
+                    "data": {
+                        "suggestion": sug,
+                        "rationale": rat or "llm",
+                        "provider": result.provider,
+                        "model": result.model,
+                    }
+                }
         except Exception:
             if text:
-                return {"data": {"suggestion": text[:240], "rationale": "llm",
-                                 "provider": result.provider, "model": result.model}}
+                return {
+                    "data": {
+                        "suggestion": text[:240],
+                        "rationale": "llm",
+                        "provider": result.provider,
+                        "model": result.model,
+                    }
+                }
     except Exception as exc:  # noqa: BLE001
         import structlog
+
         structlog.get_logger().info("v2.field_suggest.fallback", error=str(exc))
     return {"data": {"suggestion": fallback, "rationale": "heuristic"}}
-
 
 
 async def _enrich_channel_list(pool: Any, channels: list[dict]) -> list[dict]:
@@ -748,27 +928,27 @@ async def _enrich_channel_list(pool: Any, channels: list[dict]) -> list[dict]:
     )
     job_map: dict[str, list] = {}
     for r in job_rows:
-        job_map.setdefault(r["channel_id"], []).append({
-            "content_id": r["content_id"],
-            "status": r["status"],
-            "content_mode": r["content_mode"],
-            "is_paused": False,
-        })
+        job_map.setdefault(r["channel_id"], []).append(
+            {
+                "content_id": r["content_id"],
+                "status": r["status"],
+                "content_mode": r["content_mode"],
+                "is_paused": False,
+            }
+        )
 
     for ch in channels:
         cid = ch["channel_id"]
         s = stats_map.get(cid)
         w = weekly_map.get(cid)
         ch["stats"] = {
-            "delivered":   int(s["delivered"])   if s else 0,
+            "delivered": int(s["delivered"]) if s else 0,
             "in_progress": int(s["in_progress"]) if s else 0,
-            "total":       int(s["total"])       if s else 0,
+            "total": int(s["total"]) if s else 0,
         }
         ch["weekly_usage"] = {
-            "short":    {"used": int(w["short_used"])  if w else 0,
-                         "limit": ch.get("videos_per_week_short") or 7},
-            "long_form": {"used": int(w["long_used"]) if w else 0,
-                          "limit": ch.get("videos_per_week_long") or 1},
+            "short": {"used": int(w["short_used"]) if w else 0, "limit": ch.get("videos_per_week_short") or 7},
+            "long_form": {"used": int(w["long_used"]) if w else 0, "limit": ch.get("videos_per_week_long") or 1},
         }
         ch["active_jobs"] = job_map.get(cid, [])
     return channels
@@ -793,83 +973,73 @@ async def _dashboard_stats_impl(_: Principal):
                   COALESCE(SUM(total_cost), 0) AS total_cost
              FROM videos WHERE created_at::date = CURRENT_DATE"""
     )
-    budget_row = await pool.fetchrow(
-        "SELECT config_value FROM system_config WHERE config_key = 'daily_budget_limit'"
-    )
-    stop_row = await pool.fetchrow(
-        "SELECT config_value FROM system_config WHERE config_key = 'emergency_stop'"
-    )
+    budget_row = await pool.fetchrow("SELECT config_value FROM system_config WHERE config_key = 'daily_budget_limit'")
+    stop_row = await pool.fetchrow("SELECT config_value FROM system_config WHERE config_key = 'emergency_stop'")
     return {
         "data": {
             "channels": dict(ch),
             "today": {
                 "videos_total": int(vid["total"]),
-                "delivered":    int(vid["delivered"]),
-                "failed":       int(vid["failed"]),
-                "in_progress":  int(vid["in_progress"]),
-                "cost":         float(vid["total_cost"]),
+                "delivered": int(vid["delivered"]),
+                "failed": int(vid["failed"]),
+                "in_progress": int(vid["in_progress"]),
+                "cost": float(vid["total_cost"]),
             },
             "budget": {
                 "daily_limit": float(budget_row["config_value"]) if budget_row else 0.0,
-                "today_cost":  float(vid["total_cost"]),
+                "today_cost": float(vid["total_cost"]),
             },
             "emergency_stop": (stop_row["config_value"] or "").lower() in ("true", "1") if stop_row else False,
         }
     }
 
 
-
 @router.put("/{channel_id}/enable")
 async def enable_channel(
-    channel_id: str, request: Request,
+    channel_id: str,
+    request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
-    res = await pool.execute(
-        "UPDATE channels SET status='active', updated_at=NOW() WHERE channel_id=$1", channel_id
-    )
+    res = await pool.execute("UPDATE channels SET status='active', updated_at=NOW() WHERE channel_id=$1", channel_id)
     if res.endswith("0"):
         raise HTTPException(404, "Channel not found")
-    await audit(actor=actor, action="channel.enable", target_type="channel",
-                target_id=channel_id, request=request)
+    await audit(actor=actor, action="channel.enable", target_type="channel", target_id=channel_id, request=request)
     return {"status": "ok"}
 
 
 @router.put("/{channel_id}/disable")
 async def disable_channel(
-    channel_id: str, request: Request,
+    channel_id: str,
+    request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
-    res = await pool.execute(
-        "UPDATE channels SET status='disabled', updated_at=NOW() WHERE channel_id=$1", channel_id
-    )
+    res = await pool.execute("UPDATE channels SET status='disabled', updated_at=NOW() WHERE channel_id=$1", channel_id)
     if res.endswith("0"):
         raise HTTPException(404, "Channel not found")
-    await audit(actor=actor, action="channel.disable", target_type="channel",
-                target_id=channel_id, request=request)
+    await audit(actor=actor, action="channel.disable", target_type="channel", target_id=channel_id, request=request)
     return {"status": "ok"}
 
 
 @router.put("/{channel_id}/archive")
 async def archive_channel(
-    channel_id: str, request: Request,
+    channel_id: str,
+    request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
-    res = await pool.execute(
-        "UPDATE channels SET status='archived', updated_at=NOW() WHERE channel_id=$1", channel_id
-    )
+    res = await pool.execute("UPDATE channels SET status='archived', updated_at=NOW() WHERE channel_id=$1", channel_id)
     if res.endswith("0"):
         raise HTTPException(404, "Channel not found")
-    await audit(actor=actor, action="channel.archive", target_type="channel",
-                target_id=channel_id, request=request)
+    await audit(actor=actor, action="channel.archive", target_type="channel", target_id=channel_id, request=request)
     return {"status": "ok"}
 
 
 @router.put("/{channel_id}/restore")
 async def restore_channel(
-    channel_id: str, request: Request,
+    channel_id: str,
+    request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
@@ -879,8 +1049,7 @@ async def restore_channel(
     )
     if res.endswith("0"):
         raise HTTPException(404, "Channel not found or not archived")
-    await audit(actor=actor, action="channel.restore", target_type="channel",
-                target_id=channel_id, request=request)
+    await audit(actor=actor, action="channel.restore", target_type="channel", target_id=channel_id, request=request)
     return {"status": "ok"}
 
 
@@ -909,12 +1078,11 @@ async def delete_channel(
 
     pool = await get_pool()
 
-    user = await pool.fetchrow(
-        "SELECT password_hash FROM users WHERE id=$1", actor.user_id
-    )
+    user = await pool.fetchrow("SELECT password_hash FROM users WHERE id=$1", actor.user_id)
     if not user:
         raise HTTPException(404, detail={"code": "user_not_found"})
     from .auth import _verify_pw
+
     if not _verify_pw(body.password, user["password_hash"] or ""):
         raise HTTPException(403, detail={"code": "wrong_password"})
 
@@ -927,18 +1095,13 @@ async def delete_channel(
     if not channel or channel["workspace_id"] != actor.workspace_id:
         raise HTTPException(404, detail={"code": "channel_not_found"})
 
-    video_count = await pool.fetchval(
-        "SELECT COUNT(*) FROM videos WHERE channel_id=$1", channel_id
-    )
+    video_count = await pool.fetchval("SELECT COUNT(*) FROM videos WHERE channel_id=$1", channel_id)
     if video_count and video_count > 0:
         raise HTTPException(
             409,
             detail={
                 "code": "has_videos",
-                "message": (
-                    f"Cannot delete channel with {video_count} published "
-                    "videos. Archive instead."
-                ),
+                "message": (f"Cannot delete channel with {video_count} published videos. Archive instead."),
                 "video_count": video_count,
             },
         )
@@ -956,8 +1119,7 @@ async def delete_channel(
         "platform": channel["platform"],
         "status": channel["status"],
         "workspace_id": channel["workspace_id"],
-        "created_at": channel["created_at"].isoformat()
-            if channel["created_at"] else None,
+        "created_at": channel["created_at"].isoformat() if channel["created_at"] else None,
     }
 
     await pool.execute("DELETE FROM channels WHERE channel_id=$1", channel_id)
@@ -986,11 +1148,13 @@ async def delete_channel(
 
 @router.post("/{channel_id}/clone")
 async def clone_channel(
-    channel_id: str, request: Request,
+    channel_id: str,
+    request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     """Proxy to legacy clone endpoint (Temporal-aware)."""
     import httpx
+
     token = request.headers.get("Authorization", "")
     bff_base = "http://localhost:8020"
     try:
@@ -1004,8 +1168,7 @@ async def clone_channel(
         result = resp.json()
     except httpx.RequestError as exc:
         raise HTTPException(502, f"Legacy BFF unreachable: {exc}") from exc
-    await audit(actor=actor, action="channel.clone", target_type="channel",
-                target_id=channel_id, request=request)
+    await audit(actor=actor, action="channel.clone", target_type="channel", target_id=channel_id, request=request)
     return result
 
 
@@ -1025,9 +1188,9 @@ async def export_channel(
         rules = await conn.fetch("SELECT * FROM channel_topic_rules WHERE channel_id=$1", channel_id)
     return {
         "data": {
-            "channel":     dict(ch),
-            "profile":     dict(profile) if profile else None,
-            "pillars":     [dict(p) for p in pillars],
+            "channel": dict(ch),
+            "profile": dict(profile) if profile else None,
+            "pillars": [dict(p) for p in pillars],
             "topic_rules": [dict(r) for r in rules],
         }
     }
@@ -1049,6 +1212,7 @@ async def trigger_channel(
 ):
     """Proxy trigger to the legacy BFF which handles Temporal start + budget checks."""
     import httpx
+
     token = request.headers.get("Authorization", "")
     bff_base = "http://localhost:8020"
     payload: dict = {}
@@ -1072,18 +1236,26 @@ async def trigger_channel(
         result = resp.json()
     except httpx.RequestError as exc:
         raise HTTPException(502, f"Legacy BFF unreachable: {exc}") from exc
-    await audit(actor=actor, action="channel.trigger", target_type="channel",
-                target_id=channel_id, after=payload, request=request)
+    await audit(
+        actor=actor,
+        action="channel.trigger",
+        target_type="channel",
+        target_id=channel_id,
+        after=payload,
+        request=request,
+    )
     return result
-
 
 
 @router.post("/{channel_id}/jobs/{content_id}/pause")
 async def pause_job(
-    channel_id: str, content_id: str, request: Request,
+    channel_id: str,
+    content_id: str,
+    request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     import httpx
+
     token = request.headers.get("Authorization", "")
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.post(
@@ -1092,17 +1264,19 @@ async def pause_job(
         )
     if resp.status_code >= 400:
         raise HTTPException(resp.status_code, resp.json().get("detail", "Pause failed"))
-    await audit(actor=actor, action="job.pause", target_type="video",
-                target_id=content_id, request=request)
+    await audit(actor=actor, action="job.pause", target_type="video", target_id=content_id, request=request)
     return resp.json()
 
 
 @router.post("/{channel_id}/jobs/{content_id}/resume")
 async def resume_job(
-    channel_id: str, content_id: str, request: Request,
+    channel_id: str,
+    content_id: str,
+    request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     import httpx
+
     token = request.headers.get("Authorization", "")
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.post(
@@ -1111,17 +1285,19 @@ async def resume_job(
         )
     if resp.status_code >= 400:
         raise HTTPException(resp.status_code, resp.json().get("detail", "Resume failed"))
-    await audit(actor=actor, action="job.resume", target_type="video",
-                target_id=content_id, request=request)
+    await audit(actor=actor, action="job.resume", target_type="video", target_id=content_id, request=request)
     return resp.json()
 
 
 @router.post("/{channel_id}/jobs/{content_id}/stop")
 async def stop_job(
-    channel_id: str, content_id: str, request: Request,
+    channel_id: str,
+    content_id: str,
+    request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     import httpx
+
     token = request.headers.get("Authorization", "")
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.post(
@@ -1130,13 +1306,13 @@ async def stop_job(
         )
     if resp.status_code >= 400:
         raise HTTPException(resp.status_code, resp.json().get("detail", "Stop failed"))
-    await audit(actor=actor, action="job.stop", target_type="video",
-                target_id=content_id, request=request)
+    await audit(actor=actor, action="job.stop", target_type="video", target_id=content_id, request=request)
     return resp.json()
 
 
 def _is_async(fn):
     import asyncio as _a
+
     return _a.iscoroutinefunction(fn)
 
 
@@ -1144,22 +1320,20 @@ def _heuristic_suggest(field: str, ctx: dict) -> str:
     niche = ctx.get("niche", "")
     name = ctx.get("channel_name", "")
     table = {
-        "mission":           f"Make {niche} feel obvious to anyone who watches one of our videos.",
-        "vision":            f"Be the most-bingeable {niche} channel for curious beginners.",
+        "mission": f"Make {niche} feel obvious to anyone who watches one of our videos.",
+        "vision": f"Be the most-bingeable {niche} channel for curious beginners.",
         "brand_personality": "Warm, sharply curious, occasionally playful.",
-        "tone":              "Direct, friendly, confident without being preachy.",
-        "narration_style":   "Conversational, fast-cut, micro-pauses for emphasis.",
-        "music_style":       "Cinematic minimal pads with subtle percussion.",
-        "humor_style":       "Dry observational, never cynical.",
-        "thumbnail_style":   "Bold subject, single contrast color, 3-word headline.",
-        "pacing_style":      "Fast (1.6 cuts/sec), slow on key facts.",
-        "lut_preference":    "Cinematic teal-orange, mild contrast.",
+        "tone": "Direct, friendly, confident without being preachy.",
+        "narration_style": "Conversational, fast-cut, micro-pauses for emphasis.",
+        "music_style": "Cinematic minimal pads with subtle percussion.",
+        "humor_style": "Dry observational, never cynical.",
+        "thumbnail_style": "Bold subject, single contrast color, 3-word headline.",
+        "pacing_style": "Fast (1.6 cuts/sec), slow on key facts.",
+        "lut_preference": "Cinematic teal-orange, mild contrast.",
         "transition_preference": "Whip-pan + match-cut; avoid stock fades.",
         "typography_preference": "Inter / Geist; bold weights on emphasis words.",
     }
     return table.get(field, f"Suggested value for {field} on {name or niche}")
-
-
 
 
 class BrandKitBindIn(BaseModel):

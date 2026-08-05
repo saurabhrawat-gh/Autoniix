@@ -9,6 +9,7 @@ Covers (no real ffmpeg required):
 
 An optional real-ffmpeg test runs only when the ffmpeg binary is present.
 """
+
 from __future__ import annotations
 
 import os
@@ -32,7 +33,6 @@ from services_api.finishing.ffmpeg_finisher import (
 _ACT = "services_api.finishing.activity"
 
 
-
 class TestLutRegistry:
     def test_seven_presets(self):
         assert len(lut_registry.PRESETS) == 7
@@ -40,8 +40,13 @@ class TestLutRegistry:
 
     def test_expected_keys(self):
         assert set(lut_registry.PRESET_KEYS) == {
-            "cinematic", "clean_bright", "warm_gold", "cool_blue",
-            "vintage", "documentary", "neon_dark",
+            "cinematic",
+            "clean_bright",
+            "warm_gold",
+            "cool_blue",
+            "vintage",
+            "documentary",
+            "neon_dark",
         }
 
     def test_cube_key_format(self):
@@ -59,7 +64,6 @@ class TestLutRegistry:
         assert len(api) == 7
         for p in api:
             assert {"key", "display_name", "description", "thumbnail_url", "best_for"} <= p.keys()
-
 
 
 class TestCommandBuilders:
@@ -127,7 +131,6 @@ class TestLoudnormParse:
             parse_loudnorm_json("no json here")
 
 
-
 class TestCubeGenerator:
     def test_write_cube_well_formed(self):
         from scripts.seeds.lut_presets.generate_luts import write_cube
@@ -137,9 +140,10 @@ class TestCubeGenerator:
             write_cube("cinematic", path, size=9)
             text = open(path).read()
             assert "LUT_3D_SIZE 9" in text
-            triplets = [ln for ln in text.splitlines()
-                        if len(ln.split()) == 3 and ln.split()[0].replace(".", "").isdigit()]
-            assert len(triplets) == 9 ** 3
+            triplets = [
+                ln for ln in text.splitlines() if len(ln.split()) == 3 and ln.split()[0].replace(".", "").isdigit()
+            ]
+            assert len(triplets) == 9**3
 
     def test_all_presets_generate(self):
         from scripts.seeds.lut_presets.generate_luts import write_cube
@@ -151,7 +155,6 @@ class TestCubeGenerator:
                 assert os.path.getsize(p) > 0
 
 
-
 @pytest.mark.asyncio
 class TestFinishingActivity:
     async def test_no_video_url_skips(self):
@@ -159,26 +162,32 @@ class TestFinishingActivity:
 
         with patch(f"{_ACT}.get_pool", new_callable=AsyncMock):
             with patch(f"{_ACT}._mark_db", new_callable=AsyncMock) as mark:
-                out = await finishing_activity({"content_id": "c1", "channel_id": "ch1",
-                                                "video_url": ""})
+                out = await finishing_activity({"content_id": "c1", "channel_id": "ch1", "video_url": ""})
         assert out["data"]["skipped"] is True
         mark.assert_awaited()
 
     async def test_failure_skips_when_not_required(self):
         from services_api.finishing.activity import finishing_activity
 
-        cfg_row = {"require_resolve_finish": False, "color_grade_preset": "cinematic",
-                   "audio_denoise": True, "audio_eq": True, "audio_compress": True,
-                   "audio_music_duck": True, "audio_loudness_lufs": -14.0,
-                   "audio_true_peak_dbtps": -1.5, "output_prores_archive": False}
-        with patch(f"{_ACT}._load_config", new_callable=AsyncMock, return_value=cfg_row), \
-             patch(f"{_ACT}._download_source", new_callable=AsyncMock), \
-             patch(f"{_ACT}._resolve_lut", new_callable=AsyncMock), \
-             patch(f"{_ACT}.run_finishing", new_callable=AsyncMock,
-                   side_effect=FinishingError("boom")), \
-             patch(f"{_ACT}._mark_db", new_callable=AsyncMock) as mark:
-            out = await finishing_activity({"content_id": "c2", "channel_id": "ch1",
-                                            "video_url": "http://x/v.mp4"})
+        cfg_row = {
+            "require_resolve_finish": False,
+            "color_grade_preset": "cinematic",
+            "audio_denoise": True,
+            "audio_eq": True,
+            "audio_compress": True,
+            "audio_music_duck": True,
+            "audio_loudness_lufs": -14.0,
+            "audio_true_peak_dbtps": -1.5,
+            "output_prores_archive": False,
+        }
+        with (
+            patch(f"{_ACT}._load_config", new_callable=AsyncMock, return_value=cfg_row),
+            patch(f"{_ACT}._download_source", new_callable=AsyncMock),
+            patch(f"{_ACT}._resolve_lut", new_callable=AsyncMock),
+            patch(f"{_ACT}.run_finishing", new_callable=AsyncMock, side_effect=FinishingError("boom")),
+            patch(f"{_ACT}._mark_db", new_callable=AsyncMock) as mark,
+        ):
+            out = await finishing_activity({"content_id": "c2", "channel_id": "ch1", "video_url": "http://x/v.mp4"})
         assert out["status"] == "skipped"
         assert out["data"]["skipped"] is True
         assert mark.await_args.kwargs["skipped"] is True
@@ -186,41 +195,56 @@ class TestFinishingActivity:
     async def test_failure_raises_when_required(self):
         from services_api.finishing.activity import finishing_activity
 
-        cfg_row = {"require_resolve_finish": True, "color_grade_preset": "cinematic",
-                   "audio_denoise": True, "audio_eq": True, "audio_compress": True,
-                   "audio_music_duck": True, "audio_loudness_lufs": -14.0,
-                   "audio_true_peak_dbtps": -1.5, "output_prores_archive": False}
-        with patch(f"{_ACT}._load_config", new_callable=AsyncMock, return_value=cfg_row), \
-             patch(f"{_ACT}._download_source", new_callable=AsyncMock), \
-             patch(f"{_ACT}._resolve_lut", new_callable=AsyncMock), \
-             patch(f"{_ACT}.run_finishing", new_callable=AsyncMock,
-                   side_effect=FinishingError("boom")), \
-             patch(f"{_ACT}._mark_db", new_callable=AsyncMock):
+        cfg_row = {
+            "require_resolve_finish": True,
+            "color_grade_preset": "cinematic",
+            "audio_denoise": True,
+            "audio_eq": True,
+            "audio_compress": True,
+            "audio_music_duck": True,
+            "audio_loudness_lufs": -14.0,
+            "audio_true_peak_dbtps": -1.5,
+            "output_prores_archive": False,
+        }
+        with (
+            patch(f"{_ACT}._load_config", new_callable=AsyncMock, return_value=cfg_row),
+            patch(f"{_ACT}._download_source", new_callable=AsyncMock),
+            patch(f"{_ACT}._resolve_lut", new_callable=AsyncMock),
+            patch(f"{_ACT}.run_finishing", new_callable=AsyncMock, side_effect=FinishingError("boom")),
+            patch(f"{_ACT}._mark_db", new_callable=AsyncMock),
+        ):
             with pytest.raises(FinishingError):
-                await finishing_activity({"content_id": "c3", "channel_id": "ch1",
-                                          "video_url": "http://x/v.mp4"})
+                await finishing_activity({"content_id": "c3", "channel_id": "ch1", "video_url": "http://x/v.mp4"})
 
     async def test_success_returns_finished_url(self):
         from services_api.finishing.activity import finishing_activity
 
-        cfg_row = {"require_resolve_finish": False, "color_grade_preset": "warm_gold",
-                   "audio_denoise": True, "audio_eq": True, "audio_compress": True,
-                   "audio_music_duck": True, "audio_loudness_lufs": -14.0,
-                   "audio_true_peak_dbtps": -1.5, "output_prores_archive": False}
-        with patch(f"{_ACT}._load_config", new_callable=AsyncMock, return_value=cfg_row), \
-             patch(f"{_ACT}._download_source", new_callable=AsyncMock), \
-             patch(f"{_ACT}._resolve_lut", new_callable=AsyncMock), \
-             patch(f"{_ACT}.run_finishing", new_callable=AsyncMock), \
-             patch(f"{_ACT}._upload_finished", new_callable=AsyncMock,
-                   return_value="http://minio/videos/finished/c4.mp4"), \
-             patch(f"{_ACT}._mark_db", new_callable=AsyncMock) as mark:
-            out = await finishing_activity({"content_id": "c4", "channel_id": "ch1",
-                                            "video_url": "http://x/v.mp4"})
+        cfg_row = {
+            "require_resolve_finish": False,
+            "color_grade_preset": "warm_gold",
+            "audio_denoise": True,
+            "audio_eq": True,
+            "audio_compress": True,
+            "audio_music_duck": True,
+            "audio_loudness_lufs": -14.0,
+            "audio_true_peak_dbtps": -1.5,
+            "output_prores_archive": False,
+        }
+        with (
+            patch(f"{_ACT}._load_config", new_callable=AsyncMock, return_value=cfg_row),
+            patch(f"{_ACT}._download_source", new_callable=AsyncMock),
+            patch(f"{_ACT}._resolve_lut", new_callable=AsyncMock),
+            patch(f"{_ACT}.run_finishing", new_callable=AsyncMock),
+            patch(
+                f"{_ACT}._upload_finished", new_callable=AsyncMock, return_value="http://minio/videos/finished/c4.mp4"
+            ),
+            patch(f"{_ACT}._mark_db", new_callable=AsyncMock) as mark,
+        ):
+            out = await finishing_activity({"content_id": "c4", "channel_id": "ch1", "video_url": "http://x/v.mp4"})
         assert out["status"] == "success"
         assert out["data"]["finished_url"].endswith("/c4.mp4")
         assert out["data"]["preset_used"] == "warm_gold"
         assert mark.await_args.kwargs["skipped"] is False
-
 
 
 @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
@@ -238,11 +262,23 @@ async def test_real_ffmpeg_finish_produces_output():
         write_cube("cinematic", lut, size=17)
 
         gen = await asyncio.create_subprocess_exec(
-            "ffmpeg", "-hide_banner", "-y",
-            "-f", "lavfi", "-i", "testsrc=size=320x180:rate=24:duration=1",
-            "-f", "lavfi", "-i", "sine=frequency=440:duration=1",
-            "-shortest", "-pix_fmt", "yuv420p", raw,
-            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+            "ffmpeg",
+            "-hide_banner",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=size=320x180:rate=24:duration=1",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=1",
+            "-shortest",
+            "-pix_fmt",
+            "yuv420p",
+            raw,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
         )
         await gen.communicate()
         assert os.path.exists(raw)

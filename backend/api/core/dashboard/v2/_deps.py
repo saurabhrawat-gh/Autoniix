@@ -2,6 +2,7 @@
 
 Single source of truth for auth, audit logging, and feature-flag checks.
 """
+
 from __future__ import annotations
 
 import json
@@ -25,12 +26,13 @@ _security = HTTPBearer(auto_error=False)
 @dataclass
 class Principal:
     """Authenticated subject. ``user_id`` is None for legacy single-user."""
+
     user_id: int | None
     email: str | None
     role: str
     source: str
     workspace_id: int = 1
-    global_role: str = 'user'
+    global_role: str = "user"
 
 
 def _jwt_secret() -> str:
@@ -40,6 +42,7 @@ def _jwt_secret() -> str:
 def _decode_jwt(token: str) -> dict[str, Any] | None:
     try:
         import jwt
+
         return jwt.decode(token, _jwt_secret(), algorithms=["HS256"])
     except Exception:
         return None
@@ -90,11 +93,15 @@ async def principal_dep(
             return principal
 
     try:
-        from services_api.dashboard import main as _legacy
         import time as _time
+
+        from services_api.dashboard import main as _legacy
+
         expiry = _legacy._sessions.get(token)
         if expiry is not None and expiry >= _time.time():
-            return Principal(user_id=None, email=None, role="owner", global_role="superadmin", workspace_id=1, source="legacy")
+            return Principal(
+                user_id=None, email=None, role="owner", global_role="superadmin", workspace_id=1, source="legacy"
+            )
     except Exception:
         pass
 
@@ -142,8 +149,10 @@ def require_permission(permission: str):
     caller's role lacks *permission*.  Cache is warmed by
     :mod:`._permissions` (30 s TTL + Redis pub/sub invalidation).
     """
+
     async def _checker(p: Principal = Depends(principal_dep)) -> Principal:
         from ._permissions import get_permissions_for_role
+
         perms = await get_permissions_for_role(p.role)
         if permission not in perms:
             raise HTTPException(
@@ -158,9 +167,7 @@ def require_permission(permission: str):
 async def flag_enabled(key: str) -> bool:
     try:
         pool = await get_pool()
-        row = await pool.fetchrow(
-            "SELECT enabled FROM feature_flags WHERE key = $1", key
-        )
+        row = await pool.fetchrow("SELECT enabled FROM feature_flags WHERE key = $1", key)
         return bool(row and row["enabled"])
     except Exception:
         return False

@@ -24,19 +24,17 @@ Algorithm (per niche, per dimension):
 The calibrator is stateless and pure — it takes samples in, returns a
 ``CalibrationResult`` out. The DB layer wraps it.
 """
+
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
-from typing import Iterable
+from dataclasses import dataclass
 
 import structlog
 
-from quality.gate import PRODUCTION_THRESHOLDS, WEIGHTS, _composite
+from quality.gate import PRODUCTION_THRESHOLDS
 
 logger = structlog.get_logger()
-
-
 
 
 MIN_SAMPLES = 20
@@ -51,12 +49,10 @@ FLOP_TIERS = {"D"}
 
 
 DIM_TO_RETENTION_FEATURE: dict[str, str] = {
-    "hook_retention_score":   "hook_dropoff_30s",
+    "hook_retention_score": "hook_dropoff_30s",
     "script_structure_score": "mid_video_decay",
 }
 RETENTION_LOWER_IS_BETTER = {"hook_dropoff_30s", "mid_video_decay"}
-
-
 
 
 @dataclass
@@ -72,6 +68,7 @@ class Sample:
     block it" — that safety property must hold regardless of curve
     shape (a video can have great views and a mediocre hook curve).
     """
+
     score: float
     tier: str
     retention_label: bool | None = None
@@ -108,19 +105,11 @@ class CalibrationResult:
             "dimension": self.dimension,
             "floor": round(self.floor, 2),
             "n_samples": self.n_samples,
-            "win_rate_at_floor": (
-                round(self.win_rate_at_floor, 4)
-                if self.win_rate_at_floor is not None else None
-            ),
-            "s_tier_preserved": (
-                round(self.s_tier_preserved, 4)
-                if self.s_tier_preserved is not None else None
-            ),
+            "win_rate_at_floor": (round(self.win_rate_at_floor, 4) if self.win_rate_at_floor is not None else None),
+            "s_tier_preserved": (round(self.s_tier_preserved, 4) if self.s_tier_preserved is not None else None),
             "status": self.status,
             "note": self.note,
         }
-
-
 
 
 def _candidate_thresholds(samples: list[Sample]) -> list[float]:
@@ -149,19 +138,25 @@ def calibrate_dimension(
     n = len(samples)
     if n < MIN_SAMPLES:
         return CalibrationResult(
-            dimension=dimension, floor=default_floor, n_samples=n,
-            win_rate_at_floor=None, s_tier_preserved=None,
+            dimension=dimension,
+            floor=default_floor,
+            n_samples=n,
+            win_rate_at_floor=None,
+            s_tier_preserved=None,
             status="insufficient_samples",
             note=f"need {MIN_SAMPLES}, got {n}",
         )
 
-    wins  = [s for s in samples if s.is_win]
+    wins = [s for s in samples if s.is_win]
     flops = [s for s in samples if s.is_flop]
 
     if not wins or not flops:
         return CalibrationResult(
-            dimension=dimension, floor=default_floor, n_samples=n,
-            win_rate_at_floor=None, s_tier_preserved=None,
+            dimension=dimension,
+            floor=default_floor,
+            n_samples=n,
+            win_rate_at_floor=None,
+            s_tier_preserved=None,
             status="insufficient_samples",
             note=f"wins={len(wins)} flops={len(flops)} (need ≥1 each)",
         )
@@ -178,17 +173,17 @@ def calibrate_dimension(
         precision = n_wins_pass / len(passing)
         if precision < TARGET_PRECISION:
             continue
-        s_preserved = (
-            sum(1 for s in s_tier if s.score >= t) / len(s_tier)
-            if s_tier else 1.0
-        )
+        s_preserved = sum(1 for s in s_tier if s.score >= t) / len(s_tier) if s_tier else 1.0
         best = (t, precision, s_preserved)
         break
 
     if best is None:
         return CalibrationResult(
-            dimension=dimension, floor=default_floor, n_samples=n,
-            win_rate_at_floor=None, s_tier_preserved=None,
+            dimension=dimension,
+            floor=default_floor,
+            n_samples=n,
+            win_rate_at_floor=None,
+            s_tier_preserved=None,
             status="no_threshold_meets_precision",
             note=f"no threshold reaches {TARGET_PRECISION:.0%} precision",
         )
@@ -200,16 +195,16 @@ def calibrate_dimension(
         passing = [s for s in samples if s.score >= t]
         if passing:
             precision = sum(1 for s in passing if s.is_win) / len(passing)
-            s_preserved = (
-                sum(1 for s in s_tier if s.score >= t) / len(s_tier)
-                if s_tier else 1.0
-            )
+            s_preserved = sum(1 for s in s_tier if s.score >= t) / len(s_tier) if s_tier else 1.0
 
     floor = max(ABSOLUTE_FLOOR, min(ABSOLUTE_CEILING, t))
 
     return CalibrationResult(
-        dimension=dimension, floor=floor, n_samples=n,
-        win_rate_at_floor=precision, s_tier_preserved=s_preserved,
+        dimension=dimension,
+        floor=floor,
+        n_samples=n,
+        win_rate_at_floor=precision,
+        s_tier_preserved=s_preserved,
         status="auto",
         note="",
     )
@@ -223,8 +218,7 @@ def calibrate_all_dimensions(
     for dim, default in PRODUCTION_THRESHOLDS.items():
         if dim == "composite_score":
             continue
-        out.append(calibrate_dimension(dim, samples_by_dim.get(dim, []),
-                                        default_floor=default))
+        out.append(calibrate_dimension(dim, samples_by_dim.get(dim, []), default_floor=default))
     return out
 
 
@@ -236,11 +230,10 @@ def calibrate_composite(samples: list[Sample]) -> CalibrationResult:
     just calibrate over the resulting numbers like any other dimension.
     """
     return calibrate_dimension(
-        "composite_score", samples,
+        "composite_score",
+        samples,
         default_floor=PRODUCTION_THRESHOLDS["composite_score"],
     )
-
-
 
 
 async def _fetch_samples_for_niche(niche: str, lookback_days: int = 90) -> list[dict]:
@@ -255,6 +248,7 @@ async def _fetch_samples_for_niche(niche: str, lookback_days: int = 90) -> list[
     NULL retention features and the calibrator silently uses tier.
     """
     from core.db import get_pool
+
     pool = await get_pool()
     rows = await pool.fetch(
         """
@@ -267,7 +261,8 @@ async def _fetch_samples_for_niche(niche: str, lookback_days: int = 90) -> list[
         WHERE c.niche = $1
           AND fl.performance_tier IS NOT NULL
           AND qgd.created_at > NOW() - INTERVAL '%d days'
-        """ % int(lookback_days),
+        """
+        % int(lookback_days),
         niche,
     )
     return [dict(r) for r in rows]
@@ -322,8 +317,7 @@ def _samples_by_dimension(rows: list[dict]) -> tuple[dict[str, list[Sample]], li
     tier-based label exactly as in Phase 7.
     """
     retention_medians: dict[str, float | None] = {
-        feature: _niche_median([r.get(feature) for r in rows])
-        for feature in set(DIM_TO_RETENTION_FEATURE.values())
+        feature: _niche_median([r.get(feature) for r in rows]) for feature in set(DIM_TO_RETENTION_FEATURE.values())
     }
 
     by_dim: dict[str, list[Sample]] = {dim: [] for dim in PRODUCTION_THRESHOLDS if dim != "composite_score"}
@@ -360,9 +354,13 @@ def _samples_by_dimension(rows: list[dict]) -> tuple[dict[str, list[Sample]], li
                     retention_medians.get(feature),
                     lower_is_better=feature in RETENTION_LOWER_IS_BETTER,
                 )
-            by_dim[dim].append(Sample(
-                score=score, tier=tier, retention_label=retention_label,
-            ))
+            by_dim[dim].append(
+                Sample(
+                    score=score,
+                    tier=tier,
+                    retention_label=retention_label,
+                )
+            )
         comp = r.get("composite_score")
         if comp is not None:
             try:
@@ -384,6 +382,7 @@ async def calibrate_niche(niche: str) -> list[CalibrationResult]:
     results.append(calibrate_composite(composite))
 
     from core.db import get_pool
+
     pool = await get_pool()
     for r in results:
         await pool.execute(
@@ -405,7 +404,7 @@ async def calibrate_niche(niche: str) -> list[CalibrationResult]:
             float(r.floor),
             int(r.n_samples),
             float(r.win_rate_at_floor) if r.win_rate_at_floor is not None else None,
-            float(r.s_tier_preserved)  if r.s_tier_preserved  is not None else None,
+            float(r.s_tier_preserved) if r.s_tier_preserved is not None else None,
             "default" if r.status == "insufficient_samples" else "auto",
         )
 
@@ -429,6 +428,7 @@ async def load_thresholds_for_niche(niche: str) -> dict[str, float]:
     out = dict(PRODUCTION_THRESHOLDS)
     try:
         from core.db import get_pool
+
         pool = await get_pool()
         rows = await pool.fetch(
             "SELECT dimension, floor FROM gate_thresholds WHERE niche = $1",

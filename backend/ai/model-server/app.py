@@ -43,8 +43,6 @@ MODEL_VERSIONS: Dict[ModelKind, str] = {
 OUTPUT_BUCKET_URL = os.environ.get("MODEL_OUTPUT_BUCKET_URL", "http://minio:9000/derived")
 
 
-
-
 class JobRequest(BaseModel):
     kind: ModelKind
     inputUrl: str
@@ -59,8 +57,6 @@ class JobResponse(BaseModel):
     outputSha256: Optional[str] = None
     error: Optional[str] = None
     progress: Optional[float] = None
-
-
 
 
 @dataclass
@@ -90,8 +86,6 @@ def _compute_cache_key(req: JobRequest) -> str:
     }
     blob = json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()
-
-
 
 
 async def _run_stub(kind: ModelKind, req: JobRequest) -> tuple[str, str]:
@@ -124,8 +118,6 @@ async def _process_job(job: _Job) -> None:
     except Exception as e:  # pragma: no cover — defensive
         job.status = "failed"
         job.error = str(e)
-
-
 
 
 app = FastAPI(title="model-server", version="0.1.0")

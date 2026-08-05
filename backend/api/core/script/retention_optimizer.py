@@ -12,6 +12,7 @@ Scores scripts on YouTube-specific retention mechanics:
 
 All computation is local. Zero API cost.
 """
+
 from __future__ import annotations
 
 import re
@@ -20,61 +21,95 @@ from typing import Any
 import structlog
 
 from services_api.script.script_analyzer import (
-    compute_specificity,
     compute_question_density,
+    compute_specificity,
     detect_emotions,
-    estimate_speaking_duration,
-    count_syllables,
-    EMOTION_LEXICON,
 )
 
 logger = structlog.get_logger()
 
 CURIOSITY_OPENERS = [
-    r"\bwhy\b", r"\bhow\b", r"\bwhat if\b", r"\bwhat happens\b",
-    r"\bever wonder\b", r"\bdid you know\b", r"\bhere'?s (?:the|a) (?:secret|thing|truth)\b",
+    r"\bwhy\b",
+    r"\bhow\b",
+    r"\bwhat if\b",
+    r"\bwhat happens\b",
+    r"\bever wonder\b",
+    r"\bdid you know\b",
+    r"\bhere'?s (?:the|a) (?:secret|thing|truth)\b",
     r"\bthe (?:real|actual|surprising|shocking) (?:reason|truth|answer)\b",
     r"\bbut (?:here'?s|there'?s) (?:the|a) (?:catch|twist|problem)\b",
-    r"\bnobody (?:talks|knows|tells)\b", r"\bno one (?:talks|knows|tells)\b",
-    r"\bmost people (?:don'?t|never)\b", r"\bthe mistake\b",
-    r"\byet\b", r"\bbut wait\b", r"\bthere'?s more\b",
-    r"\bguess what\b", r"\byou won'?t believe\b",
+    r"\bnobody (?:talks|knows|tells)\b",
+    r"\bno one (?:talks|knows|tells)\b",
+    r"\bmost people (?:don'?t|never)\b",
+    r"\bthe mistake\b",
+    r"\byet\b",
+    r"\bbut wait\b",
+    r"\bthere'?s more\b",
+    r"\bguess what\b",
+    r"\byou won'?t believe\b",
 ]
 _CURIOSITY_COMPILED = [re.compile(p, re.IGNORECASE) for p in CURIOSITY_OPENERS]
 
 CURIOSITY_CLOSERS = [
-    r"\bhere'?s (?:why|how|what)\b", r"\bthe answer is\b",
-    r"\bthat'?s (?:why|how|because)\b", r"\bthe reason is\b",
-    r"\bso here it is\b", r"\bturns out\b", r"\bthe truth is\b",
-    r"\bthe solution\b", r"\bin short\b", r"\bsimply put\b",
+    r"\bhere'?s (?:why|how|what)\b",
+    r"\bthe answer is\b",
+    r"\bthat'?s (?:why|how|because)\b",
+    r"\bthe reason is\b",
+    r"\bso here it is\b",
+    r"\bturns out\b",
+    r"\bthe truth is\b",
+    r"\bthe solution\b",
+    r"\bin short\b",
+    r"\bsimply put\b",
 ]
 _CLOSER_COMPILED = [re.compile(p, re.IGNORECASE) for p in CURIOSITY_CLOSERS]
 
 PATTERN_INTERRUPTS = [
-    r"\bbut\b", r"\bhowever\b", r"\bwait\b", r"\bhold on\b",
-    r"\bactually\b", r"\bhere'?s (?:the|a) (?:thing|twist|catch)\b",
-    r"\bplot twist\b", r"\bnow\b.*\b(?:gets?|is|becomes?)\b.*\b(?:interesting|weird|crazy|wild)\b",
-    r"\bexcept\b", r"\bunless\b", r"\bcontrary\b",
-    r"\bforget (?:everything|what)\b", r"\bwrong\b",
-    r"\bsurprisingly\b", r"\bironically\b",
-    r"\blet me (?:tell|show|explain)\b", r"\bstop\b",
+    r"\bbut\b",
+    r"\bhowever\b",
+    r"\bwait\b",
+    r"\bhold on\b",
+    r"\bactually\b",
+    r"\bhere'?s (?:the|a) (?:thing|twist|catch)\b",
+    r"\bplot twist\b",
+    r"\bnow\b.*\b(?:gets?|is|becomes?)\b.*\b(?:interesting|weird|crazy|wild)\b",
+    r"\bexcept\b",
+    r"\bunless\b",
+    r"\bcontrary\b",
+    r"\bforget (?:everything|what)\b",
+    r"\bwrong\b",
+    r"\bsurprisingly\b",
+    r"\bironically\b",
+    r"\blet me (?:tell|show|explain)\b",
+    r"\bstop\b",
     r"\bthink about (?:it|this|that)\b",
 ]
 _INTERRUPT_COMPILED = [re.compile(p, re.IGNORECASE) for p in PATTERN_INTERRUPTS]
 
 BUT_THEREFORE_PATTERNS = [
-    r"\bbut\b", r"\btherefore\b", r"\bso\b", r"\bhowever\b",
-    r"\bconsequently\b", r"\bas a result\b", r"\bbecause of this\b",
-    r"\bthat'?s why\b", r"\bwhich means\b", r"\byet\b",
+    r"\bbut\b",
+    r"\btherefore\b",
+    r"\bso\b",
+    r"\bhowever\b",
+    r"\bconsequently\b",
+    r"\bas a result\b",
+    r"\bbecause of this\b",
+    r"\bthat'?s why\b",
+    r"\bwhich means\b",
+    r"\byet\b",
 ]
 AND_THEN_PATTERNS = [
-    r"\band then\b", r"\bnext\b", r"\bafter that\b",
-    r"\bmoreover\b", r"\bfurthermore\b", r"\badditionally\b",
-    r"\balso\b", r"\bin addition\b",
+    r"\band then\b",
+    r"\bnext\b",
+    r"\bafter that\b",
+    r"\bmoreover\b",
+    r"\bfurthermore\b",
+    r"\badditionally\b",
+    r"\balso\b",
+    r"\bin addition\b",
 ]
 _BT_COMPILED = [re.compile(p, re.IGNORECASE) for p in BUT_THEREFORE_PATTERNS]
 _AT_COMPILED = [re.compile(p, re.IGNORECASE) for p in AND_THEN_PATTERNS]
-
 
 
 def analyze_curiosity_loops(text: str) -> dict[str, Any]:
@@ -241,8 +276,8 @@ async def analyze_emotional_arc(segments: list[dict]) -> dict[str, Any]:
 
     direction_changes = 0
     for i in range(2, len(intensities)):
-        prev_dir = intensities[i-1] - intensities[i-2]
-        curr_dir = intensities[i] - intensities[i-1]
+        prev_dir = intensities[i - 1] - intensities[i - 2]
+        curr_dir = intensities[i] - intensities[i - 1]
         if (prev_dir > 0 and curr_dir < 0) or (prev_dir < 0 and curr_dir > 0):
             direction_changes += 1
 
@@ -252,7 +287,7 @@ async def analyze_emotional_arc(segments: list[dict]) -> dict[str, Any]:
     change_score = min(1.0, direction_changes / max(len(intensities) // 3, 1))
     climax_score = 1.0 if has_climax else 0.4
 
-    arc_score = (variance_score * 0.3 + change_score * 0.4 + climax_score * 0.3)
+    arc_score = variance_score * 0.3 + change_score * 0.4 + climax_score * 0.3
 
     return {
         "intensities": [round(i, 3) for i in intensities],
@@ -296,6 +331,7 @@ async def analyze_hook_strength(first_segment: dict, hook_duration_s: float = 5.
 
     hook_words_lower = set(hook_text.lower().split())
     from services_api.script.script_analyzer import POWER_WORDS
+
     power_hits = len(hook_words_lower & POWER_WORDS)
     scores["power_words"] = min(1.0, power_hits * 0.3)
 
@@ -307,8 +343,12 @@ async def analyze_hook_strength(first_segment: dict, hook_duration_s: float = 5.
         scores["word_economy"] = 0.4
 
     weights = {
-        "curiosity_trigger": 0.25, "specificity": 0.15, "emotion_trigger": 0.15,
-        "has_question": 0.10, "pattern_interrupt": 0.10, "power_words": 0.10,
+        "curiosity_trigger": 0.25,
+        "specificity": 0.15,
+        "emotion_trigger": 0.15,
+        "has_question": 0.10,
+        "pattern_interrupt": 0.10,
+        "power_words": 0.10,
         "word_economy": 0.15,
     }
     composite = sum(scores[k] * weights[k] for k in weights)
@@ -331,14 +371,77 @@ def analyze_information_density(text: str) -> dict[str, Any]:
     total = max(len(words), 1)
 
     STOP_WORDS = {
-        "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-        "have", "has", "had", "do", "does", "did", "will", "would", "shall",
-        "should", "may", "might", "can", "could", "must", "to", "of", "in",
-        "for", "on", "with", "at", "by", "from", "as", "into", "through",
-        "during", "before", "after", "above", "below", "between", "and",
-        "but", "or", "not", "no", "so", "if", "then", "than", "that",
-        "this", "these", "those", "it", "its", "you", "your", "we", "our",
-        "they", "their", "he", "she", "his", "her", "i", "my", "me",
+        "the",
+        "a",
+        "an",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "shall",
+        "should",
+        "may",
+        "might",
+        "can",
+        "could",
+        "must",
+        "to",
+        "of",
+        "in",
+        "for",
+        "on",
+        "with",
+        "at",
+        "by",
+        "from",
+        "as",
+        "into",
+        "through",
+        "during",
+        "before",
+        "after",
+        "above",
+        "below",
+        "between",
+        "and",
+        "but",
+        "or",
+        "not",
+        "no",
+        "so",
+        "if",
+        "then",
+        "than",
+        "that",
+        "this",
+        "these",
+        "those",
+        "it",
+        "its",
+        "you",
+        "your",
+        "we",
+        "our",
+        "they",
+        "their",
+        "he",
+        "she",
+        "his",
+        "her",
+        "i",
+        "my",
+        "me",
     }
     meaningful = [w for w in words if w not in STOP_WORDS and len(w) > 2]
     unique_meaningful = set(meaningful)
@@ -360,7 +463,6 @@ def analyze_information_density(text: str) -> dict[str, Any]:
         "density_per_100": round(density, 1),
         "score": round(score, 3),
     }
-
 
 
 async def compute_retention_score(segments: list[dict]) -> dict[str, Any]:

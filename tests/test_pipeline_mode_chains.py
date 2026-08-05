@@ -6,9 +6,8 @@ Verifies:
 - resolved_chain endpoint includes pipeline_mode in response
 - registry.get() accepts pipeline_mode kwarg
 """
-from __future__ import annotations
 
-import pytest
+from __future__ import annotations
 
 
 def test_cache_key_includes_pipeline_mode():
@@ -56,6 +55,7 @@ def test_chain_v2_in_test_pipeline_mode():
 def test_registry_get_accepts_pipeline_mode():
     """Ensure registry.get() signature accepts pipeline_mode without error."""
     import inspect
+
     from providers.registry import ProviderRegistry
 
     sig = inspect.signature(ProviderRegistry.get)
@@ -64,6 +64,7 @@ def test_registry_get_accepts_pipeline_mode():
 
 def test_load_layer_signature_has_pipeline_mode():
     import inspect
+
     from providers.chain import _load_layer
 
     sig = inspect.signature(_load_layer)
@@ -73,6 +74,7 @@ def test_load_layer_signature_has_pipeline_mode():
 
 def test_load_chain_signature_has_pipeline_mode():
     import inspect
+
     from providers.chain import _load_chain
 
     sig = inspect.signature(_load_chain)
@@ -82,6 +84,7 @@ def test_load_chain_signature_has_pipeline_mode():
 
 def test_resolve_chain_signature_has_pipeline_mode():
     import inspect
+
     from providers.chain import resolve_chain
 
     sig = inspect.signature(resolve_chain)

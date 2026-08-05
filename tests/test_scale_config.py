@@ -7,21 +7,17 @@ These are not load tests (those live in ``tests/load/`` and require a
 running stack). These are millisecond-fast checks that the *wiring* is
 correct.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from core.config import settings
-
 
 ROOT = Path(__file__).resolve().parent.parent
 PROD = ROOT / "src" / "workers" / "run_production.py"
 SCHED = ROOT / "src" / "workers" / "run_scheduler.py"
 DB = ROOT / "src" / "db.py"
-
-
 
 
 def test_settings_expose_temporal_sizing():
@@ -38,8 +34,6 @@ def test_settings_expose_db_sizing():
     assert 1_000 <= settings.db_statement_timeout_ms <= 3_600_000
 
 
-
-
 def test_production_worker_uses_settings_for_concurrency():
     src = PROD.read_text()
     assert "settings.temporal_production_max_activities" in src
@@ -54,8 +48,6 @@ def test_scheduler_worker_uses_settings_for_concurrency():
     assert "max_concurrent_activities=3" not in src
 
 
-
-
 def test_db_pool_applies_statement_timeout_per_connection():
     src = DB.read_text()
     assert "_init_connection" in src
@@ -68,6 +60,7 @@ def test_db_pool_applies_statement_timeout_per_connection():
 def test_pool_stats_helper_is_exported():
     """The fleet-health endpoint depends on this name."""
     from src import db
+
     assert hasattr(db, "get_pool_stats")
     out = db.get_pool_stats()
     assert isinstance(out, dict)

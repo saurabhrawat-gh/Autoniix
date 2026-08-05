@@ -10,6 +10,7 @@ Topic names map 1:1 to the locked envelope contract in
 When a future phase needs a new topic, add it here. The matching
 :class:`Topic.is_known` test guards subscribe() against unknown topics.
 """
+
 from __future__ import annotations
 
 from enum import Enum

@@ -7,22 +7,20 @@ Covers:
 - Invalid role returns HTTP 400
 - Cache hit path (warm cache, no DB round-trip)
 """
+
 from __future__ import annotations
 
 import time
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
 
 
-
 def _make_principal(role: str, workspace_id: int = 1):
     from services_api.dashboard.v2._deps import Principal
-    return Principal(user_id=1, email="user@test.com", role=role,
-                     workspace_id=workspace_id, source="v2_jwt")
 
+    return Principal(user_id=1, email="user@test.com", role=role, workspace_id=workspace_id, source="v2_jwt")
 
 
 class TestPermissionCache:
@@ -30,10 +28,12 @@ class TestPermissionCache:
 
     def setup_method(self):
         from services_api.dashboard.v2 import _permissions as pm
+
         pm._cache.clear()
 
     def teardown_method(self):
         from services_api.dashboard.v2 import _permissions as pm
+
         pm._cache.clear()
 
     @pytest.mark.asyncio
@@ -56,8 +56,7 @@ class TestPermissionCache:
     async def test_cache_hit_skips_db(self):
         from services_api.dashboard.v2 import _permissions as pm
 
-        pm._cache["owner"] = (frozenset(["workspace.view", "workspace.billing.manage"]),
-                               time.monotonic() + 30.0)
+        pm._cache["owner"] = (frozenset(["workspace.view", "workspace.billing.manage"]), time.monotonic() + 30.0)
 
         mock_get_pool = AsyncMock()
         with patch("services_api.dashboard.v2._permissions.get_pool", mock_get_pool):
@@ -103,14 +102,13 @@ class TestPermissionCache:
         assert len(pm._cache) == 0
 
 
-
 class TestRequirePermission:
     """Tests for the require_permission() dependency factory in _deps.py."""
 
     @pytest.mark.asyncio
     async def test_permission_granted(self):
-        from services_api.dashboard.v2._deps import require_permission
         from services_api.dashboard.v2 import _permissions as pm
+        from services_api.dashboard.v2._deps import require_permission
 
         pm._cache["owner"] = (frozenset(["workspace.ownership.transfer"]), time.monotonic() + 30.0)
         principal = _make_principal("owner")
@@ -122,8 +120,8 @@ class TestRequirePermission:
 
     @pytest.mark.asyncio
     async def test_permission_denied_returns_403(self):
-        from services_api.dashboard.v2._deps import require_permission
         from services_api.dashboard.v2 import _permissions as pm
+        from services_api.dashboard.v2._deps import require_permission
 
         pm._cache["viewer"] = (frozenset(["workspace.view", "channel.view"]), time.monotonic() + 30.0)
         principal = _make_principal("viewer")
@@ -137,8 +135,8 @@ class TestRequirePermission:
 
     @pytest.mark.asyncio
     async def test_403_detail_format(self):
-        from services_api.dashboard.v2._deps import require_permission
         from services_api.dashboard.v2 import _permissions as pm
+        from services_api.dashboard.v2._deps import require_permission
 
         pm._cache["member"] = (frozenset(["project.view"]), time.monotonic() + 30.0)
         principal = _make_principal("member")
@@ -150,15 +148,14 @@ class TestRequirePermission:
         assert exc_info.value.detail == "Permission denied: workspace.integrations.view"
 
 
-
 class TestNonOwnerCannotAssignOwner:
     """The set_member_role endpoint must block non-owners from assigning owner role."""
 
     @pytest.mark.asyncio
     async def test_member_assign_owner_returns_403(self, mock_db_pool):
         """Member calling PUT /members/:id/role with role=owner gets HTTP 403."""
-        from services_api.dashboard.v2.workspace import set_member_role
         from services_api.dashboard.v2 import _permissions as pm
+        from services_api.dashboard.v2.workspace import set_member_role
 
         pm._cache["member"] = (frozenset(["workspace.members.role.change"]), time.monotonic() + 30.0)
         actor = _make_principal("member")
@@ -173,14 +170,13 @@ class TestNonOwnerCannotAssignOwner:
         assert "owner" in exc_info.value.detail.lower()
 
 
-
 class TestInvalidRoleValidation:
     """Legacy role strings (analyst, reviewer) must still return HTTP 400."""
 
     @pytest.mark.asyncio
     async def test_invalid_role_on_invite_returns_400(self, mock_db_pool):
-        from services_api.dashboard.v2.workspace import create_invite
         from services_api.dashboard.v2 import _permissions as pm
+        from services_api.dashboard.v2.workspace import create_invite
 
         pm._cache["owner"] = (frozenset(["workspace.members.invite"]), time.monotonic() + 30.0)
         actor = _make_principal("owner")
@@ -197,8 +193,8 @@ class TestInvalidRoleValidation:
 
     @pytest.mark.asyncio
     async def test_invalid_role_on_member_update_returns_400(self, mock_db_pool):
-        from services_api.dashboard.v2.workspace import set_member_role
         from services_api.dashboard.v2 import _permissions as pm
+        from services_api.dashboard.v2.workspace import set_member_role
 
         pm._cache["owner"] = (frozenset(["workspace.members.role.change"]), time.monotonic() + 30.0)
         actor = _make_principal("owner")

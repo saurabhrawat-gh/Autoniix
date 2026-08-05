@@ -8,6 +8,7 @@ with no history returns safe zero-defaults so the engine never panics.
 
 AE-P1 / Brain Service.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -51,10 +52,7 @@ class ChannelSignals:
 
     @property
     def budget_exhausted(self) -> bool:
-        return (
-            self.daily_budget_limit > 0
-            and self.daily_spend_today >= self.daily_budget_limit
-        )
+        return self.daily_budget_limit > 0 and self.daily_spend_today >= self.daily_budget_limit
 
 
 async def analyse_channel(channel_id: str) -> ChannelSignals:
@@ -78,8 +76,7 @@ async def _fetch_signals(channel_id: str) -> ChannelSignals:
     volume_task = _fetch_volume(pool, channel_id)
     budget_task = _fetch_budget(pool, channel_id)
 
-    (scores, (avg_cost, latest_cost), (consec, total_fail),
-     (delivered, failed), budget) = await asyncio.gather(
+    (scores, (avg_cost, latest_cost), (consec, total_fail), (delivered, failed), budget) = await asyncio.gather(
         quality_task, cost_task, failure_task, volume_task, budget_task
     )
 
@@ -117,7 +114,8 @@ async def _fetch_quality(pool, channel_id: str) -> list[float]:
         ORDER BY created_at DESC
         LIMIT $2
         """,
-        channel_id, _RECENT_VIDEOS,
+        channel_id,
+        _RECENT_VIDEOS,
     )
     return [float(r["final_composite_score"]) for r in rows]
 
@@ -133,7 +131,8 @@ async def _fetch_cost(pool, channel_id: str) -> tuple[float, float]:
         ORDER BY MAX(created_at) DESC
         LIMIT $2
         """,
-        channel_id, _RECENT_VIDEOS,
+        channel_id,
+        _RECENT_VIDEOS,
     )
     if not rows:
         return 0.0, 0.0
@@ -152,7 +151,8 @@ async def _fetch_failures(pool, channel_id: str) -> tuple[int, int]:
         ORDER BY created_at DESC
         LIMIT 20
         """,
-        channel_id, str(_FAILURE_WINDOW_H),
+        channel_id,
+        str(_FAILURE_WINDOW_H),
     )
     statuses = [r["status"] for r in rows]
     total_fail = sum(1 for s in statuses if s == "failed")

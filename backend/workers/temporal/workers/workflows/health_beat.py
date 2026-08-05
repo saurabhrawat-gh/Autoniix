@@ -2,6 +2,7 @@
 
 Ported from ``go-workflows/health_beat.go``. Task queue: ``scheduler-v2``.
 """
+
 from __future__ import annotations
 
 from datetime import timedelta

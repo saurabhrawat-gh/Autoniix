@@ -20,6 +20,7 @@ typically a Temporal activity — can decide whether to retry or skip.
 Most failures (404, 403, 401-needs-refresh) are transient at the
 per-video level and the workflow should not abort the batch.
 """
+
 from __future__ import annotations
 
 import json
@@ -28,9 +29,6 @@ from typing import Any
 
 import httpx
 import structlog
-
-from core.config import settings
-from core.db import get_pool
 from quality.retention_features import (
     CurvePoint,
     RetentionFeatures,
@@ -38,9 +36,10 @@ from quality.retention_features import (
     parse_curve,
 )
 
+from core.config import settings
+from core.db import get_pool
+
 logger = structlog.get_logger()
-
-
 
 
 class RetentionFetchError(Exception):
@@ -52,8 +51,6 @@ class RetentionFetchError(Exception):
     def __init__(self, message: str, status: int = 0):
         super().__init__(message)
         self.status = status
-
-
 
 
 _token_cache: dict[str, Any] = {"access_token": None, "expires_at": None}
@@ -73,9 +70,9 @@ async def _get_access_token() -> str:
     if cached and expires_at and now < expires_at:
         return cached
 
-    if not (settings.google_oauth_client_id
-            and settings.google_oauth_client_secret
-            and settings.google_oauth_refresh_token):
+    if not (
+        settings.google_oauth_client_id and settings.google_oauth_client_secret and settings.google_oauth_refresh_token
+    ):
         raise RetentionFetchError(
             "OAuth credentials not configured (need client_id, client_secret, refresh_token)",
             status=0,
@@ -85,10 +82,10 @@ async def _get_access_token() -> str:
         resp = await client.post(
             "https://oauth2.googleapis.com/token",
             data={
-                "client_id":     settings.google_oauth_client_id,
+                "client_id": settings.google_oauth_client_id,
                 "client_secret": settings.google_oauth_client_secret,
                 "refresh_token": settings.google_oauth_refresh_token,
-                "grant_type":    "refresh_token",
+                "grant_type": "refresh_token",
             },
         )
     if resp.status_code != 200:
@@ -103,10 +100,8 @@ async def _get_access_token() -> str:
         raise RetentionFetchError("OAuth response missing access_token", status=0)
 
     _token_cache["access_token"] = token
-    _token_cache["expires_at"]   = now + timedelta(seconds=max(60, expires_in - 60))
+    _token_cache["expires_at"] = now + timedelta(seconds=max(60, expires_in - 60))
     return token
-
-
 
 
 async def fetch_retention_curve(yt_video_id: str) -> list[CurvePoint]:
@@ -124,13 +119,13 @@ async def fetch_retention_curve(yt_video_id: str) -> list[CurvePoint]:
         resp = await client.get(
             "https://youtubeanalytics.googleapis.com/v2/reports",
             params={
-                "ids":        "channel==MINE",
-                "startDate":  "2005-01-01",
-                "endDate":    today,
-                "metrics":    "audienceWatchRatio",
+                "ids": "channel==MINE",
+                "startDate": "2005-01-01",
+                "endDate": today,
+                "metrics": "audienceWatchRatio",
                 "dimensions": "elapsedVideoTimeRatio",
-                "filters":    f"video=={yt_video_id}",
-                "sort":       "elapsedVideoTimeRatio",
+                "filters": f"video=={yt_video_id}",
+                "sort": "elapsedVideoTimeRatio",
             },
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -154,8 +149,6 @@ async def fetch_retention_curve(yt_video_id: str) -> list[CurvePoint]:
     data = resp.json()
     rows = data.get("rows") or []
     return parse_curve(rows)
-
-
 
 
 async def fetch_and_store_retention(content_id: str) -> dict:
@@ -212,10 +205,7 @@ async def fetch_and_store_retention(content_id: str) -> dict:
     if not features.valid:
         return {"status": "invalid_curve", "yt_video_id": yt_id, "n_points": len(curve)}
 
-    curve_json = json.dumps([
-        {"elapsed_ratio": p.elapsed_ratio, "watch_ratio": p.watch_ratio}
-        for p in curve
-    ])
+    curve_json = json.dumps([{"elapsed_ratio": p.elapsed_ratio, "watch_ratio": p.watch_ratio} for p in curve])
 
     await pool.execute(
         """
@@ -244,21 +234,23 @@ async def fetch_and_store_retention(content_id: str) -> dict:
         age_days,
     )
 
-    logger.info("retention.fetched", video_id=content_id, yt_video_id=yt_id,
-                hook_drop=features.hook_dropoff_30s,
-                mid_decay=features.mid_video_decay,
-                end_ret=features.end_retention,
-                n_points=len(curve))
+    logger.info(
+        "retention.fetched",
+        video_id=content_id,
+        yt_video_id=yt_id,
+        hook_drop=features.hook_dropoff_30s,
+        mid_decay=features.mid_video_decay,
+        end_ret=features.end_retention,
+        n_points=len(curve),
+    )
     return {
-        "status":            "stored",
-        "yt_video_id":       yt_id,
-        "hook_dropoff_30s":  features.hook_dropoff_30s,
-        "mid_video_decay":   features.mid_video_decay,
-        "end_retention":     features.end_retention,
-        "n_points":          len(curve),
+        "status": "stored",
+        "yt_video_id": yt_id,
+        "hook_dropoff_30s": features.hook_dropoff_30s,
+        "mid_video_decay": features.mid_video_decay,
+        "end_retention": features.end_retention,
+        "n_points": len(curve),
     }
-
-
 
 
 async def videos_needing_retention(
@@ -288,6 +280,8 @@ async def videos_needing_retention(
         ORDER BY v.created_at ASC
         LIMIT $3
         """,
-        min_age_days, max_age_days, limit,
+        min_age_days,
+        max_age_days,
+        limit,
     )
     return [r["content_id"] for r in rows]

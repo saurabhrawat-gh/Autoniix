@@ -22,6 +22,7 @@ PRICING: dict[str, dict[str, float]] = {
 @dataclass
 class VisionRequest(LLMRequest):
     """LLM request that can include images."""
+
     image_urls: list[str] = field(default_factory=list)
     image_bytes_list: list[bytes] = field(default_factory=list)
 
@@ -47,16 +48,20 @@ class OpenAIVisionLLM(LLMProvider):
 
                 if isinstance(request, VisionRequest):
                     for url in request.image_urls:
-                        content_parts.append({
-                            "type": "image_url",
-                            "image_url": {"url": url, "detail": "high"},
-                        })
+                        content_parts.append(
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": url, "detail": "high"},
+                            }
+                        )
                     for img_bytes in request.image_bytes_list:
                         b64 = base64.b64encode(img_bytes).decode("utf-8")
-                        content_parts.append({
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/png;base64,{b64}", "detail": "high"},
-                        })
+                        content_parts.append(
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:image/png;base64,{b64}", "detail": "high"},
+                            }
+                        )
 
                 messages.append({"role": "user", "content": content_parts})
             else:

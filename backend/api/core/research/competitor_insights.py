@@ -4,10 +4,9 @@ Tracks competitor channels per niche, identifies outlier videos
 (small channels with viral hits), and computes view velocity.
 All data stored in `competitor_channels` / `competitor_videos` tables.
 """
+
 from __future__ import annotations
 
-import asyncio
-import json
 from datetime import datetime, timedelta
 
 import httpx
@@ -15,12 +14,10 @@ import structlog
 
 from core.config import settings
 from core.db import get_pool
-from core.redis_client import get_redis
 
 logger = structlog.get_logger()
 
 CACHE_TTL = 3600 * 12
-
 
 
 async def _yt_get(endpoint: str, params: dict) -> dict:
@@ -47,10 +44,13 @@ async def _get_channel_stats(channel_ids: list[str]) -> dict[str, dict]:
     """Get stats for multiple channels in one batch."""
     if not channel_ids:
         return {}
-    data = await _yt_get("channels", {
-        "part": "statistics,snippet",
-        "id": ",".join(channel_ids[:50]),
-    })
+    data = await _yt_get(
+        "channels",
+        {
+            "part": "statistics,snippet",
+            "id": ",".join(channel_ids[:50]),
+        },
+    )
     result = {}
     for item in data.get("items", []):
         stats = item.get("statistics", {})
@@ -65,22 +65,28 @@ async def _get_channel_stats(channel_ids: list[str]) -> dict[str, dict]:
 
 async def _get_recent_videos(channel_id: str, max_results: int = 20) -> list[dict]:
     """Get recent videos from a channel."""
-    data = await _yt_get("search", {
-        "part": "snippet",
-        "channelId": channel_id,
-        "type": "video",
-        "order": "date",
-        "maxResults": max_results,
-        "publishedAfter": (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    })
+    data = await _yt_get(
+        "search",
+        {
+            "part": "snippet",
+            "channelId": channel_id,
+            "type": "video",
+            "order": "date",
+            "maxResults": max_results,
+            "publishedAfter": (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        },
+    )
     video_ids = [it["id"]["videoId"] for it in data.get("items", []) if it.get("id", {}).get("videoId")]
     if not video_ids:
         return []
 
-    stats_data = await _yt_get("videos", {
-        "part": "statistics,contentDetails,snippet",
-        "id": ",".join(video_ids),
-    })
+    stats_data = await _yt_get(
+        "videos",
+        {
+            "part": "statistics,contentDetails,snippet",
+            "id": ",".join(video_ids),
+        },
+    )
 
     results = []
     for v in stats_data.get("items", []):
@@ -89,29 +95,31 @@ async def _get_recent_videos(channel_id: str, max_results: int = 20) -> list[dic
         dur_str = v.get("contentDetails", {}).get("duration", "PT0S")
         duration_s = _parse_iso_duration(dur_str)
 
-        results.append({
-            "video_id": v["id"],
-            "title": snippet.get("title", ""),
-            "description": snippet.get("description", "")[:500],
-            "tags": ",".join(snippet.get("tags", [])[:20]),
-            "published_at": snippet.get("publishedAt", ""),
-            "views": int(stats.get("viewCount", 0)),
-            "likes": int(stats.get("likeCount", 0)),
-            "comments": int(stats.get("commentCount", 0)),
-            "duration_seconds": duration_s,
-        })
+        results.append(
+            {
+                "video_id": v["id"],
+                "title": snippet.get("title", ""),
+                "description": snippet.get("description", "")[:500],
+                "tags": ",".join(snippet.get("tags", [])[:20]),
+                "published_at": snippet.get("publishedAt", ""),
+                "views": int(stats.get("viewCount", 0)),
+                "likes": int(stats.get("likeCount", 0)),
+                "comments": int(stats.get("commentCount", 0)),
+                "duration_seconds": duration_s,
+            }
+        )
     return results
 
 
 def _parse_iso_duration(dur: str) -> int:
     """Parse ISO 8601 duration (PT1H2M3S) to seconds."""
     import re
+
     match = re.match(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", dur)
     if not match:
         return 0
     h, m, s = (int(x) if x else 0 for x in match.groups())
     return h * 3600 + m * 60 + s
-
 
 
 def detect_outliers(videos: list[dict], channel_avg_views: int) -> list[dict]:
@@ -145,11 +153,11 @@ def compute_view_velocity(videos: list[dict]) -> list[dict]:
     return videos
 
 
-
 async def _store_competitor_channel(our_channel_id: str, comp: dict) -> None:
     pool = await get_pool()
     try:
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO competitor_channels
                 (channel_id, competitor_yt_id, competitor_name, niche,
                  subscriber_count, video_count, avg_views, last_scraped_at)
@@ -161,9 +169,13 @@ async def _store_competitor_channel(our_channel_id: str, comp: dict) -> None:
                 avg_views = EXCLUDED.avg_views,
                 last_scraped_at = NOW()
         """,
-            our_channel_id, comp["competitor_yt_id"], comp.get("name", ""),
-            comp.get("niche", ""), comp.get("subscriber_count", 0),
-            comp.get("video_count", 0), comp.get("avg_views", 0),
+            our_channel_id,
+            comp["competitor_yt_id"],
+            comp.get("name", ""),
+            comp.get("niche", ""),
+            comp.get("subscriber_count", 0),
+            comp.get("video_count", 0),
+            comp.get("avg_views", 0),
         )
     except Exception as e:
         logger.warning("competitor.store_channel_failed", error=str(e))
@@ -191,6 +203,7 @@ async def _store_competitor_videos(niche: str, videos: list[dict], competitor_yt
     embeddings: list[list[float] | None] = [None] * len(videos)
     try:
         from services_api.research.similarity import compute_embeddings_batch
+
         titles = [(v.get("title") or "").strip() for v in videos]
         idx_with_text = [(i, t) for i, t in enumerate(titles) if t]
         if idx_with_text:
@@ -199,17 +212,14 @@ async def _store_competitor_videos(niche: str, videos: list[dict], competitor_yt
             for (orig_idx, _), vec in zip(idx_with_text, vecs):
                 embeddings[orig_idx] = vec
     except Exception as exc:
-        logger.warning("competitor.embed_batch_failed",
-                       count=len(videos), error=str(exc))
+        logger.warning("competitor.embed_batch_failed", count=len(videos), error=str(exc))
 
     stored = 0
     for v, emb in zip(videos, embeddings):
         try:
-            emb_param = (
-                "[" + ",".join(f"{x:.6f}" for x in emb) + "]"
-                if emb is not None else None
-            )
-            await pool.execute("""
+            emb_param = "[" + ",".join(f"{x:.6f}" for x in emb) + "]" if emb is not None else None
+            await pool.execute(
+                """
                 INSERT INTO competitor_videos
                     (competitor_yt_id, video_yt_id, title, description, tags,
                      published_at, view_count, like_count, comment_count,
@@ -232,19 +242,26 @@ async def _store_competitor_videos(niche: str, videos: list[dict], competitor_yt
                                                competitor_videos.title_embedding),
                     updated_at = NOW()
             """,
-                competitor_yt_id, v["video_id"], v["title"],
-                v.get("description", ""), v.get("tags", ""),
+                competitor_yt_id,
+                v["video_id"],
+                v["title"],
+                v.get("description", ""),
+                v.get("tags", ""),
                 datetime.fromisoformat(v["published_at"].replace("Z", "+00:00")) if v.get("published_at") else None,
-                v["views"], v["likes"], v["comments"],
-                v.get("duration_seconds", 0), v.get("view_velocity_24h", 0),
-                v.get("is_outlier", False), v.get("outlier_multiplier", 1.0),
-                niche, emb_param,
+                v["views"],
+                v["likes"],
+                v["comments"],
+                v.get("duration_seconds", 0),
+                v.get("view_velocity_24h", 0),
+                v.get("is_outlier", False),
+                v.get("outlier_multiplier", 1.0),
+                niche,
+                emb_param,
             )
             stored += 1
         except Exception as e:
             logger.warning("competitor.store_video_failed", video=v.get("video_id"), error=str(e))
     return stored
-
 
 
 async def _search_niche_outliers(niche: str) -> list[dict]:
@@ -253,23 +270,29 @@ async def _search_niche_outliers(niche: str) -> list[dict]:
     if not api_key:
         return []
 
-    data = await _yt_get("search", {
-        "part": "snippet",
-        "q": niche,
-        "type": "video",
-        "order": "viewCount",
-        "publishedAfter": (datetime.utcnow() - timedelta(days=14)).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "maxResults": 25,
-    })
+    data = await _yt_get(
+        "search",
+        {
+            "part": "snippet",
+            "q": niche,
+            "type": "video",
+            "order": "viewCount",
+            "publishedAfter": (datetime.utcnow() - timedelta(days=14)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "maxResults": 25,
+        },
+    )
 
     video_ids = [it["id"]["videoId"] for it in data.get("items", []) if it.get("id", {}).get("videoId")]
     if not video_ids:
         return []
 
-    stats_data = await _yt_get("videos", {
-        "part": "statistics,snippet,contentDetails",
-        "id": ",".join(video_ids),
-    })
+    stats_data = await _yt_get(
+        "videos",
+        {
+            "part": "statistics,snippet,contentDetails",
+            "id": ",".join(video_ids),
+        },
+    )
 
     channel_ids = list({v["snippet"]["channelId"] for v in stats_data.get("items", [])})
     channel_stats = await _get_channel_stats(channel_ids)
@@ -284,19 +307,20 @@ async def _search_niche_outliers(niche: str) -> list[dict]:
         subs = ch.get("subscriber_count", 0)
 
         if subs < 50000 and views > ch_avg * 5:
-            outliers.append({
-                "video_id": v["id"],
-                "title": v["snippet"]["title"],
-                "channel": v["snippet"]["channelTitle"],
-                "channel_id": ch_id,
-                "views": views,
-                "subs": subs,
-                "multiplier": round(views / max(ch_avg, 1), 1),
-            })
+            outliers.append(
+                {
+                    "video_id": v["id"],
+                    "title": v["snippet"]["title"],
+                    "channel": v["snippet"]["channelTitle"],
+                    "channel_id": ch_id,
+                    "views": views,
+                    "subs": subs,
+                    "multiplier": round(views / max(ch_avg, 1), 1),
+                }
+            )
 
     outliers.sort(key=lambda x: x.get("multiplier", 0), reverse=True)
     return outliers[:10]
-
 
 
 async def collect_competitor_insights(
@@ -317,17 +341,17 @@ async def collect_competitor_insights(
     logger.info("competitor.start", niche=niche, competitors=len(competitor_yt_ids or []))
 
     if not competitor_yt_ids:
-        search_data = await _yt_get("search", {
-            "part": "snippet",
-            "q": niche,
-            "type": "channel",
-            "order": "relevance",
-            "maxResults": 10,
-        })
-        competitor_yt_ids = [
-            it["snippet"]["channelId"]
-            for it in search_data.get("items", [])
-        ]
+        search_data = await _yt_get(
+            "search",
+            {
+                "part": "snippet",
+                "q": niche,
+                "type": "channel",
+                "order": "relevance",
+                "maxResults": 10,
+            },
+        )
+        competitor_yt_ids = [it["snippet"]["channelId"] for it in search_data.get("items", [])]
 
     channel_stats = await _get_channel_stats(competitor_yt_ids[:10])
 
@@ -342,14 +366,17 @@ async def collect_competitor_insights(
         videos = compute_view_velocity(videos)
         videos = detect_outliers(videos, int(avg_views))
 
-        await _store_competitor_channel(our_channel_id, {
-            "competitor_yt_id": comp_id,
-            "name": ch.get("name", ""),
-            "niche": niche,
-            "subscriber_count": ch.get("subscriber_count", 0),
-            "video_count": ch.get("video_count", 0),
-            "avg_views": int(avg_views),
-        })
+        await _store_competitor_channel(
+            our_channel_id,
+            {
+                "competitor_yt_id": comp_id,
+                "name": ch.get("name", ""),
+                "niche": niche,
+                "subscriber_count": ch.get("subscriber_count", 0),
+                "video_count": ch.get("video_count", 0),
+                "avg_views": int(avg_views),
+            },
+        )
         stored = await _store_competitor_videos(niche, videos, comp_id)
         total_stored += stored
 
@@ -376,10 +403,12 @@ async def collect_competitor_insights(
         "videos_stored": total_stored,
     }
 
-    logger.info("competitor.done",
-                competitors=len(channel_stats),
-                outliers=len(all_outliers),
-                niche_outliers=len(niche_outliers),
-                stored=total_stored)
+    logger.info(
+        "competitor.done",
+        competitors=len(channel_stats),
+        outliers=len(all_outliers),
+        niche_outliers=len(niche_outliers),
+        stored=total_stored,
+    )
 
     return result

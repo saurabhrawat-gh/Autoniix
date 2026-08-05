@@ -28,6 +28,7 @@ All compression passes are recorded in a local SQLite database
 
 Part of AE-520 / Cost Optimization.
 """
+
 from __future__ import annotations
 
 import json
@@ -73,17 +74,19 @@ def _get_stats_db() -> sqlite3.Connection:
         "  strategies TEXT DEFAULT '[]'"
         ")"
     )
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_compressions_ts "
-        "ON compressions(timestamp)"
-    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_compressions_ts ON compressions(timestamp)")
     conn.commit()
     return conn
 
 
 def _record_compression(
-    tier: str, engine: str, original_tokens: int, compressed_tokens: int,
-    strategies: list[str], category: str = "", model: str = "",
+    tier: str,
+    engine: str,
+    original_tokens: int,
+    compressed_tokens: int,
+    strategies: list[str],
+    category: str = "",
+    model: str = "",
 ) -> None:
     try:
         conn = _get_stats_db()
@@ -91,8 +94,7 @@ def _record_compression(
             "INSERT INTO compressions "
             "(timestamp, tier, engine, category, model, original_tokens, compressed_tokens, strategies) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (time.time(), tier, engine, category, model,
-             original_tokens, compressed_tokens, json.dumps(strategies)),
+            (time.time(), tier, engine, category, model, original_tokens, compressed_tokens, json.dumps(strategies)),
         )
         conn.commit()
     except Exception:
@@ -117,8 +119,7 @@ def get_savings_report(days: int = 7, breakdown: bool = False) -> dict:
         ).fetchone()
 
         if not row or row[0] == 0:
-            return {"total_compressions": 0, "total_tokens_saved": 0,
-                    "avg_reduction_pct": 0.0}
+            return {"total_compressions": 0, "total_tokens_saved": 0, "avg_reduction_pct": 0.0}
 
         total, orig_sum, comp_sum, saved = row
         avg_pct = ((orig_sum - comp_sum) / orig_sum * 100) if orig_sum else 0.0
@@ -139,8 +140,7 @@ def get_savings_report(days: int = 7, breakdown: bool = False) -> dict:
                 (cutoff,),
             ).fetchall()
             report["by_engine"] = [
-                {"engine": e[0], "count": e[1], "tokens_in": e[2],
-                 "tokens_out": e[3], "saved": e[2] - e[3]}
+                {"engine": e[0], "count": e[1], "tokens_in": e[2], "tokens_out": e[3], "saved": e[2] - e[3]}
                 for e in engines
             ]
 
@@ -152,9 +152,7 @@ def get_savings_report(days: int = 7, breakdown: bool = False) -> dict:
                 (cutoff,),
             ).fetchall()
             report["daily"] = [
-                {"day": d[0], "count": d[1], "tokens_in": d[2],
-                 "tokens_out": d[3], "saved": d[2] - d[3]}
-                for d in daily
+                {"day": d[0], "count": d[1], "tokens_in": d[2], "tokens_out": d[3], "saved": d[2] - d[3]} for d in daily
             ]
 
         return report
@@ -162,10 +160,13 @@ def get_savings_report(days: int = 7, breakdown: bool = False) -> dict:
         return {"error": str(exc)}
 
 
-
 _CHARS_PER_TOKEN: dict[str, float] = {
-    "gpt-4": 3.2, "gpt-3.5": 3.2, "claude": 3.5,
-    "gemini": 3.0, "deepseek": 3.0, "default": 3.2,
+    "gpt-4": 3.2,
+    "gpt-3.5": 3.2,
+    "claude": 3.5,
+    "gemini": 3.0,
+    "deepseek": 3.0,
+    "default": 3.2,
 }
 
 
@@ -189,7 +190,6 @@ def _estimate_request_tokens(request: LLMRequest) -> int:
                 if isinstance(part, dict) and part.get("type") == "text":
                     total += _estimate_tokens(part.get("text", ""), request.model or "")
     return total
-
 
 
 _COLLAPSE_WS_RE = re.compile(r"\n{3,}")
@@ -230,7 +230,6 @@ def _prune_context(request: LLMRequest, max_tokens: int = PRUNE_MAX_CONTEXT_TOKE
     return replace(request, messages=pruned_messages)
 
 
-
 _llmlingua_available: bool | None = None
 _llmlingua_model: Any = None
 
@@ -240,6 +239,7 @@ def _check_llmlingua() -> bool:
     if _llmlingua_available is None:
         try:
             import llmlingua  # noqa: F401
+
             _llmlingua_available = True
         except ImportError:
             _llmlingua_available = False
@@ -254,9 +254,11 @@ async def _get_llmlingua_model():
         return None
     try:
         from llmlingua import PromptCompressor as LinguaCompressor
+
         _llmlingua_model = LinguaCompressor(
             model_name="gpt2",
-            use_llmlingua2=False, device_map="cpu",
+            use_llmlingua2=False,
+            device_map="cpu",
         )
         logger.info("compressor.llmlingua_loaded")
     except Exception as exc:
@@ -284,13 +286,11 @@ async def _compress_with_llmlingua(request: LLMRequest) -> LLMRequest:
 
         try:
             compressed = model.compress_prompt(
-                [content], rate=LLMLINGUA_TARGET_RATIO,
+                [content],
+                rate=LLMLINGUA_TARGET_RATIO,
                 force_tokens=["!", ".", "?", "\n"],
             )
-            compressed_text = (
-                compressed[0] if isinstance(compressed, list) and len(compressed) > 0
-                else str(compressed)
-            )
+            compressed_text = compressed[0] if isinstance(compressed, list) and len(compressed) > 0 else str(compressed)
             if compressed_text and len(compressed_text) < len(content) * 0.9:
                 compressed_messages.append({**msg, "content": compressed_text})
             else:
@@ -299,7 +299,6 @@ async def _compress_with_llmlingua(request: LLMRequest) -> LLMRequest:
             compressed_messages.append(msg)
 
     return replace(request, messages=compressed_messages)
-
 
 
 def _add_cache_markers(request: LLMRequest) -> LLMRequest:
@@ -322,11 +321,10 @@ def _add_cache_markers(request: LLMRequest) -> LLMRequest:
     return replace(request, messages=messages)
 
 
-
-
 @dataclass
 class CompressionStats:
     """Stats recorded after a compression pass."""
+
     original_estimated_tokens: int = 0
     compressed_estimated_tokens: int = 0
     tier: str = "off"
@@ -365,8 +363,10 @@ class PromptCompressor:
         self.record_stats = record_stats
 
     async def compress(
-        self, request: LLMRequest,
-        category: str = "", model: str = "",
+        self,
+        request: LLMRequest,
+        category: str = "",
+        model: str = "",
     ) -> tuple[LLMRequest, CompressionStats]:
         """Compress an LLMRequest. Original is never mutated."""
         if self.tier == "off":
@@ -374,14 +374,16 @@ class PromptCompressor:
             return request, CompressionStats(
                 original_estimated_tokens=est,
                 compressed_estimated_tokens=est,
-                tier="off", engine="none",
+                tier="off",
+                engine="none",
             )
 
         original_tokens = _estimate_request_tokens(request)
         stats = CompressionStats(
             original_estimated_tokens=original_tokens,
             compressed_estimated_tokens=original_tokens,
-            tier=self.tier, engine="prune",
+            tier=self.tier,
+            engine="prune",
         )
 
         if original_tokens < MIN_TOKENS_FOR_COMPRESSION:
@@ -408,7 +410,8 @@ class PromptCompressor:
         if stats.savings_pct > 0:
             logger.info(
                 "compressor.applied",
-                tier=self.tier, engine=stats.engine,
+                tier=self.tier,
+                engine=stats.engine,
                 original_tokens=stats.original_estimated_tokens,
                 compressed_tokens=stats.compressed_estimated_tokens,
                 savings_pct=round(stats.savings_pct, 1),
@@ -417,7 +420,8 @@ class PromptCompressor:
 
         if self.record_stats:
             _record_compression(
-                tier=self.tier, engine=stats.engine,
+                tier=self.tier,
+                engine=stats.engine,
                 original_tokens=stats.original_estimated_tokens,
                 compressed_tokens=stats.compressed_estimated_tokens,
                 strategies=stats.strategies_applied,
@@ -426,7 +430,6 @@ class PromptCompressor:
             )
 
         return compressed, stats
-
 
 
 _compressor: PromptCompressor | None = None
@@ -441,6 +444,8 @@ def get_compressor(tier: str | None = None) -> PromptCompressor:
 
 
 async def compress_request(
-    request: LLMRequest, tier: str | None = None, category: str = "",
+    request: LLMRequest,
+    tier: str | None = None,
+    category: str = "",
 ) -> tuple[LLMRequest, CompressionStats]:
     return await get_compressor(tier).compress(request, category=category)

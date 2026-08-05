@@ -6,10 +6,10 @@ when prosody hints exist, saving ~$0.002-0.005 per video.
 
 Intelligence cost: $0.00 — all computation is local.
 """
+
 from __future__ import annotations
 
 import re
-from typing import Any
 
 import structlog
 
@@ -75,16 +75,31 @@ def detect_emphasis_words(text: str) -> list[str]:
     words = text.split()
     emphasis = []
     for word in words:
-        clean = re.sub(r'[^\w]', '', word)
+        clean = re.sub(r"[^\w]", "", word)
         if not clean:
             continue
         if clean.isupper() and len(clean) > 1:
             emphasis.append(clean)
         elif any(c.isdigit() for c in clean):
             emphasis.append(clean)
-        elif clean.lower() in {"never", "always", "every", "only", "most", "worst", "best",
-                                "critical", "dangerous", "shocking", "proven", "secret",
-                                "exactly", "specifically", "absolutely", "guaranteed"}:
+        elif clean.lower() in {
+            "never",
+            "always",
+            "every",
+            "only",
+            "most",
+            "worst",
+            "best",
+            "critical",
+            "dangerous",
+            "shocking",
+            "proven",
+            "secret",
+            "exactly",
+            "specifically",
+            "absolutely",
+            "guaranteed",
+        }:
             emphasis.append(clean)
     return emphasis[:5]
 
@@ -105,7 +120,7 @@ def predict_volume_shift(emotion: str, section: str) -> str:
 
 def map_prosody_hints_to_emotion(prosody_data: dict) -> dict:
     """Convert script prosody engine output to voice service emotion format.
-    
+
     This is the key function that allows us to skip the LLM emotion mapping call.
     """
     tts_params = prosody_data.get("tts_params", {})
@@ -126,7 +141,7 @@ def map_prosody_hints_to_emotion(prosody_data: dict) -> dict:
 
 def predict_emotions_for_sentences(sentences: list[dict], channel: dict) -> list[dict]:
     """Predict emotion parameters for each sentence using local NLP.
-    
+
     This replaces the GPT-4o-mini emotion mapping call with $0.00 local processing.
     Quality is maintained by:
     1. Using prosody hints from script intelligence (already analyzed by spaCy + NLP)
@@ -164,12 +179,9 @@ def predict_emotions_for_sentences(sentences: list[dict], channel: dict) -> list
                 "volume_shift": predict_volume_shift(emotion, section),
             }
 
-        emotion_data["stability"] = round(
-            emotion_data["stability"] * 0.7 + default_stability * 0.3, 3)
-        emotion_data["similarity_boost"] = round(
-            emotion_data["similarity_boost"] * 0.7 + default_similarity * 0.3, 3)
-        emotion_data["style"] = round(
-            emotion_data["style"] * 0.7 + default_style * 0.3, 3)
+        emotion_data["stability"] = round(emotion_data["stability"] * 0.7 + default_stability * 0.3, 3)
+        emotion_data["similarity_boost"] = round(emotion_data["similarity_boost"] * 0.7 + default_similarity * 0.3, 3)
+        emotion_data["style"] = round(emotion_data["style"] * 0.7 + default_style * 0.3, 3)
 
         results.append(emotion_data)
 

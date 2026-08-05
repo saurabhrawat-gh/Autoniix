@@ -1,4 +1,5 @@
 """LLM router provider and mock tests."""
+
 from __future__ import annotations
 
 import asyncio
@@ -49,10 +50,7 @@ class TestMockTextResponse:
                 },
                 {
                     "role": "user",
-                    "content": (
-                        "Topic: Why pasta water is the secret ingredient "
-                        "most home cooks waste."
-                    ),
+                    "content": ("Topic: Why pasta water is the secret ingredient most home cooks waste."),
                 },
             ],
             temperature=0.7,
@@ -61,8 +59,6 @@ class TestMockTextResponse:
         )
         result = _run(provider.complete(request))
         body = result.content.lower()
-        assert "pasta" in body and "water" in body, (
-            f"mock text response must echo the topic; got: {result.content!r}"
-        )
+        assert "pasta" in body and "water" in body, f"mock text response must echo the topic; got: {result.content!r}"
         assert "as an ai" not in body
         assert 25 <= len(result.content) <= 240

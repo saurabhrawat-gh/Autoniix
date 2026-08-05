@@ -59,10 +59,7 @@ class ClaudeLLM(LLMProvider):
         }
         if system_text:
             if system_cache_control:
-                body["system"] = [
-                    {"type": "text", "text": system_text,
-                     "cache_control": system_cache_control}
-                ]
+                body["system"] = [{"type": "text", "text": system_text, "cache_control": system_cache_control}]
             else:
                 body["system"] = system_text
 

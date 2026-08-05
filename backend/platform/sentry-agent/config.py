@@ -1,4 +1,5 @@
 """Central config — fails fast on missing required env vars."""
+
 import os
 
 SLACK_BOT_TOKEN: str = os.environ["SLACK_BOT_TOKEN"]

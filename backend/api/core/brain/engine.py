@@ -16,23 +16,22 @@ audit trail is complete and operators can review quality before enforcement.
 
 AE-P1 / Brain Service.
 """
+
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
 from typing import Any
 
 import structlog
+from llm.embeddings import EmbeddingConfigError, EmbeddingError, embed_and_store
 
 from core.db import get_pool
 from core.flags import get_flag
-from llm.embeddings import EmbeddingConfigError, EmbeddingError, embed_and_store
 from services_api.brain.analyser import ChannelSignals
 
 logger = structlog.get_logger()
 
 _SOURCE = "brain-engine"
-
 
 
 _DEFAULTS: dict[str, Any] = {
@@ -46,8 +45,6 @@ _DEFAULTS: dict[str, Any] = {
 
 async def _threshold(key: str) -> Any:
     return await get_flag(key, default=_DEFAULTS.get(key))
-
-
 
 
 async def evaluate(signals: ChannelSignals, content_id: str | None = None) -> dict | None:
@@ -92,11 +89,7 @@ async def _evaluate(signals: ChannelSignals, content_id: str | None) -> dict | N
         )
 
     halt_quality = await _threshold("brain.threshold.halt.min_quality_score")
-    if (
-        signals.recent_scores
-        and signals.avg_composite_score < float(halt_quality)
-        and len(signals.recent_scores) >= 3
-    ):
+    if signals.recent_scores and signals.avg_composite_score < float(halt_quality) and len(signals.recent_scores) >= 3:
         return await _write_decision(
             signals=signals,
             content_id=content_id,
@@ -155,17 +148,13 @@ async def _evaluate(signals: ChannelSignals, content_id: str | None) -> dict | N
                 reasoning=(
                     f"Daily budget ${signals.daily_budget_limit:.2f}: "
                     f"${signals.daily_spend_today:.4f} spent, "
-                    f"only ${signals.daily_budget_remaining:.4f} ({pct_remaining*100:.1f}%) left. "
+                    f"only ${signals.daily_budget_remaining:.4f} ({pct_remaining * 100:.1f}%) left. "
                     "Holding to avoid overrun."
                 ),
             )
 
     nudge_quality = await _threshold("brain.threshold.nudge.avg_quality_score")
-    if (
-        signals.recent_scores
-        and signals.avg_composite_score < float(nudge_quality)
-        and len(signals.recent_scores) >= 5
-    ):
+    if signals.recent_scores and signals.avg_composite_score < float(nudge_quality) and len(signals.recent_scores) >= 5:
         return await _write_decision(
             signals=signals,
             content_id=content_id,

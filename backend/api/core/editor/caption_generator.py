@@ -8,10 +8,10 @@ Creates per-word timing aligned with narration audio for:
 Uses WPM estimation from narration text + audio duration.
 Intelligence cost: $0.00 — all computation is local.
 """
+
 from __future__ import annotations
 
 import re
-from typing import Any
 
 import structlog
 
@@ -59,7 +59,7 @@ CAPTION_STYLES: dict[str, dict] = {
 
 def generate_captions(direction_v3: dict, caption_style: str = "word_highlight") -> dict:
     """Generate word-level caption data for all segments.
-    
+
     Returns caption config compatible with Remotion rendering.
     """
     segments = direction_v3.get("segments", [])
@@ -89,36 +89,42 @@ def generate_captions(direction_v3: dict, caption_style: str = "word_highlight")
         current_ms = start_ms
 
         for word in words:
-            clean_word = re.sub(r'[^\w\'-]', '', word)
+            clean_word = re.sub(r"[^\w\'-]", "", word)
             is_emphasis = clean_word.lower() in [w.lower() for w in emphasis_words]
 
             this_duration = word_duration_ms * 1.3 if is_emphasis else word_duration_ms
 
-            word_timings.append({
-                "word": word,
-                "start_ms": round(current_ms),
-                "end_ms": round(current_ms + this_duration),
-                "is_emphasis": is_emphasis,
-            })
+            word_timings.append(
+                {
+                    "word": word,
+                    "start_ms": round(current_ms),
+                    "end_ms": round(current_ms + this_duration),
+                    "is_emphasis": is_emphasis,
+                }
+            )
             current_ms += word_duration_ms
             total_words += 1
 
         lines = []
         max_per_line = style.get("max_words_per_line", 6)
         for i in range(0, len(word_timings), max_per_line):
-            line_words = word_timings[i:i + max_per_line]
-            lines.append({
-                "words": line_words,
-                "text": " ".join(w["word"] for w in line_words),
-                "start_ms": line_words[0]["start_ms"],
-                "end_ms": line_words[-1]["end_ms"],
-            })
+            line_words = word_timings[i : i + max_per_line]
+            lines.append(
+                {
+                    "words": line_words,
+                    "text": " ".join(w["word"] for w in line_words),
+                    "start_ms": line_words[0]["start_ms"],
+                    "end_ms": line_words[-1]["end_ms"],
+                }
+            )
 
-        caption_segments.append({
-            "segment_id": seg.get("id"),
-            "lines": lines,
-            "word_count": len(words),
-        })
+        caption_segments.append(
+            {
+                "segment_id": seg.get("id"),
+                "lines": lines,
+                "word_count": len(words),
+            }
+        )
 
     return {
         "caption_style": caption_style,
@@ -131,7 +137,7 @@ def generate_captions(direction_v3: dict, caption_style: str = "word_highlight")
 
 def generate_audio_mix_config(direction_v3: dict, duck_db: float = -12) -> dict:
     """Generate audio mixing configuration for Remotion.
-    
+
     Handles narration/music volume balancing and SFX placement.
     """
     segments = direction_v3.get("segments", [])
@@ -142,12 +148,14 @@ def generate_audio_mix_config(direction_v3: dict, duck_db: float = -12) -> dict:
         narration = seg.get("narration", {})
         has_narration = bool(narration.get("text")) if isinstance(narration, dict) else False
         if has_narration:
-            duck_regions.append({
-                "start_ms": seg.get("start_ms", 0),
-                "end_ms": seg.get("start_ms", 0) + seg.get("duration_ms", 0),
-                "duck_db": duck_db,
-                "transition_ms": 200,
-            })
+            duck_regions.append(
+                {
+                    "start_ms": seg.get("start_ms", 0),
+                    "end_ms": seg.get("start_ms", 0) + seg.get("duration_ms", 0),
+                    "duck_db": duck_db,
+                    "transition_ms": 200,
+                }
+            )
 
     sfx_placements = []
     for seg in segments:
@@ -155,12 +163,14 @@ def generate_audio_mix_config(direction_v3: dict, duck_db: float = -12) -> dict:
         sfx_list = audio_cues.get("sfx", [])
         for sfx in sfx_list:
             sfx_name = sfx if isinstance(sfx, str) else sfx.get("name", "")
-            sfx_placements.append({
-                "segment_id": seg.get("id"),
-                "start_ms": seg.get("start_ms", 0),
-                "sfx_name": sfx_name,
-                "volume_db": -6,
-            })
+            sfx_placements.append(
+                {
+                    "segment_id": seg.get("id"),
+                    "start_ms": seg.get("start_ms", 0),
+                    "sfx_name": sfx_name,
+                    "volume_db": -6,
+                }
+            )
 
     return {
         "narration_volume_db": 0,

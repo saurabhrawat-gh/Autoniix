@@ -14,21 +14,21 @@ from providers.tts.base import TTSProvider, TTSRequest, TTSResult
 logger = structlog.get_logger()
 
 PRICING: dict[str, float] = {
-    "inworld-tts-2":     25.0 / 1_000_000,
+    "inworld-tts-2": 25.0 / 1_000_000,
     "inworld-tts-1-max": 25.0 / 1_000_000,
-    "inworld-tts-1":     15.0 / 1_000_000,
+    "inworld-tts-1": 15.0 / 1_000_000,
 }
 
 _EMOTION_INSTRUCTIONS: dict[str, str] = {
-    "happy":     "[speak warmly and enthusiastically] ",
-    "excited":   "[speak with high energy and excitement] ",
-    "calm":      "[speak calmly and steadily] ",
-    "serious":   "[speak seriously and authoritatively] ",
-    "sad":       "[speak with a somber, reflective tone] ",
-    "curious":   "[speak with curiosity and wonder] ",
-    "friendly":  "[speak conversationally and in a friendly tone] ",
-    "dramatic":  "[speak dramatically with strong emphasis] ",
-    "neutral":   "[speak naturally and clearly] ",
+    "happy": "[speak warmly and enthusiastically] ",
+    "excited": "[speak with high energy and excitement] ",
+    "calm": "[speak calmly and steadily] ",
+    "serious": "[speak seriously and authoritatively] ",
+    "sad": "[speak with a somber, reflective tone] ",
+    "curious": "[speak with curiosity and wonder] ",
+    "friendly": "[speak conversationally and in a friendly tone] ",
+    "dramatic": "[speak dramatically with strong emphasis] ",
+    "neutral": "[speak naturally and clearly] ",
 }
 _DEFAULT_INSTRUCTION = "[speak naturally and engagingly] "
 
@@ -55,7 +55,7 @@ def _chunk_text(text: str, max_chars: int = _MAX_CHARS) -> list[str]:
         return [text]
 
     chunks: list[str] = []
-    sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+    sentences = re.split(r"(?<=[.!?])\s+", text.strip())
     current = ""
     for sentence in sentences:
         if len(current) + len(sentence) + 1 <= max_chars:
@@ -258,6 +258,6 @@ class InworldTTSProvider(TTSProvider):
         return "inworld"
 
 
-ProviderRegistry.register("tts", "inworld",    InworldTTSProvider)
-ProviderRegistry.register("tts", "inworldai",  InworldTTSProvider)
+ProviderRegistry.register("tts", "inworld", InworldTTSProvider)
+ProviderRegistry.register("tts", "inworldai", InworldTTSProvider)
 ProviderRegistry.register("tts", "inworldtts", InworldTTSProvider)

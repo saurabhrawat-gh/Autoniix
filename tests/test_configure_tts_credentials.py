@@ -7,13 +7,14 @@ Covers:
 - FishAudioTTS and ElevenLabsTTS have api_key attribute settable via chain
 - edge_tts needs no API key (secret_value may be empty)
 """
+
 from __future__ import annotations
 
 import pytest
 
 
 def test_edge_tts_default_voice_attribute():
-    from providers.tts.edge_tts_provider import EdgeTTSProvider, DEFAULT_VOICE
+    from providers.tts.edge_tts_provider import EdgeTTSProvider
 
     inst = EdgeTTSProvider()
     assert inst.voice == ""
@@ -35,16 +36,18 @@ def test_edge_tts_voice_from_extra_config():
 @pytest.mark.asyncio
 async def test_edge_tts_synthesize_uses_self_voice(monkeypatch):
     """synthesize() uses self.voice when request has no voice_id."""
-    from providers.tts.edge_tts_provider import EdgeTTSProvider
     from providers.tts.base import TTSRequest
+    from providers.tts.edge_tts_provider import EdgeTTSProvider
 
     captured: dict = {}
 
     async def fake_synthesize_with_params(self_inner, text, voice_id, **kw):
         captured["voice_id"] = voice_id
         from providers.tts.base import TTSResult
-        return TTSResult(audio_bytes=b"", duration_s=0.0, word_count=1,
-                         bytes_charged=0, cost_usd=0.0, provider="edge_tts")
+
+        return TTSResult(
+            audio_bytes=b"", duration_s=0.0, word_count=1, bytes_charged=0, cost_usd=0.0, provider="edge_tts"
+        )
 
     monkeypatch.setattr(EdgeTTSProvider, "synthesize_with_params", fake_synthesize_with_params)
 
@@ -58,16 +61,18 @@ async def test_edge_tts_synthesize_uses_self_voice(monkeypatch):
 @pytest.mark.asyncio
 async def test_edge_tts_request_voice_id_wins(monkeypatch):
     """request.voice_id takes priority over self.voice."""
-    from providers.tts.edge_tts_provider import EdgeTTSProvider
     from providers.tts.base import TTSRequest
+    from providers.tts.edge_tts_provider import EdgeTTSProvider
 
     captured: dict = {}
 
     async def fake_synthesize_with_params(self_inner, text, voice_id, **kw):
         captured["voice_id"] = voice_id
         from providers.tts.base import TTSResult
-        return TTSResult(audio_bytes=b"", duration_s=0.0, word_count=1,
-                         bytes_charged=0, cost_usd=0.0, provider="edge_tts")
+
+        return TTSResult(
+            audio_bytes=b"", duration_s=0.0, word_count=1, bytes_charged=0, cost_usd=0.0, provider="edge_tts"
+        )
 
     monkeypatch.setattr(EdgeTTSProvider, "synthesize_with_params", fake_synthesize_with_params)
 
@@ -81,16 +86,18 @@ async def test_edge_tts_request_voice_id_wins(monkeypatch):
 @pytest.mark.asyncio
 async def test_edge_tts_falls_back_to_default(monkeypatch):
     """Falls back to DEFAULT_VOICE when neither request nor self.voice is set."""
-    from providers.tts.edge_tts_provider import EdgeTTSProvider, DEFAULT_VOICE
     from providers.tts.base import TTSRequest
+    from providers.tts.edge_tts_provider import DEFAULT_VOICE, EdgeTTSProvider
 
     captured: dict = {}
 
     async def fake_synthesize_with_params(self_inner, text, voice_id, **kw):
         captured["voice_id"] = voice_id
         from providers.tts.base import TTSResult
-        return TTSResult(audio_bytes=b"", duration_s=0.0, word_count=1,
-                         bytes_charged=0, cost_usd=0.0, provider="edge_tts")
+
+        return TTSResult(
+            audio_bytes=b"", duration_s=0.0, word_count=1, bytes_charged=0, cost_usd=0.0, provider="edge_tts"
+        )
 
     monkeypatch.setattr(EdgeTTSProvider, "synthesize_with_params", fake_synthesize_with_params)
 
@@ -103,9 +110,11 @@ async def test_edge_tts_falls_back_to_default(monkeypatch):
 def test_instantiate_sets_api_key_when_settings_empty(monkeypatch):
     """chain._instantiate sets inst.api_key if vault returns key but settings is empty."""
     import core.config as cfg
+
     monkeypatch.setattr(cfg.settings, "fish_audio_api_key", "")
 
     from providers.tts.fish_audio import FishAudioTTS
+
     inst = FishAudioTTS()
     assert inst.api_key == ""
 
@@ -127,16 +136,17 @@ def test_elevenlabs_api_key_settable():
 
 def test_chain_instantiate_api_key_patch():
     """Verify the chain._instantiate api_key fallback logic directly."""
-    from providers.chain import _instantiate
     from unittest.mock import patch
+
     import providers.boot  # noqa: F401
+    from providers.chain import _instantiate
 
     with patch("providers.chain.get_secret_at", return_value="secret-tts-key"):
         inst = _instantiate(
-            "edge_tts", "providers/tts/edge_tts/default",
-            {}, None, {"edge_tts": __import__(
-                "providers.tts.edge_tts_provider",
-                fromlist=["EdgeTTSProvider"]
-            ).EdgeTTSProvider}
+            "edge_tts",
+            "providers/tts/edge_tts/default",
+            {},
+            None,
+            {"edge_tts": __import__("providers.tts.edge_tts_provider", fromlist=["EdgeTTSProvider"]).EdgeTTSProvider},
         )
     assert inst is not None

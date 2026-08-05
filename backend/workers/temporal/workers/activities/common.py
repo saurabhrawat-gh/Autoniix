@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date
 
 import structlog
 from temporalio import activity
@@ -12,31 +12,26 @@ logger = structlog.get_logger()
 
 
 @activity.defn
-async def update_video_status(content_id: str, status: str,
-                               channel_id: str = "", title: str = "",
-                               content_mode: str = "") -> None:
+async def update_video_status(
+    content_id: str, status: str, channel_id: str = "", title: str = "", content_mode: str = ""
+) -> None:
     """Update the status column for a video in PostgreSQL.
-    
+
     Also saves the current phase as checkpoint so that stopped jobs
     can be resumed from the last active phase.
     """
-    logger.info("activity.update_status", content_id=content_id, status=status,
-                channel_id=channel_id or "N/A")
+    logger.info("activity.update_status", content_id=content_id, status=status, channel_id=channel_id or "N/A")
     try:
         env = "production"
         pool = await get_pool()
 
-        terminal_statuses = {'delivered', 'test_delivered', 'failed', 'stopped', 'superseded', 'rejected'}
+        terminal_statuses = {"delivered", "test_delivered", "failed", "stopped", "superseded", "rejected"}
         is_active_phase = status not in terminal_statuses
 
         if is_active_phase:
-            prev = await pool.fetchrow(
-                "SELECT status FROM videos WHERE content_id = $1", content_id
-            )
+            prev = await pool.fetchrow("SELECT status FROM videos WHERE content_id = $1", content_id)
             if prev and prev["status"] in ("failed", "stopped"):
-                await pool.execute(
-                    "DELETE FROM job_events WHERE content_id = $1", content_id
-                )
+                await pool.execute("DELETE FROM job_events WHERE content_id = $1", content_id)
             await pool.execute(
                 "INSERT INTO videos (content_id, channel_id, status, title, content_mode, environment, checkpoint, updated_at) "
                 "VALUES ($1, NULLIF($2,''), $3, NULLIF($4,''), NULLIF($5,''), $6, $3, NOW()) "
@@ -47,7 +42,12 @@ async def update_video_status(content_id: str, status: str,
                 "title = COALESCE(NULLIF($4,''), videos.title), "
                 "content_mode = COALESCE(NULLIF($5,''), videos.content_mode), "
                 "updated_at = NOW()",
-                content_id, channel_id, status, title, content_mode, env,
+                content_id,
+                channel_id,
+                status,
+                title,
+                content_mode,
+                env,
             )
             if channel_id and content_mode and status == "researching":
                 await pool.execute(
@@ -55,7 +55,9 @@ async def update_video_status(content_id: str, status: str,
                     "WHERE channel_id = $1 AND content_mode = $2 "
                     "AND content_id != $3 "
                     "AND status IN ('failed', 'stopped')",
-                    channel_id, content_mode, content_id,
+                    channel_id,
+                    content_mode,
+                    content_id,
                 )
         else:
             await pool.execute(
@@ -67,7 +69,12 @@ async def update_video_status(content_id: str, status: str,
                 "title = COALESCE(NULLIF($4,''), videos.title), "
                 "content_mode = COALESCE(NULLIF($5,''), videos.content_mode), "
                 "updated_at = NOW()",
-                content_id, channel_id, status, title, content_mode, env,
+                content_id,
+                channel_id,
+                status,
+                title,
+                content_mode,
+                env,
             )
             if status in ("failed", "stopped"):
                 row = await pool.fetchrow(
@@ -82,7 +89,9 @@ async def update_video_status(content_id: str, status: str,
                         "WHERE channel_id = $1 AND content_mode = $2 "
                         "AND content_id != $3 "
                         "AND status IN ('failed', 'stopped')",
-                        ch, cm, content_id,
+                        ch,
+                        cm,
+                        content_id,
                     )
     except Exception as exc:
         logger.warning("activity.update_status.failed", error=str(exc))
@@ -106,9 +115,7 @@ async def check_system_status() -> dict:
     try:
         pool = await get_pool()
 
-        active_row = await pool.fetchrow(
-            "SELECT config_value FROM system_config WHERE config_key = 'system_active'"
-        )
+        active_row = await pool.fetchrow("SELECT config_value FROM system_config WHERE config_key = 'system_active'")
         emergency_row = await pool.fetchrow(
             "SELECT config_value FROM system_config WHERE config_key = 'emergency_stop'"
         )
@@ -116,8 +123,8 @@ async def check_system_status() -> dict:
             "SELECT config_value FROM system_config WHERE config_key = 'daily_budget_limit'"
         )
 
-        is_active = (active_row and active_row["config_value"] == "true")
-        emergency = (emergency_row and emergency_row["config_value"] == "true")
+        is_active = active_row and active_row["config_value"] == "true"
+        emergency = emergency_row and emergency_row["config_value"] == "true"
         daily_limit = float(budget_row["config_value"]) if budget_row else 50.0
 
         videos_today = await pool.fetchval(
@@ -159,6 +166,7 @@ async def get_eligible_channels() -> list[dict]:
         )
         import json
         from datetime import datetime, timedelta
+
         week_start = (datetime.utcnow() - timedelta(days=datetime.utcnow().weekday())).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
@@ -184,20 +192,24 @@ async def get_eligible_channels() -> list[dict]:
                     "SELECT COUNT(*) FROM videos WHERE channel_id = $1 "
                     "AND content_mode = $2 AND created_at >= $3 "
                     "AND status NOT IN ('failed','stopped','superseded','rejected')",
-                    r["channel_id"], mode, week_start,
+                    r["channel_id"],
+                    mode,
+                    week_start,
                 )
                 if (used or 0) < (limit or 0):
                     picked_mode = mode
                     break
             if picked_mode:
-                result.append({
-                    "channel_id": r["channel_id"],
-                    "channel_name": r["channel_name"],
-                    "niche": r["niche"],
-                    "content_mode": picked_mode,
-                    "max_daily_api_spend": float(r["max_daily_api_spend"]) if r["max_daily_api_spend"] else 5.0,
-                    "topic_candidates": [],
-                })
+                result.append(
+                    {
+                        "channel_id": r["channel_id"],
+                        "channel_name": r["channel_name"],
+                        "niche": r["niche"],
+                        "content_mode": picked_mode,
+                        "max_daily_api_spend": float(r["max_daily_api_spend"]) if r["max_daily_api_spend"] else 5.0,
+                        "topic_candidates": [],
+                    }
+                )
         return result
     except Exception as exc:
         logger.error("activity.get_eligible_channels.failed", error=str(exc))
@@ -223,9 +235,9 @@ async def acquire_channel_lock(channel_id: str) -> bool:
 
 
 @activity.defn
-async def emit_job_event(content_id: str, channel_id: str, phase: str,
-                          status: str, detail: dict | None = None,
-                          cost_usd: float = 0) -> None:
+async def emit_job_event(
+    content_id: str, channel_id: str, phase: str, status: str, detail: dict | None = None, cost_usd: float = 0
+) -> None:
     """Insert a row into job_events for dashboard progress tracking."""
     logger.info("activity.emit_job_event", content_id=content_id, phase=phase, status=status)
     try:
@@ -233,8 +245,13 @@ async def emit_job_event(content_id: str, channel_id: str, phase: str,
         await pool.execute(
             "INSERT INTO job_events (content_id, channel_id, phase, status, detail, cost_usd, environment) "
             "VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)",
-            content_id, channel_id, phase, status,
-            __import__("json").dumps(detail or {}), float(cost_usd), "production",
+            content_id,
+            channel_id,
+            phase,
+            status,
+            __import__("json").dumps(detail or {}),
+            float(cost_usd),
+            "production",
         )
     except Exception as exc:
         logger.warning("activity.emit_job_event.failed", error=str(exc))
@@ -246,17 +263,20 @@ async def save_checkpoint_data(content_id: str, phase: str, data: dict) -> None:
     logger.info("activity.save_checkpoint", content_id=content_id, phase=phase)
     try:
         import json as _json
+
         from providers.registry import ProviderRegistry
         from providers.storage.base import StorageUpload
 
         storage = ProviderRegistry.get("storage")
         key = f"checkpoints/{content_id}/{phase}.json"
         payload_bytes = _json.dumps(data, default=str).encode("utf-8")
-        await storage.upload(StorageUpload(
-            key=key,
-            data=payload_bytes,
-            content_type="application/json",
-        ))
+        await storage.upload(
+            StorageUpload(
+                key=key,
+                data=payload_bytes,
+                content_type="application/json",
+            )
+        )
         logger.info("activity.save_checkpoint.ok", key=key, size=len(payload_bytes))
     except Exception as exc:
         logger.warning("activity.save_checkpoint.failed", error=str(exc))
@@ -268,6 +288,7 @@ async def load_checkpoint_data(content_id: str, phase: str) -> dict:
     logger.info("activity.load_checkpoint", content_id=content_id, phase=phase)
     try:
         import json as _json
+
         from providers.registry import ProviderRegistry
 
         storage = ProviderRegistry.get("storage")
@@ -293,9 +314,7 @@ async def send_notification(payload: dict) -> None:
         token_row = await pool.fetchrow(
             "SELECT config_value FROM system_config WHERE config_key = 'telegram_bot_token'"
         )
-        chat_row = await pool.fetchrow(
-            "SELECT config_value FROM system_config WHERE config_key = 'telegram_chat_id'"
-        )
+        chat_row = await pool.fetchrow("SELECT config_value FROM system_config WHERE config_key = 'telegram_chat_id'")
         token = token_row["config_value"] if token_row else ""
         chat_id = chat_row["config_value"] if chat_row else ""
 
@@ -304,6 +323,7 @@ async def send_notification(payload: dict) -> None:
             return
 
         import httpx
+
         notif_type = payload.get("type", "info")
         channel_id = payload.get("channel_id", "")
         content_id = payload.get("content_id", "")

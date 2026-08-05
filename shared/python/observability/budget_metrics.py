@@ -11,6 +11,7 @@ Usage (in BFF lifespan):
     from observability.budget_metrics import start_budget_gauge_refresh
     asyncio.create_task(start_budget_gauge_refresh(get_pool))
 """
+
 from __future__ import annotations
 
 import asyncio

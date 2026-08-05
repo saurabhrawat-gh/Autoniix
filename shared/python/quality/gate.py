@@ -21,11 +21,12 @@ that fails the gate. Every override is recorded in
 identity, so the same audit trail lights up Grafana whether the gate
 passed, blocked, or was bypassed.
 """
+
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any
 
 import structlog
 
@@ -33,29 +34,27 @@ logger = structlog.get_logger()
 
 
 WEIGHTS: dict[str, float] = {
-    "research_depth_score":    0.15,
-    "script_structure_score":  0.25,
-    "hook_retention_score":    0.15,
-    "voice_quality_score":     0.10,
-    "thumbnail_score":         0.15,
-    "direction_score":         0.10,
-    "production_score":        0.10,
+    "research_depth_score": 0.15,
+    "script_structure_score": 0.25,
+    "hook_retention_score": 0.15,
+    "voice_quality_score": 0.10,
+    "thumbnail_score": 0.15,
+    "direction_score": 0.10,
+    "production_score": 0.10,
 }
 
 PRODUCTION_THRESHOLDS: dict[str, float] = {
-    "research_depth_score":    7.0,
-    "script_structure_score":  7.5,
-    "hook_retention_score":    7.5,
-    "voice_quality_score":     7.0,
-    "thumbnail_score":         7.5,
-    "direction_score":         7.0,
-    "production_score":        7.0,
-    "composite_score":         8.0,
+    "research_depth_score": 7.0,
+    "script_structure_score": 7.5,
+    "hook_retention_score": 7.5,
+    "voice_quality_score": 7.0,
+    "thumbnail_score": 7.5,
+    "direction_score": 7.0,
+    "production_score": 7.0,
+    "composite_score": 8.0,
 }
 
 TEST_THRESHOLDS: dict[str, float] = {k: 0.0 for k in PRODUCTION_THRESHOLDS}
-
-
 
 
 @dataclass
@@ -66,7 +65,7 @@ class GateProfile:
 
 PROFILES: dict[str, GateProfile] = {
     "production": GateProfile("production", PRODUCTION_THRESHOLDS),
-    "test":       GateProfile("test",       TEST_THRESHOLDS),
+    "test": GateProfile("test", TEST_THRESHOLDS),
 }
 
 
@@ -86,8 +85,6 @@ class GateDecision:
             "failures": list(self.failures),
             "profile": self.profile,
         }
-
-
 
 
 def _composite(sub_scores: dict[str, float]) -> float:
@@ -144,8 +141,6 @@ def evaluate(
     )
 
 
-
-
 async def evaluate_for_niche(
     sub_scores: dict[str, Any],
     *,
@@ -168,6 +163,7 @@ async def evaluate_for_niche(
         return evaluate(sub_scores, profile=profile)
 
     from quality.calibrator import load_thresholds_for_niche
+
     thresholds = await load_thresholds_for_niche(niche)
 
     coerced: dict[str, float] = {}
@@ -200,8 +196,6 @@ async def evaluate_for_niche(
     )
 
 
-
-
 async def record_decision(
     *,
     content_id: str,
@@ -220,6 +214,7 @@ async def record_decision(
     decision_str = "override" if overridden else ("pass" if decision.passed else "block")
     try:
         from core.db import get_pool
+
         pool = await get_pool()
         await pool.execute(
             """

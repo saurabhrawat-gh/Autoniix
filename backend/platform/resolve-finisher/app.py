@@ -18,6 +18,7 @@ Contract (called by src/services/finishing/activity.py when require_resolve_fini
 Phase 1B is a stub — it accepts jobs and returns them as "completed" immediately.
 Swap the _run_job body for real Resolve CLI invocation when hardware is available.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -27,7 +28,7 @@ from typing import Any
 
 import structlog
 from fastapi import FastAPI, HTTPException
-from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, generate_latest
 from pydantic import BaseModel, Field
 from starlette.responses import Response
 

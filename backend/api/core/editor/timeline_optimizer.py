@@ -9,10 +9,8 @@ Takes the direction v3 config and optimizes:
 
 Intelligence cost: $0.00 — all computation is local.
 """
-from __future__ import annotations
 
-import json
-from typing import Any
+from __future__ import annotations
 
 import numpy as np
 import structlog
@@ -60,35 +58,41 @@ def analyze_pacing(direction_v3: dict) -> dict:
 
         if duration_ms > rules["max_ms"]:
             ideal = rules["ideal_ms"]
-            adjustments.append({
-                "segment_id": seg.get("id"),
-                "type": "duration_reduce",
-                "current_ms": duration_ms,
-                "suggested_ms": ideal,
-                "reason": f"Segment too long for {section} ({duration_ms}ms > {rules['max_ms']}ms)",
-                "priority": "high",
-            })
+            adjustments.append(
+                {
+                    "segment_id": seg.get("id"),
+                    "type": "duration_reduce",
+                    "current_ms": duration_ms,
+                    "suggested_ms": ideal,
+                    "reason": f"Segment too long for {section} ({duration_ms}ms > {rules['max_ms']}ms)",
+                    "priority": "high",
+                }
+            )
 
         elif duration_ms < rules["min_ms"]:
-            adjustments.append({
-                "segment_id": seg.get("id"),
-                "type": "duration_extend",
-                "current_ms": duration_ms,
-                "suggested_ms": rules["min_ms"],
-                "reason": f"Segment too short for {section} ({duration_ms}ms < {rules['min_ms']}ms)",
-                "priority": "medium",
-            })
+            adjustments.append(
+                {
+                    "segment_id": seg.get("id"),
+                    "type": "duration_extend",
+                    "current_ms": duration_ms,
+                    "suggested_ms": rules["min_ms"],
+                    "reason": f"Segment too short for {section} ({duration_ms}ms < {rules['min_ms']}ms)",
+                    "priority": "medium",
+                }
+            )
 
     durations = [s.get("duration_ms", 10000) for s in segments]
     if len(durations) > 2:
         duration_cv = np.std(durations) / np.mean(durations) if np.mean(durations) > 0 else 0
         if duration_cv < 0.15:
-            adjustments.append({
-                "segment_id": "global",
-                "type": "pace_monotone",
-                "reason": f"Low pace variation (CV={duration_cv:.2f}). Vary segment durations more.",
-                "priority": "medium",
-            })
+            adjustments.append(
+                {
+                    "segment_id": "global",
+                    "type": "pace_monotone",
+                    "reason": f"Low pace variation (CV={duration_cv:.2f}). Vary segment durations more.",
+                    "priority": "medium",
+                }
+            )
 
     pacing_score = 10.0
     for adj in adjustments:
@@ -124,24 +128,28 @@ def optimize_transitions(direction_v3: dict) -> dict:
         good_transitions = TRANSITION_AFFINITY.get(section, TRANSITION_AFFINITY["body"])
         if current_trans not in good_transitions and current_trans != "cut":
             suggested = good_transitions[0]
-            changes.append({
-                "segment_id": seg.get("id"),
-                "type": "transition_change",
-                "from": current_trans,
-                "to": suggested,
-                "reason": f"'{current_trans}' not ideal for {section} section",
-            })
+            changes.append(
+                {
+                    "segment_id": seg.get("id"),
+                    "type": "transition_change",
+                    "from": current_trans,
+                    "to": suggested,
+                    "reason": f"'{current_trans}' not ideal for {section} section",
+                }
+            )
 
-        if i > 0 and current_trans == transitions_used[i-1] and current_trans != "cut":
+        if i > 0 and current_trans == transitions_used[i - 1] and current_trans != "cut":
             alts = [t for t in good_transitions if t != current_trans]
             if alts:
-                changes.append({
-                    "segment_id": seg.get("id"),
-                    "type": "transition_variety",
-                    "from": current_trans,
-                    "to": alts[0],
-                    "reason": "Consecutive same transitions — vary for visual interest",
-                })
+                changes.append(
+                    {
+                        "segment_id": seg.get("id"),
+                        "type": "transition_variety",
+                        "from": current_trans,
+                        "to": alts[0],
+                        "reason": "Consecutive same transitions — vary for visual interest",
+                    }
+                )
 
     unique_transitions = len(set(transitions_used))
     variety_score = min(10.0, unique_transitions * 2.5)
@@ -154,8 +162,7 @@ def optimize_transitions(direction_v3: dict) -> dict:
     }
 
 
-def apply_pacing_adjustments(direction_v3: dict, adjustments: list[dict],
-                              apply_high_only: bool = False) -> dict:
+def apply_pacing_adjustments(direction_v3: dict, adjustments: list[dict], apply_high_only: bool = False) -> dict:
     """Apply pacing adjustments to direction v3 config."""
     segments = direction_v3.get("segments", [])
     seg_lookup = {s.get("id"): s for s in segments}

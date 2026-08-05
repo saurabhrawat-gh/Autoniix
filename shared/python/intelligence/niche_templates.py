@@ -15,6 +15,7 @@ Each template carries:
   ``/api/channels/generate-brand-dna`` returns, so the wizard can drop a
   template straight into the existing form without any reshaping.
 """
+
 from __future__ import annotations
 
 import json
@@ -41,13 +42,9 @@ def _load_all() -> list[dict[str, Any]]:
         seen_ids.add(tid)
         for required in ("label", "niche", "dna"):
             if required not in t:
-                raise ValueError(
-                    f"niche_templates.json: template {tid!r} missing {required!r}"
-                )
+                raise ValueError(f"niche_templates.json: template {tid!r} missing {required!r}")
         if not isinstance(t["dna"], dict):
-            raise ValueError(
-                f"niche_templates.json: template {tid!r} 'dna' must be a dict"
-            )
+            raise ValueError(f"niche_templates.json: template {tid!r} 'dna' must be a dict")
     return templates
 
 

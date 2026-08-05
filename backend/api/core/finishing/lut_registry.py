@@ -8,6 +8,7 @@ Each preset's ``.cube`` file is seeded into MinIO at ``luts/{key}.cube`` at
 bootstrap (see ``scripts/seeds/lut_presets/generate_luts.py``). Preview JPEGs
 live at ``luts/previews/{key}.jpg``.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

@@ -10,6 +10,7 @@ requesting a short caption + 5–12 tags. Writes:
 Skips video / audio / non-image assets (a future ticket adds frame-sample
 captioning for video).
 """
+
 from __future__ import annotations
 
 import base64

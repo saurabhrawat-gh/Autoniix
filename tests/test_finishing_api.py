@@ -3,6 +3,7 @@
 Covers: get default config, partial update, invalid preset (422), out-of-range
 loudness / true-peak (422), preset listing, and role enforcement (viewer 403).
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -25,6 +26,7 @@ _MOD = "services_api.dashboard.v2.finishing"
 
 def _principal(role: str = "owner"):
     from services_api.dashboard.v2._deps import Principal
+
     return Principal(user_id=1, email="t@t.com", role=role, source="v2_jwt", workspace_id=1)
 
 
@@ -56,7 +58,6 @@ def _patch_pool(pool):
     return patch(f"{_MOD}.get_pool", new_callable=AsyncMock, return_value=pool)
 
 
-
 class TestValidation:
     def test_invalid_preset_rejected(self):
         with pytest.raises(ValidationError) as exc:
@@ -86,7 +87,6 @@ class TestValidation:
         assert FinishingConfigUpdate(audio_true_peak_dbtps=-2.0).audio_true_peak_dbtps == -2.0
 
 
-
 @pytest.mark.asyncio
 class TestGetConfig:
     async def test_returns_default_config(self):
@@ -106,15 +106,13 @@ class TestGetConfig:
         assert exc.value.status_code == 404
 
 
-
 @pytest.mark.asyncio
 class TestUpdateConfig:
     async def test_update_applies_and_returns(self):
         pool = _pool_with_config()
         body = FinishingConfigUpdate(color_grade_preset="warm_gold", output_prores_archive=True)
         with _patch_pool(pool), patch(f"{_MOD}.audit", new_callable=AsyncMock) as aud:
-            out = await update_finishing_config(
-                "CH_1", body, request=AsyncMock(), actor=_principal("owner"))
+            out = await update_finishing_config("CH_1", body, request=AsyncMock(), actor=_principal("owner"))
         assert pool.execute.await_count >= 1
         aud.assert_awaited()
         assert "color_grade_preset" in out
@@ -123,8 +121,7 @@ class TestUpdateConfig:
         pool = _pool_with_config()
         body = FinishingConfigUpdate()
         with _patch_pool(pool), patch(f"{_MOD}.audit", new_callable=AsyncMock):
-            out = await update_finishing_config(
-                "CH_1", body, request=AsyncMock(), actor=_principal("owner"))
+            out = await update_finishing_config("CH_1", body, request=AsyncMock(), actor=_principal("owner"))
         assert out["channel_id"] == "CH_1"
 
     async def test_unknown_channel_404(self):
@@ -133,10 +130,8 @@ class TestUpdateConfig:
         body = FinishingConfigUpdate(color_grade_preset="vintage")
         with _patch_pool(pool):
             with pytest.raises(HTTPException) as exc:
-                await update_finishing_config(
-                    "nope", body, request=AsyncMock(), actor=_principal("owner"))
+                await update_finishing_config("nope", body, request=AsyncMock(), actor=_principal("owner"))
         assert exc.value.status_code == 404
-
 
 
 @pytest.mark.asyncio
@@ -155,7 +150,6 @@ class TestRoleEnforcement:
         checker = require_role("owner", "member")
         result = await checker(p=_principal("member"))
         assert result.role == "member"
-
 
 
 @pytest.mark.asyncio

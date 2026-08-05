@@ -11,6 +11,7 @@ model or ``DEFAULT_MODEL`` is used.
 Registered as ``custom_openai_compat`` in every LLM sub-category so it can
 be selected from the provider credential wizard.
 """
+
 from __future__ import annotations
 
 import time
@@ -27,7 +28,6 @@ DEFAULT_MODEL = "default"
 
 
 class CustomOpenAICompatLLM(LLMProvider):
-
     def __init__(self) -> None:
         self.api_key: str = ""
         self.base_url: str = ""
@@ -36,8 +36,7 @@ class CustomOpenAICompatLLM(LLMProvider):
     async def complete(self, request: LLMRequest) -> LLMResult:
         if not self.base_url:
             raise RuntimeError(
-                "custom_openai_compat: base_url not configured. "
-                "Set it in extra_config when creating the credential."
+                "custom_openai_compat: base_url not configured. Set it in extra_config when creating the credential."
             )
         model = request.model or self.model or DEFAULT_MODEL
         start = time.monotonic()
@@ -114,7 +113,14 @@ class CustomOpenAICompatLLM(LLMProvider):
 
 
 for _cat in (
-    "llm", "llm.research", "llm.script", "llm.factcheck", "llm.qc",
-    "llm.ideation", "llm.hook", "llm.direction", "llm.emotion",
+    "llm",
+    "llm.research",
+    "llm.script",
+    "llm.factcheck",
+    "llm.qc",
+    "llm.ideation",
+    "llm.hook",
+    "llm.direction",
+    "llm.emotion",
 ):
     ProviderRegistry.register(_cat, "custom_openai_compat", CustomOpenAICompatLLM)

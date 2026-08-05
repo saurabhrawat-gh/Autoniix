@@ -11,6 +11,7 @@ This test pins:
   future client repeating the same mistake fails loudly.
 * Empty/garbage values are rejected.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -49,14 +50,23 @@ def _patch_pool_with_open_session():
 
         def transaction(self):
             class _T:
-                async def __aenter__(_): return _
-                async def __aexit__(_, *_a): return False
+                async def __aenter__(_):
+                    return _
+
+                async def __aexit__(_, *_a):
+                    return False
+
             return _T()
 
     class _Acquire:
-        def __init__(self, conn): self._conn = conn
-        async def __aenter__(self): return self._conn
-        async def __aexit__(self, *_a): return False
+        def __init__(self, conn):
+            self._conn = conn
+
+        async def __aenter__(self):
+            return self._conn
+
+        async def __aexit__(self, *_a):
+            return False
 
     conn = _Conn()
     pool.acquire = lambda: _Acquire(conn)
@@ -68,22 +78,24 @@ def _patch_pool_with_open_session():
 async def test_every_valid_decision_value_is_accepted(value):
     pool = _patch_pool_with_open_session()
     body = DecisionIn(decision=value)
-    with patch("services_api.dashboard.v2.review.get_pool", AsyncMock(return_value=pool)), \
-         patch("services_api.dashboard.v2.review.audit", AsyncMock()):
+    with (
+        patch("services_api.dashboard.v2.review.get_pool", AsyncMock(return_value=pool)),
+        patch("services_api.dashboard.v2.review.audit", AsyncMock()),
+    ):
         try:
             await decide("VID_x", body, _request(), _principal())
         except HTTPException as exc:
-            assert exc.status_code != 400, (
-                f"valid decision={value!r} was rejected: {exc.detail}"
-            )
+            assert exc.status_code != 400, f"valid decision={value!r} was rejected: {exc.detail}"
 
 
 @pytest.mark.parametrize("bad", ["approve", "reject", "approve_video", "yes", "", "APPROVED"])
 @pytest.mark.asyncio
 async def test_invalid_decision_returns_400_with_clear_message(bad):
     body = DecisionIn(decision=bad)
-    with patch("services_api.dashboard.v2.review.get_pool", AsyncMock()), \
-         patch("services_api.dashboard.v2.review.audit", AsyncMock()):
+    with (
+        patch("services_api.dashboard.v2.review.get_pool", AsyncMock()),
+        patch("services_api.dashboard.v2.review.audit", AsyncMock()),
+    ):
         with pytest.raises(HTTPException) as exc:
             await decide("VID_x", body, _request(), _principal())
         assert exc.value.status_code == 400

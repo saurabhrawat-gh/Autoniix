@@ -11,29 +11,34 @@ from pydantic import BaseModel, Field
 
 from core.config import settings
 from core.db import close_pool, get_pool
+from observability.metrics import instrument_app
 from schemas.common import HealthResponse, ServiceResponse
-
 from services_api.delivery.seo_optimizer import (
     CATEGORY_MAP,
-    score_title_seo,
     optimize_description,
-    suggest_tags,
     predict_optimal_upload_time,
+    score_title_seo,
     store_delivery_features,
+    suggest_tags,
 )
-from observability.metrics import instrument_app
 
 try:
     from prometheus_client import Counter
+
     QUALITY_GATE_BLOCKS_TOTAL = Counter(
         "quality_gate_blocks_total",
         "Pre-publish quality-gate blocks (segmented by threshold profile).",
         labelnames=("profile",),
     )
 except Exception:  # pragma: no cover
+
     class _Noop:
-        def labels(self, *a, **kw): return self
-        def inc(self, *a, **kw): return None
+        def labels(self, *a, **kw):
+            return self
+
+        def inc(self, *a, **kw):
+            return None
+
     QUALITY_GATE_BLOCKS_TOTAL = _Noop()  # type: ignore
 
 logger = structlog.get_logger()
@@ -75,12 +80,15 @@ async def lifespan(app: FastAPI):
 
 
 from observability.sentry import init_sentry
+
 init_sentry("delivery")
 
 app = FastAPI(title="Delivery Service", version="0.1.0", lifespan=lifespan)
 
 
 instrument_app(app, service_name="delivery")
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="delivery")
@@ -92,9 +100,13 @@ async def refresh_access_token() -> str:
         resp = await client.post(
             "https://oauth2.googleapis.com/token",
             data={
-                "client_id": settings.google_oauth_client_id if hasattr(settings, 'google_oauth_client_id') else "",
-                "client_secret": settings.google_oauth_client_secret if hasattr(settings, 'google_oauth_client_secret') else "",
-                "refresh_token": settings.google_oauth_refresh_token if hasattr(settings, 'google_oauth_refresh_token') else "",
+                "client_id": settings.google_oauth_client_id if hasattr(settings, "google_oauth_client_id") else "",
+                "client_secret": settings.google_oauth_client_secret
+                if hasattr(settings, "google_oauth_client_secret")
+                else "",
+                "refresh_token": settings.google_oauth_refresh_token
+                if hasattr(settings, "google_oauth_refresh_token")
+                else "",
                 "grant_type": "refresh_token",
             },
         )
@@ -130,9 +142,12 @@ async def human_review(req: HumanReviewRequest):
         await pool.execute(
             "UPDATE videos SET human_review_status = $1, human_review_notes = $2, "
             "human_reviewer = $3, status = $4, updated_at = NOW() WHERE content_id = $5",
-            status, req.notes, req.reviewer,
+            status,
+            req.notes,
+            req.reviewer,
             "ready_to_deliver" if req.approved else "rejected",
-            req.content_id)
+            req.content_id,
+        )
 
         return ServiceResponse(
             status="success",
@@ -149,6 +164,7 @@ async def upload(req: DeliveryRequest):
     try:
         from quality import record_decision as qg_record
         from quality.gate import evaluate_for_niche as qg_evaluate_niche
+
         gate_profile = "production"
         niche: str | None = None
         try:
@@ -158,10 +174,11 @@ async def upload(req: DeliveryRequest):
                 req.channel_id,
             )
         except Exception as exc:
-            logger.warning("delivery.niche_lookup_failed",
-                           channel_id=req.channel_id, error=str(exc))
+            logger.warning("delivery.niche_lookup_failed", channel_id=req.channel_id, error=str(exc))
         gate_decision = await qg_evaluate_niche(
-            req.quality_scores, niche=niche, profile=gate_profile,
+            req.quality_scores,
+            niche=niche,
+            profile=gate_profile,
         )
         final_score = gate_decision.composite_score
         logger.info(
@@ -174,15 +191,15 @@ async def upload(req: DeliveryRequest):
         )
 
         if not gate_decision.passed and not req.quality_gate_override:
-            await qg_record(content_id=req.content_id, channel_id=req.channel_id,
-                            decision=gate_decision)
+            await qg_record(content_id=req.content_id, channel_id=req.channel_id, decision=gate_decision)
             QUALITY_GATE_BLOCKS_TOTAL.labels(profile=gate_profile).inc()
             try:
                 pool = await get_pool()
                 await pool.execute(
                     "UPDATE videos SET status = 'blocked_quality_gate', "
                     "final_composite_score = $1, updated_at = NOW() WHERE content_id = $2",
-                    final_score, req.content_id,
+                    final_score,
+                    req.content_id,
                 )
             except Exception as db_err:
                 logger.warning("delivery.gate_block_db_failed", error=str(db_err))
@@ -195,35 +212,39 @@ async def upload(req: DeliveryRequest):
                     "failures": gate_decision.failures,
                     "sub_scores": gate_decision.sub_scores,
                     "profile": gate_profile,
-                    "hint": ("Re-run failing phase, or call /upload again with "
-                             "quality_gate_override=true and a reason if you must publish."),
+                    "hint": (
+                        "Re-run failing phase, or call /upload again with "
+                        "quality_gate_override=true and a reason if you must publish."
+                    ),
                 },
             )
 
-        await qg_record(content_id=req.content_id, channel_id=req.channel_id,
-                        decision=gate_decision,
-                        overridden=req.quality_gate_override and not gate_decision.passed,
-                        override_reason=req.quality_gate_override_reason,
-                        override_by=req.quality_gate_override_by)
+        await qg_record(
+            content_id=req.content_id,
+            channel_id=req.channel_id,
+            decision=gate_decision,
+            overridden=req.quality_gate_override and not gate_decision.passed,
+            override_reason=req.quality_gate_override_reason,
+            override_by=req.quality_gate_override_by,
+        )
 
         seo_result = score_title_seo(req.title)
         desc_result = optimize_description(req.description, req.title, req.tags)
         optimized_tags = suggest_tags(req.title, "", req.tags)
         upload_timing = await predict_optimal_upload_time(req.channel_id)
 
-        logger.info("delivery.seo_analysis",
-                     title_seo=seo_result.get("seo_score"),
-                     desc_score=desc_result.get("score"))
+        logger.info("delivery.seo_analysis", title_seo=seo_result.get("seo_score"), desc_score=desc_result.get("score"))
 
         if req.human_review_required:
             pool = await get_pool()
-            row = await pool.fetchrow(
-                "SELECT human_review_status FROM videos WHERE content_id = $1", req.content_id)
+            row = await pool.fetchrow("SELECT human_review_status FROM videos WHERE content_id = $1", req.content_id)
             if not row or row["human_review_status"] != "approved":
                 await pool.execute(
                     "UPDATE videos SET status = 'pending_review', final_composite_score = $1, "
                     "updated_at = NOW() WHERE content_id = $2",
-                    final_score, req.content_id)
+                    final_score,
+                    req.content_id,
+                )
                 return ServiceResponse(
                     status="pending_review",
                     data={
@@ -257,8 +278,7 @@ async def upload(req: DeliveryRequest):
 
         async with httpx.AsyncClient(timeout=600.0) as client:
             init_resp = await client.post(
-                "https://www.googleapis.com/upload/youtube/v3/videos"
-                "?uploadType=resumable&part=snippet,status",
+                "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
                 headers={**headers, "Content-Type": "application/json"},
                 json=metadata,
             )
@@ -286,8 +306,7 @@ async def upload(req: DeliveryRequest):
                     thumb_bytes = thumb_resp.content
 
                     await client.post(
-                        f"https://www.googleapis.com/upload/youtube/v3/thumbnails/set"
-                        f"?videoId={youtube_video_id}",
+                        f"https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId={youtube_video_id}",
                         headers={**headers, "Content-Type": "image/png"},
                         content=thumb_bytes,
                     )
@@ -295,6 +314,7 @@ async def upload(req: DeliveryRequest):
                 logger.warning("delivery.thumbnail_upload_failed", error=str(thumb_err))
 
         import json as json_mod
+
         try:
             pool = await get_pool()
             await pool.execute(
@@ -302,12 +322,14 @@ async def upload(req: DeliveryRequest):
                 "final_composite_score = $3, status = 'delivered', updated_at = NOW() "
                 "WHERE content_id = $4",
                 youtube_video_id,
-                json_mod.dumps({
-                    "youtube_video_id": youtube_video_id,
-                    "privacy_status": req.privacy_status,
-                    "url": f"https://youtu.be/{youtube_video_id}",
-                    "is_short": req.is_short,
-                }),
+                json_mod.dumps(
+                    {
+                        "youtube_video_id": youtube_video_id,
+                        "privacy_status": req.privacy_status,
+                        "url": f"https://youtu.be/{youtube_video_id}",
+                        "is_short": req.is_short,
+                    }
+                ),
                 final_score,
                 req.content_id,
             )
@@ -318,21 +340,24 @@ async def upload(req: DeliveryRequest):
                 "thumbnail_score, hook_retention_score, final_score, content_mode, status, yt_video_id) "
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'delivered', $10) "
                 "ON CONFLICT (video_id) DO UPDATE SET yt_video_id = $10, status = 'delivered', updated_at = NOW()",
-                req.content_id, req.channel_id, req.title,
+                req.content_id,
+                req.channel_id,
+                req.title,
                 float(scores.get("idea_score", 0)),
                 float(scores.get("script_structure_score", 0)),
                 float(scores.get("thumbnail_score", 0)),
                 float(scores.get("hook_retention_score", 0)),
-                final_score, req.content_mode, youtube_video_id)
+                final_score,
+                req.content_mode,
+                youtube_video_id,
+            )
 
         except Exception as e:
             logger.warning("delivery.db_log_failed", error=str(e))
 
         logger.info("delivery.uploaded", youtube_video_id=youtube_video_id)
 
-        await store_delivery_features(
-            req.content_id, req.channel_id,
-            req.title, req.description, req.tags, seo_result)
+        await store_delivery_features(req.content_id, req.channel_id, req.title, req.description, req.tags, seo_result)
 
         return ServiceResponse(
             status="success",
@@ -355,7 +380,6 @@ async def upload(req: DeliveryRequest):
     except Exception as exc:
         logger.error("delivery.failed", error=str(exc))
         raise HTTPException(status_code=500, detail=str(exc))
-
 
 
 class SEORequest(BaseModel):
@@ -455,19 +479,23 @@ async def compute_metadata(req: ComputeMetadataRequest):
             await pool.execute(
                 "UPDATE videos SET delivery_result = $1, final_composite_score = $2, "
                 "updated_at = NOW() WHERE content_id = $3",
-                json_mod.dumps(delivery_result), final_score, req.content_id,
+                json_mod.dumps(delivery_result),
+                final_score,
+                req.content_id,
             )
         except Exception as db_err:
             logger.warning("delivery.compute_metadata_db_failed", error=str(db_err))
 
         await store_delivery_features(
-            req.content_id, req.channel_id,
-            req.title, req.description, optimized_tags, seo_result)
+            req.content_id, req.channel_id, req.title, req.description, optimized_tags, seo_result
+        )
 
-        logger.info("delivery.metadata_computed",
-                     content_id=req.content_id,
-                     seo_score=seo_result.get("seo_score"),
-                     tags_count=len(optimized_tags))
+        logger.info(
+            "delivery.metadata_computed",
+            content_id=req.content_id,
+            seo_score=seo_result.get("seo_score"),
+            tags_count=len(optimized_tags),
+        )
 
         return ServiceResponse(
             status="success",

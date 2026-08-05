@@ -4,6 +4,7 @@ Marks the job as ``skipped`` with an explicit reason so the queue does not
 fill up forever with un-processable jobs, and so operators can see which
 handlers are missing.
 """
+
 from __future__ import annotations
 
 from typing import Any

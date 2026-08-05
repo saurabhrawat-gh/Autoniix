@@ -17,12 +17,13 @@ kinetic-typography fallback rather than a black frame.
 The SBERT model is loaded lazily inside a process-wide cache so service
 startup stays fast (~50 ms) even though the model itself is ~80 MB.
 """
+
 from __future__ import annotations
 
 import math
 import threading
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Iterable
 
 import structlog
 
@@ -52,6 +53,7 @@ def _get_model():
             return _MODEL
         try:
             from sentence_transformers import SentenceTransformer  # type: ignore
+
             _MODEL = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
             logger.info("semantic_ranker.model_loaded", model="MiniLM-L6-v2")
         except Exception as exc:  # pragma: no cover - optional dep
@@ -60,11 +62,10 @@ def _get_model():
     return _MODEL or None
 
 
-
-
 @dataclass
 class ScoredCandidate:
     """Candidate clip annotated with its sub-scores and final score."""
+
     clip: dict
     semantic: float = 0.0
     motion: float = 0.0
@@ -89,8 +90,6 @@ class ScoredCandidate:
         }
 
 
-
-
 def _semantic_sim(query: str, candidate_text: str, model) -> float:
     """Cosine similarity in 0–1. Falls back to keyword overlap if no model."""
     if not query or not candidate_text:
@@ -107,6 +106,7 @@ def _semantic_sim(query: str, candidate_text: str, model) -> float:
         return inter / union if union else 0.0
     try:
         import numpy as np
+
         vecs = model.encode([q, c], normalize_embeddings=True)
         sim = float(np.dot(vecs[0], vecs[1]))
         return max(0.0, (sim + 1.0) / 2.0)
@@ -165,9 +165,7 @@ def _color_score(brand_palette: Iterable[str] | None, clip: dict) -> float:
     clip_rgb = [rgb for rgb in (_hex_to_rgb(c) for c in clip_colors) if rgb]
     if not clip_rgb:
         return 0.5
-    best_dist = min(
-        _palette_distance(b, c) for b in brand_rgb for c in clip_rgb
-    )
+    best_dist = min(_palette_distance(b, c) for b in brand_rgb for c in clip_rgb)
     return max(0.0, 1.0 - best_dist)
 
 
@@ -203,8 +201,6 @@ def _resolution_score(clip: dict, prefer_1080p: bool = True) -> float:
     if h >= 480:
         return 0.4
     return 0.2
-
-
 
 
 def _candidate_text(clip: dict) -> str:
@@ -244,16 +240,17 @@ def score_candidates(
         dur = _duration_score(target_duration_s, clip)
         res = _resolution_score(clip, prefer_1080p=prefer_1080p)
         final = (
-            W_SEMANTIC * sem
-            + W_MOTION * mot
-            + W_COLOR * col
-            + W_LICENSE * lic
-            + W_DURATION * dur
-            + W_RESOLUTION * res
+            W_SEMANTIC * sem + W_MOTION * mot + W_COLOR * col + W_LICENSE * lic + W_DURATION * dur + W_RESOLUTION * res
         )
         sc = ScoredCandidate(
-            clip=clip, semantic=sem, motion=mot, color=col,
-            license_=lic, duration=dur, resolution=res, final=final,
+            clip=clip,
+            semantic=sem,
+            motion=mot,
+            color=col,
+            license_=lic,
+            duration=dur,
+            resolution=res,
+            final=final,
         )
         if final < threshold:
             sc.rejected = True

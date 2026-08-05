@@ -3,13 +3,11 @@
 These tests are pure-function — no DB, no LLM, no network. The gate's
 :func:`record_decision` is exercised separately via integration tests.
 """
-from __future__ import annotations
 
-import pytest
+from __future__ import annotations
 
 from quality import (
     PRODUCTION_THRESHOLDS,
-    TEST_THRESHOLDS,
     evaluate,
 )
 
@@ -17,13 +15,13 @@ from quality import (
 def _all_pass_scores() -> dict:
     """Scores that comfortably clear every production floor."""
     return {
-        "research_depth_score":   8.5,
+        "research_depth_score": 8.5,
         "script_structure_score": 8.5,
-        "hook_retention_score":   8.5,
-        "voice_quality_score":    8.0,
-        "thumbnail_score":        8.5,
-        "direction_score":        8.0,
-        "production_score":       8.0,
+        "hook_retention_score": 8.5,
+        "voice_quality_score": 8.0,
+        "thumbnail_score": 8.5,
+        "direction_score": 8.0,
+        "production_score": 8.0,
     }
 
 
@@ -53,13 +51,13 @@ def test_high_scores_in_other_dims_cannot_compensate_for_floor():
 
 def test_composite_threshold_blocks_even_when_floors_pass():
     scores = {
-        "research_depth_score":   7.0,
+        "research_depth_score": 7.0,
         "script_structure_score": 7.5,
-        "hook_retention_score":   7.5,
-        "voice_quality_score":    7.0,
-        "thumbnail_score":        7.5,
-        "direction_score":        7.0,
-        "production_score":       7.0,
+        "hook_retention_score": 7.5,
+        "voice_quality_score": 7.0,
+        "thumbnail_score": 7.5,
+        "direction_score": 7.0,
+        "production_score": 7.0,
     }
     out = evaluate(scores)
     floor_failures = [f for f in out.failures if not f.startswith("composite_score")]
@@ -69,8 +67,7 @@ def test_composite_threshold_blocks_even_when_floors_pass():
 
 
 def test_test_profile_passes_everything():
-    out = evaluate({k: 0.0 for k in PRODUCTION_THRESHOLDS if k != "composite_score"},
-                   profile="test")
+    out = evaluate({k: 0.0 for k in PRODUCTION_THRESHOLDS if k != "composite_score"}, profile="test")
     assert out.passed is True
     assert out.profile == "test"
 
@@ -102,6 +99,7 @@ def test_decision_dict_is_serialisable():
     out = evaluate(_all_pass_scores())
     d = out.as_dict()
     import json
+
     json.loads(json.dumps(d))
     assert d["passed"] is True
     assert "composite_score" in d

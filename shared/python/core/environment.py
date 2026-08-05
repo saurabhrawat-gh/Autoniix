@@ -3,11 +3,13 @@
 All functions return production values. This module exists only for
 import compatibility with code not yet cleaned up.
 """
+
 from __future__ import annotations
 
 
 class EnvironmentModeError(RuntimeError):
     """Kept for import compatibility. No longer raised."""
+
     pass
 
 

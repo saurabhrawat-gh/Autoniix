@@ -26,6 +26,7 @@ Defensive by design:
 * DB errors degrade silently to empty context \u2014 we never block content
   generation because the learning loop is unavailable.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -59,7 +60,9 @@ async def _fetch_performers(channel_id: str) -> dict[str, Any]:
         "  AND yt_views >= $2 "
         "ORDER BY yt_views DESC "
         "LIMIT $3",
-        channel_id, _MIN_VIEWS_FOR_LEARNING, _TOP_LIMIT,
+        channel_id,
+        _MIN_VIEWS_FOR_LEARNING,
+        _TOP_LIMIT,
     )
     worst = await pool.fetch(
         "SELECT title, yt_views, engagement_rate, performance_tier "
@@ -69,7 +72,9 @@ async def _fetch_performers(channel_id: str) -> dict[str, Any]:
         "  AND yt_views >= $2 "
         "ORDER BY yt_views ASC "
         "LIMIT $3",
-        channel_id, _MIN_VIEWS_FOR_LEARNING, _WORST_LIMIT,
+        channel_id,
+        _MIN_VIEWS_FOR_LEARNING,
+        _WORST_LIMIT,
     )
     stats_row = await pool.fetchrow(
         "SELECT COUNT(*) AS n, "
@@ -80,7 +85,7 @@ async def _fetch_performers(channel_id: str) -> dict[str, Any]:
         channel_id,
     )
     return {
-        "top":   [dict(r) for r in top],
+        "top": [dict(r) for r in top],
         "worst": [dict(r) for r in worst],
         "stats": dict(stats_row) if stats_row else {},
     }
@@ -104,34 +109,27 @@ def _format(performers: dict[str, Any]) -> str:
     n = stats.get("n") or 0
     if n:
         avg_views = int(stats.get("avg_views") or 0)
-        avg_eng   = float(stats.get("avg_engagement") or 0.0)
-        lines.append(
-            f"Baseline over {n} measured videos: avg {avg_views:,} views, "
-            f"{avg_eng:.1f}% engagement."
-        )
+        avg_eng = float(stats.get("avg_engagement") or 0.0)
+        lines.append(f"Baseline over {n} measured videos: avg {avg_views:,} views, {avg_eng:.1f}% engagement.")
 
     if top:
         lines.append("")
         lines.append("WHAT WORKS (repeat these patterns):")
         for r in top:
             views = int(r.get("yt_views") or 0)
-            eng   = float(r.get("engagement_rate") or 0.0)
-            tier  = r.get("performance_tier") or "?"
+            eng = float(r.get("engagement_rate") or 0.0)
+            tier = r.get("performance_tier") or "?"
             title = (r.get("title") or "").strip()[:120]
-            lines.append(
-                f"  - [{tier}] {views:,} views, {eng:.1f}% eng \u2014 \"{title}\""
-            )
+            lines.append(f'  - [{tier}] {views:,} views, {eng:.1f}% eng \u2014 "{title}"')
 
     if worst:
         lines.append("")
         lines.append("WHAT FLOPS (avoid these patterns):")
         for r in worst:
             views = int(r.get("yt_views") or 0)
-            eng   = float(r.get("engagement_rate") or 0.0)
+            eng = float(r.get("engagement_rate") or 0.0)
             title = (r.get("title") or "").strip()[:120]
-            lines.append(
-                f"  - [D] {views:,} views, {eng:.1f}% eng \u2014 \"{title}\""
-            )
+            lines.append(f'  - [D] {views:,} views, {eng:.1f}% eng \u2014 "{title}"')
 
     lines.append("=== END PERFORMANCE MEMORY ===")
     return "\n".join(lines)
@@ -146,16 +144,17 @@ async def build_performance_context(channel_id: str) -> str:
     try:
         performers = await _fetch_performers(channel_id)
     except Exception as exc:
-        logger.warning("performance_feedback.fetch_failed",
-                       channel_id=channel_id, error=str(exc))
+        logger.warning("performance_feedback.fetch_failed", channel_id=channel_id, error=str(exc))
         return ""
     text = _format(performers)
     if text:
-        logger.info("performance_feedback.attached",
-                    channel_id=channel_id,
-                    top=len(performers.get("top") or []),
-                    worst=len(performers.get("worst") or []),
-                    chars=len(text))
+        logger.info(
+            "performance_feedback.attached",
+            channel_id=channel_id,
+            top=len(performers.get("top") or []),
+            worst=len(performers.get("worst") or []),
+            chars=len(text),
+        )
     return text
 
 

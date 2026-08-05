@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import asyncpg
@@ -64,7 +64,7 @@ class Dispatcher:
             try:
                 await asyncio.wait_for(stop_event.wait(), timeout=self.poll_interval.total_seconds())
                 break
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 await self.tick()
 
         logger.info("dispatcher.stopped")
@@ -81,7 +81,7 @@ class Dispatcher:
             logger.warning("dispatcher.tick.error", error=str(e))
 
     async def _claim(self) -> list[DeliveryRow]:
-        stale_cutoff = datetime.now(timezone.utc) - self.stale_after
+        stale_cutoff = datetime.now(UTC) - self.stale_after
 
         async with self.pool.acquire() as conn:
             async with conn.transaction():
@@ -111,7 +111,9 @@ class Dispatcher:
 
                 out = []
                 for row in pg_rows:
-                    cfg = json.loads(row["route_config"]) if isinstance(row["route_config"], str) else row["route_config"]
+                    cfg = (
+                        json.loads(row["route_config"]) if isinstance(row["route_config"], str) else row["route_config"]
+                    )
                     payload_data = json.loads(row["payload"]) if isinstance(row["payload"], str) else row["payload"]
 
                     notification = NotificationPayload(

@@ -27,18 +27,15 @@ Cold-start safe: if the niche has no embedded videos yet, returns
 ``saturation_gap = 1.0`` (i.e. don't penalise) and flags the result so
 the caller can log "no pulse data."
 """
+
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Iterable
 
 import structlog
 
 logger = structlog.get_logger()
-
-
 
 
 DEFAULT_LOOKBACK_DAYS = 14
@@ -50,11 +47,10 @@ TOP_K = 20
 VELOCITY_REFERENCE = 4_000.0
 
 
-
-
 @dataclass
 class _PulseRow:
     """Minimal shape the scorer needs from each competitor video."""
+
     similarity: float
     view_velocity: float
     age_days: float
@@ -135,8 +131,6 @@ def compute_saturation_from_pulse(rows: list[_PulseRow]) -> SaturationResult:
     )
 
 
-
-
 def _format_vector(emb: list[float]) -> str:
     """Encode a float list as the pgvector literal '[v1,v2,...]'."""
     return "[" + ",".join(f"{x:.6f}" for x in emb) + "]"
@@ -164,6 +158,7 @@ async def compute_saturation(
 
     try:
         from services_api.research.similarity import compute_embedding
+
         emb = await compute_embedding(topic)
     except Exception as exc:
         logger.warning("saturation.embed_failed", topic=topic[:50], error=str(exc))
@@ -171,6 +166,7 @@ async def compute_saturation(
 
     try:
         from core.db import get_pool
+
         pool = await get_pool()
         rows = await pool.fetch(
             """
@@ -185,7 +181,9 @@ async def compute_saturation(
             ORDER BY title_embedding <=> $1::vector
             LIMIT 50
             """,
-            _format_vector(emb), niche, lookback_days,
+            _format_vector(emb),
+            niche,
+            lookback_days,
         )
     except Exception as exc:
         logger.warning("saturation.query_failed", niche=niche, error=str(exc))
@@ -201,11 +199,14 @@ async def compute_saturation(
     ]
     result = compute_saturation_from_pulse(pulse)
     if result.n_matches > 0:
-        logger.info("saturation.scored",
-                    topic=topic[:60], niche=niche,
-                    saturation=result.saturation,
-                    matches=result.n_matches,
-                    top_sim=result.top_match_similarity)
+        logger.info(
+            "saturation.scored",
+            topic=topic[:60],
+            niche=niche,
+            saturation=result.saturation,
+            matches=result.n_matches,
+            top_sim=result.top_match_similarity,
+        )
     return result
 
 
@@ -217,6 +218,7 @@ async def get_pulse_freshness(niche: str | None = None) -> dict:
     """
     try:
         from core.db import get_pool
+
         pool = await get_pool()
         if niche:
             row = await pool.fetchrow(
@@ -240,7 +242,7 @@ async def get_pulse_freshness(niche: str | None = None) -> dict:
             )
         out = {
             "embedded_rows": int(row["embedded_rows"] or 0),
-            "last_refresh":  row["last_refresh"].isoformat() if row["last_refresh"] else None,
+            "last_refresh": row["last_refresh"].isoformat() if row["last_refresh"] else None,
         }
         if not niche:
             out["niches_with_data"] = int(row["niches_with_data"] or 0)

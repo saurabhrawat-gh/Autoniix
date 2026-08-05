@@ -1,12 +1,12 @@
 """User management — Phase 4 (S7)."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
 
 from core.db import get_pool
 
-from ._deps import Principal, audit, principal_dep, require_global_role
+from ._deps import Principal, audit, require_global_role
 
 router = APIRouter()
 
@@ -36,6 +36,7 @@ async def list_users(_: Principal = Depends(require_global_role("superadmin"))):
             ORDER BY u.id"""
     )
     import json as _json
+
     result = []
     for r in rows:
         row = dict(r)
@@ -47,7 +48,8 @@ async def list_users(_: Principal = Depends(require_global_role("superadmin"))):
 
 @router.post("/transfer-superadmin/{target_user_id}")
 async def transfer_superadmin(
-    target_user_id: int, request: Request,
+    target_user_id: int,
+    request: Request,
     actor: Principal = Depends(require_global_role("superadmin")),
 ):
     """Atomically transfer the single superadmin seat to another active user.
@@ -55,9 +57,7 @@ async def transfer_superadmin(
     if actor.user_id == target_user_id:
         raise HTTPException(400, "You are already the superadmin.")
     pool = await get_pool()
-    target = await pool.fetchrow(
-        "SELECT id, role, disabled FROM users WHERE id=$1", target_user_id
-    )
+    target = await pool.fetchrow("SELECT id, role, disabled FROM users WHERE id=$1", target_user_id)
     if not target:
         raise HTTPException(404, "Target user not found")
     if target["disabled"]:
@@ -68,14 +68,20 @@ async def transfer_superadmin(
         async with conn.transaction():
             await conn.execute("UPDATE users SET role='user' WHERE id=$1", actor.user_id)
             await conn.execute("UPDATE users SET role='superadmin' WHERE id=$1", target_user_id)
-    await audit(actor=actor, action="user.superadmin.transfer", target_type="user",
-                target_id=str(target_user_id), request=request)
+    await audit(
+        actor=actor,
+        action="user.superadmin.transfer",
+        target_type="user",
+        target_id=str(target_user_id),
+        request=request,
+    )
     return {"status": "ok"}
 
 
 @router.put("/{user_id}/disable")
 async def disable_user(
-    user_id: int, request: Request,
+    user_id: int,
+    request: Request,
     actor: Principal = Depends(require_global_role("superadmin")),
 ):
     if actor.user_id == user_id:
@@ -90,28 +96,27 @@ async def disable_user(
             "Cannot disable the superadmin account. Transfer superadmin ownership first.",
         )
     await pool.execute("UPDATE users SET disabled=TRUE WHERE id=$1", user_id)
-    await pool.execute("UPDATE sessions SET revoked_at=NOW() "
-                       "WHERE user_id=$1 AND revoked_at IS NULL", user_id)
-    await audit(actor=actor, action="user.disable", target_type="user",
-                target_id=str(user_id), request=request)
+    await pool.execute("UPDATE sessions SET revoked_at=NOW() WHERE user_id=$1 AND revoked_at IS NULL", user_id)
+    await audit(actor=actor, action="user.disable", target_type="user", target_id=str(user_id), request=request)
     return {"status": "ok"}
 
 
 @router.put("/{user_id}/enable")
 async def enable_user(
-    user_id: int, request: Request,
+    user_id: int,
+    request: Request,
     actor: Principal = Depends(require_global_role("superadmin")),
 ):
     pool = await get_pool()
     await pool.execute("UPDATE users SET disabled=FALSE WHERE id=$1", user_id)
-    await audit(actor=actor, action="user.enable", target_type="user",
-                target_id=str(user_id), request=request)
+    await audit(actor=actor, action="user.enable", target_type="user", target_id=str(user_id), request=request)
     return {"status": "ok"}
 
 
 @router.delete("/{user_id}")
 async def delete_user(
-    user_id: int, request: Request,
+    user_id: int,
+    request: Request,
     actor: Principal = Depends(require_global_role("superadmin")),
 ):
     if actor.user_id == user_id:
@@ -127,17 +132,15 @@ async def delete_user(
         )
     async with pool.acquire() as conn:
         async with conn.transaction():
-            await conn.execute(
-                "UPDATE sessions SET revoked_at=NOW() WHERE user_id=$1 AND revoked_at IS NULL", user_id
-            )
+            await conn.execute("UPDATE sessions SET revoked_at=NOW() WHERE user_id=$1 AND revoked_at IS NULL", user_id)
             await conn.execute("DELETE FROM workspace_members WHERE user_id=$1", user_id)
             await conn.execute(
                 """UPDATE users SET
                    email=$1, password_hash=NULL, display_name='Deleted User',
                    disabled=TRUE, mfa_enabled=FALSE, mfa_secret=NULL
                    WHERE id=$2""",
-                f"deleted-{user_id}@deleted.local", user_id,
+                f"deleted-{user_id}@deleted.local",
+                user_id,
             )
-    await audit(actor=actor, action="user.delete", target_type="user",
-                target_id=str(user_id), request=request)
+    await audit(actor=actor, action="user.delete", target_type="user", target_id=str(user_id), request=request)
     return {"status": "ok"}

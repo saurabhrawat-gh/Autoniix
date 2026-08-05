@@ -69,16 +69,15 @@ async def _sync_table_to_sheet(tab_name: str, query: str, columns: list[str]):
 
     data = [columns]
     for row in rows:
-        data.append([
-            str(row.get(col, "") or "") for col in columns
-        ])
+        data.append([str(row.get(col, "") or "") for col in columns])
 
     sheets = await _get_sheets_client()
     sheet_id = settings.google_sheets_id
 
     range_name = f"{tab_name}!A1"
     sheets.values().clear(
-        spreadsheetId=sheet_id, range=f"{tab_name}!A:ZZ",
+        spreadsheetId=sheet_id,
+        range=f"{tab_name}!A:ZZ",
     ).execute()
 
     sheets.values().update(
@@ -113,13 +112,31 @@ async def sync_output_log():
            final_composite_score::text, youtube_video_id, total_cost::text,
            checkpoint, error_message, created_at::text, updated_at::text
            FROM videos ORDER BY created_at DESC LIMIT 500""",
-        ["content_id", "channel_id", "status", "content_mode", "title", "topic",
-         "research_depth_score", "fact_confidence_score", "idea_score",
-         "script_structure_score", "hook_retention_score",
-         "voice_quality_score", "voice_duration_s",
-         "thumbnail_score", "direction_score", "production_score",
-         "final_composite_score", "youtube_video_id", "total_cost",
-         "checkpoint", "error_message", "created_at", "updated_at"],
+        [
+            "content_id",
+            "channel_id",
+            "status",
+            "content_mode",
+            "title",
+            "topic",
+            "research_depth_score",
+            "fact_confidence_score",
+            "idea_score",
+            "script_structure_score",
+            "hook_retention_score",
+            "voice_quality_score",
+            "voice_duration_s",
+            "thumbnail_score",
+            "direction_score",
+            "production_score",
+            "final_composite_score",
+            "youtube_video_id",
+            "total_cost",
+            "checkpoint",
+            "error_message",
+            "created_at",
+            "updated_at",
+        ],
     )
 
 
@@ -134,12 +151,27 @@ async def sync_api_usage():
            pexels_calls::text, serpapi_calls::text, remotion_renders::text,
            total_cost::text, channel_id, content_id
            FROM api_usage ORDER BY created_at DESC LIMIT 1000""",
-        ["date", "openai_tokens_in", "openai_tokens_out", "openai_cost",
-         "claude_tokens_in", "claude_tokens_out", "claude_cost",
-         "gemini_tokens", "gemini_cost", "elevenlabs_chars",
-         "dalle_calls", "youtube_api_units", "pixabay_calls",
-         "pexels_calls", "serpapi_calls", "remotion_renders",
-         "total_cost", "channel_id", "content_id"],
+        [
+            "date",
+            "openai_tokens_in",
+            "openai_tokens_out",
+            "openai_cost",
+            "claude_tokens_in",
+            "claude_tokens_out",
+            "claude_cost",
+            "gemini_tokens",
+            "gemini_cost",
+            "elevenlabs_chars",
+            "dalle_calls",
+            "youtube_api_units",
+            "pixabay_calls",
+            "pexels_calls",
+            "serpapi_calls",
+            "remotion_renders",
+            "total_cost",
+            "channel_id",
+            "content_id",
+        ],
     )
 
 
@@ -154,12 +186,29 @@ async def sync_feedback_loop():
            engagement_rate::text, performance_tier, analytics_status,
            created_at::text, updated_at::text
            FROM feedback_loop ORDER BY created_at DESC LIMIT 500""",
-        ["video_id", "channel_id", "title", "idea_score", "script_score",
-         "thumbnail_score", "hook_retention_score", "final_score",
-         "content_mode", "status", "yt_video_id", "yt_views", "yt_likes",
-         "yt_comments", "yt_ctr", "yt_avg_view_duration",
-         "engagement_rate", "performance_tier", "analytics_status",
-         "created_at", "updated_at"],
+        [
+            "video_id",
+            "channel_id",
+            "title",
+            "idea_score",
+            "script_score",
+            "thumbnail_score",
+            "hook_retention_score",
+            "final_score",
+            "content_mode",
+            "status",
+            "yt_video_id",
+            "yt_views",
+            "yt_likes",
+            "yt_comments",
+            "yt_ctr",
+            "yt_avg_view_duration",
+            "engagement_rate",
+            "performance_tier",
+            "analytics_status",
+            "created_at",
+            "updated_at",
+        ],
     )
 
 
@@ -172,10 +221,24 @@ async def sync_trend_intelligence():
            virality_potential::text, competition_level, freshness, status,
            used_in_video_id, expires_at::text
            FROM trend_intelligence WHERE status = 'active' ORDER BY detected_at DESC LIMIT 500""",
-        ["trend_id", "channel_id", "niche", "trend_type", "trend_title", "trend_description",
-         "source", "source_url", "detected_at", "relevance_score",
-         "virality_potential", "competition_level", "freshness", "status",
-         "used_in_video_id", "expires_at"],
+        [
+            "trend_id",
+            "channel_id",
+            "niche",
+            "trend_type",
+            "trend_title",
+            "trend_description",
+            "source",
+            "source_url",
+            "detected_at",
+            "relevance_score",
+            "virality_potential",
+            "competition_level",
+            "freshness",
+            "status",
+            "used_in_video_id",
+            "expires_at",
+        ],
     )
 
 
@@ -183,8 +246,7 @@ async def sync_trend_intelligence():
 async def sync_all():
     """Sync all tables to Google Sheets."""
     results = []
-    for sync_fn in [sync_system_config, sync_output_log, sync_api_usage,
-                    sync_feedback_loop, sync_trend_intelligence]:
+    for sync_fn in [sync_system_config, sync_output_log, sync_api_usage, sync_feedback_loop, sync_trend_intelligence]:
         try:
             result = await sync_fn()
             results.append(result)

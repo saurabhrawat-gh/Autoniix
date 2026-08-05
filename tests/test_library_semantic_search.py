@@ -1,4 +1,5 @@
 """Unit tests for the hybrid semantic search — AE-356."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
@@ -97,9 +98,7 @@ async def test_hybrid_endpoint_combines_results(mock_pool):
         "llm.embeddings.embed_text",
         AsyncMock(return_value=[0.1] * 1536),
     ):
-        resp = await dam_search(
-            SearchIn(q="x", scope="workspace", mode="hybrid"), _=None
-        )
+        resp = await dam_search(SearchIn(q="x", scope="workspace", mode="hybrid"), _=None)
 
     assert resp["mode"] == "hybrid"
     ids = [r["id"] for r in resp["data"]]

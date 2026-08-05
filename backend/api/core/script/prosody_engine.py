@@ -12,6 +12,7 @@ Transforms the base script into a voice-optimized version with:
 
 All computation is local. Zero API cost.
 """
+
 from __future__ import annotations
 
 import re
@@ -21,8 +22,6 @@ from xml.sax.saxutils import escape as xml_escape
 import structlog
 
 from services_api.script.script_analyzer import (
-    analyze_segment,
-    count_syllables,
     detect_emotions,
     detect_emphasis_words,
     estimate_speaking_duration,
@@ -32,28 +31,43 @@ logger = structlog.get_logger()
 
 SECTION_PROSODY = {
     "hook": {
-        "base_speed": 1.15, "stability": 0.40, "style": 0.70,
-        "similarity_boost": 0.75, "base_volume": "medium",
+        "base_speed": 1.15,
+        "stability": 0.40,
+        "style": 0.70,
+        "similarity_boost": 0.75,
+        "base_volume": "medium",
         "pause_after_ms": 300,
     },
     "intro": {
-        "base_speed": 1.05, "stability": 0.55, "style": 0.50,
-        "similarity_boost": 0.80, "base_volume": "medium",
+        "base_speed": 1.05,
+        "stability": 0.55,
+        "style": 0.50,
+        "similarity_boost": 0.80,
+        "base_volume": "medium",
         "pause_after_ms": 400,
     },
     "body": {
-        "base_speed": 1.00, "stability": 0.55, "style": 0.45,
-        "similarity_boost": 0.80, "base_volume": "medium",
+        "base_speed": 1.00,
+        "stability": 0.55,
+        "style": 0.45,
+        "similarity_boost": 0.80,
+        "base_volume": "medium",
         "pause_after_ms": 350,
     },
     "climax": {
-        "base_speed": 0.90, "stability": 0.35, "style": 0.75,
-        "similarity_boost": 0.70, "base_volume": "loud",
+        "base_speed": 0.90,
+        "stability": 0.35,
+        "style": 0.75,
+        "similarity_boost": 0.70,
+        "base_volume": "loud",
         "pause_after_ms": 600,
     },
     "outro": {
-        "base_speed": 0.95, "stability": 0.65, "style": 0.40,
-        "similarity_boost": 0.85, "base_volume": "soft",
+        "base_speed": 0.95,
+        "stability": 0.65,
+        "style": 0.40,
+        "similarity_boost": 0.85,
+        "base_volume": "soft",
         "pause_after_ms": 500,
     },
 }
@@ -83,7 +97,6 @@ PAUSE_RULES = {
 }
 
 
-
 async def analyze_sentence_prosody(
     sentence: str,
     section: str = "body",
@@ -100,8 +113,8 @@ async def analyze_sentence_prosody(
     emotion_params = EMOTION_TTS_MAP.get(emotion, EMOTION_TTS_MAP["neutral"])
 
     speed = section_defaults["base_speed"] * emotion_params["speed_mod"]
-    stability = (section_defaults["stability"] * 0.5 + emotion_params["stability"] * 0.5)
-    style = (section_defaults["style"] * 0.4 + emotion_params["style"] * 0.6)
+    stability = section_defaults["stability"] * 0.5 + emotion_params["stability"] * 0.5
+    style = section_defaults["style"] * 0.4 + emotion_params["style"] * 0.6
     similarity_boost = section_defaults["similarity_boost"]
 
     word_count = len(sentence.split())
@@ -184,7 +197,6 @@ def generate_ssml_sentence(prosody_data: dict) -> str:
     return ssml
 
 
-
 async def generate_segment_voice(segment: dict, segment_index: int = 0) -> dict[str, Any]:
     """Generate full voice markup for a script segment.
 
@@ -213,14 +225,19 @@ async def generate_segment_voice(segment: dict, segment_index: int = 0) -> dict[
         prev_emotion = prosody["emotion"]
 
     ssml_body = "\n    ".join(ssml_parts)
-    full_ssml = f'<speak>\n  <mark name="{segment_id}_start"/>\n    {ssml_body}\n  <mark name="{segment_id}_end"/>\n</speak>'
+    full_ssml = (
+        f'<speak>\n  <mark name="{segment_id}_start"/>\n    {ssml_body}\n  <mark name="{segment_id}_end"/>\n</speak>'
+    )
 
     if sentence_prosody:
         weights = [len(sp["text"].split()) for sp in sentence_prosody]
         total_w = max(sum(weights), 1)
         avg_params = {
             "stability": sum(sp["tts_params"]["stability"] * w for sp, w in zip(sentence_prosody, weights)) / total_w,
-            "similarity_boost": sum(sp["tts_params"]["similarity_boost"] * w for sp, w in zip(sentence_prosody, weights)) / total_w,
+            "similarity_boost": sum(
+                sp["tts_params"]["similarity_boost"] * w for sp, w in zip(sentence_prosody, weights)
+            )
+            / total_w,
             "style": sum(sp["tts_params"]["style"] * w for sp, w in zip(sentence_prosody, weights)) / total_w,
             "speed": sum(sp["tts_params"]["speed"] * w for sp, w in zip(sentence_prosody, weights)) / total_w,
         }
@@ -249,7 +266,6 @@ async def generate_segment_voice(segment: dict, segment_index: int = 0) -> dict[
         "total_duration_s": round(total_duration, 2),
         "sentence_count": len(sentences),
     }
-
 
 
 async def generate_script_voice(segments: list[dict], channel: dict | None = None) -> dict[str, Any]:
@@ -285,9 +301,7 @@ async def generate_script_voice(segments: list[dict], channel: dict | None = Non
 
     total_sentences = sum(vs["sentence_count"] for vs in voice_segments)
     complete_sentences = sum(
-        1 for vs in voice_segments
-        for sp in vs["sentences"]
-        if sp["emotion"] != "neutral" or sp["emphasis_words"]
+        1 for vs in voice_segments for sp in vs["sentences"] if sp["emotion"] != "neutral" or sp["emphasis_words"]
     )
     prosody_coverage = complete_sentences / max(total_sentences, 1)
 

@@ -5,9 +5,8 @@ layer (``log_bandit_pick``, ``get_recent_arm_counts``) is exercised
 through integration tests; here we test the pure-function core that
 makes the actual safety call.
 """
-from __future__ import annotations
 
-import math
+from __future__ import annotations
 
 import pytest
 
@@ -19,8 +18,6 @@ from intelligence.diversity_floor import (
     shannon_entropy,
     should_force_exploration,
 )
-
-
 
 
 def test_entropy_is_one_for_uniform_distribution():
@@ -43,9 +40,9 @@ def test_entropy_zero_for_empty_or_no_picks():
 def test_entropy_drops_as_distribution_skews():
     """Locking the directionality: a more-peaked distribution must
     have *lower* entropy than a more-uniform one."""
-    uniform     = shannon_entropy([5, 5, 5, 5])
-    mild_skew   = shannon_entropy([8, 4, 4, 4])
-    heavy_skew  = shannon_entropy([16, 2, 1, 1])
+    uniform = shannon_entropy([5, 5, 5, 5])
+    mild_skew = shannon_entropy([8, 4, 4, 4])
+    heavy_skew = shannon_entropy([16, 2, 1, 1])
     near_collapse = shannon_entropy([19, 1])
     assert uniform > mild_skew > heavy_skew > near_collapse
 
@@ -64,10 +61,8 @@ def test_entropy_ignores_zero_arms():
     'present but unpicked' — they're effectively not in the bandit's
     active set for the purposes of recent-history scoring."""
     e_with_zeros = shannon_entropy([5, 5, 0, 0])
-    e_without    = shannon_entropy([5, 5])
+    e_without = shannon_entropy([5, 5])
     assert e_with_zeros == pytest.approx(e_without)
-
-
 
 
 def test_force_exploration_off_when_below_min_picks():
@@ -105,14 +100,13 @@ def test_force_exploration_monotone_around_threshold():
       * [17, 1, 1, 1] -> 0.42 (well below)
     """
     ladders = [
-        ([14, 4, 2],     False),
-        ([17, 2, 1],     True),
-        ([17, 1, 1, 1],  True),
+        ([14, 4, 2], False),
+        ([17, 2, 1], True),
+        ([17, 1, 1, 1], True),
     ]
     for counts, expected_force in ladders:
         assert should_force_exploration(counts) is expected_force, (
-            f"counts={counts} entropy={shannon_entropy(counts):.3f} "
-            f"expected_force={expected_force}"
+            f"counts={counts} entropy={shannon_entropy(counts):.3f} expected_force={expected_force}"
         )
 
 
@@ -126,8 +120,6 @@ def test_force_exploration_respects_custom_threshold():
     counts = [17, 2, 1]
     assert should_force_exploration(counts, threshold=0.7) is True
     assert should_force_exploration(counts, threshold=0.4) is False
-
-
 
 
 def test_pick_least_pulled_returns_minimum_count_arm():
@@ -164,8 +156,6 @@ def test_pick_least_pulled_constrains_to_available():
     assert pick_least_pulled(counts, available_arms=available) == "b"
 
 
-
-
 def test_realistic_collapse_scenario():
     """Channel has 20 recent topic picks, 17 on 'fitness_tips' and 3
     spread across other arms. This is exactly the collapse the floor
@@ -191,8 +181,6 @@ def test_realistic_early_channel_scenario():
     don't intervene — Thompson needs to learn first."""
     counts = [5]
     assert should_force_exploration(counts) is False
-
-
 
 
 def test_constants_have_sensible_values():

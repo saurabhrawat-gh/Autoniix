@@ -8,6 +8,7 @@ Docs:  https://platform.moonshot.cn/docs/api
 Auth:  Bearer token in ``KIMI_API_KEY`` (injected by the chain
        resolver from the credential's vault path).
 """
+
 from __future__ import annotations
 
 import os
@@ -22,8 +23,8 @@ from providers.registry import ProviderRegistry
 logger = structlog.get_logger()
 
 PRICING: dict[str, dict[str, float]] = {
-    "moonshot-v1-8k":   {"input": 1.68 / 1_000_000, "output": 1.68 / 1_000_000},
-    "moonshot-v1-32k":  {"input": 3.36 / 1_000_000, "output": 3.36 / 1_000_000},
+    "moonshot-v1-8k": {"input": 1.68 / 1_000_000, "output": 1.68 / 1_000_000},
+    "moonshot-v1-32k": {"input": 3.36 / 1_000_000, "output": 3.36 / 1_000_000},
     "moonshot-v1-128k": {"input": 8.40 / 1_000_000, "output": 8.40 / 1_000_000},
     "moonshot-v1-auto": {"input": 1.68 / 1_000_000, "output": 1.68 / 1_000_000},
 }
@@ -69,8 +70,11 @@ class KimiProvider(LLMProvider):
 
         logger.info(
             "kimi.completed",
-            model=model, tokens_in=tokens_in, tokens_out=tokens_out,
-            cost_usd=round(cost, 6), latency_ms=latency,
+            model=model,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            cost_usd=round(cost, 6),
+            latency_ms=latency,
         )
 
         return LLMResult(
@@ -84,9 +88,7 @@ class KimiProvider(LLMProvider):
             finish_reason=data["choices"][0].get("finish_reason", "stop"),
         )
 
-    def estimate_cost(
-        self, tokens_in: int, tokens_out: int, model: str | None = None
-    ) -> float:
+    def estimate_cost(self, tokens_in: int, tokens_out: int, model: str | None = None) -> float:
         model = model or self.default_model()
         pricing = PRICING.get(model, PRICING["moonshot-v1-8k"])
         return tokens_in * pricing["input"] + tokens_out * pricing["output"]
@@ -113,7 +115,14 @@ class KimiProvider(LLMProvider):
 
 
 for _cat in (
-    "llm", "llm.research", "llm.script", "llm.factcheck", "llm.qc",
-    "llm.ideation", "llm.hook", "llm.direction", "llm.emotion",
+    "llm",
+    "llm.research",
+    "llm.script",
+    "llm.factcheck",
+    "llm.qc",
+    "llm.ideation",
+    "llm.hook",
+    "llm.direction",
+    "llm.emotion",
 ):
     ProviderRegistry.register(_cat, "kimi", KimiProvider)

@@ -4,8 +4,8 @@ import httpx
 import structlog
 
 from core.config import settings
-from providers.tts.base import TTSProvider, TTSRequest, TTSResult
 from providers.registry import ProviderRegistry
+from providers.tts.base import TTSProvider, TTSRequest, TTSResult
 
 logger = structlog.get_logger()
 

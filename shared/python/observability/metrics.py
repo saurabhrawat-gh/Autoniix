@@ -15,6 +15,7 @@ Grafana can render a single funnel dashboard without per-service queries.
 Scrape target: ``http://<service>:<port>/metrics`` — wired via the
 ``prometheus`` container in ``docker-compose.yml`` (see Phase 2).
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -22,6 +23,7 @@ from typing import Any
 try:
     from prometheus_client import Counter, Histogram
     from prometheus_fastapi_instrumentator import Instrumentator, metrics
+
     _HAS_INSTRUMENTATOR = True
 
     # --- Compatibility shim for prometheus_fastapi_instrumentator 8.x ---
@@ -140,11 +142,20 @@ if _HAS_INSTRUMENTATOR:
         labelnames=("tier", "engine"),
     )
 else:  # pragma: no cover
+
     class _Noop:
-        def labels(self, *_a: Any, **_kw: Any) -> "_Noop": return self
-        def inc(self, *_a: Any, **_kw: Any) -> None: return None
-        def observe(self, *_a: Any, **_kw: Any) -> None: return None
-        def set(self, *_a: Any, **_kw: Any) -> None: return None
+        def labels(self, *_a: Any, **_kw: Any) -> "_Noop":
+            return self
+
+        def inc(self, *_a: Any, **_kw: Any) -> None:
+            return None
+
+        def observe(self, *_a: Any, **_kw: Any) -> None:
+            return None
+
+        def set(self, *_a: Any, **_kw: Any) -> None:
+            return None
+
     PIPELINE_PHASE_TOTAL = _Noop()  # type: ignore
     PIPELINE_PHASE_DURATION = _Noop()  # type: ignore
     QUALITY_GATE_BLOCKS = _Noop()  # type: ignore

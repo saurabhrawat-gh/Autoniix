@@ -26,11 +26,14 @@ async def _init_connection(conn: asyncpg.Connection) -> None:
 async def get_pool() -> asyncpg.Pool:
     global _pool
     if _pool is None:
-        logger.info("db.connecting",
-                    host=settings.db_host, db=settings.db_name,
-                    pool_min=settings.db_pool_min_size,
-                    pool_max=settings.db_pool_max_size,
-                    statement_timeout_ms=settings.db_statement_timeout_ms)
+        logger.info(
+            "db.connecting",
+            host=settings.db_host,
+            db=settings.db_name,
+            pool_min=settings.db_pool_min_size,
+            pool_max=settings.db_pool_max_size,
+            statement_timeout_ms=settings.db_statement_timeout_ms,
+        )
         _pool = await asyncpg.create_pool(
             host=settings.db_host,
             port=settings.db_port,
@@ -55,8 +58,8 @@ def get_pool_stats() -> dict:
         return {"size": 0, "idle": 0, "min_size": 0, "max_size": 0}
     try:
         return {
-            "size":     _pool.get_size(),
-            "idle":     _pool.get_idle_size(),
+            "size": _pool.get_size(),
+            "idle": _pool.get_idle_size(),
             "min_size": _pool.get_min_size(),
             "max_size": _pool.get_max_size(),
         }

@@ -1,9 +1,10 @@
 """Phase 4: pre-publish quality gate."""
+
 from quality.gate import (
-    GateDecision,
-    GateProfile,
     PRODUCTION_THRESHOLDS,
     TEST_THRESHOLDS,
+    GateDecision,
+    GateProfile,
     evaluate,
     record_decision,
 )

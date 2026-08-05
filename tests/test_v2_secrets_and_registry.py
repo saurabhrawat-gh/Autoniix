@@ -4,11 +4,8 @@ These tests do not require a running database — they only exercise pure
 Python paths: the env-backed secrets resolver and the registry's graceful
 fallback when the DB chain is unreachable.
 """
+
 from __future__ import annotations
-
-import os
-
-import pytest
 
 from providers.secrets import EnvBackend, get_secret_at, reset_cache
 

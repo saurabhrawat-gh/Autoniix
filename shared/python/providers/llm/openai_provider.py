@@ -62,10 +62,7 @@ class OpenAILLM(LLMProvider):
 
         usage = data["usage"]
         pricing = PRICING.get(model, PRICING["gpt-4o"])
-        cost = (
-            usage["prompt_tokens"] * pricing["input"]
-            + usage["completion_tokens"] * pricing["output"]
-        )
+        cost = usage["prompt_tokens"] * pricing["input"] + usage["completion_tokens"] * pricing["output"]
         latency = int((time.monotonic() - start) * 1000)
 
         logger.info(
@@ -88,9 +85,7 @@ class OpenAILLM(LLMProvider):
             finish_reason=data["choices"][0]["finish_reason"],
         )
 
-    def estimate_cost(
-        self, tokens_in: int, tokens_out: int, model: str | None = None
-    ) -> float:
+    def estimate_cost(self, tokens_in: int, tokens_out: int, model: str | None = None) -> float:
         model = model or self.default_model()
         pricing = PRICING.get(model, PRICING["gpt-4o"])
         return tokens_in * pricing["input"] + tokens_out * pricing["output"]

@@ -1,4 +1,5 @@
 """Unit tests for core.flags — AE-510 / P0."""
+
 from __future__ import annotations
 
 from unittest.mock import patch
@@ -38,8 +39,10 @@ async def test_get_flag_uses_default_when_row_missing(mock_pool):
 @pytest.mark.asyncio
 async def test_get_flag_uses_default_on_db_error():
     """A DB failure must NEVER raise into business code."""
+
     async def _boom():
         raise RuntimeError("db down")
+
     with patch.object(flags_mod, "get_pool", side_effect=_boom):
         assert await get_flag("any.key", default="safe") == "safe"
 

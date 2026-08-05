@@ -4,6 +4,7 @@ Importing this module is a no-op unless ``SENTRY_DSN`` is set; that means
 local dev / CI without Sentry keep working unchanged. Every long-running
 service (FastAPI apps, Temporal workers) calls :func:`init_sentry` at boot.
 """
+
 from __future__ import annotations
 
 import os
@@ -48,6 +49,7 @@ def init_sentry(service_name: str, *, traces_sample_rate: float = 0.05) -> None:
     try:
         from sentry_sdk.integrations.fastapi import FastApiIntegration
         from sentry_sdk.integrations.starlette import StarletteIntegration
+
         integrations.extend([StarletteIntegration(), FastApiIntegration()])
     except Exception:
         pass
@@ -70,6 +72,7 @@ def capture_exception(exc: BaseException, **tags: str) -> None:
     """Best-effort exception capture; safe to call even when Sentry is off."""
     try:
         import sentry_sdk
+
         with sentry_sdk.push_scope() as scope:
             for k, v in tags.items():
                 scope.set_tag(k, v)

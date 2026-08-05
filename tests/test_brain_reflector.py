@@ -13,6 +13,7 @@ Coverage:
   * Persistence calls the UPSERT SQL exactly once per proposal
   * Loop interval is read from the flag and the loop respects stop_event
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -38,44 +39,40 @@ def _make_pattern(
 def _flag_map(flags):
     async def _get_flag(key, default=None):
         return flags.get(key, default)
+
     return _get_flag
-
-
 
 
 class TestReflectOnce:
     async def test_disabled_short_circuits(self):
-        with patch.object(
-            R, "get_flag", new=AsyncMock(return_value=False)
-        ) as flag:
+        with patch.object(R, "get_flag", new=AsyncMock(return_value=False)) as flag:
             written = await R.reflect_once()
         assert written == 0
         flag.assert_awaited()
 
     async def test_flag_read_failure_returns_zero(self):
-        with patch.object(
-            R, "get_flag", new=AsyncMock(side_effect=RuntimeError("db down"))
-        ):
+        with patch.object(R, "get_flag", new=AsyncMock(side_effect=RuntimeError("db down"))):
             written = await R.reflect_once()
         assert written == 0
 
     async def test_no_scored_decisions_no_proposals(self):
         with (
             patch.object(
-                R, "get_flag",
-                side_effect=_flag_map({
-                    "brain.reflector.enabled": True,
-                    "brain.reflector.min_sample_size": 5,
-                    "brain.reflector.score_threshold": 4,
-                    "brain.reflector.lookback_days": 14,
-                }),
+                R,
+                "get_flag",
+                side_effect=_flag_map(
+                    {
+                        "brain.reflector.enabled": True,
+                        "brain.reflector.min_sample_size": 5,
+                        "brain.reflector.score_threshold": 4,
+                        "brain.reflector.lookback_days": 14,
+                    }
+                ),
             ),
             patch.object(R, "_analyse_patterns", new=AsyncMock(return_value=[])),
         ):
             written = await R.reflect_once()
         assert written == 0
-
-
 
 
 class TestReflectFiltering:
@@ -91,15 +88,9 @@ class TestReflectFiltering:
     async def test_below_sample_size_no_proposal(self, common_flags):
         too_small = _make_pattern(sample_size=3, avg_score=2.0)
         with (
-            patch.object(
-                R, "get_flag", side_effect=_flag_map(common_flags)
-            ),
-            patch.object(
-                R, "_analyse_patterns", new=AsyncMock(return_value=[too_small])
-            ),
-            patch.object(
-                R, "_propose_for_pattern", new=AsyncMock()
-            ) as propose,
+            patch.object(R, "get_flag", side_effect=_flag_map(common_flags)),
+            patch.object(R, "_analyse_patterns", new=AsyncMock(return_value=[too_small])),
+            patch.object(R, "_propose_for_pattern", new=AsyncMock()) as propose,
         ):
             written = await R.reflect_once()
         assert written == 0
@@ -108,15 +99,9 @@ class TestReflectFiltering:
     async def test_above_threshold_no_proposal(self, common_flags):
         healthy = _make_pattern(sample_size=10, avg_score=8.0)
         with (
-            patch.object(
-                R, "get_flag", side_effect=_flag_map(common_flags)
-            ),
-            patch.object(
-                R, "_analyse_patterns", new=AsyncMock(return_value=[healthy])
-            ),
-            patch.object(
-                R, "_propose_for_pattern", new=AsyncMock()
-            ) as propose,
+            patch.object(R, "get_flag", side_effect=_flag_map(common_flags)),
+            patch.object(R, "_analyse_patterns", new=AsyncMock(return_value=[healthy])),
+            patch.object(R, "_propose_for_pattern", new=AsyncMock()) as propose,
         ):
             written = await R.reflect_once()
         assert written == 0
@@ -134,18 +119,10 @@ class TestReflectFiltering:
             observed_avg_score=2.5,
         )
         with (
-            patch.object(
-                R, "get_flag", side_effect=_flag_map(common_flags)
-            ),
-            patch.object(
-                R, "_analyse_patterns", new=AsyncMock(return_value=[bad])
-            ),
-            patch.object(
-                R, "_propose_for_pattern", new=AsyncMock(return_value=proposal)
-            ),
-            patch.object(
-                R, "_persist_proposal", new=AsyncMock()
-            ) as persist,
+            patch.object(R, "get_flag", side_effect=_flag_map(common_flags)),
+            patch.object(R, "_analyse_patterns", new=AsyncMock(return_value=[bad])),
+            patch.object(R, "_propose_for_pattern", new=AsyncMock(return_value=proposal)),
+            patch.object(R, "_persist_proposal", new=AsyncMock()) as persist,
         ):
             written = await R.reflect_once()
         assert written == 1
@@ -163,24 +140,14 @@ class TestReflectFiltering:
             observed_avg_score=2.0,
         )
         with (
-            patch.object(
-                R, "get_flag", side_effect=_flag_map(common_flags)
-            ),
-            patch.object(
-                R, "_analyse_patterns", new=AsyncMock(return_value=[bad])
-            ),
-            patch.object(
-                R, "_propose_for_pattern", new=AsyncMock(return_value=proposal)
-            ),
-            patch.object(
-                R, "_persist_proposal", new=AsyncMock()
-            ) as persist,
+            patch.object(R, "get_flag", side_effect=_flag_map(common_flags)),
+            patch.object(R, "_analyse_patterns", new=AsyncMock(return_value=[bad])),
+            patch.object(R, "_propose_for_pattern", new=AsyncMock(return_value=proposal)),
+            patch.object(R, "_persist_proposal", new=AsyncMock()) as persist,
         ):
             written = await R.reflect_once(dry_run=True)
         assert written == 1
         persist.assert_not_awaited()
-
-
 
 
 class TestProposeForPattern:
@@ -193,7 +160,8 @@ class TestProposeForPattern:
 
     async def test_halt_raises_consecutive_failures(self):
         with patch.object(
-            R, "_read_flag_payload",
+            R,
+            "_read_flag_payload",
             new=AsyncMock(return_value={"value": 3}),
         ):
             p = await R._propose_for_pattern(
@@ -209,7 +177,8 @@ class TestProposeForPattern:
 
     async def test_hold_raises_cost_spike_factor(self):
         with patch.object(
-            R, "_read_flag_payload",
+            R,
+            "_read_flag_payload",
             new=AsyncMock(return_value={"value": 3.0}),
         ):
             p = await R._propose_for_pattern(
@@ -222,7 +191,8 @@ class TestProposeForPattern:
 
     async def test_nudge_lowers_quality_threshold(self):
         with patch.object(
-            R, "_read_flag_payload",
+            R,
+            "_read_flag_payload",
             new=AsyncMock(return_value={"value": 7.0}),
         ):
             p = await R._propose_for_pattern(
@@ -235,7 +205,8 @@ class TestProposeForPattern:
 
     async def test_out_of_range_proposal_dropped(self):
         with patch.object(
-            R, "_read_flag_payload",
+            R,
+            "_read_flag_payload",
             new=AsyncMock(return_value={"value": 10}),
         ):
             p = await R._propose_for_pattern(
@@ -246,7 +217,9 @@ class TestProposeForPattern:
 
     async def test_missing_flag_returns_none(self):
         with patch.object(
-            R, "_read_flag_payload", new=AsyncMock(return_value=None),
+            R,
+            "_read_flag_payload",
+            new=AsyncMock(return_value=None),
         ):
             p = await R._propose_for_pattern(
                 _make_pattern(decision_type="HALT", avg_score=2.0),
@@ -256,13 +229,12 @@ class TestProposeForPattern:
 
     async def test_rationale_includes_metrics(self):
         with patch.object(
-            R, "_read_flag_payload",
+            R,
+            "_read_flag_payload",
             new=AsyncMock(return_value={"value": 3}),
         ):
             p = await R._propose_for_pattern(
-                _make_pattern(
-                    decision_type="HALT", sample_size=12, avg_score=3.1
-                ),
+                _make_pattern(decision_type="HALT", sample_size=12, avg_score=3.1),
                 lookback_days=14,
             )
         assert p is not None
@@ -274,25 +246,27 @@ class TestProposeForPattern:
         assert p.supporting_evidence["lookback_days"] == 14
 
 
-
-
 class TestPersistProposal:
     async def test_persist_executes_upsert(self):
         execute = AsyncMock()
         fake_pool = MagicMock()
         fake_pool.execute = execute
         with patch.object(
-            R, "get_pool", new=AsyncMock(return_value=fake_pool),
+            R,
+            "get_pool",
+            new=AsyncMock(return_value=fake_pool),
         ):
-            await R._persist_proposal(R.Proposal(
-                flag_key="brain.threshold.halt.consecutive_failures",
-                current_payload={"value": 3},
-                proposed_payload={"value": 4},
-                rationale="why",
-                supporting_evidence={"k": "v"},
-                sample_size=10,
-                observed_avg_score=2.5,
-            ))
+            await R._persist_proposal(
+                R.Proposal(
+                    flag_key="brain.threshold.halt.consecutive_failures",
+                    current_payload={"value": 3},
+                    proposed_payload={"value": 4},
+                    rationale="why",
+                    supporting_evidence={"k": "v"},
+                    sample_size=10,
+                    observed_avg_score=2.5,
+                )
+            )
         execute.assert_awaited_once()
         sql = execute.await_args.args[0]
         assert "ON CONFLICT" in sql.upper()
@@ -304,27 +278,29 @@ class TestPersistProposal:
             flag_key="brain.threshold.halt.consecutive_failures",
             current_payload={"value": 3},
             proposed_payload={"value": 4},
-            rationale="r", supporting_evidence={},
-            sample_size=8, observed_avg_score=2.0,
+            rationale="r",
+            supporting_evidence={},
+            sample_size=8,
+            observed_avg_score=2.0,
         )
         with (
             patch.object(
-                R, "get_flag",
-                side_effect=_flag_map({
-                    "brain.reflector.enabled": True,
-                    "brain.reflector.min_sample_size": 5,
-                    "brain.reflector.score_threshold": 4,
-                    "brain.reflector.lookback_days": 14,
-                }),
+                R,
+                "get_flag",
+                side_effect=_flag_map(
+                    {
+                        "brain.reflector.enabled": True,
+                        "brain.reflector.min_sample_size": 5,
+                        "brain.reflector.score_threshold": 4,
+                        "brain.reflector.lookback_days": 14,
+                    }
+                ),
             ),
+            patch.object(R, "_analyse_patterns", new=AsyncMock(return_value=[bad])),
+            patch.object(R, "_propose_for_pattern", new=AsyncMock(return_value=good)),
             patch.object(
-                R, "_analyse_patterns", new=AsyncMock(return_value=[bad])
-            ),
-            patch.object(
-                R, "_propose_for_pattern", new=AsyncMock(return_value=good)
-            ),
-            patch.object(
-                R, "_persist_proposal",
+                R,
+                "_persist_proposal",
                 new=AsyncMock(side_effect=RuntimeError("db down")),
             ),
         ):
@@ -332,15 +308,12 @@ class TestPersistProposal:
         assert written == 0
 
 
-
-
 class TestRunReflectorLoop:
     async def test_loop_exits_on_stop_event(self):
         import asyncio
+
         stop = asyncio.Event()
         stop.set()
-        with patch.object(
-            R, "reflect_once", new=AsyncMock(return_value=0)
-        ) as reflect:
+        with patch.object(R, "reflect_once", new=AsyncMock(return_value=0)) as reflect:
             await R.run_reflector_loop(interval_s=1, stop_event=stop)
         reflect.assert_not_awaited()

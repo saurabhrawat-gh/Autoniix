@@ -11,6 +11,7 @@ Applies transformations to remove robotic patterns and add conversational flow:
 
 All computation is local. Zero API cost.
 """
+
 from __future__ import annotations
 
 import random
@@ -22,7 +23,6 @@ import structlog
 from services_api.script.script_analyzer import (
     compute_contraction_rate,
     detect_ai_patterns,
-    AI_PATTERNS,
 )
 
 logger = structlog.get_logger()
@@ -71,8 +71,14 @@ CONTRACTION_MAP = {
 _CONTRACTION_COMPILED = {re.compile(k, re.IGNORECASE): v for k, v in CONTRACTION_MAP.items()}
 
 AI_REPLACEMENTS = [
-    (r"\blet'?s dive (?:right )?in\b", ["Here's what you need to know.", "So here's the deal.", "Let me break this down."]),
-    (r"\bit(?:'s| is) important to (?:note|understand|remember) that\b", ["The key thing here:", "Here's what matters:", "Pay attention to this:"]),
+    (
+        r"\blet'?s dive (?:right )?in\b",
+        ["Here's what you need to know.", "So here's the deal.", "Let me break this down."],
+    ),
+    (
+        r"\bit(?:'s| is) important to (?:note|understand|remember) that\b",
+        ["The key thing here:", "Here's what matters:", "Pay attention to this:"],
+    ),
     (r"\bin (?:today's|this) (?:video|article)\b", ["Right now", "In the next few minutes", ""]),
     (r"\bwithout further ado\b", ["So", "Alright", ""]),
     (r"\bin conclusion\b", ["So here's the bottom line", "Here's what it all comes down to", "The real takeaway"]),
@@ -81,7 +87,10 @@ AI_REPLACEMENTS = [
     (r"\bfurthermore\b", ["And", "Plus", "Also"]),
     (r"\bnevertheless\b", ["But still", "Even so", "Still"]),
     (r"\bin the realm of\b", ["in", "when it comes to", "with"]),
-    (r"\bnavigat(?:e|ing) the (?:complexit(?:y|ies)|landscape|world)\b", ["figuring out", "dealing with", "understanding"]),
+    (
+        r"\bnavigat(?:e|ing) the (?:complexit(?:y|ies)|landscape|world)\b",
+        ["figuring out", "dealing with", "understanding"],
+    ),
     (r"\bunlock(?:ing)? the (?:power|potential|secret)\b", ["tapping into", "using", "getting the most from"]),
     (r"\bjourney\b", ["process", "path", "experience"]),
     (r"\btake(?:s)? a closer look\b", ["look at this", "check this out", "dig into"]),
@@ -93,29 +102,43 @@ _AI_REPLACE_COMPILED = [(re.compile(p, re.IGNORECASE), alts) for p, alts in AI_R
 
 BRIDGES = {
     "transition": [
-        "Now,", "So,", "Here's the thing.", "And this is where it gets interesting.",
-        "But wait.", "Think about it.", "Here's why that matters.",
+        "Now,",
+        "So,",
+        "Here's the thing.",
+        "And this is where it gets interesting.",
+        "But wait.",
+        "Think about it.",
+        "Here's why that matters.",
     ],
     "emphasis": [
-        "Seriously.", "And I mean that.", "This is huge.", "Read that again.",
-        "Let that sink in.", "That's not a typo.",
+        "Seriously.",
+        "And I mean that.",
+        "This is huge.",
+        "Read that again.",
+        "Let that sink in.",
+        "That's not a typo.",
     ],
     "engagement": [
-        "Sound familiar?", "Ever noticed that?", "Makes sense, right?",
-        "Crazy, right?", "Wild, isn't it?", "You see what happened there?",
+        "Sound familiar?",
+        "Ever noticed that?",
+        "Makes sense, right?",
+        "Crazy, right?",
+        "Wild, isn't it?",
+        "You see what happened there?",
     ],
 }
-
 
 
 def inject_contractions(text: str) -> str:
     """Convert formal phrases to contractions for natural speech."""
     for pattern, replacement in _CONTRACTION_COMPILED.items():
+
         def _replace(match, repl=replacement):
             original = match.group()
             if original[0].isupper():
                 return repl[0].upper() + repl[1:]
             return repl
+
         text = pattern.sub(_replace, text)
     return text
 
@@ -124,6 +147,7 @@ def remove_ai_patterns(text: str) -> tuple[str, list[str]]:
     """Remove AI-typical phrasings and replace with natural alternatives."""
     removed = []
     for pattern, alternatives in _AI_REPLACE_COMPILED:
+
         def _replace(match, alts=alternatives):
             original = match.group()
             removed.append(original)
@@ -131,6 +155,7 @@ def remove_ai_patterns(text: str) -> tuple[str, list[str]]:
             if replacement and original[0].isupper():
                 return replacement[0].upper() + replacement[1:]
             return replacement
+
         text = pattern.sub(_replace, text, count=1)
 
     text = re.sub(r"  +", " ", text).strip()
@@ -191,9 +216,9 @@ def adapt_to_channel_voice(text: str, pacing_style: str = "dynamic", brand_voice
     return text
 
 
-
-def humanize_segment(narration: str, pacing_style: str = "dynamic",
-                     brand_voice: str = "", seed: int | None = None) -> dict[str, Any]:
+def humanize_segment(
+    narration: str, pacing_style: str = "dynamic", brand_voice: str = "", seed: int | None = None
+) -> dict[str, Any]:
     """Apply all humanization transforms to a segment's narration.
 
     Returns the humanized text plus metrics.
@@ -233,8 +258,7 @@ def humanize_segment(narration: str, pacing_style: str = "dynamic",
     }
 
 
-def humanize_full_script(segments: list[dict], pacing_style: str = "dynamic",
-                         brand_voice: str = "") -> dict[str, Any]:
+def humanize_full_script(segments: list[dict], pacing_style: str = "dynamic", brand_voice: str = "") -> dict[str, Any]:
     """Humanize all segments in a script.
 
     Returns updated segments and aggregate metrics.
@@ -254,13 +278,9 @@ def humanize_full_script(segments: list[dict], pacing_style: str = "dynamic",
         total_ai_remaining += result["ai_patterns_remaining"]
 
     total_words = sum(len(s.get("narration", "").split()) for s in humanized_segments)
-    avg_contraction = compute_contraction_rate(
-        " ".join(s.get("narration", "") for s in humanized_segments)
-    )
+    avg_contraction = compute_contraction_rate(" ".join(s.get("narration", "") for s in humanized_segments))
 
-    contraction_score = 1.0 if 0.02 <= avg_contraction <= 0.06 else (
-        0.7 if 0.01 <= avg_contraction <= 0.08 else 0.4
-    )
+    contraction_score = 1.0 if 0.02 <= avg_contraction <= 0.06 else (0.7 if 0.01 <= avg_contraction <= 0.08 else 0.4)
 
     ai_density = total_ai_remaining / max(total_words, 1)
     ai_score = 1.0 if ai_density == 0 else max(0.2, 1.0 - ai_density * 50)
@@ -277,7 +297,7 @@ def humanize_full_script(segments: list[dict], pacing_style: str = "dynamic",
     else:
         variation_score = 0.5
 
-    composite = (contraction_score * 0.3 + ai_score * 0.4 + variation_score * 0.3)
+    composite = contraction_score * 0.3 + ai_score * 0.4 + variation_score * 0.3
 
     return {
         "segments": humanized_segments,

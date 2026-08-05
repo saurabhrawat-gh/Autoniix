@@ -1,9 +1,9 @@
 """Sentry REST API client — fetches full issue details from an issue ID."""
+
 from __future__ import annotations
 
 import httpx
 import structlog
-
 from config import SENTRY_AUTH_TOKEN, SENTRY_BASE_URL
 
 logger = structlog.get_logger()
@@ -23,8 +23,7 @@ class SentryClient:
             r = await client.get(url, headers=self._headers)
             r.raise_for_status()
             data: dict = r.json()
-            logger.info("sentry.issue_fetched", issue_id=issue_id,
-                        title=data.get("title", ""))
+            logger.info("sentry.issue_fetched", issue_id=issue_id, title=data.get("title", ""))
             return data
 
     async def get_latest_event(self, issue_id: str) -> dict | None:

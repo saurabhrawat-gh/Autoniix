@@ -5,10 +5,10 @@ No external API calls, no cost.
 
 Cost: $0.00
 """
+
 from __future__ import annotations
 
 import io
-import random
 
 import structlog
 from PIL import Image, ImageDraw, ImageFont
@@ -36,12 +36,14 @@ class PlaceholderImageProvider(ImageProvider):
         for i in range(request.n):
             w, h = self._parse_size(request.size)
             img_bytes = self._create_placeholder(w, h, request.prompt, i)
-            images.append({
-                "url": f"data:image/png;base64,placeholder_{i}",
-                "revised_prompt": f"[TEST] {request.prompt[:100]}",
-                "bytes": None,
-                "_bytes": img_bytes,
-            })
+            images.append(
+                {
+                    "url": f"data:image/png;base64,placeholder_{i}",
+                    "revised_prompt": f"[TEST] {request.prompt[:100]}",
+                    "bytes": None,
+                    "_bytes": img_bytes,
+                }
+            )
 
         logger.info("placeholder.generated", n=len(images), size=request.size)
 

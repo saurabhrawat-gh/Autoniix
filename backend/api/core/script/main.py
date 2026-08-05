@@ -9,33 +9,29 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from core.config import settings
-from core.db import close_pool, get_pool
-from schemas.common import HealthResponse, ServiceResponse
-
 import providers.boot  # noqa: F401
-from providers.registry import ProviderRegistry
+from core.db import close_pool, get_pool
+from observability.metrics import instrument_app
 from providers.llm.base import LLMRequest
-
-from services_api.script.script_analyzer import analyze_full_script
-from services_api.script.retention_optimizer import compute_retention_score
-from services_api.script.humanizer import humanize_full_script
-from services_api.script.prosody_engine import generate_script_voice
+from providers.registry import ProviderRegistry
+from schemas.common import HealthResponse, ServiceResponse
 from services_api.script.asset_engine import generate_script_assets
 from services_api.script.direction_engine import generate_script_direction
+from services_api.script.humanizer import humanize_full_script
+from services_api.script.prosody_engine import generate_script_voice
+from services_api.script.retention_optimizer import compute_retention_score
+from services_api.script.script_analyzer import analyze_full_script
 from services_api.script.self_learning import (
-    extract_script_features,
-    store_script_features,
-    predict_script_success,
-    thompson_sample,
-    ingest_script_performance,
-    train_model as train_script_model,
     detect_drift as detect_script_drift,
+    extract_script_features,
+    ingest_script_performance,
+    predict_script_success,
+    store_script_features,
+    thompson_sample,
+    train_model as train_script_model,
 )
-from observability.metrics import instrument_app
 
 logger = structlog.get_logger()
-
 
 
 class ScriptRequest(BaseModel):
@@ -76,7 +72,6 @@ class PackagingRequest(BaseModel):
     script_data: dict = Field(default_factory=dict)
 
 
-
 def _safe_format(template: str, **kwargs) -> str:
     """Replace {key} placeholders without failing on unknown/literal braces."""
     for key, value in kwargs.items():
@@ -100,22 +95,31 @@ async def _load_channel(channel_id: str) -> dict:
 async def _load_prompt(prompt_id: str) -> dict:
     pool = await get_pool()
     row = await pool.fetchrow(
-        "SELECT system_prompt, user_prompt_template FROM prompt_registry "
-        "WHERE prompt_id = $1 AND is_active = true", prompt_id)
+        "SELECT system_prompt, user_prompt_template FROM prompt_registry WHERE prompt_id = $1 AND is_active = true",
+        prompt_id,
+    )
     return dict(row) if row else {}
 
 
-async def _log_usage(content_id: str, service: str, provider: str, model: str,
-                     tokens_in: int, tokens_out: int, cost: float, latency: int):
+async def _log_usage(
+    content_id: str, service: str, provider: str, model: str, tokens_in: int, tokens_out: int, cost: float, latency: int
+):
     try:
         pool = await get_pool()
         await pool.execute(
             "INSERT INTO api_usage (content_id, service, provider, model, tokens_in, tokens_out, cost_usd, latency_ms) "
             "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-            content_id, service, provider, model, tokens_in, tokens_out, float(cost), latency)
+            content_id,
+            service,
+            provider,
+            model,
+            tokens_in,
+            tokens_out,
+            float(cost),
+            latency,
+        )
     except Exception as e:
         logger.warning("script.db_log_failed", error=str(e))
-
 
 
 @asynccontextmanager
@@ -127,16 +131,18 @@ async def lifespan(app: FastAPI):
 
 
 from observability.sentry import init_sentry
+
 init_sentry("script")
 
 app = FastAPI(title="Script Service", version="0.2.0", lifespan=lifespan)
 
 
 instrument_app(app, service_name="script")
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="script")
-
 
 
 @app.post("/generate-script", response_model=ServiceResponse)
@@ -157,37 +163,52 @@ async def generate_script(req: ScriptRequest):
         forbidden = channel.get("forbidden_words", "")
 
         niche_for_bandit = channel.get("niche", "")
-        hook_styles = ["shocking_stat", "open_loop", "pattern_interrupt",
-                       "story_hook", "authority_challenge", "contrarian", "outcome_promise"]
-        pacing_strategies = ["slow_build", "fast_punchy", "wave_rhythm",
-                             "escalating", "conversational"]
+        hook_styles = [
+            "shocking_stat",
+            "open_loop",
+            "pattern_interrupt",
+            "story_hook",
+            "authority_challenge",
+            "contrarian",
+            "outcome_promise",
+        ]
+        pacing_strategies = ["slow_build", "fast_punchy", "wave_rhythm", "escalating", "conversational"]
         try:
             hook_bandit = await thompson_sample(
-                niche_for_bandit, "hook_style", hook_styles,
+                niche_for_bandit,
+                "hook_style",
+                hook_styles,
                 channel_id=req.channel_id,
             )
             pacing_bandit = await thompson_sample(
-                niche_for_bandit, "pacing_strategy", pacing_strategies,
+                niche_for_bandit,
+                "pacing_strategy",
+                pacing_strategies,
                 channel_id=req.channel_id,
             )
             selected_hook_style = hook_bandit["selected_arm"]
             selected_pacing = pacing_bandit["selected_arm"]
-            logger.info("script.bandit_pre_generation",
-                        hook_style=selected_hook_style, pacing=selected_pacing,
-                        hook_forced=hook_bandit.get("forced_exploration"),
-                        pacing_forced=pacing_bandit.get("forced_exploration"))
+            logger.info(
+                "script.bandit_pre_generation",
+                hook_style=selected_hook_style,
+                pacing=selected_pacing,
+                hook_forced=hook_bandit.get("forced_exploration"),
+                pacing_forced=pacing_bandit.get("forced_exploration"),
+            )
         except Exception as exc:
             logger.warning("script.bandit_pre_failed", error=str(exc))
             selected_hook_style = "open_loop"
             selected_pacing = "wave_rhythm"
 
-        from llm import route as _route, BudgetExceeded as _BudgetExceeded
+        from llm import BudgetExceeded as _BudgetExceeded, route as _route
+
         from intelligence import build_performance_context
+
         perf_context = await build_performance_context(req.channel_id)
         prompt = await _load_prompt("PRM_B1_SCRIPT_V1")
 
-        system_prompt = _safe_format(prompt.get("system_prompt",
-            "You are a YouTube scriptwriter. Output valid JSON with segments."),
+        system_prompt = _safe_format(
+            prompt.get("system_prompt", "You are a YouTube scriptwriter. Output valid JSON with segments."),
             brand_voice=channel.get("brand_voice", ""),
             narrative_rhythm=channel.get("narrative_rhythm", ""),
             emotional_contract=channel.get("emotional_contract", ""),
@@ -198,8 +219,8 @@ async def generate_script(req: ScriptRequest):
             f"\n- HOOK STYLE: {selected_hook_style}"
             f"\n- PACING STRATEGY: {selected_pacing}"
         )
-        user_prompt = _safe_format(prompt.get("user_prompt_template",
-            "Channel: {channel_id}\nTopic: {topic}\nTitle: {title}"),
+        user_prompt = _safe_format(
+            prompt.get("user_prompt_template", "Channel: {channel_id}\nTopic: {topic}\nTitle: {title}"),
             channel_id=req.channel_id,
             topic=req.topic,
             title=req.title or "Generate one",
@@ -210,9 +231,7 @@ async def generate_script(req: ScriptRequest):
             forbidden_words=forbidden,
         )
 
-        user_with_memory = (
-            f"{perf_context}\n\n{user_prompt}" if perf_context else user_prompt
-        )
+        user_with_memory = f"{perf_context}\n\n{user_prompt}" if perf_context else user_prompt
         try:
             result = await _route(
                 category="llm.script",
@@ -232,9 +251,16 @@ async def generate_script(req: ScriptRequest):
         except _BudgetExceeded as exc:
             raise HTTPException(status_code=402, detail=str(exc))
         total_cost += result.cost_usd
-        await _log_usage(f"script-{req.channel_id}", "script_v1", result.provider,
-                         result.model, result.tokens_in, result.tokens_out,
-                         result.cost_usd, result.latency_ms)
+        await _log_usage(
+            f"script-{req.channel_id}",
+            "script_v1",
+            result.provider,
+            result.model,
+            result.tokens_in,
+            result.tokens_out,
+            result.cost_usd,
+            result.latency_ms,
+        )
 
         try:
             script_data = _parse_json(result.content)
@@ -262,12 +288,12 @@ async def generate_script(req: ScriptRequest):
 
         critique_prompt = await _load_prompt("PRM_B1_SCRIPT_CRITIQUE")
 
-        crit_system = _safe_format(critique_prompt.get("system_prompt",
-            "Critique this script. Score 8 dimensions 1-10. Respond in JSON."),
+        crit_system = _safe_format(
+            critique_prompt.get("system_prompt", "Critique this script. Score 8 dimensions 1-10. Respond in JSON."),
             min_dimension_score=7.0,
         )
-        crit_user = _safe_format(critique_prompt.get("user_prompt_template",
-            "Script: {script_json}\nVoice: {brand_voice}"),
+        crit_user = _safe_format(
+            critique_prompt.get("user_prompt_template", "Script: {script_json}\nVoice: {brand_voice}"),
             script_json=json.dumps(script_data)[:4000],
             brand_voice=channel.get("brand_voice", ""),
             target_audience=channel.get("target_audience", ""),
@@ -292,9 +318,16 @@ async def generate_script(req: ScriptRequest):
         except _BudgetExceeded as exc:
             raise HTTPException(status_code=402, detail=str(exc))
         total_cost += crit_result.cost_usd
-        await _log_usage(f"script-{req.channel_id}", "script_critique", crit_result.provider,
-                         crit_result.model, crit_result.tokens_in, crit_result.tokens_out,
-                         crit_result.cost_usd, crit_result.latency_ms)
+        await _log_usage(
+            f"script-{req.channel_id}",
+            "script_critique",
+            crit_result.provider,
+            crit_result.model,
+            crit_result.tokens_in,
+            crit_result.tokens_out,
+            crit_result.cost_usd,
+            crit_result.latency_ms,
+        )
 
         try:
             critique_data = _parse_json(crit_result.content)
@@ -310,8 +343,13 @@ async def generate_script(req: ScriptRequest):
 
         while (weak_dims or overall_score < target_overall_score) and rewrite_count < 3:
             rewrite_count += 1
-            logger.info("script.rewriting", attempt=rewrite_count, weak=weak_dims,
-                         current_score=overall_score, target=target_overall_score)
+            logger.info(
+                "script.rewriting",
+                attempt=rewrite_count,
+                weak=weak_dims,
+                current_score=overall_score,
+                target=target_overall_score,
+            )
 
             suggestions = critique_data.get("rewrite_suggestions", [])
             rewrite_prompt = (
@@ -347,9 +385,16 @@ async def generate_script(req: ScriptRequest):
                 logger.warning("script.rewrite_budget_exceeded", error=str(exc))
                 break
             total_cost += rw_result.cost_usd
-            await _log_usage(f"script-{req.channel_id}", f"script_rewrite_{rewrite_count}",
-                             rw_result.provider, rw_result.model, rw_result.tokens_in,
-                             rw_result.tokens_out, rw_result.cost_usd, rw_result.latency_ms)
+            await _log_usage(
+                f"script-{req.channel_id}",
+                f"script_rewrite_{rewrite_count}",
+                rw_result.provider,
+                rw_result.model,
+                rw_result.tokens_in,
+                rw_result.tokens_out,
+                rw_result.cost_usd,
+                rw_result.latency_ms,
+            )
 
             try:
                 script_data = _parse_json(rw_result.content)
@@ -357,8 +402,8 @@ async def generate_script(req: ScriptRequest):
                 logger.warning("script.rewrite_json_failed", attempt=rewrite_count)
                 break
 
-            updated_crit_user = _safe_format(critique_prompt.get("user_prompt_template",
-                "Script: {script_json}\nVoice: {brand_voice}"),
+            updated_crit_user = _safe_format(
+                critique_prompt.get("user_prompt_template", "Script: {script_json}\nVoice: {brand_voice}"),
                 script_json=json.dumps(script_data)[:4000],
                 brand_voice=channel.get("brand_voice", ""),
                 target_audience=channel.get("target_audience", ""),
@@ -384,9 +429,16 @@ async def generate_script(req: ScriptRequest):
                 logger.warning("script.recritique_budget_exceeded", error=str(exc))
                 break
             total_cost += crit_result2.cost_usd
-            await _log_usage(f"script-{req.channel_id}", f"script_recritique_{rewrite_count}",
-                             crit_result2.provider, crit_result2.model, crit_result2.tokens_in,
-                             crit_result2.tokens_out, crit_result2.cost_usd, crit_result2.latency_ms)
+            await _log_usage(
+                f"script-{req.channel_id}",
+                f"script_recritique_{rewrite_count}",
+                crit_result2.provider,
+                crit_result2.model,
+                crit_result2.tokens_in,
+                crit_result2.tokens_out,
+                crit_result2.cost_usd,
+                crit_result2.latency_ms,
+            )
 
             try:
                 critique_data = _parse_json(crit_result2.content)
@@ -411,18 +463,22 @@ async def generate_script(req: ScriptRequest):
             segments = humanized["segments"]
             script_data["segments"] = segments
             humanizer_metrics = humanized["metrics"]
-            logger.info("script.humanized",
-                         ai_removed=humanizer_metrics["ai_patterns_removed"],
-                         score=humanizer_metrics["composite_score"])
+            logger.info(
+                "script.humanized",
+                ai_removed=humanizer_metrics["ai_patterns_removed"],
+                score=humanizer_metrics["composite_score"],
+            )
         except Exception as e:
             logger.warning("script.humanize_failed", error=str(e))
             humanizer_metrics = {"composite_score": 0.5, "contraction_rate": 0.0}
 
         try:
             script_analysis = await analyze_full_script(segments)
-            logger.info("script.analyzed",
-                         words=script_analysis["total_word_count"],
-                         ai_patterns=script_analysis["ai_patterns_total"])
+            logger.info(
+                "script.analyzed",
+                words=script_analysis["total_word_count"],
+                ai_patterns=script_analysis["ai_patterns_total"],
+            )
         except Exception as e:
             logger.warning("script.analysis_failed", error=str(e))
             script_analysis = {"total_word_count": 0, "segment_analyses": []}
@@ -430,25 +486,25 @@ async def generate_script(req: ScriptRequest):
         try:
             retention = await compute_retention_score(segments)
             script_data["retention_score"] = retention
-            logger.info("script.retention_scored",
-                         composite=retention["composite_score"])
+            logger.info("script.retention_scored", composite=retention["composite_score"])
         except Exception as e:
             logger.warning("script.retention_failed", error=str(e))
             retention = {"composite_score": 0.5, "dimensions": {}}
 
         try:
             script_voice = await generate_script_voice(segments, channel)
-            logger.info("script.v1_voice_generated",
-                         duration=script_voice["total_duration_s"],
-                         coverage=script_voice["prosody_coverage"])
+            logger.info(
+                "script.v1_voice_generated",
+                duration=script_voice["total_duration_s"],
+                coverage=script_voice["prosody_coverage"],
+            )
         except Exception as e:
             logger.warning("script.v1_voice_failed", error=str(e))
             script_voice = {"version": "v1_voice", "segments": [], "error": str(e)}
 
         try:
             script_assets = await generate_script_assets(segments, channel, req.video_style)
-            logger.info("script.v2_assets_generated",
-                         coverage=script_assets.get("qc", {}).get("asset_coverage", 0))
+            logger.info("script.v2_assets_generated", coverage=script_assets.get("qc", {}).get("asset_coverage", 0))
         except Exception as e:
             logger.warning("script.v2_assets_failed", error=str(e))
             script_assets = {"version": "v2_assets", "segments": [], "error": str(e)}
@@ -458,10 +514,17 @@ async def generate_script(req: ScriptRequest):
             asset_segs = script_assets.get("segments", []) if isinstance(script_assets, dict) else []
             resolution = "1080x1920" if req.content_mode == "short" else "1920x1080"
             script_direction = generate_script_direction(
-                segments, voice_segs, asset_segs, channel, fps=30, resolution=resolution,
+                segments,
+                voice_segs,
+                asset_segs,
+                channel,
+                fps=30,
+                resolution=resolution,
             )
-            logger.info("script.v3_direction_generated",
-                         duration_ms=script_direction.get("render_config", {}).get("duration_ms", 0))
+            logger.info(
+                "script.v3_direction_generated",
+                duration_ms=script_direction.get("render_config", {}).get("duration_ms", 0),
+            )
         except Exception as e:
             logger.warning("script.v3_direction_failed", error=str(e))
             script_direction = {"version": "v3_direction", "segments": [], "error": str(e)}
@@ -469,22 +532,27 @@ async def generate_script(req: ScriptRequest):
         content_id = req.content_id or f"script-{req.channel_id}-{req.topic[:20]}"
         try:
             features = await extract_script_features(
-                script_analysis, retention, humanizer_metrics,
-                req.channel_id, content_id, req.topic,
+                script_analysis,
+                retention,
+                humanizer_metrics,
+                req.channel_id,
+                content_id,
+                req.topic,
             )
             prediction = await predict_script_success(features, niche)
             script_data["success_prediction"] = prediction
 
             await store_script_features(
-                content_id, req.channel_id, features,
+                content_id,
+                req.channel_id,
+                features,
                 overall_score=overall_score,
                 hook_score=retention.get("dimensions", {}).get("hook_strength", 0),
                 hook_style=selected_hook_style,
                 pacing_strategy=selected_pacing,
                 topic=req.topic,
             )
-            logger.info("script.features_stored",
-                         predicted=prediction.get("predicted_probability", 0))
+            logger.info("script.features_stored", predicted=prediction.get("predicted_probability", 0))
         except Exception as e:
             logger.warning("script.features_failed", error=str(e))
 
@@ -492,19 +560,25 @@ async def generate_script(req: ScriptRequest):
             "humanization": humanizer_metrics.get("composite_score", 0),
             "retention": retention.get("composite_score", 0),
             "prosody_coverage": script_voice.get("prosody_coverage", 0) if isinstance(script_voice, dict) else 0,
-            "asset_coverage": script_assets.get("qc", {}).get("asset_coverage", 0) if isinstance(script_assets, dict) else 0,
-            "direction_ok": script_direction.get("qc", {}).get("direction_ok", False) if isinstance(script_direction, dict) else False,
+            "asset_coverage": script_assets.get("qc", {}).get("asset_coverage", 0)
+            if isinstance(script_assets, dict)
+            else 0,
+            "direction_ok": script_direction.get("qc", {}).get("direction_ok", False)
+            if isinstance(script_direction, dict)
+            else False,
             "script_structure_score": overall_score,
         }
         script_data["multi_view_qc"] = qc_report
 
-        logger.info("script.generated",
-                     segments=len(segments),
-                     score=overall_score,
-                     rewrites=rewrite_count,
-                     retention=retention.get("composite_score", 0),
-                     humanization=humanizer_metrics.get("composite_score", 0),
-                     cost=round(total_cost, 4))
+        logger.info(
+            "script.generated",
+            segments=len(segments),
+            score=overall_score,
+            rewrites=rewrite_count,
+            retention=retention.get("composite_score", 0),
+            humanization=humanizer_metrics.get("composite_score", 0),
+            cost=round(total_cost, 4),
+        )
 
         return ServiceResponse(
             status="success",
@@ -529,7 +603,6 @@ async def generate_script(req: ScriptRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-
 @app.post("/generate-hooks", response_model=ServiceResponse)
 async def generate_hooks(req: HookRequest):
     """Generate 5 hooks → predict retention → rank → quality gate (>=8.0)."""
@@ -545,14 +618,16 @@ async def generate_hooks(req: HookRequest):
         llm = ProviderRegistry.get("llm.hook")
 
         is_long = channel.get("content_mode", "short") == "long_form"
-        hook_seconds = channel.get("hook_length_seconds_long", 8) if is_long else channel.get("hook_length_seconds_short", 2)
+        hook_seconds = (
+            channel.get("hook_length_seconds_long", 8) if is_long else channel.get("hook_length_seconds_short", 2)
+        )
 
-        system_prompt = _safe_format(prompt.get("system_prompt",
-            "Generate 5 hooks. Respond in JSON."),
+        system_prompt = _safe_format(
+            prompt.get("system_prompt", "Generate 5 hooks. Respond in JSON."),
             hook_length_seconds=hook_seconds,
         )
-        user_prompt = _safe_format(prompt.get("user_prompt_template",
-            "Title: {title}\nTopic: {topic}"),
+        user_prompt = _safe_format(
+            prompt.get("user_prompt_template", "Title: {title}\nTopic: {topic}"),
             title=req.title,
             topic=req.topic,
             narrative_rhythm=channel.get("narrative_rhythm", ""),
@@ -560,20 +635,29 @@ async def generate_hooks(req: HookRequest):
             original_hook=req.original_hook,
         )
 
-        result = await llm.complete(LLMRequest(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            model="gpt-4o",
-            temperature=0.8,
-            max_tokens=1500,
-            response_format="json",
-        ))
+        result = await llm.complete(
+            LLMRequest(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                model="gpt-4o",
+                temperature=0.8,
+                max_tokens=1500,
+                response_format="json",
+            )
+        )
         total_cost += result.cost_usd
-        await _log_usage(f"hooks-{req.channel_id}", "hooks", result.provider,
-                         result.model, result.tokens_in, result.tokens_out,
-                         result.cost_usd, result.latency_ms)
+        await _log_usage(
+            f"hooks-{req.channel_id}",
+            "hooks",
+            result.provider,
+            result.model,
+            result.tokens_in,
+            result.tokens_out,
+            result.cost_usd,
+            result.latency_ms,
+        )
 
         try:
             hook_data = _parse_json(result.content)
@@ -602,7 +686,6 @@ async def generate_hooks(req: HookRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-
 @app.post("/package", response_model=ServiceResponse)
 async def package(req: PackagingRequest):
     """Generate optimized titles, description, tags, chapters, comment triggers."""
@@ -616,34 +699,49 @@ async def package(req: PackagingRequest):
         segments = req.script_data.get("segments", [])
         narration_preview = " ".join(s.get("narration", "")[:100] for s in segments[:5])
 
-        result = await llm.complete(LLMRequest(
-            messages=[
-                {"role": "system", "content": (
-                    "You are a YouTube SEO and packaging expert. Generate optimized metadata. "
-                    "Respond in JSON: {\"titles\": [8 variants], \"description\": \"2-3 paragraphs with timestamps\", "
-                    "\"tags\": [20 tags], \"chapters\": [\"00:00 Title\", ...], "
-                    "\"comment_triggers\": [3 engaging questions], "
-                    "\"shorts_funnel_text\": \"CTA linking to long-form\"}"
-                )},
-                {"role": "user", "content": (
-                    f"Channel: {req.channel_id} ({channel.get('channel_name', '')})\n"
-                    f"Niche: {channel.get('niche', '')}\n"
-                    f"Title: {req.title}\n"
-                    f"Topic: {req.topic}\n"
-                    f"Content preview: {narration_preview[:500]}\n"
-                    f"Target audience: {channel.get('target_audience', '')}\n"
-                    f"CTA style: {channel.get('cta_style_long', '')}"
-                )},
-            ],
-            model="gpt-4o-mini",
-            temperature=0.7,
-            max_tokens=2000,
-            response_format="json",
-        ))
+        result = await llm.complete(
+            LLMRequest(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a YouTube SEO and packaging expert. Generate optimized metadata. "
+                            'Respond in JSON: {"titles": [8 variants], "description": "2-3 paragraphs with timestamps", '
+                            '"tags": [20 tags], "chapters": ["00:00 Title", ...], '
+                            '"comment_triggers": [3 engaging questions], '
+                            '"shorts_funnel_text": "CTA linking to long-form"}'
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Channel: {req.channel_id} ({channel.get('channel_name', '')})\n"
+                            f"Niche: {channel.get('niche', '')}\n"
+                            f"Title: {req.title}\n"
+                            f"Topic: {req.topic}\n"
+                            f"Content preview: {narration_preview[:500]}\n"
+                            f"Target audience: {channel.get('target_audience', '')}\n"
+                            f"CTA style: {channel.get('cta_style_long', '')}"
+                        ),
+                    },
+                ],
+                model="gpt-4o-mini",
+                temperature=0.7,
+                max_tokens=2000,
+                response_format="json",
+            )
+        )
         total_cost += result.cost_usd
-        await _log_usage(f"packaging-{req.channel_id}", "packaging", result.provider,
-                         result.model, result.tokens_in, result.tokens_out,
-                         result.cost_usd, result.latency_ms)
+        await _log_usage(
+            f"packaging-{req.channel_id}",
+            "packaging",
+            result.provider,
+            result.model,
+            result.tokens_in,
+            result.tokens_out,
+            result.cost_usd,
+            result.latency_ms,
+        )
 
         try:
             pkg_data = _parse_json(result.content)
@@ -676,7 +774,6 @@ async def package(req: PackagingRequest):
     except Exception as exc:
         logger.error("packaging.failed", error=str(exc))
         raise HTTPException(status_code=500, detail=str(exc))
-
 
 
 @app.post("/script-feedback", response_model=ServiceResponse)

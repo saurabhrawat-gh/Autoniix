@@ -7,6 +7,7 @@ doesn't fall back to tier labels while waiting for the first scheduled cron run.
 Usage:
     python -m scripts.backfill_retention [--limit 200] [--temporal-host localhost:7233]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -40,7 +41,7 @@ async def main(temporal_host: str, limit: int) -> None:
         result = await handle.result()
         fetched = result.get("fetched", 0)
         skipped = result.get("skipped", 0)
-        failed  = result.get("failed", 0)
+        failed = result.get("failed", 0)
         print(f"\n✅  Done — fetched={fetched}, skipped={skipped}, failed={failed}")
         if failed:
             print(f"⚠️  {failed} video(s) failed — likely no analytics yet (normal for recent uploads).")

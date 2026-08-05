@@ -8,12 +8,11 @@ Local NLP-based SEO scoring and optimization:
 
 Intelligence cost: $0.00 — all computation is local.
 """
+
 from __future__ import annotations
 
-import json
 import re
 from datetime import datetime
-from typing import Any
 
 import numpy as np
 import structlog
@@ -23,10 +22,29 @@ from core.db import get_pool
 logger = structlog.get_logger()
 
 POWER_WORDS = {
-    "secret", "shocking", "revealed", "truth", "never", "instantly",
-    "proven", "warning", "mistake", "surprising", "hidden", "deadly",
-    "urgent", "breaking", "banned", "exposed", "finally", "ultimate",
-    "insane", "unbelievable", "illegal", "dangerous", "destroyed",
+    "secret",
+    "shocking",
+    "revealed",
+    "truth",
+    "never",
+    "instantly",
+    "proven",
+    "warning",
+    "mistake",
+    "surprising",
+    "hidden",
+    "deadly",
+    "urgent",
+    "breaking",
+    "banned",
+    "exposed",
+    "finally",
+    "ultimate",
+    "insane",
+    "unbelievable",
+    "illegal",
+    "dangerous",
+    "destroyed",
 }
 
 CATEGORY_MAP = {
@@ -84,7 +102,7 @@ def score_title_seo(title: str) -> dict:
         score -= 0.5
         factors.append("Too many ALL CAPS words — looks spammy")
 
-    if re.search(r'[\[\(].*[\]\)]', title):
+    if re.search(r"[\[\(].*[\]\)]", title):
         score += 0.5
         factors.append("Brackets detected (SEO boost pattern)")
 
@@ -101,8 +119,7 @@ def score_title_seo(title: str) -> dict:
     }
 
 
-def optimize_description(description: str, title: str, tags: list[str],
-                          niche: str = "") -> dict:
+def optimize_description(description: str, title: str, tags: list[str], niche: str = "") -> dict:
     """Optimize YouTube description for SEO."""
     suggestions = []
 
@@ -134,14 +151,20 @@ def optimize_description(description: str, title: str, tags: list[str],
         "description_length": desc_length,
         "keyword_density": round(density, 4),
         "suggestions": suggestions,
-        "score": round(min(10.0, 5.0 + (1.0 if desc_length >= 500 else 0) +
-                          (1.0 if not missing_keywords else 0) +
-                          (1.0 if density > 0.02 else 0)), 1),
+        "score": round(
+            min(
+                10.0,
+                5.0
+                + (1.0 if desc_length >= 500 else 0)
+                + (1.0 if not missing_keywords else 0)
+                + (1.0 if density > 0.02 else 0),
+            ),
+            1,
+        ),
     }
 
 
-def suggest_tags(title: str, niche: str, existing_tags: list[str],
-                  max_tags: int = 30) -> list[str]:
+def suggest_tags(title: str, niche: str, existing_tags: list[str], max_tags: int = 30) -> list[str]:
     """Suggest optimized tags based on title and niche."""
     tags = [str(t) for t in existing_tags]
 
@@ -162,7 +185,7 @@ def suggest_tags(title: str, niche: str, existing_tags: list[str],
 
     if len(title_words) >= 2:
         for i in range(len(title_words) - 1):
-            phrase = f"{title_words[i]} {title_words[i+1]}".lower()
+            phrase = f"{title_words[i]} {title_words[i + 1]}".lower()
             if phrase not in [t.lower() for t in tags]:
                 tags.append(phrase)
 
@@ -174,14 +197,17 @@ async def predict_optimal_upload_time(channel_id: str) -> dict:
     try:
         pool = await get_pool()
 
-        rows = await pool.fetch("""
+        rows = await pool.fetch(
+            """
             SELECT df.upload_hour_utc, df.upload_day_of_week,
                    df.first_hour_views, df.first_day_views
             FROM delivery_features df
             WHERE df.channel_id = $1
             AND df.first_hour_views IS NOT NULL
             ORDER BY df.created_at DESC LIMIT 50
-        """, channel_id)
+        """,
+            channel_id,
+        )
 
         if len(rows) < 5:
             return {
@@ -226,14 +252,15 @@ async def predict_optimal_upload_time(channel_id: str) -> dict:
         return {"optimal_hour_utc": 14, "optimal_day": 2, "confidence": "fallback"}
 
 
-async def store_delivery_features(content_id: str, channel_id: str,
-                                   title: str, description: str,
-                                   tags: list[str], seo_result: dict) -> None:
+async def store_delivery_features(
+    content_id: str, channel_id: str, title: str, description: str, tags: list[str], seo_result: dict
+) -> None:
     """Store delivery features for learning."""
     try:
         pool = await get_pool()
         now = datetime.utcnow()
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO delivery_features (content_id, channel_id,
                 upload_hour_utc, upload_day_of_week,
                 title_word_count, title_has_number, title_has_question,
@@ -241,13 +268,16 @@ async def store_delivery_features(content_id: str, channel_id: str,
                 seo_score, keyword_density)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         """,
-            content_id, channel_id,
-            now.hour, now.weekday(),
+            content_id,
+            channel_id,
+            now.hour,
+            now.weekday(),
             seo_result.get("word_count", len(title.split())),
             seo_result.get("has_number", False),
             seo_result.get("has_question", False),
             seo_result.get("power_words_count", 0),
-            len(description), len(tags),
+            len(description),
+            len(tags),
             seo_result.get("seo_score", 5.0),
             0.0,
         )

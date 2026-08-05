@@ -10,6 +10,7 @@ Takes direction v3, applies:
 Intelligence cost: $0.00 — all local computation.
 Port: 8013
 """
+
 from __future__ import annotations
 
 import json
@@ -22,23 +23,21 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from core.db import close_pool, get_pool
+from observability.metrics import instrument_app
 from schemas.common import HealthResponse, ServiceResponse
-
-from services_api.editor.timeline_optimizer import (
-    analyze_pacing,
-    optimize_transitions,
-    apply_pacing_adjustments,
-    apply_transition_changes,
-)
 from services_api.editor.caption_generator import (
-    generate_captions,
     generate_audio_mix_config,
+    generate_captions,
 )
 from services_api.editor.final_qc import run_final_qc
-from observability.metrics import instrument_app
+from services_api.editor.timeline_optimizer import (
+    analyze_pacing,
+    apply_pacing_adjustments,
+    apply_transition_changes,
+    optimize_transitions,
+)
 
 logger = structlog.get_logger()
-
 
 
 class EditorRequest(BaseModel):
@@ -51,7 +50,6 @@ class EditorRequest(BaseModel):
     generate_captions_flag: bool = True
 
 
-
 async def _load_channel(channel_id: str) -> dict:
     pool = await get_pool()
     row = await pool.fetchrow("SELECT * FROM channels WHERE channel_id = $1", channel_id)
@@ -61,12 +59,10 @@ async def _load_channel(channel_id: str) -> dict:
 async def _load_config(key: str) -> str:
     try:
         pool = await get_pool()
-        row = await pool.fetchrow(
-            "SELECT config_value FROM system_config WHERE config_key = $1", key)
+        row = await pool.fetchrow("SELECT config_value FROM system_config WHERE config_key = $1", key)
         return row["config_value"] if row else ""
     except Exception:
         return ""
-
 
 
 @asynccontextmanager
@@ -78,12 +74,15 @@ async def lifespan(app: FastAPI):
 
 
 from observability.sentry import init_sentry
+
 init_sentry("editor")
 
 app = FastAPI(title="Editor Service", version="0.1.0", lifespan=lifespan)
 
 
 instrument_app(app, service_name="editor")
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="editor")
@@ -92,8 +91,7 @@ async def health():
 @app.post("/post-produce", response_model=ServiceResponse)
 async def post_produce(req: EditorRequest):
     """Full post-production pipeline: pacing → transitions → captions → audio mix → QC."""
-    logger.info("editor.post_producing", content_id=req.content_id,
-                 segments=len(req.direction_v3.get("segments", [])))
+    logger.info("editor.post_producing", content_id=req.content_id, segments=len(req.direction_v3.get("segments", [])))
     start_time = time.time()
 
     try:
@@ -116,16 +114,14 @@ async def post_produce(req: EditorRequest):
         pre_score = pacing_analysis.get("pacing_score", 7.0)
 
         if req.apply_pacing and pacing_analysis.get("adjustments"):
-            pacing_result = apply_pacing_adjustments(
-                direction_v3, pacing_analysis["adjustments"], apply_high_only=True)
+            pacing_result = apply_pacing_adjustments(direction_v3, pacing_analysis["adjustments"], apply_high_only=True)
             direction_v3 = pacing_result.get("direction_v3", direction_v3)
             total_adjustments += pacing_result.get("applied", 0)
 
         transition_analysis = optimize_transitions(direction_v3)
 
         if req.apply_transitions and transition_analysis.get("changes"):
-            transition_result = apply_transition_changes(
-                direction_v3, transition_analysis["changes"])
+            transition_result = apply_transition_changes(direction_v3, transition_analysis["changes"])
             total_adjustments += transition_result.get("applied", 0)
 
         if req.generate_captions_flag:
@@ -144,29 +140,37 @@ async def post_produce(req: EditorRequest):
         edit_time_ms = int((time.time() - start_time) * 1000)
         try:
             pool = await get_pool()
-            await pool.execute("""
+            await pool.execute(
+                """
                 INSERT INTO editor_sessions (content_id, channel_id,
                     pacing_adjustments, transition_changes, audio_mix_config,
                     captions_generated, caption_word_count,
                     pre_edit_score, post_edit_score, total_adjustments, edit_time_ms)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             """,
-                req.content_id, req.channel_id,
+                req.content_id,
+                req.channel_id,
                 json.dumps(pacing_analysis.get("adjustments", [])),
                 json.dumps(transition_analysis.get("changes", [])),
                 json.dumps(audio_mix),
                 req.generate_captions_flag,
                 captions.get("total_words", 0),
-                pre_score, post_score, total_adjustments, edit_time_ms,
+                pre_score,
+                post_score,
+                total_adjustments,
+                edit_time_ms,
             )
         except Exception as e:
             logger.warning("editor.db_store_failed", error=str(e))
 
-        logger.info("editor.completed",
-                     pre_score=pre_score, post_score=post_score,
-                     adjustments=total_adjustments,
-                     captions=captions.get("total_words", 0),
-                     time_ms=edit_time_ms)
+        logger.info(
+            "editor.completed",
+            pre_score=pre_score,
+            post_score=post_score,
+            adjustments=total_adjustments,
+            captions=captions.get("total_words", 0),
+            time_ms=edit_time_ms,
+        )
 
         return ServiceResponse(
             status="success",

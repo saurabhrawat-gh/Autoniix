@@ -14,6 +14,7 @@ Run:
     RUST_GATEWAY_URL=http://localhost:8080 \
     pytest tests/golden/test_auth_golden.py -v
 """
+
 from __future__ import annotations
 
 import json
@@ -77,8 +78,6 @@ def assert_keys_match(actual: dict, expected: dict, path: str = "") -> None:
                     assert_keys_match(item, expected_val[0], f"{full_path}[{i}]")
 
 
-
-
 def test_register_response_matches_golden(client: httpx.Client):
     """Rust /register response must match the golden file's expected structure.
     Post-#350: returns onboarding metadata only, NO tokens."""
@@ -101,23 +100,15 @@ def test_register_response_matches_golden(client: httpx.Client):
     assert_keys_match(body, expected)
 
     assert body.get("status") == "ok", f"status must be 'ok', got {body.get('status')}"
-    assert isinstance(body.get("user_id"), int), (
-        f"user_id must be int, got {type(body.get('user_id'))}"
-    )
-    assert isinstance(body.get("workspace_id"), int), (
-        f"workspace_id must be int, got {type(body.get('workspace_id'))}"
-    )
-    assert body.get("role") == "owner", (
-        f"first user must be 'owner', got {body.get('role')!r}"
-    )
+    assert isinstance(body.get("user_id"), int), f"user_id must be int, got {type(body.get('user_id'))}"
+    assert isinstance(body.get("workspace_id"), int), f"workspace_id must be int, got {type(body.get('workspace_id'))}"
+    assert body.get("role") == "owner", f"first user must be 'owner', got {body.get('role')!r}"
     assert isinstance(body.get("onboarding_required"), bool), (
         f"onboarding_required must be bool, got {type(body.get('onboarding_required'))}"
     )
 
     assert "access_token" not in body, "register must not return access_token (post-#350)"
     assert "refresh_token" not in body, "register must not return refresh_token (post-#350)"
-
-
 
 
 def test_signin_response_matches_golden(client: httpx.Client):
@@ -149,8 +140,6 @@ def test_signin_response_matches_golden(client: httpx.Client):
 
     assert isinstance(body.get("access_token"), str), "access_token must be string"
     assert isinstance(body.get("refresh_token"), str), "refresh_token must be string"
-
-
 
 
 def test_me_response_matches_golden(client: httpx.Client):
@@ -194,8 +183,6 @@ def test_me_response_matches_golden(client: httpx.Client):
     assert isinstance(data.get("permissions"), list), "/me must return a permissions list"
 
 
-
-
 def test_register_db_state_matches_golden(client: httpx.Client):
     """After /register, DB state must match the golden file's expected_db_state.
     Post-#350: sessions table must remain empty until a subsequent /signin."""
@@ -219,14 +206,10 @@ def test_register_db_state_matches_golden(client: httpx.Client):
     user_id = body.get("user_id")
     workspace_id = body.get("workspace_id")
 
-    assert isinstance(user_id, int) and user_id > 0, (
-        f"register must return positive integer user_id, got {user_id!r}"
-    )
+    assert isinstance(user_id, int) and user_id > 0, f"register must return positive integer user_id, got {user_id!r}"
     assert isinstance(workspace_id, int) and workspace_id > 0, (
         f"register must return positive integer workspace_id, got {workspace_id!r}"
     )
-    assert body.get("role") == "owner", (
-        f"first user of new workspace must be 'owner', got {body.get('role')!r}"
-    )
+    assert body.get("role") == "owner", f"first user of new workspace must be 'owner', got {body.get('role')!r}"
 
     print(f"✓ DB state matches golden file for user_id={user_id}, workspace_id={workspace_id}")

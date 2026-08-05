@@ -11,18 +11,18 @@ logger = structlog.get_logger()
 
 PRICING: dict[str, float] = {
     "fal-ai/flux/schnell": 0.003,
-    "fal-ai/flux/dev":     0.025,
-    "fal-ai/flux/pro":     0.050,
+    "fal-ai/flux/dev": 0.025,
+    "fal-ai/flux/pro": 0.050,
 }
 
 _SIZE_MAP: dict[str, str] = {
-    "1024x1024":  "square_hd",
-    "1024x576":   "landscape_16_9",
-    "1280x720":   "landscape_16_9",
-    "1024x768":   "landscape_4_3",
-    "768x1024":   "portrait_4_3",
-    "1024x1792":  "portrait_16_9",
-    "1792x1024":  "landscape_16_9",
+    "1024x1024": "square_hd",
+    "1024x576": "landscape_16_9",
+    "1280x720": "landscape_16_9",
+    "1024x768": "landscape_4_3",
+    "768x1024": "portrait_4_3",
+    "1024x1792": "portrait_16_9",
+    "1792x1024": "landscape_16_9",
 }
 _DEFAULT_FAL_SIZE = "landscape_16_9"
 
@@ -75,12 +75,14 @@ class FalFluxProvider(ImageProvider):
                 data = response.json()
 
             for img in data.get("images", []):
-                images.append({
-                    "url": img.get("url", ""),
-                    "revised_prompt": request.prompt,
-                    "width": img.get("width", 0),
-                    "height": img.get("height", 0),
-                })
+                images.append(
+                    {
+                        "url": img.get("url", ""),
+                        "revised_prompt": request.prompt,
+                        "width": img.get("width", 0),
+                        "height": img.get("height", 0),
+                    }
+                )
             total_cost += cost_per
 
         logger.info(

@@ -6,19 +6,17 @@ or low-quality output.
 
 Intelligence cost: $0.00 — all heuristic computation.
 """
-from __future__ import annotations
 
-from typing import Any
+from __future__ import annotations
 
 import structlog
 
 logger = structlog.get_logger()
 
 
-def run_final_qc(direction_v3: dict, captions: dict = None,
-                  audio_mix: dict = None) -> dict:
+def run_final_qc(direction_v3: dict, captions: dict = None, audio_mix: dict = None) -> dict:
     """Run comprehensive QC on the final direction v3 config.
-    
+
     Returns {score: float, passed: bool, issues: list, warnings: list}.
     """
     score = 10.0
@@ -37,7 +35,7 @@ def run_final_qc(direction_v3: dict, captions: dict = None,
                 issues.append(f"First segment start_ms should be 0, got {seg.get('start_ms')}")
                 score -= 1.0
         else:
-            prev = segments[i-1]
+            prev = segments[i - 1]
             expected = prev.get("start_ms", 0) + prev.get("duration_ms", 0)
             actual = seg.get("start_ms", 0)
             if actual != expected:
@@ -47,7 +45,7 @@ def run_final_qc(direction_v3: dict, captions: dict = None,
     total_ms = sum(s.get("duration_ms", 0) for s in segments)
     target_s = meta.get("duration_target_seconds", 0)
     if target_s and abs(total_ms / 1000 - target_s) > target_s * 0.2:
-        issues.append(f"Duration mismatch: segments={total_ms/1000:.1f}s, target={target_s:.1f}s")
+        issues.append(f"Duration mismatch: segments={total_ms / 1000:.1f}s, target={target_s:.1f}s")
         score -= 0.5
 
     if total_ms < 5000:
@@ -82,7 +80,7 @@ def run_final_qc(direction_v3: dict, captions: dict = None,
 
     transitions = [s.get("transition_in", {}).get("type", "cut") for s in segments]
     unique_trans = len(set(transitions))
-    consecutive_same = sum(1 for i in range(1, len(transitions)) if transitions[i] == transitions[i-1])
+    consecutive_same = sum(1 for i in range(1, len(transitions)) if transitions[i] == transitions[i - 1])
     if consecutive_same > 2:
         warnings.append(f"{consecutive_same} consecutive same transitions")
         score -= 0.3
@@ -101,7 +99,8 @@ def run_final_qc(direction_v3: dict, captions: dict = None,
         score -= 0.2
 
     missing_emphasis = sum(
-        1 for s in segments
+        1
+        for s in segments
         if not s.get("scene_overrides", {}).get("emphasis_words")
         and not s.get("text_strategy", {}).get("emphasis_words")
     )

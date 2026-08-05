@@ -8,6 +8,7 @@ Covers:
 - Cache invalidated via invalidate()
 - publish_revoked is called on remove_member
 """
+
 from __future__ import annotations
 
 import time
@@ -17,15 +18,15 @@ import pytest
 from fastapi import HTTPException
 
 
-
 class TestMembershipCache:
-
     def setup_method(self):
         from services_api.dashboard.v2 import _membership as mm
+
         mm._cache.clear()
 
     def teardown_method(self):
         from services_api.dashboard.v2 import _membership as mm
+
         mm._cache.clear()
 
     @pytest.mark.asyncio
@@ -106,9 +107,7 @@ class TestMembershipCache:
         assert (2, 1) in mm._cache
 
 
-
 class TestPrincipalDepRevocation:
-
     @pytest.mark.asyncio
     async def test_revoked_member_gets_403(self):
         """When check_membership returns False, principal_dep raises 403."""
@@ -123,10 +122,12 @@ class TestPrincipalDepRevocation:
         mock_request.cookies.get.return_value = None
         mock_request.client = None
 
-        with patch("services_api.dashboard.v2._deps._decode_jwt", _fake_decode), \
-             patch("services_api.dashboard.v2._deps.check_membership",
-                   AsyncMock(return_value=False)) as mock_cm:
+        with (
+            patch("services_api.dashboard.v2._deps._decode_jwt", _fake_decode),
+            patch("services_api.dashboard.v2._deps.check_membership", AsyncMock(return_value=False)) as mock_cm,
+        ):
             from fastapi.security import HTTPAuthorizationCredentials
+
             creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials="ey.a.b")
             with pytest.raises(HTTPException) as exc_info:
                 await principal_dep(request=mock_request, creds=creds)
@@ -145,10 +146,12 @@ class TestPrincipalDepRevocation:
         mock_request.cookies.get.return_value = None
         mock_request.client = None
 
-        with patch("services_api.dashboard.v2._deps._decode_jwt", lambda t: fake_claims), \
-             patch("services_api.dashboard.v2._deps.check_membership",
-                   AsyncMock(return_value=True)):
+        with (
+            patch("services_api.dashboard.v2._deps._decode_jwt", lambda t: fake_claims),
+            patch("services_api.dashboard.v2._deps.check_membership", AsyncMock(return_value=True)),
+        ):
             from fastapi.security import HTTPAuthorizationCredentials
+
             creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials="ey.a.b")
             principal = await principal_dep(request=mock_request, creds=creds)
 

@@ -47,6 +47,7 @@ Decisions whose scope can't be mapped to a video/channel signal
 
 Part of AE-P1 / Agentic Foundation.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -59,8 +60,6 @@ from core.db import get_pool
 from core.flags import get_flag
 
 logger = structlog.get_logger()
-
-
 
 
 async def score_once(*, dry_run: bool = False) -> int:
@@ -105,9 +104,7 @@ async def run_scorer_loop(
 
         if interval_s is None:
             try:
-                hours = await get_flag(
-                    "brain.scorer.interval_hours", default=6
-                )
+                hours = await get_flag("brain.scorer.interval_hours", default=6)
                 sleep_for = max(60, int(float(hours) * 3600))
             except Exception:
                 sleep_for = 6 * 3600
@@ -125,18 +122,10 @@ async def run_scorer_loop(
     logger.info("brain.scorer.stopped")
 
 
-
-
 async def _score_pass(*, dry_run: bool) -> int:
-    window_days = int(
-        await get_flag("brain.scorer.measurement_window_days", default=7) or 7
-    )
-    min_videos = int(
-        await get_flag("brain.scorer.min_videos_for_signal", default=3) or 3
-    )
-    batch_size = int(
-        await get_flag("brain.scorer.batch_size", default=200) or 200
-    )
+    window_days = int(await get_flag("brain.scorer.measurement_window_days", default=7) or 7)
+    min_videos = int(await get_flag("brain.scorer.min_videos_for_signal", default=3) or 3)
+    batch_size = int(await get_flag("brain.scorer.batch_size", default=200) or 200)
 
     pool = await get_pool()
     rows = await pool.fetch(
@@ -154,16 +143,15 @@ async def _score_pass(*, dry_run: bool) -> int:
     )
     if not rows:
         logger.debug(
-            "brain.scorer.nothing_to_score", window_days=window_days,
+            "brain.scorer.nothing_to_score",
+            window_days=window_days,
         )
         return 0
 
     scored = 0
     skipped = 0
     for row in rows:
-        result = await _score_decision(
-            row, window_days=window_days, min_videos=min_videos
-        )
+        result = await _score_decision(row, window_days=window_days, min_videos=min_videos)
         if result is None:
             skipped += 1
             continue
@@ -178,14 +166,13 @@ async def _score_pass(*, dry_run: bool) -> int:
             scored += 1
             continue
         try:
-            await _persist_score(
-                decision_id=row["id"], score=score, outcome=outcome
-            )
+            await _persist_score(decision_id=row["id"], score=score, outcome=outcome)
             scored += 1
         except Exception as exc:
             logger.warning(
                 "brain.scorer.persist_failed",
-                decision_id=row["id"], error=str(exc),
+                decision_id=row["id"],
+                error=str(exc),
             )
 
     logger.info(
@@ -216,16 +203,13 @@ async def _score_decision(
         return _score_advise(row)
     logger.debug(
         "brain.scorer.unknown_decision_type",
-        decision_id=row["id"], decision_type=dtype,
+        decision_id=row["id"],
+        decision_type=dtype,
     )
     return None
 
 
-
-
-async def _score_halt(
-    row: dict[str, Any], *, window_days: int, min_videos: int
-) -> tuple[float, dict[str, Any]] | None:
+async def _score_halt(row: dict[str, Any], *, window_days: int, min_videos: int) -> tuple[float, dict[str, Any]] | None:
     channel_id = row["scope_id"]
     if not channel_id:
         return None
@@ -251,11 +235,7 @@ async def _score_halt(
     }
 
 
-
-
-async def _score_hold(
-    row: dict[str, Any], *, window_days: int
-) -> tuple[float, dict[str, Any]] | None:
+async def _score_hold(row: dict[str, Any], *, window_days: int) -> tuple[float, dict[str, Any]] | None:
     content_id = row["scope_id"]
     if not content_id:
         return None
@@ -284,8 +264,6 @@ async def _score_hold(
     return None
 
 
-
-
 async def _score_nudge(
     row: dict[str, Any], *, window_days: int, min_videos: int
 ) -> tuple[float, dict[str, Any]] | None:
@@ -303,7 +281,9 @@ async def _score_nudge(
           AND created_at <  $2
           AND created_at >= $2 - ($3 || ' days')::interval
         """,
-        channel_id, row["created_at"], str(window_days),
+        channel_id,
+        row["created_at"],
+        str(window_days),
     )
     post_rows = await pool.fetch(
         """
@@ -315,7 +295,9 @@ async def _score_nudge(
           AND created_at >= $2
           AND created_at <  $2 + ($3 || ' days')::interval
         """,
-        channel_id, row["resolved_at"], str(window_days),
+        channel_id,
+        row["resolved_at"],
+        str(window_days),
     )
     pre = [float(r["final_composite_score"]) for r in pre_rows]
     post = [float(r["final_composite_score"]) for r in post_rows]
@@ -334,8 +316,6 @@ async def _score_nudge(
         "post_sample_size": len(post),
         "window_days": window_days,
     }
-
-
 
 
 async def _score_resume(
@@ -361,19 +341,13 @@ async def _score_resume(
     }
 
 
-
-
 def _score_advise(row: dict[str, Any]) -> tuple[float, dict[str, Any]]:
     """ADVISE is informational only — there is no enforcement event to
     measure. Score neutrally (5.0) so the row leaves the queue."""
     return 5.0, {"scoring_method": "advise.neutral_default"}
 
 
-
-
-async def _post_resolve_scores(
-    *, channel_id: str, resolved_at: Any, window_days: int
-) -> list[float]:
+async def _post_resolve_scores(*, channel_id: str, resolved_at: Any, window_days: int) -> list[float]:
     """Return final_composite_scores for delivered videos on
     *channel_id* in the [resolved_at, resolved_at + window) window."""
     pool = await get_pool()
@@ -387,14 +361,14 @@ async def _post_resolve_scores(
           AND created_at >= $2
           AND created_at <  $2 + ($3 || ' days')::interval
         """,
-        channel_id, resolved_at, str(window_days),
+        channel_id,
+        resolved_at,
+        str(window_days),
     )
     return [float(r["final_composite_score"]) for r in rows]
 
 
-async def _persist_score(
-    *, decision_id: int, score: float, outcome: dict[str, Any]
-) -> None:
+async def _persist_score(*, decision_id: int, score: float, outcome: dict[str, Any]) -> None:
     pool = await get_pool()
     await pool.execute(
         """

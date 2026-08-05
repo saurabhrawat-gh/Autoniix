@@ -19,6 +19,7 @@ development with ``python -m temporal_workers.media_jobs.runner``.
 
 This module is part of AE-355 / Sprint Library.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -26,7 +27,6 @@ import json
 import os
 import platform
 import signal
-import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 

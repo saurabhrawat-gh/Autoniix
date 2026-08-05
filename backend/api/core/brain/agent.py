@@ -15,6 +15,7 @@ feature flag (default FALSE).
 
 Part of AE-P1 / Agentic Foundation.
 """
+
 from __future__ import annotations
 
 import json
@@ -22,12 +23,12 @@ from dataclasses import asdict
 from typing import Any, ClassVar
 
 import structlog
-
 from agents.base import AgentDecision, AgentObservation, BaseAgent
 from agents.llm_reasoner import BRAIN_SYSTEM_PROMPT, LLMReasoner
-from core.db import get_pool
 from events.bus import publish
 from events.topics import Topic
+
+from core.db import get_pool
 from core.flags import get_flag
 from services_api.brain.analyser import ChannelSignals, analyse_channel
 from services_api.brain.engine import _evaluate, _write_decision
@@ -49,7 +50,6 @@ class BrainAgent(BaseAgent):
     _SOURCE = "brain-agent"
     _ALLOWED_DECISIONS = {"HALT", "HOLD", "NUDGE", "RESUME", "ADVISE", "NONE"}
 
-
     async def observe(self, context: dict[str, Any]) -> AgentObservation | None:
         channel_id = (context or {}).get("channel_id")
         if not channel_id:
@@ -68,7 +68,6 @@ class BrainAgent(BaseAgent):
             facts=facts,
         )
 
-
     async def reason(
         self,
         observation: AgentObservation,
@@ -78,17 +77,13 @@ class BrainAgent(BaseAgent):
         facts = dict(observation.facts)
         content_id = facts.pop("content_id", None)
 
-        signals = ChannelSignals(**{
-            k: v for k, v in facts.items()
-            if k in ChannelSignals.__dataclass_fields__
-        })
+        signals = ChannelSignals(**{k: v for k, v in facts.items() if k in ChannelSignals.__dataclass_fields__})
 
         return {
             "signals": signals,
             "content_id": content_id,
             "memories": memories,
         }
-
 
     async def decide(self, state: dict[str, Any]) -> AgentDecision | None:
         """Pick the decision path: LLM reasoning if the flag is on,
@@ -121,9 +116,7 @@ class BrainAgent(BaseAgent):
             decision_type=raw["decision_type"],
             scope=raw.get("scope", "channel"),
             scope_id=raw.get("scope_id", signals.channel_id),
-            directive=raw["directive"]
-            if isinstance(raw["directive"], dict)
-            else json.loads(raw["directive"]),
+            directive=raw["directive"] if isinstance(raw["directive"], dict) else json.loads(raw["directive"]),
             reasoning=reasoning,
             confidence=float(raw.get("confidence") or 0),
             context_summary=raw.get("context_summary", ""),
@@ -133,7 +126,6 @@ class BrainAgent(BaseAgent):
                 "reasoning_path": "rules",
             },
         )
-
 
     async def act(self, decision: AgentDecision) -> dict[str, Any]:
         """The legacy engine has already persisted the row inside decide();
@@ -181,15 +173,12 @@ class BrainAgent(BaseAgent):
 
         return {"id": decision_id}
 
-
     async def remember(
         self,
         decision: AgentDecision,
         acted_row: dict[str, Any],
     ) -> None:
         return None
-
-
 
 
 async def _llm_decide_impl(
@@ -267,9 +256,7 @@ async def _llm_decide_impl(
     )
 
 
-def _compose_user_prompt(
-    signals: ChannelSignals, memories: list[dict[str, Any]]
-) -> str:
+def _compose_user_prompt(signals: ChannelSignals, memories: list[dict[str, Any]]) -> str:
     """Build the user-side of the LLM prompt.
 
     Format is deliberately schema-like to anchor the model: every line
@@ -300,9 +287,7 @@ def _compose_user_prompt(
     return "\n".join(parts)
 
 
-def _enrich_reasoning_with_precedent(
-    reasoning: str, memories: list[dict[str, Any]]
-) -> str:
+def _enrich_reasoning_with_precedent(reasoning: str, memories: list[dict[str, Any]]) -> str:
     """Prepend a compact precedent summary to *reasoning*.
 
     Format chosen to be human-readable in the dashboard AND machine-parseable
@@ -311,9 +296,6 @@ def _enrich_reasoning_with_precedent(
     bits: list[str] = []
     for m in memories[:3]:
         score = float(m.get("score") or 0)
-        bits.append(
-            f"#{m.get('id')} {m.get('decision_type')} "
-            f"(score={score:.2f})"
-        )
+        bits.append(f"#{m.get('id')} {m.get('decision_type')} (score={score:.2f})")
     precedent_line = "Precedent: " + "; ".join(bits) + "."
     return f"{precedent_line}\n\n{reasoning}"

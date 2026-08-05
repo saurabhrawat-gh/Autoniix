@@ -13,6 +13,7 @@ available inside the worker image), add a module that defines:
 The runner looks up ``HANDLERS[job["kind"]]`` and falls back to
 ``skip_handler`` when no entry exists.
 """
+
 from __future__ import annotations
 
 from temporal_workers.media_jobs.handlers import autotag, embed, probe, skip_handler

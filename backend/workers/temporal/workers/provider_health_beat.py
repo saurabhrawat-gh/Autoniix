@@ -16,6 +16,7 @@ The per-credential health-check logic is identical to the one used by
 ``POST /credentials/{id}/test``; kept in :func:`_run_one_credential_check`
 so both code paths stay in sync.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -24,7 +25,6 @@ import time
 from typing import Any
 
 from temporalio import activity, workflow
-from temporalio.exceptions import ApplicationError
 
 with workflow.unsafe.imports_passed_through():
     import structlog
@@ -37,7 +37,6 @@ logger = structlog.get_logger()
 HEALTH_PUBSUB_CHANNEL = "provider:health:changed"
 
 
-
 async def publish_health_change(
     credential_id: int,
     category: str,
@@ -47,14 +46,17 @@ async def publish_health_change(
     """Publish a health-status-change event to Redis (best-effort)."""
     try:
         from core.redis_client import get_redis
+
         redis = await get_redis()
-        payload = json.dumps({
-            "credential_id": credential_id,
-            "category": category,
-            "provider_name": provider_name,
-            "ok": ok,
-            "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        })
+        payload = json.dumps(
+            {
+                "credential_id": credential_id,
+                "category": category,
+                "provider_name": provider_name,
+                "ok": ok,
+                "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+        )
         await redis.publish(HEALTH_PUBSUB_CHANNEL, payload)
         logger.debug(
             "provider.health.published",
@@ -66,7 +68,6 @@ async def publish_health_change(
         logger.warning("provider.health.publish_failed", error=str(exc))
 
 
-
 async def _run_one_credential_check(
     credential_id: int,
     category: str,
@@ -75,8 +76,8 @@ async def _run_one_credential_check(
     extra_config: dict[str, Any] | None,
 ) -> tuple[bool, str | None, int]:
     """Run a single health check and return (ok, error, latency_ms)."""
-    from providers.registry import ProviderRegistry
     from observability.metrics import PROVIDER_HEALTH_CHECK_DURATION
+    from providers.registry import ProviderRegistry
 
     secret = get_secret_at(vault_path, "api_key")
     started = time.perf_counter()
@@ -107,7 +108,6 @@ async def _run_one_credential_check(
     return ok, error, latency_ms
 
 
-
 @activity.defn
 async def check_all_provider_health() -> dict[str, Any]:
     """Temporal activity: health-check all enabled credentials.
@@ -118,8 +118,7 @@ async def check_all_provider_health() -> dict[str, Any]:
 
     pool = await get_pool()
     rows = await pool.fetch(
-        "SELECT id, category, provider_name, vault_path, extra_config "
-        "FROM provider_credentials WHERE enabled = TRUE"
+        "SELECT id, category, provider_name, vault_path, extra_config FROM provider_credentials WHERE enabled = TRUE"
     )
 
     results: dict[str, bool] = {}
@@ -143,29 +142,34 @@ async def check_all_provider_health() -> dict[str, Any]:
         if not ok:
             PROVIDER_HEALTH_UNHEALTHY.labels(category=category).inc()
 
-        prev_ok = await pool.fetchval(
-            "SELECT last_health_ok FROM provider_credentials WHERE id=$1", cred_id
-        )
+        prev_ok = await pool.fetchval("SELECT last_health_ok FROM provider_credentials WHERE id=$1", cred_id)
 
         await pool.execute(
             """UPDATE provider_credentials
                   SET last_health_ok=$1, last_health_at=NOW(), last_latency_ms=$2
                 WHERE id=$3""",
-            ok, latency_ms, cred_id,
+            ok,
+            latency_ms,
+            cred_id,
         )
         await pool.execute(
             """INSERT INTO provider_health_log (credential_id, ok, latency_ms, error)
                VALUES ($1,$2,$3,$4)""",
-            cred_id, ok, latency_ms, error,
+            cred_id,
+            ok,
+            latency_ms,
+            error,
         )
 
         if prev_ok != ok:
-            changed.append({
-                "credential_id": cred_id,
-                "category": category,
-                "provider_name": provider_name,
-                "ok": ok,
-            })
+            changed.append(
+                {
+                    "credential_id": cred_id,
+                    "category": category,
+                    "provider_name": provider_name,
+                    "ok": ok,
+                }
+            )
             logger.info(
                 "provider.health.status_changed",
                 credential_id=cred_id,

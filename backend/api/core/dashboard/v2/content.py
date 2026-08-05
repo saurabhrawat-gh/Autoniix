@@ -5,6 +5,7 @@ Endpoints:
   GET  /content/search               FTS + (optional) pgvector
   POST /content/bulk                 Bulk action: archive/retry/approve/reject/regenerate
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -20,11 +21,11 @@ from ._deps import Principal, audit, principal_dep, require_role
 router = APIRouter()
 
 _GROUP_TRUNC = {
-    "day":     "day",
-    "week":    "week",
-    "month":   "month",
+    "day": "day",
+    "week": "week",
+    "month": "month",
     "quarter": "quarter",
-    "year":    "year",
+    "year": "year",
 }
 
 
@@ -51,19 +52,24 @@ async def list_content(
     where: list[str] = ["1=1"]
     args: list[Any] = []
     if channel_id:
-        args.append(channel_id); where.append(f"channel_id=${len(args)}")
+        args.append(channel_id)
+        where.append(f"channel_id=${len(args)}")
     if status:
-        args.append(status); where.append(f"status=${len(args)}")
+        args.append(status)
+        where.append(f"status=${len(args)}")
     if review_state:
-        args.append(review_state); where.append(f"review_state=${len(args)}")
+        args.append(review_state)
+        where.append(f"review_state=${len(args)}")
     if content_mode:
-        args.append(content_mode); where.append(f"content_mode=${len(args)}")
+        args.append(content_mode)
+        where.append(f"content_mode=${len(args)}")
     if cursor:
         try:
             cursor_dt = datetime.fromisoformat(cursor)
         except Exception:
             raise HTTPException(400, "cursor must be ISO datetime")
-        args.append(cursor_dt); where.append(f"created_at < ${len(args)}")
+        args.append(cursor_dt)
+        where.append(f"created_at < ${len(args)}")
 
     args.append(limit + 1)
     sql = f"""
@@ -74,7 +80,7 @@ async def list_content(
                current_phase, created_at, scheduled_at, published_at,
                date_trunc('{_GROUP_TRUNC[group]}', created_at)::date AS bucket
           FROM videos
-         WHERE {' AND '.join(where)}
+         WHERE {" AND ".join(where)}
          ORDER BY created_at DESC
          LIMIT ${len(args)}
     """
@@ -85,12 +91,11 @@ async def list_content(
     rows = rows[:limit]
 
     from collections import OrderedDict
+
     grouped: "OrderedDict[str, list[dict]]" = OrderedDict()
     for r in rows:
         b = r["bucket"].isoformat()
-        grouped.setdefault(b, []).append({
-            **{k: v for k, v in dict(r).items() if k != "bucket"}
-        })
+        grouped.setdefault(b, []).append({**{k: v for k, v in dict(r).items() if k != "bucket"}})
 
     next_cursor = rows[-1]["created_at"].isoformat() if has_more and rows else None
     return {
@@ -113,14 +118,15 @@ async def search_content(
     where = ["title_tsv @@ plainto_tsquery('english', $1)"]
     args: list[Any] = [q]
     if channel_id:
-        args.append(channel_id); where.append(f"channel_id=${len(args)}")
+        args.append(channel_id)
+        where.append(f"channel_id=${len(args)}")
     args.append(limit)
     sql = f"""
         SELECT content_id, channel_id, title, topic, selected_hook, status,
                review_state, created_at,
                ts_rank(title_tsv, plainto_tsquery('english', $1)) AS rank
           FROM videos
-         WHERE {' AND '.join(where)}
+         WHERE {" AND ".join(where)}
          ORDER BY rank DESC, created_at DESC
          LIMIT ${len(args)}
     """
@@ -133,7 +139,7 @@ async def search_content(
 async def calendar(
     channel_id: str | None = Query(None),
     start: str = Query(..., description="ISO date YYYY-MM-DD"),
-    end:   str = Query(..., description="ISO date YYYY-MM-DD (exclusive)"),
+    end: str = Query(..., description="ISO date YYYY-MM-DD (exclusive)"),
     _: Principal = Depends(principal_dep),
 ):
     """Return videos keyed by ISO date for the given range.
@@ -164,15 +170,21 @@ async def calendar(
     out: dict[str, list[dict]] = {}
     for r in rows:
         d = r["day"].isoformat() if r["day"] else "unknown"
-        out.setdefault(d, []).append({
-            "content_id": r["content_id"], "channel_id": r["channel_id"],
-            "content_mode": r["content_mode"], "status": r["status"],
-            "review_state": r["review_state"],
-            "title": r["title"] or r["topic"],
-            "authenticity_score": float(r["authenticity_score"] or 0) if r["authenticity_score"] is not None else None,
-            "published_at": r["published_at"].isoformat() if r["published_at"] else None,
-            "scheduled_at": r["scheduled_at"].isoformat() if r["scheduled_at"] else None,
-        })
+        out.setdefault(d, []).append(
+            {
+                "content_id": r["content_id"],
+                "channel_id": r["channel_id"],
+                "content_mode": r["content_mode"],
+                "status": r["status"],
+                "review_state": r["review_state"],
+                "title": r["title"] or r["topic"],
+                "authenticity_score": float(r["authenticity_score"] or 0)
+                if r["authenticity_score"] is not None
+                else None,
+                "published_at": r["published_at"].isoformat() if r["published_at"] else None,
+                "scheduled_at": r["scheduled_at"].isoformat() if r["scheduled_at"] else None,
+            }
+        )
     return {"data": out, "start": start, "end": end}
 
 
@@ -187,51 +199,74 @@ async def bulk_action(
     pool = await get_pool()
     affected = 0
     if body.action == "archive":
-        affected = int((await pool.execute(
-            "UPDATE videos SET status='archived', updated_at=NOW() "
-            "WHERE content_id = ANY($1::text[]) AND status NOT IN ('archived','published')",
-            body.ids,
-        )).split()[-1])
+        affected = int(
+            (
+                await pool.execute(
+                    "UPDATE videos SET status='archived', updated_at=NOW() "
+                    "WHERE content_id = ANY($1::text[]) AND status NOT IN ('archived','published')",
+                    body.ids,
+                )
+            ).split()[-1]
+        )
     elif body.action == "approve":
-        affected = int((await pool.execute(
-            "UPDATE videos SET review_state='approved', updated_at=NOW() "
-            "WHERE content_id = ANY($1::text[])",
-            body.ids,
-        )).split()[-1])
+        affected = int(
+            (
+                await pool.execute(
+                    "UPDATE videos SET review_state='approved', updated_at=NOW() WHERE content_id = ANY($1::text[])",
+                    body.ids,
+                )
+            ).split()[-1]
+        )
     elif body.action == "reject":
-        affected = int((await pool.execute(
-            "UPDATE videos SET review_state='rejected', updated_at=NOW() "
-            "WHERE content_id = ANY($1::text[])",
-            body.ids,
-        )).split()[-1])
+        affected = int(
+            (
+                await pool.execute(
+                    "UPDATE videos SET review_state='rejected', updated_at=NOW() WHERE content_id = ANY($1::text[])",
+                    body.ids,
+                )
+            ).split()[-1]
+        )
     elif body.action == "retry":
-        affected = int((await pool.execute(
-            "UPDATE videos SET status='pending', error_message=NULL, updated_at=NOW() "
-            "WHERE content_id = ANY($1::text[]) AND status IN ('failed','stopped')",
-            body.ids,
-        )).split()[-1])
+        affected = int(
+            (
+                await pool.execute(
+                    "UPDATE videos SET status='pending', error_message=NULL, updated_at=NOW() "
+                    "WHERE content_id = ANY($1::text[]) AND status IN ('failed','stopped')",
+                    body.ids,
+                )
+            ).split()[-1]
+        )
     elif body.action == "regenerate":
-        affected = int((await pool.execute(
-            "UPDATE videos SET review_state='regenerating', status='pending', updated_at=NOW() "
-            "WHERE content_id = ANY($1::text[])",
-            body.ids,
-        )).split()[-1])
+        affected = int(
+            (
+                await pool.execute(
+                    "UPDATE videos SET review_state='regenerating', status='pending', updated_at=NOW() "
+                    "WHERE content_id = ANY($1::text[])",
+                    body.ids,
+                )
+            ).split()[-1]
+        )
     elif body.action == "delete":
-        affected = int((await pool.execute(
-            "UPDATE videos SET status='archived', updated_at=NOW() "
-            "WHERE content_id = ANY($1::text[])",
-            body.ids,
-        )).split()[-1])
+        affected = int(
+            (
+                await pool.execute(
+                    "UPDATE videos SET status='archived', updated_at=NOW() WHERE content_id = ANY($1::text[])",
+                    body.ids,
+                )
+            ).split()[-1]
+        )
     else:
         raise HTTPException(400, f"Unknown action {body.action!r}")
 
-    await audit(actor=actor, action=f"content.bulk.{body.action}",
-                target_type="video", target_id=f"{len(body.ids)} items",
-                after={"ids": body.ids, "affected": affected, "note": body.note},
-                request=request)
+    await audit(
+        actor=actor,
+        action=f"content.bulk.{body.action}",
+        target_type="video",
+        target_id=f"{len(body.ids)} items",
+        after={"ids": body.ids, "affected": affected, "note": body.note},
+        request=request,
+    )
     return {"status": "ok", "affected": affected}
-
-
 
 
 @router.get("/triggers/history")
@@ -246,12 +281,13 @@ async def list_triggers(
     where = ["1=1"]
     args: list[Any] = []
     if channel_id:
-        args.append(channel_id); where.append(f"channel_id=${len(args)}")
+        args.append(channel_id)
+        where.append(f"channel_id=${len(args)}")
     args.append(limit)
     rows = await pool.fetch(
         f"""
         SELECT * FROM content_triggers
-         WHERE {' AND '.join(where)}
+         WHERE {" AND ".join(where)}
          ORDER BY created_at DESC
          LIMIT ${len(args)}
         """,
@@ -271,7 +307,8 @@ async def content_stats(
     where = ["1=1"]
     args: list[Any] = []
     if channel_id:
-        args.append(channel_id); where.append(f"channel_id=${len(args)}")
+        args.append(channel_id)
+        where.append(f"channel_id=${len(args)}")
     trunc = _GROUP_TRUNC.get(period, "week")
     args.append(30 if period == "day" else 12 if period == "week" else 12)
     rows = await pool.fetch(
@@ -284,7 +321,7 @@ async def content_stats(
             AVG(final_composite_score)                     AS avg_score,
             date_trunc('{trunc}', created_at)::date        AS bucket
         FROM videos
-        WHERE {' AND '.join(where)}
+        WHERE {" AND ".join(where)}
           AND created_at >= NOW() - (${len(args)} || ' {trunc}s')::INTERVAL
         GROUP BY status, content_mode, bucket
         ORDER BY bucket DESC
@@ -299,7 +336,7 @@ async def content_stats(
                COUNT(*) FILTER (WHERE status = 'failed')   AS failed,
                SUM(total_cost)                              AS total_cost
         FROM videos
-        WHERE {' AND '.join(where)}
+        WHERE {" AND ".join(where)}
         GROUP BY channel_id
         """,
         *args[:-1],
@@ -344,8 +381,9 @@ async def get_content_detail(
         content_id,
     )
 
-    review = await pool.fetchrow(
-        """
+    review = (
+        await pool.fetchrow(
+            """
         SELECT rs.id, rs.state, rs.created_at, rs.due_at,
                COUNT(fc.id) AS comment_count,
                COUNT(ra.id) AS approval_count
@@ -357,8 +395,11 @@ async def get_content_detail(
          ORDER BY rs.created_at DESC
          LIMIT 1
         """,
-        content_id,
-    ) if await _table_exists(pool, "review_sessions") else None
+            content_id,
+        )
+        if await _table_exists(pool, "review_sessions")
+        else None
+    )
 
     result = dict(row)
     result["events"] = [dict(e) for e in events]
@@ -399,6 +440,7 @@ async def trigger_content(
         )
 
     import httpx
+
     bff_base = "http://localhost:8020"
     try:
         token = request.headers.get("Authorization", "")
@@ -426,10 +468,14 @@ async def trigger_content(
             content_id,
         )
 
-    await audit(actor=actor, action="content.trigger",
-                target_type="channel", target_id=body.channel_id,
-                after={"trigger_id": trigger_id, "triggered": triggered, "content_id": content_id},
-                request=request)
+    await audit(
+        actor=actor,
+        action="content.trigger",
+        target_type="channel",
+        target_id=body.channel_id,
+        after={"trigger_id": trigger_id, "triggered": triggered, "content_id": content_id},
+        request=request,
+    )
 
     return {
         "status": "ok" if triggered else "queued",
@@ -438,8 +484,5 @@ async def trigger_content(
     }
 
 
-
 async def _table_exists(pool: Any, table: str) -> bool:
-    return bool(await pool.fetchval(
-        "SELECT 1 FROM information_schema.tables WHERE table_name=$1", table
-    ))
+    return bool(await pool.fetchval("SELECT 1 FROM information_schema.tables WHERE table_name=$1", table))

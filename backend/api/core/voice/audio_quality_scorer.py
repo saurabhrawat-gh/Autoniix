@@ -10,12 +10,11 @@ Analyzes TTS output audio for quality metrics:
 
 Intelligence cost: $0.00 — all computation is local via librosa.
 """
+
 from __future__ import annotations
 
 import asyncio
 import io
-import struct
-from typing import Any
 
 import numpy as np
 import structlog
@@ -36,6 +35,7 @@ async def _get_librosa():
 
         def _load():
             import librosa
+
             return librosa
 
         _librosa = await asyncio.to_thread(_load)
@@ -55,14 +55,13 @@ def _quick_audio_stats(audio_bytes: bytes) -> dict:
         "valid": True,
         "size_kb": round(size_kb, 1),
         "estimated_duration_s": round(estimated_duration_s, 2),
-        "format_ok": audio_bytes[:3] in (b'ID3', b'\xff\xfb', b'\xff\xf3', b'\xff\xf2'),
+        "format_ok": audio_bytes[:3] in (b"ID3", b"\xff\xfb", b"\xff\xf3", b"\xff\xf2"),
     }
 
 
-async def analyze_audio_quality(audio_bytes: bytes, expected_duration_s: float = 0,
-                                 expected_wpm: float = 150) -> dict:
+async def analyze_audio_quality(audio_bytes: bytes, expected_duration_s: float = 0, expected_wpm: float = 150) -> dict:
     """Full audio quality analysis using librosa.
-    
+
     Returns quality metrics and a composite score (1-10).
     """
     if not audio_bytes or len(audio_bytes) < 100:
@@ -86,7 +85,7 @@ async def analyze_audio_quality(audio_bytes: bytes, expected_duration_s: float =
 
             duration_s = len(y) / sr if sr > 0 else 0
 
-            rms = np.sqrt(np.mean(y ** 2))
+            rms = np.sqrt(np.mean(y**2))
 
             zcr = np.mean(np.abs(np.diff(np.signbit(y).astype(int))))
 
@@ -198,6 +197,7 @@ def score_emotion_variety(emotion_map: list[dict]) -> dict:
     total = len(emotions)
 
     from collections import Counter
+
     counts = Counter(emotions)
     entropy = -sum((c / total) * np.log2(c / total) for c in counts.values() if c > 0)
     max_entropy = np.log2(len(unique)) if len(unique) > 1 else 1

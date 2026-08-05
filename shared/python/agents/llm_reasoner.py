@@ -20,6 +20,7 @@ agent's existing rule-based path should run).
 
 Part of AE-P1 / Agentic Foundation.
 """
+
 from __future__ import annotations
 
 import json
@@ -27,9 +28,9 @@ import time
 from typing import Any
 
 import structlog
-
 from llm import route
 from llm.router import BudgetExceeded, LadderExhausted
+
 from providers.llm.base import LLMRequest
 
 logger = structlog.get_logger()
@@ -124,19 +125,22 @@ class LLMReasoner:
         except BudgetExceeded as exc:
             logger.warning(
                 "agent.llm_reasoner.budget_exceeded",
-                channel_id=channel_id, error=str(exc),
+                channel_id=channel_id,
+                error=str(exc),
             )
             return None
         except LadderExhausted as exc:
             logger.warning(
                 "agent.llm_reasoner.providers_exhausted",
-                category=self.category, error=str(exc),
+                category=self.category,
+                error=str(exc),
             )
             return None
         except Exception as exc:
             logger.warning(
                 "agent.llm_reasoner.call_failed",
-                category=self.category, error=str(exc),
+                category=self.category,
+                error=str(exc),
             )
             return None
 
@@ -176,7 +180,6 @@ class LLMReasoner:
         logger.info("agent.llm_reasoner.success", **log_extra)
         return parsed
 
-
     @staticmethod
     def _parse_json(raw: str) -> dict[str, Any] | None:
         """Tolerant JSON parser.
@@ -203,7 +206,7 @@ class LLMReasoner:
                 depth -= 1
                 if depth == 0:
                     try:
-                        return json.loads(raw[start:i + 1])
+                        return json.loads(raw[start : i + 1])
                     except json.JSONDecodeError:
                         return None
         return None
@@ -239,13 +242,9 @@ class LLMReasoner:
                 return False
         if "reasoning_steps" in parsed:
             steps = parsed["reasoning_steps"]
-            if not isinstance(steps, list) or not all(
-                isinstance(s, str) for s in steps
-            ):
+            if not isinstance(steps, list) or not all(isinstance(s, str) for s in steps):
                 return False
         return True
-
-
 
 
 BRAIN_SYSTEM_PROMPT = """You are the Brain Agent for Autoniix, an autonomous AI video

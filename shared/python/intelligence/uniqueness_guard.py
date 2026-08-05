@@ -21,6 +21,7 @@ This module is best-effort: every public function returns a usable value
 even when the embedding model or DB is unavailable. Production logic only
 gates on the actual similarity score we get from the DB.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -60,6 +61,7 @@ async def check_uniqueness(
         if embedding is None:
             return UniquenessResult(True, 0.0, None, threshold)
         from core.db import get_pool
+
         pool = await get_pool()
         row = await pool.fetchrow(
             """
@@ -71,7 +73,8 @@ async def check_uniqueness(
              ORDER BY title_embedding <=> $1::vector
              LIMIT 1
             """,
-            embedding, channel_id,
+            embedding,
+            channel_id,
         )
         if not row:
             return UniquenessResult(True, 0.0, None, threshold)

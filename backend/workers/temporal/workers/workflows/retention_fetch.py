@@ -3,6 +3,7 @@
 Ported from ``go-workflows/retention_fetch.go``. Task queue: ``scheduler-v2``.
 Cron: daily 03:00 UTC.
 """
+
 from __future__ import annotations
 
 from collections import Counter

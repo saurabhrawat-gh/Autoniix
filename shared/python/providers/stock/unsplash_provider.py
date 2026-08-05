@@ -4,8 +4,8 @@ import httpx
 import structlog
 
 from core.config import settings
-from providers.stock.base import StockProvider, StockRequest, StockResult
 from providers.registry import ProviderRegistry
+from providers.stock.base import StockProvider, StockRequest, StockResult
 
 logger = structlog.get_logger()
 
@@ -50,14 +50,16 @@ class UnsplashStock(StockProvider):
         results = []
         total = data.get("total", 0)
         for item in data.get("results", []):
-            results.append({
-                "id": item.get("id"),
-                "url": item.get("urls", {}).get("regular"),
-                "thumbnail": item.get("urls", {}).get("thumb"),
-                "width": item.get("width"),
-                "height": item.get("height"),
-                "provider": "unsplash",
-            })
+            results.append(
+                {
+                    "id": item.get("id"),
+                    "url": item.get("urls", {}).get("regular"),
+                    "thumbnail": item.get("urls", {}).get("thumb"),
+                    "width": item.get("width"),
+                    "height": item.get("height"),
+                    "provider": "unsplash",
+                }
+            )
 
         logger.info(
             "unsplash.searched",

@@ -21,6 +21,7 @@ Failures are intentionally swallowed: if Redis is unreachable the
 runtime degrades to TTL-only refresh, which is exactly the behaviour
 prior to this module being introduced.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -48,16 +49,19 @@ async def publish_invalidate(
     """
     try:
         from core.redis_client import get_redis
+
         redis = await get_redis()
-        payload = json.dumps({
-            "category": category,
-            "channel_id": channel_id,
-            "content_mode": content_mode,
-        })
+        payload = json.dumps(
+            {
+                "category": category,
+                "channel_id": channel_id,
+                "content_mode": content_mode,
+            }
+        )
         await redis.publish(CHANNEL_NAME, payload)
-        logger.debug("providers.invalidate.published",
-                     category=category, channel_id=channel_id,
-                     content_mode=content_mode)
+        logger.debug(
+            "providers.invalidate.published", category=category, channel_id=channel_id, content_mode=content_mode
+        )
     except Exception as exc:  # noqa: BLE001
         logger.warning("providers.invalidate.publish_failed", error=str(exc))
 
@@ -79,12 +83,14 @@ async def _consume(pubsub: Any) -> None:
         content_mode = data.get("content_mode")
         try:
             chain_mod.invalidate(
-                category=category, channel_id=channel_id, content_mode=content_mode,
+                category=category,
+                channel_id=channel_id,
+                content_mode=content_mode,
             )
             ProviderRegistry.reset()
-            logger.info("providers.invalidate.applied",
-                        category=category, channel_id=channel_id,
-                        content_mode=content_mode)
+            logger.info(
+                "providers.invalidate.applied", category=category, channel_id=channel_id, content_mode=content_mode
+            )
         except Exception as exc:  # noqa: BLE001
             logger.warning("providers.invalidate.apply_failed", error=str(exc))
 

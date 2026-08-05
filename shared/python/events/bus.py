@@ -38,6 +38,7 @@ Subscribing (e.g. a long-running worker)::
 
     await subscribe([Topic.BRAIN_DIRECTIVE], on_directive)
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -51,8 +52,8 @@ import structlog
 from jsonschema import Draft7Validator
 from jsonschema.exceptions import ValidationError as JsonSchemaError
 
-from events.topics import Topic
 from core.redis_client import get_pubsub_redis, get_redis
+from events.topics import Topic
 
 logger = structlog.get_logger()
 
@@ -197,9 +198,7 @@ async def subscribe(
                         error=str(exc),
                     )
                     if EVENTS_INVALID_TOTAL is not None:
-                        EVENTS_INVALID_TOTAL.labels(
-                            topic=topic_value, direction="subscribe"
-                        ).inc()
+                        EVENTS_INVALID_TOTAL.labels(topic=topic_value, direction="subscribe").inc()
                     continue
                 try:
                     await handler(envelope)

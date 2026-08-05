@@ -8,15 +8,11 @@ Uses the script asset engine queries when available, enhances with:
 
 Intelligence cost: $0.00 — all computation is local.
 """
+
 from __future__ import annotations
 
-import asyncio
 import hashlib
-import json
-import time
-from typing import Any
 
-import numpy as np
 import structlog
 
 from core.db import get_pool
@@ -50,7 +46,7 @@ def _query_hash(query: str) -> str:
 
 def optimize_query(segment: dict, brand_colors: dict = None) -> dict:
     """Optimize a stock footage search query for maximum relevance.
-    
+
     Uses script asset engine hints when available, enhances with mood
     synonyms and shot type qualifiers.
     """
@@ -95,24 +91,27 @@ async def check_asset_cache(query_hash: str, max_reuse: int = 5) -> dict | None:
     """Check if we have a cached asset for this query hash."""
     try:
         pool = await get_pool()
-        row = await pool.fetchrow("""
+        row = await pool.fetchrow(
+            """
             SELECT id, asset_url, minio_key, asset_type, quality_score, relevance_score,
                    use_count, provider, duration_s
             FROM asset_library
             WHERE query_hash = $1 AND use_count < $2 AND quality_score >= 6.0
             ORDER BY quality_score DESC, relevance_score DESC
             LIMIT 1
-        """, query_hash, max_reuse)
+        """,
+            query_hash,
+            max_reuse,
+        )
 
         if not row:
             return None
 
         await pool.execute(
-            "UPDATE asset_library SET use_count = use_count + 1, last_used_at = NOW() WHERE id = $1",
-            row["id"])
+            "UPDATE asset_library SET use_count = use_count + 1, last_used_at = NOW() WHERE id = $1", row["id"]
+        )
 
-        logger.info("asset_cache.hit", query_hash=query_hash, asset_id=row["id"],
-                     quality=row["quality_score"])
+        logger.info("asset_cache.hit", query_hash=query_hash, asset_id=row["id"], quality=row["quality_score"])
         return {
             "url": row["minio_key"] or row["asset_url"],
             "asset_type": row["asset_type"],
@@ -126,48 +125,84 @@ async def check_asset_cache(query_hash: str, max_reuse: int = 5) -> dict | None:
         return None
 
 
-async def store_in_cache(query: str, provider: str, asset_url: str,
-                         minio_key: str = "", asset_type: str = "stock_video",
-                         quality_score: float = 7.0, relevance_score: float = 7.0,
-                         duration_s: float = 0, metadata: dict = None) -> bool:
+async def store_in_cache(
+    query: str,
+    provider: str,
+    asset_url: str,
+    minio_key: str = "",
+    asset_type: str = "stock_video",
+    quality_score: float = 7.0,
+    relevance_score: float = 7.0,
+    duration_s: float = 0,
+    metadata: dict = None,
+) -> bool:
     """Store a downloaded asset in the cache for future reuse."""
     try:
         pool = await get_pool()
         qhash = _query_hash(query)
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO asset_library (query_hash, query_text, provider, asset_url,
                 minio_key, asset_type, quality_score, relevance_score, duration_s, use_count)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1)
             ON CONFLICT DO NOTHING
-        """, qhash, query[:500], provider, asset_url, minio_key, asset_type,
-            quality_score, relevance_score, duration_s)
+        """,
+            qhash,
+            query[:500],
+            provider,
+            asset_url,
+            minio_key,
+            asset_type,
+            quality_score,
+            relevance_score,
+            duration_s,
+        )
         return True
     except Exception as e:
         logger.warning("asset_cache.store_failed", error=str(e))
         return False
 
 
-async def log_search(content_id: str, channel_id: str, segment_id: str,
-                     query: str, provider: str, results_count: int,
-                     selected_id: str = "", used_cache: bool = False,
-                     used_fallback: bool = False, search_time_ms: int = 0) -> None:
+async def log_search(
+    content_id: str,
+    channel_id: str,
+    segment_id: str,
+    query: str,
+    provider: str,
+    results_count: int,
+    selected_id: str = "",
+    used_cache: bool = False,
+    used_fallback: bool = False,
+    search_time_ms: int = 0,
+) -> None:
     """Log an asset search for analytics and learning."""
     try:
         pool = await get_pool()
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO asset_search_log (content_id, channel_id, segment_id,
                 query_text, provider, results_count, selected_asset_id,
                 used_cache, used_dalle_fallback, search_time_ms)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        """, content_id, channel_id, segment_id, query[:500], provider,
-            results_count, selected_id, used_cache, used_fallback, search_time_ms)
+        """,
+            content_id,
+            channel_id,
+            segment_id,
+            query[:500],
+            provider,
+            results_count,
+            selected_id,
+            used_cache,
+            used_fallback,
+            search_time_ms,
+        )
     except Exception as e:
         logger.warning("asset_search_log.failed", error=str(e))
 
 
 def score_asset_relevance(clip: dict, query: str, brand_colors: list[str] = None) -> float:
     """Score an asset's relevance to the query and brand.
-    
+
     Factors: tag match, resolution, duration, license quality.
     """
     score = 5.0

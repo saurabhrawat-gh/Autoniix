@@ -5,6 +5,7 @@ Usage:
 
 Equivalent BFF endpoint: POST /api/v2/providers/_admin/clean-slate
 """
+
 from __future__ import annotations
 
 import argparse

@@ -26,6 +26,7 @@ Schema reference:
   lut_asset_id, intro_asset_id, outro_asset_id, voice_sample_id,
   motion_presets JSONB.
 """
+
 from __future__ import annotations
 
 import json
@@ -152,9 +153,7 @@ async def bind_channel_brand_kit(channel_id: str, kit_id: int | None) -> bool:
     """Set or clear ``channels.brand_kit_id``. Returns True if a row was updated."""
     pool = await get_pool()
     if kit_id is not None:
-        exists = await pool.fetchval(
-            "SELECT 1 FROM dam_brand_kits WHERE id = $1", kit_id
-        )
+        exists = await pool.fetchval("SELECT 1 FROM dam_brand_kits WHERE id = $1", kit_id)
         if not exists:
             raise ValueError(f"unknown brand kit id={kit_id}")
     result = await pool.execute(

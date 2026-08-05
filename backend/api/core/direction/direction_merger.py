@@ -7,10 +7,8 @@ and applies brand-aware enhancements, potentially skipping the GPT direction cal
 LLM cost saving: ~$0.01-0.03 per video when script v3 hint is sufficient.
 Intelligence cost: $0.00 — all computation is local.
 """
-from __future__ import annotations
 
-import json
-from typing import Any
+from __future__ import annotations
 
 import structlog
 
@@ -28,15 +26,17 @@ SECTION_PACING: dict[str, dict] = {
 }
 
 
-def merge_script_direction_with_assets(script_v3_hint: dict,
-                                        script_segments: list[dict],
-                                        voice_manifest: dict,
-                                        asset_manifest: list[dict],
-                                        thumbnail_result: dict,
-                                        music_data: dict,
-                                        channel: dict) -> dict:
+def merge_script_direction_with_assets(
+    script_v3_hint: dict,
+    script_segments: list[dict],
+    voice_manifest: dict,
+    asset_manifest: list[dict],
+    thumbnail_result: dict,
+    music_data: dict,
+    channel: dict,
+) -> dict:
     """Merge script v3 direction with actual asset/voice data.
-    
+
     Returns a complete Remotion v3 direction config that may not need LLM.
     """
     if not script_v3_hint or not script_v3_hint.get("segments"):
@@ -184,7 +184,9 @@ def merge_script_direction_with_assets(script_v3_hint: dict,
                 "body": channel.get("font_body", channel.get("font_family", "Inter")),
             },
         },
-        "grade_preset": channel.get("grade_preset", channel.get("color_grade_preset", "fx.grade.cinematic_teal_orange")),
+        "grade_preset": channel.get(
+            "grade_preset", channel.get("color_grade_preset", "fx.grade.cinematic_teal_orange")
+        ),
         "global_overlays": [
             {"type": "vignette", "intensity": 0.3},
             {"type": "film_grain", "preset": "fx.grain.35mm", "intensity": 0.15},
@@ -225,7 +227,7 @@ def score_merged_direction(direction_v3: dict) -> dict:
         issues.append("No camera variety")
 
     presets = [s.get("scene_preset", "") for s in segments]
-    consecutive = sum(1 for i in range(1, len(presets)) if presets[i] == presets[i-1])
+    consecutive = sum(1 for i in range(1, len(presets)) if presets[i] == presets[i - 1])
     if consecutive > 0:
         score -= consecutive * 0.3
         issues.append(f"{consecutive} consecutive preset repeats")
@@ -238,28 +240,31 @@ def score_merged_direction(direction_v3: dict) -> dict:
     return {"score": score, "issues": issues}
 
 
-async def store_direction_features(content_id: str, channel_id: str,
-                                    direction_v3: dict, used_hint: bool,
-                                    llm_tokens: int = 0) -> None:
+async def store_direction_features(
+    content_id: str, channel_id: str, direction_v3: dict, used_hint: bool, llm_tokens: int = 0
+) -> None:
     """Store direction features for learning."""
     segments = direction_v3.get("segments", [])
     try:
         pool = await get_pool()
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO direction_features (content_id, channel_id,
                 segment_count, unique_scene_presets, unique_camera_types,
                 avg_segment_duration_ms, has_motion_design, transition_variety,
                 used_script_v3_hint, llm_tokens_used, direction_score)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         """,
-            content_id, channel_id,
+            content_id,
+            channel_id,
             len(segments),
             len(set(s.get("scene_preset", "") for s in segments)),
             len(set(s.get("camera", {}).get("type", "") for s in segments)),
             int(sum(s.get("duration_ms", 0) for s in segments) / max(len(segments), 1)),
             any(s.get("motion_design", {}).get("elements") for s in segments),
             len(set(s.get("transition_in", {}).get("type", "") for s in segments)),
-            used_hint, llm_tokens,
+            used_hint,
+            llm_tokens,
             direction_v3.get("direction_score", 0),
         )
     except Exception as e:

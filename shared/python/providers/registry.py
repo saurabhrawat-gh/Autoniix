@@ -25,7 +25,6 @@ _ENV_MAP: dict[str, str] = {
 }
 
 
-
 class ProviderRegistry:
     """Config-driven provider factory.  Read provider name from env vars."""
 
@@ -53,13 +52,18 @@ class ProviderRegistry:
             name = override
         else:
             from providers.chain import EMPTY_CHAIN, NoProviderConfigured
+
             chain = cls._try_db_chain(
-                category, channel_id=channel_id, content_mode=content_mode,
+                category,
+                channel_id=channel_id,
+                content_mode=content_mode,
                 pipeline_mode=pipeline_mode,
             )
             if chain is EMPTY_CHAIN:
                 raise NoProviderConfigured(
-                    category, channel_id=channel_id, content_mode=content_mode,
+                    category,
+                    channel_id=channel_id,
+                    content_mode=content_mode,
                 )
             if chain is not None:
                 return chain
@@ -67,8 +71,11 @@ class ProviderRegistry:
 
         if not name:
             from providers.chain import NoProviderConfigured
+
             raise NoProviderConfigured(
-                category, channel_id=channel_id, content_mode=content_mode,
+                category,
+                channel_id=channel_id,
+                content_mode=content_mode,
             )
 
         cache_key = f"{category}:{name}:{channel_id or ''}:{content_mode or ''}"
@@ -86,8 +93,9 @@ class ProviderRegistry:
 
         instance = provider_class()
         cls._instances[cache_key] = instance
-        logger.info("provider.instantiated", category=category, name=name,
-                    channel_id=channel_id, content_mode=content_mode)
+        logger.info(
+            "provider.instantiated", category=category, name=name, channel_id=channel_id, content_mode=content_mode
+        )
         return instance
 
     @classmethod
@@ -104,27 +112,38 @@ class ProviderRegistry:
         """
         try:
             import asyncio as _asyncio
+
             from providers.chain import resolve_chain
+
             registry = cls._registries.get(category, {})
             try:
                 loop = _asyncio.get_running_loop()
             except RuntimeError:
-                return _asyncio.run(resolve_chain(
-                    category, registry,
-                    channel_id=channel_id, content_mode=content_mode,
-                    pipeline_mode=pipeline_mode,
-                ))
+                return _asyncio.run(
+                    resolve_chain(
+                        category,
+                        registry,
+                        channel_id=channel_id,
+                        content_mode=content_mode,
+                        pipeline_mode=pipeline_mode,
+                    )
+                )
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-                fut = ex.submit(_asyncio.run, resolve_chain(
-                    category, registry,
-                    channel_id=channel_id, content_mode=content_mode,
-                    pipeline_mode=pipeline_mode,
-                ))
+                fut = ex.submit(
+                    _asyncio.run,
+                    resolve_chain(
+                        category,
+                        registry,
+                        channel_id=channel_id,
+                        content_mode=content_mode,
+                        pipeline_mode=pipeline_mode,
+                    ),
+                )
                 return fut.result(timeout=5)
         except Exception as exc:
-            logger.debug("provider.db_chain_unavailable",
-                         category=category, error=str(exc))
+            logger.debug("provider.db_chain_unavailable", category=category, error=str(exc))
             return None
 
     @classmethod

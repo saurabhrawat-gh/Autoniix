@@ -1,4 +1,5 @@
 """Notification center — Phase 4 (S4)."""
+
 from __future__ import annotations
 
 import json
@@ -44,16 +45,18 @@ async def list_notifications(
     where = ["1=1"]
     args: list = []
     if severity:
-        args.append(severity); where.append(f"severity=${len(args)}")
+        args.append(severity)
+        where.append(f"severity=${len(args)}")
     if unread_only and p.user_id is not None:
-        args.append(p.user_id); where.append(f"NOT (${len(args)} = ANY(read_by))")
+        args.append(p.user_id)
+        where.append(f"NOT (${len(args)} = ANY(read_by))")
     args.append(limit)
     pool = await get_pool()
     rows = await pool.fetch(
         f"""SELECT id, event_type, severity, title, body, payload, channel_id, video_id,
                    dedupe_key, created_at, read_by
               FROM notifications
-             WHERE {' AND '.join(where)}
+             WHERE {" AND ".join(where)}
              ORDER BY created_at DESC LIMIT ${len(args)}""",
         *args,
     )
@@ -68,8 +71,7 @@ async def create_notification(
     pool = await get_pool()
     if body.dedupe_key:
         existing = await pool.fetchval(
-            "SELECT id FROM notifications "
-            "WHERE dedupe_key=$1 AND created_at > NOW() - INTERVAL '60 seconds'",
+            "SELECT id FROM notifications WHERE dedupe_key=$1 AND created_at > NOW() - INTERVAL '60 seconds'",
             body.dedupe_key,
         )
         if existing:
@@ -78,11 +80,18 @@ async def create_notification(
         """INSERT INTO notifications
             (event_type, severity, title, body, payload, channel_id, video_id, dedupe_key)
            VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8) RETURNING id""",
-        body.event_type, body.severity, body.title, body.body,
-        json.dumps(body.payload), body.channel_id, body.video_id, body.dedupe_key,
+        body.event_type,
+        body.severity,
+        body.title,
+        body.body,
+        json.dumps(body.payload),
+        body.channel_id,
+        body.video_id,
+        body.dedupe_key,
     )
     try:
         from services_api.dashboard.v2._notify import dispatch_routes
+
         await dispatch_routes(nid, body.model_dump())
     except Exception:
         pass
@@ -91,15 +100,16 @@ async def create_notification(
 
 @router.post("/{notification_id}/read")
 async def mark_read(
-    notification_id: int, p: Principal = Depends(principal_dep),
+    notification_id: int,
+    p: Principal = Depends(principal_dep),
 ):
     if p.user_id is None:
         return {"status": "noop"}
     pool = await get_pool()
     await pool.execute(
-        "UPDATE notifications SET read_by = array_append(read_by, $1) "
-        "WHERE id=$2 AND NOT ($1 = ANY(read_by))",
-        p.user_id, notification_id,
+        "UPDATE notifications SET read_by = array_append(read_by, $1) WHERE id=$2 AND NOT ($1 = ANY(read_by))",
+        p.user_id,
+        notification_id,
     )
     return {"status": "ok"}
 
@@ -116,7 +126,8 @@ async def list_routes(_: Principal = Depends(require_role("owner", "member"))):
 
 @router.post("/routes")
 async def upsert_route(
-    body: RouteIn, request: Request,
+    body: RouteIn,
+    request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
@@ -124,18 +135,30 @@ async def upsert_route(
         """INSERT INTO notification_routes
             (name, event_pattern, severity_min, channels, filter, config, enabled)
            VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7) RETURNING id""",
-        body.name, body.event_pattern, body.severity_min, body.channels,
-        json.dumps(body.filter), json.dumps(body.config), body.enabled,
+        body.name,
+        body.event_pattern,
+        body.severity_min,
+        body.channels,
+        json.dumps(body.filter),
+        json.dumps(body.config),
+        body.enabled,
     )
-    await audit(actor=actor, action="notification.route.create",
-                target_type="notification_route", target_id=str(rid),
-                after=body.model_dump(), request=request)
+    await audit(
+        actor=actor,
+        action="notification.route.create",
+        target_type="notification_route",
+        target_id=str(rid),
+        after=body.model_dump(),
+        request=request,
+    )
     return {"status": "ok", "id": rid}
 
 
 @router.put("/routes/{route_id}")
 async def update_route(
-    route_id: int, body: RouteIn, request: Request,
+    route_id: int,
+    body: RouteIn,
+    request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
@@ -144,8 +167,14 @@ async def update_route(
               SET name=$1, event_pattern=$2, severity_min=$3, channels=$4,
                   filter=$5::jsonb, config=$6::jsonb, enabled=$7
             WHERE id=$8""",
-        body.name, body.event_pattern, body.severity_min, body.channels,
-        json.dumps(body.filter), json.dumps(body.config), body.enabled, route_id,
+        body.name,
+        body.event_pattern,
+        body.severity_min,
+        body.channels,
+        json.dumps(body.filter),
+        json.dumps(body.config),
+        body.enabled,
+        route_id,
     )
     if res.endswith("0"):
         raise HTTPException(404, "Route not found")
@@ -154,20 +183,26 @@ async def update_route(
 
 @router.delete("/routes/{route_id}")
 async def delete_route(
-    route_id: int, request: Request,
+    route_id: int,
+    request: Request,
     actor: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
     await pool.execute("DELETE FROM notification_routes WHERE id=$1", route_id)
-    await audit(actor=actor, action="notification.route.delete",
-                target_type="notification_route", target_id=str(route_id),
-                request=request)
+    await audit(
+        actor=actor,
+        action="notification.route.delete",
+        target_type="notification_route",
+        target_id=str(route_id),
+        request=request,
+    )
     return {"status": "ok"}
 
 
 @router.get("/deliveries")
 async def list_deliveries(
-    notification_id: int | None = None, limit: int = 100,
+    notification_id: int | None = None,
+    limit: int = 100,
     _: Principal = Depends(require_role("owner", "member")),
 ):
     pool = await get_pool()
@@ -177,7 +212,8 @@ async def list_deliveries(
                       response, error, sent_at, created_at
                  FROM notification_deliveries WHERE notification_id=$1
                  ORDER BY created_at DESC LIMIT $2""",
-            notification_id, limit,
+            notification_id,
+            limit,
         )
     else:
         rows = await pool.fetch(

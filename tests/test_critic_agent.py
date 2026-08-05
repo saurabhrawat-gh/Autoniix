@@ -15,12 +15,12 @@ Coverage:
       - critic.review raises → fail-open (original decision proceeds)
       - no critic registered → skip with warning, original proceeds
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from agents.base import (
     AgentDecision,
     AgentObservation,
@@ -29,8 +29,6 @@ from agents.base import (
 )
 from agents.critic import CriticAgent
 from agents.registry import AgentRegistry
-
-
 
 
 def _decision(
@@ -92,8 +90,6 @@ class _PeerAgent(BaseAgent):
         return None
 
 
-
-
 class TestCriticRuleReview:
     def test_approve_well_calibrated(self):
         critic = CriticAgent()
@@ -109,9 +105,7 @@ class TestCriticRuleReview:
 
     def test_modify_overconfident_advise(self):
         critic = CriticAgent()
-        v = critic._rule_review(
-            _decision(decision_type="ADVISE", confidence=0.99)
-        )
+        v = critic._rule_review(_decision(decision_type="ADVISE", confidence=0.99))
         assert v.verdict == "MODIFY"
         assert v.modified_decision is not None
         assert v.modified_decision.decision_type == "NUDGE"
@@ -124,19 +118,13 @@ class TestCriticRuleReview:
         assert "directive" in v.reasoning.lower()
 
 
-
-
 class TestCriticReview:
     async def test_review_uses_rules_when_llm_disabled(self):
         critic = CriticAgent()
         decision = _decision(decision_type="HALT", confidence=0.4)
         with (
-            patch(
-                "agents.critic.get_flag", new=AsyncMock(return_value=False)
-            ),
-            patch.object(
-                critic, "_persist_verdict", new=AsyncMock()
-            ) as persist,
+            patch("agents.critic.get_flag", new=AsyncMock(return_value=False)),
+            patch.object(critic, "_persist_verdict", new=AsyncMock()) as persist,
         ):
             verdict = await critic.review(
                 decision=decision,
@@ -151,15 +139,9 @@ class TestCriticReview:
         critic = CriticAgent()
         decision = _decision(decision_type="HALT", confidence=0.4)
         with (
-            patch(
-                "agents.critic.get_flag", new=AsyncMock(return_value=True)
-            ),
-            patch.object(
-                critic, "_llm_review", new=AsyncMock(return_value=None)
-            ),
-            patch.object(
-                critic, "_persist_verdict", new=AsyncMock()
-            ) as persist,
+            patch("agents.critic.get_flag", new=AsyncMock(return_value=True)),
+            patch.object(critic, "_llm_review", new=AsyncMock(return_value=None)),
+            patch.object(critic, "_persist_verdict", new=AsyncMock()) as persist,
         ):
             verdict = await critic.review(
                 decision=decision,
@@ -180,15 +162,9 @@ class TestCriticReview:
             reviewed_scope_id="ch1",
         )
         with (
-            patch(
-                "agents.critic.get_flag", new=AsyncMock(return_value=True)
-            ),
-            patch.object(
-                critic, "_llm_review", new=AsyncMock(return_value=synthetic)
-            ),
-            patch.object(
-                critic, "_persist_verdict", new=AsyncMock()
-            ) as persist,
+            patch("agents.critic.get_flag", new=AsyncMock(return_value=True)),
+            patch.object(critic, "_llm_review", new=AsyncMock(return_value=synthetic)),
+            patch.object(critic, "_persist_verdict", new=AsyncMock()) as persist,
         ):
             verdict = await critic.review(
                 decision=decision,
@@ -201,9 +177,7 @@ class TestCriticReview:
     async def test_review_persistence_failure_does_not_block_verdict(self):
         critic = CriticAgent()
         with (
-            patch(
-                "agents.critic.get_flag", new=AsyncMock(return_value=False)
-            ),
+            patch("agents.critic.get_flag", new=AsyncMock(return_value=False)),
             patch.object(
                 critic,
                 "_persist_verdict",
@@ -216,8 +190,6 @@ class TestCriticReview:
                 peer_agent_name="brain",
             )
         assert verdict.verdict in {"APPROVE", "VETO", "MODIFY"}
-
-
 
 
 @pytest.fixture
@@ -266,10 +238,12 @@ class TestBaseAgentCritiqueWiring:
 
         with patch(
             "core.flags.get_flag",
-            side_effect=_flag_map({
-                "critic.enabled": True,
-                "peer.critic_review.enabled": True,
-            }),
+            side_effect=_flag_map(
+                {
+                    "critic.enabled": True,
+                    "peer.critic_review.enabled": True,
+                }
+            ),
         ):
             decision = await peer.run({})
 
@@ -295,10 +269,12 @@ class TestBaseAgentCritiqueWiring:
 
         with patch(
             "core.flags.get_flag",
-            side_effect=_flag_map({
-                "critic.enabled": True,
-                "peer.critic_review.enabled": True,
-            }),
+            side_effect=_flag_map(
+                {
+                    "critic.enabled": True,
+                    "peer.critic_review.enabled": True,
+                }
+            ),
         ):
             decision = await peer.run({})
 
@@ -324,10 +300,12 @@ class TestBaseAgentCritiqueWiring:
 
         with patch(
             "core.flags.get_flag",
-            side_effect=_flag_map({
-                "critic.enabled": True,
-                "peer.critic_review.enabled": True,
-            }),
+            side_effect=_flag_map(
+                {
+                    "critic.enabled": True,
+                    "peer.critic_review.enabled": True,
+                }
+            ),
         ):
             decision = await peer.run({})
 
@@ -346,27 +324,29 @@ class TestBaseAgentCritiqueWiring:
 
         with patch(
             "core.flags.get_flag",
-            side_effect=_flag_map({
-                "critic.enabled": True,
-                "peer.critic_review.enabled": True,
-            }),
+            side_effect=_flag_map(
+                {
+                    "critic.enabled": True,
+                    "peer.critic_review.enabled": True,
+                }
+            ),
         ):
             decision = await peer.run({})
 
         assert decision is original
         assert peer.acted_with is original
 
-    async def test_critique_skipped_when_no_critic_registered(
-        self, fresh_registry
-    ):
+    async def test_critique_skipped_when_no_critic_registered(self, fresh_registry):
         peer = _PeerAgent()
         original = peer._decision
         with patch(
             "core.flags.get_flag",
-            side_effect=_flag_map({
-                "critic.enabled": True,
-                "peer.critic_review.enabled": True,
-            }),
+            side_effect=_flag_map(
+                {
+                    "critic.enabled": True,
+                    "peer.critic_review.enabled": True,
+                }
+            ),
         ):
             decision = await peer.run({})
 

@@ -6,6 +6,7 @@ tracking. All other services query this for brand-aware generation.
 Intelligence cost: $0.00 — all local NLP + heuristic computation.
 Port: 8012
 """
+
 from __future__ import annotations
 
 import datetime
@@ -136,7 +137,8 @@ async def track_evolution(req: BrandEvolutionRequest):
     try:
         pool = await get_pool()
 
-        rows = await pool.fetch("""
+        rows = await pool.fetch(
+            """
             SELECT v.content_id, v.script_structure_score, v.hook_retention_score,
                    v.thumbnail_score, v.direction_score,
                    fl.yt_views, fl.engagement_rate, fl.performance_tier
@@ -144,7 +146,10 @@ async def track_evolution(req: BrandEvolutionRequest):
             LEFT JOIN feedback_loop fl ON v.content_id = fl.video_id
             WHERE v.channel_id = $1 AND v.created_at > NOW() - ($2 || ' days')::INTERVAL
             ORDER BY v.created_at DESC LIMIT 20
-        """, req.channel_id, str(req.days_lookback))
+        """,
+            req.channel_id,
+            str(req.days_lookback),
+        )
 
         if not rows:
             return ServiceResponse(
@@ -171,15 +176,19 @@ async def track_evolution(req: BrandEvolutionRequest):
             suggestions.append("High D-tier rate — review content strategy and topic selection")
 
         try:
-            await pool.execute("""
+            await pool.execute(
+                """
                 INSERT INTO brand_style_history (channel_id, snapshot_date, style_features, performance_correlation)
                 VALUES ($1, $2, $3, $4)
                 ON CONFLICT (channel_id, snapshot_date) DO UPDATE SET
                     style_features = EXCLUDED.style_features,
                     performance_correlation = EXCLUDED.performance_correlation
-            """, req.channel_id, datetime.date.today(),
+            """,
+                req.channel_id,
+                datetime.date.today(),
                 json.dumps({"avg_script": avg_script, "avg_hook": avg_hook}),
-                json.dumps({"avg_views": avg_views, "tier_dist": tier_dist}))
+                json.dumps({"avg_views": avg_views, "tier_dist": tier_dist}),
+            )
         except Exception as exc:
             logger.warning("brand.evolution.persist_failed", channel_id=req.channel_id, error=str(exc))
 

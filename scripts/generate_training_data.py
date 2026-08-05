@@ -16,61 +16,78 @@ without waiting for 50+ real videos.  As real data accumulates, synthetic
 rows get progressively outweighed (older rows receive lower weight during
 training).
 """
+
 from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import random
 import sys
-from datetime import datetime, timedelta
 from pathlib import Path
-
-import numpy as np
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.db import get_pool, close_pool
+from core.db import close_pool, get_pool
 
 # Niche-specific distributions
 # These model real YouTube performance distributions per niche.
 
 NICHE_PROFILES = {
     "tech": {
-        "avg_views": 5000, "std_views": 8000,
-        "avg_ctr": 0.06, "std_ctr": 0.025,
-        "avg_retention": 0.42, "std_retention": 0.12,
+        "avg_views": 5000,
+        "std_views": 8000,
+        "avg_ctr": 0.06,
+        "std_ctr": 0.025,
+        "avg_retention": 0.42,
+        "std_retention": 0.12,
         "common_emotions": ["curiosity", "excitement", "authority", "surprise"],
-        "avg_duration_s": 480, "std_duration_s": 180,
+        "avg_duration_s": 480,
+        "std_duration_s": 180,
     },
     "health": {
-        "avg_views": 8000, "std_views": 12000,
-        "avg_ctr": 0.07, "std_ctr": 0.03,
-        "avg_retention": 0.38, "std_retention": 0.15,
+        "avg_views": 8000,
+        "std_views": 12000,
+        "avg_ctr": 0.07,
+        "std_ctr": 0.03,
+        "avg_retention": 0.38,
+        "std_retention": 0.15,
         "common_emotions": ["empathy", "concern", "authority", "surprise"],
-        "avg_duration_s": 600, "std_duration_s": 200,
+        "avg_duration_s": 600,
+        "std_duration_s": 200,
     },
     "finance": {
-        "avg_views": 4000, "std_views": 6000,
-        "avg_ctr": 0.055, "std_ctr": 0.02,
-        "avg_retention": 0.35, "std_retention": 0.10,
+        "avg_views": 4000,
+        "std_views": 6000,
+        "avg_ctr": 0.055,
+        "std_ctr": 0.02,
+        "avg_retention": 0.35,
+        "std_retention": 0.10,
         "common_emotions": ["urgency", "authority", "fear", "excitement"],
-        "avg_duration_s": 540, "std_duration_s": 150,
+        "avg_duration_s": 540,
+        "std_duration_s": 150,
     },
     "education": {
-        "avg_views": 6000, "std_views": 10000,
-        "avg_ctr": 0.065, "std_ctr": 0.025,
-        "avg_retention": 0.40, "std_retention": 0.13,
+        "avg_views": 6000,
+        "std_views": 10000,
+        "avg_ctr": 0.065,
+        "std_ctr": 0.025,
+        "avg_retention": 0.40,
+        "std_retention": 0.13,
         "common_emotions": ["curiosity", "authority", "empathy", "joy"],
-        "avg_duration_s": 720, "std_duration_s": 240,
+        "avg_duration_s": 720,
+        "std_duration_s": 240,
     },
     "entertainment": {
-        "avg_views": 10000, "std_views": 20000,
-        "avg_ctr": 0.08, "std_ctr": 0.035,
-        "avg_retention": 0.45, "std_retention": 0.15,
+        "avg_views": 10000,
+        "std_views": 20000,
+        "avg_ctr": 0.08,
+        "std_ctr": 0.035,
+        "avg_retention": 0.45,
+        "std_retention": 0.15,
         "common_emotions": ["excitement", "surprise", "joy", "curiosity"],
-        "avg_duration_s": 420, "std_duration_s": 120,
+        "avg_duration_s": 420,
+        "std_duration_s": 120,
     },
 }
 
@@ -229,9 +246,15 @@ def _gen_feedback_row(i: int, niche: str, profile: dict, channel_id: str) -> dic
     comments = int(views * random.uniform(0.003, 0.02))
     engagement = (likes + comments) / max(views, 1)
 
-    tier = "viral" if views > profile["avg_views"] * 3 else \
-           "good" if views > profile["avg_views"] else \
-           "average" if views > profile["avg_views"] * 0.3 else "low"
+    tier = (
+        "viral"
+        if views > profile["avg_views"] * 3
+        else "good"
+        if views > profile["avg_views"]
+        else "average"
+        if views > profile["avg_views"] * 0.3
+        else "low"
+    )
 
     return {
         "content_id": f"SYN_FB_{niche}_{i:03d}",
@@ -254,37 +277,57 @@ def _gen_feedback_row(i: int, niche: str, profile: dict, channel_id: str) -> dic
 
 # DB insertion
 
+
 async def _insert_voice_data(pool, rows: list[dict]):
     for r in rows:
         f = r["features"]
         o = r["outcome"]
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO voice_features (content_id, channel_id,
                 avg_stability, avg_similarity_boost, avg_style, avg_speed,
                 emotion_variety, emphasis_density, avg_pause_ms,
                 snr_db, rms_energy, naturalness_score, wpm, total_duration_s, segment_count)
             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
             ON CONFLICT DO NOTHING
-        """, r["content_id"], r["channel_id"],
-            f["avg_stability"], f["avg_similarity_boost"], f["avg_style"], f["avg_speed"],
-            f["emotion_variety"], f["emphasis_density"], f["avg_pause_ms"],
-            f["snr_db"], f["rms_energy"], f["naturalness_score"],
-            f["wpm"], f["total_duration_s"], f["segment_count"])
+        """,
+            r["content_id"],
+            r["channel_id"],
+            f["avg_stability"],
+            f["avg_similarity_boost"],
+            f["avg_style"],
+            f["avg_speed"],
+            f["emotion_variety"],
+            f["emphasis_density"],
+            f["avg_pause_ms"],
+            f["snr_db"],
+            f["rms_energy"],
+            f["naturalness_score"],
+            f["wpm"],
+            f["total_duration_s"],
+            f["segment_count"],
+        )
 
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO voice_outcomes (content_id, channel_id,
                 avg_retention_rate, watch_time_ratio, is_synthetic)
             VALUES ($1, $2, $3, $4, TRUE)
             ON CONFLICT DO NOTHING
-        """, r["content_id"], r["channel_id"],
-            o["avg_retention_rate"], o["watch_time_ratio"])
+        """,
+            r["content_id"],
+            r["channel_id"],
+            o["avg_retention_rate"],
+            o["watch_time_ratio"],
+        )
 
 
 async def _insert_thumbnail_data(pool, rows: list[dict]):
     for r in rows:
         f = r["features"]
         o = r["outcome"]
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO thumbnail_features (content_id, channel_id, variant_id,
                 has_face, face_area_ratio, text_area_ratio,
                 color_contrast_score, brightness_score, saturation_score,
@@ -292,26 +335,41 @@ async def _insert_thumbnail_data(pool, rows: list[dict]):
                 local_composition_score, predicted_ctr)
             VALUES ($1,$2,0,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
             ON CONFLICT DO NOTHING
-        """, r["content_id"], r["channel_id"],
-            f["has_face"], f["face_area_ratio"], f["text_area_ratio"],
-            f["color_contrast_score"], f["brightness_score"], f["saturation_score"],
-            f["rule_of_thirds_score"], f["text_word_count"],
-            f["local_composition_score"], o["actual_ctr"])
+        """,
+            r["content_id"],
+            r["channel_id"],
+            f["has_face"],
+            f["face_area_ratio"],
+            f["text_area_ratio"],
+            f["color_contrast_score"],
+            f["brightness_score"],
+            f["saturation_score"],
+            f["rule_of_thirds_score"],
+            f["text_word_count"],
+            f["local_composition_score"],
+            o["actual_ctr"],
+        )
 
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO thumbnail_outcomes (content_id, channel_id,
                 actual_ctr, impressions, is_synthetic)
             VALUES ($1, $2, $3, $4, TRUE)
             ON CONFLICT DO NOTHING
-        """, r["content_id"], r["channel_id"],
-            o["actual_ctr"], o["impressions"])
+        """,
+            r["content_id"],
+            r["channel_id"],
+            o["actual_ctr"],
+            o["impressions"],
+        )
 
 
 async def _insert_delivery_data(pool, rows: list[dict]):
     for r in rows:
         f = r["features"]
         o = r["outcome"]
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO delivery_features (content_id, channel_id,
                 upload_hour_utc, upload_day_of_week,
                 title_word_count, title_has_number, title_has_question,
@@ -320,31 +378,54 @@ async def _insert_delivery_data(pool, rows: list[dict]):
                 first_hour_views, first_day_views)
             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,0.0,$12,$13)
             ON CONFLICT DO NOTHING
-        """, r["content_id"], r["channel_id"],
-            f["upload_hour_utc"], f["upload_day_of_week"],
-            f["title_word_count"], f["title_has_number"], f["title_has_question"],
-            f["title_power_words"], f["description_length"], f["tag_count"],
-            f["seo_score"], o["first_hour_views"], o["first_day_views"])
+        """,
+            r["content_id"],
+            r["channel_id"],
+            f["upload_hour_utc"],
+            f["upload_day_of_week"],
+            f["title_word_count"],
+            f["title_has_number"],
+            f["title_has_question"],
+            f["title_power_words"],
+            f["description_length"],
+            f["tag_count"],
+            f["seo_score"],
+            o["first_hour_views"],
+            o["first_day_views"],
+        )
 
 
 async def _insert_feedback_data(pool, rows: list[dict]):
     for r in rows:
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO feedback_loop (video_id, channel_id, title,
                 idea_score, script_score, thumbnail_score, hook_retention_score,
                 final_score, yt_views, yt_likes, yt_comments,
                 engagement_rate, performance_tier, content_mode, status, yt_video_id)
             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'synthetic',$15)
             ON CONFLICT (video_id) DO NOTHING
-        """, r["content_id"], r["channel_id"], r["title"],
-            r["idea_score"], r["script_score"], r["thumbnail_score"],
-            r["hook_retention_score"], r["final_score"],
-            r["yt_views"], r["yt_likes"], r["yt_comments"],
-            r["engagement_rate"], r["performance_tier"], r["content_mode"],
-            f"SYN_{r['content_id']}")
+        """,
+            r["content_id"],
+            r["channel_id"],
+            r["title"],
+            r["idea_score"],
+            r["script_score"],
+            r["thumbnail_score"],
+            r["hook_retention_score"],
+            r["final_score"],
+            r["yt_views"],
+            r["yt_likes"],
+            r["yt_comments"],
+            r["engagement_rate"],
+            r["performance_tier"],
+            r["content_mode"],
+            f"SYN_{r['content_id']}",
+        )
 
 
 # Main
+
 
 async def generate(niches: list[str], count: int):
     pool = await get_pool()
@@ -355,11 +436,16 @@ async def generate(niches: list[str], count: int):
         channel_id = f"CH_synth_{niche}"
 
         # Ensure synthetic channel exists
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO channels (channel_id, channel_name, niche, content_mode, status)
             VALUES ($1, $2, $3, 'short', 'active')
             ON CONFLICT (channel_id) DO NOTHING
-        """, channel_id, f"Synthetic {niche.title()} Channel", niche)
+        """,
+            channel_id,
+            f"Synthetic {niche.title()} Channel",
+            niche,
+        )
 
         voice_rows = [_gen_voice_row(i, niche, profile, channel_id) for i in range(count)]
         thumb_rows = [_gen_thumbnail_row(i, niche, profile, channel_id) for i in range(count)]
@@ -385,10 +471,10 @@ async def generate(niches: list[str], count: int):
 
 def main():
     parser = argparse.ArgumentParser(description="Generate synthetic training data")
-    parser.add_argument("--niches", default="tech,health,finance",
-                        help="Comma-separated niche list (default: tech,health,finance)")
-    parser.add_argument("--count", type=int, default=60,
-                        help="Rows per niche per table (default: 60)")
+    parser.add_argument(
+        "--niches", default="tech,health,finance", help="Comma-separated niche list (default: tech,health,finance)"
+    )
+    parser.add_argument("--count", type=int, default=60, help="Rows per niche per table (default: 60)")
     args = parser.parse_args()
 
     niches = [n.strip() for n in args.niches.split(",")]

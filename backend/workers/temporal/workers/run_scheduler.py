@@ -8,6 +8,7 @@ Start with::
 
     python -m temporal_workers.run_scheduler_v2
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -18,27 +19,28 @@ from temporalio.worker import Worker
 
 from core.config import settings
 from observability.sentry import init_sentry
+
 init_sentry("worker-scheduler-v2")
 
 # Activities (same set as run_scheduler.py)
+from src.temporal_workflows.gate_activities import (
+    calibrate_gate_for_niche_activity,
+    list_niches_with_outcomes_activity,
+)
 from src.temporal_workflows.model_activities import (
-    check_model_freshness,
     check_model_drift,
+    check_model_freshness,
     retrain_model,
     update_model_health_activity,
-)
-from src.temporal_workflows.gate_activities import (
-    list_niches_with_outcomes_activity,
-    calibrate_gate_for_niche_activity,
 )
 from src.temporal_workflows.niche_pulse_activities import (
     refresh_niche_pulse_activity,
 )
 from src.temporal_workflows.retention_activities import (
-    list_videos_needing_retention_activity,
     fetch_retention_for_video_activity,
+    list_videos_needing_retention_activity,
 )
-from temporal_workers.provider_health_beat import check_all_provider_health
+
 from temporal_workers.activities.common import (
     acquire_channel_lock,
     check_system_status,
@@ -46,6 +48,7 @@ from temporal_workers.activities.common import (
     send_notification,
 )
 from temporal_workers.change_request_beat import expire_stale_change_requests
+from temporal_workers.provider_health_beat import check_all_provider_health
 
 # Python-ported workflows (Phase 4)
 from temporal_workers.workflows import (

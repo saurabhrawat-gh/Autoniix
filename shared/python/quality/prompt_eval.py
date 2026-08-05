@@ -37,6 +37,7 @@ Typical use::
 The scaffold writes a JSON report to ``./prompt_eval_reports/<utc>.json``
 so CI can diff against a baseline and fail the build on regressions.
 """
+
 from __future__ import annotations
 
 import json
@@ -54,11 +55,10 @@ from providers.llm.base import LLMRequest
 logger = structlog.get_logger()
 
 
-
-
 @dataclass
 class Spec:
     """Deterministic assertions for a single LLM output."""
+
     must_include_any: list[str] = field(default_factory=list)
     must_include_all: list[str] = field(default_factory=list)
     must_not_include: list[str] = field(default_factory=list)
@@ -102,8 +102,6 @@ class Spec:
         return (not failures), failures
 
 
-
-
 @dataclass
 class EvalCase:
     id: str
@@ -139,8 +137,6 @@ class EvalResult:
         }
 
 
-
-
 async def run_case(case: EvalCase, *, channel_id: str = "EVAL") -> EvalResult:
     """Run one case through the central LLM router."""
     from llm import route as _route
@@ -161,9 +157,14 @@ async def run_case(case: EvalCase, *, channel_id: str = "EVAL") -> EvalResult:
     latency = int((time.monotonic() - start) * 1000)
     passed, failures = case.spec.evaluate(res.content)
     return EvalResult(
-        case_id=case.id, passed=passed, failures=failures,
-        output=res.content, cost_usd=res.cost_usd, latency_ms=latency,
-        provider=res.provider, model=res.model,
+        case_id=case.id,
+        passed=passed,
+        failures=failures,
+        output=res.content,
+        cost_usd=res.cost_usd,
+        latency_ms=latency,
+        provider=res.provider,
+        model=res.model,
     )
 
 
@@ -185,10 +186,16 @@ async def run_suite(
             r = await run_case(case, channel_id=channel_id)
         except Exception as exc:
             logger.warning("prompt_eval.case_exception", case_id=case.id, error=str(exc))
-            r = EvalResult(case_id=case.id, passed=False,
-                           failures=[f"runtime exception: {exc}"],
-                           output="", cost_usd=0.0, latency_ms=0,
-                           provider="", model="")
+            r = EvalResult(
+                case_id=case.id,
+                passed=False,
+                failures=[f"runtime exception: {exc}"],
+                output="",
+                cost_usd=0.0,
+                latency_ms=0,
+                provider="",
+                model="",
+            )
         results.append(r)
         total_cost += r.cost_usd
 
@@ -205,7 +212,11 @@ async def run_suite(
     rd.mkdir(parents=True, exist_ok=True)
     out_file = rd / (summary["ran_at_utc"].replace(":", "-") + ".json")
     out_file.write_text(json.dumps(summary, indent=2))
-    logger.info("prompt_eval.suite_complete",
-                passed=summary["passed"], failed=summary["failed"],
-                cost=summary["total_cost_usd"], report=str(out_file))
+    logger.info(
+        "prompt_eval.suite_complete",
+        passed=summary["passed"],
+        failed=summary["failed"],
+        cost=summary["total_cost_usd"],
+        report=str(out_file),
+    )
     return summary

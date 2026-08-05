@@ -1,10 +1,11 @@
 """GitHub REST API v3 client — branch, file, and PR operations."""
+
 from __future__ import annotations
 
 import base64
+
 import httpx
 import structlog
-
 from config import (
     GITHUB_BASE_BRANCH,
     GITHUB_REPO_NAME,
@@ -33,8 +34,7 @@ class GitHubClient:
             sha: str = r.json()["commit"]["sha"]
             return sha
 
-    async def create_branch(self, branch_name: str,
-                            from_branch: str = GITHUB_BASE_BRANCH) -> None:
+    async def create_branch(self, branch_name: str, from_branch: str = GITHUB_BASE_BRANCH) -> None:
         sha = await self.get_branch_sha(from_branch)
         async with httpx.AsyncClient(timeout=30) as client:
             r = await client.post(
@@ -45,8 +45,7 @@ class GitHubClient:
             r.raise_for_status()
         logger.info("github.branch_created", branch=branch_name, from_branch=from_branch)
 
-    async def get_file(self, path: str,
-                       ref: str = GITHUB_BASE_BRANCH) -> dict | None:
+    async def get_file(self, path: str, ref: str = GITHUB_BASE_BRANCH) -> dict | None:
         """Return the GitHub contents API response for a file, or None if 404."""
         async with httpx.AsyncClient(timeout=30) as client:
             r = await client.get(

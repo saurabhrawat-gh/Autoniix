@@ -5,6 +5,7 @@ falls back to a Jaccard keyword overlap when ``sentence-transformers``
 isn't installed in the CI image, which keeps the tests fast and
 deterministic.
 """
+
 from __future__ import annotations
 
 import pytest

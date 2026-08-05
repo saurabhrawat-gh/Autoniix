@@ -10,12 +10,12 @@ Learns from actual YouTube performance data to improve script generation:
 
 All computation is local (scikit-learn + numpy). Zero API cost.
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 import pickle
-from datetime import datetime
 
 import numpy as np
 import structlog
@@ -25,13 +25,22 @@ from core.db import get_pool
 logger = structlog.get_logger()
 
 SCRIPT_FEATURE_NAMES = [
-    "segment_count", "word_count", "avg_sentence_length",
-    "sentence_length_variance", "hook_strength", "curiosity_loop_count",
-    "open_loop_ratio", "pattern_interrupt_freq", "but_therefore_ratio",
-    "contraction_rate", "question_density", "specificity_score",
-    "readability_score", "emotion_variance", "emphasis_density",
+    "segment_count",
+    "word_count",
+    "avg_sentence_length",
+    "sentence_length_variance",
+    "hook_strength",
+    "curiosity_loop_count",
+    "open_loop_ratio",
+    "pattern_interrupt_freq",
+    "but_therefore_ratio",
+    "contraction_rate",
+    "question_density",
+    "specificity_score",
+    "readability_score",
+    "emotion_variance",
+    "emphasis_density",
 ]
-
 
 
 async def extract_script_features(
@@ -51,7 +60,8 @@ async def extract_script_features(
     details = retention_score.get("details", {})
 
     features = {
-        "segment_count": script_analysis.get("segment_analyses", []) and len(script_analysis.get("segment_analyses", [])),
+        "segment_count": script_analysis.get("segment_analyses", [])
+        and len(script_analysis.get("segment_analyses", [])),
         "word_count": script_analysis.get("total_word_count", 0),
         "avg_sentence_length": script_analysis.get("avg_sentence_length", 0),
         "sentence_length_variance": script_analysis.get("sentence_length_variance", 0),
@@ -65,10 +75,8 @@ async def extract_script_features(
         "specificity_score": script_analysis.get("overall_specificity", 0),
         "readability_score": script_analysis.get("overall_readability", {}).get("flesch_reading_ease", 50) / 100,
         "emotion_variance": script_analysis.get("emotion_arc_variance", 0),
-        "emphasis_density": sum(
-            len(sa.get("emphasis_words", []))
-            for sa in script_analysis.get("segment_analyses", [])
-        ) / max(script_analysis.get("total_word_count", 1), 1),
+        "emphasis_density": sum(len(sa.get("emphasis_words", [])) for sa in script_analysis.get("segment_analyses", []))
+        / max(script_analysis.get("total_word_count", 1), 1),
     }
 
     return features
@@ -87,7 +95,8 @@ async def store_script_features(
     """Store script features in DB for ML training."""
     pool = await get_pool()
     try:
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO script_features (
                 content_id, channel_id, topic,
                 segment_count, word_count, avg_sentence_length,
@@ -102,7 +111,9 @@ async def store_script_features(
                 $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
             )
         """,
-            content_id, channel_id, topic,
+            content_id,
+            channel_id,
+            topic,
             features.get("segment_count", 0),
             features.get("word_count", 0),
             features.get("avg_sentence_length", 0),
@@ -127,7 +138,6 @@ async def store_script_features(
         logger.info("script_features.stored", content_id=content_id)
     except Exception as e:
         logger.warning("script_features.store_failed", content_id=content_id, error=str(e))
-
 
 
 async def _load_model(model_name: str, niche: str | None = None):
@@ -161,9 +171,7 @@ async def predict_script_success(features: dict, niche: str | None = None) -> di
 
     if model is None:
         pool = await get_pool()
-        row = await pool.fetchrow(
-            "SELECT config_value FROM system_config WHERE config_key = 'script_feature_weights'"
-        )
+        row = await pool.fetchrow("SELECT config_value FROM system_config WHERE config_key = 'script_feature_weights'")
         weights = {}
         if row:
             try:
@@ -173,11 +181,16 @@ async def predict_script_success(features: dict, niche: str | None = None) -> di
 
         if not weights:
             weights = {
-                "hook_strength": 0.18, "curiosity_loops": 0.12,
-                "pattern_interrupts": 0.10, "but_therefore": 0.08,
-                "specificity": 0.12, "emotion_variance": 0.10,
-                "readability": 0.08, "contraction_rate": 0.07,
-                "question_density": 0.08, "pacing_score": 0.07,
+                "hook_strength": 0.18,
+                "curiosity_loops": 0.12,
+                "pattern_interrupts": 0.10,
+                "but_therefore": 0.08,
+                "specificity": 0.12,
+                "emotion_variance": 0.10,
+                "readability": 0.08,
+                "contraction_rate": 0.07,
+                "question_density": 0.08,
+                "pacing_score": 0.07,
             }
 
         feature_map = {
@@ -217,7 +230,6 @@ async def predict_script_success(features: dict, niche: str | None = None) -> di
     }
 
 
-
 async def thompson_sample(
     niche: str,
     bandit_type: str,
@@ -237,21 +249,30 @@ async def thompson_sample(
     """
     pool = await get_pool()
 
-    rows = await pool.fetch("""
+    rows = await pool.fetch(
+        """
         SELECT arm_name, alpha, beta, pulls, rewards
         FROM script_bandit_state
         WHERE niche = $1 AND bandit_type = $2
-    """, niche, bandit_type)
+    """,
+        niche,
+        bandit_type,
+    )
 
     arm_states = {r["arm_name"]: dict(r) for r in rows}
 
     for arm in arms:
         if arm not in arm_states:
-            await pool.execute("""
+            await pool.execute(
+                """
                 INSERT INTO script_bandit_state (niche, bandit_type, arm_name, alpha, beta, pulls, rewards)
                 VALUES ($1, $2, $3, 1, 1, 0, 0)
                 ON CONFLICT (niche, bandit_type, arm_name) DO NOTHING
-            """, niche, bandit_type, arm)
+            """,
+                niche,
+                bandit_type,
+                arm,
+            )
             arm_states[arm] = {"alpha": 1.0, "beta": 1.0, "pulls": 0, "rewards": 0.0}
 
     samples = {}
@@ -269,6 +290,7 @@ async def thompson_sample(
     if channel_id:
         try:
             from intelligence.diversity_floor import evaluate_diversity_floor
+
             decision = await evaluate_diversity_floor(
                 channel_id=channel_id,
                 bandit_type=bandit_type,
@@ -278,21 +300,27 @@ async def thompson_sample(
             if decision["force"] and decision["forced_arm"]:
                 selected = decision["forced_arm"]
                 forced_exploration = True
-                logger.info("script_bandit.diversity_override",
-                            niche=niche, type=bandit_type,
-                            channel_id=channel_id, entropy=entropy,
-                            thompson_pick=thompson_pick,
-                            forced_pick=selected)
+                logger.info(
+                    "script_bandit.diversity_override",
+                    niche=niche,
+                    type=bandit_type,
+                    channel_id=channel_id,
+                    entropy=entropy,
+                    thompson_pick=thompson_pick,
+                    forced_pick=selected,
+                )
         except Exception as exc:
-            logger.warning("script_bandit.diversity_check_failed",
-                           niche=niche, type=bandit_type, error=str(exc))
+            logger.warning("script_bandit.diversity_check_failed", niche=niche, type=bandit_type, error=str(exc))
 
     if channel_id:
         try:
             from intelligence.diversity_floor import log_bandit_pick
+
             await log_bandit_pick(
-                niche=niche, bandit_type=bandit_type,
-                channel_id=channel_id, arm_name=selected,
+                niche=niche,
+                bandit_type=bandit_type,
+                channel_id=channel_id,
+                arm_name=selected,
                 forced_exploration=forced_exploration,
             )
         except Exception:
@@ -300,10 +328,14 @@ async def thompson_sample(
 
     exploration = 1.0 / (1 + arm_states.get(selected, {}).get("pulls", 0))
 
-    logger.info("script_bandit.sampled", niche=niche, type=bandit_type,
-                selected=selected,
-                pulls=arm_states.get(selected, {}).get("pulls", 0),
-                forced=forced_exploration)
+    logger.info(
+        "script_bandit.sampled",
+        niche=niche,
+        type=bandit_type,
+        selected=selected,
+        pulls=arm_states.get(selected, {}).get("pulls", 0),
+        forced=forced_exploration,
+    )
 
     return {
         "selected_arm": selected,
@@ -318,7 +350,8 @@ async def thompson_sample(
 async def bandit_update(niche: str, bandit_type: str, arm: str, reward: float) -> None:
     """Update bandit arm after observing outcome."""
     pool = await get_pool()
-    await pool.execute("""
+    await pool.execute(
+        """
         UPDATE script_bandit_state SET
             alpha = alpha + $1,
             beta = beta + (1 - $1),
@@ -327,10 +360,14 @@ async def bandit_update(niche: str, bandit_type: str, arm: str, reward: float) -
             avg_reward = CASE WHEN pulls > 0 THEN (rewards + $1) / (pulls + 1) ELSE $1 END,
             updated_at = NOW()
         WHERE niche = $2 AND bandit_type = $3 AND arm_name = $4
-    """, reward, niche, bandit_type, arm)
+    """,
+        reward,
+        niche,
+        bandit_type,
+        arm,
+    )
 
     logger.info("script_bandit.updated", niche=niche, type=bandit_type, arm=arm, reward=round(reward, 3))
-
 
 
 async def ingest_script_performance(content_id: str, analytics: dict) -> dict:
@@ -379,14 +416,18 @@ async def ingest_script_performance(content_id: str, analytics: dict) -> dict:
     else:
         tier, is_success = "weak", False
 
-    feat_row = await pool.fetchrow("""
+    feat_row = await pool.fetchrow(
+        """
         SELECT hook_style_used, pacing_strategy_used FROM script_features WHERE content_id = $1
-    """, content_id)
+    """,
+        content_id,
+    )
     hook_style = feat_row["hook_style_used"] if feat_row else None
     pacing_strategy = feat_row["pacing_strategy_used"] if feat_row else None
 
     try:
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO script_outcomes (
                 content_id, channel_id, yt_video_id,
                 impressions, views_48h, ctr, avg_view_pct, avg_view_duration_s,
@@ -411,19 +452,32 @@ async def ingest_script_performance(content_id: str, analytics: dict) -> dict:
                 fetched_at = NOW(),
                 updated_at = NOW()
         """,
-            content_id, analytics.get("yt_video_id"),
-            analytics.get("impressions", 0), views_48h, ctr, avg_view_pct,
-            avg_view_duration, likes, comments,
-            json.dumps(retention_curve), engagement, is_success, tier,
-            hook_style, pacing_strategy,
+            content_id,
+            analytics.get("yt_video_id"),
+            analytics.get("impressions", 0),
+            views_48h,
+            ctr,
+            avg_view_pct,
+            avg_view_duration,
+            likes,
+            comments,
+            json.dumps(retention_curve),
+            engagement,
+            is_success,
+            tier,
+            hook_style,
+            pacing_strategy,
         )
     except Exception as e:
         logger.warning("script_feedback.store_failed", content_id=content_id, error=str(e))
 
-    ch_row = await pool.fetchrow("""
+    ch_row = await pool.fetchrow(
+        """
         SELECT c.niche FROM videos v JOIN channels c ON v.channel_id = c.channel_id
         WHERE v.content_id = $1
-    """, content_id)
+    """,
+        content_id,
+    )
     if ch_row:
         niche = ch_row["niche"]
         reward = 1.0 if is_success else 0.0
@@ -440,7 +494,6 @@ async def ingest_script_performance(content_id: str, analytics: dict) -> dict:
     }
     logger.info("script_feedback.ingested", content_id=content_id, tier=tier, score=score)
     return result
-
 
 
 async def train_model(niche: str | None = None, min_samples: int = 15) -> dict:
@@ -471,15 +524,12 @@ async def train_model(niche: str | None = None, min_samples: int = 15) -> dict:
             "min_required": min_samples,
         }
 
-    X = np.array([
-        [float(row.get(f, 0) or 0) for f in SCRIPT_FEATURE_NAMES]
-        for row in rows
-    ])
+    X = np.array([[float(row.get(f, 0) or 0) for f in SCRIPT_FEATURE_NAMES] for row in rows])
     y = np.array([1 if row["is_success"] else 0 for row in rows])
 
     def _train():
-        from sklearn.ensemble import GradientBoostingClassifier
         from sklearn.calibration import CalibratedClassifierCV
+        from sklearn.ensemble import GradientBoostingClassifier
         from sklearn.model_selection import cross_val_score
 
         base = GradientBoostingClassifier(
@@ -504,23 +554,33 @@ async def train_model(niche: str | None = None, min_samples: int = 15) -> dict:
     model, auc, importances = await asyncio.to_thread(_train)
 
     model_blob = pickle.dumps(model)
-    current_version = await pool.fetchval("""
+    current_version = await pool.fetchval(
+        """
         SELECT COALESCE(MAX(model_version), 0) + 1 FROM script_models
         WHERE model_name = 'script_success_predictor' AND niche = $1
-    """, niche or "__global__")
+    """,
+        niche or "__global__",
+    )
 
-    await pool.execute("""
+    await pool.execute(
+        """
         UPDATE script_models SET is_active = FALSE
         WHERE model_name = 'script_success_predictor' AND niche = $1
-    """, niche or "__global__")
+    """,
+        niche or "__global__",
+    )
 
-    await pool.execute("""
+    await pool.execute(
+        """
         INSERT INTO script_models (model_name, model_version, niche, model_type, model_blob,
                                    feature_names, metrics, training_samples, is_active)
         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, TRUE)
     """,
-        "script_success_predictor", current_version, niche or "__global__",
-        "gradient_boosted_calibrated", model_blob,
+        "script_success_predictor",
+        current_version,
+        niche or "__global__",
+        "gradient_boosted_calibrated",
+        model_blob,
         json.dumps(SCRIPT_FEATURE_NAMES),
         json.dumps({"roc_auc": auc, "n_samples": len(rows), "importances": importances}),
         len(rows),
@@ -536,7 +596,6 @@ async def train_model(niche: str | None = None, min_samples: int = 15) -> dict:
     }
     logger.info("script_model.trained", **result)
     return result
-
 
 
 async def detect_drift(niche: str | None = None) -> dict:
@@ -567,6 +626,7 @@ async def detect_drift(niche: str | None = None) -> dict:
 
     def _evaluate():
         from sklearn.metrics import roc_auc_score
+
         y_pred = model.predict_proba(X)[:, 1] if hasattr(model, "predict_proba") else model.predict(X)
         try:
             return float(roc_auc_score(y_true, y_pred))

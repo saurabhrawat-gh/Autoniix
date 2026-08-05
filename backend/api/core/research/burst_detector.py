@@ -6,13 +6,12 @@
 
 All computation is local. Zero API cost.
 """
+
 from __future__ import annotations
 
-import json
-import math
 import re
 from collections import Counter
-from datetime import date, datetime, timedelta
+from datetime import date
 
 import numpy as np
 import structlog
@@ -20,7 +19,6 @@ import structlog
 from core.db import get_pool
 
 logger = structlog.get_logger()
-
 
 
 async def detect_bursts(niche: str, lookback_days: int = 14, z_threshold: float = 2.0) -> list[dict]:
@@ -34,12 +32,16 @@ async def detect_bursts(niche: str, lookback_days: int = 14, z_threshold: float 
     """
     pool = await get_pool()
 
-    rows = await pool.fetch("""
+    rows = await pool.fetch(
+        """
         SELECT keyword, momentum_score, volume_index, snapshot_date
         FROM trend_signals
         WHERE niche = $1 AND snapshot_date > CURRENT_DATE - $2::int
         ORDER BY keyword, snapshot_date
-    """, niche, lookback_days)
+    """,
+        niche,
+        lookback_days,
+    )
 
     if not rows:
         return []
@@ -71,28 +73,35 @@ async def detect_bursts(niche: str, lookback_days: int = 14, z_threshold: float 
         is_burst = z >= z_threshold
 
         if is_burst:
-            await pool.execute("""
+            await pool.execute(
+                """
                 UPDATE trend_signals SET burst_score = $1, is_burst = TRUE
                 WHERE niche = $2 AND keyword = $3 AND snapshot_date = $4
-            """, burst_score, niche, kw, kw_latest[kw]["date"])
+            """,
+                burst_score,
+                niche,
+                kw,
+                kw_latest[kw]["date"],
+            )
 
-        bursts.append({
-            "keyword": kw,
-            "z_score": round(float(z), 3),
-            "burst_score": round(burst_score, 4),
-            "momentum": round(latest, 3),
-            "volume": kw_latest[kw].get("volume", 0),
-            "is_burst": is_burst,
-        })
+        bursts.append(
+            {
+                "keyword": kw,
+                "z_score": round(float(z), 3),
+                "burst_score": round(burst_score, 4),
+                "momentum": round(latest, 3),
+                "volume": kw_latest[kw].get("volume", 0),
+                "is_burst": is_burst,
+            }
+        )
 
     bursts.sort(key=lambda x: x["z_score"], reverse=True)
 
-    logger.info("burst.detected", niche=niche,
-                total_keywords=len(kw_series),
-                bursting=sum(1 for b in bursts if b["is_burst"]))
+    logger.info(
+        "burst.detected", niche=niche, total_keywords=len(kw_series), bursting=sum(1 for b in bursts if b["is_burst"])
+    )
 
     return bursts
-
 
 
 def _extract_phrases(text: str, min_len: int = 2, max_len: int = 4) -> list[str]:
@@ -101,20 +110,70 @@ def _extract_phrases(text: str, min_len: int = 2, max_len: int = 4) -> list[str]
     tokens = text.split()
 
     stops = {
-        "the", "a", "an", "is", "are", "was", "were", "be", "been",
-        "in", "on", "at", "to", "for", "of", "with", "by", "from",
-        "and", "or", "but", "not", "no", "so", "if", "as", "it",
-        "this", "that", "these", "those", "i", "you", "he", "she",
-        "we", "they", "my", "your", "his", "her", "our", "their",
-        "do", "does", "did", "will", "would", "can", "could",
-        "has", "have", "had", "just", "very", "also", "than",
+        "the",
+        "a",
+        "an",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "in",
+        "on",
+        "at",
+        "to",
+        "for",
+        "of",
+        "with",
+        "by",
+        "from",
+        "and",
+        "or",
+        "but",
+        "not",
+        "no",
+        "so",
+        "if",
+        "as",
+        "it",
+        "this",
+        "that",
+        "these",
+        "those",
+        "i",
+        "you",
+        "he",
+        "she",
+        "we",
+        "they",
+        "my",
+        "your",
+        "his",
+        "her",
+        "our",
+        "their",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "can",
+        "could",
+        "has",
+        "have",
+        "had",
+        "just",
+        "very",
+        "also",
+        "than",
     }
     tokens = [t for t in tokens if t not in stops and len(t) > 2]
 
     phrases = []
     for n in range(min_len, max_len + 1):
         for i in range(len(tokens) - n + 1):
-            phrase = " ".join(tokens[i:i + n])
+            phrase = " ".join(tokens[i : i + n])
             phrases.append(phrase)
 
     return phrases
@@ -131,17 +190,26 @@ async def mine_phrases(niche: str, days: int = 14, top_n: int = 30) -> list[dict
     """
     pool = await get_pool()
 
-    recent = await pool.fetch("""
+    recent = await pool.fetch(
+        """
         SELECT title, description FROM competitor_videos
         WHERE niche = $1 AND published_at > NOW() - ($2 || ' days')::interval
-    """, niche, str(days))
+    """,
+        niche,
+        str(days),
+    )
 
-    older = await pool.fetch("""
+    older = await pool.fetch(
+        """
         SELECT title, description FROM competitor_videos
         WHERE niche = $1
           AND published_at > NOW() - ($2 || ' days')::interval
           AND published_at <= NOW() - ($3 || ' days')::interval
-    """, niche, str(days * 2), str(days))
+    """,
+        niche,
+        str(days * 2),
+        str(days),
+    )
 
     recent_phrases = Counter()
     for r in recent:
@@ -163,13 +231,15 @@ async def mine_phrases(niche: str, days: int = 14, top_n: int = 30) -> list[dict
         growth = (freq - old_freq) / max(old_freq, 1)
         is_rising = growth > 0.5 and freq >= 2
 
-        results.append({
-            "phrase": phrase,
-            "frequency": freq,
-            "old_frequency": old_freq,
-            "growth_rate": round(growth, 2),
-            "is_rising": is_rising,
-        })
+        results.append(
+            {
+                "phrase": phrase,
+                "frequency": freq,
+                "old_frequency": old_freq,
+                "growth_rate": round(growth, 2),
+                "is_rising": is_rising,
+            }
+        )
 
     results.sort(key=lambda x: (x["is_rising"], x["growth_rate"]), reverse=True)
     results = results[:top_n]
@@ -177,20 +247,25 @@ async def mine_phrases(niche: str, days: int = 14, top_n: int = 30) -> list[dict
     today = date.today()
     for r in results:
         try:
-            await pool.execute("""
+            await pool.execute(
+                """
                 INSERT INTO phrase_bank (niche, phrase, source, frequency, is_rising, first_seen, last_seen)
                 VALUES ($1, $2, 'competitor_mining', $3, $4, $5, $5)
                 ON CONFLICT (niche, phrase) DO UPDATE SET
                     frequency = EXCLUDED.frequency,
                     is_rising = EXCLUDED.is_rising,
                     last_seen = EXCLUDED.last_seen
-            """, niche, r["phrase"], r["frequency"], r["is_rising"], today)
+            """,
+                niche,
+                r["phrase"],
+                r["frequency"],
+                r["is_rising"],
+                today,
+            )
         except Exception:
             pass
 
-    logger.info("phrases.mined", niche=niche,
-                total=len(results),
-                rising=sum(1 for r in results if r["is_rising"]))
+    logger.info("phrases.mined", niche=niche, total=len(results), rising=sum(1 for r in results if r["is_rising"]))
 
     return results
 
@@ -198,14 +273,17 @@ async def mine_phrases(niche: str, days: int = 14, top_n: int = 30) -> list[dict
 async def get_rising_phrases(niche: str, limit: int = 15) -> list[str]:
     """Get current rising phrases for a niche from the phrase bank."""
     pool = await get_pool()
-    rows = await pool.fetch("""
+    rows = await pool.fetch(
+        """
         SELECT phrase, frequency FROM phrase_bank
         WHERE niche = $1 AND is_rising = TRUE
         ORDER BY frequency DESC, last_seen DESC
         LIMIT $2
-    """, niche, limit)
+    """,
+        niche,
+        limit,
+    )
     return [r["phrase"] for r in rows]
-
 
 
 async def compute_phrase_novelty(topic: str, niche: str) -> float:
@@ -219,15 +297,21 @@ async def compute_phrase_novelty(topic: str, niche: str) -> float:
     if not topic_phrases:
         return 0.5
 
-    rising_rows = await pool.fetch("""
+    rising_rows = await pool.fetch(
+        """
         SELECT phrase FROM phrase_bank WHERE niche = $1 AND is_rising = TRUE
-    """, niche)
+    """,
+        niche,
+    )
     rising_set = {r["phrase"] for r in rising_rows}
 
-    saturated_rows = await pool.fetch("""
+    saturated_rows = await pool.fetch(
+        """
         SELECT phrase FROM phrase_bank
         WHERE niche = $1 AND is_rising = FALSE AND frequency > 5
-    """, niche)
+    """,
+        niche,
+    )
     saturated_set = {r["phrase"] for r in saturated_rows}
 
     rising_hits = sum(1 for p in topic_phrases if p in rising_set)
@@ -238,7 +322,6 @@ async def compute_phrase_novelty(topic: str, niche: str) -> float:
     novelty = max(0.0, min(1.0, (novelty + 1) / 2))
 
     return round(novelty, 4)
-
 
 
 SEASONAL_EVENTS = {
@@ -326,14 +409,18 @@ async def compute_advanced_seasonality(topic: str, niche: str) -> dict:
             max_boost = max(max_boost, boost * 0.8)
 
     pool = await get_pool()
-    hist_row = await pool.fetchrow("""
+    hist_row = await pool.fetchrow(
+        """
         SELECT AVG(CASE WHEN po.is_success THEN 1.0 ELSE 0.0 END) AS success_rate
         FROM research_features rf
         JOIN performance_outcomes po ON rf.content_id = po.content_id
         WHERE rf.channel_id IN (SELECT channel_id FROM channels WHERE niche = $1)
           AND EXTRACT(MONTH FROM rf.created_at) = $2
           AND po.is_success IS NOT NULL
-    """, niche, month)
+    """,
+        niche,
+        month,
+    )
 
     hist_boost = 0.0
     if hist_row and hist_row["success_rate"] is not None:
@@ -348,7 +435,6 @@ async def compute_advanced_seasonality(topic: str, niche: str) -> dict:
         "planning_horizon": f"current={month}, next={next_month}",
     }
 
-    logger.info("seasonality.computed", topic=topic[:40],
-                score=round(final_score, 3), events=len(matched))
+    logger.info("seasonality.computed", topic=topic[:40], score=round(final_score, 3), events=len(matched))
 
     return result

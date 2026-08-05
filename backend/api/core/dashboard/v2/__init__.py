@@ -9,6 +9,7 @@ All v2 endpoints accept either a legacy ``/api/auth/login`` bearer token
 (via :func:`legacy_session_dep`) or a v2 JWT (via :func:`v2_user_dep`),
 so a partially-migrated dashboard keeps working.
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter
@@ -32,12 +33,12 @@ from . import (
 # (full proxy to admin service) remain here.
 
 router = APIRouter(tags=["v2"])
-router.include_router(_flags.router,         prefix="/flags",         tags=["v2.flags"])
-router.include_router(_auth.router,          prefix="/auth",          tags=["v2.auth"])
-router.include_router(_users.router,         prefix="/users",         tags=["v2.users"])
-router.include_router(_channels.router,      prefix="/channels",      tags=["v2.channels"])
-router.include_router(_content.router,       prefix="/content",       tags=["v2.content"])
-router.include_router(_system.router,        prefix="/system",        tags=["v2.system"])
+router.include_router(_flags.router, prefix="/flags", tags=["v2.flags"])
+router.include_router(_auth.router, prefix="/auth", tags=["v2.auth"])
+router.include_router(_users.router, prefix="/users", tags=["v2.users"])
+router.include_router(_channels.router, prefix="/channels", tags=["v2.channels"])
+router.include_router(_content.router, prefix="/content", tags=["v2.content"])
+router.include_router(_system.router, prefix="/system", tags=["v2.system"])
 router.include_router(_notifications.router, prefix="/notifications", tags=["v2.notifications"])
-router.include_router(_experiments.router,   prefix="/experiments",   tags=["v2.experiments"])
-router.include_router(_workspace.router,     prefix="/workspace",     tags=["v2.workspace"])
+router.include_router(_experiments.router, prefix="/experiments", tags=["v2.experiments"])
+router.include_router(_workspace.router, prefix="/workspace", tags=["v2.workspace"])

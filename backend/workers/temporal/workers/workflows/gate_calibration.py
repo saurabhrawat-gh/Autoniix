@@ -3,6 +3,7 @@
 Ported from ``go-workflows/gate_calibration.go``. Task queue: ``scheduler-v2``.
 Cron: weekly Sunday 04:00 UTC.
 """
+
 from __future__ import annotations
 
 from datetime import timedelta

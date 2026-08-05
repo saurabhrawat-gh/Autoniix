@@ -11,6 +11,7 @@ Exports:
   before selection; if entropy of recent picks is below threshold the
   bandit is overridden with the least-pulled arm.
 """
+
 from intelligence.diversity_floor import (
     evaluate_diversity_floor,
     log_bandit_pick,
@@ -26,9 +27,14 @@ from intelligence.prediction_calibration import (
 from intelligence.system_health import aggregate_health
 
 __all__ = [
-    "list_templates", "get_template", "build_performance_context",
-    "evaluate_diversity_floor", "log_bandit_pick",
-    "log_prediction", "update_prediction_actual",
-    "get_calibration_metrics", "get_sample_weights",
+    "list_templates",
+    "get_template",
+    "build_performance_context",
+    "evaluate_diversity_floor",
+    "log_bandit_pick",
+    "log_prediction",
+    "update_prediction_actual",
+    "get_calibration_metrics",
+    "get_sample_weights",
     "aggregate_health",
 ]

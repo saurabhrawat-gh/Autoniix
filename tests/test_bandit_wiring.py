@@ -10,6 +10,7 @@ Static-source asserts beat a runtime test here: a runtime test would
 need to spin up Postgres + a fake LLM, while a single line-order check
 catches the same regression in milliseconds.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -46,26 +47,21 @@ def test_bandit_sampled_before_script_generation(src: str):
     call across lines).
     """
     bandit_idx = _first_index(src, "script.bandit_pre_generation")
-    route_idx  = _first_index(src, 'category="llm.script"')
+    route_idx = _first_index(src, 'category="llm.script"')
     assert bandit_idx >= 0, "expected pre-generation bandit sampling"
-    assert route_idx  >= 0, "expected llm.script router call"
+    assert route_idx >= 0, "expected llm.script router call"
     assert bandit_idx < route_idx, (
-        "Bandit must be sampled before the router call so its choice "
-        "actually steers the prompt."
+        "Bandit must be sampled before the router call so its choice actually steers the prompt."
     )
     hook_idx = _first_index(src, '"hook_style"')
-    assert 0 <= hook_idx < route_idx, (
-        "hook_style bandit must be invoked before the router"
-    )
+    assert 0 <= hook_idx < route_idx, "hook_style bandit must be invoked before the router"
 
 
 def test_bandit_choice_is_injected_into_system_prompt(src: str):
     """The selected arm names must end up in the system prompt string."""
-    assert 'BANDIT GUIDANCE' in src, (
-        "expected the prompt to receive an explicit bandit guidance block"
-    )
-    assert '{selected_hook_style}' in src
-    assert '{selected_pacing}' in src
+    assert "BANDIT GUIDANCE" in src, "expected the prompt to receive an explicit bandit guidance block"
+    assert "{selected_hook_style}" in src
+    assert "{selected_pacing}" in src
 
 
 def test_step5_no_longer_re_samples(src: str):
@@ -86,6 +82,4 @@ def test_starter_topics_field_on_channel_create(src: str):
     dashboard = SCRIPT_MAIN.parent.parent / "dashboard" / "main.py"
     text = dashboard.read_text()
     assert "starter_topics" in text
-    assert "topics_queue" in text, (
-        "expected the create_channel SQL to write topics_queue"
-    )
+    assert "topics_queue" in text, "expected the create_channel SQL to write topics_queue"

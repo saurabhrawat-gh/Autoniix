@@ -14,7 +14,6 @@ logger = structlog.get_logger()
 
 
 class MinIOStorage(StorageProvider):
-
     def __init__(self) -> None:
         self.endpoint: str = settings.s3_endpoint
         self.access_key: str = settings.s3_access_key
@@ -56,15 +55,9 @@ class MinIOStorage(StorageProvider):
             content_type=upload.content_type,
             metadata=upload.metadata,
         )
-        url = (
-            f"{self.public_base}/{prefixed_key}"
-            if self.public_base
-            else f"s3://{self.bucket}/{prefixed_key}"
-        )
+        url = f"{self.public_base}/{prefixed_key}" if self.public_base else f"s3://{self.bucket}/{prefixed_key}"
         logger.info("minio.uploaded", key=prefixed_key, size=len(upload.data))
-        return StorageResult(
-            url=url, key=prefixed_key, size_bytes=len(upload.data), provider="minio"
-        )
+        return StorageResult(url=url, key=prefixed_key, size_bytes=len(upload.data), provider="minio")
 
     async def download(self, key: str) -> bytes:
         response = self.client.get_object(self.bucket, self._prefixed_key(key))
@@ -113,6 +106,7 @@ class MinIOStorage(StorageProvider):
         count = 0
         objects = self.client.list_objects(self.bucket, prefix=prefix, recursive=True)
         from minio.deleteobjects import DeleteObject
+
         delete_list = [DeleteObject(obj.object_name) for obj in objects]
         if delete_list:
             errors = list(self.client.remove_objects(self.bucket, delete_list))

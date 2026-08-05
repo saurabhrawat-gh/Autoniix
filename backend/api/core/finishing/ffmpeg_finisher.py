@@ -11,6 +11,7 @@ mastering chain to the audio track:
 Loudness uses ffmpeg's two-pass ``loudnorm`` method: pass 1 measures integrated
 loudness / true peak / LRA as JSON, pass 2 applies the linear corrective gain.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -97,9 +98,7 @@ def build_audio_filter(cfg: FinishConfig, measured: LoudnormStats | None = None)
     if cfg.audio_compress:
         stages.append("acompressor=threshold=-18dB:ratio=3:attack=5:release=50")
 
-    loudness = (
-        f"loudnorm=I={cfg.audio_loudness_lufs}:TP={cfg.audio_true_peak_dbtps}:LRA=11"
-    )
+    loudness = f"loudnorm=I={cfg.audio_loudness_lufs}:TP={cfg.audio_true_peak_dbtps}:LRA=11"
     if measured is not None:
         loudness += (
             f":measured_I={measured.input_i}"
@@ -119,13 +118,18 @@ def build_audio_filter(cfg: FinishConfig, measured: LoudnormStats | None = None)
 
 def build_measure_command(input_path: str, cfg: FinishConfig) -> list[str]:
     """ffmpeg command for loudnorm pass 1 (measure only, JSON to stderr)."""
-    measure_filter = (
-        f"loudnorm=I={cfg.audio_loudness_lufs}:TP={cfg.audio_true_peak_dbtps}"
-        ":LRA=11:print_format=json"
-    )
+    measure_filter = f"loudnorm=I={cfg.audio_loudness_lufs}:TP={cfg.audio_true_peak_dbtps}:LRA=11:print_format=json"
     return [
-        "ffmpeg", "-hide_banner", "-nostats", "-i", input_path,
-        "-af", measure_filter, "-f", "null", "-",
+        "ffmpeg",
+        "-hide_banner",
+        "-nostats",
+        "-i",
+        input_path,
+        "-af",
+        measure_filter,
+        "-f",
+        "null",
+        "-",
     ]
 
 
@@ -138,26 +142,55 @@ def build_finish_command(
 ) -> list[str]:
     """ffmpeg command for the full finishing pass (LUT + audio master → H.264)."""
     return [
-        "ffmpeg", "-hide_banner", "-y", "-i", input_path,
-        "-vf", build_video_filter(lut_path),
-        "-af", build_audio_filter(cfg, measured),
-        "-c:v", "libx264", "-preset", "medium", "-crf", "18",
-        "-pix_fmt", "yuv420p",
-        "-c:a", "aac", "-b:a", "256k",
-        "-movflags", "+faststart",
+        "ffmpeg",
+        "-hide_banner",
+        "-y",
+        "-i",
+        input_path,
+        "-vf",
+        build_video_filter(lut_path),
+        "-af",
+        build_audio_filter(cfg, measured),
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "18",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "256k",
+        "-movflags",
+        "+faststart",
         output_path,
     ]
 
 
-def build_prores_command(input_path: str, output_path: str, lut_path: str,
-                         cfg: FinishConfig, measured: LoudnormStats | None = None) -> list[str]:
+def build_prores_command(
+    input_path: str, output_path: str, lut_path: str, cfg: FinishConfig, measured: LoudnormStats | None = None
+) -> list[str]:
     """ffmpeg command for a ProRes 4444 archival master (.mov)."""
     return [
-        "ffmpeg", "-hide_banner", "-y", "-i", input_path,
-        "-vf", build_video_filter(lut_path),
-        "-af", build_audio_filter(cfg, measured),
-        "-c:v", "prores_ks", "-profile:v", "4", "-pix_fmt", "yuva444p10le",
-        "-c:a", "pcm_s24le",
+        "ffmpeg",
+        "-hide_banner",
+        "-y",
+        "-i",
+        input_path,
+        "-vf",
+        build_video_filter(lut_path),
+        "-af",
+        build_audio_filter(cfg, measured),
+        "-c:v",
+        "prores_ks",
+        "-profile:v",
+        "4",
+        "-pix_fmt",
+        "yuva444p10le",
+        "-c:a",
+        "pcm_s24le",
         output_path,
     ]
 
@@ -201,13 +234,10 @@ async def run_finishing(
 ) -> None:
     """Two-pass finishing: measure loudness, then apply LUT + mastered audio."""
     measured = await measure_loudnorm(input_path, cfg)
-    rc, stderr = await _run(
-        build_finish_command(input_path, output_path, lut_path, cfg, measured)
-    )
+    rc, stderr = await _run(build_finish_command(input_path, output_path, lut_path, cfg, measured))
     if rc != 0:
         raise FinishingError(f"finishing encode failed (rc={rc}): {stderr[-500:]}")
-    logger.info("finishing.encode_done", output=output_path,
-                preset=cfg.color_grade_preset)
+    logger.info("finishing.encode_done", output=output_path, preset=cfg.color_grade_preset)
 
 
 async def run_prores(
@@ -217,9 +247,7 @@ async def run_prores(
     cfg: FinishConfig,
 ) -> None:
     measured = await measure_loudnorm(input_path, cfg)
-    rc, stderr = await _run(
-        build_prores_command(input_path, output_path, lut_path, cfg, measured)
-    )
+    rc, stderr = await _run(build_prores_command(input_path, output_path, lut_path, cfg, measured))
     if rc != 0:
         raise FinishingError(f"prores encode failed (rc={rc}): {stderr[-500:]}")
     logger.info("finishing.prores_done", output=output_path)

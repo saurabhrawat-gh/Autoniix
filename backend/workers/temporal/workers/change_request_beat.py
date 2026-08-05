@@ -4,6 +4,7 @@ Runs hourly via the ``change-request-expiry`` Temporal schedule.
 Marks any `pending_admin` or `pending_owner` requests whose
 ``expires_at`` has passed as ``expired`` and fires notification stubs.
 """
+
 from __future__ import annotations
 
 from typing import Any

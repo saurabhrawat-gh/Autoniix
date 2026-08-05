@@ -7,6 +7,7 @@ immediately (e.g. after an admin edits the matrix via a future admin UI).
 
 Failures in Redis pub/sub degrade gracefully to TTL-only refresh.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -39,7 +40,6 @@ class PermissionMatrixUnavailable(RuntimeError):
     """
 
 
-
 def _is_cached(role: str) -> tuple[frozenset[str], float] | None:
     entry = _cache.get(role)
     if entry is None:
@@ -63,9 +63,7 @@ async def get_permissions_for_role(role: str) -> frozenset[str]:
 
     try:
         pool = await get_pool()
-        rows = await pool.fetch(
-            "SELECT permission FROM role_permissions WHERE role = $1", role
-        )
+        rows = await pool.fetch("SELECT permission FROM role_permissions WHERE role = $1", role)
         perms: frozenset[str] = frozenset(r["permission"] for r in rows)
     except Exception as exc:
         logger.error(
@@ -74,9 +72,7 @@ async def get_permissions_for_role(role: str) -> frozenset[str]:
             error=str(exc),
             hint="Run 'make migrate' to apply scripts/migrations/202605220001_named_permissions.sql",
         )
-        raise PermissionMatrixUnavailable(
-            f"role_permissions table unreadable for role={role!r}: {exc}"
-        ) from exc
+        raise PermissionMatrixUnavailable(f"role_permissions table unreadable for role={role!r}: {exc}") from exc
 
     if not perms and role in KNOWN_ROLES:
         logger.error(
@@ -85,8 +81,7 @@ async def get_permissions_for_role(role: str) -> frozenset[str]:
             hint="Run 'make migrate' to seed scripts/migrations/202605220001_named_permissions.sql",
         )
         raise PermissionMatrixUnavailable(
-            f"role_permissions matrix has no rows for known role={role!r} — "
-            "RBAC catalog appears uninitialized"
+            f"role_permissions matrix has no rows for known role={role!r} — RBAC catalog appears uninitialized"
         )
 
     _cache[role] = (perms, time.monotonic() + _TTL_SECONDS)
@@ -119,6 +114,7 @@ async def publish_invalidate(role: str | None = None) -> None:
     """Publish an invalidation event.  Best-effort; never raises."""
     try:
         from core.redis_client import get_redis
+
         redis = await get_redis()
         payload = json.dumps({"role": role})
         await redis.publish(CHANNEL_NAME, payload)
@@ -144,6 +140,7 @@ async def _consume(pubsub: Any) -> None:
 
 async def _subscriber_loop() -> None:
     from core.redis_client import get_redis
+
     while True:
         try:
             redis = await get_redis()

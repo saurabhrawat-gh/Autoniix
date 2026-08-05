@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 import json
 import re
 from contextlib import asynccontextmanager
@@ -8,32 +7,30 @@ from contextlib import asynccontextmanager
 import httpx
 import structlog
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
+import providers.boot  # noqa: F401
 from core.config import settings
 from core.db import close_pool, get_pool
-from schemas.common import HealthResponse, ServiceResponse
-
-import providers.boot  # noqa: F401
-from providers.registry import ProviderRegistry
-from providers.llm.base import LLMRequest
-from providers.storage.base import StorageUpload
-
-from services_api.assets.query_optimizer import (
-    optimize_query,
-    check_asset_cache,
-    store_in_cache,
-    log_search,
-)
-from services_api.assets.provider_chain import (
-    run_chain,
-    provider_health_snapshot,
-)
 from observability.metrics import instrument_app
+from providers.registry import ProviderRegistry
+from providers.storage.base import StorageUpload
+from schemas.common import HealthResponse, ServiceResponse
+from services_api.assets.provider_chain import (
+    provider_health_snapshot,
+    run_chain,
+)
+from services_api.assets.query_optimizer import (
+    check_asset_cache,
+    log_search,
+    optimize_query,
+    store_in_cache,
+)
 
 try:
-    from prometheus_client import Counter, Histogram, Gauge
+    from prometheus_client import Counter, Gauge, Histogram
+
     ASSET_COVERAGE_TOTAL = Counter(
         "asset_coverage_total",
         "Per-segment asset acquisition outcomes.",
@@ -50,15 +47,23 @@ try:
         labelnames=("provider",),
     )
 except Exception:  # pragma: no cover
+
     class _Noop:
-        def labels(self, *a, **kw): return self
-        def inc(self, *a, **kw): return None
-        def observe(self, *a, **kw): return None
-        def set(self, *a, **kw): return None
+        def labels(self, *a, **kw):
+            return self
+
+        def inc(self, *a, **kw):
+            return None
+
+        def observe(self, *a, **kw):
+            return None
+
+        def set(self, *a, **kw):
+            return None
+
     ASSET_COVERAGE_TOTAL = ASSET_RELEVANCE = ASSET_PROVIDER_HEALTH = _Noop()  # type: ignore
 
 logger = structlog.get_logger()
-
 
 
 class AssetsRequest(BaseModel):
@@ -74,7 +79,6 @@ class MusicRequest(BaseModel):
     channel_id: str
     mood: str = ""
     duration_s: float = 45.0
-
 
 
 def _parse_json(text: str) -> dict:
@@ -95,10 +99,13 @@ async def _log_usage(content_id: str, service: str, provider: str, cost: float):
         pool = await get_pool()
         await pool.execute(
             "INSERT INTO api_usage (content_id, service, provider, cost_usd) VALUES ($1, $2, $3, $4)",
-            content_id, service, provider, float(cost))
+            content_id,
+            service,
+            provider,
+            float(cost),
+        )
     except Exception as e:
         logger.warning("assets.db_log_failed", error=str(e))
-
 
 
 NICHE_KEYWORDS: dict[str, list[str]] = {
@@ -119,6 +126,7 @@ def _expand_query_for_niche(query: str, niche: str, content_mode: str = "short")
     niche_terms = NICHE_KEYWORDS.get(niche, [])
     if niche_terms:
         import random
+
         extras = random.sample(niche_terms, min(2, len(niche_terms)))
         query = f"{query} {' '.join(extras)}"
 
@@ -149,7 +157,6 @@ def _filter_by_aspect_ratio(clips: list[dict], content_mode: str = "short") -> l
     return scored
 
 
-
 async def _search_pixabay_videos(query: str, min_duration: int = 5) -> list[dict]:
     """Search Pixabay for stock video clips."""
     api_key = settings.pixabay_api_key
@@ -157,14 +164,21 @@ async def _search_pixabay_videos(query: str, min_duration: int = 5) -> list[dict
         return []
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get("https://pixabay.com/api/videos/", params={
-                "key": api_key, "q": query, "per_page": 5, "min_width": 1280,
-            })
+            resp = await client.get(
+                "https://pixabay.com/api/videos/",
+                params={
+                    "key": api_key,
+                    "q": query,
+                    "per_page": 5,
+                    "min_width": 1280,
+                },
+            )
             resp.raise_for_status()
             hits = resp.json().get("hits", [])
             return [
                 {
-                    "source": "pixabay", "id": str(h["id"]),
+                    "source": "pixabay",
+                    "id": str(h["id"]),
                     "url": h.get("videos", {}).get("medium", {}).get("url", ""),
                     "thumbnail": h.get("videos", {}).get("tiny", {}).get("thumbnail", ""),
                     "duration": h.get("duration", 0),
@@ -173,7 +187,8 @@ async def _search_pixabay_videos(query: str, min_duration: int = 5) -> list[dict
                     "tags": h.get("tags", ""),
                     "license": "pixabay_free",
                 }
-                for h in hits if h.get("duration", 0) >= min_duration
+                for h in hits
+                if h.get("duration", 0) >= min_duration
             ]
     except Exception as e:
         logger.warning("assets.pixabay_failed", error=str(e))
@@ -187,9 +202,15 @@ async def _search_pexels_videos(query: str, min_duration: int = 5) -> list[dict]
         return []
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get("https://api.pexels.com/videos/search", params={
-                "query": query, "per_page": 5, "size": "medium",
-            }, headers={"Authorization": api_key})
+            resp = await client.get(
+                "https://api.pexels.com/videos/search",
+                params={
+                    "query": query,
+                    "per_page": 5,
+                    "size": "medium",
+                },
+                headers={"Authorization": api_key},
+            )
             resp.raise_for_status()
             videos = resp.json().get("videos", [])
             results = []
@@ -203,21 +224,23 @@ async def _search_pexels_videos(query: str, min_duration: int = 5) -> list[dict]
                 if not best and files:
                     best = files[0]
                 if best and v.get("duration", 0) >= min_duration:
-                    results.append({
-                        "source": "pexels", "id": str(v["id"]),
-                        "url": best.get("link", ""),
-                        "thumbnail": v.get("image", ""),
-                        "duration": v.get("duration", 0),
-                        "width": best.get("width", 0),
-                        "height": best.get("height", 0),
-                        "tags": "",
-                        "license": "pexels_free",
-                    })
+                    results.append(
+                        {
+                            "source": "pexels",
+                            "id": str(v["id"]),
+                            "url": best.get("link", ""),
+                            "thumbnail": v.get("image", ""),
+                            "duration": v.get("duration", 0),
+                            "width": best.get("width", 0),
+                            "height": best.get("height", 0),
+                            "tags": "",
+                            "license": "pexels_free",
+                        }
+                    )
             return results
     except Exception as e:
         logger.warning("assets.pexels_failed", error=str(e))
         return []
-
 
 
 async def _search_freesound(query: str, duration_max: float = 30.0) -> list[dict]:
@@ -227,16 +250,22 @@ async def _search_freesound(query: str, duration_max: float = 30.0) -> list[dict
         return []
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get("https://freesound.org/apiv2/search/text/", params={
-                "query": query, "filter": f"duration:[0 TO {duration_max}]",
-                "fields": "id,name,duration,previews,license,tags",
-                "page_size": 5, "token": api_key,
-            })
+            resp = await client.get(
+                "https://freesound.org/apiv2/search/text/",
+                params={
+                    "query": query,
+                    "filter": f"duration:[0 TO {duration_max}]",
+                    "fields": "id,name,duration,previews,license,tags",
+                    "page_size": 5,
+                    "token": api_key,
+                },
+            )
             resp.raise_for_status()
             results = resp.json().get("results", [])
             return [
                 {
-                    "source": "freesound", "id": str(r["id"]),
+                    "source": "freesound",
+                    "id": str(r["id"]),
                     "name": r.get("name", ""),
                     "url": r.get("previews", {}).get("preview-hq-mp3", ""),
                     "duration": r.get("duration", 0),
@@ -250,7 +279,6 @@ async def _search_freesound(query: str, duration_max: float = 30.0) -> list[dict
         return []
 
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("assets.starting")
@@ -260,12 +288,15 @@ async def lifespan(app: FastAPI):
 
 
 from observability.sentry import init_sentry
+
 init_sentry("assets")
 
 app = FastAPI(title="Assets Service", version="0.1.0", lifespan=lifespan)
 
 
 instrument_app(app, service_name="assets")
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="assets")
@@ -282,8 +313,8 @@ async def generate_assets(req: AssetsRequest):
     stock_count = 0
     generated_count = 0
 
-    import asyncio
     import time as _time
+
     channel = await _load_channel(req.channel_id)
     cache_enabled = True
 
@@ -307,30 +338,40 @@ async def generate_assets(req: AssetsRequest):
             if cache_enabled and query_hash:
                 cached = await check_asset_cache(query_hash)
                 if cached:
-                    manifest.append({
-                        "segment_id": seg_id,
-                        "type": cached.get("asset_type", "stock_video"),
-                        "source": cached.get("provider", "cache"),
-                        "assets": [{"url": cached["url"], "type": cached["asset_type"],
-                                     "source": "cache", "cached": True}],
-                    })
+                    manifest.append(
+                        {
+                            "segment_id": seg_id,
+                            "type": cached.get("asset_type", "stock_video"),
+                            "source": cached.get("provider", "cache"),
+                            "assets": [
+                                {"url": cached["url"], "type": cached["asset_type"], "source": "cache", "cached": True}
+                            ],
+                        }
+                    )
                     stock_count += 1
                     ASSET_COVERAGE_TOTAL.labels(outcome="cached").inc()
-                    await log_search(req.content_id, req.channel_id, seg_id,
-                                     query, "cache", 1, used_cache=True,
-                                     search_time_ms=int((_time.time() - search_start) * 1000))
+                    await log_search(
+                        req.content_id,
+                        req.channel_id,
+                        seg_id,
+                        query,
+                        "cache",
+                        1,
+                        used_cache=True,
+                        search_time_ms=int((_time.time() - search_start) * 1000),
+                    )
                     continue
 
             niche = channel.get("niche", "") if channel else ""
             expanded_query = _expand_query_for_niche(query, niche, req.content_mode)
 
             target_dur_s = float(seg.get("duration_ms", 0) or 0) / 1000.0
-            motion_intent = (seg.get("motion_intent")
-                              or seg.get("mood", {}).get("name")
-                              or ("frenetic" if req.content_mode == "short" else "dynamic"))
-            brand_palette = (channel.get("brand_palette")
-                             or channel.get("brand_color_palette")
-                             or [])
+            motion_intent = (
+                seg.get("motion_intent")
+                or seg.get("mood", {}).get("name")
+                or ("frenetic" if req.content_mode == "short" else "dynamic")
+            )
+            brand_palette = channel.get("brand_palette") or channel.get("brand_color_palette") or []
             if isinstance(brand_palette, str):
                 try:
                     brand_palette = json.loads(brand_palette)
@@ -364,57 +405,80 @@ async def generate_assets(req: AssetsRequest):
                     url = sr.url
 
                     relevance = float(best.final) if best else 0.0
-                    manifest.append({
-                        "segment_id": seg_id,
-                        "type": "stock_video",
-                        "source": selected_clip["source"],
-                        "assets": [{
-                            "url": url, "key": key,
+                    manifest.append(
+                        {
+                            "segment_id": seg_id,
                             "type": "stock_video",
                             "source": selected_clip["source"],
-                            "source_id": selected_clip["id"],
-                            "duration": selected_clip.get("duration", 0),
-                            "license": selected_clip.get("license", ""),
-                            "relevance_score": relevance,
-                            "sub_scores": best.as_dict() if best else {},
-                        }],
-                    })
+                            "assets": [
+                                {
+                                    "url": url,
+                                    "key": key,
+                                    "type": "stock_video",
+                                    "source": selected_clip["source"],
+                                    "source_id": selected_clip["id"],
+                                    "duration": selected_clip.get("duration", 0),
+                                    "license": selected_clip.get("license", ""),
+                                    "relevance_score": relevance,
+                                    "sub_scores": best.as_dict() if best else {},
+                                }
+                            ],
+                        }
+                    )
                     stock_count += 1
                     ASSET_COVERAGE_TOTAL.labels(outcome="stock").inc()
                     ASSET_RELEVANCE.observe(relevance)
                     await store_in_cache(
-                        query, selected_clip["source"], selected_clip["url"],
-                        minio_key=key, quality_score=round(relevance * 10, 2),
-                        duration_s=float(selected_clip.get("duration", 0)))
-                    await log_search(req.content_id, req.channel_id, seg_id,
-                                     query, selected_clip["source"],
-                                     len(chain_result.all_scored),
-                                     selected_id=selected_clip["id"],
-                                     search_time_ms=int((_time.time() - search_start) * 1000))
+                        query,
+                        selected_clip["source"],
+                        selected_clip["url"],
+                        minio_key=key,
+                        quality_score=round(relevance * 10, 2),
+                        duration_s=float(selected_clip.get("duration", 0)),
+                    )
+                    await log_search(
+                        req.content_id,
+                        req.channel_id,
+                        seg_id,
+                        query,
+                        selected_clip["source"],
+                        len(chain_result.all_scored),
+                        selected_id=selected_clip["id"],
+                        search_time_ms=int((_time.time() - search_start) * 1000),
+                    )
                     continue
                 except Exception as dl_err:
                     logger.warning("assets.stock_download_failed", seg=seg_id, error=str(dl_err))
 
             enable_dalle = bool(channel.get("enable_dalle_fallback", False))
             if not enable_dalle:
-                manifest.append({
-                    "segment_id": seg_id,
-                    "type": "kinetic_text",
-                    "source": "fallback",
-                    "assets": [{
+                manifest.append(
+                    {
+                        "segment_id": seg_id,
                         "type": "kinetic_text",
-                        "text": (direction or query)[:140],
-                        "reason": "no stock candidate above relevance threshold",
-                        "chain_candidates": len(chain_result.all_scored),
-                        "providers_called": chain_result.providers_called,
-                    }],
-                })
+                        "source": "fallback",
+                        "assets": [
+                            {
+                                "type": "kinetic_text",
+                                "text": (direction or query)[:140],
+                                "reason": "no stock candidate above relevance threshold",
+                                "chain_candidates": len(chain_result.all_scored),
+                                "providers_called": chain_result.providers_called,
+                            }
+                        ],
+                    }
+                )
                 ASSET_COVERAGE_TOTAL.labels(outcome="kinetic_fallback").inc()
-                await log_search(req.content_id, req.channel_id, seg_id,
-                                 query, "kinetic_fallback",
-                                 len(chain_result.all_scored),
-                                 used_fallback=True,
-                                 search_time_ms=int((_time.time() - search_start) * 1000))
+                await log_search(
+                    req.content_id,
+                    req.channel_id,
+                    seg_id,
+                    query,
+                    "kinetic_fallback",
+                    len(chain_result.all_scored),
+                    used_fallback=True,
+                    search_time_ms=int((_time.time() - search_start) * 1000),
+                )
                 continue
 
             image_provider = ProviderRegistry.get("image")
@@ -423,9 +487,15 @@ async def generate_assets(req: AssetsRequest):
             prompt = f"YouTube video scene: {direction}. {', '.join(suggestions[:3])}"
             prompt = prompt[:900]
 
-            img_result = await image_provider.generate(ImageRequest(
-                prompt=prompt, size="1792x1024", quality="standard", style="vivid", n=1,
-            ))
+            img_result = await image_provider.generate(
+                ImageRequest(
+                    prompt=prompt,
+                    size="1792x1024",
+                    quality="standard",
+                    style="vivid",
+                    n=1,
+                )
+            )
             total_cost += img_result.cost_usd
 
             assets = []
@@ -443,17 +513,28 @@ async def generate_assets(req: AssetsRequest):
                 key = f"assets/{req.content_id}/{seg_id}_{i}.png"
                 sr = await storage.upload(StorageUpload(key=key, data=img_bytes, content_type="image/png"))
                 url = sr.url
-                assets.append({
-                    "url": url, "key": key, "type": "generated_image",
-                    "prompt": prompt[:200],
-                })
+                assets.append(
+                    {
+                        "url": url,
+                        "key": key,
+                        "type": "generated_image",
+                        "prompt": prompt[:200],
+                    }
+                )
                 generated_count += 1
 
             manifest.append({"segment_id": seg_id, "type": "generated_image", "assets": assets})
             ASSET_COVERAGE_TOTAL.labels(outcome="dalle").inc()
-            await log_search(req.content_id, req.channel_id, seg_id,
-                             query, "dalle", 0, used_fallback=True,
-                             search_time_ms=int((_time.time() - search_start) * 1000))
+            await log_search(
+                req.content_id,
+                req.channel_id,
+                seg_id,
+                query,
+                "dalle",
+                0,
+                used_fallback=True,
+                search_time_ms=int((_time.time() - search_start) * 1000),
+            )
 
         except Exception as exc:
             logger.warning("assets.segment_failed", segment_id=seg_id, error=str(exc))
@@ -463,8 +544,9 @@ async def generate_assets(req: AssetsRequest):
     await _log_usage(req.content_id, "assets", "multi", total_cost)
 
     total_assets = sum(len(m.get("assets", [])) for m in manifest)
-    logger.info("assets.generated", total=total_assets, stock=stock_count,
-                 generated=generated_count, cost=round(total_cost, 4))
+    logger.info(
+        "assets.generated", total=total_assets, stock=stock_count, generated=generated_count, cost=round(total_cost, 4)
+    )
 
     return ServiceResponse(
         status="success",
@@ -478,7 +560,6 @@ async def generate_assets(req: AssetsRequest):
     )
 
 
-
 @app.post("/search-music", response_model=ServiceResponse)
 async def search_music(req: MusicRequest):
     """Search for background music and SFX."""
@@ -489,8 +570,9 @@ async def search_music(req: MusicRequest):
     sfx_count = {"minimal": 1, "low": 2, "medium": 4, "high": 6}.get(sfx_density, 2)
 
     import asyncio
+
     music_task = _search_freesound(f"{mood} background music", duration_max=req.duration_s * 2)
-    sfx_task = _search_freesound(f"transition whoosh impact", duration_max=5.0)
+    sfx_task = _search_freesound("transition whoosh impact", duration_max=5.0)
 
     music_results, sfx_results = await asyncio.gather(music_task, sfx_task)
 

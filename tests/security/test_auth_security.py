@@ -11,6 +11,7 @@ Run:
     PYTHON_DASHBOARD_URL=http://localhost:8000 \
     pytest tests/security/test_auth_security.py -v
 """
+
 from __future__ import annotations
 
 import os
@@ -56,8 +57,6 @@ def rust_available(client: httpx.Client):
 @pytest.fixture
 def python_available(client: httpx.Client):
     skip_if_unavailable(client, PYTHON_URL, "Python dashboard")
-
-
 
 
 class TestSQLInjection:
@@ -118,11 +117,8 @@ class TestSQLInjection:
                 },
             )
             assert resp.status_code in (400, 409, 422), (
-                f"Rust /register must reject injection payload '{payload}', "
-                f"got {resp.status_code}"
+                f"Rust /register must reject injection payload '{payload}', got {resp.status_code}"
             )
-
-
 
 
 class TestJWTSecurity:
@@ -219,11 +215,9 @@ class TestJWTSecurity:
         body = resp.json()
         global_role = (body.get("data") or {}).get("global_role") or body.get("global_role")
         assert global_role != "superadmin", (
-            f"PRIVILEGE ESCALATION: /me returned global_role='superadmin' from "
-            f"forged JWT claim. Server must read role from DB, not JWT."
+            "PRIVILEGE ESCALATION: /me returned global_role='superadmin' from "
+            "forged JWT claim. Server must read role from DB, not JWT."
         )
-
-
 
 
 class TestBruteForce:
@@ -300,8 +294,6 @@ class TestBruteForce:
             print(f"✓ Timing attack resistant (diff={diff:.3f}s)")
 
 
-
-
 class TestSecurityHeaders:
     """OWASP A05:2021 — Security Misconfiguration."""
 
@@ -320,8 +312,6 @@ class TestSecurityHeaders:
             print(f"⚠ Missing security headers: {missing}")
         else:
             print("✓ All recommended security headers present")
-
-
 
 
 class TestPasswordPolicy:
@@ -344,8 +334,7 @@ class TestPasswordPolicy:
                 },
             )
             assert resp.status_code in (400, 422), (
-                f"Rust /register must reject weak password '{pw}' (len={len(pw)}), "
-                f"got {resp.status_code}: {resp.text}"
+                f"Rust /register must reject weak password '{pw}' (len={len(pw)}), got {resp.status_code}: {resp.text}"
             )
 
     @pytest.mark.usefixtures("rust_available")
@@ -363,9 +352,7 @@ class TestPasswordPolicy:
                 "workspace_name": "WS",
             },
         )
-        assert resp.status_code != 500, (
-            f"Rust must not crash on long password, got {resp.status_code}: {resp.text}"
-        )
+        assert resp.status_code != 500, f"Rust must not crash on long password, got {resp.status_code}: {resp.text}"
 
     @pytest.mark.usefixtures("rust_available")
     def test_duplicate_email_returns_409_rust(self, client: httpx.Client):
@@ -384,6 +371,4 @@ class TestPasswordPolicy:
         assert first.status_code == 201, f"first register must succeed: {first.text}"
 
         second = client.post(f"{RUST_URL}/api/v2/auth/register", json=body)
-        assert second.status_code == 409, (
-            f"duplicate email must return 409, got {second.status_code}: {second.text}"
-        )
+        assert second.status_code == 409, f"duplicate email must return 409, got {second.status_code}: {second.text}"

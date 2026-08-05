@@ -8,6 +8,7 @@ On every Sentry alert:
   4. Attempts an LLM-powered code fix + GitHub PR
   5. Replies in the Slack thread with the PR link
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -15,9 +16,6 @@ import logging
 
 import redis.asyncio as aioredis
 import structlog
-from slack_bolt.async_app import AsyncApp
-from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
-
 from config import (
     DEDUP_TTL_SECONDS,
     REDIS_URL,
@@ -29,6 +27,8 @@ from config import (
 from fix_agent import FixAgent
 from jira_client import JiraClient
 from sentry_client import SentryClient
+from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
+from slack_bolt.async_app import AsyncApp
 from triage import (
     detect_layer,
     map_priority,
@@ -63,9 +63,7 @@ async def on_message(event: dict, client: object) -> None:
     is_critical = channel_id == SLACK_CRITICAL_CHANNEL_ID
     thread_ts: str = event.get("ts", "")
 
-    asyncio.create_task(
-        _process(alert, is_critical, channel_id, thread_ts, client)
-    )
+    asyncio.create_task(_process(alert, is_critical, channel_id, thread_ts, client))
 
 
 async def _process(
@@ -80,12 +78,12 @@ async def _process(
         dedup_key = f"sentry:dedup:{alert['fingerprint']}"
         existing_ticket = await redis_client.get(dedup_key)
         if existing_ticket:
-            logger.info("sentry_agent.dedup_skip",
-                        fingerprint=alert["fingerprint"], ticket=existing_ticket)
+            logger.info("sentry_agent.dedup_skip", fingerprint=alert["fingerprint"], ticket=existing_ticket)
             return
 
-        await _slack_reply(client, channel_id, thread_ts,
-                           f":robot_face: *Sentry Agent* picked up `{alert['title']}` — triaging...")
+        await _slack_reply(
+            client, channel_id, thread_ts, f":robot_face: *Sentry Agent* picked up `{alert['title']}` — triaging..."
+        )
 
         sentry = SentryClient()
         full_issue = await sentry.get_issue(alert["issue_id"])
@@ -108,11 +106,14 @@ async def _process(
         ticket_key: str = ticket["key"]
 
         await redis_client.setex(dedup_key, DEDUP_TTL_SECONDS, ticket_key)
-        logger.info("sentry_agent.ticket_created", ticket=ticket_key,
-                    layer=layer, priority=jira_priority)
+        logger.info("sentry_agent.ticket_created", ticket=ticket_key, layer=layer, priority=jira_priority)
 
-        await _slack_reply(client, channel_id, thread_ts,
-                           f":ticket: Jira `{ticket_key}` created ({jira_priority}) — attempting auto-fix...")
+        await _slack_reply(
+            client,
+            channel_id,
+            thread_ts,
+            f":ticket: Jira `{ticket_key}` created ({jira_priority}) — attempting auto-fix...",
+        )
 
         fixer = FixAgent()
         pr_url = await fixer.attempt_fix(full_issue, ticket_key)
@@ -123,31 +124,32 @@ async def _process(
                 f"Sentry Agent auto-fix PR: {pr_url}",
             )
             await _slack_reply(
-                client, channel_id, thread_ts,
-                f":white_check_mark: *Fix ready for review*\n"
-                f"> PR: {pr_url}\n"
-                f"> Jira: `{ticket_key}`",
+                client,
+                channel_id,
+                thread_ts,
+                f":white_check_mark: *Fix ready for review*\n> PR: {pr_url}\n> Jira: `{ticket_key}`",
             )
         else:
             await _slack_reply(
-                client, channel_id, thread_ts,
-                f":warning: Could not auto-fix — ticket `{ticket_key}` is `ready-for-dev`. "
-                f"Dev team will pick it up.",
+                client,
+                channel_id,
+                thread_ts,
+                f":warning: Could not auto-fix — ticket `{ticket_key}` is `ready-for-dev`. Dev team will pick it up.",
             )
 
     except Exception as exc:
         logger.exception("sentry_agent.processing_failed", error=str(exc))
         await _slack_reply(
-            client, channel_id, thread_ts,
+            client,
+            channel_id,
+            thread_ts,
             f":x: Sentry Agent error: `{exc}`\nCheck agent logs for details.",
         )
     finally:
         await redis_client.aclose()
 
 
-async def _slack_reply(
-    client: object, channel: str, thread_ts: str, text: str
-) -> None:
+async def _slack_reply(client: object, channel: str, thread_ts: str, text: str) -> None:
     await client.chat_postMessage(
         channel=channel,
         thread_ts=thread_ts,
@@ -156,9 +158,9 @@ async def _slack_reply(
 
 
 async def main() -> None:
-    logger.info("sentry_agent.starting",
-                critical_channel=SLACK_CRITICAL_CHANNEL_ID,
-                warnings_channel=SLACK_WARNINGS_CHANNEL_ID)
+    logger.info(
+        "sentry_agent.starting", critical_channel=SLACK_CRITICAL_CHANNEL_ID, warnings_channel=SLACK_WARNINGS_CHANNEL_ID
+    )
     handler = AsyncSocketModeHandler(app, SLACK_APP_TOKEN)
     await handler.start_async()
 

@@ -3,6 +3,7 @@
 Wraps the existing ``ProviderRegistry`` storage so handlers can be unit-tested
 by patching this single function instead of monkey-patching the registry.
 """
+
 from __future__ import annotations
 
 import structlog

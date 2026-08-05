@@ -9,14 +9,11 @@ Uses local NLP + embeddings to capture a channel's unique identity:
 
 Intelligence cost: $0.00 — all computation is local.
 """
+
 from __future__ import annotations
 
-import asyncio
-import hashlib
 import json
-from typing import Any
 
-import numpy as np
 import structlog
 
 from core.db import get_pool
@@ -85,7 +82,7 @@ def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
     hex_color = hex_color.lstrip("#")
     if len(hex_color) != 6:
         return (128, 128, 128)
-    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
 
 
 def _color_distance(c1: tuple, c2: tuple) -> float:
@@ -220,14 +217,23 @@ async def load_brand_profile(channel_id: str) -> dict | None:
     """Load brand profile from DB, returns None if not found."""
     try:
         pool = await get_pool()
-        row = await pool.fetchrow(
-            "SELECT * FROM brand_profiles WHERE channel_id = $1", channel_id)
+        row = await pool.fetchrow("SELECT * FROM brand_profiles WHERE channel_id = $1", channel_id)
         if not row:
             return None
         profile = dict(row)
-        for key in ["color_palette", "fonts", "thumbnail_style_rules", "voice_fingerprint",
-                     "vocabulary_whitelist", "vocabulary_blacklist", "speaking_style",
-                     "preferred_transitions", "pacing_profile", "camera_style_weights", "personas"]:
+        for key in [
+            "color_palette",
+            "fonts",
+            "thumbnail_style_rules",
+            "voice_fingerprint",
+            "vocabulary_whitelist",
+            "vocabulary_blacklist",
+            "speaking_style",
+            "preferred_transitions",
+            "pacing_profile",
+            "camera_style_weights",
+            "personas",
+        ]:
             if profile.get(key) and isinstance(profile[key], str):
                 try:
                     profile[key] = json.loads(profile[key])
@@ -243,7 +249,8 @@ async def save_brand_profile(channel_id: str, fingerprint: dict) -> bool:
     """Upsert brand profile to DB."""
     try:
         pool = await get_pool()
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO brand_profiles (channel_id, color_palette, fonts, voice_fingerprint,
                 vocabulary_whitelist, vocabulary_blacklist, speaking_style,
                 humor_level, formality_level, energy_level, pacing_profile, camera_style_weights)
@@ -283,7 +290,7 @@ async def save_brand_profile(channel_id: str, fingerprint: dict) -> bool:
 
 def score_brand_consistency(content_data: dict, fingerprint: dict) -> dict:
     """Score how well content adheres to the brand identity.
-    
+
     Returns {consistency_score: float, deviations: list, suggestions: list}.
     """
     score = 10.0

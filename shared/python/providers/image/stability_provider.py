@@ -48,11 +48,12 @@ class StabilityAI(ImageProvider):
 
         images = []
         for artifact in data.get("artifacts", []):
-            import base64
-            images.append({
-                "url": f"data:image/png;base64,{artifact['base64']}",
-                "revised_prompt": request.prompt,
-            })
+            images.append(
+                {
+                    "url": f"data:image/png;base64,{artifact['base64']}",
+                    "revised_prompt": request.prompt,
+                }
+            )
 
         cost = request.n * COST_PER_IMAGE
 
@@ -76,7 +77,7 @@ class StabilityAI(ImageProvider):
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.get(
-                    f"https://api.stability.ai/v1/user/balance",
+                    "https://api.stability.ai/v1/user/balance",
                     headers={"Authorization": f"Bearer {self.api_key}"},
                 )
                 return resp.status_code == 200

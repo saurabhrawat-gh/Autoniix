@@ -29,30 +29,29 @@ label as the calibration target for the dimensions where they apply
 All math here is pure: no DB, no API calls. The wrapper that pulls
 from YouTube Analytics lives in ``src/services/analytics/retention_fetcher``.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Iterable
 
 
-
-
 @dataclass
 class CurvePoint:
     """One sample on the audience-retention curve."""
+
     elapsed_ratio: float
-    watch_ratio:   float
+    watch_ratio: float
 
 
 @dataclass
 class RetentionFeatures:
     """The three derived features the Phase 9 calibrator consumes."""
+
     hook_dropoff_30s: float | None
-    mid_video_decay:  float | None
-    end_retention:    float | None
-    valid:            bool
-
-
+    mid_video_decay: float | None
+    end_retention: float | None
+    valid: bool
 
 
 def _interpolate_at(curve: list[CurvePoint], at: float) -> float | None:
@@ -115,8 +114,6 @@ def _avg_over_range(curve: list[CurvePoint], lo: float, hi: float) -> float | No
     if width <= 0:
         return None
     return area / width
-
-
 
 
 def parse_curve(raw: Iterable) -> list[CurvePoint]:

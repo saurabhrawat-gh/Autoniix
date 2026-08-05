@@ -25,6 +25,7 @@ The pure-function core (``shannon_entropy`` and
 ``should_force_exploration``) is testable without a DB. The wrapper
 layer reads/writes ``bandit_picks``.
 """
+
 from __future__ import annotations
 
 import math
@@ -35,15 +36,11 @@ import structlog
 logger = structlog.get_logger()
 
 
-
-
 DEFAULT_LOOKBACK_N = 20
 
 DIVERSITY_THRESHOLD = 0.55
 
 MIN_PICKS_FOR_GUARD = 8
-
-
 
 
 def shannon_entropy(counts: Iterable[int]) -> float:
@@ -119,8 +116,6 @@ def pick_least_pulled(
     return min(arms, key=_key)
 
 
-
-
 async def log_bandit_pick(
     *,
     niche: str,
@@ -137,6 +132,7 @@ async def log_bandit_pick(
     """
     try:
         from core.db import get_pool
+
         pool = await get_pool()
         await pool.execute(
             """
@@ -144,11 +140,14 @@ async def log_bandit_pick(
                                        arm_name, forced_exploration)
             VALUES ($1, $2, $3, $4, $5)
             """,
-            niche, bandit_type, channel_id, arm_name, forced_exploration,
+            niche,
+            bandit_type,
+            channel_id,
+            arm_name,
+            forced_exploration,
         )
     except Exception as exc:
-        logger.warning("diversity.log_pick_failed",
-                       niche=niche, bandit_type=bandit_type, error=str(exc))
+        logger.warning("diversity.log_pick_failed", niche=niche, bandit_type=bandit_type, error=str(exc))
 
 
 async def get_recent_arm_counts(
@@ -171,6 +170,7 @@ async def get_recent_arm_counts(
         return {}
     try:
         from core.db import get_pool
+
         pool = await get_pool()
         rows = await pool.fetch(
             """
@@ -183,12 +183,13 @@ async def get_recent_arm_counts(
             ) recent
             GROUP BY arm_name
             """,
-            channel_id, bandit_type, lookback_n,
+            channel_id,
+            bandit_type,
+            lookback_n,
         )
         return {r["arm_name"]: int(r["picks"]) for r in rows}
     except Exception as exc:
-        logger.warning("diversity.fetch_counts_failed",
-                       channel_id=channel_id, bandit_type=bandit_type, error=str(exc))
+        logger.warning("diversity.fetch_counts_failed", channel_id=channel_id, bandit_type=bandit_type, error=str(exc))
         return {}
 
 
@@ -218,7 +219,9 @@ async def evaluate_diversity_floor(
     DB error → ``force=False``.
     """
     counts = await get_recent_arm_counts(
-        channel_id=channel_id, bandit_type=bandit_type, lookback_n=lookback_n,
+        channel_id=channel_id,
+        bandit_type=bandit_type,
+        lookback_n=lookback_n,
     )
     count_list = list(counts.values())
     n_recent = sum(count_list)
@@ -228,9 +231,9 @@ async def evaluate_diversity_floor(
     forced_arm = pick_least_pulled(counts, available_arms=available_arms) if force else None
 
     return {
-        "force":          force,
-        "forced_arm":     forced_arm,
-        "entropy":        round(entropy, 4),
+        "force": force,
+        "forced_arm": forced_arm,
+        "entropy": round(entropy, 4),
         "n_recent_picks": n_recent,
-        "arm_counts":     counts,
+        "arm_counts": counts,
     }

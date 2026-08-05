@@ -20,6 +20,7 @@ This isolates the RBAC enforcement from DB / network and keeps the suite
 fast.  The full HTTP wiring (route → dep → handler) is exercised by the
 adjacent ``test_workspace_v2.py`` and the e2e Playwright spec from AE-274.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
@@ -32,86 +33,90 @@ from services_api.dashboard.v2._deps import Principal, require_permission
 _PERMS_MODULE = "services_api.dashboard.v2._permissions.get_permissions_for_role"
 
 
-
-ALL_PERMISSIONS = frozenset({
-    "workspace.view",
-    "workspace.settings.view",
-    "workspace.settings.edit",
-    "workspace.billing.view",
-    "workspace.billing.manage",
-    "workspace.members.view",
-    "workspace.members.invite",
-    "workspace.members.remove",
-    "workspace.members.role.change",
-    "workspace.ownership.transfer",
-    "workspace.integrations.view",
-    "workspace.integrations.manage",
-    "workspace.audit_log.view",
-    "channel.view",
-    "channel.create",
-    "channel.settings.edit",
-    "channel.delete",
-    "channel.credentials.view.labels",
-    "channel.credentials.manage",
-    "project.view",
-    "project.create",
-    "project.edit",
-    "project.delete",
-    "project.approve",
-    "project.publish",
-    "job.view",
-    "job.trigger",
-    "job.cancel",
-    "job.retry",
-    "analytics.view",
-    "analytics.export",
-    "credentials.view.labels",
-    "credentials.view.manage",
-})
+ALL_PERMISSIONS = frozenset(
+    {
+        "workspace.view",
+        "workspace.settings.view",
+        "workspace.settings.edit",
+        "workspace.billing.view",
+        "workspace.billing.manage",
+        "workspace.members.view",
+        "workspace.members.invite",
+        "workspace.members.remove",
+        "workspace.members.role.change",
+        "workspace.ownership.transfer",
+        "workspace.integrations.view",
+        "workspace.integrations.manage",
+        "workspace.audit_log.view",
+        "channel.view",
+        "channel.create",
+        "channel.settings.edit",
+        "channel.delete",
+        "channel.credentials.view.labels",
+        "channel.credentials.manage",
+        "project.view",
+        "project.create",
+        "project.edit",
+        "project.delete",
+        "project.approve",
+        "project.publish",
+        "job.view",
+        "job.trigger",
+        "job.cancel",
+        "job.retry",
+        "analytics.view",
+        "analytics.export",
+        "credentials.view.labels",
+        "credentials.view.manage",
+    }
+)
 
 OWNER_PERMS = ALL_PERMISSIONS
 
-MEMBER_PERMS = frozenset({
-    "workspace.view",
-    "workspace.settings.view",
-    "workspace.members.view",
-    "workspace.integrations.view",
-    "channel.view",
-    "channel.create",
-    "channel.settings.edit",
-    "channel.delete",
-    "channel.credentials.view.labels",
-    "channel.credentials.manage",
-    "project.view",
-    "project.create",
-    "project.edit",
-    "project.delete",
-    "project.approve",
-    "project.publish",
-    "job.view",
-    "job.trigger",
-    "job.cancel",
-    "job.retry",
-    "analytics.view",
-    "analytics.export",
-    "credentials.view.labels",
-    "credentials.view.manage",
-})
+MEMBER_PERMS = frozenset(
+    {
+        "workspace.view",
+        "workspace.settings.view",
+        "workspace.members.view",
+        "workspace.integrations.view",
+        "channel.view",
+        "channel.create",
+        "channel.settings.edit",
+        "channel.delete",
+        "channel.credentials.view.labels",
+        "channel.credentials.manage",
+        "project.view",
+        "project.create",
+        "project.edit",
+        "project.delete",
+        "project.approve",
+        "project.publish",
+        "job.view",
+        "job.trigger",
+        "job.cancel",
+        "job.retry",
+        "analytics.view",
+        "analytics.export",
+        "credentials.view.labels",
+        "credentials.view.manage",
+    }
+)
 
-VIEWER_PERMS = frozenset({
-    "workspace.view",
-    "channel.view",
-    "project.view",
-    "job.view",
-    "analytics.view",
-})
+VIEWER_PERMS = frozenset(
+    {
+        "workspace.view",
+        "channel.view",
+        "project.view",
+        "job.view",
+        "analytics.view",
+    }
+)
 
 ROLE_MATRIX: dict[str, frozenset[str]] = {
     "owner": OWNER_PERMS,
     "member": MEMBER_PERMS,
     "viewer": VIEWER_PERMS,
 }
-
 
 
 def _make_principal(role: str, *, workspace_id: int = 1, user_id: int = 42) -> Principal:
@@ -141,8 +146,7 @@ async def _assert_denied(permission: str, role: str) -> None:
         with pytest.raises(HTTPException) as exc_info:
             await checker(principal)
     assert exc_info.value.status_code == 403, (
-        f"Expected 403 for role={role!r} permission={permission!r}, "
-        f"got {exc_info.value.status_code}"
+        f"Expected 403 for role={role!r} permission={permission!r}, got {exc_info.value.status_code}"
     )
     assert f"Permission denied: {permission}" in exc_info.value.detail, (
         f"Expected detail to mention permission name; got {exc_info.value.detail!r}"
@@ -156,7 +160,6 @@ async def _assert_allowed(permission: str, role: str) -> None:
     with _patch_perms(role):
         result = await checker(principal)
     assert result is principal, "require_permission should return the principal on success"
-
 
 
 class TestRoleMatrixSnapshot:
@@ -181,15 +184,13 @@ class TestRoleMatrixSnapshot:
             "workspace.audit_log.view",
         }
         assert forbidden_for_member.isdisjoint(MEMBER_PERMS), (
-            f"Member must not have any of {forbidden_for_member}; "
-            f"overlap: {forbidden_for_member & MEMBER_PERMS}"
+            f"Member must not have any of {forbidden_for_member}; overlap: {forbidden_for_member & MEMBER_PERMS}"
         )
 
     def test_viewer_has_only_5_read_permissions(self):
         assert len(VIEWER_PERMS) == 5
         assert all(p.endswith(".view") for p in VIEWER_PERMS), (
-            f"Viewer must be read-only; non-view perms: "
-            f"{[p for p in VIEWER_PERMS if not p.endswith('.view')]}"
+            f"Viewer must be read-only; non-view perms: {[p for p in VIEWER_PERMS if not p.endswith('.view')]}"
         )
 
     def test_viewer_perms_are_subset_of_member_perms(self):
@@ -197,7 +198,6 @@ class TestRoleMatrixSnapshot:
 
     def test_member_perms_are_subset_of_owner_perms(self):
         assert MEMBER_PERMS.issubset(OWNER_PERMS)
-
 
 
 class TestPermissionGridNegative:
@@ -304,7 +304,6 @@ class TestPermissionGridNegative:
         await _assert_denied("workspace.audit_log.view", "member")
 
 
-
 class TestPermissionGridPositive:
     """Mirror of the negative grid — assert each role *can* call what it
     is supposed to.  Catches over-restrictive regressions."""
@@ -316,9 +315,17 @@ class TestPermissionGridPositive:
 
     @pytest.mark.parametrize(
         "permission",
-        ["workspace.view", "workspace.members.view", "workspace.integrations.view",
-         "channel.create", "project.create", "project.edit", "project.approve",
-         "job.trigger", "analytics.view"],
+        [
+            "workspace.view",
+            "workspace.members.view",
+            "workspace.integrations.view",
+            "channel.create",
+            "project.create",
+            "project.edit",
+            "project.approve",
+            "job.trigger",
+            "analytics.view",
+        ],
     )
     @pytest.mark.asyncio
     async def test_member_can_use_content_and_pipeline_perms(self, permission: str):
@@ -333,7 +340,6 @@ class TestPermissionGridPositive:
         await _assert_allowed(permission, "viewer")
 
 
-
 class TestPermissionDenialContract:
     """The 403 ``detail`` string is a stable contract: clients (and Sentry
     alert rules) match on the literal prefix."""
@@ -346,8 +352,7 @@ class TestPermissionDenialContract:
             with pytest.raises(HTTPException) as exc_info:
                 await checker(principal)
         assert exc_info.value.detail.startswith("Permission denied: "), (
-            f"Detail prefix changed; FE error handling will break. "
-            f"Got: {exc_info.value.detail!r}"
+            f"Detail prefix changed; FE error handling will break. Got: {exc_info.value.detail!r}"
         )
         assert exc_info.value.detail.endswith("workspace.members.invite")
 
@@ -362,6 +367,5 @@ class TestPermissionDenialContract:
                 with pytest.raises(HTTPException) as exc_info:
                     await checker(principal)
             assert exc_info.value.status_code == 403, (
-                f"Unknown perm must fail-closed for role={role}, "
-                f"got {exc_info.value.status_code}"
+                f"Unknown perm must fail-closed for role={role}, got {exc_info.value.status_code}"
             )

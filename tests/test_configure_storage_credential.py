@@ -7,15 +7,15 @@ Covers:
 - WizardCredentialIn works for storage category
 - Wizard field split: password → vault, other fields → extra_config
 """
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 def test_minio_storage_has_config_attributes(monkeypatch):
     import core.config as cfg
+
     monkeypatch.setattr(cfg.settings, "s3_endpoint", "http://localhost:9000")
     monkeypatch.setattr(cfg.settings, "s3_access_key", "minioadmin")
     monkeypatch.setattr(cfg.settings, "s3_secret_key", "minioadmin")
@@ -28,6 +28,7 @@ def test_minio_storage_has_config_attributes(monkeypatch):
         mock_minio.return_value = mock_client
 
         from providers.storage.minio_provider import MinIOStorage
+
         inst = MinIOStorage()
 
     assert inst.endpoint == "http://localhost:9000"
@@ -38,6 +39,7 @@ def test_minio_storage_has_config_attributes(monkeypatch):
 
 def test_minio_connect_rebuilds_client(monkeypatch):
     import core.config as cfg
+
     monkeypatch.setattr(cfg.settings, "s3_endpoint", "http://localhost:9000")
     monkeypatch.setattr(cfg.settings, "s3_access_key", "key1")
     monkeypatch.setattr(cfg.settings, "s3_secret_key", "secret1")
@@ -50,6 +52,7 @@ def test_minio_connect_rebuilds_client(monkeypatch):
         mock_minio.return_value = mock_client
 
         from providers.storage.minio_provider import MinIOStorage
+
         inst = MinIOStorage()
 
         inst.access_key = "new-access-key"
@@ -66,6 +69,7 @@ def test_minio_connect_rebuilds_client(monkeypatch):
 def test_chain_instantiate_calls_connect_after_extra_config(monkeypatch):
     """chain._instantiate calls _connect() after extra_config attrs are set."""
     import core.config as cfg
+
     monkeypatch.setattr(cfg.settings, "s3_endpoint", "http://localhost:9000")
     monkeypatch.setattr(cfg.settings, "s3_access_key", "")
     monkeypatch.setattr(cfg.settings, "s3_secret_key", "")
@@ -92,10 +96,11 @@ def test_chain_instantiate_calls_connect_after_extra_config(monkeypatch):
 
         with patch("providers.chain.get_secret_at", return_value="vault-secret"):
             inst = _instantiate(
-                "minio", "providers/storage/minio/prod",
-                {"access_key": "prod-access", "endpoint": "http://minio-prod:9000",
-                 "bucket": "prod-bucket"},
-                None, registry,
+                "minio",
+                "providers/storage/minio/prod",
+                {"access_key": "prod-access", "endpoint": "http://minio-prod:9000", "bucket": "prod-bucket"},
+                None,
+                registry,
             )
 
     assert inst is not None

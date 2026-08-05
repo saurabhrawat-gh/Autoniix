@@ -68,9 +68,7 @@ class SerpAPISearch(SearchProvider):
     async def health_check(self) -> bool:
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.get(
-                    f"{self.BASE_URL}?q=test&api_key={self.api_key}&num=1&engine=google"
-                )
+                resp = await client.get(f"{self.BASE_URL}?q=test&api_key={self.api_key}&num=1&engine=google")
                 return resp.status_code == 200
         except Exception:
             return False

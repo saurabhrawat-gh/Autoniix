@@ -7,21 +7,21 @@ WebSocket endpoint for real-time progress updates.
 
 Start with:  uvicorn services_api.dashboard.main:app --host 0.0.0.0 --port 8020
 """
+
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import os
 import secrets
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import structlog
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -29,10 +29,9 @@ from temporalio.client import Client as TemporalClient
 
 from core.config import settings
 from core.db import get_pool
-
-from schemas.common import VideoParams
 from observability.metrics import instrument_app
 from observability.sentry import init_sentry
+from schemas.common import VideoParams
 from services_api.dashboard._limiter import limiter
 
 init_sentry("dashboard-bff")
@@ -54,8 +53,9 @@ def _get_minio_presign_client():
     if _minio_presign_client is not None:
         return _minio_presign_client
     try:
-        from minio import Minio  # type: ignore
         from urllib.parse import urlparse
+
+        from minio import Minio  # type: ignore
     except Exception:
         return None
 
@@ -75,11 +75,12 @@ def _get_minio_presign_client():
 def _extract_s3_key(video_url: str) -> str:
     """Strip scheme/host/bucket from a stored URL → returns the object key."""
     from urllib.parse import urlparse
+
     parsed = urlparse(video_url)
     path = parsed.path.lstrip("/")
     bucket = settings.s3_bucket
     if path.startswith(f"{bucket}/"):
-        return path[len(bucket) + 1:]
+        return path[len(bucket) + 1 :]
     return path
 
 
@@ -93,8 +94,7 @@ def _public_url(video_url: str) -> str:
     """
     if not video_url:
         return ""
-    if "minio:9000" not in video_url and "://minio" not in video_url \
-       and "localhost:9000" not in video_url:
+    if "minio:9000" not in video_url and "://minio" not in video_url and "localhost:9000" not in video_url:
         return video_url
 
     key = _extract_s3_key(video_url)
@@ -102,9 +102,8 @@ def _public_url(video_url: str) -> str:
     if client is not None:
         try:
             from datetime import timedelta as _td
-            return client.presigned_get_object(
-                settings.s3_bucket, key, expires=_td(hours=1)
-            )
+
+            return client.presigned_get_object(settings.s3_bucket, key, expires=_td(hours=1))
         except Exception as exc:
             logger.warning("dashboard.presign_failed", key=key, error=str(exc))
 
@@ -127,15 +126,13 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 _v2_router_loaded = False
 try:
     from services_api.dashboard.v2 import router as _v2_router
+
     app.include_router(_v2_router, prefix="/api/v2")
     _v2_router_loaded = True
 except Exception as _exc:
     logger.warning("dashboard.v2_router_disabled", error=str(_exc))
 
-_allowed_origins = [
-    o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
-    if o.strip()
-]
+_allowed_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
@@ -146,29 +143,32 @@ app.add_middleware(
 
 security = HTTPBearer(auto_error=False)
 
-_INSECURE_SECRET_DEFAULTS: frozenset[str] = frozenset({
-    "change_me_to_64_char_random_string_here_now",
-    "dev-insecure-change-me",
-    "admin",
-    "minioadmin",
-    "change_me_strong_random_64",
-    "change_me_temporal_64",
-    "",
-})
+_INSECURE_SECRET_DEFAULTS: frozenset[str] = frozenset(
+    {
+        "change_me_to_64_char_random_string_here_now",
+        "dev-insecure-change-me",
+        "admin",
+        "minioadmin",
+        "change_me_strong_random_64",
+        "change_me_temporal_64",
+        "",
+    }
+)
 
 _SECRET_ENV_KEYS: list[tuple[str, str]] = [
-    ("ADMIN_JWT_SECRET",      "openssl rand -base64 48"),
-    ("AUTH_JWT_SECRET",       "openssl rand -base64 48"),
-    ("DB_PASSWORD",           "openssl rand -base64 32"),
-    ("S3_ACCESS_KEY",         "openssl rand -hex 16"),
-    ("S3_SECRET_KEY",         "openssl rand -base64 32"),
-    ("GRAFANA_ADMIN_PASSWORD","openssl rand -base64 16"),
+    ("ADMIN_JWT_SECRET", "openssl rand -base64 48"),
+    ("AUTH_JWT_SECRET", "openssl rand -base64 48"),
+    ("DB_PASSWORD", "openssl rand -base64 32"),
+    ("S3_ACCESS_KEY", "openssl rand -hex 16"),
+    ("S3_SECRET_KEY", "openssl rand -base64 32"),
+    ("GRAFANA_ADMIN_PASSWORD", "openssl rand -base64 16"),
 ]
 
 
 @app.on_event("startup")
 async def _start_budget_gauge_refresh() -> None:
     from observability.budget_metrics import start_budget_gauge_refresh
+
     asyncio.create_task(start_budget_gauge_refresh(get_pool))
 
 
@@ -191,7 +191,6 @@ async def _check_production_secrets() -> None:
 
 _sessions: dict[str, float] = {}
 SESSION_TTL_HOURS = 24
-
 
 
 _temporal_client_cache: TemporalClient | None = None
@@ -218,6 +217,7 @@ async def _list_paused_workflows(timeout_s: float = 2.0) -> dict[str, bool]:
     Bounded by ``timeout_s`` so a slow Temporal does not stall the dashboard.
     Returns an empty dict on any error or timeout.
     """
+
     async def _gather() -> dict[str, bool]:
         out: dict[str, bool] = {}
         client = await _get_temporal_client()
@@ -239,9 +239,7 @@ async def _list_paused_workflows(timeout_s: float = 2.0) -> dict[str, bool]:
 
 async def _get_admin_password() -> str:
     pool = await get_pool()
-    row = await pool.fetchrow(
-        "SELECT config_value FROM system_config WHERE config_key = 'dashboard_admin_password'"
-    )
+    row = await pool.fetchrow("SELECT config_value FROM system_config WHERE config_key = 'dashboard_admin_password'")
     return row["config_value"] if row else "admin"
 
 
@@ -252,6 +250,7 @@ async def verify_token(creds: HTTPAuthorizationCredentials | None = Depends(secu
     if token.count(".") == 2 and token.startswith("ey"):
         try:
             import jwt as _jwt
+
             secret = os.getenv("AUTH_JWT_SECRET") or os.getenv("DASHBOARD_JWT_SECRET") or "dev-insecure-change-me"
             _jwt.decode(token, secret, algorithms=["HS256"])
             return token
@@ -264,13 +263,14 @@ async def verify_token(creds: HTTPAuthorizationCredentials | None = Depends(secu
     return token
 
 
-
 class LoginRequest(BaseModel):
     password: str
+
 
 class LoginResponse(BaseModel):
     token: str
     expires_in: int
+
 
 class ChannelCreateRequest(BaseModel):
     channel_id: str
@@ -300,11 +300,13 @@ class ChannelCreateRequest(BaseModel):
     forbidden_words: str | None = None
     starter_topics: list[str] | None = None
 
+
 class BrandDnaRequest(BaseModel):
     channel_name: str
     niche: str
     sub_niche: str = ""
     content_modes: list[str] = ["short"]
+
 
 class ChannelUpdateRequest(BaseModel):
     channel_name: str | None = None
@@ -320,20 +322,22 @@ class ChannelUpdateRequest(BaseModel):
     human_review_required: str | None = None
     max_daily_api_spend: float | None = None
 
+
 class TriggerRequest(BaseModel):
     content_mode: str = "short"
     topic_candidates: list[str] = Field(default_factory=list)
     max_cost_usd: float = 2.50
 
+
 class ConfigUpdateRequest(BaseModel):
     config_key: str
     config_value: str
+
 
 class R(BaseModel):
     status: str = "ok"
     data: dict | list | None = None
     error: str | None = None
-
 
 
 async def _probe_db(timeout_s: float = 1.0) -> bool:
@@ -349,6 +353,7 @@ async def _probe_db(timeout_s: float = 1.0) -> bool:
 async def _probe_redis(timeout_s: float = 1.0) -> bool:
     try:
         import redis.asyncio as _redis  # type: ignore
+
         client = _redis.from_url(settings.redis_url, socket_timeout=timeout_s)
         try:
             return bool(await asyncio.wait_for(client.ping(), timeout=timeout_s))
@@ -371,12 +376,11 @@ async def _probe_minio(timeout_s: float = 1.0) -> bool:
     browser-facing public host used for presigning. From inside the BFF
     container, the public host (e.g. localhost:9000) is unreachable."""
     try:
-        from minio import Minio  # type: ignore
         from urllib.parse import urlparse
-        parsed = urlparse(
-            settings.s3_endpoint if "://" in settings.s3_endpoint
-            else f"http://{settings.s3_endpoint}"
-        )
+
+        from minio import Minio  # type: ignore
+
+        parsed = urlparse(settings.s3_endpoint if "://" in settings.s3_endpoint else f"http://{settings.s3_endpoint}")
         client = Minio(
             parsed.netloc or parsed.path,
             access_key=settings.s3_access_key,
@@ -398,7 +402,10 @@ async def health():
     Used by load balancer + Alertmanager + the dashboard fleet panel.
     """
     db, redis_ok, temporal, minio = await asyncio.gather(
-        _probe_db(), _probe_redis(), _probe_temporal(), _probe_minio(),
+        _probe_db(),
+        _probe_redis(),
+        _probe_temporal(),
+        _probe_minio(),
         return_exceptions=False,
     )
     components = {
@@ -433,9 +440,7 @@ async def deploy_status():
         pool = await asyncio.wait_for(get_pool(), timeout=2.0)
         async with pool.acquire() as conn:
             count = await conn.fetchval("SELECT COUNT(*) FROM schema_migrations")
-            latest = await conn.fetchval(
-                "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1"
-            )
+            latest = await conn.fetchval("SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1")
         migrations["applied_count"] = int(count or 0)
         migrations["latest_version"] = latest
     except Exception as exc:  # noqa: BLE001 — probe must never raise
@@ -461,7 +466,6 @@ async def deploy_status():
     }
 
 
-
 @app.post("/api/auth/login", response_model=LoginResponse)
 @limiter.limit("10/minute")
 async def login(request: Request, req: LoginRequest):
@@ -483,7 +487,6 @@ async def logout(token: str = Depends(verify_token)):
 @app.get("/api/auth/me")
 async def me(token: str = Depends(verify_token)):
     return R(status="ok", data={"user": "admin"})
-
 
 
 @app.get("/api/channels", deprecated=True)
@@ -538,50 +541,60 @@ async def list_channels(
         sched_raw = r["schedule_config"]
         sched = json.loads(sched_raw) if isinstance(sched_raw, str) else (sched_raw or {})
         schedule_enabled = sched.get("enabled", True) if sched else True
-        channels.append({
-            "channel_id": r["channel_id"],
-            "channel_name": r["channel_name"],
-            "niche": r["niche"],
-            "sub_niche": r["sub_niche"],
-            "content_mode": r["content_mode"],
-            "auto_upload": r["auto_upload"],
-            "status": r["status"],
-            "videos_per_week_long": r["videos_per_week_long"] or 1,
-            "videos_per_week_short": r["videos_per_week_short"] or 7,
-            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-            "last_video": {
-                "content_id": last_video["content_id"],
-                "status": last_video["status"],
-                "title": last_video["title"],
-                "cost": float(last_video["total_cost"]) if last_video["total_cost"] else 0,
-                "created_at": last_video["created_at"].isoformat(),
-            } if last_video else None,
-            "stats": {
-                "delivered": counts["delivered"] if counts else 0,
-                "in_progress": counts["in_progress"] if counts else 0,
-                "total": counts["total"] if counts else 0,
-            },
-            "weekly_usage": {
-                "short": {"used": weekly["short_used"] if weekly else 0, "limit": r["videos_per_week_short"] or 7, "approved": weekly["short_approved"] if weekly else 0},
-                "long_form": {"used": weekly["long_used"] if weekly else 0, "limit": r["videos_per_week_long"] or 1, "approved": weekly["long_approved"] if weekly else 0},
-            },
-            "schedule_enabled": schedule_enabled,
-            "short_form_duration": r["short_form_duration"] or 60,
-            "long_form_duration": r["long_form_duration"] or 600,
-            "human_review_required": r["human_review_required"] or "first_10",
-            "max_daily_api_spend": float(r["max_daily_api_spend"]) if r["max_daily_api_spend"] else 5.0,
-            "active_jobs": [
-                {
-                    "content_id": aj["content_id"],
-                    "status": aj["status"],
-                    "content_mode": aj["content_mode"],
-                    "is_paused": any(
-                        wp for wid, wp in _paused_wf_map.items()
-                        if aj["content_id"] in wid
-                    ),
-                } for aj in active_job_rows
-            ],
-        })
+        channels.append(
+            {
+                "channel_id": r["channel_id"],
+                "channel_name": r["channel_name"],
+                "niche": r["niche"],
+                "sub_niche": r["sub_niche"],
+                "content_mode": r["content_mode"],
+                "auto_upload": r["auto_upload"],
+                "status": r["status"],
+                "videos_per_week_long": r["videos_per_week_long"] or 1,
+                "videos_per_week_short": r["videos_per_week_short"] or 7,
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                "last_video": {
+                    "content_id": last_video["content_id"],
+                    "status": last_video["status"],
+                    "title": last_video["title"],
+                    "cost": float(last_video["total_cost"]) if last_video["total_cost"] else 0,
+                    "created_at": last_video["created_at"].isoformat(),
+                }
+                if last_video
+                else None,
+                "stats": {
+                    "delivered": counts["delivered"] if counts else 0,
+                    "in_progress": counts["in_progress"] if counts else 0,
+                    "total": counts["total"] if counts else 0,
+                },
+                "weekly_usage": {
+                    "short": {
+                        "used": weekly["short_used"] if weekly else 0,
+                        "limit": r["videos_per_week_short"] or 7,
+                        "approved": weekly["short_approved"] if weekly else 0,
+                    },
+                    "long_form": {
+                        "used": weekly["long_used"] if weekly else 0,
+                        "limit": r["videos_per_week_long"] or 1,
+                        "approved": weekly["long_approved"] if weekly else 0,
+                    },
+                },
+                "schedule_enabled": schedule_enabled,
+                "short_form_duration": r["short_form_duration"] or 60,
+                "long_form_duration": r["long_form_duration"] or 600,
+                "human_review_required": r["human_review_required"] or "first_10",
+                "max_daily_api_spend": float(r["max_daily_api_spend"]) if r["max_daily_api_spend"] else 5.0,
+                "active_jobs": [
+                    {
+                        "content_id": aj["content_id"],
+                        "status": aj["status"],
+                        "content_mode": aj["content_mode"],
+                        "is_paused": any(wp for wid, wp in _paused_wf_map.items() if aj["content_id"] in wid),
+                    }
+                    for aj in active_job_rows
+                ],
+            }
+        )
     return R(status="ok", data=channels)
 
 
@@ -602,14 +615,32 @@ async def create_channel(req: ChannelCreateRequest, _: str = Depends(verify_toke
             "primary_color, forbidden_words, topics_queue) "
             "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, "
             "$14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)",
-            req.channel_id, req.channel_name, req.niche, req.sub_niche,
-            req.content_mode, req.auto_upload, req.videos_per_week_short,
-            req.videos_per_week_long, req.short_form_duration, req.long_form_duration,
-            sched_json, req.human_review_required, req.max_daily_api_spend,
-            req.belief_territory, req.intellectual_lens, req.topic_domain,
-            req.brand_voice, req.narrative_rhythm, req.emotional_contract, req.target_audience,
-            req.primary_format_long, req.primary_format_short, req.thumbnail_style,
-            req.primary_color, req.forbidden_words, topics_queue,
+            req.channel_id,
+            req.channel_name,
+            req.niche,
+            req.sub_niche,
+            req.content_mode,
+            req.auto_upload,
+            req.videos_per_week_short,
+            req.videos_per_week_long,
+            req.short_form_duration,
+            req.long_form_duration,
+            sched_json,
+            req.human_review_required,
+            req.max_daily_api_spend,
+            req.belief_territory,
+            req.intellectual_lens,
+            req.topic_domain,
+            req.brand_voice,
+            req.narrative_rhythm,
+            req.emotional_contract,
+            req.target_audience,
+            req.primary_format_long,
+            req.primary_format_short,
+            req.thumbnail_style,
+            req.primary_color,
+            req.forbidden_words,
+            topics_queue,
         )
     except Exception as exc:
         if "duplicate" in str(exc).lower():
@@ -672,34 +703,40 @@ async def generate_brand_dna(req: BrandDnaRequest, _: str = Depends(verify_token
 
     try:
         llm = ProviderRegistry.get("llm")
-        result = await llm.complete(LLMRequest(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.7,
-            max_tokens=600,
-            response_format="json",
-        ))
+        result = await llm.complete(
+            LLMRequest(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.7,
+                max_tokens=600,
+                response_format="json",
+            )
+        )
         try:
             parsed = json.loads(result.content)
         except (json.JSONDecodeError, TypeError):
             parsed = {}
         dna = {k: (parsed.get(k) or v) for k, v in fallback.items()}
-        return R(status="ok", data={
-            "dna": dna,
-            "source": "llm",
-            "model": result.model,
-            "cost_usd": round(result.cost_usd, 6),
-        })
+        return R(
+            status="ok",
+            data={
+                "dna": dna,
+                "source": "llm",
+                "model": result.model,
+                "cost_usd": round(result.cost_usd, 6),
+            },
+        )
     except Exception as exc:
-        return R(status="ok", data={
-            "dna": fallback,
-            "source": "fallback",
-            "reason": str(exc)[:200],
-        })
-
-
+        return R(
+            status="ok",
+            data={
+                "dna": fallback,
+                "source": "fallback",
+                "reason": str(exc)[:200],
+            },
+        )
 
 
 @app.get("/api/niche-templates", deprecated=True)
@@ -711,6 +748,7 @@ async def list_niche_templates(_: str = Depends(verify_token)):
     can be edited without code changes.
     """
     from intelligence import list_templates
+
     return R(status="ok", data={"templates": list_templates()})
 
 
@@ -733,7 +771,8 @@ async def channel_learning_insights(channel_id: str, _: str = Depends(verify_tok
 
     try:
         niche_row = await pool.fetchrow(
-            "SELECT niche FROM channels WHERE channel_id = $1", channel_id,
+            "SELECT niche FROM channels WHERE channel_id = $1",
+            channel_id,
         )
         niche = niche_row["niche"] if niche_row else None
         bandits: list[dict] = []
@@ -747,14 +786,16 @@ async def channel_learning_insights(channel_id: str, _: str = Depends(verify_tok
             for r in rows:
                 pulls = r["pulls"] or 0
                 rewards = float(r["rewards"] or 0)
-                bandits.append({
-                    "type": r["bandit_type"],
-                    "arm": r["arm_name"],
-                    "pulls": pulls,
-                    "win_rate": round(rewards / pulls, 3) if pulls else None,
-                    "alpha": float(r["alpha"] or 0),
-                    "beta":  float(r["beta"] or 0),
-                })
+                bandits.append(
+                    {
+                        "type": r["bandit_type"],
+                        "arm": r["arm_name"],
+                        "pulls": pulls,
+                        "win_rate": round(rewards / pulls, 3) if pulls else None,
+                        "alpha": float(r["alpha"] or 0),
+                        "beta": float(r["beta"] or 0),
+                    }
+                )
     except Exception as exc:
         logger.warning("learning_insights.bandit_failed", error=str(exc))
         bandits = []
@@ -787,14 +828,17 @@ async def channel_learning_insights(channel_id: str, _: str = Depends(verify_tok
     except Exception as exc:
         logger.warning("learning_insights.tier_failed", error=str(exc))
 
-    return R(status="ok", data={
-        "channel_id": channel_id,
-        "performance_memory": perf_text,
-        "performance_memory_attached": bool(perf_text),
-        "bandits": bandits,
-        "drift": drift,
-        "tier_distribution_30d": tiers,
-    })
+    return R(
+        status="ok",
+        data={
+            "channel_id": channel_id,
+            "performance_memory": perf_text,
+            "performance_memory_attached": bool(perf_text),
+            "bandits": bandits,
+            "drift": drift,
+            "tier_distribution_30d": tiers,
+        },
+    )
 
 
 @app.put("/api/channels/{channel_id}", deprecated=True)
@@ -802,8 +846,10 @@ async def update_channel(channel_id: str, req: ChannelUpdateRequest, _: str = De
     pool = await get_pool()
     sets, vals, idx = [], [], 1
     for field, col in [
-        ("channel_name", "channel_name"), ("niche", "niche"),
-        ("content_mode", "content_mode"), ("status", "status"),
+        ("channel_name", "channel_name"),
+        ("niche", "niche"),
+        ("content_mode", "content_mode"),
+        ("status", "status"),
         ("human_review_required", "human_review_required"),
     ]:
         val = getattr(req, field, None)
@@ -914,9 +960,7 @@ async def restore_channel(channel_id: str, _: str = Depends(verify_token)):
 async def clone_channel(channel_id: str, _: str = Depends(verify_token)):
     """Clone a channel's config into a new channel with '_copy' suffix."""
     pool = await get_pool()
-    ch = await pool.fetchrow(
-        "SELECT * FROM channels WHERE channel_id = $1", channel_id
-    )
+    ch = await pool.fetchrow("SELECT * FROM channels WHERE channel_id = $1", channel_id)
     if not ch:
         raise HTTPException(status_code=404, detail="Channel not found")
     ts = datetime.utcnow().strftime("%m%d%H%M")
@@ -936,19 +980,43 @@ async def clone_channel(channel_id: str, _: str = Depends(verify_token)):
             "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, "
             "$14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, "
             "$28, $29, $30, $31, $32, $33, 'disabled', $34)",
-            new_id, f"{ch['channel_name']} (Copy)", ch["niche"], ch["sub_niche"],
-            ch["content_mode"], ch["auto_upload"],
-            ch["videos_per_week_short"], ch["videos_per_week_long"],
-            ch["short_form_duration"], ch["long_form_duration"],
-            json.dumps(json.loads(ch["schedule_config"]) if isinstance(ch["schedule_config"], str) else (ch["schedule_config"] or {})),
-            ch["human_review_required"], ch["max_daily_api_spend"],
-            ch["belief_territory"], ch["intellectual_lens"], ch["topic_domain"],
-            ch["brand_voice"], ch["narrative_rhythm"], ch["emotional_contract"],
-            ch["content_style"], ch["target_audience"], ch["thumbnail_style"],
-            ch["primary_color"], ch["secondary_color"], ch["font_family"],
-            ch["caption_style"], ch["pacing_style"], ch["elevenlabs_voice_id"],
-            ch["voice_stability"], ch["voice_similarity"], ch["voice_style"],
-            ch["competitor_channels"], ch["forbidden_words"],
+            new_id,
+            f"{ch['channel_name']} (Copy)",
+            ch["niche"],
+            ch["sub_niche"],
+            ch["content_mode"],
+            ch["auto_upload"],
+            ch["videos_per_week_short"],
+            ch["videos_per_week_long"],
+            ch["short_form_duration"],
+            ch["long_form_duration"],
+            json.dumps(
+                json.loads(ch["schedule_config"])
+                if isinstance(ch["schedule_config"], str)
+                else (ch["schedule_config"] or {})
+            ),
+            ch["human_review_required"],
+            ch["max_daily_api_spend"],
+            ch["belief_territory"],
+            ch["intellectual_lens"],
+            ch["topic_domain"],
+            ch["brand_voice"],
+            ch["narrative_rhythm"],
+            ch["emotional_contract"],
+            ch["content_style"],
+            ch["target_audience"],
+            ch["thumbnail_style"],
+            ch["primary_color"],
+            ch["secondary_color"],
+            ch["font_family"],
+            ch["caption_style"],
+            ch["pacing_style"],
+            ch["elevenlabs_voice_id"],
+            ch["voice_stability"],
+            ch["voice_similarity"],
+            ch["voice_style"],
+            ch["competitor_channels"],
+            ch["forbidden_words"],
             ch.get("environment", "test"),
         )
     except Exception as exc:
@@ -967,7 +1035,7 @@ async def export_channel(channel_id: str, _: str = Depends(verify_token)):
     export_data = {}
     for key in ch.keys():
         val = ch[key]
-        if hasattr(val, 'isoformat'):
+        if hasattr(val, "isoformat"):
             val = val.isoformat()
         elif isinstance(val, (float, int, bool, str, type(None))):
             pass
@@ -978,7 +1046,6 @@ async def export_channel(channel_id: str, _: str = Depends(verify_token)):
                 val = str(val)
         export_data[key] = val
     return R(status="ok", data=export_data)
-
 
 
 @app.post("/api/channels/{channel_id}/trigger", deprecated=True)
@@ -1001,13 +1068,10 @@ async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depe
     if float(global_spent) >= global_limit:
         raise HTTPException(status_code=400, detail=f"Global daily budget exhausted (${global_limit:.2f})")
 
-    ch_full = await pool.fetchrow(
-        "SELECT max_daily_api_spend FROM channels WHERE channel_id = $1", channel_id
-    )
+    ch_full = await pool.fetchrow("SELECT max_daily_api_spend FROM channels WHERE channel_id = $1", channel_id)
     ch_limit = float(ch_full["max_daily_api_spend"]) if ch_full and ch_full["max_daily_api_spend"] else 5.0
     ch_spent = await pool.fetchval(
-        "SELECT COALESCE(SUM(total_cost), 0) FROM videos "
-        "WHERE channel_id = $1 AND created_at::date = CURRENT_DATE",
+        "SELECT COALESCE(SUM(total_cost), 0) FROM videos WHERE channel_id = $1 AND created_at::date = CURRENT_DATE",
         channel_id,
     )
     if float(ch_spent) >= ch_limit:
@@ -1018,7 +1082,8 @@ async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depe
     running_count = await pool.fetchval(
         "SELECT COUNT(*) FROM videos WHERE channel_id = $1 AND content_mode = $2 "
         "AND status NOT IN ('delivered', 'test_delivered', 'failed', 'stopped', 'superseded', 'rejected', 'retrying')",
-        channel_id, content_mode,
+        channel_id,
+        content_mode,
     )
     if running_count and int(running_count) > 0:
         raise HTTPException(status_code=409, detail=f"Channel already has an in-progress {content_mode} job")
@@ -1030,14 +1095,17 @@ async def trigger_production(channel_id: str, req: TriggerRequest, _: str = Depe
     await pool.execute(
         "UPDATE videos SET status = 'superseded', updated_at = NOW() "
         "WHERE channel_id = $1 AND content_mode = $2 AND status IN ('failed', 'stopped')",
-        channel_id, content_mode,
+        channel_id,
+        content_mode,
     )
 
     await pool.execute(
         "INSERT INTO videos (content_id, channel_id, status, content_mode, environment, updated_at) "
         "VALUES ($1, $2, 'researching', $3, 'production', NOW()) "
         "ON CONFLICT (content_id) DO NOTHING",
-        content_id, channel_id, content_mode,
+        content_id,
+        channel_id,
+        content_mode,
     )
 
     try:
@@ -1136,7 +1204,6 @@ async def _terminate_channel_workflows(channel_id: str) -> list[str]:
     return terminated
 
 
-
 @app.get("/api/channels/{channel_id}/jobs", deprecated=True)
 async def list_jobs(
     channel_id: str,
@@ -1164,20 +1231,22 @@ async def list_jobs(
     rows = await pool.fetch(query, *params)
     jobs = []
     for r in rows:
-        jobs.append({
-            "content_id": r["content_id"],
-            "channel_id": r["channel_id"],
-            "status": r["status"],
-            "title": r["title"],
-            "content_mode": r["content_mode"],
-            "total_cost": float(r["total_cost"]) if r["total_cost"] else 0,
-            "youtube_video_id": r["youtube_video_id"],
-            "video_url": r["rendered_video_url"],
-            "thumbnail_urls": json.loads(r["thumbnail_variants_urls"]) if r["thumbnail_variants_urls"] else [],
-            "delivery_result": json.loads(r["delivery_result"]) if r["delivery_result"] else {},
-            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-            "updated_at": r["updated_at"].isoformat() if r["updated_at"] else None,
-        })
+        jobs.append(
+            {
+                "content_id": r["content_id"],
+                "channel_id": r["channel_id"],
+                "status": r["status"],
+                "title": r["title"],
+                "content_mode": r["content_mode"],
+                "total_cost": float(r["total_cost"]) if r["total_cost"] else 0,
+                "youtube_video_id": r["youtube_video_id"],
+                "video_url": r["rendered_video_url"],
+                "thumbnail_urls": json.loads(r["thumbnail_variants_urls"]) if r["thumbnail_variants_urls"] else [],
+                "delivery_result": json.loads(r["delivery_result"]) if r["delivery_result"] else {},
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                "updated_at": r["updated_at"].isoformat() if r["updated_at"] else None,
+            }
+        )
     return R(status="ok", data=jobs)
 
 
@@ -1197,11 +1266,10 @@ async def job_progress(content_id: str, _: str = Depends(verify_token)):
     live_status = None
     try:
         client = await _get_temporal_client()
-        query = f'WorkflowType = "VideoProductionWorkflow" AND ExecutionStatus = "Running"'
+        query = 'WorkflowType = "VideoProductionWorkflow" AND ExecutionStatus = "Running"'
         async for wf in client.list_workflows(query=query):
             if content_id.replace("VID_", "") in wf.id or any(
-                content_id in str(getattr(wf, attr, ""))
-                for attr in ["id", "run_id"]
+                content_id in str(getattr(wf, attr, "")) for attr in ["id", "run_id"]
             ):
                 handle = client.get_workflow_handle(wf.id)
                 live_status = await handle.query("get_status")
@@ -1211,25 +1279,30 @@ async def job_progress(content_id: str, _: str = Depends(verify_token)):
 
     timeline = []
     for ev in events:
-        timeline.append({
-            "phase": ev["phase"],
-            "status": ev["status"],
-            "detail": json.loads(ev["detail"]) if isinstance(ev["detail"], str) else (ev["detail"] or {}),
-            "cost_usd": float(ev["cost_usd"]) if ev["cost_usd"] else 0,
-            "duration_ms": ev["duration_ms"] or 0,
-            "timestamp": ev["created_at"].isoformat() if ev["created_at"] else None,
-        })
+        timeline.append(
+            {
+                "phase": ev["phase"],
+                "status": ev["status"],
+                "detail": json.loads(ev["detail"]) if isinstance(ev["detail"], str) else (ev["detail"] or {}),
+                "cost_usd": float(ev["cost_usd"]) if ev["cost_usd"] else 0,
+                "duration_ms": ev["duration_ms"] or 0,
+                "timestamp": ev["created_at"].isoformat() if ev["created_at"] else None,
+            }
+        )
 
-    return R(status="ok", data={
-        "content_id": content_id,
-        "current_status": video["status"] if video else "unknown",
-        "total_cost": float(video["total_cost"]) if video and video["total_cost"] else 0,
-        "checkpoint": video["checkpoint"] if video else None,
-        "error_message": video["error_message"] if video else None,
-        "channel_id": video["channel_id"] if video else None,
-        "live": live_status,
-        "timeline": timeline,
-    })
+    return R(
+        status="ok",
+        data={
+            "content_id": content_id,
+            "current_status": video["status"] if video else "unknown",
+            "total_cost": float(video["total_cost"]) if video and video["total_cost"] else 0,
+            "checkpoint": video["checkpoint"] if video else None,
+            "error_message": video["error_message"] if video else None,
+            "channel_id": video["channel_id"] if video else None,
+            "live": live_status,
+            "timeline": timeline,
+        },
+    )
 
 
 @app.get("/api/jobs/{content_id}/metadata", deprecated=True)
@@ -1237,8 +1310,7 @@ async def job_metadata(content_id: str, _: str = Depends(verify_token)):
     """Get YouTube metadata (title, description, tags, SEO) for copy-paste."""
     pool = await get_pool()
     row = await pool.fetchrow(
-        "SELECT title, delivery_result, thumbnail_variants_urls, content_mode "
-        "FROM videos WHERE content_id = $1",
+        "SELECT title, delivery_result, thumbnail_variants_urls, content_mode FROM videos WHERE content_id = $1",
         content_id,
     )
     if not row:
@@ -1248,28 +1320,37 @@ async def job_metadata(content_id: str, _: str = Depends(verify_token)):
     thumbnails = json.loads(row["thumbnail_variants_urls"]) if row["thumbnail_variants_urls"] else []
 
     CATEGORY_NAMES = {
-        "22": "People & Blogs", "26": "How-to & Style", "27": "Education",
-        "28": "Science & Technology", "24": "Entertainment", "20": "Gaming",
-        "10": "Music", "17": "Sports", "25": "News & Politics",
+        "22": "People & Blogs",
+        "26": "How-to & Style",
+        "27": "Education",
+        "28": "Science & Technology",
+        "24": "Entertainment",
+        "20": "Gaming",
+        "10": "Music",
+        "17": "Sports",
+        "25": "News & Politics",
     }
     cat_id = delivery.get("category_id", "")
     category = delivery.get("category", "") or CATEGORY_NAMES.get(cat_id, cat_id)
 
-    return R(status="ok", data={
-        "content_id": content_id,
-        "content_mode": row["content_mode"],
-        "title": row["title"] or delivery.get("title", ""),
-        "description": delivery.get("description", ""),
-        "tags": delivery.get("tags", []),
-        "seo_score": delivery.get("seo_score"),
-        "hashtags": delivery.get("hashtags", []),
-        "category": category,
-        "privacy_status": delivery.get("privacy_status", "private"),
-        "thumbnails": thumbnails,
-        "seo_factors": delivery.get("seo_factors", []),
-        "description_score": delivery.get("description_score"),
-        "final_composite_score": delivery.get("final_composite_score"),
-    })
+    return R(
+        status="ok",
+        data={
+            "content_id": content_id,
+            "content_mode": row["content_mode"],
+            "title": row["title"] or delivery.get("title", ""),
+            "description": delivery.get("description", ""),
+            "tags": delivery.get("tags", []),
+            "seo_score": delivery.get("seo_score"),
+            "hashtags": delivery.get("hashtags", []),
+            "category": category,
+            "privacy_status": delivery.get("privacy_status", "private"),
+            "thumbnails": thumbnails,
+            "seo_factors": delivery.get("seo_factors", []),
+            "description_score": delivery.get("description_score"),
+            "final_composite_score": delivery.get("final_composite_score"),
+        },
+    )
 
 
 @app.get("/api/jobs/{content_id}/output", deprecated=True)
@@ -1301,17 +1382,20 @@ async def job_output(content_id: str, _: str = Depends(verify_token)):
     raw_url = row["rendered_video_url"]
     proxy_url = f"/api/jobs/{content_id}/video" if raw_url else ""
 
-    return R(status="ok", data={
-        "content_id": content_id,
-        "title": row["title"],
-        "status": row["status"],
-        "video_url": proxy_url,
-        "download_url": proxy_url,
-        "thumbnails": thumbnails,
-        "youtube_video_id": row["youtube_video_id"],
-        "youtube_url": f"https://youtu.be/{row['youtube_video_id']}" if row["youtube_video_id"] else None,
-        "total_cost": float(row["total_cost"]) if row["total_cost"] else 0,
-    })
+    return R(
+        status="ok",
+        data={
+            "content_id": content_id,
+            "title": row["title"],
+            "status": row["status"],
+            "video_url": proxy_url,
+            "download_url": proxy_url,
+            "thumbnails": thumbnails,
+            "youtube_video_id": row["youtube_video_id"],
+            "youtube_url": f"https://youtu.be/{row['youtube_video_id']}" if row["youtube_video_id"] else None,
+            "total_cost": float(row["total_cost"]) if row["total_cost"] else 0,
+        },
+    )
 
 
 @app.get("/api/jobs/{content_id}/video", deprecated=True)
@@ -1342,9 +1426,11 @@ async def stream_video(content_id: str, request: Request):
     upstream_url = f"{settings.s3_endpoint.rstrip('/')}/{settings.s3_bucket}/{key}"
 
     try:
-        from minio import Minio  # type: ignore
         from datetime import timedelta as _td
         from urllib.parse import urlparse as _urlparse
+
+        from minio import Minio  # type: ignore
+
         ep = settings.s3_endpoint
         ep_parsed = _urlparse(ep if "://" in ep else f"http://{ep}")
         in_client = Minio(
@@ -1353,12 +1439,9 @@ async def stream_video(content_id: str, request: Request):
             secret_key=settings.s3_secret_key,
             secure=ep_parsed.scheme == "https",
         )
-        upstream_url = in_client.presigned_get_object(
-            settings.s3_bucket, key, expires=_td(minutes=10)
-        )
+        upstream_url = in_client.presigned_get_object(settings.s3_bucket, key, expires=_td(minutes=10))
     except Exception as exc:
-        logger.warning("dashboard.video_proxy_presign_failed",
-                       content_id=content_id, error=str(exc))
+        logger.warning("dashboard.video_proxy_presign_failed", content_id=content_id, error=str(exc))
 
     import httpx as _httpx
 
@@ -1366,13 +1449,11 @@ async def stream_video(content_id: str, request: Request):
         try:
             head = await probe.request("HEAD", upstream_url, headers=fwd_headers)
         except Exception as exc:
-            logger.warning("dashboard.video_proxy_head_failed",
-                           content_id=content_id, error=str(exc))
+            logger.warning("dashboard.video_proxy_head_failed", content_id=content_id, error=str(exc))
             raise HTTPException(status_code=502, detail="Storage unreachable")
 
     if head.status_code >= 400:
-        raise HTTPException(status_code=head.status_code,
-                            detail="Upstream storage error")
+        raise HTTPException(status_code=head.status_code, detail="Upstream storage error")
 
     status_code = 206 if head.status_code == 206 else 200
     out_headers: dict[str, str] = {
@@ -1416,7 +1497,6 @@ async def job_presigned(content_id: str, _: str = Depends(verify_token)):
     return R(status="ok", data={"presigned_url": url, "expires_in_seconds": 600})
 
 
-
 @app.post("/api/jobs/{content_id}/approve", deprecated=True)
 async def approve_job(content_id: str, _: str = Depends(verify_token)):
     """Mark a delivered video as approved/completed."""
@@ -1427,8 +1507,7 @@ async def approve_job(content_id: str, _: str = Depends(verify_token)):
     if video["status"] != "delivered":
         raise HTTPException(status_code=400, detail=f"Cannot approve video with status '{video['status']}'")
     await pool.execute(
-        "UPDATE videos SET approved_by = 'admin', approved_at = NOW(), updated_at = NOW() "
-        "WHERE content_id = $1",
+        "UPDATE videos SET approved_by = 'admin', approved_at = NOW(), updated_at = NOW() WHERE content_id = $1",
         content_id,
     )
     return R(status="ok", data={"content_id": content_id, "approved": True})
@@ -1455,8 +1534,7 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
     """Retry a failed job — creates a brand new video from scratch."""
     pool = await get_pool()
     video = await pool.fetchrow(
-        "SELECT channel_id, content_mode, status "
-        "FROM videos WHERE content_id = $1",
+        "SELECT channel_id, content_mode, status FROM videos WHERE content_id = $1",
         content_id,
     )
     if not video:
@@ -1469,7 +1547,8 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
     running = await pool.fetchval(
         "SELECT COUNT(*) FROM videos WHERE channel_id = $1 AND content_mode = $2 "
         "AND status NOT IN ('delivered', 'test_delivered', 'failed', 'stopped', 'superseded', 'rejected', 'retrying')",
-        video["channel_id"], content_mode,
+        video["channel_id"],
+        content_mode,
     )
     if running and int(running) > 0:
         raise HTTPException(status_code=409, detail=f"Channel already has an in-progress {content_mode} job")
@@ -1477,7 +1556,8 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
     await pool.execute(
         "UPDATE videos SET status = 'superseded', updated_at = NOW() "
         "WHERE channel_id = $1 AND content_mode = $2 AND status IN ('failed', 'stopped')",
-        video["channel_id"], content_mode,
+        video["channel_id"],
+        content_mode,
     )
 
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
@@ -1488,7 +1568,9 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
         "INSERT INTO videos (content_id, channel_id, status, content_mode, environment, updated_at) "
         "VALUES ($1, $2, 'researching', $3, 'production', NOW()) "
         "ON CONFLICT (content_id) DO NOTHING",
-        new_content_id, video["channel_id"], content_mode,
+        new_content_id,
+        video["channel_id"],
+        content_mode,
     )
 
     try:
@@ -1507,11 +1589,14 @@ async def retry_job(content_id: str, _: str = Depends(verify_token)):
         await pool.execute("DELETE FROM videos WHERE content_id = $1", new_content_id)
         raise HTTPException(status_code=500, detail=f"Failed to start retry workflow: {exc}")
     await _broadcast_job_event(new_content_id, "researching", video["channel_id"])
-    return R(status="ok", data={
-        "workflow_id": workflow_id,
-        "new_content_id": new_content_id,
-        "original_content_id": content_id,
-    })
+    return R(
+        status="ok",
+        data={
+            "workflow_id": workflow_id,
+            "new_content_id": new_content_id,
+            "original_content_id": content_id,
+        },
+    )
 
 
 @app.post("/api/jobs/{content_id}/restart", deprecated=True)
@@ -1519,14 +1604,15 @@ async def restart_job(content_id: str, _: str = Depends(verify_token)):
     """Restart a stopped/failed job from its last checkpoint (same video, same content_id)."""
     pool = await get_pool()
     video = await pool.fetchrow(
-        "SELECT channel_id, content_mode, checkpoint, status "
-        "FROM videos WHERE content_id = $1",
+        "SELECT channel_id, content_mode, checkpoint, status FROM videos WHERE content_id = $1",
         content_id,
     )
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     if video["status"] not in ("failed", "stopped"):
-        raise HTTPException(status_code=400, detail=f"Can only restart failed/stopped jobs, current: '{video['status']}'")
+        raise HTTPException(
+            status_code=400, detail=f"Can only restart failed/stopped jobs, current: '{video['status']}'"
+        )
     if not video["checkpoint"]:
         raise HTTPException(status_code=400, detail="No checkpoint available — use retry for a fresh start")
 
@@ -1536,7 +1622,9 @@ async def restart_job(content_id: str, _: str = Depends(verify_token)):
         "SELECT COUNT(*) FROM videos WHERE channel_id = $1 AND content_mode = $2 "
         "AND content_id != $3 "
         "AND status NOT IN ('delivered', 'test_delivered', 'failed', 'stopped', 'superseded', 'rejected', 'retrying')",
-        video["channel_id"], content_mode, content_id,
+        video["channel_id"],
+        content_mode,
+        content_id,
     )
     if running and int(running) > 0:
         raise HTTPException(status_code=409, detail=f"Channel already has an in-progress {content_mode} job")
@@ -1545,9 +1633,9 @@ async def restart_job(content_id: str, _: str = Depends(verify_token)):
     workflow_id = f"restart-{content_id}-{ts}"
 
     await pool.execute(
-        "UPDATE videos SET status = $1, error_message = NULL, updated_at = NOW() "
-        "WHERE content_id = $2",
-        video["checkpoint"], content_id,
+        "UPDATE videos SET status = $1, error_message = NULL, updated_at = NOW() WHERE content_id = $2",
+        video["checkpoint"],
+        content_id,
     )
 
     try:
@@ -1572,12 +1660,14 @@ async def restart_job(content_id: str, _: str = Depends(verify_token)):
         )
         raise HTTPException(status_code=500, detail=f"Failed to start restart workflow: {exc}")
     await _broadcast_job_event(content_id, video["checkpoint"], video["channel_id"])
-    return R(status="ok", data={
-        "workflow_id": workflow_id,
-        "content_id": content_id,
-        "resume_from": video["checkpoint"],
-    })
-
+    return R(
+        status="ok",
+        data={
+            "workflow_id": workflow_id,
+            "content_id": content_id,
+            "resume_from": video["checkpoint"],
+        },
+    )
 
 
 async def _find_workflow_for_job(content_id: str) -> str | None:
@@ -1599,7 +1689,8 @@ async def _mark_job_failed(content_id: str, reason: str) -> bool:
     result = await pool.execute(
         "UPDATE videos SET status = 'failed', error_message = $2, updated_at = NOW() "
         "WHERE content_id = $1 AND status NOT IN ('delivered', 'test_delivered', 'failed', 'stopped', 'superseded', 'rejected')",
-        content_id, reason,
+        content_id,
+        reason,
     )
     return "UPDATE 0" not in result
 
@@ -1667,14 +1758,16 @@ async def stop_job(content_id: str, _: str = Depends(verify_token)):
         content_id,
     )
     await _broadcast_job_event(content_id, "stopped", "")
-    return R(status="ok", data={
-        "content_id": content_id,
-        "workflow_id": wf_id,
-        "stopped": True,
-        "terminated_workflow": terminated,
-        "cleaned_orphan": not terminated,
-    })
-
+    return R(
+        status="ok",
+        data={
+            "content_id": content_id,
+            "workflow_id": wf_id,
+            "stopped": True,
+            "terminated_workflow": terminated,
+            "cleaned_orphan": not terminated,
+        },
+    )
 
 
 @app.get("/api/jobs/active", deprecated=True)
@@ -1711,24 +1804,25 @@ async def active_jobs(_: str = Depends(verify_token)):
                 is_paused = wf_paused
                 break
 
-        jobs.append({
-            "content_id": cid,
-            "channel_id": ch_id,
-            "channel_name": r["channel_name"] or ch_id or "Unknown",
-            "status": r["status"],
-            "title": r["title"],
-            "content_mode": mode,
-            "total_cost": float(r["total_cost"]) if r["total_cost"] else 0,
-            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-            "current_phase": r["last_phase"],
-            "phase_status": r["last_phase_status"],
-            "last_event_at": r["last_event_at"].isoformat() if r["last_event_at"] else None,
-            "checkpoint": r["checkpoint"],
-            "error_message": r["error_message"],
-            "is_paused": is_paused,
-        })
+        jobs.append(
+            {
+                "content_id": cid,
+                "channel_id": ch_id,
+                "channel_name": r["channel_name"] or ch_id or "Unknown",
+                "status": r["status"],
+                "title": r["title"],
+                "content_mode": mode,
+                "total_cost": float(r["total_cost"]) if r["total_cost"] else 0,
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                "current_phase": r["last_phase"],
+                "phase_status": r["last_phase_status"],
+                "last_event_at": r["last_event_at"].isoformat() if r["last_event_at"] else None,
+                "checkpoint": r["checkpoint"],
+                "error_message": r["error_message"],
+                "is_paused": is_paused,
+            }
+        )
     return R(status="ok", data=jobs)
-
 
 
 @app.get("/api/channels/{channel_id}/workflow-status", deprecated=True)
@@ -1743,6 +1837,7 @@ async def workflow_status(channel_id: str, _: str = Depends(verify_token)):
     )
     is_paused = False
     if active:
+
         async def _probe() -> bool:
             client = await _get_temporal_client()
             query = 'WorkflowType = "VideoProductionWorkflow" AND ExecutionStatus = "Running"'
@@ -1752,30 +1847,27 @@ async def workflow_status(channel_id: str, _: str = Depends(verify_token)):
                     status = await handle.query("get_status")
                     return bool(status.get("paused", False))
             return False
+
         try:
             is_paused = await asyncio.wait_for(_probe(), timeout=2.0)
         except Exception:
             is_paused = False
-    return R(status="ok", data={
-        "has_running": active is not None,
-        "is_paused": is_paused,
-        "active_content_id": active["content_id"] if active else None,
-        "active_status": active["status"] if active else None,
-    })
-
+    return R(
+        status="ok",
+        data={
+            "has_running": active is not None,
+            "is_paused": is_paused,
+            "active_content_id": active["content_id"] if active else None,
+            "active_status": active["status"] if active else None,
+        },
+    )
 
 
 @app.get("/api/config", deprecated=True)
 async def get_config(_: str = Depends(verify_token)):
     pool = await get_pool()
-    rows = await pool.fetch(
-        "SELECT config_key, config_value, description FROM system_config "
-        "ORDER BY config_key"
-    )
-    configs = [
-        {"key": r["config_key"], "value": r["config_value"], "description": r["description"]}
-        for r in rows
-    ]
+    rows = await pool.fetch("SELECT config_key, config_value, description FROM system_config ORDER BY config_key")
+    configs = [{"key": r["config_key"], "value": r["config_value"], "description": r["description"]} for r in rows]
     return R(status="ok", data=configs)
 
 
@@ -1783,9 +1875,9 @@ async def get_config(_: str = Depends(verify_token)):
 async def update_config(req: ConfigUpdateRequest, _: str = Depends(verify_token)):
     pool = await get_pool()
     result = await pool.execute(
-        "UPDATE system_config SET config_value = $1, updated_at = NOW() "
-        "WHERE config_key = $2",
-        req.config_value, req.config_key,
+        "UPDATE system_config SET config_value = $1, updated_at = NOW() WHERE config_key = $2",
+        req.config_value,
+        req.config_key,
     )
     if "UPDATE 0" in result:
         raise HTTPException(status_code=404, detail="Config key not found")
@@ -1797,8 +1889,7 @@ async def emergency_stop(_: str = Depends(verify_token)):
     """Freeze the entire system: set flag + PAUSE all running workflows (not kill)."""
     pool = await get_pool()
     await pool.execute(
-        "UPDATE system_config SET config_value = 'true', updated_at = NOW() "
-        "WHERE config_key = 'emergency_stop'"
+        "UPDATE system_config SET config_value = 'true', updated_at = NOW() WHERE config_key = 'emergency_stop'"
     )
     paused_count = 0
     try:
@@ -1821,8 +1912,7 @@ async def emergency_resume(_: str = Depends(verify_token)):
     """Un-freeze the system: clear flag + RESUME all paused workflows."""
     pool = await get_pool()
     await pool.execute(
-        "UPDATE system_config SET config_value = 'false', updated_at = NOW() "
-        "WHERE config_key = 'emergency_stop'"
+        "UPDATE system_config SET config_value = 'false', updated_at = NOW() WHERE config_key = 'emergency_stop'"
     )
     resumed_count = 0
     try:
@@ -1840,24 +1930,22 @@ async def emergency_resume(_: str = Depends(verify_token)):
     return R(status="ok", data={"emergency_stop": False, "workflows_resumed": resumed_count})
 
 
-
-
 @app.get("/api/test-data/stats", deprecated=True)
 async def test_data_stats(_: str = Depends(verify_token)):
     """Get stats about test data (videos, storage, cost)."""
     pool = await get_pool()
     video_stats = await pool.fetchrow(
-        "SELECT COUNT(*) as count, COALESCE(SUM(total_cost), 0) as total_cost "
-        "FROM videos WHERE environment = 'test'"
+        "SELECT COUNT(*) as count, COALESCE(SUM(total_cost), 0) as total_cost FROM videos WHERE environment = 'test'"
     )
-    job_count = await pool.fetchval(
-        "SELECT COUNT(*) FROM job_events WHERE environment = 'test'"
+    job_count = await pool.fetchval("SELECT COUNT(*) FROM job_events WHERE environment = 'test'")
+    return R(
+        status="ok",
+        data={
+            "test_videos": video_stats["count"] if video_stats else 0,
+            "test_cost_total": float(video_stats["total_cost"]) if video_stats else 0,
+            "test_job_events": job_count or 0,
+        },
     )
-    return R(status="ok", data={
-        "test_videos": video_stats["count"] if video_stats else 0,
-        "test_cost_total": float(video_stats["total_cost"]) if video_stats else 0,
-        "test_job_events": job_count or 0,
-    })
 
 
 @app.delete("/api/test-data", deprecated=True)
@@ -1865,34 +1953,36 @@ async def cleanup_test_data(_: str = Depends(verify_token)):
     """Delete all test data from DB and storage."""
     pool = await get_pool()
 
-    feedback_del = await pool.execute(
-        "DELETE FROM feedback_loop WHERE environment = 'test'"
-    )
-    events_del = await pool.execute(
-        "DELETE FROM job_events WHERE environment = 'test'"
-    )
-    videos_del = await pool.execute(
-        "DELETE FROM videos WHERE environment = 'test'"
-    )
+    feedback_del = await pool.execute("DELETE FROM feedback_loop WHERE environment = 'test'")
+    events_del = await pool.execute("DELETE FROM job_events WHERE environment = 'test'")
+    videos_del = await pool.execute("DELETE FROM videos WHERE environment = 'test'")
 
     storage_deleted = 0
     try:
         from providers.storage.minio_provider import MinIOStorage
+
         storage = MinIOStorage()
         storage_deleted = storage.delete_prefix("test/")
     except Exception as exc:
         logger.warning("test_data.storage_cleanup_failed", error=str(exc))
 
-    logger.info("test_data.cleaned",
-                videos=videos_del, events=events_del,
-                feedback=feedback_del, storage_objects=storage_deleted)
+    logger.info(
+        "test_data.cleaned",
+        videos=videos_del,
+        events=events_del,
+        feedback=feedback_del,
+        storage_objects=storage_deleted,
+    )
 
-    return R(status="ok", data={
-        "deleted_videos": videos_del,
-        "deleted_events": events_del,
-        "deleted_feedback": feedback_del,
-        "deleted_storage_objects": storage_deleted,
-    })
+    return R(
+        status="ok",
+        data={
+            "deleted_videos": videos_del,
+            "deleted_events": events_del,
+            "deleted_feedback": feedback_del,
+            "deleted_storage_objects": storage_deleted,
+        },
+    )
 
 
 class CleanSlateRequest(BaseModel):
@@ -1930,9 +2020,14 @@ async def clean_slate(req: CleanSlateRequest, _: str = Depends(verify_token)):
 
     pool = await get_pool()
     tables = [
-        "videos", "job_events", "analytics_records", "feedback_loop",
-        "experiment_assignments", "experiment_outcomes",
-        "performance_outcomes", "script_outcomes",
+        "videos",
+        "job_events",
+        "analytics_records",
+        "feedback_loop",
+        "experiment_assignments",
+        "experiment_outcomes",
+        "performance_outcomes",
+        "script_outcomes",
     ]
     for t in tables:
         try:
@@ -1943,6 +2038,7 @@ async def clean_slate(req: CleanSlateRequest, _: str = Depends(verify_token)):
 
     try:
         from providers.storage.minio_provider import MinIOStorage
+
         storage = MinIOStorage()
         for prefix in ("test/", "prod/"):
             try:
@@ -1954,6 +2050,7 @@ async def clean_slate(req: CleanSlateRequest, _: str = Depends(verify_token)):
 
     try:
         from core.redis_client import get_redis
+
         r = await get_redis()
         for pattern in ("lock:channel:*", "progress:*"):
             try:
@@ -1971,10 +2068,12 @@ async def clean_slate(req: CleanSlateRequest, _: str = Depends(verify_token)):
         logger.warning("clean_slate.redis_init_failed", error=str(exc))
 
     try:
-        await _event_broadcaster.broadcast({
-            "type": "clean_slate",
-            "timestamp": datetime.utcnow().isoformat(),
-        })
+        await _event_broadcaster.broadcast(
+            {
+                "type": "clean_slate",
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
     except Exception:
         pass
 
@@ -1982,28 +2081,28 @@ async def clean_slate(req: CleanSlateRequest, _: str = Depends(verify_token)):
     return R(status="ok", data=results)
 
 
-
-
 _FLEET_SERVICES: dict[str, str] = {
-    "research":   "http://research:8001/health",
-    "script":     "http://script:8002/health",
-    "voice":      "http://voice:8003/health",
-    "assets":     "http://assets:8004/health",
-    "thumbnail":  "http://thumbnail:8005/health",
-    "assembly":   "http://assembly:8006/health",
-    "delivery":   "http://delivery:8007/health",
-    "analytics":  "http://analytics:8008/health",
-    "admin":      "http://admin:8009/health",
-    "direction":  "http://direction:8010/health",
-    "brand":      "http://brand:8012/health",
-    "editor":     "http://editor:8013/health",
+    "research": "http://research:8001/health",
+    "script": "http://script:8002/health",
+    "voice": "http://voice:8003/health",
+    "assets": "http://assets:8004/health",
+    "thumbnail": "http://thumbnail:8005/health",
+    "assembly": "http://assembly:8006/health",
+    "delivery": "http://delivery:8007/health",
+    "analytics": "http://analytics:8008/health",
+    "admin": "http://admin:8009/health",
+    "direction": "http://direction:8010/health",
+    "brand": "http://brand:8012/health",
+    "editor": "http://editor:8013/health",
 }
 
 
 async def _probe_service(name: str, url: str, timeout_s: float) -> dict:
     """One-shot health probe. Never raises; classifies the failure."""
-    import httpx as _httpx
     import time as _time
+
+    import httpx as _httpx
+
     start = _time.monotonic()
     try:
         async with _httpx.AsyncClient(timeout=timeout_s) as cli:
@@ -2037,21 +2136,17 @@ async def fleet_health(_: str = Depends(verify_token)):
       replaced with an error marker; the rest of the response is intact.
     """
     import asyncio as _asyncio
+
     import httpx as _httpx
+
     from core.db import get_pool_stats
 
-    probes = await _asyncio.gather(*[
-        _probe_service(name, url, timeout_s=3.0)
-        for name, url in _FLEET_SERVICES.items()
-    ])
+    probes = await _asyncio.gather(*[_probe_service(name, url, timeout_s=3.0) for name, url in _FLEET_SERVICES.items()])
     services_ok = sum(1 for p in probes if p["ok"])
     services_total = len(probes)
 
     db_stats = get_pool_stats()
-    pool_pressure = (
-        round(db_stats["size"] / db_stats["max_size"], 2)
-        if db_stats.get("max_size") else None
-    )
+    pool_pressure = round(db_stats["size"] / db_stats["max_size"], 2) if db_stats.get("max_size") else None
 
     remotion: dict
     try:
@@ -2061,9 +2156,9 @@ async def fleet_health(_: str = Depends(verify_token)):
             d = r.json()
             remotion = {
                 "ok": True,
-                "active":   d.get("activeRenders", 0),
-                "waiting":  d.get("waiting", 0),
-                "max":      d.get("maxConcurrent", 0),
+                "active": d.get("activeRenders", 0),
+                "waiting": d.get("waiting", 0),
+                "max": d.get("maxConcurrent", 0),
                 "memory_mb": int((d.get("memoryUsage", {}).get("rss", 0)) / 1_048_576),
             }
         else:
@@ -2081,8 +2176,7 @@ async def fleet_health(_: str = Depends(verify_token)):
         gate_blocks_24h = None
     try:
         recent_failures = await pool.fetchval(
-            "SELECT COUNT(*) FROM videos "
-            "WHERE status = 'failed' AND updated_at > NOW() - INTERVAL '24 hours'"
+            "SELECT COUNT(*) FROM videos WHERE status = 'failed' AND updated_at > NOW() - INTERVAL '24 hours'"
         )
     except Exception:
         recent_failures = None
@@ -2090,6 +2184,7 @@ async def fleet_health(_: str = Depends(verify_token)):
     pulse: dict
     try:
         from services_api.research.saturation import get_pulse_freshness
+
         pulse_data = await get_pulse_freshness()
         pulse = {"ok": True, **pulse_data}
     except Exception as exc:
@@ -2111,10 +2206,10 @@ async def fleet_health(_: str = Depends(verify_token)):
         forced_7d = int(forced_row["forced_7d"] or 0)
         force_rate = round(forced_7d / picks_7d, 3) if picks_7d else None
         diversity_health = {
-            "ok":          True,
-            "picks_7d":    picks_7d,
-            "forced_7d":   forced_7d,
-            "force_rate":  force_rate,
+            "ok": True,
+            "picks_7d": picks_7d,
+            "forced_7d": forced_7d,
+            "force_rate": force_rate,
         }
     except Exception as exc:
         diversity_health = {"ok": False, "error": type(exc).__name__}
@@ -2122,6 +2217,7 @@ async def fleet_health(_: str = Depends(verify_token)):
     calibration_health: dict
     try:
         from intelligence.prediction_calibration import get_calibration_metrics
+
         cal_metrics = await get_calibration_metrics(model_kind="topic_success")
         calibration_health = {"ok": True, **cal_metrics}
         try:
@@ -2135,6 +2231,7 @@ async def fleet_health(_: str = Depends(verify_token)):
             )
             if ml_row and ml_row["metrics"]:
                 import json as _json
+
                 m = ml_row["metrics"]
                 m = _json.loads(m) if isinstance(m, str) else m
                 calibration_health["weighted_fraction"] = m.get("weighted_fraction")
@@ -2170,10 +2267,10 @@ async def fleet_health(_: str = Depends(verify_token)):
         eligible = int(cov_row["eligible"] or 0)
         with_curve = int(cov_row["with_curve"] or 0)
         retention_cov = {
-            "ok":         True,
-            "eligible":   eligible,
+            "ok": True,
+            "eligible": eligible,
             "with_curve": with_curve,
-            "coverage":   round(with_curve / eligible, 3) if eligible else None,
+            "coverage": round(with_curve / eligible, 3) if eligible else None,
             "last_fetch": cov_row["last_fetch"].isoformat() if cov_row["last_fetch"] else None,
         }
     except Exception as exc:
@@ -2193,9 +2290,9 @@ async def fleet_health(_: str = Depends(verify_token)):
         gate_calib = {
             "ok": True,
             "niches_calibrated": int(row["niches_calibrated"] or 0),
-            "dims_auto":         int(row["dims_auto"] or 0),
-            "dims_default":      int(row["dims_default"] or 0),
-            "last_run":          row["last_run"].isoformat() if row["last_run"] else None,
+            "dims_auto": int(row["dims_auto"] or 0),
+            "dims_default": int(row["dims_default"] or 0),
+            "last_run": row["last_run"].isoformat() if row["last_run"] else None,
         }
     except Exception as exc:
         gate_calib = {"ok": False, "error": type(exc).__name__}
@@ -2206,12 +2303,12 @@ async def fleet_health(_: str = Depends(verify_token)):
         "overall_ok": overall_ok,
         "services": {
             "ok_count": services_ok,
-            "total":    services_total,
-            "probes":   probes,
+            "total": services_total,
+            "probes": probes,
         },
         "db_pool": {
-            "size":     db_stats.get("size"),
-            "idle":     db_stats.get("idle"),
+            "size": db_stats.get("size"),
+            "idle": db_stats.get("idle"),
             "min_size": db_stats.get("min_size"),
             "max_size": db_stats.get("max_size"),
             "pressure": pool_pressure,
@@ -2219,29 +2316,28 @@ async def fleet_health(_: str = Depends(verify_token)):
         "remotion": remotion,
         "scale_config": {
             "temporal_production_max_activities": settings.temporal_production_max_activities,
-            "temporal_scheduler_max_activities":  settings.temporal_scheduler_max_activities,
-            "db_statement_timeout_ms":            settings.db_statement_timeout_ms,
+            "temporal_scheduler_max_activities": settings.temporal_scheduler_max_activities,
+            "db_statement_timeout_ms": settings.db_statement_timeout_ms,
         },
         "pressure_24h": {
             "quality_gate_blocks": gate_blocks_24h,
-            "video_failures":      recent_failures,
+            "video_failures": recent_failures,
         },
-        "gate_calibration":   gate_calib,
-        "niche_pulse":        pulse,
+        "gate_calibration": gate_calib,
+        "niche_pulse": pulse,
         "retention_coverage": retention_cov,
-        "diversity_floor":    diversity_health,
-        "calibration":        calibration_health,
+        "diversity_floor": diversity_health,
+        "calibration": calibration_health,
     }
 
     try:
         from intelligence.system_health import aggregate_health
+
         payload["health"] = aggregate_health(payload)
     except Exception as exc:
-        payload["health"] = {"score": None, "band": "unknown",
-                             "error": type(exc).__name__}
+        payload["health"] = {"score": None, "band": "unknown", "error": type(exc).__name__}
 
     return R(status="ok", data=payload)
-
 
 
 @app.get("/api/stats", deprecated=True)
@@ -2262,33 +2358,31 @@ async def dashboard_stats(_: str = Depends(verify_token)):
         "COALESCE(SUM(total_cost), 0) as total_cost "
         "FROM videos WHERE created_at::date = CURRENT_DATE"
     )
-    budget_row = await pool.fetchrow(
-        "SELECT config_value FROM system_config WHERE config_key = 'daily_budget_limit'"
+    budget_row = await pool.fetchrow("SELECT config_value FROM system_config WHERE config_key = 'daily_budget_limit'")
+    emergency_row = await pool.fetchrow("SELECT config_value FROM system_config WHERE config_key = 'emergency_stop'")
+    return R(
+        status="ok",
+        data={
+            "channels": {
+                "total": channels["total"],
+                "active": channels["active"],
+                "disabled": channels["disabled"],
+                "archived": channels["archived"],
+            },
+            "today": {
+                "videos_total": videos_today["total"],
+                "delivered": videos_today["delivered"],
+                "failed": videos_today["failed"],
+                "in_progress": videos_today["in_progress"],
+                "cost": float(videos_today["total_cost"]),
+            },
+            "budget": {
+                "daily_limit": float(budget_row["config_value"]) if budget_row else 50.0,
+                "used_today": float(videos_today["total_cost"]),
+            },
+            "emergency_stop": emergency_row["config_value"] == "true" if emergency_row else False,
+        },
     )
-    emergency_row = await pool.fetchrow(
-        "SELECT config_value FROM system_config WHERE config_key = 'emergency_stop'"
-    )
-    return R(status="ok", data={
-        "channels": {
-            "total": channels["total"],
-            "active": channels["active"],
-            "disabled": channels["disabled"],
-            "archived": channels["archived"],
-        },
-        "today": {
-            "videos_total": videos_today["total"],
-            "delivered": videos_today["delivered"],
-            "failed": videos_today["failed"],
-            "in_progress": videos_today["in_progress"],
-            "cost": float(videos_today["total_cost"]),
-        },
-        "budget": {
-            "daily_limit": float(budget_row["config_value"]) if budget_row else 50.0,
-            "used_today": float(videos_today["total_cost"]),
-        },
-        "emergency_stop": emergency_row["config_value"] == "true" if emergency_row else False,
-    })
-
 
 
 class EventBroadcaster:
@@ -2321,12 +2415,14 @@ _event_broadcaster = EventBroadcaster()
 async def _broadcast_job_event(content_id: str, status: str, channel_id: str = "") -> None:
     """Fire-and-forget broadcast to all connected dashboards."""
     try:
-        await _event_broadcaster.broadcast({
-            "type": "job_update",
-            "content_id": content_id,
-            "status": status,
-            "channel_id": channel_id,
-        })
+        await _event_broadcaster.broadcast(
+            {
+                "type": "job_update",
+                "content_id": content_id,
+                "status": status,
+                "channel_id": channel_id,
+            }
+        )
     except Exception:
         pass
 
@@ -2346,7 +2442,6 @@ async def ws_events(websocket: WebSocket):
         _event_broadcaster.disconnect(websocket)
 
 
-
 @app.websocket("/api/ws/progress/{content_id}")
 async def ws_progress(websocket: WebSocket, content_id: str):
     """Stream real-time progress updates for a video job."""
@@ -2360,27 +2455,37 @@ async def ws_progress(websocket: WebSocket, content_id: str):
                 "SELECT id, phase, status, detail, cost_usd, created_at "
                 "FROM job_events WHERE content_id = $1 AND id > $2 "
                 "ORDER BY id ASC",
-                content_id, last_event_id,
+                content_id,
+                last_event_id,
             )
             for ev in events:
                 last_event_id = ev["id"]
-                await websocket.send_json({
-                    "type": "event",
-                    "phase": ev["phase"],
-                    "status": ev["status"],
-                    "detail": json.loads(ev["detail"]) if isinstance(ev["detail"], str) else (ev["detail"] or {}),
-                    "cost_usd": float(ev["cost_usd"]) if ev["cost_usd"] else 0,
-                    "timestamp": ev["created_at"].isoformat() if ev["created_at"] else None,
-                })
+                await websocket.send_json(
+                    {
+                        "type": "event",
+                        "phase": ev["phase"],
+                        "status": ev["status"],
+                        "detail": json.loads(ev["detail"]) if isinstance(ev["detail"], str) else (ev["detail"] or {}),
+                        "cost_usd": float(ev["cost_usd"]) if ev["cost_usd"] else 0,
+                        "timestamp": ev["created_at"].isoformat() if ev["created_at"] else None,
+                    }
+                )
 
-            video = await pool.fetchrow(
-                "SELECT status FROM videos WHERE content_id = $1", content_id
-            )
-            if video and video["status"] in ("delivered", "test_delivered", "failed", "stopped", "superseded", "rejected"):
-                await websocket.send_json({
-                    "type": "done",
-                    "final_status": video["status"],
-                })
+            video = await pool.fetchrow("SELECT status FROM videos WHERE content_id = $1", content_id)
+            if video and video["status"] in (
+                "delivered",
+                "test_delivered",
+                "failed",
+                "stopped",
+                "superseded",
+                "rejected",
+            ):
+                await websocket.send_json(
+                    {
+                        "type": "done",
+                        "final_status": video["status"],
+                    }
+                )
                 break
 
             await asyncio.sleep(2)
@@ -2394,7 +2499,7 @@ async def ws_progress(websocket: WebSocket, content_id: str):
             pass
 
 
-
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8020)

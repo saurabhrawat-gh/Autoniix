@@ -13,12 +13,11 @@ Usage:
     await record_outcome("voice_local_vs_llm", content_id, variant, {"retention": 0.45})
     results = await analyze_experiment("voice_local_vs_llm")
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime
-from typing import Any
 
 import numpy as np
 import structlog
@@ -28,9 +27,9 @@ from core.db import get_pool
 logger = structlog.get_logger()
 
 
-
-def _deterministic_variant(experiment_name: str, content_id: str, variants: list[str],
-                           weights: list[float] | None = None) -> str:
+def _deterministic_variant(
+    experiment_name: str, content_id: str, variants: list[str], weights: list[float] | None = None
+) -> str:
     """Hash-based deterministic assignment — same content_id always gets same variant."""
     seed = hashlib.sha256(f"{experiment_name}:{content_id}".encode()).hexdigest()
     bucket = int(seed[:8], 16) % 10000
@@ -46,25 +45,30 @@ def _deterministic_variant(experiment_name: str, content_id: str, variants: list
     return variants[-1]
 
 
-
-async def create_experiment(name: str, description: str,
-                            variants: list[dict],
-                            traffic_pct: float = 100.0,
-                            target_metric: str = "views") -> dict:
+async def create_experiment(
+    name: str, description: str, variants: list[dict], traffic_pct: float = 100.0, target_metric: str = "views"
+) -> dict:
     """Create a new A/B experiment.
-    
+
     variants: [{"name": "control", "weight": 0.5, "config": {...}},
                {"name": "treatment", "weight": 0.5, "config": {...}}]
     """
     pool = await get_pool()
-    await pool.execute("""
+    await pool.execute(
+        """
         INSERT INTO experiments (experiment_name, description, variants,
             traffic_pct, target_metric, status)
         VALUES ($1, $2, $3, $4, $5, 'draft')
         ON CONFLICT (experiment_name) DO UPDATE SET
             description = $2, variants = $3, traffic_pct = $4,
             target_metric = $5, updated_at = NOW()
-    """, name, description, json.dumps(variants), traffic_pct, target_metric)
+    """,
+        name,
+        description,
+        json.dumps(variants),
+        traffic_pct,
+        target_metric,
+    )
 
     logger.info("experiment.created", name=name, variants=len(variants))
     return {"name": name, "status": "draft", "variants": len(variants)}
@@ -72,54 +76,64 @@ async def create_experiment(name: str, description: str,
 
 async def activate_experiment(name: str) -> dict:
     pool = await get_pool()
-    await pool.execute("""
+    await pool.execute(
+        """
         UPDATE experiments SET status = 'active', started_at = NOW(), updated_at = NOW()
         WHERE experiment_name = $1
-    """, name)
+    """,
+        name,
+    )
     return {"name": name, "status": "active"}
 
 
 async def pause_experiment(name: str) -> dict:
     pool = await get_pool()
-    await pool.execute("""
+    await pool.execute(
+        """
         UPDATE experiments SET status = 'paused', updated_at = NOW()
         WHERE experiment_name = $1
-    """, name)
+    """,
+        name,
+    )
     return {"name": name, "status": "paused"}
 
 
 async def complete_experiment(name: str, winning_variant: str = "") -> dict:
     pool = await get_pool()
-    await pool.execute("""
+    await pool.execute(
+        """
         UPDATE experiments SET status = 'completed', ended_at = NOW(),
             winning_variant = $2, updated_at = NOW()
         WHERE experiment_name = $1
-    """, name, winning_variant)
+    """,
+        name,
+        winning_variant,
+    )
     return {"name": name, "status": "completed", "winner": winning_variant}
 
 
 async def list_experiments(status: str = "") -> list[dict]:
     pool = await get_pool()
     if status:
-        rows = await pool.fetch(
-            "SELECT * FROM experiments WHERE status = $1 ORDER BY created_at DESC", status)
+        rows = await pool.fetch("SELECT * FROM experiments WHERE status = $1 ORDER BY created_at DESC", status)
     else:
         rows = await pool.fetch("SELECT * FROM experiments ORDER BY created_at DESC")
     return [dict(r) for r in rows]
 
 
-
-async def assign_variant(experiment_name: str, content_id: str,
-                          channel_id: str = "") -> dict:
+async def assign_variant(experiment_name: str, content_id: str, channel_id: str = "") -> dict:
     """Assign a variant for a content piece in an experiment.
-    
+
     Returns: {"variant": "control", "config": {...}, "in_experiment": True}
     """
     pool = await get_pool()
-    row = await pool.fetchrow("""
+    row = await pool.fetchrow(
+        """
         SELECT experiment_name, variants, traffic_pct, status
         FROM experiments WHERE experiment_name = $1
-    """, experiment_name)
+    """,
+        experiment_name,
+    )
 
     if not row or row["status"] != "active":
         return {"variant": "control", "config": {}, "in_experiment": False}
@@ -137,47 +151,58 @@ async def assign_variant(experiment_name: str, content_id: str,
     variant_name = _deterministic_variant(experiment_name, content_id, names, weights)
     variant_config = next((v.get("config", {}) for v in variants_json if v["name"] == variant_name), {})
 
-    await pool.execute("""
+    await pool.execute(
+        """
         INSERT INTO experiment_assignments (experiment_name, content_id, channel_id, variant_name)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (experiment_name, content_id) DO NOTHING
-    """, experiment_name, content_id, channel_id, variant_name)
+    """,
+        experiment_name,
+        content_id,
+        channel_id,
+        variant_name,
+    )
 
     return {"variant": variant_name, "config": variant_config, "in_experiment": True}
 
 
-
-async def record_outcome(experiment_name: str, content_id: str,
-                          variant_name: str, metrics: dict) -> None:
+async def record_outcome(experiment_name: str, content_id: str, variant_name: str, metrics: dict) -> None:
     """Record outcome metrics for a variant assignment."""
     pool = await get_pool()
-    await pool.execute("""
+    await pool.execute(
+        """
         INSERT INTO experiment_outcomes (experiment_name, content_id, variant_name, metrics)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (experiment_name, content_id) DO UPDATE SET
             metrics = $4, recorded_at = NOW()
-    """, experiment_name, content_id, variant_name, json.dumps(metrics))
-
+    """,
+        experiment_name,
+        content_id,
+        variant_name,
+        json.dumps(metrics),
+    )
 
 
 async def analyze_experiment(experiment_name: str) -> dict:
     """Analyze experiment results with statistical significance testing."""
     pool = await get_pool()
 
-    exp = await pool.fetchrow(
-        "SELECT * FROM experiments WHERE experiment_name = $1", experiment_name)
+    exp = await pool.fetchrow("SELECT * FROM experiments WHERE experiment_name = $1", experiment_name)
     if not exp:
         return {"error": "Experiment not found"}
 
     target_metric = exp["target_metric"]
     variants_json = json.loads(exp["variants"]) if isinstance(exp["variants"], str) else exp["variants"]
 
-    rows = await pool.fetch("""
+    rows = await pool.fetch(
+        """
         SELECT eo.variant_name, eo.metrics
         FROM experiment_outcomes eo
         WHERE eo.experiment_name = $1
         ORDER BY eo.variant_name
-    """, experiment_name)
+    """,
+        experiment_name,
+    )
 
     if len(rows) < 10:
         return {
@@ -227,6 +252,7 @@ async def analyze_experiment(experiment_name: str) -> dict:
                 df = df_num / df_den if df_den > 0 else 1
 
                 from math import erfc, sqrt
+
                 p_value = erfc(abs(t_stat) / sqrt(2))
 
                 significance = {
@@ -237,8 +263,7 @@ async def analyze_experiment(experiment_name: str) -> dict:
                     "significant_at_005": p_value < 0.05,
                     "significant_at_001": p_value < 0.01,
                     "effect_size": round(float(mean_a - mean_b), 6),
-                    "relative_improvement": round(
-                        float((mean_b - mean_a) / mean_a * 100) if mean_a != 0 else 0, 2),
+                    "relative_improvement": round(float((mean_b - mean_a) / mean_a * 100) if mean_a != 0 else 0, 2),
                 }
 
     winner = ""

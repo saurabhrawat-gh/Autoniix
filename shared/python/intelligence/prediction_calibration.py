@@ -40,6 +40,7 @@ zero out a training point. The product `confidence * abs_error` is
 the Bayesian "surprise" of the prediction: prior credence in being
 right, scaled by how wrong it actually was.
 """
+
 from __future__ import annotations
 
 from typing import Iterable
@@ -49,15 +50,11 @@ import structlog
 logger = structlog.get_logger()
 
 
-
-
 WEIGHT_K = 4.0
 
 WEIGHT_CAP = 6.0
 
 DEFAULT_METRICS_LOOKBACK_DAYS = 30
-
-
 
 
 def compute_abs_error(predicted: float, actual: float) -> float:
@@ -91,7 +88,7 @@ def compute_sample_weight(
     it. We never want to *erase* a sample.
     """
     confidence = max(0.0, min(1.0, float(confidence)))
-    abs_error  = max(0.0, min(1.0, float(abs_error)))
+    abs_error = max(0.0, min(1.0, float(abs_error)))
     raw = 1.0 + k * confidence * abs_error
     return min(cap, max(1.0, raw))
 
@@ -155,8 +152,6 @@ def expected_calibration_error(
     return ece
 
 
-
-
 async def log_prediction(
     *,
     content_id: str,
@@ -175,6 +170,7 @@ async def log_prediction(
     """
     try:
         from core.db import get_pool
+
         pool = await get_pool()
         await pool.execute(
             """
@@ -195,14 +191,17 @@ async def log_prediction(
                 sample_weight  = NULL,
                 scored_at      = NULL
             """,
-            content_id, model_kind, niche,
+            content_id,
+            model_kind,
+            niche,
             round(float(predicted_prob), 4),
             round(float(confidence), 4),
             model_version,
         )
     except Exception as exc:
-        logger.warning("calibration.log_prediction_failed",
-                       content_id=content_id, model_kind=model_kind, error=str(exc))
+        logger.warning(
+            "calibration.log_prediction_failed", content_id=content_id, model_kind=model_kind, error=str(exc)
+        )
 
 
 async def update_prediction_actual(
@@ -221,13 +220,15 @@ async def update_prediction_actual(
     """
     try:
         from core.db import get_pool
+
         pool = await get_pool()
         row = await pool.fetchrow(
             """
             SELECT predicted_prob, confidence FROM prediction_log
             WHERE content_id = $1 AND model_kind = $2
             """,
-            content_id, model_kind,
+            content_id,
+            model_kind,
         )
         if row is None:
             return None
@@ -244,20 +245,20 @@ async def update_prediction_actual(
                 scored_at      = NOW()
             WHERE content_id = $1 AND model_kind = $2
             """,
-            content_id, model_kind,
+            content_id,
+            model_kind,
             round(float(actual_outcome), 4),
             round(abs_err, 4),
             round(weight, 3),
         )
         return {
-            "predicted":     predicted,
-            "actual":        float(actual_outcome),
-            "abs_error":     abs_err,
+            "predicted": predicted,
+            "actual": float(actual_outcome),
+            "abs_error": abs_err,
             "sample_weight": weight,
         }
     except Exception as exc:
-        logger.warning("calibration.update_actual_failed",
-                       content_id=content_id, model_kind=model_kind, error=str(exc))
+        logger.warning("calibration.update_actual_failed", content_id=content_id, model_kind=model_kind, error=str(exc))
         return None
 
 
@@ -275,6 +276,7 @@ async def get_calibration_metrics(
     """
     try:
         from core.db import get_pool
+
         pool = await get_pool()
         params: list = [model_kind, lookback_days]
         query = """
@@ -290,13 +292,12 @@ async def get_calibration_metrics(
         rows = await pool.fetch(query, *params)
         pairs = [(r["p"], r["a"]) for r in rows]
         return {
-            "n":     len(pairs),
+            "n": len(pairs),
             "brier": brier_score(pairs),
-            "ece":   expected_calibration_error(pairs),
+            "ece": expected_calibration_error(pairs),
         }
     except Exception as exc:
-        logger.warning("calibration.metrics_failed",
-                       model_kind=model_kind, error=str(exc))
+        logger.warning("calibration.metrics_failed", model_kind=model_kind, error=str(exc))
         return {"n": 0, "brier": None, "ece": None}
 
 
@@ -318,6 +319,7 @@ async def get_sample_weights(
         return {}
     try:
         from core.db import get_pool
+
         pool = await get_pool()
         rows = await pool.fetch(
             """
@@ -327,10 +329,10 @@ async def get_sample_weights(
               AND content_id = ANY($2::text[])
               AND sample_weight IS NOT NULL
             """,
-            model_kind, content_ids,
+            model_kind,
+            content_ids,
         )
         return {r["content_id"]: float(r["w"]) for r in rows}
     except Exception as exc:
-        logger.warning("calibration.weights_fetch_failed",
-                       model_kind=model_kind, error=str(exc))
+        logger.warning("calibration.weights_fetch_failed", model_kind=model_kind, error=str(exc))
         return {}

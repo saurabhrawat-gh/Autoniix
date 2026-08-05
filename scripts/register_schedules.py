@@ -13,6 +13,7 @@ Schedules created:
     model-maintenance-weekly — ModelMaintenanceWorkflow  — Sun 06:00 UTC
     daily-scheduler          — DailySchedulerWorkflow    — daily 07:00 UTC
 """
+
 from __future__ import annotations
 
 import argparse
@@ -20,11 +21,17 @@ import asyncio
 import sys
 from datetime import timedelta
 
-from temporalio.client import Client, Schedule, ScheduleActionStartWorkflow
-from temporalio.client import ScheduleAlreadyRunningError, ScheduleCalendarSpec, ScheduleRange
-from temporalio.client import ScheduleSpec, ScheduleState
+from temporalio.client import (
+    Client,
+    Schedule,
+    ScheduleActionStartWorkflow,
+    ScheduleAlreadyRunningError,
+    ScheduleCalendarSpec,
+    ScheduleRange,
+    ScheduleSpec,
+    ScheduleState,
+)
 from temporalio.service import RPCError
-
 
 _SCHEDULES: list[dict] = [
     {

@@ -1,4 +1,5 @@
 """Unit tests for the brand kit resolver — AE-357."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch

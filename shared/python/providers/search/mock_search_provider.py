@@ -7,6 +7,7 @@ Resolution order:
 
 Cost: $0.00
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -57,11 +58,15 @@ class MockSearchProvider(SearchProvider):
 
         try:
             results = await self._wikipedia_search(request.query, request.num_results)
-            cache_file.write_text(json.dumps({
-                "results": results,
-                "query": request.query,
-                "cached_at": time.time(),
-            }))
+            cache_file.write_text(
+                json.dumps(
+                    {
+                        "results": results,
+                        "query": request.query,
+                        "cached_at": time.time(),
+                    }
+                )
+            )
             logger.info("mock_search.wikipedia_fallback", query=request.query[:40], results=len(results))
             return SearchResult(
                 results=results,
@@ -106,12 +111,14 @@ class MockSearchProvider(SearchProvider):
 
         results = []
         for i, item in enumerate(data.get("query", {}).get("search", []), 1):
-            results.append({
-                "title": item.get("title", ""),
-                "url": f"https://en.wikipedia.org/wiki/{item.get('title', '').replace(' ', '_')}",
-                "snippet": item.get("snippet", "").replace("<span class=\"searchmatch\">", "").replace("</span>", ""),
-                "position": i,
-            })
+            results.append(
+                {
+                    "title": item.get("title", ""),
+                    "url": f"https://en.wikipedia.org/wiki/{item.get('title', '').replace(' ', '_')}",
+                    "snippet": item.get("snippet", "").replace('<span class="searchmatch">', "").replace("</span>", ""),
+                    "position": i,
+                }
+            )
         return results
 
     def estimate_cost(self, num_queries: int) -> float:

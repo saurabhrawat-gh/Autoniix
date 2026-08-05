@@ -16,6 +16,7 @@ key in env. This is intentional — keys are typically static during a
 deploy, and resilience matters more than enforcing a single source of
 truth at runtime.
 """
+
 from __future__ import annotations
 
 import os
@@ -41,6 +42,7 @@ class EnvBackend:
     e.g. ``EnvBackend().get("openai", "api_key")`` reads ``OPENAI_API_KEY``.
     Path-style lookups translate ``a/b/c`` -> ``A_B_C``.
     """
+
     name = "env"
 
     def get(self, path: str, key: str) -> str | None:
@@ -74,9 +76,7 @@ class VaultBackend:
 
     def get(self, path: str, key: str) -> str | None:
         try:
-            res = self._client.secrets.kv.v2.read_secret_version(
-                path=path, mount_point=self._mount
-            )
+            res = self._client.secrets.kv.v2.read_secret_version(path=path, mount_point=self._mount)
             return (res or {}).get("data", {}).get("data", {}).get(key)
         except Exception as exc:
             logger.warning("vault.read_failed", path=path, error=str(exc))
@@ -85,18 +85,14 @@ class VaultBackend:
     def put(self, path: str, key: str, value: str) -> None:
         try:
             existing = (
-                self._client.secrets.kv.v2.read_secret_version(
-                    path=path, mount_point=self._mount
-                )
+                self._client.secrets.kv.v2.read_secret_version(path=path, mount_point=self._mount)
                 .get("data", {})
                 .get("data", {})
             )
         except Exception:
             existing = {}
         existing[key] = value
-        self._client.secrets.kv.v2.create_or_update_secret(
-            path=path, secret=existing, mount_point=self._mount
-        )
+        self._client.secrets.kv.v2.create_or_update_secret(path=path, secret=existing, mount_point=self._mount)
 
     def health(self) -> bool:
         try:
@@ -116,6 +112,7 @@ class DBBackend:
     loud warning — secrets written this way survive only until the
     process restarts. Set the env var in ``.env`` for persistence.
     """
+
     name = "db"
 
     _cipher = None  # type: ignore[var-annotated]
@@ -129,9 +126,11 @@ class DBBackend:
             key = Fernet.generate_key().decode()
             logger.warning(
                 "secrets.db.ephemeral_key",
-                msg=("SECRETS_ENCRYPTION_KEY not set — generated an "
-                     "ephemeral key. Secrets written now will be "
-                     "unreadable after a restart. Add to .env:"),
+                msg=(
+                    "SECRETS_ENCRYPTION_KEY not set — generated an "
+                    "ephemeral key. Secrets written now will be "
+                    "unreadable after a restart. Add to .env:"
+                ),
                 example_key=key,
             )
         try:
@@ -170,7 +169,9 @@ class DBBackend:
     @staticmethod
     async def _connect():
         import asyncpg
+
         from core.config import settings
+
         return await asyncpg.connect(
             host=settings.db_host,
             port=settings.db_port,
@@ -184,7 +185,8 @@ class DBBackend:
         try:
             return await conn.fetchval(
                 "SELECT ciphertext FROM provider_secrets WHERE path=$1 AND key=$2",
-                path, key,
+                path,
+                key,
             )
         finally:
             await conn.close()
@@ -198,7 +200,9 @@ class DBBackend:
                    ON CONFLICT (path, key) DO UPDATE
                      SET ciphertext = EXCLUDED.ciphertext,
                          updated_at = NOW()""",
-                path, key, ciphertext,
+                path,
+                key,
+                ciphertext,
             )
         finally:
             await conn.close()
@@ -247,11 +251,11 @@ class InfisicalBackend:
     def __init__(self) -> None:
         try:
             from infisical_client import (
-                ClientSettings,
-                InfisicalClient,
                 AuthenticationOptions,
-                UniversalAuthMethod,
+                ClientSettings,
                 GetSecretOptions,
+                InfisicalClient,
+                UniversalAuthMethod,
             )
         except Exception as exc:
             raise RuntimeError(f"infisical_client unavailable: {exc}")
@@ -263,9 +267,7 @@ class InfisicalBackend:
         self._client = InfisicalClient(
             ClientSettings(
                 auth=AuthenticationOptions(
-                    universal_auth=UniversalAuthMethod(
-                        client_id=client_id, client_secret=client_secret
-                    )
+                    universal_auth=UniversalAuthMethod(client_id=client_id, client_secret=client_secret)
                 ),
                 site_url=site_url,
             )
@@ -339,8 +341,7 @@ def get_secret_at(path: str, key: str) -> str | None:
             if v:
                 return v
         except Exception as exc:
-            logger.warning("secrets.backend_failed",
-                           backend=backend.name, path=path, error=str(exc))
+            logger.warning("secrets.backend_failed", backend=backend.name, path=path, error=str(exc))
     return None
 
 
@@ -367,8 +368,7 @@ def delete_prefix(prefix: str) -> int:
         try:
             total += int(fn(prefix) or 0)
         except Exception as exc:
-            logger.warning("secrets.delete_prefix_failed",
-                           backend=backend.name, prefix=prefix, error=str(exc))
+            logger.warning("secrets.delete_prefix_failed", backend=backend.name, prefix=prefix, error=str(exc))
     return total
 
 

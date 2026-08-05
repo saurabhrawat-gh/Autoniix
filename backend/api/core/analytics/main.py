@@ -12,16 +12,14 @@ from pydantic import BaseModel, Field
 
 from core.config import settings
 from core.db import close_pool, get_pool
-from schemas.common import HealthResponse, ServiceResponse
-
-from services_api.analytics.pattern_miner import (
-    mine_performance_patterns,
-    get_channel_insights,
-)
 from observability.metrics import instrument_app
+from schemas.common import HealthResponse, ServiceResponse
+from services_api.analytics.pattern_miner import (
+    get_channel_insights,
+    mine_performance_patterns,
+)
 
 logger = structlog.get_logger()
-
 
 
 class AnalyticsCollectRequest(BaseModel):
@@ -43,7 +41,6 @@ class TrendRefreshRequest(BaseModel):
     niche: str = ""
 
 
-
 def _classify_tier(views: int, likes: int, comments: int) -> str:
     """Classify video performance tier: S/A/B/C/D."""
     engagement = (likes + comments * 2) / max(views, 1) * 100
@@ -58,7 +55,6 @@ def _classify_tier(views: int, likes: int, comments: int) -> str:
     return "D"
 
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("analytics.starting")
@@ -68,12 +64,15 @@ async def lifespan(app: FastAPI):
 
 
 from observability.sentry import init_sentry
+
 init_sentry("analytics")
 
 app = FastAPI(title="Analytics Service", version="0.1.0", lifespan=lifespan)
 
 
 instrument_app(app, service_name="analytics")
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="analytics")
@@ -132,7 +131,13 @@ async def collect(req: AnalyticsCollectRequest):
                         "UPDATE feedback_loop SET yt_views = $1, yt_likes = $2, yt_comments = $3, "
                         "engagement_rate = $4, performance_tier = $5, analytics_status = 'collected', "
                         "updated_at = NOW() WHERE yt_video_id = $6",
-                        views, likes, comments, round(engagement, 2), tier, video_id)
+                        views,
+                        likes,
+                        comments,
+                        round(engagement, 2),
+                        tier,
+                        video_id,
+                    )
                 except Exception as db_err:
                     logger.warning("analytics.feedback_update_failed", video_id=video_id, error=str(db_err))
 
@@ -164,19 +169,26 @@ async def collect(req: AnalyticsCollectRequest):
             }
             await pool.execute(
                 "UPDATE channels SET performance_memory = $1, updated_at = NOW() WHERE channel_id = $2",
-                json.dumps(perf), req.channel_id)
+                json.dumps(perf),
+                req.channel_id,
+            )
 
             await pool.execute(
                 "INSERT INTO performance_memory (channel_id, metric_type, metric_key, metric_value, period_start, period_end) "
                 "VALUES ($1, 'aggregate', 'avg_views', $2, NOW() - INTERVAL '30 days', NOW()) "
                 "ON CONFLICT (channel_id, metric_type, metric_key, period_start) DO UPDATE SET metric_value = $2, updated_at = NOW()",
-                req.channel_id, avg_views)
+                req.channel_id,
+                avg_views,
+            )
 
         except Exception as e:
             logger.warning("analytics.db_update_failed", error=str(e))
 
-    logger.info("analytics.collected", videos=len(analytics),
-                 total_views=sum(a.get("views", 0) for a in analytics if "views" in a))
+    logger.info(
+        "analytics.collected",
+        videos=len(analytics),
+        total_views=sum(a.get("views", 0) for a in analytics if "views" in a),
+    )
 
     return ServiceResponse(
         status="success",
@@ -200,7 +212,9 @@ async def run_feedback_loop(req: FeedbackLoopRequest):
             "FROM videos WHERE channel_id = $1 AND status = 'delivered' "
             "AND youtube_video_id IS NOT NULL AND created_at < $2 "
             "ORDER BY created_at DESC LIMIT 50",
-            req.channel_id, cutoff)
+            req.channel_id,
+            cutoff,
+        )
 
         inserted = 0
         video_ids = []
@@ -213,15 +227,23 @@ async def run_feedback_loop(req: FeedbackLoopRequest):
                 "thumbnail_score, hook_retention_score, final_score, content_mode, status, yt_video_id) "
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10) "
                 "ON CONFLICT (video_id) DO NOTHING",
-                row["content_id"], req.channel_id, row["title"],
-                row.get("idea_score"), row.get("script_structure_score"),
-                row.get("thumbnail_score"), row.get("hook_retention_score"),
-                row.get("final_composite_score"), row.get("content_mode"), yt_id)
+                row["content_id"],
+                req.channel_id,
+                row["title"],
+                row.get("idea_score"),
+                row.get("script_structure_score"),
+                row.get("thumbnail_score"),
+                row.get("hook_retention_score"),
+                row.get("final_composite_score"),
+                row.get("content_mode"),
+                yt_id,
+            )
             inserted += 1
 
         if video_ids:
-            collect_result = await collect(AnalyticsCollectRequest(
-                channel_id=req.channel_id, youtube_video_ids=video_ids))
+            collect_result = await collect(
+                AnalyticsCollectRequest(channel_id=req.channel_id, youtube_video_ids=video_ids)
+            )
 
         logger.info("analytics.feedback_loop_done", inserted=inserted, collected=len(video_ids))
         return ServiceResponse(
@@ -240,8 +262,8 @@ async def get_performance(req: PerformanceRequest):
     try:
         pool = await get_pool()
         row = await pool.fetchrow(
-            "SELECT performance_memory, channel_name, niche FROM channels WHERE channel_id = $1",
-            req.channel_id)
+            "SELECT performance_memory, channel_name, niche FROM channels WHERE channel_id = $1", req.channel_id
+        )
         if not row:
             raise HTTPException(status_code=404, detail=f"Channel {req.channel_id} not found")
 
@@ -250,13 +272,15 @@ async def get_performance(req: PerformanceRequest):
             "idea_score, script_score, thumbnail_score "
             "FROM feedback_loop WHERE channel_id = $1 AND performance_tier IN ('S', 'A') "
             "ORDER BY yt_views DESC LIMIT 10",
-            req.channel_id)
+            req.channel_id,
+        )
 
         worst_videos = await pool.fetch(
             "SELECT title, yt_video_id, yt_views, engagement_rate, performance_tier "
             "FROM feedback_loop WHERE channel_id = $1 AND performance_tier IN ('D') "
             "ORDER BY yt_views ASC LIMIT 5",
-            req.channel_id)
+            req.channel_id,
+        )
 
         perf_data = json.loads(row["performance_memory"]) if row["performance_memory"] else {}
 
@@ -286,8 +310,7 @@ async def refresh_trends(req: TrendRefreshRequest):
         pool = await get_pool()
 
         if not req.niche:
-            row = await pool.fetchrow(
-                "SELECT niche FROM channels WHERE channel_id = $1", req.channel_id)
+            row = await pool.fetchrow("SELECT niche FROM channels WHERE channel_id = $1", req.channel_id)
             niche = row["niche"] if row else "general"
         else:
             niche = req.niche
@@ -308,7 +331,8 @@ async def refresh_trends(req: TrendRefreshRequest):
                             "publishedAfter": (datetime.utcnow() - timedelta(days=7)).isoformat() + "Z",
                             "maxResults": 10,
                             "key": youtube_api_key,
-                        })
+                        },
+                    )
                     resp.raise_for_status()
                     items = resp.json().get("items", [])
 
@@ -316,13 +340,15 @@ async def refresh_trends(req: TrendRefreshRequest):
                         vid_id = item.get("id", {}).get("videoId", "")
                         if not vid_id:
                             continue
-                        trends.append({
-                            "trend_type": "youtube_trending",
-                            "trend_title": item["snippet"]["title"],
-                            "source": "youtube",
-                            "source_url": f"https://youtube.com/watch?v={vid_id}",
-                            "channel": item["snippet"]["channelTitle"],
-                        })
+                        trends.append(
+                            {
+                                "trend_type": "youtube_trending",
+                                "trend_title": item["snippet"]["title"],
+                                "source": "youtube",
+                                "source_url": f"https://youtube.com/watch?v={vid_id}",
+                                "channel": item["snippet"]["channelTitle"],
+                            }
+                        )
             except Exception as yt_err:
                 logger.warning("analytics.youtube_trends_failed", error=str(yt_err))
 
@@ -334,8 +360,13 @@ async def refresh_trends(req: TrendRefreshRequest):
                     "source, source_url, relevance_score, status) "
                     "VALUES ($1, $2, $3, $4, $5, $6, 7.0, 'active') "
                     "ON CONFLICT DO NOTHING",
-                    req.channel_id, niche, trend["trend_type"], trend["trend_title"],
-                    trend["source"], trend["source_url"])
+                    req.channel_id,
+                    niche,
+                    trend["trend_type"],
+                    trend["trend_title"],
+                    trend["source"],
+                    trend["source_url"],
+                )
                 inserted += 1
             except Exception:
                 pass
@@ -349,7 +380,6 @@ async def refresh_trends(req: TrendRefreshRequest):
     except Exception as exc:
         logger.error("analytics.refresh_trends_failed", error=str(exc))
         raise HTTPException(status_code=500, detail=str(exc))
-
 
 
 @app.post("/mine-patterns", response_model=ServiceResponse)

@@ -2,6 +2,7 @@
 
 Ported from ``go-workflows/model_maintenance.go``. Task queue: ``scheduler-v2``.
 """
+
 from __future__ import annotations
 
 from datetime import timedelta
@@ -10,7 +11,6 @@ from typing import Any
 from temporalio import workflow
 
 from .types import RETRY_LIGHT
-
 
 TRAINABLE_MODELS: list[str] = [
     "script_quality",
@@ -75,9 +75,7 @@ class ModelMaintenanceWorkflow:
                 model_results[model_name] = {"action": "error", "error": str(exc)}
                 continue
 
-            needs_retrain = drift.get("drift_detected") or freshness.get(
-                "staleness_critical"
-            )
+            needs_retrain = drift.get("drift_detected") or freshness.get("staleness_critical")
 
             if not needs_retrain:
                 log.info("no drift — updating health only", extra={"model": model_name})

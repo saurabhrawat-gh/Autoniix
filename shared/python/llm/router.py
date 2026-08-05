@@ -42,6 +42,7 @@ The router is safe to use from concurrent tasks (per-process state is
 guarded by an asyncio lock when needed; the Postgres rollup is the
 authoritative cost source).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -62,16 +63,11 @@ logger = structlog.get_logger()
 _DEFAULT_COMPRESSION_TIER: str = os.getenv("LLM_COMPRESSION", "off")
 
 
-
-
 class BudgetExceeded(RuntimeError):
     """Raised when a channel has hit its ``daily_cost_cap_usd``."""
 
     def __init__(self, channel_id: str, spent: float, cap: float):
-        super().__init__(
-            f"channel {channel_id} daily LLM budget exhausted: "
-            f"${spent:.2f} of ${cap:.2f}"
-        )
+        super().__init__(f"channel {channel_id} daily LLM budget exhausted: ${spent:.2f} of ${cap:.2f}")
         self.channel_id = channel_id
         self.spent = spent
         self.cap = cap
@@ -81,17 +77,15 @@ class LadderExhausted(RuntimeError):
     """Raised when every provider in the configured ladder failed."""
 
     def __init__(self, category: str, attempts: list[tuple[str, str]]):
-        msg = f"all providers failed for {category}: " + ", ".join(
-            f"{prov}: {err}" for prov, err in attempts
-        )
+        msg = f"all providers failed for {category}: " + ", ".join(f"{prov}: {err}" for prov, err in attempts)
         super().__init__(msg)
         self.category = category
         self.attempts = attempts
 
 
-
 try:  # pragma: no cover
     from prometheus_client import Counter, Histogram
+
     LLM_REQUESTS_TOTAL = Counter(
         "llm_requests_total",
         "LLM call outcomes routed via the central router.",
@@ -109,13 +103,18 @@ try:  # pragma: no cover
         buckets=(0.5, 1, 2, 5, 10, 20, 45, 90, 180),
     )
 except Exception:  # pragma: no cover
+
     class _Noop:
-        def labels(self, *a, **kw): return self
-        def inc(self, *a, **kw): return None
-        def observe(self, *a, **kw): return None
+        def labels(self, *a, **kw):
+            return self
+
+        def inc(self, *a, **kw):
+            return None
+
+        def observe(self, *a, **kw):
+            return None
+
     LLM_REQUESTS_TOTAL = LLM_COST_USD_TOTAL = LLM_DURATION_SECONDS = _Noop()  # type: ignore
-
-
 
 
 @dataclass
@@ -129,27 +128,24 @@ class _Breaker:
     def open(self) -> bool:
         if time.time() < self.open_until:
             return True
-        recent = [
-            (t, ok) for (t, ok) in self.events if t >= time.time() - 300
-        ]
+        recent = [(t, ok) for (t, ok) in self.events if t >= time.time() - 300]
         if len(recent) >= 6 and sum(1 for _, ok in recent if not ok) / len(recent) > 0.5:
             self.open_until = time.time() + 60
             return True
         return False
 
 
-
 _DEFAULT_LADDERS: dict[str, list[str]] = {
-    "llm":           ["deepseek", "openai", "claude", "gemini"],
-    "llm.research":  ["gemini", "deepseek", "openai", "claude"],
-    "llm.script":    ["claude", "deepseek", "openai", "gemini"],
+    "llm": ["deepseek", "openai", "claude", "gemini"],
+    "llm.research": ["gemini", "deepseek", "openai", "claude"],
+    "llm.script": ["claude", "deepseek", "openai", "gemini"],
     "llm.factcheck": ["openai", "deepseek", "gemini", "claude"],
-    "llm.qc":        ["gemini", "deepseek", "openai", "claude"],
-    "llm.vision":    ["openai", "gemini"],
-    "llm.ideation":  ["gemini", "deepseek", "openai", "claude"],
-    "llm.hook":      ["deepseek", "claude", "openai"],
+    "llm.qc": ["gemini", "deepseek", "openai", "claude"],
+    "llm.vision": ["openai", "gemini"],
+    "llm.ideation": ["gemini", "deepseek", "openai", "claude"],
+    "llm.hook": ["deepseek", "claude", "openai"],
     "llm.direction": ["deepseek", "claude", "openai"],
-    "llm.emotion":   ["gemini", "deepseek", "openai"],
+    "llm.emotion": ["gemini", "deepseek", "openai"],
 }
 
 
@@ -161,17 +157,15 @@ def _ladder_for(category: str) -> list[str]:
     return list(_DEFAULT_LADDERS.get(category, _DEFAULT_LADDERS["llm"]))
 
 
-
-
 async def _spent_today(channel_id: str) -> float:
     if not channel_id:
         return 0.0
     try:
         from core.db import get_pool
+
         pool = await get_pool()
         val = await pool.fetchval(
-            "SELECT COALESCE(SUM(cost_usd), 0)::float8 FROM api_usage "
-            "WHERE channel_id = $1 AND date = CURRENT_DATE",
+            "SELECT COALESCE(SUM(cost_usd), 0)::float8 FROM api_usage WHERE channel_id = $1 AND date = CURRENT_DATE",
             channel_id,
         )
         return float(val or 0.0)
@@ -185,6 +179,7 @@ async def _cap_for(channel_id: str) -> float:
         return 0.0
     try:
         from core.db import get_pool
+
         pool = await get_pool()
         val = await pool.fetchval(
             "SELECT daily_cost_cap_usd FROM channels WHERE channel_id = $1",
@@ -202,6 +197,7 @@ async def _content_mode_for(content_id: str) -> str | None:
         return None
     try:
         from core.db import get_pool
+
         pool = await get_pool()
         val = await pool.fetchval(
             "SELECT content_mode FROM videos WHERE content_id = $1",
@@ -209,8 +205,7 @@ async def _content_mode_for(content_id: str) -> str | None:
         )
         return val or None
     except Exception as exc:
-        logger.debug("router.content_mode_lookup_failed",
-                     content_id=content_id, error=str(exc))
+        logger.debug("router.content_mode_lookup_failed", content_id=content_id, error=str(exc))
         return None
 
 
@@ -228,16 +223,18 @@ async def _db_chain_pairs(
     """
     try:
         from providers import chain as chain_mod
+
         registry = ProviderRegistry._registries.get(category, {})
         if not registry:
             return []
         wrapped = await chain_mod.resolve_chain(
-            category, registry,
-            channel_id=channel_id, content_mode=content_mode,
+            category,
+            registry,
+            channel_id=channel_id,
+            content_mode=content_mode,
         )
     except Exception as exc:
-        logger.debug("router.db_chain_failed",
-                     category=category, error=str(exc))
+        logger.debug("router.db_chain_failed", category=category, error=str(exc))
         return []
     if wrapped is None:
         return []
@@ -252,23 +249,27 @@ async def _db_chain_pairs(
     return pairs
 
 
-async def _record_usage(*, content_id: str, channel_id: str,
-                        category: str, result: LLMResult) -> None:
+async def _record_usage(*, content_id: str, channel_id: str, category: str, result: LLMResult) -> None:
     try:
         from core.db import get_pool
+
         pool = await get_pool()
         await pool.execute(
             "INSERT INTO api_usage (content_id, channel_id, service, provider, "
             "model, tokens_in, tokens_out, cost_usd, latency_ms) "
             "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-            content_id, channel_id, category, result.provider, result.model,
-            result.tokens_in, result.tokens_out, float(result.cost_usd),
+            content_id,
+            channel_id,
+            category,
+            result.provider,
+            result.model,
+            result.tokens_in,
+            result.tokens_out,
+            float(result.cost_usd),
             result.latency_ms,
         )
     except Exception as exc:
         logger.warning("router.usage_log_failed", error=str(exc))
-
-
 
 
 def _is_transient(exc: BaseException) -> bool:
@@ -278,8 +279,6 @@ def _is_transient(exc: BaseException) -> bool:
         code = exc.response.status_code
         return code == 429 or 500 <= code < 600
     return False
-
-
 
 
 class Router:
@@ -311,23 +310,19 @@ class Router:
         if cap > 0:
             spent = await _spent_today(channel_id)
             if spent >= cap:
-                LLM_REQUESTS_TOTAL.labels(
-                    category=category, provider="-", outcome="budget"
-                ).inc()
-                logger.warning("router.budget_exceeded",
-                               channel_id=channel_id, spent=spent, cap=cap)
+                LLM_REQUESTS_TOTAL.labels(category=category, provider="-", outcome="budget").inc()
+                logger.warning("router.budget_exceeded", channel_id=channel_id, spent=spent, cap=cap)
                 raise BudgetExceeded(channel_id, spent, cap)
 
         if content_mode is None and content_id:
             content_mode = await _content_mode_for(content_id)
 
         if ladder:
-            candidates: list[tuple[str, Any | None, str | None]] = [
-                (p, None, None) for p in ladder
-            ]
+            candidates: list[tuple[str, Any | None, str | None]] = [(p, None, None) for p in ladder]
         else:
             db_pairs = await _db_chain_pairs(
-                category, channel_id=channel_id or None,
+                category,
+                channel_id=channel_id or None,
                 content_mode=content_mode,
             )
             if db_pairs:
@@ -336,8 +331,10 @@ class Router:
                 candidates = [(p, None, None) for p in _ladder_for(category)]
 
         call_request, compression_stats = await self._compress(
-            request, compression_tier=compression_tier,
-            category=category, model=request.model or "",
+            request,
+            compression_tier=compression_tier,
+            category=category,
+            model=request.model or "",
         )
 
         attempts: list[tuple[str, str]] = []
@@ -345,16 +342,15 @@ class Router:
             br = self._breaker(prov_name)
             if br.open():
                 attempts.append((prov_name, "circuit_open"))
-                LLM_REQUESTS_TOTAL.labels(
-                    category=category, provider=prov_name, outcome="breaker"
-                ).inc()
+                LLM_REQUESTS_TOTAL.labels(category=category, provider=prov_name, outcome="breaker").inc()
                 continue
             if db_member is not None:
                 provider = db_member
             else:
                 try:
                     provider = ProviderRegistry.get(
-                        category, override=prov_name,
+                        category,
+                        override=prov_name,
                         channel_id=channel_id or None,
                         content_mode=content_mode,
                     )
@@ -371,36 +367,26 @@ class Router:
                 result = await provider.complete(call_request)
             except Exception as exc:
                 br.record(False)
-                LLM_DURATION_SECONDS.labels(
-                    category=category, provider=prov_name
-                ).observe(time.monotonic() - t0)
-                LLM_REQUESTS_TOTAL.labels(
-                    category=category, provider=prov_name, outcome="fail"
-                ).inc()
+                LLM_DURATION_SECONDS.labels(category=category, provider=prov_name).observe(time.monotonic() - t0)
+                LLM_REQUESTS_TOTAL.labels(category=category, provider=prov_name, outcome="fail").inc()
                 attempts.append((prov_name, repr(exc)))
                 if _is_transient(exc):
-                    logger.warning("router.transient_error",
-                                   provider=prov_name, error=str(exc))
+                    logger.warning("router.transient_error", provider=prov_name, error=str(exc))
                     continue
-                logger.error("router.permanent_error",
-                             provider=prov_name, error=str(exc))
+                logger.error("router.permanent_error", provider=prov_name, error=str(exc))
                 raise
 
             br.record(True)
-            LLM_DURATION_SECONDS.labels(
-                category=category, provider=prov_name
-            ).observe(time.monotonic() - t0)
-            LLM_REQUESTS_TOTAL.labels(
-                category=category, provider=prov_name, outcome="ok"
-            ).inc()
-            LLM_COST_USD_TOTAL.labels(
-                category=category, provider=prov_name
-            ).inc(float(result.cost_usd))
+            LLM_DURATION_SECONDS.labels(category=category, provider=prov_name).observe(time.monotonic() - t0)
+            LLM_REQUESTS_TOTAL.labels(category=category, provider=prov_name, outcome="ok").inc()
+            LLM_COST_USD_TOTAL.labels(category=category, provider=prov_name).inc(float(result.cost_usd))
 
             if record_usage:
                 await _record_usage(
-                    content_id=content_id, channel_id=channel_id,
-                    category=category, result=result,
+                    content_id=content_id,
+                    channel_id=channel_id,
+                    category=category,
+                    result=result,
                 )
             result.compression = compression_stats
             return result
@@ -427,6 +413,7 @@ class Router:
         tier = compression_tier or _DEFAULT_COMPRESSION_TIER
         try:
             from core.flags import get_flag
+
             flag_tier = await get_flag("llm.compression.tier", default=None)
             if flag_tier and isinstance(flag_tier, str):
                 tier = flag_tier
@@ -438,6 +425,7 @@ class Router:
 
         try:
             from llm.compressor import compress_request
+
             return await compress_request(request, tier=tier, category=category)
         except Exception as exc:
             logger.warning("router.compress_failed", error=str(exc))
@@ -467,9 +455,12 @@ async def route(
 ) -> LLMResult:
     """Module-level convenience wrapper around :class:`Router.route`."""
     return await get_router().route(
-        category=category, request=request,
-        channel_id=channel_id, content_id=content_id,
+        category=category,
+        request=request,
+        channel_id=channel_id,
+        content_id=content_id,
         content_mode=content_mode,
-        ladder=ladder, record_usage=record_usage,
+        ladder=ladder,
+        record_usage=record_usage,
         compression_tier=compression_tier,
     )

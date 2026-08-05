@@ -36,6 +36,7 @@ decision belonging to a later ticket.
 
 This module is part of AE-508 / P0 — Agentic Foundation.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -67,16 +68,12 @@ _RETRY_INITIAL_DELAY_S = 0.5
 _RETRY_MAX_DELAY_S = 8.0
 
 
-
-
 class EmbeddingError(RuntimeError):
     """Raised when the OpenAI embedding API fails after all retries."""
 
 
 class EmbeddingConfigError(RuntimeError):
     """Raised when the OpenAI API key is not configured."""
-
-
 
 
 def _format_vector(values: list[float]) -> str:
@@ -96,9 +93,7 @@ async def _post_with_retry(payload: dict) -> dict:
     final failure raises :class:`EmbeddingError`.
     """
     if not settings.openai_api_key:
-        raise EmbeddingConfigError(
-            "OPENAI_API_KEY not set; the embedding helper requires it."
-        )
+        raise EmbeddingConfigError("OPENAI_API_KEY not set; the embedding helper requires it.")
     headers = {
         "Authorization": f"Bearer {settings.openai_api_key}",
         "Content-Type": "application/json",
@@ -107,15 +102,11 @@ async def _post_with_retry(payload: dict) -> dict:
     for attempt in range(1, _MAX_ATTEMPTS + 1):
         try:
             async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT_S) as client:
-                response = await client.post(
-                    OPENAI_BASE_URL, headers=headers, json=payload
-                )
+                response = await client.post(OPENAI_BASE_URL, headers=headers, json=payload)
             if response.status_code == 200:
                 return response.json()
             if not _is_transient(response.status_code):
-                raise EmbeddingError(
-                    f"openai embeddings {response.status_code}: {response.text[:300]}"
-                )
+                raise EmbeddingError(f"openai embeddings {response.status_code}: {response.text[:300]}")
             last_error = f"{response.status_code}: {response.text[:200]}"
         except httpx.RequestError as exc:
             last_error = f"network: {exc!s}"
@@ -126,9 +117,7 @@ async def _post_with_retry(payload: dict) -> dict:
             )
             delay = random.uniform(0.0, delay)
             await asyncio.sleep(delay)
-    raise EmbeddingError(
-        f"openai embeddings failed after {_MAX_ATTEMPTS} attempts: {last_error}"
-    )
+    raise EmbeddingError(f"openai embeddings failed after {_MAX_ATTEMPTS} attempts: {last_error}")
 
 
 async def _record_cost(
@@ -161,8 +150,6 @@ async def _record_cost(
         logger.warning("embeddings.cost_record_failed", error=str(exc))
 
 
-
-
 async def embed_text(
     text: str,
     *,
@@ -192,9 +179,7 @@ async def embed_text(
         raise EmbeddingError(f"unexpected embeddings response shape: {exc!s}")
 
     if len(vector) != EMBEDDING_DIM and model == DEFAULT_MODEL:
-        raise EmbeddingError(
-            f"expected {EMBEDDING_DIM}-d vector, got {len(vector)}"
-        )
+        raise EmbeddingError(f"expected {EMBEDDING_DIM}-d vector, got {len(vector)}")
 
     cost_usd = tokens_in * PRICING_PER_TOKEN.get(model, 0.0)
     await _record_cost(
@@ -230,9 +215,7 @@ async def embed_and_store(
     _assert_safe_identifier(column)
     _assert_safe_identifier(id_column)
 
-    vector = await embed_text(
-        text, model=model, content_id=content_id, channel_id=channel_id
-    )
+    vector = await embed_text(text, model=model, content_id=content_id, channel_id=channel_id)
     pool = await get_pool()
     await pool.execute(
         f"UPDATE {table} SET {column} = $1::vector WHERE {id_column} = $2",
@@ -280,9 +263,7 @@ async def semantic_search(
     _assert_safe_identifier(id_column)
 
     try:
-        vector = await embed_text(
-            query, model=model, content_id=content_id, channel_id=channel_id
-        )
+        vector = await embed_text(query, model=model, content_id=content_id, channel_id=channel_id)
     except (EmbeddingError, EmbeddingConfigError) as exc:
         logger.warning("semantic_search.embed_failed", table=table, error=str(exc))
         return []
@@ -290,10 +271,7 @@ async def semantic_search(
     vector_literal = _format_vector(vector)
     decay_days = await _resolve_decay_days(table, relevance_decay_days)
 
-    base_select = (
-        f"SELECT {select_columns}, "
-        f"1 - ({column} <=> $1::vector) AS cosine_sim "
-    )
+    base_select = f"SELECT {select_columns}, 1 - ({column} <=> $1::vector) AS cosine_sim "
     if decay_days is not None:
         base_select += (
             f", (1 - ({column} <=> $1::vector)) * "

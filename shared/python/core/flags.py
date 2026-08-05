@@ -24,6 +24,7 @@ Public API
 
 This module is part of AE-510 / P0 — Agentic Foundation.
 """
+
 from __future__ import annotations
 
 import asyncio

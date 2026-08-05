@@ -31,6 +31,7 @@ channel the Brain has shut down.
 
 Part of AE-P1 / Agentic Foundation.
 """
+
 from __future__ import annotations
 
 import json
@@ -38,13 +39,13 @@ from dataclasses import asdict
 from typing import Any, ClassVar
 
 import structlog
+from events.bus import publish
+from events.topics import Topic
 
 from agents.base import AgentDecision, AgentObservation, BaseAgent
 from core.db import get_pool
-from events.bus import publish
-from events.topics import Topic
 from core.flags import get_flag
-from services_api.brain.analyser import ChannelSignals, analyse_channel
+from services_api.brain.analyser import analyse_channel
 
 logger = structlog.get_logger()
 
@@ -73,10 +74,7 @@ class PreventorAgent(BaseAgent):
     _SOURCE = "preventor-agent"
     _ALLOWED_DECISIONS = {"ALLOW", "WARN", "HOLD", "VETO"}
 
-
-    async def observe(
-        self, context: dict[str, Any]
-    ) -> AgentObservation | None:
+    async def observe(self, context: dict[str, Any]) -> AgentObservation | None:
         """Pull risk signals. Returns ``None`` if the agent is disabled
         or required context is missing — the framework will treat that
         as "no decision" and the caller proceeds (ALLOW-by-default).
@@ -84,9 +82,7 @@ class PreventorAgent(BaseAgent):
         try:
             enabled = await get_flag("preventor.enabled", default=False)
         except Exception as exc:
-            logger.warning(
-                "preventor_agent.flag_read_failed", error=str(exc)
-            )
+            logger.warning("preventor_agent.flag_read_failed", error=str(exc))
             return None
         if not enabled:
             logger.debug("preventor_agent.disabled")
@@ -95,33 +91,34 @@ class PreventorAgent(BaseAgent):
         channel_id = (context or {}).get("channel_id")
         if not channel_id:
             logger.warning(
-                "preventor_agent.missing_channel_id", context=context,
+                "preventor_agent.missing_channel_id",
+                context=context,
             )
             return None
 
         content_id = (context or {}).get("content_id")
-        planned_action = (
-            (context or {}).get("planned_action")
-            or _DEFAULT_PLANNED_ACTION
-        )
+        planned_action = (context or {}).get("planned_action") or _DEFAULT_PLANNED_ACTION
 
         try:
             signals = await analyse_channel(channel_id)
         except Exception as exc:
             logger.warning(
                 "preventor_agent.analyse_failed",
-                channel_id=channel_id, error=str(exc),
+                channel_id=channel_id,
+                error=str(exc),
             )
             return None
 
         unresolved_halt = await _has_unresolved_halt(channel_id)
 
         facts: dict[str, Any] = asdict(signals)
-        facts.update({
-            "content_id": content_id,
-            "planned_action": planned_action,
-            "channel_has_unresolved_halt": unresolved_halt,
-        })
+        facts.update(
+            {
+                "content_id": content_id,
+                "planned_action": planned_action,
+                "channel_has_unresolved_halt": unresolved_halt,
+            }
+        )
 
         return AgentObservation(
             scope="video" if content_id else "channel",
@@ -129,10 +126,7 @@ class PreventorAgent(BaseAgent):
             facts=facts,
         )
 
-
-    async def decide(
-        self, state: dict[str, Any]
-    ) -> AgentDecision | None:
+    async def decide(self, state: dict[str, Any]) -> AgentDecision | None:
         """Rule-based gate evaluation. The Preventor LLM path is
         deferred — at this stage rules are sufficient and entirely
         offline-safe."""
@@ -140,30 +134,29 @@ class PreventorAgent(BaseAgent):
         facts = observation.facts
         channel_id: str = facts["channel_id"]
         planned_action: str = facts["planned_action"]
-        unresolved_halt: bool = bool(
-            facts.get("channel_has_unresolved_halt")
-        )
+        unresolved_halt: bool = bool(facts.get("channel_has_unresolved_halt"))
 
-        veto_on_halt = await get_flag(
-            "preventor.veto_when_channel_halted", default=True
-        )
+        veto_on_halt = await get_flag("preventor.veto_when_channel_halted", default=True)
         veto_threshold = int(
             await get_flag(
                 "preventor.threshold.veto.consecutive_failures",
                 default=5,
-            ) or 5
+            )
+            or 5
         )
         hold_budget_pct = float(
             await get_flag(
                 "preventor.threshold.hold.budget_pct_remaining",
                 default=0.05,
-            ) or 0.0
+            )
+            or 0.0
         )
         warn_min_quality = float(
             await get_flag(
                 "preventor.threshold.warn.min_quality_score",
                 default=6.5,
-            ) or 0.0
+            )
+            or 0.0
         )
 
         consec = int(facts.get("consecutive_failures") or 0)
@@ -172,58 +165,57 @@ class PreventorAgent(BaseAgent):
         recent_scores = facts.get("recent_scores") or []
         avg_quality = float(facts.get("avg_composite_score") or 0)
 
-        budget_pct = (
-            budget_remaining / budget_limit if budget_limit > 0 else None
-        )
+        budget_pct = budget_remaining / budget_limit if budget_limit > 0 else None
 
         reasons: list[str] = []
 
         if veto_on_halt and unresolved_halt:
             reasons.append(
-                f"channel {channel_id} has an unresolved HALT in "
-                "brain_decisions — refusing to produce more videos."
+                f"channel {channel_id} has an unresolved HALT in brain_decisions — refusing to produce more videos."
             )
             return self._build_decision(
-                "VETO", observation, planned_action, reasons,
-                confidence=0.95, facts=facts,
+                "VETO",
+                observation,
+                planned_action,
+                reasons,
+                confidence=0.95,
+                facts=facts,
             )
         if consec >= veto_threshold:
-            reasons.append(
-                f"consecutive_failures={consec} >= veto_threshold="
-                f"{veto_threshold}."
-            )
+            reasons.append(f"consecutive_failures={consec} >= veto_threshold={veto_threshold}.")
             return self._build_decision(
-                "VETO", observation, planned_action, reasons,
-                confidence=0.9, facts=facts,
+                "VETO",
+                observation,
+                planned_action,
+                reasons,
+                confidence=0.9,
+                facts=facts,
             )
 
-        if (
-            hold_budget_pct > 0
-            and budget_pct is not None
-            and budget_pct < hold_budget_pct
-        ):
-            reasons.append(
-                f"daily budget remaining {budget_pct:.1%} is below "
-                f"hold threshold {hold_budget_pct:.1%}."
-            )
+        if hold_budget_pct > 0 and budget_pct is not None and budget_pct < hold_budget_pct:
+            reasons.append(f"daily budget remaining {budget_pct:.1%} is below hold threshold {hold_budget_pct:.1%}.")
             return self._build_decision(
-                "HOLD", observation, planned_action, reasons,
-                confidence=0.8, facts=facts,
+                "HOLD",
+                observation,
+                planned_action,
+                reasons,
+                confidence=0.8,
+                facts=facts,
             )
 
-        if (
-            warn_min_quality > 0
-            and len(recent_scores) >= 3
-            and avg_quality < warn_min_quality
-        ):
+        if warn_min_quality > 0 and len(recent_scores) >= 3 and avg_quality < warn_min_quality:
             reasons.append(
                 f"avg_composite_score={avg_quality:.2f} is below warn "
                 f"threshold {warn_min_quality:.2f} over "
                 f"{len(recent_scores)} recent videos."
             )
             return self._build_decision(
-                "WARN", observation, planned_action, reasons,
-                confidence=0.6, facts=facts,
+                "WARN",
+                observation,
+                planned_action,
+                reasons,
+                confidence=0.6,
+                facts=facts,
             )
 
         reasons.append(
@@ -232,10 +224,13 @@ class PreventorAgent(BaseAgent):
             f"{budget_pct if budget_pct is None else f'{budget_pct:.1%}'})."
         )
         return self._build_decision(
-            "ALLOW", observation, planned_action, reasons,
-            confidence=0.7, facts=facts,
+            "ALLOW",
+            observation,
+            planned_action,
+            reasons,
+            confidence=0.7,
+            facts=facts,
         )
-
 
     async def act(self, decision: AgentDecision) -> dict[str, Any]:
         """Persist the decision and publish a directive on
@@ -244,9 +239,7 @@ class PreventorAgent(BaseAgent):
         """
         pool = await get_pool()
         risk_signals = decision.extras.pop("risk_signals", {})
-        planned_action = decision.extras.pop(
-            "planned_action", _DEFAULT_PLANNED_ACTION
-        )
+        planned_action = decision.extras.pop("planned_action", _DEFAULT_PLANNED_ACTION)
         row = await pool.fetchrow(
             """
             INSERT INTO preventor_decisions
@@ -286,7 +279,8 @@ class PreventorAgent(BaseAgent):
         except Exception as exc:
             logger.warning(
                 "preventor_agent.publish_failed",
-                decision_id=decision_id, error=str(exc),
+                decision_id=decision_id,
+                error=str(exc),
             )
 
         logger.info(
@@ -298,7 +292,6 @@ class PreventorAgent(BaseAgent):
             confidence=decision.confidence,
         )
         return {"id": decision_id}
-
 
     def _build_decision(
         self,
@@ -322,9 +315,7 @@ class PreventorAgent(BaseAgent):
             "recent_scores_n": len(facts.get("recent_scores") or []),
             "daily_budget_limit": facts.get("daily_budget_limit"),
             "daily_budget_remaining": facts.get("daily_budget_remaining"),
-            "channel_has_unresolved_halt": facts.get(
-                "channel_has_unresolved_halt"
-            ),
+            "channel_has_unresolved_halt": facts.get("channel_has_unresolved_halt"),
         }
         return AgentDecision(
             decision_type=decision_type,
@@ -339,8 +330,6 @@ class PreventorAgent(BaseAgent):
                 "planned_action": planned_action,
             },
         )
-
-
 
 
 async def _has_unresolved_halt(channel_id: str) -> bool:
@@ -364,6 +353,7 @@ async def _has_unresolved_halt(channel_id: str) -> bool:
     except Exception as exc:
         logger.warning(
             "preventor_agent.halt_check_failed",
-            channel_id=channel_id, error=str(exc),
+            channel_id=channel_id,
+            error=str(exc),
         )
         return False

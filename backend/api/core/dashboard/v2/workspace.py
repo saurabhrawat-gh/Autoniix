@@ -44,6 +44,7 @@ Entity settings
   GET    /workspace/settings?scope=&scope_id=
   PUT    /workspace/settings          (upsert key/value)
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -58,14 +59,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, EmailStr, Field
 
 from core.db import get_pool
-from ._deps import Principal, audit, principal_dep, require_permission, require_role
+
+from ._deps import Principal, audit, principal_dep, require_permission
 
 router = APIRouter()
 
 _PLAN_MEMBER_LIMITS: dict[str, int | None] = {
-    "starter":    3,
-    "growth":     10,
-    "scale":      None,
+    "starter": 3,
+    "growth": 10,
+    "scale": None,
     "enterprise": None,
 }
 
@@ -77,7 +79,6 @@ async def _notify_slack(webhook_url: str, message: str) -> None:
             await client.post(webhook_url, json={"text": message})
     except Exception:
         pass
-
 
 
 class WorkspacePatch(BaseModel):
@@ -195,7 +196,6 @@ class EntitySettingUpsert(BaseModel):
     locked: bool = False
 
 
-
 @router.get("")
 async def get_workspace(p: Principal = Depends(principal_dep)):
     pool = await get_pool()
@@ -225,17 +225,22 @@ async def update_workspace(
         raise HTTPException(400, "mode must be 'solo' or 'teams'")
     sets, vals = [], []
     for k, v in updates.items():
-        sets.append(f"{k}=${len(vals)+1}" + ("::jsonb" if k == "settings" else ""))
+        sets.append(f"{k}=${len(vals) + 1}" + ("::jsonb" if k == "settings" else ""))
         vals.append(json.dumps(v) if k == "settings" else v)
     vals.append(actor.workspace_id)
     await pool.execute(
         f"UPDATE workspaces SET {', '.join(sets)}, updated_at=NOW() WHERE id=${len(vals)}",
         *vals,
     )
-    await audit(actor=actor, action="workspace.update", target_type="workspace",
-                target_id=str(actor.workspace_id), after=updates, request=request)
+    await audit(
+        actor=actor,
+        action="workspace.update",
+        target_type="workspace",
+        target_id=str(actor.workspace_id),
+        after=updates,
+        request=request,
+    )
     return {"status": "ok"}
-
 
 
 @router.get("/brands")
@@ -262,12 +267,27 @@ async def create_brand(
         """INSERT INTO brands (workspace_id, name, slug, description, legal_name, website,
                primary_color, secondary_color, logo_url, voice_summary, settings, created_by)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12) RETURNING id""",
-        actor.workspace_id, body.name, slug, body.description, body.legal_name, body.website,
-        body.primary_color, body.secondary_color, body.logo_url, body.voice_summary,
-        json.dumps(body.settings), actor.user_id,
+        actor.workspace_id,
+        body.name,
+        slug,
+        body.description,
+        body.legal_name,
+        body.website,
+        body.primary_color,
+        body.secondary_color,
+        body.logo_url,
+        body.voice_summary,
+        json.dumps(body.settings),
+        actor.user_id,
     )
-    await audit(actor=actor, action="brand.create", target_type="brand",
-                target_id=str(bid), after={"name": body.name}, request=request)
+    await audit(
+        actor=actor,
+        action="brand.create",
+        target_type="brand",
+        target_id=str(bid),
+        after={"name": body.name},
+        request=request,
+    )
     return {"status": "ok", "id": bid}
 
 
@@ -277,7 +297,8 @@ async def get_brand(brand_id: int, p: Principal = Depends(principal_dep)):
     row = await pool.fetchrow(
         "SELECT id, name, slug, description, legal_name, website, primary_color, secondary_color, "
         "logo_url, voice_summary, settings, created_at, updated_at FROM brands WHERE id=$1 AND workspace_id=$2",
-        brand_id, p.workspace_id,
+        brand_id,
+        p.workspace_id,
     )
     if not row:
         raise HTTPException(404, "Brand not found")
@@ -297,19 +318,19 @@ async def update_brand(
         return {"status": "noop"}
     sets, vals = [], []
     for k, v in updates.items():
-        sets.append(f"{k}=${len(vals)+1}" + ("::jsonb" if k == "settings" else ""))
+        sets.append(f"{k}=${len(vals) + 1}" + ("::jsonb" if k == "settings" else ""))
         vals.append(json.dumps(v) if k == "settings" else v)
     vals.extend([brand_id, actor.workspace_id])
     res = await pool.execute(
-        f"UPDATE brands SET {', '.join(sets)}, updated_at=NOW() WHERE id=${len(vals)-1} AND workspace_id=${len(vals)}",
+        f"UPDATE brands SET {', '.join(sets)}, updated_at=NOW() WHERE id=${len(vals) - 1} AND workspace_id=${len(vals)}",
         *vals,
     )
     if res.endswith("0"):
         raise HTTPException(404, "Brand not found")
-    await audit(actor=actor, action="brand.update", target_type="brand",
-                target_id=str(brand_id), after=updates, request=request)
+    await audit(
+        actor=actor, action="brand.update", target_type="brand", target_id=str(brand_id), after=updates, request=request
+    )
     return {"status": "ok"}
-
 
 
 @router.get("/series")
@@ -346,12 +367,24 @@ async def create_series(
         """INSERT INTO series (channel_id, name, description, format, target_duration_s,
                cadence, thumbnail_style, settings, created_by)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9) RETURNING id""",
-        body.channel_id, body.name, body.description, body.format,
-        body.target_duration_s, body.cadence, body.thumbnail_style,
-        json.dumps(body.settings), actor.user_id,
+        body.channel_id,
+        body.name,
+        body.description,
+        body.format,
+        body.target_duration_s,
+        body.cadence,
+        body.thumbnail_style,
+        json.dumps(body.settings),
+        actor.user_id,
     )
-    await audit(actor=actor, action="series.create", target_type="series",
-                target_id=str(sid), after={"name": body.name}, request=request)
+    await audit(
+        actor=actor,
+        action="series.create",
+        target_type="series",
+        target_id=str(sid),
+        after={"name": body.name},
+        request=request,
+    )
     return {"status": "ok", "id": sid}
 
 
@@ -368,7 +401,7 @@ async def update_series(
         return {"status": "noop"}
     sets, vals = [], []
     for k, v in updates.items():
-        sets.append(f"{k}=${len(vals)+1}" + ("::jsonb" if k == "settings" else ""))
+        sets.append(f"{k}=${len(vals) + 1}" + ("::jsonb" if k == "settings" else ""))
         vals.append(json.dumps(v) if k == "settings" else v)
     vals.append(series_id)
     res = await pool.execute(
@@ -377,8 +410,14 @@ async def update_series(
     )
     if res.endswith("0"):
         raise HTTPException(404, "Series not found")
-    await audit(actor=actor, action="series.update", target_type="series",
-                target_id=str(series_id), after=updates, request=request)
+    await audit(
+        actor=actor,
+        action="series.update",
+        target_type="series",
+        target_id=str(series_id),
+        after=updates,
+        request=request,
+    )
     return {"status": "ok"}
 
 
@@ -392,10 +431,8 @@ async def delete_series(
     res = await pool.execute("DELETE FROM series WHERE id=$1", series_id)
     if res.endswith("0"):
         raise HTTPException(404, "Series not found")
-    await audit(actor=actor, action="series.delete", target_type="series",
-                target_id=str(series_id), request=request)
+    await audit(actor=actor, action="series.delete", target_type="series", target_id=str(series_id), request=request)
     return {"status": "ok"}
-
 
 
 @router.get("/campaigns")
@@ -418,7 +455,7 @@ async def list_campaigns(
         f"""SELECT c.id, c.brand_id, c.name, c.description, c.theme, c.start_at, c.end_at,
                    c.kpi_targets, c.status, c.created_at
               FROM campaigns c JOIN brands b ON b.id = c.brand_id
-             WHERE {' AND '.join(where)}
+             WHERE {" AND ".join(where)}
              ORDER BY c.created_at DESC""",
         *args,
     )
@@ -436,11 +473,23 @@ async def create_campaign(
         """INSERT INTO campaigns (brand_id, name, description, theme, start_at, end_at,
                kpi_targets, created_by)
            VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8) RETURNING id""",
-        body.brand_id, body.name, body.description, body.theme,
-        body.start_at, body.end_at, json.dumps(body.kpi_targets), actor.user_id,
+        body.brand_id,
+        body.name,
+        body.description,
+        body.theme,
+        body.start_at,
+        body.end_at,
+        json.dumps(body.kpi_targets),
+        actor.user_id,
     )
-    await audit(actor=actor, action="campaign.create", target_type="campaign",
-                target_id=str(cid), after={"name": body.name}, request=request)
+    await audit(
+        actor=actor,
+        action="campaign.create",
+        target_type="campaign",
+        target_id=str(cid),
+        after={"name": body.name},
+        request=request,
+    )
     return {"status": "ok", "id": cid}
 
 
@@ -457,7 +506,7 @@ async def update_campaign(
         return {"status": "noop"}
     sets, vals = [], []
     for k, v in updates.items():
-        sets.append(f"{k}=${len(vals)+1}" + ("::jsonb" if k == "kpi_targets" else ""))
+        sets.append(f"{k}=${len(vals) + 1}" + ("::jsonb" if k == "kpi_targets" else ""))
         vals.append(json.dumps(v) if k == "kpi_targets" else v)
     vals.append(campaign_id)
     res = await pool.execute(
@@ -466,10 +515,15 @@ async def update_campaign(
     )
     if res.endswith("0"):
         raise HTTPException(404, "Campaign not found")
-    await audit(actor=actor, action="campaign.update", target_type="campaign",
-                target_id=str(campaign_id), after=updates, request=request)
+    await audit(
+        actor=actor,
+        action="campaign.update",
+        target_type="campaign",
+        target_id=str(campaign_id),
+        after=updates,
+        request=request,
+    )
     return {"status": "ok"}
-
 
 
 @router.get("/projects")
@@ -507,7 +561,7 @@ async def list_projects(
               FROM projects p
               JOIN channels ch ON ch.channel_id = p.channel_id
               JOIN channels c  ON c.channel_id  = p.channel_id
-             WHERE {' AND '.join(where)}
+             WHERE {" AND ".join(where)}
              ORDER BY p.priority DESC, p.created_at DESC
              LIMIT ${len(args)}""",
         *args,
@@ -527,12 +581,28 @@ async def create_project(
                parent_project_id, branch_label, status, priority, target_publish_at,
                tags, settings, created_by)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13) RETURNING id""",
-        body.channel_id, body.title, body.brief, body.series_id, body.campaign_id,
-        body.parent_project_id, body.branch_label, body.status, body.priority,
-        body.target_publish_at, body.tags, json.dumps(body.settings), actor.user_id,
+        body.channel_id,
+        body.title,
+        body.brief,
+        body.series_id,
+        body.campaign_id,
+        body.parent_project_id,
+        body.branch_label,
+        body.status,
+        body.priority,
+        body.target_publish_at,
+        body.tags,
+        json.dumps(body.settings),
+        actor.user_id,
     )
-    await audit(actor=actor, action="project.create", target_type="project",
-                target_id=str(pid), after={"title": body.title}, request=request)
+    await audit(
+        actor=actor,
+        action="project.create",
+        target_type="project",
+        target_id=str(pid),
+        after={"title": body.title},
+        request=request,
+    )
     return {"status": "ok", "id": pid}
 
 
@@ -582,13 +652,13 @@ async def update_project(
     sets, vals = [], []
     for k, v in updates.items():
         if k == "tags":
-            sets.append(f"{k}=${len(vals)+1}")
+            sets.append(f"{k}=${len(vals) + 1}")
             vals.append(v)
         elif k == "settings":
-            sets.append(f"{k}=${len(vals)+1}::jsonb")
+            sets.append(f"{k}=${len(vals) + 1}::jsonb")
             vals.append(json.dumps(v))
         else:
-            sets.append(f"{k}=${len(vals)+1}")
+            sets.append(f"{k}=${len(vals) + 1}")
             vals.append(v)
     vals.append(project_id)
     res = await pool.execute(
@@ -597,8 +667,14 @@ async def update_project(
     )
     if res.endswith("0"):
         raise HTTPException(404, "Project not found")
-    await audit(actor=actor, action="project.update", target_type="project",
-                target_id=str(project_id), after=updates, request=request)
+    await audit(
+        actor=actor,
+        action="project.update",
+        target_type="project",
+        target_id=str(project_id),
+        after=updates,
+        request=request,
+    )
     return {"status": "ok"}
 
 
@@ -612,10 +688,8 @@ async def delete_project(
     res = await pool.execute("DELETE FROM projects WHERE id=$1", project_id)
     if res.endswith("0"):
         raise HTTPException(404, "Project not found")
-    await audit(actor=actor, action="project.delete", target_type="project",
-                target_id=str(project_id), request=request)
+    await audit(actor=actor, action="project.delete", target_type="project", target_id=str(project_id), request=request)
     return {"status": "ok"}
-
 
 
 @router.get("/members")
@@ -654,7 +728,8 @@ async def set_member_role(
     if body.role != "owner":
         current = await pool.fetchval(
             "SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
-            actor.workspace_id, user_id,
+            actor.workspace_id,
+            user_id,
         )
         if current == "owner":
             owner_count = await pool.fetchval(
@@ -665,12 +740,20 @@ async def set_member_role(
                 raise HTTPException(400, "Cannot demote the last owner of a workspace")
     res = await pool.execute(
         "UPDATE workspace_members SET role=$1 WHERE workspace_id=$2 AND user_id=$3",
-        body.role, actor.workspace_id, user_id,
+        body.role,
+        actor.workspace_id,
+        user_id,
     )
     if res.endswith("0"):
         raise HTTPException(404, "Member not found")
-    await audit(actor=actor, action="member.role_change", target_type="workspace_member",
-                target_id=str(user_id), after={"role": body.role}, request=request)
+    await audit(
+        actor=actor,
+        action="member.role_change",
+        target_type="workspace_member",
+        target_id=str(user_id),
+        after={"role": body.role},
+        request=request,
+    )
     return {"status": "ok"}
 
 
@@ -683,7 +766,8 @@ async def remove_member(
     pool = await get_pool()
     target_role = await pool.fetchval(
         "SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
-        actor.workspace_id, user_id,
+        actor.workspace_id,
+        user_id,
     )
     if target_role == "owner":
         owner_count = await pool.fetchval(
@@ -693,33 +777,35 @@ async def remove_member(
         if (owner_count or 0) <= 1:
             raise HTTPException(
                 400,
-                "Cannot remove the last owner of a workspace. "
-                "Transfer ownership to another member first.",
+                "Cannot remove the last owner of a workspace. Transfer ownership to another member first.",
             )
-    removed_user = await pool.fetchrow(
-        "SELECT email, display_name FROM users WHERE id=$1", user_id
-    )
-    ws_info = await pool.fetchrow(
-        "SELECT name FROM workspaces WHERE id=$1", actor.workspace_id
-    )
+    removed_user = await pool.fetchrow("SELECT email, display_name FROM users WHERE id=$1", user_id)
+    ws_info = await pool.fetchrow("SELECT name FROM workspaces WHERE id=$1", actor.workspace_id)
     res = await pool.execute(
         "DELETE FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
-        actor.workspace_id, user_id,
+        actor.workspace_id,
+        user_id,
     )
     if res.endswith("0"):
         raise HTTPException(404, "Member not found")
-    await audit(actor=actor, action="member.remove", target_type="workspace_member",
-                target_id=str(user_id), request=request)
+    await audit(
+        actor=actor, action="member.remove", target_type="workspace_member", target_id=str(user_id), request=request
+    )
     from ._membership import publish_revoked
+
     await publish_revoked(user_id, actor.workspace_id)
     if removed_user and removed_user["email"]:
         from ._resend import send_email as _resend_send
-        _resend_send("member-removed", removed_user["email"], {
-            "name": removed_user["display_name"] or removed_user["email"],
-            "workspace_name": ws_info["name"] if ws_info else "your workspace",
-        })
-    return {"status": "ok"}
 
+        _resend_send(
+            "member-removed",
+            removed_user["email"],
+            {
+                "name": removed_user["display_name"] or removed_user["email"],
+                "workspace_name": ws_info["name"] if ws_info else "your workspace",
+            },
+        )
+    return {"status": "ok"}
 
 
 VALID_INVITE_ROLES = {"member", "viewer"}
@@ -753,9 +839,7 @@ async def create_invite(
     if body.role not in VALID_INVITE_ROLES:
         raise HTTPException(400, f"Invalid role. Choose from: {', '.join(sorted(VALID_INVITE_ROLES))}")
     pool = await get_pool()
-    ws_row = await pool.fetchrow(
-        "SELECT plan, mode FROM workspaces WHERE id=$1", actor.workspace_id
-    )
+    ws_row = await pool.fetchrow("SELECT plan, mode FROM workspaces WHERE id=$1", actor.workspace_id)
     if ws_row and ws_row.get("mode", "teams") == "solo":
         raise HTTPException(
             403,
@@ -771,15 +855,21 @@ async def create_invite(
         async with conn.transaction():
             await conn.execute("SELECT pg_advisory_xact_lock($1)", actor.workspace_id)
             if limit is not None:
-                member_count = await conn.fetchval(
-                    "SELECT COUNT(*) FROM workspace_members WHERE workspace_id=$1",
-                    actor.workspace_id,
-                ) or 0
-                pending_count = await conn.fetchval(
-                    "SELECT COUNT(*) FROM workspace_invitations "
-                    "WHERE workspace_id=$1 AND accepted_at IS NULL AND expires_at > NOW()",
-                    actor.workspace_id,
-                ) or 0
+                member_count = (
+                    await conn.fetchval(
+                        "SELECT COUNT(*) FROM workspace_members WHERE workspace_id=$1",
+                        actor.workspace_id,
+                    )
+                    or 0
+                )
+                pending_count = (
+                    await conn.fetchval(
+                        "SELECT COUNT(*) FROM workspace_invitations "
+                        "WHERE workspace_id=$1 AND accepted_at IS NULL AND expires_at > NOW()",
+                        actor.workspace_id,
+                    )
+                    or 0
+                )
                 if (member_count + pending_count) >= limit:
                     msg = (
                         f"Plan limit reached: {plan!r} plan allows {limit} members "
@@ -794,7 +884,8 @@ async def create_invite(
                 """SELECT wm.user_id FROM workspace_members wm
                      JOIN users u ON u.id = wm.user_id
                     WHERE wm.workspace_id=$1 AND lower(u.email)=lower($2)""",
-                actor.workspace_id, body.email,
+                actor.workspace_id,
+                body.email,
             )
             if existing:
                 raise HTTPException(409, "User is already a member of this workspace")
@@ -802,33 +893,53 @@ async def create_invite(
                 """SELECT id FROM workspace_invitations
                     WHERE workspace_id=$1 AND lower(email)=lower($2)
                       AND accepted_at IS NULL AND expires_at > NOW()""",
-                actor.workspace_id, body.email,
+                actor.workspace_id,
+                body.email,
             )
             if pending_inv:
-                raise HTTPException(409, "A pending invitation already exists for this email address. Revoke it first or wait for it to expire.")
+                raise HTTPException(
+                    409,
+                    "A pending invitation already exists for this email address. Revoke it first or wait for it to expire.",
+                )
             inv_id = await conn.fetchval(
                 """INSERT INTO workspace_invitations
                        (workspace_id, email, role, token_hash, invited_by, expires_at)
                    VALUES ($1,$2,$3,$4,$5,$6) RETURNING id""",
-                actor.workspace_id, body.email.lower(), body.role, h, actor.user_id, expires,
+                actor.workspace_id,
+                body.email.lower(),
+                body.role,
+                h,
+                actor.user_id,
+                expires,
             )
-    await audit(actor=actor, action="invite.create", target_type="workspace_invitation",
-                target_id=str(inv_id), after={"email": body.email, "role": body.role}, request=request)
+    await audit(
+        actor=actor,
+        action="invite.create",
+        target_type="workspace_invitation",
+        target_id=str(inv_id),
+        after={"email": body.email, "role": body.role},
+        request=request,
+    )
     frontend_url = os.getenv("FRONTEND_URL", "")
     invite_link = f"{frontend_url}/accept-invite?token={raw}" if frontend_url else f"/accept-invite?token={raw}"
-    from ._resend import send_email as _resend_send, is_configured as _resend_configured
+    from ._resend import is_configured as _resend_configured, send_email as _resend_send
+
     if _resend_configured():
         ws_info = await pool.fetchrow("SELECT name FROM workspaces WHERE id=$1", actor.workspace_id)
         actor_info = await pool.fetchrow("SELECT display_name FROM users WHERE id=$1", actor.user_id)
         inviter_name = (actor_info["display_name"] if actor_info and actor_info["display_name"] else actor.email) or ""
-        _resend_send("workspace-invite", body.email, {
-            "inviter_name": inviter_name,
-            "inviter_email": actor.email or "",
-            "workspace_name": ws_info["name"] if ws_info else "a workspace",
-            "role": body.role,
-            "invite_url": invite_link,
-            "expires_days": body.expires_days,
-        })
+        _resend_send(
+            "workspace-invite",
+            body.email,
+            {
+                "inviter_name": inviter_name,
+                "inviter_email": actor.email or "",
+                "workspace_name": ws_info["name"] if ws_info else "a workspace",
+                "role": body.role,
+                "invite_url": invite_link,
+                "expires_days": body.expires_days,
+            },
+        )
     integration = await pool.fetchrow(
         "SELECT slack_webhook_url FROM workspace_integrations WHERE workspace_id=$1",
         actor.workspace_id,
@@ -841,8 +952,7 @@ async def create_invite(
             f"• *Role:* {body.role}\n"
             f"• *Link:* {invite_link}",
         )
-    return {"status": "ok", "id": inv_id, "token": raw,
-            "invite_url": f"/accept-invite?token={raw}"}
+    return {"status": "ok", "id": inv_id, "token": raw, "invite_url": f"/accept-invite?token={raw}"}
 
 
 @router.delete("/invites/{invite_id}")
@@ -854,14 +964,19 @@ async def revoke_invite(
     pool = await get_pool()
     res = await pool.execute(
         "DELETE FROM workspace_invitations WHERE id=$1 AND workspace_id=$2 AND accepted_at IS NULL",
-        invite_id, actor.workspace_id,
+        invite_id,
+        actor.workspace_id,
     )
     if res.endswith("0"):
         raise HTTPException(404, "Invitation not found or already accepted")
-    await audit(actor=actor, action="invite.revoke", target_type="workspace_invitation",
-                target_id=str(invite_id), request=request)
+    await audit(
+        actor=actor,
+        action="invite.revoke",
+        target_type="workspace_invitation",
+        target_id=str(invite_id),
+        request=request,
+    )
     return {"status": "ok"}
-
 
 
 class IntegrationPatch(BaseModel):
@@ -875,9 +990,11 @@ async def get_integrations(actor: Principal = Depends(require_permission("worksp
         "SELECT slack_webhook_url FROM workspace_integrations WHERE workspace_id=$1",
         actor.workspace_id,
     )
-    return {"data": {
-        "slack_webhook_url": row["slack_webhook_url"] if row else None,
-    }}
+    return {
+        "data": {
+            "slack_webhook_url": row["slack_webhook_url"] if row else None,
+        }
+    }
 
 
 @router.put("/integrations")
@@ -892,27 +1009,26 @@ async def update_integrations(
            VALUES ($1, $2)
            ON CONFLICT (workspace_id) DO UPDATE
            SET slack_webhook_url=$2, updated_at=NOW()""",
-        actor.workspace_id, body.slack_webhook_url,
+        actor.workspace_id,
+        body.slack_webhook_url,
     )
     masked = (body.slack_webhook_url[:30] + "...") if body.slack_webhook_url else None
-    await audit(actor=actor, action="workspace.integrations.update",
-                target_type="workspace_integrations",
-                target_id=str(actor.workspace_id),
-                after={"slack_webhook_url": masked}, request=request)
+    await audit(
+        actor=actor,
+        action="workspace.integrations.update",
+        target_type="workspace_integrations",
+        target_id=str(actor.workspace_id),
+        after={"slack_webhook_url": masked},
+        request=request,
+    )
     return {"status": "ok"}
 
 
-
-
-_SETTINGS_TENANT_SCOPES: frozenset[str] = frozenset(
-    {"workspace", "brand", "channel", "series", "campaign", "project"}
-)
+_SETTINGS_TENANT_SCOPES: frozenset[str] = frozenset({"workspace", "brand", "channel", "series", "campaign", "project"})
 _SETTINGS_VALID_SCOPES: frozenset[str] = _SETTINGS_TENANT_SCOPES | {"system"}
 
 
-async def _assert_settings_scope_in_workspace(
-    pool: Any, scope: str, scope_id: str, workspace_id: int
-) -> None:
+async def _assert_settings_scope_in_workspace(pool: Any, scope: str, scope_id: str, workspace_id: int) -> None:
     """Raise 403 unless ``(scope, scope_id)`` belongs to ``workspace_id``.
 
     For ``scope='system'`` no per-tenant check applies — system settings are
@@ -941,9 +1057,7 @@ async def _assert_settings_scope_in_workspace(
         return
 
     if scope == "channel":
-        owner = await pool.fetchval(
-            "SELECT workspace_id FROM channels WHERE channel_id=$1", scope_id
-        )
+        owner = await pool.fetchval("SELECT workspace_id FROM channels WHERE channel_id=$1", scope_id)
         if owner is None:
             raise HTTPException(404, "channel not found")
         if owner != workspace_id:
@@ -958,23 +1072,11 @@ async def _assert_settings_scope_in_workspace(
     if scope == "brand":
         sql = "SELECT workspace_id FROM brands WHERE id=$1"
     elif scope == "series":
-        sql = (
-            "SELECT c.workspace_id FROM series s "
-            "JOIN channels c ON c.channel_id = s.channel_id "
-            "WHERE s.id=$1"
-        )
+        sql = "SELECT c.workspace_id FROM series s JOIN channels c ON c.channel_id = s.channel_id WHERE s.id=$1"
     elif scope == "campaign":
-        sql = (
-            "SELECT b.workspace_id FROM campaigns c "
-            "JOIN brands b ON b.id = c.brand_id "
-            "WHERE c.id=$1"
-        )
+        sql = "SELECT b.workspace_id FROM campaigns c JOIN brands b ON b.id = c.brand_id WHERE c.id=$1"
     elif scope == "project":
-        sql = (
-            "SELECT ch.workspace_id FROM projects p "
-            "JOIN channels ch ON ch.channel_id = p.channel_id "
-            "WHERE p.id=$1"
-        )
+        sql = "SELECT ch.workspace_id FROM projects p JOIN channels ch ON ch.channel_id = p.channel_id WHERE p.id=$1"
     else:  # pragma: no cover — guarded by the membership check above
         raise HTTPException(400, f"Invalid scope: {scope}")
 
@@ -995,7 +1097,8 @@ async def get_settings(
     await _assert_settings_scope_in_workspace(pool, scope, scope_id, p.workspace_id)
     rows = await pool.fetch(
         "SELECT key, value, locked FROM entity_settings WHERE scope=$1 AND scope_id=$2",
-        scope, scope_id,
+        scope,
+        scope_id,
     )
     return {"data": [dict(r) for r in rows]}
 
@@ -1018,13 +1121,21 @@ async def upsert_setting(
            VALUES ($1,$2,$3,$4::jsonb,$5)
            ON CONFLICT (scope, scope_id, key) DO UPDATE
            SET value=$4::jsonb, locked=$5, updated_at=NOW()""",
-        body.scope, body.scope_id, body.key, json.dumps(body.value), body.locked,
+        body.scope,
+        body.scope_id,
+        body.key,
+        json.dumps(body.value),
+        body.locked,
     )
-    await audit(actor=actor, action="settings.upsert", target_type="entity_settings",
-                target_id=f"{body.scope}/{body.scope_id}/{body.key}",
-                after={"value": body.value, "locked": body.locked}, request=request)
+    await audit(
+        actor=actor,
+        action="settings.upsert",
+        target_type="entity_settings",
+        target_id=f"{body.scope}/{body.scope_id}/{body.key}",
+        after={"value": body.value, "locked": body.locked},
+        request=request,
+    )
     return {"status": "ok"}
-
 
 
 class TransferOwnershipIn(BaseModel):
@@ -1049,13 +1160,15 @@ async def transfer_ownership(
     if not current_user:
         raise HTTPException(404, "Current user not found")
     from .auth import _verify_pw
+
     if not _verify_pw(body.current_password, current_user["password_hash"] or ""):
         raise HTTPException(401, "Password is incorrect")
     new_owner_member = await pool.fetchrow(
         """SELECT wm.role, u.display_name, u.email
              FROM workspace_members wm JOIN users u ON u.id = wm.user_id
             WHERE wm.workspace_id=$1 AND wm.user_id=$2""",
-        actor.workspace_id, body.new_owner_user_id,
+        actor.workspace_id,
+        body.new_owner_user_id,
     )
     if not new_owner_member:
         raise HTTPException(404, "Target user is not a member of this workspace")
@@ -1067,11 +1180,13 @@ async def transfer_ownership(
         async with conn.transaction():
             await conn.execute(
                 "UPDATE workspace_members SET role='owner' WHERE workspace_id=$1 AND user_id=$2",
-                actor.workspace_id, body.new_owner_user_id,
+                actor.workspace_id,
+                body.new_owner_user_id,
             )
             await conn.execute(
                 "UPDATE workspace_members SET role='member' WHERE workspace_id=$1 AND user_id=$2",
-                actor.workspace_id, actor.user_id,
+                actor.workspace_id,
+                actor.user_id,
             )
     await audit(
         actor=actor,
@@ -1083,15 +1198,24 @@ async def transfer_ownership(
         request=request,
     )
     from ._resend import send_email as _resend_send
+
     if new_owner_member["email"]:
-        _resend_send("ownership-transferred-new", new_owner_member["email"], {
-            "name": new_owner_name,
-            "workspace_name": workspace_name,
-        })
+        _resend_send(
+            "ownership-transferred-new",
+            new_owner_member["email"],
+            {
+                "name": new_owner_name,
+                "workspace_name": workspace_name,
+            },
+        )
     if current_user["email"]:
-        _resend_send("ownership-transferred-old", current_user["email"], {
-            "name": old_owner_name,
-            "workspace_name": workspace_name,
-            "new_owner_name": new_owner_name,
-        })
+        _resend_send(
+            "ownership-transferred-old",
+            current_user["email"],
+            {
+                "name": old_owner_name,
+                "workspace_name": workspace_name,
+                "new_owner_name": new_owner_name,
+            },
+        )
     return {"status": "ok"}

@@ -25,28 +25,29 @@ is complete even on APPROVE.
 
 Part of AE-P1 / Agentic Foundation.
 """
+
 from __future__ import annotations
 
 import json
 from typing import Any, ClassVar
 
 import structlog
-
-from agents.base import (
-    AgentDecision,
-    AgentObservation,
-    BaseAgent,
-    CRITIC_VERDICTS,
-    CriticVerdict,
-)
-from agents.llm_reasoner import CRITIC_SYSTEM_PROMPT, LLMReasoner
-from core.db import get_pool
-from core.flags import get_flag
 from llm.embeddings import (
     EmbeddingConfigError,
     EmbeddingError,
     embed_and_store,
 )
+
+from agents.base import (
+    CRITIC_VERDICTS,
+    AgentDecision,
+    AgentObservation,
+    BaseAgent,
+    CriticVerdict,
+)
+from agents.llm_reasoner import CRITIC_SYSTEM_PROMPT, LLMReasoner
+from core.db import get_pool
+from core.flags import get_flag
 
 logger = structlog.get_logger()
 
@@ -72,9 +73,13 @@ class CriticAgent(BaseAgent):
 
     _ALLOWED_VERDICTS = set(CRITIC_VERDICTS)
     _ALLOWED_DECISION_TYPES = {
-        "HALT", "HOLD", "NUDGE", "RESUME", "ADVISE", "NONE",
+        "HALT",
+        "HOLD",
+        "NUDGE",
+        "RESUME",
+        "ADVISE",
+        "NONE",
     }
-
 
     async def review(
         self,
@@ -94,9 +99,7 @@ class CriticAgent(BaseAgent):
         verdict: CriticVerdict | None = None
         reasoning_path = "rules"
         try:
-            llm_on = await get_flag(
-                "critic.llm_reasoning.enabled", default=False
-            )
+            llm_on = await get_flag("critic.llm_reasoning.enabled", default=False)
         except Exception:
             llm_on = False
 
@@ -112,7 +115,8 @@ class CriticAgent(BaseAgent):
             except Exception as exc:
                 logger.warning(
                     "critic.llm_review_raised",
-                    peer=peer_agent_name, error=str(exc),
+                    peer=peer_agent_name,
+                    error=str(exc),
                 )
                 verdict = None
 
@@ -137,7 +141,6 @@ class CriticAgent(BaseAgent):
 
         return verdict
 
-
     def _rule_review(self, decision: AgentDecision) -> CriticVerdict:
         """Deterministic heuristics. Always returns a valid verdict.
 
@@ -152,10 +155,7 @@ class CriticAgent(BaseAgent):
         if not isinstance(decision.directive, dict) or not decision.directive:
             return CriticVerdict(
                 verdict="VETO",
-                reasoning=(
-                    "Empty or non-dict directive on a "
-                    f"{dtype} decision — refusing to act."
-                ),
+                reasoning=(f"Empty or non-dict directive on a {dtype} decision — refusing to act."),
                 confidence=0.95,
                 reviewed_decision_type=dtype,
                 reviewed_scope_id=decision.scope_id,
@@ -164,10 +164,7 @@ class CriticAgent(BaseAgent):
         if dtype == "HALT" and conf < _HALT_MIN_CONFIDENCE:
             return CriticVerdict(
                 verdict="VETO",
-                reasoning=(
-                    f"HALT at confidence={conf:.2f} is below the "
-                    f"{_HALT_MIN_CONFIDENCE:.2f} safety floor."
-                ),
+                reasoning=(f"HALT at confidence={conf:.2f} is below the {_HALT_MIN_CONFIDENCE:.2f} safety floor."),
                 confidence=0.85,
                 reviewed_decision_type=dtype,
                 reviewed_scope_id=decision.scope_id,
@@ -202,15 +199,11 @@ class CriticAgent(BaseAgent):
 
         return CriticVerdict(
             verdict="APPROVE",
-            reasoning=(
-                f"{dtype} at confidence={conf:.2f} is within calibration "
-                "bounds; no safety concern detected."
-            ),
+            reasoning=(f"{dtype} at confidence={conf:.2f} is within calibration bounds; no safety concern detected."),
             confidence=0.6,
             reviewed_decision_type=dtype,
             reviewed_scope_id=decision.scope_id,
         )
-
 
     async def _llm_review(
         self,
@@ -245,9 +238,7 @@ class CriticAgent(BaseAgent):
         return self._verdict_from_decision_shaped_response(parsed, decision)
 
     @staticmethod
-    def _verdict_from_decision_shaped_response(
-        parsed: dict[str, Any], original: AgentDecision
-    ) -> CriticVerdict:
+    def _verdict_from_decision_shaped_response(parsed: dict[str, Any], original: AgentDecision) -> CriticVerdict:
         """Translate a decision-shaped LLM response into a CriticVerdict.
 
         :class:`LLMReasoner` validates against the decision schema, so
@@ -330,7 +321,6 @@ class CriticAgent(BaseAgent):
         ]
         return "\n".join(parts)
 
-
     async def _persist_verdict(
         self,
         *,
@@ -340,15 +330,9 @@ class CriticAgent(BaseAgent):
         peer_agent_name: str,
         reasoning_path: str,
     ) -> None:
-        modified_directive = (
-            verdict.modified_decision.directive
-            if verdict.modified_decision is not None
-            else None
-        )
+        modified_directive = verdict.modified_decision.directive if verdict.modified_decision is not None else None
         modified_decision_type = (
-            verdict.modified_decision.decision_type
-            if verdict.modified_decision is not None
-            else None
+            verdict.modified_decision.decision_type if verdict.modified_decision is not None else None
         )
         original_decision_id = decision.extras.get("decision_id")
 
@@ -394,7 +378,8 @@ class CriticAgent(BaseAgent):
         except (EmbeddingError, EmbeddingConfigError) as exc:
             logger.warning(
                 "critic.embed_skipped",
-                critic_id=critic_id, error=str(exc),
+                critic_id=critic_id,
+                error=str(exc),
             )
 
         logger.info(

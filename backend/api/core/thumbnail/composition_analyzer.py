@@ -12,11 +12,11 @@ saving ~$0.01-0.03 per thumbnail evaluation.
 
 Intelligence cost: $0.00 — all computation is local via OpenCV + Pillow.
 """
+
 from __future__ import annotations
 
 import asyncio
 import io
-from typing import Any
 
 import numpy as np
 import structlog
@@ -38,6 +38,7 @@ async def _get_cv2():
 
         def _load():
             import cv2
+
             cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
             cascade = cv2.CascadeClassifier(cascade_path)
             return cv2, cascade
@@ -49,7 +50,7 @@ async def _get_cv2():
 
 async def analyze_composition(image_bytes: bytes) -> dict:
     """Analyze thumbnail composition using local CV.
-    
+
     Returns composition features and a composite score (1-10).
     """
     if not image_bytes or len(image_bytes) < 100:
@@ -71,8 +72,7 @@ async def analyze_composition(image_bytes: bytes) -> dict:
 
             features = {"width": width, "height": height}
 
-            faces = _face_cascade.detectMultiScale(
-                img_gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+            faces = _face_cascade.detectMultiScale(img_gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
             features["has_face"] = len(faces) > 0
             features["face_count"] = len(faces)
             if len(faces) > 0:
@@ -92,12 +92,12 @@ async def analyze_composition(image_bytes: bytes) -> dict:
 
             pixels = img_np.reshape(-1, 3)
             from collections import Counter
+
             quantized = (pixels // 32 * 32).tolist()
             color_counts = Counter(tuple(c) for c in quantized)
             top_colors = color_counts.most_common(3)
             features["dominant_colors"] = [
-                {"rgb": list(c[0]), "ratio": round(c[1] / len(quantized), 3)}
-                for c in top_colors
+                {"rgb": list(c[0]), "ratio": round(c[1] / len(quantized), 3)} for c in top_colors
             ]
 
             thirds_h = [height // 3, 2 * height // 3]
@@ -105,7 +105,7 @@ async def analyze_composition(image_bytes: bytes) -> dict:
 
             thirds_score = 5.0
             if len(faces) > 0:
-                for (x, y, w, h) in faces:
+                for x, y, w, h in faces:
                     face_cx = x + w // 2
                     face_cy = y + h // 2
                     min_dist_w = min(abs(face_cx - tw) for tw in thirds_w) / width
@@ -118,7 +118,7 @@ async def analyze_composition(image_bytes: bytes) -> dict:
                 edges = cv2.Canny(img_gray, 100, 200)
                 edge_density = float(np.mean(edges > 0))
                 for ty in thirds_h:
-                    zone = edges[max(0, ty-30):min(height, ty+30), :]
+                    zone = edges[max(0, ty - 30) : min(height, ty + 30), :]
                     zone_density = float(np.mean(zone > 0))
                     if zone_density > edge_density * 1.5:
                         thirds_score = max(thirds_score, 7.0)

@@ -7,6 +7,7 @@ Covers:
 - custom_openai_compat base_url set via extra_config (chain._instantiate)
 - config_schema required-field validation logic
 """
+
 from __future__ import annotations
 
 import pytest
@@ -23,7 +24,9 @@ def test_credential_in_with_api_key():
     from services_api.dashboard.v2.providers import CredentialIn
 
     c = CredentialIn(
-        category="llm", provider_name="openai", label="main",
+        category="llm",
+        provider_name="openai",
+        label="main",
         secret_value="sk-test",
     )
     assert c.secret_value == "sk-test"
@@ -82,11 +85,7 @@ def test_wizard_required_field_validation():
     ]
     wizard_fields = {"api_key": "sk-test"}
 
-    missing = [
-        f["name"]
-        for f in schema
-        if f.get("required") and not wizard_fields.get(f["name"])
-    ]
+    missing = [f["name"] for f in schema if f.get("required") and not wizard_fields.get(f["name"])]
     assert missing == ["voice_id"]
 
 
@@ -132,8 +131,8 @@ def test_custom_openai_compat_base_url_via_extra_config():
 @pytest.mark.asyncio
 async def test_custom_openai_compat_no_url_raises_on_complete():
     """complete() raises RuntimeError when base_url is not set."""
-    from providers.llm.custom_openai_compat_provider import CustomOpenAICompatLLM
     from providers.llm.base import LLMRequest
+    from providers.llm.custom_openai_compat_provider import CustomOpenAICompatLLM
 
     inst = CustomOpenAICompatLLM()
     req = LLMRequest(messages=[{"role": "user", "content": "hi"}])

@@ -3,6 +3,7 @@
 Ported from ``go-workflows/niche_pulse.go``. Task queue: ``scheduler-v2``.
 Cron: weekly Sunday 05:00 UTC.
 """
+
 from __future__ import annotations
 
 from datetime import timedelta

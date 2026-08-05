@@ -15,6 +15,7 @@ informational and have a shorter useful life).
 
 AE-P1 / Brain Service.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -90,9 +91,7 @@ async def _resolve(dry_run: bool) -> int:
     return count
 
 
-async def run_resolver_loop(
-    interval_s: int = 3600, stop_event: asyncio.Event | None = None
-) -> None:
+async def run_resolver_loop(interval_s: int = 3600, stop_event: asyncio.Event | None = None) -> None:
     """Run the resolver periodically until *stop_event* is set."""
     logger.info("brain.resolver.starting", interval_s=interval_s)
     while True:

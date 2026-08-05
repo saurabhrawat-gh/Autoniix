@@ -20,6 +20,7 @@ The chain itself is provider-agnostic — adding a new provider only requires
 implementing an ``async def search(query) -> list[dict]`` callable with the
 shared candidate schema (see :func:`_normalise_candidate`).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -36,7 +37,6 @@ from services_api.assets import semantic_ranker
 from services_api.assets.semantic_ranker import ScoredCandidate
 
 logger = structlog.get_logger()
-
 
 
 @dataclass
@@ -87,8 +87,6 @@ def provider_health_snapshot() -> dict[str, dict]:
     }
 
 
-
-
 def _normalise_candidate(*, source: str, **kw) -> dict:
     return {
         "source": source,
@@ -104,8 +102,6 @@ def _normalise_candidate(*, source: str, **kw) -> dict:
         "license": kw.get("license", "") or "",
         "dominant_colors": kw.get("dominant_colors") or [],
     }
-
-
 
 
 async def _pexels(query: str, k: int = 10) -> list[dict]:
@@ -127,15 +123,20 @@ async def _pexels(query: str, k: int = 10) -> list[dict]:
             best = next((f for f in files if (f.get("height") or 0) >= 720), files[0] if files else None)
             if not best:
                 continue
-            out.append(_normalise_candidate(
-                source="pexels", id=v.get("id", ""),
-                url=best.get("link", ""), thumbnail=v.get("image", ""),
-                duration=v.get("duration", 0),
-                width=best.get("width", 0), height=best.get("height", 0),
-                tags=" ".join((v.get("user", {}).get("name", ""),)),
-                title=v.get("url", "").split("/")[-2].replace("-", " ") if v.get("url") else "",
-                license="pexels_free",
-            ))
+            out.append(
+                _normalise_candidate(
+                    source="pexels",
+                    id=v.get("id", ""),
+                    url=best.get("link", ""),
+                    thumbnail=v.get("image", ""),
+                    duration=v.get("duration", 0),
+                    width=best.get("width", 0),
+                    height=best.get("height", 0),
+                    tags=" ".join((v.get("user", {}).get("name", ""),)),
+                    title=v.get("url", "").split("/")[-2].replace("-", " ") if v.get("url") else "",
+                    license="pexels_free",
+                )
+            )
         _stats("pexels").record(True)
         return out
     except Exception as exc:
@@ -161,23 +162,26 @@ async def _pixabay(query: str, k: int = 10) -> list[dict]:
             vmedium = h.get("videos", {}).get("medium", {})
             if not vmedium.get("url"):
                 continue
-            out.append(_normalise_candidate(
-                source="pixabay", id=h.get("id", ""),
-                url=vmedium.get("url", ""),
-                thumbnail=h.get("videos", {}).get("tiny", {}).get("thumbnail", ""),
-                duration=h.get("duration", 0),
-                width=vmedium.get("width", 0), height=vmedium.get("height", 0),
-                tags=h.get("tags", ""),
-                title=h.get("tags", "").split(",")[0].strip() if h.get("tags") else "",
-                license="pixabay_free",
-            ))
+            out.append(
+                _normalise_candidate(
+                    source="pixabay",
+                    id=h.get("id", ""),
+                    url=vmedium.get("url", ""),
+                    thumbnail=h.get("videos", {}).get("tiny", {}).get("thumbnail", ""),
+                    duration=h.get("duration", 0),
+                    width=vmedium.get("width", 0),
+                    height=vmedium.get("height", 0),
+                    tags=h.get("tags", ""),
+                    title=h.get("tags", "").split(",")[0].strip() if h.get("tags") else "",
+                    license="pixabay_free",
+                )
+            )
         _stats("pixabay").record(True)
         return out
     except Exception as exc:
         logger.warning("provider_chain.pixabay_failed", error=str(exc))
         _stats("pixabay").record(False)
         return []
-
 
 
 async def _local_library(query: str, k: int = 10) -> list[dict]:
@@ -189,6 +193,7 @@ async def _local_library(query: str, k: int = 10) -> list[dict]:
     """
     try:
         from core.db import get_pool
+
         pool = await get_pool()
         rows = await pool.fetch(
             """
@@ -209,29 +214,30 @@ async def _local_library(query: str, k: int = 10) -> list[dict]:
             colors = r["dominant_colors"]
             if isinstance(colors, str):
                 import json
+
                 try:
                     colors = json.loads(colors)
                 except Exception:
                     colors = []
-            out.append(_normalise_candidate(
-                source=f"library:{r['provider']}",
-                id="",
-                url=r["minio_key"] or r["asset_url"],
-                duration=float(r["duration_s"] or 0),
-                width=int(r["resolution_width"] or 0),
-                height=int(r["resolution_height"] or 0),
-                tags=r["tags"] or "",
-                license=r["license_type"] or "library",
-                dominant_colors=colors or [],
-            ))
+            out.append(
+                _normalise_candidate(
+                    source=f"library:{r['provider']}",
+                    id="",
+                    url=r["minio_key"] or r["asset_url"],
+                    duration=float(r["duration_s"] or 0),
+                    width=int(r["resolution_width"] or 0),
+                    height=int(r["resolution_height"] or 0),
+                    tags=r["tags"] or "",
+                    license=r["license_type"] or "library",
+                    dominant_colors=colors or [],
+                )
+            )
         _stats("library").record(True)
         return out
     except Exception as exc:
         logger.warning("provider_chain.library_failed", error=str(exc))
         _stats("library").record(False)
         return []
-
-
 
 
 @dataclass
@@ -315,5 +321,4 @@ async def run_chain(
         best_score=round(best.final, 3) if best else None,
         best_source=best.clip.get("source") if best else None,
     )
-    return ChainResult(best=best, all_scored=scored,
-                       providers_called=called, providers_skipped=skipped)
+    return ChainResult(best=best, all_scored=scored, providers_called=called, providers_skipped=skipped)

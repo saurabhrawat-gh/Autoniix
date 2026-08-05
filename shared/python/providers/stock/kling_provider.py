@@ -4,8 +4,8 @@ import httpx
 import structlog
 
 from core.config import settings
-from providers.stock.base import StockProvider, StockRequest, StockResult
 from providers.registry import ProviderRegistry
+from providers.stock.base import StockProvider, StockRequest, StockResult
 
 logger = structlog.get_logger()
 
@@ -43,13 +43,15 @@ class KlingStock(StockProvider):
         results = []
         total = data.get("total", 0)
         for item in data.get("videos", []):
-            results.append({
-                "id": item.get("id"),
-                "url": item.get("url"),
-                "thumbnail": item.get("thumbnail"),
-                "duration": item.get("duration"),
-                "provider": "kling",
-            })
+            results.append(
+                {
+                    "id": item.get("id"),
+                    "url": item.get("url"),
+                    "thumbnail": item.get("thumbnail"),
+                    "duration": item.get("duration"),
+                    "provider": "kling",
+                }
+            )
 
         logger.info(
             "kling.searched",

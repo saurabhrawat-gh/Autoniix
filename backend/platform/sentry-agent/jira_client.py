@@ -1,10 +1,11 @@
 """Jira REST API v3 client — creates bug tickets and posts comments."""
+
 from __future__ import annotations
 
 import base64
+
 import httpx
 import structlog
-
 from config import JIRA_API_TOKEN, JIRA_CLOUD_ID, JIRA_EMAIL, JIRA_PROJECT_KEY
 from triage import extract_stack_summary
 
@@ -32,8 +33,7 @@ def _text_doc(text: str) -> dict:
     }
 
 
-def _code_block_doc(heading: str, stack: str, sentry_url: str,
-                    culprit: str, occurrences: str, project: str) -> dict:
+def _code_block_doc(heading: str, stack: str, sentry_url: str, culprit: str, occurrences: str, project: str) -> dict:
     """ADF document with structured Sentry context + code block."""
     return {
         "type": "doc",
@@ -43,14 +43,16 @@ def _code_block_doc(heading: str, stack: str, sentry_url: str,
                 "type": "paragraph",
                 "content": [
                     {"type": "text", "text": "Sentry issue: ", "marks": [{"type": "strong"}]},
-                    {"type": "text", "text": sentry_url,
-                     "marks": [{"type": "link", "attrs": {"href": sentry_url}}]},
+                    {"type": "text", "text": sentry_url, "marks": [{"type": "link", "attrs": {"href": sentry_url}}]},
                 ],
             },
             {
                 "type": "paragraph",
                 "content": [
-                    {"type": "text", "text": f"Project: {project}  |  Culprit: {culprit}  |  Occurrences: {occurrences}"},
+                    {
+                        "type": "text",
+                        "text": f"Project: {project}  |  Culprit: {culprit}  |  Occurrences: {occurrences}",
+                    },
                 ],
             },
             {"type": "rule"},
@@ -110,8 +112,8 @@ class JiraClient:
                     occurrences=count,
                     project=project_slug,
                 ),
-                "customfield_10073": env_prefix,   # Environment
-                "customfield_10075": layer,         # Layer
+                "customfield_10073": env_prefix,  # Environment
+                "customfield_10075": layer,  # Layer
             }
         }
 

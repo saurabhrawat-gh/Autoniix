@@ -4,8 +4,8 @@ import httpx
 import structlog
 
 from core.config import settings
-from providers.stock.base import StockProvider, StockRequest, StockResult
 from providers.registry import ProviderRegistry
+from providers.stock.base import StockProvider, StockRequest, StockResult
 
 logger = structlog.get_logger()
 
@@ -43,24 +43,29 @@ class PixabayStock(StockProvider):
         total = data.get("totalHits", 0)
         for item in data.get("hits", []):
             if request.media_type == "video":
-                results.append({
-                    "id": item.get("id"),
-                    "url": item.get("videos", {}).get("medium", {}).get("url") or item.get("videos", {}).get("large", {}).get("url"),
-                    "thumbnail": item.get("picture_id"),
-                    "duration": item.get("duration"),
-                    "width": item.get("videos", {}).get("medium", {}).get("width"),
-                    "height": item.get("videos", {}).get("medium", {}).get("height"),
-                    "provider": "pixabay",
-                })
+                results.append(
+                    {
+                        "id": item.get("id"),
+                        "url": item.get("videos", {}).get("medium", {}).get("url")
+                        or item.get("videos", {}).get("large", {}).get("url"),
+                        "thumbnail": item.get("picture_id"),
+                        "duration": item.get("duration"),
+                        "width": item.get("videos", {}).get("medium", {}).get("width"),
+                        "height": item.get("videos", {}).get("medium", {}).get("height"),
+                        "provider": "pixabay",
+                    }
+                )
             else:
-                results.append({
-                    "id": item.get("id"),
-                    "url": item.get("largeImageURL") or item.get("webformatURL"),
-                    "thumbnail": item.get("previewURL"),
-                    "width": item.get("imageWidth"),
-                    "height": item.get("imageHeight"),
-                    "provider": "pixabay",
-                })
+                results.append(
+                    {
+                        "id": item.get("id"),
+                        "url": item.get("largeImageURL") or item.get("webformatURL"),
+                        "thumbnail": item.get("previewURL"),
+                        "width": item.get("imageWidth"),
+                        "height": item.get("imageHeight"),
+                        "provider": "pixabay",
+                    }
+                )
 
         logger.info(
             "pixabay.searched",

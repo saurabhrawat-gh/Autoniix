@@ -4,8 +4,6 @@ import httpx
 import structlog
 from temporalio import activity
 
-from core.config import settings
-
 logger = structlog.get_logger()
 
 RESEARCH_URL = "http://research:8001/research"

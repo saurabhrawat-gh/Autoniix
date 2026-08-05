@@ -4,6 +4,7 @@ Collects momentum, rising queries, and volume data for a niche/keyword set.
 Stores snapshots in `trend_signals` table for downstream scoring.
 All external calls are free-tier safe with caching and backoff.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -23,14 +24,15 @@ logger = structlog.get_logger()
 CACHE_TTL = 3600 * 6
 
 
-
 async def _fetch_google_trends(keywords: list[str], timeframe: str = "now 7-d") -> dict:
     """Fetch Google Trends interest-over-time and related queries.
     Runs pytrends in a thread to avoid blocking the event loop.
     """
+
     def _sync_fetch():
         try:
             from pytrends.request import TrendReq
+
             pytrends = TrendReq(hl="en-US", tz=330, timeout=(10, 25), retries=2)
             kws = keywords[:5]
             pytrends.build_payload(kws, cat=0, timeframe=timeframe, geo="", gprop="youtube")
@@ -61,7 +63,9 @@ async def _fetch_google_trends(keywords: list[str], timeframe: str = "now 7-d") 
                         rising = rq[kw].get("rising")
                         related[kw] = {
                             "top": top.head(10).to_dict("records") if top is not None and not top.empty else [],
-                            "rising": rising.head(10).to_dict("records") if rising is not None and not rising.empty else [],
+                            "rising": rising.head(10).to_dict("records")
+                            if rising is not None and not rising.empty
+                            else [],
                         }
             except Exception:
                 pass
@@ -80,7 +84,6 @@ async def _fetch_google_trends(keywords: list[str], timeframe: str = "now 7-d") 
             return {"momentum": {}, "related": {}, "suggestions": {}}
 
     return await asyncio.to_thread(_sync_fetch)
-
 
 
 async def _fetch_youtube_suggestions(keyword: str) -> list[str]:
@@ -161,20 +164,21 @@ async def _fetch_youtube_trending_videos(niche: str, max_results: int = 15) -> l
             results = []
             for it in items:
                 vid = it.get("id", {}).get("videoId", "")
-                results.append({
-                    "video_id": vid,
-                    "title": it["snippet"]["title"],
-                    "channel": it["snippet"]["channelTitle"],
-                    "published": it["snippet"]["publishedAt"],
-                    **stats.get(vid, {}),
-                })
+                results.append(
+                    {
+                        "video_id": vid,
+                        "title": it["snippet"]["title"],
+                        "channel": it["snippet"]["channelTitle"],
+                        "published": it["snippet"]["publishedAt"],
+                        **stats.get(vid, {}),
+                    }
+                )
 
             await redis.set(cache_key, json.dumps(results), ex=CACHE_TTL)
             return results
     except Exception as e:
         logger.warning("trend_collector.yt_trending_failed", error=str(e))
         return []
-
 
 
 async def _store_trend_signals(niche: str, trends_data: dict) -> int:
@@ -191,7 +195,8 @@ async def _store_trend_signals(niche: str, trends_data: dict) -> int:
         top = related.get(keyword, {}).get("top", [])
 
         try:
-            await pool.execute("""
+            await pool.execute(
+                """
                 INSERT INTO trend_signals (niche, keyword, source, signal_type,
                     momentum_score, volume_index, related_queries, rising_queries,
                     snapshot_date, raw_data)
@@ -204,18 +209,20 @@ async def _store_trend_signals(niche: str, trends_data: dict) -> int:
                     rising_queries = EXCLUDED.rising_queries,
                     raw_data = EXCLUDED.raw_data
             """,
-                niche, keyword,
+                niche,
+                keyword,
                 float(m_data.get("momentum", 0)),
                 int(m_data.get("current_index", 0)),
-                json.dumps(top), json.dumps(rising),
-                today, json.dumps(m_data),
+                json.dumps(top),
+                json.dumps(rising),
+                today,
+                json.dumps(m_data),
             )
             stored += 1
         except Exception as e:
             logger.warning("trend_collector.store_failed", keyword=keyword, error=str(e))
 
     return stored
-
 
 
 async def collect_trends(niche: str, keywords: list[str]) -> dict:
@@ -230,9 +237,7 @@ async def collect_trends(niche: str, keywords: list[str]) -> dict:
     yt_suggest_tasks = [_fetch_youtube_suggestions(kw) for kw in keywords[:3]]
     yt_trending_task = _fetch_youtube_trending_videos(niche)
 
-    gt_data, *yt_suggestions, yt_trending = await asyncio.gather(
-        gt_task, *yt_suggest_tasks, yt_trending_task
-    )
+    gt_data, *yt_suggestions, yt_trending = await asyncio.gather(gt_task, *yt_suggest_tasks, yt_trending_task)
 
     all_suggestions = {}
     for i, kw in enumerate(keywords[:3]):
@@ -248,10 +253,12 @@ async def collect_trends(niche: str, keywords: list[str]) -> dict:
         "signals_stored": stored,
     }
 
-    logger.info("trend_collector.done",
-                momentum_keywords=len(gt_data.get("momentum", {})),
-                trending_videos=len(yt_trending),
-                suggestions=sum(len(v) for v in all_suggestions.values()),
-                stored=stored)
+    logger.info(
+        "trend_collector.done",
+        momentum_keywords=len(gt_data.get("momentum", {})),
+        trending_videos=len(yt_trending),
+        suggestions=sum(len(v) for v in all_suggestions.values()),
+        stored=stored,
+    )
 
     return result

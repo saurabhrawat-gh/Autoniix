@@ -1,4 +1,5 @@
 """Triage helpers: parse Sentry Slack messages, detect layer, map priority."""
+
 from __future__ import annotations
 
 import re
@@ -127,14 +128,27 @@ def find_culprit_file(issue: dict) -> Optional[str]:
                 filename = (frame.get("filename") or "").replace("\\", "/").lstrip("/")
                 if not filename or _is_stdlib_frame(filename):
                     continue
-                if not (filename.endswith(".py") or filename.endswith(".ts")
-                        or filename.endswith(".tsx") or filename.endswith(".js")):
+                if not (
+                    filename.endswith(".py")
+                    or filename.endswith(".ts")
+                    or filename.endswith(".tsx")
+                    or filename.endswith(".js")
+                ):
                     continue
                 return filename
     return None
 
 
 def _is_stdlib_frame(filename: str) -> bool:
-    skip = ("/usr/", "/opt/", "site-packages", "node_modules",
-            "venv/", ".venv/", "<frozen", "/home/runner", "/root/.local")
+    skip = (
+        "/usr/",
+        "/opt/",
+        "site-packages",
+        "node_modules",
+        "venv/",
+        ".venv/",
+        "<frozen",
+        "/home/runner",
+        "/root/.local",
+    )
     return any(s in filename for s in skip)

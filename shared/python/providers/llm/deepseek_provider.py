@@ -12,7 +12,7 @@ from providers.registry import ProviderRegistry
 logger = structlog.get_logger()
 
 PRICING: dict[str, dict[str, float]] = {
-    "deepseek-chat":     {"input": 0.27 / 1_000_000, "output": 1.10 / 1_000_000},
+    "deepseek-chat": {"input": 0.27 / 1_000_000, "output": 1.10 / 1_000_000},
     "deepseek-reasoner": {"input": 0.55 / 1_000_000, "output": 2.19 / 1_000_000},
 }
 
@@ -56,10 +56,7 @@ class DeepSeekLLM(LLMProvider):
 
         usage = data["usage"]
         pricing = PRICING.get(model, PRICING["deepseek-chat"])
-        cost = (
-            usage["prompt_tokens"] * pricing["input"]
-            + usage["completion_tokens"] * pricing["output"]
-        )
+        cost = usage["prompt_tokens"] * pricing["input"] + usage["completion_tokens"] * pricing["output"]
         latency = int((time.monotonic() - start) * 1000)
 
         logger.info(
@@ -82,9 +79,7 @@ class DeepSeekLLM(LLMProvider):
             finish_reason=data["choices"][0]["finish_reason"],
         )
 
-    def estimate_cost(
-        self, tokens_in: int, tokens_out: int, model: str | None = None
-    ) -> float:
+    def estimate_cost(self, tokens_in: int, tokens_out: int, model: str | None = None) -> float:
         model = model or self.default_model()
         pricing = PRICING.get(model, PRICING["deepseek-chat"])
         return tokens_in * pricing["input"] + tokens_out * pricing["output"]
@@ -110,12 +105,12 @@ class DeepSeekLLM(LLMProvider):
         return list(PRICING.keys())
 
 
-ProviderRegistry.register("llm",           "deepseek", DeepSeekLLM)
-ProviderRegistry.register("llm.research",  "deepseek", DeepSeekLLM)
-ProviderRegistry.register("llm.script",    "deepseek", DeepSeekLLM)
+ProviderRegistry.register("llm", "deepseek", DeepSeekLLM)
+ProviderRegistry.register("llm.research", "deepseek", DeepSeekLLM)
+ProviderRegistry.register("llm.script", "deepseek", DeepSeekLLM)
 ProviderRegistry.register("llm.factcheck", "deepseek", DeepSeekLLM)
-ProviderRegistry.register("llm.qc",        "deepseek", DeepSeekLLM)
-ProviderRegistry.register("llm.ideation",  "deepseek", DeepSeekLLM)
-ProviderRegistry.register("llm.hook",      "deepseek", DeepSeekLLM)
+ProviderRegistry.register("llm.qc", "deepseek", DeepSeekLLM)
+ProviderRegistry.register("llm.ideation", "deepseek", DeepSeekLLM)
+ProviderRegistry.register("llm.hook", "deepseek", DeepSeekLLM)
 ProviderRegistry.register("llm.direction", "deepseek", DeepSeekLLM)
-ProviderRegistry.register("llm.emotion",   "deepseek", DeepSeekLLM)
+ProviderRegistry.register("llm.emotion", "deepseek", DeepSeekLLM)

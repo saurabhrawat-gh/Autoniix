@@ -8,14 +8,11 @@ Covers:
 The DB-touching ``build_performance_context`` is exercised via the
 ``_format_for_tests`` shim so these tests stay pure-function.
 """
-from __future__ import annotations
 
-import pytest
+from __future__ import annotations
 
 from intelligence import niche_templates as nt
 from intelligence.performance_feedback import _format_for_tests
-
-
 
 
 def test_list_templates_returns_nonempty_list():
@@ -33,10 +30,18 @@ def test_every_template_has_required_fields():
     """
     required_top = {"id", "label", "niche", "summary", "dna"}
     required_dna = {
-        "belief_territory", "intellectual_lens", "topic_domain",
-        "brand_voice", "narrative_rhythm", "emotional_contract",
-        "target_audience", "primary_format_long", "primary_format_short",
-        "thumbnail_style", "primary_color", "forbidden_words",
+        "belief_territory",
+        "intellectual_lens",
+        "topic_domain",
+        "brand_voice",
+        "narrative_rhythm",
+        "emotional_contract",
+        "target_audience",
+        "primary_format_long",
+        "primary_format_short",
+        "thumbnail_style",
+        "primary_color",
+        "forbidden_words",
     }
     for t in nt.list_templates():
         missing_top = required_top - t.keys()
@@ -70,8 +75,6 @@ def test_list_templates_returns_copies_not_internal_state():
     assert b[0]["label"] != "MUTATED"
 
 
-
-
 def test_format_empty_returns_empty_string():
     """Cold-start channels (no analytics yet) get no prompt context.
 
@@ -83,15 +86,20 @@ def test_format_empty_returns_empty_string():
 
 
 def test_format_includes_top_performers():
-    out = _format_for_tests({
-        "top": [
-            {"title": "Why pasta water is liquid gold",
-             "yt_views": 120_000, "engagement_rate": 7.5,
-             "performance_tier": "S"},
-        ],
-        "worst": [],
-        "stats": {"n": 1, "avg_views": 120_000, "avg_engagement": 7.5},
-    })
+    out = _format_for_tests(
+        {
+            "top": [
+                {
+                    "title": "Why pasta water is liquid gold",
+                    "yt_views": 120_000,
+                    "engagement_rate": 7.5,
+                    "performance_tier": "S",
+                },
+            ],
+            "worst": [],
+            "stats": {"n": 1, "avg_views": 120_000, "avg_engagement": 7.5},
+        }
+    )
     assert "WHAT WORKS" in out
     assert "120,000" in out, "view counts should be human-formatted"
     assert "[S]" in out
@@ -100,15 +108,15 @@ def test_format_includes_top_performers():
 
 
 def test_format_includes_worst_performers():
-    out = _format_for_tests({
-        "top": [],
-        "worst": [
-            {"title": "A boring rant",
-             "yt_views": 800, "engagement_rate": 0.4,
-             "performance_tier": "D"},
-        ],
-        "stats": {},
-    })
+    out = _format_for_tests(
+        {
+            "top": [],
+            "worst": [
+                {"title": "A boring rant", "yt_views": 800, "engagement_rate": 0.4, "performance_tier": "D"},
+            ],
+            "stats": {},
+        }
+    )
     assert "WHAT FLOPS" in out
     assert "boring rant" in out
     assert "WHAT WORKS" not in out
@@ -116,32 +124,37 @@ def test_format_includes_worst_performers():
 
 def test_format_truncates_long_titles():
     long_title = "x" * 500
-    out = _format_for_tests({
-        "top": [{"title": long_title, "yt_views": 50_000,
-                 "engagement_rate": 5.0, "performance_tier": "A"}],
-        "worst": [], "stats": {},
-    })
+    out = _format_for_tests(
+        {
+            "top": [{"title": long_title, "yt_views": 50_000, "engagement_rate": 5.0, "performance_tier": "A"}],
+            "worst": [],
+            "stats": {},
+        }
+    )
     assert "x" * 500 not in out
     assert "x" * 100 in out
 
 
 def test_format_handles_none_fields_gracefully():
     """Real DB rows can have NULLs; the formatter must not crash."""
-    out = _format_for_tests({
-        "top": [{"title": None, "yt_views": None,
-                 "engagement_rate": None, "performance_tier": None}],
-        "worst": [], "stats": {},
-    })
+    out = _format_for_tests(
+        {
+            "top": [{"title": None, "yt_views": None, "engagement_rate": None, "performance_tier": None}],
+            "worst": [],
+            "stats": {},
+        }
+    )
     assert "WHAT WORKS" in out
     assert "0 views" in out
 
 
 def test_format_includes_baseline_stats_when_available():
-    out = _format_for_tests({
-        "top": [{"title": "ok", "yt_views": 10_000,
-                 "engagement_rate": 4.0, "performance_tier": "B"}],
-        "worst": [],
-        "stats": {"n": 12, "avg_views": 8_500, "avg_engagement": 3.7},
-    })
+    out = _format_for_tests(
+        {
+            "top": [{"title": "ok", "yt_views": 10_000, "engagement_rate": 4.0, "performance_tier": "B"}],
+            "worst": [],
+            "stats": {"n": 12, "avg_views": 8_500, "avg_engagement": 3.7},
+        }
+    )
     assert "12 measured videos" in out
     assert "8,500 views" in out

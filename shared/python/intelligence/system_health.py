@@ -37,34 +37,28 @@ Subsystem weights (sum to 100):
     diversity_floor    :  8   - bandits exploring?
     calibration        : 16   - prediction quality (the headline ML signal)
 """
+
 from __future__ import annotations
 
-import math
 from datetime import datetime, timezone
 from typing import Any
 
-
-
-
 SUBSYSTEM_WEIGHTS: dict[str, int] = {
-    "services":           35,
-    "db_pool":            10,
-    "pressure_24h":        8,
-    "gate_calibration":    8,
-    "niche_pulse":         7,
-    "retention_coverage":  8,
-    "diversity_floor":     8,
-    "calibration":        16,
+    "services": 35,
+    "db_pool": 10,
+    "pressure_24h": 8,
+    "gate_calibration": 8,
+    "niche_pulse": 7,
+    "retention_coverage": 8,
+    "diversity_floor": 8,
+    "calibration": 16,
 }
 assert sum(SUBSYSTEM_WEIGHTS.values()) == 100, (
-    "subsystem weights must sum to 100 to keep the headline score "
-    "interpretable as a percentage"
+    "subsystem weights must sum to 100 to keep the headline score interpretable as a percentage"
 )
 
-GREEN_THRESHOLD  = 80
+GREEN_THRESHOLD = 80
 YELLOW_THRESHOLD = 50
-
-
 
 
 def _hours_since(iso_ts: str | None) -> float | None:
@@ -101,14 +95,16 @@ def _linear_band(x: float, *, ok_at: float, fail_at: float) -> float:
     if ok_at == fail_at:
         return 1.0 if x >= ok_at else 0.0
     if ok_at > fail_at:
-        if x >= ok_at: return 1.0
-        if x <= fail_at: return 0.0
+        if x >= ok_at:
+            return 1.0
+        if x <= fail_at:
+            return 0.0
         return (x - fail_at) / (ok_at - fail_at)
-    if x <= ok_at: return 1.0
-    if x >= fail_at: return 0.0
+    if x <= ok_at:
+        return 1.0
+    if x >= fail_at:
+        return 0.0
     return (fail_at - x) / (fail_at - ok_at)
-
-
 
 
 def score_services(s: dict | None) -> tuple[float | None, str]:
@@ -153,11 +149,11 @@ def score_pressure_24h(p: dict | None) -> tuple[float | None, str]:
     if not p:
         return None, "no pressure data"
     blocks = p.get("quality_gate_blocks")
-    fails  = p.get("video_failures")
+    fails = p.get("video_failures")
     if blocks is None and fails is None:
         return None, "no pressure data"
     blocks = int(blocks or 0)
-    fails  = int(fails or 0)
+    fails = int(fails or 0)
     combined = blocks + fails * 2
     score_norm = _linear_band(float(combined), ok_at=0.0, fail_at=25.0)
     pct = round(score_norm * 100, 1)
@@ -169,7 +165,7 @@ def score_gate_calibration(g: dict | None) -> tuple[float | None, str]:
     if not g or not g.get("ok"):
         return None, (g or {}).get("error") or "no calibration data"
     niches = int(g.get("niches_calibrated") or 0)
-    auto   = int(g.get("dims_auto") or 0)
+    auto = int(g.get("dims_auto") or 0)
     default = int(g.get("dims_default") or 0)
     if niches == 0:
         return None, "no niches calibrated yet"
@@ -189,7 +185,7 @@ def score_niche_pulse(n: dict | None) -> tuple[float | None, str]:
     """Saturation pulse freshness."""
     if not n or not n.get("ok"):
         return None, (n or {}).get("error") or "no pulse data"
-    rows   = int(n.get("embedded_rows") or 0)
+    rows = int(n.get("embedded_rows") or 0)
     niches = int(n.get("niches_with_data") or 0)
     if niches == 0:
         return None, "pulse not yet refreshed"
@@ -205,7 +201,7 @@ def score_retention_coverage(r: dict | None) -> tuple[float | None, str]:
     """Fraction of curve-stable videos with a fetched retention curve."""
     if not r or not r.get("ok"):
         return None, (r or {}).get("error") or "no coverage data"
-    eligible  = int(r.get("eligible") or 0)
+    eligible = int(r.get("eligible") or 0)
     if eligible == 0:
         return None, "no videos in 7-30d window yet"
     cov = r.get("coverage")
@@ -250,7 +246,7 @@ def score_calibration(c: dict | None) -> tuple[float | None, str]:
     if n < 20:
         return None, f"{n} scored (need ≥20)"
     brier = c.get("brier")
-    ece   = c.get("ece")
+    ece = c.get("ece")
     parts: list[float] = []
     if brier is not None:
         parts.append(_linear_band(float(brier), ok_at=0.10, fail_at=0.25))
@@ -267,17 +263,15 @@ def score_calibration(c: dict | None) -> tuple[float | None, str]:
     return pct, ", ".join(bits) + f" over {n} preds"
 
 
-
-
 SUBSYSTEM_SCORERS = {
-    "services":           score_services,
-    "db_pool":            score_db_pool,
-    "pressure_24h":       score_pressure_24h,
-    "gate_calibration":   score_gate_calibration,
-    "niche_pulse":        score_niche_pulse,
+    "services": score_services,
+    "db_pool": score_db_pool,
+    "pressure_24h": score_pressure_24h,
+    "gate_calibration": score_gate_calibration,
+    "niche_pulse": score_niche_pulse,
     "retention_coverage": score_retention_coverage,
-    "diversity_floor":    score_diversity_floor,
-    "calibration":        score_calibration,
+    "diversity_floor": score_diversity_floor,
+    "calibration": score_calibration,
 }
 
 
@@ -325,30 +319,32 @@ def aggregate_health(payload: dict) -> dict:
         scorer = SUBSYSTEM_SCORERS[name]
         slice_ = payload.get(name)
         score, reason = scorer(slice_)
-        breakdown.append({
-            "name":   name,
-            "score":  None if score is None else round(float(score), 1),
-            "weight": weight,
-            "reason": reason,
-        })
+        breakdown.append(
+            {
+                "name": name,
+                "score": None if score is None else round(float(score), 1),
+                "weight": weight,
+                "reason": reason,
+            }
+        )
         if score is not None:
             weighted_sum += float(score) * weight
             weight_total += weight
 
     if weight_total == 0:
         return {
-            "score":      None,
-            "band":       "unknown",
-            "n_active":   0,
-            "n_total":    len(SUBSYSTEM_WEIGHTS),
+            "score": None,
+            "band": "unknown",
+            "n_active": 0,
+            "n_total": len(SUBSYSTEM_WEIGHTS),
             "subsystems": breakdown,
         }
 
     overall = weighted_sum / weight_total
     return {
-        "score":      round(overall, 1),
-        "band":       band(overall),
-        "n_active":   sum(1 for b in breakdown if b["score"] is not None),
-        "n_total":    len(SUBSYSTEM_WEIGHTS),
+        "score": round(overall, 1),
+        "band": band(overall),
+        "n_active": sum(1 for b in breakdown if b["score"] is not None),
+        "n_total": len(SUBSYSTEM_WEIGHTS),
         "subsystems": breakdown,
     }

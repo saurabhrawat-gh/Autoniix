@@ -4,8 +4,8 @@ import httpx
 import structlog
 
 from core.config import settings
-from providers.stock.base import StockProvider, StockRequest, StockResult
 from providers.registry import ProviderRegistry
+from providers.stock.base import StockProvider, StockRequest, StockResult
 
 logger = structlog.get_logger()
 
@@ -32,7 +32,7 @@ class PexelsStock(StockProvider):
         if request.orientation:
             params["orientation"] = request.orientation
 
-        url = f"{self.BASE_URL}/search" if request.media_type == "video" else f"https://api.pexels.com/v1/search"
+        url = f"{self.BASE_URL}/search" if request.media_type == "video" else "https://api.pexels.com/v1/search"
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(url, headers=headers, params=params)
@@ -43,24 +43,30 @@ class PexelsStock(StockProvider):
         total = data.get("total_results", 0)
         for item in data.get(request.media_type == "video" and "videos" or "photos", []):
             if request.media_type == "video":
-                results.append({
-                    "id": item.get("id"),
-                    "url": item.get("video_files", [{}])[0].get("link") if item.get("video_files") else item.get("video_files"),
-                    "thumbnail": item.get("image"),
-                    "duration": item.get("duration"),
-                    "width": item.get("width"),
-                    "height": item.get("height"),
-                    "provider": "pexels",
-                })
+                results.append(
+                    {
+                        "id": item.get("id"),
+                        "url": item.get("video_files", [{}])[0].get("link")
+                        if item.get("video_files")
+                        else item.get("video_files"),
+                        "thumbnail": item.get("image"),
+                        "duration": item.get("duration"),
+                        "width": item.get("width"),
+                        "height": item.get("height"),
+                        "provider": "pexels",
+                    }
+                )
             else:
-                results.append({
-                    "id": item.get("id"),
-                    "url": item.get("src", {}).get("original"),
-                    "thumbnail": item.get("src", {}).get("large"),
-                    "width": item.get("width"),
-                    "height": item.get("height"),
-                    "provider": "pexels",
-                })
+                results.append(
+                    {
+                        "id": item.get("id"),
+                        "url": item.get("src", {}).get("original"),
+                        "thumbnail": item.get("src", {}).get("large"),
+                        "width": item.get("width"),
+                        "height": item.get("height"),
+                        "provider": "pexels",
+                    }
+                )
 
         logger.info(
             "pexels.searched",

@@ -12,6 +12,7 @@ Wipes ALL provider configuration to a true clean slate:
 
 Keeps schemas, categories, content_modes, and feature flags untouched.
 """
+
 from __future__ import annotations
 
 import structlog
@@ -37,7 +38,8 @@ async def _truncate_provider_tables() -> list[str]:
     for t in PROVIDER_TABLES:
         try:
             exists = await pool.fetchval(
-                "SELECT to_regclass($1) IS NOT NULL", t,
+                "SELECT to_regclass($1) IS NOT NULL",
+                t,
             )
             if not exists:
                 continue
@@ -56,6 +58,7 @@ def _wipe_vault_secrets() -> int:
     """
     try:
         from providers.secrets import delete_prefix
+
         return int(delete_prefix("providers/") or 0)
     except Exception as exc:
         logger.warning("vault.delete_prefix_failed", error=str(exc))
@@ -65,11 +68,13 @@ def _wipe_vault_secrets() -> int:
 def _invalidate_local_caches() -> None:
     try:
         from providers.chain import invalidate
+
         invalidate()
     except Exception:
         pass
     try:
         from providers.registry import ProviderRegistry
+
         ProviderRegistry.reset()
     except Exception:
         pass
@@ -79,6 +84,7 @@ async def _publish_invalidate() -> None:
     """Tell every running service to drop their cached chains too."""
     try:
         from providers.invalidation import publish_invalidate
+
         await publish_invalidate(category=None)
     except Exception as exc:
         logger.warning("publish_invalidate.failed", error=str(exc))

@@ -5,11 +5,11 @@ hookability, competitor gap, burst score, seasonality, and phrase novelty
 into a single opportunity_score. Weights are configurable via system_config
 and updated by the self-learning model.
 """
+
 from __future__ import annotations
 
 import json
-import math
-from datetime import date, datetime
+from datetime import date
 
 import structlog
 
@@ -36,11 +36,14 @@ async def _load_weights(niche: str | None = None) -> dict:
     pool = await get_pool()
 
     if niche:
-        row = await pool.fetchrow("""
+        row = await pool.fetchrow(
+            """
             SELECT metrics FROM ml_models
             WHERE model_name = 'opportunity_weights' AND niche = $1 AND is_active = TRUE
             ORDER BY model_version DESC LIMIT 1
-        """, niche)
+        """,
+            niche,
+        )
         if row and row["metrics"]:
             learned = json.loads(row["metrics"]) if isinstance(row["metrics"], str) else row["metrics"]
             if "weights" in learned:
@@ -58,7 +61,6 @@ async def _load_weights(niche: str | None = None) -> dict:
     return DEFAULT_WEIGHTS.copy()
 
 
-
 def compute_hookability(title: str, hook: str = "") -> float:
     """Score hookability of a title/hook based on heuristics.
 
@@ -70,14 +72,24 @@ def compute_hookability(title: str, hook: str = "") -> float:
     checks = 0
 
     curiosity_patterns = [
-        "why", "how", "what if", "secret", "hidden", "truth",
-        "nobody", "no one", "revealed", "shocking", "surprising",
+        "why",
+        "how",
+        "what if",
+        "secret",
+        "hidden",
+        "truth",
+        "nobody",
+        "no one",
+        "revealed",
+        "shocking",
+        "surprising",
     ]
     if any(p in text for p in curiosity_patterns):
         score += 1.0
     checks += 1
 
     import re
+
     if re.search(r"\d+", text):
         score += 0.8
     checks += 1
@@ -91,8 +103,18 @@ def compute_hookability(title: str, hook: str = "") -> float:
         score += 0.9
     checks += 1
 
-    emotional = ["amazing", "incredible", "terrifying", "beautiful", "insane",
-                 "genius", "brilliant", "devastating", "powerful", "mind-blowing"]
+    emotional = [
+        "amazing",
+        "incredible",
+        "terrifying",
+        "beautiful",
+        "insane",
+        "genius",
+        "brilliant",
+        "devastating",
+        "powerful",
+        "mind-blowing",
+    ]
     if any(p in text for p in emotional):
         score += 0.8
     checks += 1
@@ -109,7 +131,6 @@ def compute_hookability(title: str, hook: str = "") -> float:
     return round(min(1.0, score / max(checks * 0.5, 1)), 4)
 
 
-
 async def compute_supply_demand_gap(
     topic: str,
     niche: str,
@@ -121,12 +142,16 @@ async def compute_supply_demand_gap(
     """
     pool = await get_pool()
 
-    supply_count = await pool.fetchval("""
+    supply_count = await pool.fetchval(
+        """
         SELECT COUNT(*) FROM competitor_videos
         WHERE niche = $1
           AND title ILIKE '%' || $2 || '%'
           AND published_at > NOW() - INTERVAL '30 days'
-    """, niche, topic[:50])
+    """,
+        niche,
+        topic[:50],
+    )
 
     demand = min(1.0, trend_volume / 100.0) if trend_volume > 0 else 0.5
 
@@ -134,7 +159,6 @@ async def compute_supply_demand_gap(
 
     gap = max(0.0, demand - supply_penalty * 0.6)
     return round(gap, 4)
-
 
 
 def compute_seasonality(topic: str) -> float:
@@ -172,7 +196,6 @@ def compute_seasonality(topic: str) -> float:
         return 0.65
 
     return 0.3
-
 
 
 async def score_opportunity(
@@ -228,10 +251,7 @@ async def score_opportunity(
         "saturation_gap": max(0.0, min(1.0, saturation_gap)),
     }
 
-    opportunity = sum(
-        feature_vec.get(k, 0) * weights.get(k, 0)
-        for k in weights
-    )
+    opportunity = sum(feature_vec.get(k, 0) * weights.get(k, 0) for k in weights)
     opportunity = round(max(0.0, min(1.0, opportunity)), 4)
 
     result = {
@@ -283,7 +303,8 @@ async def store_research_features(
     """Persist feature row for ML training later."""
     pool = await get_pool()
     try:
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO research_features
                 (content_id, channel_id, topic, freshness_score, novelty_score,
                  trend_momentum, supply_demand_gap, hookability_score, competitor_gap,
@@ -291,13 +312,22 @@ async def store_research_features(
                  model_predicted, bandit_arm, was_selected)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         """,
-            content_id, channel_id, topic,
-            features.get("freshness", 0), features.get("novelty", 0),
-            features.get("trend_momentum", 0), features.get("supply_demand_gap", 0),
-            features.get("hookability", 0), features.get("competitor_gap", 0),
-            features.get("burst_score", 0), features.get("seasonality", 0),
-            features.get("phrase_novelty", 0), opportunity_score,
-            model_predicted, bandit_arm, was_selected,
+            content_id,
+            channel_id,
+            topic,
+            features.get("freshness", 0),
+            features.get("novelty", 0),
+            features.get("trend_momentum", 0),
+            features.get("supply_demand_gap", 0),
+            features.get("hookability", 0),
+            features.get("competitor_gap", 0),
+            features.get("burst_score", 0),
+            features.get("seasonality", 0),
+            features.get("phrase_novelty", 0),
+            opportunity_score,
+            model_predicted,
+            bandit_arm,
+            was_selected,
         )
     except Exception as e:
         logger.warning("opportunity.store_features_failed", error=str(e))

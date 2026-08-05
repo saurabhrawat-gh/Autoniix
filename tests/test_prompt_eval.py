@@ -4,15 +4,13 @@ The actual LLM-driven runs live in ``scripts/run_prompt_eval.py`` and are
 exercised in CI's e2e job. Here we only assert that the spec engine
 correctly translates assertions into pass/fail decisions — no LLM calls.
 """
+
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-import pytest
-
 from quality.prompt_eval import EvalCase, Spec
-
 
 CASES_DIR = Path(__file__).parent / "prompt_eval" / "cases"
 
@@ -21,7 +19,8 @@ def test_spec_passes_clean_output():
     spec = Spec(
         must_include_any=["pasta", "water"],
         must_not_include=["as an AI"],
-        min_chars=20, max_chars=200,
+        min_chars=20,
+        max_chars=200,
     )
     output = "Pasta water is the cheapest finishing trick in any kitchen."
     ok, failures = spec.evaluate(output)
@@ -89,8 +88,10 @@ def test_example_case_file_loads_cleanly():
     raw = json.loads(p.read_text())
     spec = Spec(**raw["spec"])
     case = EvalCase(
-        id=raw["id"], category=raw["category"],
-        messages=raw["messages"], spec=spec,
+        id=raw["id"],
+        category=raw["category"],
+        messages=raw["messages"],
+        spec=spec,
         temperature=raw.get("temperature", 0.3),
         max_tokens=raw.get("max_tokens", 800),
         response_format=raw.get("response_format", "text"),

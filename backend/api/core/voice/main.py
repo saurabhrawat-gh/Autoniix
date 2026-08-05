@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 import json
 import re
 from contextlib import asynccontextmanager
@@ -10,28 +9,23 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from core.config import settings
-from core.db import close_pool, get_pool
-from schemas.common import HealthResponse, ServiceResponse
-
 import providers.boot  # noqa: F401
-
-from providers.registry import ProviderRegistry
+from core.db import close_pool, get_pool
+from observability.metrics import instrument_app
 from providers.llm.base import LLMRequest
+from providers.registry import ProviderRegistry
 from providers.storage.base import StorageUpload
-
-from services_api.voice.emotion_predictor import predict_emotions_for_sentences
+from schemas.common import HealthResponse, ServiceResponse
 from services_api.voice.audio_quality_scorer import analyze_audio_quality, score_emotion_variety
+from services_api.voice.emotion_predictor import predict_emotions_for_sentences
 from services_api.voice.voice_style_learner import (
     extract_voice_features,
-    predict_optimal_params,
     ingest_voice_feedback,
+    predict_optimal_params,
     train_voice_model,
 )
-from observability.metrics import instrument_app
 
 logger = structlog.get_logger()
-
 
 
 class VoiceRequest(BaseModel):
@@ -41,7 +35,6 @@ class VoiceRequest(BaseModel):
     voice_id: str = ""
     content_mode: str = "short"
     budget_guard: dict = Field(default_factory=lambda: {"max_cost_usd": 2.50, "accrued_cost_usd": 0.0})
-
 
 
 def _safe_format(template: str, **kwargs) -> str:
@@ -67,28 +60,44 @@ async def _load_channel(channel_id: str) -> dict:
 async def _load_prompt(prompt_id: str) -> dict:
     pool = await get_pool()
     row = await pool.fetchrow(
-        "SELECT system_prompt, user_prompt_template FROM prompt_registry "
-        "WHERE prompt_id = $1 AND is_active = true", prompt_id)
+        "SELECT system_prompt, user_prompt_template FROM prompt_registry WHERE prompt_id = $1 AND is_active = true",
+        prompt_id,
+    )
     return dict(row) if row else {}
 
 
-async def _log_usage(content_id: str, service: str, provider: str, model: str,
-                     tokens_in: int, tokens_out: int, cost: float, latency: int = 0):
+async def _log_usage(
+    content_id: str,
+    service: str,
+    provider: str,
+    model: str,
+    tokens_in: int,
+    tokens_out: int,
+    cost: float,
+    latency: int = 0,
+):
     try:
         pool = await get_pool()
         await pool.execute(
             "INSERT INTO api_usage (content_id, service, provider, model, tokens_in, tokens_out, cost_usd, latency_ms) "
             "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-            content_id, service, provider, model, tokens_in, tokens_out, float(cost), latency)
+            content_id,
+            service,
+            provider,
+            model,
+            tokens_in,
+            tokens_out,
+            float(cost),
+            latency,
+        )
     except Exception as e:
         logger.warning("voice.db_log_failed", error=str(e))
 
 
 def _split_sentences(text: str) -> list[str]:
     """Split text into sentences for per-sentence TTS."""
-    sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+    sentences = re.split(r"(?<=[.!?])\s+", text.strip())
     return [s.strip() for s in sentences if s.strip()]
-
 
 
 @asynccontextmanager
@@ -100,12 +109,15 @@ async def lifespan(app: FastAPI):
 
 
 from observability.sentry import init_sentry
+
 init_sentry("voice")
 
 app = FastAPI(title="Voice Service", version="0.1.0", lifespan=lifespan)
 
 
 instrument_app(app, service_name="voice")
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="voice")
@@ -132,12 +144,13 @@ async def synthesize(req: VoiceRequest):
         brand_config = channel.get("brand_config") or {}
         if isinstance(brand_config, str):
             import json as _json
+
             try:
                 brand_config = _json.loads(brand_config)
             except Exception:
                 brand_config = {}
         voice_ids_map: dict = brand_config.get("voice_ids", {})
-        _provider_name = getattr(tts, "provider_name", lambda: "") ()
+        _provider_name = getattr(tts, "provider_name", lambda: "")()
         voice_id = (
             req.voice_id
             or voice_ids_map.get(_provider_name, "")
@@ -154,12 +167,14 @@ async def synthesize(req: VoiceRequest):
                 continue
             sentences = _split_sentences(narration)
             for sent in sentences:
-                all_sentences.append({
-                    "segment_id": seg.get("id", ""),
-                    "section": seg.get("section", "body"),
-                    "text": sent,
-                    "prosody_hint": seg.get("prosody_hint", {}),
-                })
+                all_sentences.append(
+                    {
+                        "segment_id": seg.get("id", ""),
+                        "section": seg.get("section", "body"),
+                        "text": sent,
+                        "prosody_hint": seg.get("prosody_hint", {}),
+                    }
+                )
 
         if not all_sentences:
             raise HTTPException(status_code=400, detail="No narration text in segments")
@@ -188,29 +203,39 @@ async def synthesize(req: VoiceRequest):
 
             full_narration = " ".join(s["text"] for s in all_sentences)
 
-            em_system = emotion_prompt.get("system_prompt",
-                "Map emotions to voice parameters per sentence. Respond in JSON.")
-            em_user = _safe_format(emotion_prompt.get("user_prompt_template",
-                "Narration: {narration}\nVoice style: {brand_voice}"),
+            em_system = emotion_prompt.get(
+                "system_prompt", "Map emotions to voice parameters per sentence. Respond in JSON."
+            )
+            em_user = _safe_format(
+                emotion_prompt.get("user_prompt_template", "Narration: {narration}\nVoice style: {brand_voice}"),
                 narration=full_narration[:3000],
                 brand_voice=channel.get("brand_voice", ""),
                 pacing_style=channel.get("pacing_style", ""),
             )
 
-            em_result = await emotion_llm.complete(LLMRequest(
-                messages=[
-                    {"role": "system", "content": em_system},
-                    {"role": "user", "content": em_user},
-                ],
-                model="gpt-4o-mini",
-                temperature=0.3,
-                max_tokens=2000,
-                response_format="json",
-            ))
+            em_result = await emotion_llm.complete(
+                LLMRequest(
+                    messages=[
+                        {"role": "system", "content": em_system},
+                        {"role": "user", "content": em_user},
+                    ],
+                    model="gpt-4o-mini",
+                    temperature=0.3,
+                    max_tokens=2000,
+                    response_format="json",
+                )
+            )
             total_cost += em_result.cost_usd
-            await _log_usage(req.content_id, "voice_emotion", em_result.provider,
-                             em_result.model, em_result.tokens_in, em_result.tokens_out,
-                             em_result.cost_usd, em_result.latency_ms)
+            await _log_usage(
+                req.content_id,
+                "voice_emotion",
+                em_result.provider,
+                em_result.model,
+                em_result.tokens_in,
+                em_result.tokens_out,
+                em_result.cost_usd,
+                em_result.latency_ms,
+            )
 
             try:
                 emotion_data = _parse_json(em_result.content)
@@ -249,7 +274,10 @@ async def synthesize(req: VoiceRequest):
             logger.info("voice.applying_ml_params", params=optimal_params)
             for sent in all_sentences:
                 sent["stability"] = sent["stability"] * 0.7 + optimal_params.get("stability", sent["stability"]) * 0.3
-                sent["similarity_boost"] = sent["similarity_boost"] * 0.7 + optimal_params.get("similarity_boost", sent["similarity_boost"]) * 0.3
+                sent["similarity_boost"] = (
+                    sent["similarity_boost"] * 0.7
+                    + optimal_params.get("similarity_boost", sent["similarity_boost"]) * 0.3
+                )
 
         audio_chunks = []
         total_duration = 0.0
@@ -266,14 +294,16 @@ async def synthesize(req: VoiceRequest):
                 speed=sent.get("speed", 1.0),
             )
 
-            audio_chunks.append({
-                "segment_id": sent["segment_id"],
-                "text": sent["text"],
-                "emotion": sent.get("emotion", "neutral"),
-                "audio_bytes": tts_result.audio_bytes,
-                "duration_s": tts_result.duration_s,
-                "pause_after_ms": sent.get("pause_after_ms", 300),
-            })
+            audio_chunks.append(
+                {
+                    "segment_id": sent["segment_id"],
+                    "text": sent["text"],
+                    "emotion": sent.get("emotion", "neutral"),
+                    "audio_bytes": tts_result.audio_bytes,
+                    "duration_s": tts_result.duration_s,
+                    "pause_after_ms": sent.get("pause_after_ms", 300),
+                }
+            )
             total_duration += tts_result.duration_s
             total_chars += len(sent["text"])
             total_cost += tts_result.cost_usd
@@ -313,10 +343,8 @@ async def synthesize(req: VoiceRequest):
             "total_chars": total_chars,
         }
 
-        audio_analysis = await analyze_audio_quality(
-            combined_audio, expected_duration_s=total_duration)
-        emotion_variety = score_emotion_variety(
-            [{"emotion": s.get("emotion", "neutral")} for s in all_sentences])
+        audio_analysis = await analyze_audio_quality(combined_audio, expected_duration_s=total_duration)
+        emotion_variety = score_emotion_variety([{"emotion": s.get("emotion", "neutral")} for s in all_sentences])
 
         quality_score = 10.0
 
@@ -362,17 +390,25 @@ async def synthesize(req: VoiceRequest):
         quality_score = max(1.0, round(quality_score, 1))
 
         await extract_voice_features(
-            req.content_id, req.channel_id,
+            req.content_id,
+            req.channel_id,
             audio_analysis.get("metrics", {}),
-            [{"emotion": s.get("emotion"), "stability": s.get("stability"),
-              "similarity_boost": s.get("similarity_boost"), "style": s.get("style"),
-              "speed": s.get("speed"), "pause_after_ms": s.get("pause_after_ms"),
-              "emphasis_words": s.get("emphasis_words", [])}
-             for s in all_sentences],
-            validation)
+            [
+                {
+                    "emotion": s.get("emotion"),
+                    "stability": s.get("stability"),
+                    "similarity_boost": s.get("similarity_boost"),
+                    "style": s.get("style"),
+                    "speed": s.get("speed"),
+                    "pause_after_ms": s.get("pause_after_ms"),
+                    "emphasis_words": s.get("emphasis_words", []),
+                }
+                for s in all_sentences
+            ],
+            validation,
+        )
 
-        await _log_usage(req.content_id, "voice", tts_provider_name, "tts",
-                         total_chars, 0, total_cost, 0)
+        await _log_usage(req.content_id, "voice", tts_provider_name, "tts", total_chars, 0, total_cost, 0)
 
         manifest = {
             "audio_url": url,
@@ -407,11 +443,13 @@ async def synthesize(req: VoiceRequest):
             },
         }
 
-        logger.info("voice.completed",
-                     duration=round(total_duration, 1),
-                     sentences=len(all_sentences),
-                     quality=quality_score,
-                     cost=round(total_cost, 4))
+        logger.info(
+            "voice.completed",
+            duration=round(total_duration, 1),
+            sentences=len(all_sentences),
+            quality=quality_score,
+            cost=round(total_cost, 4),
+        )
 
         return ServiceResponse(
             status="success",
@@ -424,7 +462,6 @@ async def synthesize(req: VoiceRequest):
     except Exception as exc:
         logger.error("voice.failed", error=str(exc))
         raise HTTPException(status_code=500, detail=str(exc))
-
 
 
 class VoiceFeedbackRequest(BaseModel):
@@ -454,8 +491,7 @@ async def voice_train(req: VoiceTrainRequest):
 async def _load_config(key: str) -> str:
     try:
         pool = await get_pool()
-        row = await pool.fetchrow(
-            "SELECT config_value FROM system_config WHERE config_key = $1", key)
+        row = await pool.fetchrow("SELECT config_value FROM system_config WHERE config_key = $1", key)
         return row["config_value"] if row else ""
     except Exception:
         return ""

@@ -2,6 +2,7 @@
 
 Mirrors ``go-workflows/types.go``. Retry policies match the Go originals.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -10,8 +11,8 @@ from typing import Any, Sequence
 
 from temporalio.common import RetryPolicy
 
-
 # ── Input/output types (mirror src/schemas/common.py) ─────────────────────────
+
 
 @dataclass
 class VideoParams:
@@ -88,6 +89,7 @@ RETRY_LIGHT = RetryPolicy(
 
 
 # ── Phase helpers ─────────────────────────────────────────────────────────────
+
 
 def should_skip(phase: str, resume_from: str) -> bool:
     """Return True when ``phase`` was already completed before ``resume_from``."""

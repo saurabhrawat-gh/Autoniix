@@ -17,6 +17,7 @@ Environment variables (all optional except `SMTP_HOST` for a real send):
 If ``SMTP_HOST`` is unset the helper short-circuits and returns ``False``
 without raising — callers should treat email delivery as best-effort.
 """
+
 from __future__ import annotations
 
 import logging
@@ -49,7 +50,8 @@ async def send_email(to: str, subject: str, html: str, text: str) -> bool:
         log.warning(
             "SMTP not configured (SMTP_HOST unset) — email NOT sent to %s (subject=%r). "
             "Set SMTP_HOST and credentials in .env to enable transactional mail.",
-            to, subject,
+            to,
+            subject,
         )
         return False
 

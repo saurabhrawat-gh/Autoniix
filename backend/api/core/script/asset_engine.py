@@ -14,6 +14,7 @@ Transforms the base script into optimized stock footage search queries:
 
 All computation is local. Zero API cost.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -24,8 +25,6 @@ import structlog
 
 from services_api.script.script_analyzer import (
     analyze_segment,
-    detect_emotions,
-    EMOTION_LEXICON,
 )
 
 logger = structlog.get_logger()
@@ -45,8 +44,10 @@ async def _ensure_wordnet():
 
         def _download():
             import nltk
+
             try:
                 from nltk.corpus import wordnet
+
                 wordnet.synsets("test")
             except LookupError:
                 nltk.download("wordnet", quiet=True)
@@ -61,6 +62,7 @@ def _get_synonyms(word: str, max_syns: int = 3) -> list[str]:
     """Get synonyms from WordNet (synchronous — call in thread)."""
     try:
         from nltk.corpus import wordnet
+
         syns = set()
         for synset in wordnet.synsets(word):
             for lemma in synset.lemmas():
@@ -75,12 +77,27 @@ def _get_synonyms(word: str, max_syns: int = 3) -> list[str]:
 
 
 NEGATIVE_KEYWORDS = {
-    "handshake", "business meeting", "happy family", "light bulb",
-    "puzzle pieces", "road fork", "thumbs up", "high five",
-    "group cheering", "fireworks celebration", "graduation cap",
-    "target bullseye", "chess pieces", "hourglass", "compass",
-    "flag waving", "globe spinning", "stock market graph",
-    "woman typing laptop", "man thinking", "sunrise motivation",
+    "handshake",
+    "business meeting",
+    "happy family",
+    "light bulb",
+    "puzzle pieces",
+    "road fork",
+    "thumbs up",
+    "high five",
+    "group cheering",
+    "fireworks celebration",
+    "graduation cap",
+    "target bullseye",
+    "chess pieces",
+    "hourglass",
+    "compass",
+    "flag waving",
+    "globe spinning",
+    "stock market graph",
+    "woman typing laptop",
+    "man thinking",
+    "sunrise motivation",
 }
 
 SHOT_TYPE_MAP = {
@@ -131,7 +148,6 @@ STYLE_RECIPES = {
 }
 
 
-
 async def extract_asset_queries(
     segment: dict,
     channel: dict | None = None,
@@ -155,7 +171,9 @@ async def extract_asset_queries(
     dominant_emotion = emotions["dominant_emotion"]
 
     primary_parts = []
-    relevant_ents = [e["text"] for e in entities if e["label"] in ("PERSON", "ORG", "GPE", "EVENT", "PRODUCT", "WORK_OF_ART")]
+    relevant_ents = [
+        e["text"] for e in entities if e["label"] in ("PERSON", "ORG", "GPE", "EVENT", "PRODUCT", "WORK_OF_ART")
+    ]
     if relevant_ents:
         primary_parts.extend(relevant_ents[:2])
     elif noun_phrases:
@@ -166,10 +184,12 @@ async def extract_asset_queries(
         primary_parts.append(key_verbs[0])
 
     if scene_direction:
-        scene_nouns = re.findall(r"\b(?:room|office|lab|street|city|forest|ocean|space|desk|"
-                                  r"screen|phone|brain|body|heart|blood|cell|dna|book|"
-                                  r"hospital|kitchen|gym|mountain|beach|sky)\b",
-                                  scene_direction.lower())
+        scene_nouns = re.findall(
+            r"\b(?:room|office|lab|street|city|forest|ocean|space|desk|"
+            r"screen|phone|brain|body|heart|blood|cell|dna|book|"
+            r"hospital|kitchen|gym|mountain|beach|sky)\b",
+            scene_direction.lower(),
+        )
         primary_parts.extend(scene_nouns[:2])
 
     primary_query = " ".join(primary_parts[:4]) if primary_parts else narration[:50]
@@ -282,7 +302,6 @@ def _score_query(query: str, entities: list, noun_phrases: list, verbs: list) ->
         score += 0.1
 
     return round(min(1.0, score), 3)
-
 
 
 async def generate_script_assets(

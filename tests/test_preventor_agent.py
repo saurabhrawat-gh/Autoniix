@@ -19,20 +19,21 @@ Coverage:
   * _has_unresolved_halt: TRUE on hit, FALSE on miss, FALSE on DB error
     (fail-open so DB blips don't auto-VETO every request).
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from agents.base import AgentObservation
 from agents.preventor import PreventorAgent, _has_unresolved_halt
+
 from services_api.brain.analyser import ChannelSignals
 
 
 def _flag_map(flags):
     async def _get_flag(key, default=None):
         return flags.get(key, default)
+
     return _get_flag
 
 
@@ -62,12 +63,15 @@ def _facts_from_signals(
     unresolved_halt: bool = False,
 ) -> dict:
     from dataclasses import asdict
+
     facts = asdict(signals)
-    facts.update({
-        "content_id": content_id,
-        "planned_action": planned_action,
-        "channel_has_unresolved_halt": unresolved_halt,
-    })
+    facts.update(
+        {
+            "content_id": content_id,
+            "planned_action": planned_action,
+            "channel_has_unresolved_halt": unresolved_halt,
+        }
+    )
     return facts
 
 
@@ -89,8 +93,6 @@ def _observation(
         scope_id=content_id or signals.channel_id,
         facts=facts,
     )
-
-
 
 
 class TestObserve:
@@ -152,9 +154,7 @@ class TestObserve:
                 new=AsyncMock(return_value=True),
             ),
         ):
-            obs = await agent.observe(
-                {"channel_id": "ch1", "content_id": "v1"}
-            )
+            obs = await agent.observe({"channel_id": "ch1", "content_id": "v1"})
         assert obs is not None
         assert obs.scope == "video"
         assert obs.scope_id == "v1"
@@ -183,8 +183,6 @@ class TestObserve:
         assert obs.scope == "channel"
 
 
-
-
 _BASE_FLAGS = {
     "preventor.veto_when_channel_halted": True,
     "preventor.threshold.veto.consecutive_failures": 5,
@@ -201,9 +199,7 @@ class TestDecide:
             "agents.preventor.get_flag",
             side_effect=_flag_map(_BASE_FLAGS),
         ):
-            decision = await agent.decide(
-                {"observation": obs, "memories": []}
-            )
+            decision = await agent.decide({"observation": obs, "memories": []})
         assert decision is not None
         assert decision.decision_type == "VETO"
         assert "unresolved HALT" in decision.reasoning
@@ -217,9 +213,7 @@ class TestDecide:
             "agents.preventor.get_flag",
             side_effect=_flag_map(flags),
         ):
-            decision = await agent.decide(
-                {"observation": obs, "memories": []}
-            )
+            decision = await agent.decide({"observation": obs, "memories": []})
         assert decision is not None
         assert decision.decision_type == "ALLOW"
 
@@ -230,9 +224,7 @@ class TestDecide:
             "agents.preventor.get_flag",
             side_effect=_flag_map(_BASE_FLAGS),
         ):
-            decision = await agent.decide(
-                {"observation": obs, "memories": []}
-            )
+            decision = await agent.decide({"observation": obs, "memories": []})
         assert decision is not None
         assert decision.decision_type == "VETO"
         assert "consecutive_failures" in decision.reasoning
@@ -246,9 +238,7 @@ class TestDecide:
             "agents.preventor.get_flag",
             side_effect=_flag_map(_BASE_FLAGS),
         ):
-            decision = await agent.decide(
-                {"observation": obs, "memories": []}
-            )
+            decision = await agent.decide({"observation": obs, "memories": []})
         assert decision is not None
         assert decision.decision_type == "HOLD"
         assert "budget" in decision.reasoning.lower()
@@ -266,9 +256,7 @@ class TestDecide:
             "agents.preventor.get_flag",
             side_effect=_flag_map(flags),
         ):
-            decision = await agent.decide(
-                {"observation": obs, "memories": []}
-            )
+            decision = await agent.decide({"observation": obs, "memories": []})
         assert decision is not None
         assert decision.decision_type == "ALLOW"
 
@@ -284,13 +272,10 @@ class TestDecide:
             "agents.preventor.get_flag",
             side_effect=_flag_map(_BASE_FLAGS),
         ):
-            decision = await agent.decide(
-                {"observation": obs, "memories": []}
-            )
+            decision = await agent.decide({"observation": obs, "memories": []})
         assert decision is not None
         assert decision.decision_type == "WARN"
-        assert "quality" in decision.reasoning.lower() or \
-               "score" in decision.reasoning.lower()
+        assert "quality" in decision.reasoning.lower() or "score" in decision.reasoning.lower()
 
     async def test_warn_suppressed_when_sample_too_small(self):
         agent = PreventorAgent()
@@ -304,9 +289,7 @@ class TestDecide:
             "agents.preventor.get_flag",
             side_effect=_flag_map(_BASE_FLAGS),
         ):
-            decision = await agent.decide(
-                {"observation": obs, "memories": []}
-            )
+            decision = await agent.decide({"observation": obs, "memories": []})
         assert decision is not None
         assert decision.decision_type == "ALLOW"
 
@@ -317,15 +300,11 @@ class TestDecide:
             "agents.preventor.get_flag",
             side_effect=_flag_map(_BASE_FLAGS),
         ):
-            decision = await agent.decide(
-                {"observation": obs, "memories": []}
-            )
+            decision = await agent.decide({"observation": obs, "memories": []})
         assert decision is not None
         assert decision.decision_type == "ALLOW"
         assert "risk_signals" in decision.extras
         assert decision.extras["planned_action"] == "produce_video"
-
-
 
 
 class TestAct:
@@ -336,9 +315,7 @@ class TestAct:
             "agents.preventor.get_flag",
             side_effect=_flag_map(_BASE_FLAGS),
         ):
-            decision = await agent.decide(
-                {"observation": obs, "memories": []}
-            )
+            decision = await agent.decide({"observation": obs, "memories": []})
         assert decision is not None
 
         pool = MagicMock()
@@ -371,9 +348,7 @@ class TestAct:
             "agents.preventor.get_flag",
             side_effect=_flag_map(_BASE_FLAGS),
         ):
-            decision = await agent.decide(
-                {"observation": obs, "memories": []}
-            )
+            decision = await agent.decide({"observation": obs, "memories": []})
         pool = MagicMock()
         pool.fetchrow = AsyncMock(return_value={"id": 7})
         with (
@@ -389,8 +364,6 @@ class TestAct:
             ack = await agent.act(decision)
         assert ack == {"id": 7}
         pool.fetchrow.assert_awaited_once()
-
-
 
 
 class TestUnresolvedHalt:

@@ -4,6 +4,7 @@ Used by ``notify()`` — a tiny helper any service can call to fan out an
 event through the configured routes. Slack is the only external channel
 implemented in-tree; webhook + email follow the same pattern.
 """
+
 from __future__ import annotations
 
 import fnmatch
@@ -40,8 +41,7 @@ async def notify(
         pool = await get_pool()
         if dedupe_key:
             dup = await pool.fetchval(
-                "SELECT id FROM notifications WHERE dedupe_key=$1 "
-                "AND created_at > NOW() - INTERVAL '60 seconds'",
+                "SELECT id FROM notifications WHERE dedupe_key=$1 AND created_at > NOW() - INTERVAL '60 seconds'",
                 dedupe_key,
             )
             if dup:
@@ -50,26 +50,42 @@ async def notify(
             """INSERT INTO notifications
                 (event_type, severity, title, body, payload, channel_id, video_id, dedupe_key)
                VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8) RETURNING id""",
-            event_type, severity, title, body or "",
-            json.dumps(payload or {}), channel_id, video_id, dedupe_key,
+            event_type,
+            severity,
+            title,
+            body or "",
+            json.dumps(payload or {}),
+            channel_id,
+            video_id,
+            dedupe_key,
         )
-        await dispatch_routes(nid, {
-            "event_type": event_type, "severity": severity, "title": title,
-            "body": body, "payload": payload or {}, "channel_id": channel_id,
-            "video_id": video_id,
-        })
-        try:
-            from services_api.dashboard import main as _legacy
-            await _legacy._event_broadcaster.broadcast({
-                "type": "notification",
-                "id": nid,
+        await dispatch_routes(
+            nid,
+            {
                 "event_type": event_type,
                 "severity": severity,
                 "title": title,
                 "body": body,
+                "payload": payload or {},
                 "channel_id": channel_id,
                 "video_id": video_id,
-            })
+            },
+        )
+        try:
+            from services_api.dashboard import main as _legacy
+
+            await _legacy._event_broadcaster.broadcast(
+                {
+                    "type": "notification",
+                    "id": nid,
+                    "event_type": event_type,
+                    "severity": severity,
+                    "title": title,
+                    "body": body,
+                    "channel_id": channel_id,
+                    "video_id": video_id,
+                }
+            )
         except Exception:
             pass
         return nid
@@ -81,8 +97,7 @@ async def notify(
 async def dispatch_routes(notification_id: int, n: dict) -> None:
     pool = await get_pool()
     rows = await pool.fetch(
-        "SELECT id, event_pattern, severity_min, channels, config, enabled "
-        "FROM notification_routes WHERE enabled=TRUE"
+        "SELECT id, event_pattern, severity_min, channels, config, enabled FROM notification_routes WHERE enabled=TRUE"
     )
     sev_rank = _SEVERITY_RANK.get(n["severity"], 0)
     for r in rows:
@@ -94,13 +109,14 @@ async def dispatch_routes(notification_id: int, n: dict) -> None:
             await _deliver(notification_id, r["id"], ch, n, r["config"] or {})
 
 
-async def _deliver(notification_id: int, route_id: int, channel: str,
-                   n: dict, config: dict) -> None:
+async def _deliver(notification_id: int, route_id: int, channel: str, n: dict, config: dict) -> None:
     pool = await get_pool()
     delivery_id = await pool.fetchval(
         """INSERT INTO notification_deliveries (notification_id, route_id, channel, status)
            VALUES ($1,$2,$3,'queued') RETURNING id""",
-        notification_id, route_id, channel,
+        notification_id,
+        route_id,
+        channel,
     )
     ok, err, response = False, None, None
     try:
@@ -122,7 +138,8 @@ async def _deliver(notification_id: int, route_id: int, channel: str,
             WHERE id=$4""",
         "sent" if ok else "failed",
         json.dumps(response) if response else None,
-        err, delivery_id,
+        err,
+        delivery_id,
     )
 
 
@@ -133,21 +150,22 @@ async def _send_slack(n: dict, config: dict) -> tuple[bool, dict | None, str | N
     if not webhook:
         return False, None, "no slack webhook configured"
     sev = n.get("severity", "info")
-    color = {"info": "#3aa3e3", "warn": "#f0b429",
-             "error": "#e64980", "critical": "#c92a2a"}.get(sev, "#888")
+    color = {"info": "#3aa3e3", "warn": "#f0b429", "error": "#e64980", "critical": "#c92a2a"}.get(sev, "#888")
     payload_json = n.get("payload") or {}
-    fields = [{"title": k, "value": str(v)[:240], "short": True}
-              for k, v in payload_json.items()][:8]
+    fields = [{"title": k, "value": str(v)[:240], "short": True} for k, v in payload_json.items()][:8]
     body = {
-        "attachments": [{
-            "color": color,
-            "title": n["title"],
-            "text": n.get("body") or "",
-            "fields": fields,
-            "footer": f"event: {n['event_type']} · severity: {sev}",
-        }]
+        "attachments": [
+            {
+                "color": color,
+                "title": n["title"],
+                "text": n.get("body") or "",
+                "fields": fields,
+                "footer": f"event: {n['event_type']} · severity: {sev}",
+            }
+        ]
     }
     import httpx
+
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.post(webhook, json=body)
         if r.status_code >= 400:
@@ -160,6 +178,7 @@ async def _send_webhook(n: dict, config: dict) -> tuple[bool, dict | None, str |
     if not url:
         return False, None, "no webhook url configured"
     import httpx
+
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.post(url, json=n)
         if r.status_code >= 400:

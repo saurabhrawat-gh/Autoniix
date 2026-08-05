@@ -9,24 +9,22 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from core.config import settings
 from core.db import close_pool, get_pool
+from observability.metrics import instrument_app
 from schemas.common import HealthResponse, ServiceResponse
-
 from services_api.experiments.ab_framework import (
-    create_experiment,
     activate_experiment,
-    pause_experiment,
-    complete_experiment,
-    list_experiments,
     analyze_experiment,
+    complete_experiment,
+    create_experiment,
+    list_experiments,
+    pause_experiment,
 )
 from services_api.experiments.observability import (
-    get_decision_summary,
     get_cost_savings,
+    get_decision_summary,
     get_model_health_summary,
 )
-from observability.metrics import instrument_app
 
 logger = structlog.get_logger()
 
@@ -63,16 +61,18 @@ async def lifespan(app: FastAPI):
 
 
 from observability.sentry import init_sentry
+
 init_sentry("admin")
 
 app = FastAPI(title="Admin Service", version="0.1.0", lifespan=lifespan)
 
 
 instrument_app(app, service_name="admin")
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="admin")
-
 
 
 @app.get("/dashboard", response_model=ServiceResponse)
@@ -106,7 +106,6 @@ async def dashboard():
     )
 
 
-
 @app.get("/channels", response_model=ServiceResponse)
 async def list_channels():
     pool = await get_pool()
@@ -137,8 +136,12 @@ async def create_channel(req: ChannelCreate):
         await pool.execute(
             "INSERT INTO channels (channel_id, channel_name, niche, content_mode, voice_id, brand_config) "
             "VALUES ($1, $2, $3, $4, $5, $6)",
-            req.channel_id, req.channel_name, req.niche, req.content_mode,
-            req.voice_id, json.dumps(req.brand_config),
+            req.channel_id,
+            req.channel_name,
+            req.niche,
+            req.content_mode,
+            req.voice_id,
+            json.dumps(req.brand_config),
         )
     except Exception as exc:
         if "duplicate" in str(exc).lower():
@@ -155,8 +158,10 @@ async def update_channel(channel_id: str, req: ChannelUpdate):
     sets, vals, idx = [], [], 1
 
     for field, col in [
-        ("channel_name", "channel_name"), ("niche", "niche"),
-        ("content_mode", "content_mode"), ("voice_id", "voice_id"),
+        ("channel_name", "channel_name"),
+        ("niche", "niche"),
+        ("content_mode", "content_mode"),
+        ("voice_id", "voice_id"),
         ("status", "status"),
     ]:
         val = getattr(req, field, None)
@@ -173,7 +178,7 @@ async def update_channel(channel_id: str, req: ChannelUpdate):
     if not sets:
         raise HTTPException(status_code=400, detail="No fields to update")
 
-    sets.append(f"updated_at = NOW()")
+    sets.append("updated_at = NOW()")
     vals.append(channel_id)
     query = f"UPDATE channels SET {', '.join(sets)} WHERE channel_id = ${idx}"
     await pool.execute(query, *vals)
@@ -182,14 +187,17 @@ async def update_channel(channel_id: str, req: ChannelUpdate):
     return ServiceResponse(status="success", data={"channel_id": channel_id})
 
 
-
 @app.get("/config", response_model=ServiceResponse)
 async def get_config():
     pool = await get_pool()
     rows = await pool.fetch("SELECT config_key, config_value, description, updated_at FROM system_config")
     config = [
-        {"key": r["config_key"], "value": r["config_value"],
-         "description": r["description"], "updated_at": r["updated_at"].isoformat()}
+        {
+            "key": r["config_key"],
+            "value": r["config_value"],
+            "description": r["description"],
+            "updated_at": r["updated_at"].isoformat(),
+        }
         for r in rows
     ]
     return ServiceResponse(status="success", data={"config": config})
@@ -201,14 +209,15 @@ async def update_config(key: str, req: ConfigUpdate):
     result = await pool.execute(
         "UPDATE system_config SET config_value = $1, description = COALESCE($2, description), "
         "updated_at = NOW() WHERE config_key = $3",
-        req.config_value, req.description, key,
+        req.config_value,
+        req.description,
+        key,
     )
     if "UPDATE 0" in result:
         raise HTTPException(status_code=404, detail=f"Config key '{key}' not found")
 
     logger.info("admin.config_updated", key=key, value=req.config_value)
     return ServiceResponse(status="success", data={"key": key, "value": req.config_value})
-
 
 
 @app.post("/emergency-stop", response_model=ServiceResponse)
@@ -229,7 +238,6 @@ async def emergency_resume():
     )
     logger.info("admin.emergency_stop_cleared")
     return ServiceResponse(status="success", data={"emergency_stop": False})
-
 
 
 @app.get("/videos", response_model=ServiceResponse)
@@ -269,7 +277,6 @@ async def list_videos(channel_id: str | None = None, status: str | None = None, 
     return ServiceResponse(status="success", data={"videos": videos, "count": len(videos)})
 
 
-
 class ExperimentCreate(BaseModel):
     name: str
     description: str = ""
@@ -280,8 +287,7 @@ class ExperimentCreate(BaseModel):
 
 @app.post("/experiments", response_model=ServiceResponse)
 async def create_exp(req: ExperimentCreate):
-    result = await create_experiment(req.name, req.description, req.variants,
-                                     req.traffic_pct, req.target_metric)
+    result = await create_experiment(req.name, req.description, req.variants, req.traffic_pct, req.target_metric)
     return ServiceResponse(status="success", data=result)
 
 
@@ -313,7 +319,6 @@ async def list_exps(status: str = ""):
 async def experiment_results(name: str):
     result = await analyze_experiment(name)
     return ServiceResponse(status="success", data=result)
-
 
 
 @app.get("/intelligence/decisions", response_model=ServiceResponse)

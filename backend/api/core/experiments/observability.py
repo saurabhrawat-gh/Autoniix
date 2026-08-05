@@ -9,12 +9,11 @@ Decision points:
 - direction.generation: script_v3_hint | llm_full
 - assets.search: cache_hit | stock_search | dalle_fallback
 """
+
 from __future__ import annotations
 
 import json
-import time
 from datetime import datetime, timedelta
-from typing import Any
 
 import structlog
 
@@ -23,24 +22,42 @@ from core.db import get_pool
 logger = structlog.get_logger()
 
 
-async def log_decision(service_name: str, decision_point: str, path_taken: str,
-                        content_id: str = "", channel_id: str = "",
-                        local_score: float = 0, llm_cost_usd: float = 0,
-                        cost_saved_usd: float = 0, latency_ms: int = 0,
-                        model_version: str = "", metadata: dict = None) -> None:
+async def log_decision(
+    service_name: str,
+    decision_point: str,
+    path_taken: str,
+    content_id: str = "",
+    channel_id: str = "",
+    local_score: float = 0,
+    llm_cost_usd: float = 0,
+    cost_saved_usd: float = 0,
+    latency_ms: int = 0,
+    model_version: str = "",
+    metadata: dict = None,
+) -> None:
     """Log an intelligence decision for observability."""
     try:
         pool = await get_pool()
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO intelligence_metrics (service_name, content_id, channel_id,
                 decision_point, path_taken, local_score,
                 llm_cost_usd, cost_saved_usd, latency_ms,
                 model_version, metadata)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-        """, service_name, content_id, channel_id,
-            decision_point, path_taken, local_score,
-            llm_cost_usd, cost_saved_usd, latency_ms,
-            model_version, json.dumps(metadata or {}))
+        """,
+            service_name,
+            content_id,
+            channel_id,
+            decision_point,
+            path_taken,
+            local_score,
+            llm_cost_usd,
+            cost_saved_usd,
+            latency_ms,
+            model_version,
+            json.dumps(metadata or {}),
+        )
     except Exception as e:
         logger.warning("observability.log_failed", error=str(e))
 
@@ -56,7 +73,8 @@ async def get_decision_summary(days: int = 30, service_name: str = "") -> dict:
         where += " AND service_name = $2"
         params.append(service_name)
 
-    rows = await pool.fetch(f"""
+    rows = await pool.fetch(
+        f"""
         SELECT service_name, decision_point, path_taken,
                COUNT(*) as count,
                ROUND(AVG(local_score)::numeric, 3) as avg_local_score,
@@ -67,7 +85,9 @@ async def get_decision_summary(days: int = 30, service_name: str = "") -> dict:
         {where}
         GROUP BY service_name, decision_point, path_taken
         ORDER BY service_name, decision_point, count DESC
-    """, *params)
+    """,
+        *params,
+    )
 
     summary: dict = {}
     for r in rows:
@@ -78,22 +98,26 @@ async def get_decision_summary(days: int = 30, service_name: str = "") -> dict:
         if dp not in summary[svc]:
             summary[svc][dp] = {"paths": [], "total_decisions": 0}
 
-        summary[svc][dp]["paths"].append({
-            "path": r["path_taken"],
-            "count": r["count"],
-            "avg_local_score": float(r["avg_local_score"] or 0),
-            "total_llm_cost": float(r["total_llm_cost"] or 0),
-            "total_saved": float(r["total_saved"] or 0),
-            "avg_latency_ms": int(r["avg_latency_ms"] or 0),
-        })
+        summary[svc][dp]["paths"].append(
+            {
+                "path": r["path_taken"],
+                "count": r["count"],
+                "avg_local_score": float(r["avg_local_score"] or 0),
+                "total_llm_cost": float(r["total_llm_cost"] or 0),
+                "total_saved": float(r["total_saved"] or 0),
+                "avg_latency_ms": int(r["avg_latency_ms"] or 0),
+            }
+        )
         summary[svc][dp]["total_decisions"] += r["count"]
 
     for svc in summary.values():
         for dp in svc.values():
             total = dp["total_decisions"]
-            local = sum(p["count"] for p in dp["paths"]
-                        if "local" in p["path"] or "cache" in p["path"] or "skip" in p["path"]
-                        or "hint" in p["path"])
+            local = sum(
+                p["count"]
+                for p in dp["paths"]
+                if "local" in p["path"] or "cache" in p["path"] or "skip" in p["path"] or "hint" in p["path"]
+            )
             dp["local_rate_pct"] = round(local / total * 100, 1) if total else 0
 
     return summary
@@ -104,7 +128,8 @@ async def get_cost_savings(days: int = 30) -> dict:
     pool = await get_pool()
     cutoff = datetime.utcnow() - timedelta(days=days)
 
-    row = await pool.fetchrow("""
+    row = await pool.fetchrow(
+        """
         SELECT COUNT(*) as total_decisions,
                ROUND(SUM(llm_cost_usd)::numeric, 4) as total_llm_cost,
                ROUND(SUM(cost_saved_usd)::numeric, 4) as total_saved,
@@ -116,7 +141,9 @@ async def get_cost_savings(days: int = 30) -> dict:
                      THEN 1 END) as llm_decisions
         FROM intelligence_metrics
         WHERE created_at >= $1
-    """, cutoff)
+    """,
+        cutoff,
+    )
 
     total = row["total_decisions"] or 0
     local = row["local_decisions"] or 0
@@ -147,15 +174,19 @@ async def get_model_health_summary() -> list[dict]:
     return [dict(r) for r in rows]
 
 
-async def upsert_model_health(model_name: str, niche: str,
-                                training_rows: int = 0,
-                                accuracy_metric: float = 0,
-                                drift_detected: bool = False,
-                                drift_score: float = 0,
-                                status: str = "trained") -> None:
+async def upsert_model_health(
+    model_name: str,
+    niche: str,
+    training_rows: int = 0,
+    accuracy_metric: float = 0,
+    drift_detected: bool = False,
+    drift_score: float = 0,
+    status: str = "trained",
+) -> None:
     """Update model health record."""
     pool = await get_pool()
-    await pool.execute("""
+    await pool.execute(
+        """
         INSERT INTO model_health (model_name, niche, training_rows,
             last_trained_at, accuracy_metric, drift_detected, drift_score,
             last_checked_at, status, updated_at)
@@ -165,5 +196,12 @@ async def upsert_model_health(model_name: str, niche: str,
             accuracy_metric = $4, drift_detected = $5,
             drift_score = $6, last_checked_at = NOW(),
             status = $7, updated_at = NOW()
-    """, model_name, niche, training_rows, accuracy_metric,
-        drift_detected, drift_score, status)
+    """,
+        model_name,
+        niche,
+        training_rows,
+        accuracy_metric,
+        drift_detected,
+        drift_score,
+        status,
+    )

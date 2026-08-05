@@ -8,6 +8,7 @@ clean.
 
 Writes the discovered metadata back into ``dam_assets.metadata``.
 """
+
 from __future__ import annotations
 
 import io
@@ -80,4 +81,5 @@ async def _probe_image(pool: Any, asset: dict, storage_key: str) -> dict:
 def _metadata_to_jsonb(d: dict) -> str:
     """asyncpg accepts a JSON string for a JSONB parameter cast."""
     import json
+
     return json.dumps(d)

@@ -8,10 +8,10 @@ Uses direction complexity analysis to:
 
 Intelligence cost: $0.00 — heuristic analysis, all local.
 """
+
 from __future__ import annotations
 
 import json
-from typing import Any
 
 import structlog
 
@@ -22,7 +22,7 @@ logger = structlog.get_logger()
 
 def compute_direction_complexity(direction_v3: dict) -> dict:
     """Compute complexity score for a direction v3 config.
-    
+
     Higher complexity = higher render time and failure risk.
     """
     segments = direction_v3.get("segments", [])
@@ -37,10 +37,7 @@ def compute_direction_complexity(direction_v3: dict) -> dict:
     if seg_count > 15:
         risk_factors.append(f"High segment count: {seg_count}")
 
-    motion_count = sum(
-        len(s.get("motion_design", {}).get("elements", []))
-        for s in segments
-    )
+    motion_count = sum(len(s.get("motion_design", {}).get("elements", [])) for s in segments)
     score += motion_count * 0.5
     if motion_count > 20:
         risk_factors.append(f"Many motion elements: {motion_count}")
@@ -57,10 +54,7 @@ def compute_direction_complexity(direction_v3: dict) -> dict:
     if duration_min > 10:
         risk_factors.append(f"Long video: {duration_min:.1f} minutes")
 
-    sfx_count = sum(
-        len(s.get("audio_cues", {}).get("sfx", []))
-        for s in segments
-    )
+    sfx_count = sum(len(s.get("audio_cues", {}).get("sfx", [])) for s in segments)
     score += sfx_count * 0.2
 
     overlays = len(direction_v3.get("global_overlays", []))
@@ -88,23 +82,21 @@ def estimate_render_duration(complexity: dict) -> float:
 
     complexity_score = complexity.get("complexity", 0)
     estimate = (
-        base +
-        complexity.get("segment_count", 0) * per_segment +
-        complexity.get("total_duration_min", 0) * per_minute_video +
-        complexity.get("motion_elements", 0) * 3 +
-        complexity.get("vfx_count", 0) * 5 +
-        complexity_score * 2
+        base
+        + complexity.get("segment_count", 0) * per_segment
+        + complexity.get("total_duration_min", 0) * per_minute_video
+        + complexity.get("motion_elements", 0) * 3
+        + complexity.get("vfx_count", 0) * 5
+        + complexity_score * 2
     )
 
-    risk_factor = {"high": 1.5, "medium": 1.2, "low": 1.0}.get(
-        complexity.get("risk", "low"), 1.0
-    )
+    risk_factor = {"high": 1.5, "medium": 1.2, "low": 1.0}.get(complexity.get("risk", "low"), 1.0)
     return round(estimate * risk_factor, 0)
 
 
 def simplify_direction_for_retry(direction_v3: dict) -> dict:
     """Simplify direction v3 for retry after render failure.
-    
+
     Removes complex elements that might cause rendering issues.
     """
     simplified = json.loads(json.dumps(direction_v3))
@@ -114,39 +106,47 @@ def simplify_direction_for_retry(direction_v3: dict) -> dict:
         seg["motion_design"] = {"elements": []}
         seg["visual_effects"] = []
         seg["transition_in"] = {"type": "cut", "preset": "trans.cut", "duration_ms": 0}
-        seg["camera"] = {"type": "static", "speed": "medium",
-                         "start_position": "center", "end_position": ""}
+        seg["camera"] = {"type": "static", "speed": "medium", "start_position": "center", "end_position": ""}
 
-    simplified["global_overlays"] = [
-        o for o in simplified.get("global_overlays", [])
-        if o.get("type") in ("vignette",)
-    ]
+    simplified["global_overlays"] = [o for o in simplified.get("global_overlays", []) if o.get("type") in ("vignette",)]
 
     simplified["simplified_for_retry"] = True
     return simplified
 
 
-async def log_render_attempt(content_id: str, channel_id: str, render_id: str,
-                              complexity: dict, success: bool,
-                              render_duration_s: float = 0,
-                              video_duration_s: float = 0,
-                              retry_count: int = 0,
-                              error_category: str = "") -> None:
+async def log_render_attempt(
+    content_id: str,
+    channel_id: str,
+    render_id: str,
+    complexity: dict,
+    success: bool,
+    render_duration_s: float = 0,
+    video_duration_s: float = 0,
+    retry_count: int = 0,
+    error_category: str = "",
+) -> None:
     """Log render attempt for ML learning."""
     try:
         pool = await get_pool()
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO assembly_render_log (content_id, channel_id, render_id,
                 segment_count, direction_complexity,
                 render_success, render_duration_s, video_duration_s,
                 retry_count, error_category, production_score)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         """,
-            content_id, channel_id, render_id,
+            content_id,
+            channel_id,
+            render_id,
             complexity.get("segment_count", 0),
             complexity.get("complexity", 0),
-            success, render_duration_s, video_duration_s,
-            retry_count, error_category, 0.0,
+            success,
+            render_duration_s,
+            video_duration_s,
+            retry_count,
+            error_category,
+            0.0,
         )
     except Exception as e:
         logger.warning("render_predictor.log_failed", error=str(e))

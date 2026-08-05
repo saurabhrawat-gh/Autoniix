@@ -16,6 +16,7 @@ Env vars (override CLI):
 
 Per HARNESS-ENGINEERING-PLAN.md §A4.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -39,9 +40,17 @@ TEST_PASSWORD = os.environ.get("TEST_PASSWORD", "GoldenPass123!")
 
 # Fields that differ between runs and should be ignored during comparison.
 DYNAMIC_FIELDS = [
-    "id", "user_id", "workspace_id", "created_at", "updated_at",
-    "access_token", "refresh_token", "expires_in", "session_id",
-    "delete_scheduled_at", "deleted_at",
+    "id",
+    "user_id",
+    "workspace_id",
+    "created_at",
+    "updated_at",
+    "access_token",
+    "refresh_token",
+    "expires_in",
+    "session_id",
+    "delete_scheduled_at",
+    "deleted_at",
 ]
 
 # ---------------------------------------------------------------------------
@@ -51,30 +60,31 @@ DYNAMIC_FIELDS = [
 
 ENDPOINTS: list[tuple[str, str, str, str, Any, bool]] = [
     # auth
-    ("auth", "auth_mode",          "GET",  "/api/v2/auth/mode",    None,  False),
+    ("auth", "auth_mode", "GET", "/api/v2/auth/mode", None, False),
     # users
-    ("users", "me",                "GET",  "/api/v2/me",           None,  True),
+    ("users", "me", "GET", "/api/v2/me", None, True),
     # flags
-    ("flags", "flags_list",        "GET",  "/api/v2/flags",        None,  True),
+    ("flags", "flags_list", "GET", "/api/v2/flags", None, True),
     # notifications
-    ("notifications", "deliveries","GET",  "/api/v2/notifications/deliveries", None, True),
+    ("notifications", "deliveries", "GET", "/api/v2/notifications/deliveries", None, True),
     # system
-    ("system", "fleet_health",     "GET",  "/api/v2/system/fleet-health", None, True),
-    ("system", "config",           "GET",  "/api/v2/system/config", None, True),
+    ("system", "fleet_health", "GET", "/api/v2/system/fleet-health", None, True),
+    ("system", "config", "GET", "/api/v2/system/config", None, True),
     # workspace
-    ("workspace", "workspace_get", "GET",  "/api/v2/workspace",    None,  True),
-    ("workspace", "members_list",  "GET",  "/api/v2/workspace/members", None, True),
-    ("workspace", "invites_list",  "GET",  "/api/v2/workspace/invites", None, True),
+    ("workspace", "workspace_get", "GET", "/api/v2/workspace", None, True),
+    ("workspace", "members_list", "GET", "/api/v2/workspace/members", None, True),
+    ("workspace", "invites_list", "GET", "/api/v2/workspace/invites", None, True),
     # channels
-    ("channels", "channels_list",  "GET",  "/api/v2/channels",     None,  True),
+    ("channels", "channels_list", "GET", "/api/v2/channels", None, True),
     # voice
-    ("voice", "voices_list",       "GET",  "/api/v2/voice/voices", None,  True),
+    ("voice", "voices_list", "GET", "/api/v2/voice/voices", None, True),
 ]
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def ensure_user(session: requests.Session) -> str | None:
     """Register + login; return access token or None if dashboard not reachable."""
@@ -118,10 +128,7 @@ def ensure_user(session: requests.Session) -> str | None:
 def strip_dynamic(body: Any) -> Any:
     """Recursively remove dynamic field values (replace with placeholder)."""
     if isinstance(body, dict):
-        return {
-            k: "<dynamic>" if k in DYNAMIC_FIELDS else strip_dynamic(v)
-            for k, v in body.items()
-        }
+        return {k: "<dynamic>" if k in DYNAMIC_FIELDS else strip_dynamic(v) for k, v in body.items()}
     if isinstance(body, list):
         return [strip_dynamic(i) for i in body[:3]]  # cap list at 3 items
     return body
@@ -183,6 +190,7 @@ def save_fixture(tag: str, slug: str, fixture: dict) -> None:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Capture golden fixtures from Python v2 dashboard")

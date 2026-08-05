@@ -2,13 +2,14 @@
 
 Mocks DB pool, Redis, and external services so tests run without infrastructure.
 """
+
 from __future__ import annotations
 
 import asyncio
 import os
 import sys
 from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -34,6 +35,7 @@ def event_loop():
 
 class FakeRecord(dict):
     """Dict subclass that supports attribute access like asyncpg.Record."""
+
     def __getattr__(self, key):
         try:
             return self[key]
@@ -131,8 +133,10 @@ def mock_db_pool(mock_pool):
 @pytest.fixture
 def fake_record():
     """Factory for creating FakeRecord instances."""
+
     def _make(**kwargs):
         return FakeRecord(kwargs)
+
     return _make
 
 

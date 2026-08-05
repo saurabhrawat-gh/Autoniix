@@ -8,6 +8,7 @@ Docs:  https://open.bigmodel.cn/dev/api
 Auth:  Bearer token in ``GLM_API_KEY`` (set by the chain resolver from
        the credential's vault path).
 """
+
 from __future__ import annotations
 
 import os
@@ -22,11 +23,11 @@ from providers.registry import ProviderRegistry
 logger = structlog.get_logger()
 
 PRICING: dict[str, dict[str, float]] = {
-    "glm-4-plus":      {"input": 1.40 / 1_000_000, "output": 1.40 / 1_000_000},
-    "glm-4-air":       {"input": 0.50 / 1_000_000, "output": 0.50 / 1_000_000},
-    "glm-4-airx":      {"input": 1.40 / 1_000_000, "output": 1.40 / 1_000_000},
-    "glm-4-flash":     {"input": 0.0,               "output": 0.0},
-    "glm-4-long":      {"input": 0.14 / 1_000_000, "output": 0.14 / 1_000_000},
+    "glm-4-plus": {"input": 1.40 / 1_000_000, "output": 1.40 / 1_000_000},
+    "glm-4-air": {"input": 0.50 / 1_000_000, "output": 0.50 / 1_000_000},
+    "glm-4-airx": {"input": 1.40 / 1_000_000, "output": 1.40 / 1_000_000},
+    "glm-4-flash": {"input": 0.0, "output": 0.0},
+    "glm-4-long": {"input": 0.14 / 1_000_000, "output": 0.14 / 1_000_000},
 }
 
 
@@ -70,8 +71,11 @@ class GLMProvider(LLMProvider):
 
         logger.info(
             "glm.completed",
-            model=model, tokens_in=tokens_in, tokens_out=tokens_out,
-            cost_usd=round(cost, 6), latency_ms=latency,
+            model=model,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            cost_usd=round(cost, 6),
+            latency_ms=latency,
         )
 
         return LLMResult(
@@ -85,9 +89,7 @@ class GLMProvider(LLMProvider):
             finish_reason=data["choices"][0].get("finish_reason", "stop"),
         )
 
-    def estimate_cost(
-        self, tokens_in: int, tokens_out: int, model: str | None = None
-    ) -> float:
+    def estimate_cost(self, tokens_in: int, tokens_out: int, model: str | None = None) -> float:
         model = model or self.default_model()
         pricing = PRICING.get(model, PRICING["glm-4-air"])
         return tokens_in * pricing["input"] + tokens_out * pricing["output"]
@@ -114,7 +116,14 @@ class GLMProvider(LLMProvider):
 
 
 for _cat in (
-    "llm", "llm.research", "llm.script", "llm.factcheck", "llm.qc",
-    "llm.ideation", "llm.hook", "llm.direction", "llm.emotion",
+    "llm",
+    "llm.research",
+    "llm.script",
+    "llm.factcheck",
+    "llm.qc",
+    "llm.ideation",
+    "llm.hook",
+    "llm.direction",
+    "llm.emotion",
 ):
     ProviderRegistry.register(_cat, "glm", GLMProvider)

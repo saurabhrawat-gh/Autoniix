@@ -6,6 +6,7 @@ Covers test plan #32 (TC-19-*). Verifies:
 - Expired / revoked / disabled-user / missing-token paths return 401
 - New access_token + new refresh cookie issued on success
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -57,7 +58,6 @@ def _build_request(cookie_value: str | None):
     return req
 
 
-
 class TestRefreshHappyPath:
     @pytest.mark.asyncio
     async def test_refresh_marks_old_session_rotated_and_inserts_new(self):
@@ -90,7 +90,6 @@ class TestRefreshHappyPath:
         assert resp.set_cookie.call_count >= 2
 
 
-
 class TestRefreshNoWorkspace:
     @pytest.mark.asyncio
     async def test_refresh_no_workspace_returns_wid_zero_not_one(self):
@@ -114,7 +113,10 @@ class TestRefreshNoWorkspace:
             result = await refresh(request=req, response=resp, body=None)
 
         assert result["status"] == "ok"
-        import jwt as _jwt, os
+        import os
+
+        import jwt as _jwt
+
         token = result["access_token"]
         payload = _jwt.decode(token, os.environ["AUTH_JWT_SECRET"], algorithms=["HS256"])
         assert payload["wid"] == 0, f"Expected wid=0, got wid={payload['wid']} (regression: AE-217)"
@@ -222,13 +224,12 @@ class TestRefreshRejected:
         assert ei.value.status_code == 401
 
 
-
 class TestLogoutRevokesSession:
     @pytest.mark.asyncio
     async def test_logout_marks_session_revoked_and_clears_cookies(self):
         """TC-19-03: logout sets revoked_at on the session row and clears cookies."""
-        from services_api.dashboard.v2.auth import logout
         from services_api.dashboard.v2._deps import Principal
+        from services_api.dashboard.v2.auth import logout
 
         pool = FakePool()
         pool.execute = AsyncMock(return_value="UPDATE 1")
@@ -237,8 +238,11 @@ class TestLogoutRevokesSession:
         resp = MagicMock()
         resp.delete_cookie = MagicMock()
         principal = Principal(
-            user_id=42, email="user@example.com", role="owner",
-            source="v2_jwt", workspace_id=1,
+            user_id=42,
+            email="user@example.com",
+            role="owner",
+            source="v2_jwt",
+            workspace_id=1,
         )
 
         with _pool_ctx(pool):

@@ -12,6 +12,7 @@ at ``luts/{key}.cube``.
 The same ``write_cube`` helper is imported by the finishing activity as a
 self-heal fallback when a preset's .cube is missing from MinIO.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -32,20 +33,49 @@ def _clamp(x: float) -> float:
 #   lift        : (r,g,b) added to shadows
 #   gain        : (r,g,b) multiplicative highlights tint
 _PRESETS: dict[str, dict] = {
-    "cinematic":   {"temp": 0.04, "contrast": 1.12, "saturation": 1.05,
-                    "lift": (0.01, 0.0, 0.02), "gain": (1.06, 1.0, 0.94)},
-    "clean_bright": {"temp": 0.0, "contrast": 1.08, "saturation": 1.12,
-                    "lift": (0.0, 0.0, 0.0), "gain": (1.04, 1.04, 1.05)},
-    "warm_gold":   {"temp": 0.08, "contrast": 1.05, "saturation": 1.04,
-                    "lift": (0.02, 0.01, 0.0), "gain": (1.08, 1.02, 0.9)},
-    "cool_blue":   {"temp": -0.07, "contrast": 1.15, "saturation": 0.9,
-                    "lift": (0.0, 0.0, 0.02), "gain": (0.95, 1.0, 1.08)},
-    "vintage":     {"temp": 0.03, "contrast": 0.92, "saturation": 0.85,
-                    "lift": (0.05, 0.04, 0.03), "gain": (1.02, 0.99, 0.95)},
-    "documentary": {"temp": 0.0, "contrast": 1.0, "saturation": 0.82,
-                    "lift": (0.0, 0.0, 0.0), "gain": (1.0, 1.0, 1.0)},
-    "neon_dark":   {"temp": -0.03, "contrast": 1.25, "saturation": 1.2,
-                    "lift": (0.0, 0.0, 0.01), "gain": (1.05, 0.97, 1.1)},
+    "cinematic": {
+        "temp": 0.04,
+        "contrast": 1.12,
+        "saturation": 1.05,
+        "lift": (0.01, 0.0, 0.02),
+        "gain": (1.06, 1.0, 0.94),
+    },
+    "clean_bright": {
+        "temp": 0.0,
+        "contrast": 1.08,
+        "saturation": 1.12,
+        "lift": (0.0, 0.0, 0.0),
+        "gain": (1.04, 1.04, 1.05),
+    },
+    "warm_gold": {
+        "temp": 0.08,
+        "contrast": 1.05,
+        "saturation": 1.04,
+        "lift": (0.02, 0.01, 0.0),
+        "gain": (1.08, 1.02, 0.9),
+    },
+    "cool_blue": {
+        "temp": -0.07,
+        "contrast": 1.15,
+        "saturation": 0.9,
+        "lift": (0.0, 0.0, 0.02),
+        "gain": (0.95, 1.0, 1.08),
+    },
+    "vintage": {
+        "temp": 0.03,
+        "contrast": 0.92,
+        "saturation": 0.85,
+        "lift": (0.05, 0.04, 0.03),
+        "gain": (1.02, 0.99, 0.95),
+    },
+    "documentary": {"temp": 0.0, "contrast": 1.0, "saturation": 0.82, "lift": (0.0, 0.0, 0.0), "gain": (1.0, 1.0, 1.0)},
+    "neon_dark": {
+        "temp": -0.03,
+        "contrast": 1.25,
+        "saturation": 1.2,
+        "lift": (0.0, 0.0, 0.01),
+        "gain": (1.05, 0.97, 1.1),
+    },
 }
 
 
@@ -80,8 +110,13 @@ def _grade(r: float, g: float, b: float, p: dict) -> tuple[float, float, float]:
 def write_cube(preset_key: str, dest_path: str, size: int = LUT_SIZE) -> str:
     """Write a .cube 3D LUT for *preset_key* to *dest_path*. Returns the path."""
     params = _PRESETS.get(preset_key, _PRESETS["documentary"])
-    lines = [f'TITLE "autoniix-{preset_key}"', f"LUT_3D_SIZE {size}",
-             "DOMAIN_MIN 0.0 0.0 0.0", "DOMAIN_MAX 1.0 1.0 1.0", ""]
+    lines = [
+        f'TITLE "autoniix-{preset_key}"',
+        f"LUT_3D_SIZE {size}",
+        "DOMAIN_MIN 0.0 0.0 0.0",
+        "DOMAIN_MAX 1.0 1.0 1.0",
+        "",
+    ]
     denom = size - 1
     # .cube ordering: red index varies fastest.
     for bi in range(size):
@@ -114,8 +149,7 @@ def _upload_all(out_dir: Path = OUT_DIR) -> None:
         storage = ProviderRegistry.get("storage")
         for key in _PRESETS:
             data = (out_dir / f"{key}.cube").read_bytes()
-            await storage.upload(StorageUpload(
-                key=f"luts/{key}.cube", data=data, content_type="text/plain"))
+            await storage.upload(StorageUpload(key=f"luts/{key}.cube", data=data, content_type="text/plain"))
             print(f"  uploaded luts/{key}.cube ({len(data)} bytes)")
 
     asyncio.run(_go())

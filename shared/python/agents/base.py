@@ -29,6 +29,7 @@ Subclasses choose their own:
 
 Part of AE-P1 / Agentic Foundation.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -57,8 +58,6 @@ DEFAULT_ACT_INITIAL_DELAY_S = 0.5
 DEFAULT_ACT_MAX_DELAY_S = 4.0
 
 
-
-
 @dataclass
 class AgentObservation:
     """Structured observation produced by ``observe()``.
@@ -66,6 +65,7 @@ class AgentObservation:
     ``scope`` / ``scope_id`` mirror the event-bus envelope convention so
     downstream events stay routable.
     """
+
     scope: str
     scope_id: str
     facts: dict[str, Any] = field(default_factory=dict)
@@ -81,6 +81,7 @@ class AgentDecision:
     ``schema_version`` lets downstream consumers detect new optional
     fields (e.g. ``reasoning_steps`` once Critic / LLM-decide land).
     """
+
     decision_type: str
     scope: str
     scope_id: str
@@ -108,6 +109,7 @@ class CriticVerdict:
     The Critic's reasoning is always recorded so the audit trail is
     complete \u2014 even on APPROVE.
     """
+
     verdict: str
     reasoning: str
     confidence: float
@@ -115,8 +117,6 @@ class CriticVerdict:
     reviewed_scope_id: str = ""
     modified_decision: "AgentDecision | None" = None
     extras: dict[str, Any] = field(default_factory=dict)
-
-
 
 
 class BaseAgent(ABC):
@@ -138,15 +138,11 @@ class BaseAgent(ABC):
     def __init__(self) -> None:
         if not self.name or not self.decision_table or not self.flag_prefix:
             raise TypeError(
-                f"{type(self).__name__} must define name, decision_table, "
-                "and flag_prefix class attributes."
+                f"{type(self).__name__} must define name, decision_table, and flag_prefix class attributes."
             )
 
     def _timeout_for(self, phase: str) -> float:
-        return float(
-            self.phase_timeouts_s.get(phase, DEFAULT_PHASE_TIMEOUTS_S[phase])
-        )
-
+        return float(self.phase_timeouts_s.get(phase, DEFAULT_PHASE_TIMEOUTS_S[phase]))
 
     async def observe(self, context: dict[str, Any]) -> AgentObservation | None:
         """Pull structured facts from the world.
@@ -156,9 +152,7 @@ class BaseAgent(ABC):
         """
         return None
 
-    async def recall(
-        self, observation: AgentObservation
-    ) -> list[dict[str, Any]]:
+    async def recall(self, observation: AgentObservation) -> list[dict[str, Any]]:
         """Return similar past decisions for ``observation``.
 
         Default uses the agent's :class:`AgentMemory` instance. Override
@@ -168,6 +162,7 @@ class BaseAgent(ABC):
         """
         try:
             from agents.memory import AgentMemory
+
             memory = AgentMemory(
                 agent_name=self.name,
                 table=self.decision_table,
@@ -195,9 +190,7 @@ class BaseAgent(ABC):
         """
         return {"observation": observation, "memories": memories}
 
-    async def decide(
-        self, state: dict[str, Any]
-    ) -> AgentDecision | None:
+    async def decide(self, state: dict[str, Any]) -> AgentDecision | None:
         """Produce a structured decision, or ``None`` for no-op.
 
         This is the only method most agents *must* override.
@@ -212,9 +205,7 @@ class BaseAgent(ABC):
         persisted row (or any structured ack) so :meth:`remember` can
         reference it.
         """
-        raise NotImplementedError(
-            f"{type(self).__name__}.act() must be implemented."
-        )
+        raise NotImplementedError(f"{type(self).__name__}.act() must be implemented.")
 
     async def remember(
         self,
@@ -228,6 +219,7 @@ class BaseAgent(ABC):
         """
         try:
             from agents.memory import AgentMemory
+
             memory = AgentMemory(
                 agent_name=self.name,
                 table=self.decision_table,
@@ -240,7 +232,6 @@ class BaseAgent(ABC):
                 decision_id=acted_row.get("id"),
                 error=str(exc),
             )
-
 
     async def run(self, context: dict[str, Any]) -> AgentDecision | None:
         """Run the full lifecycle for one input context.
@@ -255,16 +246,12 @@ class BaseAgent(ABC):
         * **retried with backoff** — only ``act()``, because it's the
           one phase with externally-visible side-effects.
         """
-        observation = await self._run_phase(
-            "observe", lambda: self.observe(context), default=None
-        )
+        observation = await self._run_phase("observe", lambda: self.observe(context), default=None)
         if observation is None:
             logger.debug("agent.observe_returned_none", agent=self.name)
             return None
 
-        memories = await self._run_phase(
-            "recall", lambda: self.recall(observation), default=[]
-        )
+        memories = await self._run_phase("recall", lambda: self.recall(observation), default=[])
 
         state = await self._run_phase(
             "reason",
@@ -305,7 +292,6 @@ class BaseAgent(ABC):
         )
         return decision
 
-
     async def _run_phase(self, name: str, coro_fn, *, default):
         """Run ``coro_fn`` with a per-phase timeout, swallowing failures.
 
@@ -318,13 +304,17 @@ class BaseAgent(ABC):
             return await asyncio.wait_for(coro_fn(), timeout=timeout)
         except asyncio.TimeoutError:
             logger.warning(
-                "agent.phase_timeout", agent=self.name, phase=name,
+                "agent.phase_timeout",
+                agent=self.name,
+                phase=name,
                 timeout_s=timeout,
             )
             return default
         except Exception as exc:
             logger.warning(
-                "agent.phase_failed", agent=self.name, phase=name,
+                "agent.phase_failed",
+                agent=self.name,
+                phase=name,
                 error=str(exc),
             )
             return default
@@ -335,45 +325,48 @@ class BaseAgent(ABC):
             return await asyncio.wait_for(self.decide(state), timeout=timeout)
         except asyncio.TimeoutError:
             logger.error(
-                "agent.phase_timeout", agent=self.name, phase="decide",
-                timeout_s=timeout, scope_id=observation.scope_id,
+                "agent.phase_timeout",
+                agent=self.name,
+                phase="decide",
+                timeout_s=timeout,
+                scope_id=observation.scope_id,
             )
             return None
 
-    async def _run_act_with_retry(
-        self, decision: AgentDecision
-    ) -> dict[str, Any] | None:
+    async def _run_act_with_retry(self, decision: AgentDecision) -> dict[str, Any] | None:
         """Run ``act()`` with exponential backoff + jitter.
 
         Returns the acted-row dict on success, or ``None`` after all
         attempts fail (caller dead-letters).
         """
         import random
+
         timeout = self._timeout_for("act")
         delay = DEFAULT_ACT_INITIAL_DELAY_S
         last_error: str | None = None
         for attempt in range(1, DEFAULT_ACT_MAX_ATTEMPTS + 1):
             try:
-                return await asyncio.wait_for(
-                    self.act(decision), timeout=timeout
-                )
+                return await asyncio.wait_for(self.act(decision), timeout=timeout)
             except asyncio.TimeoutError:
                 last_error = f"timeout after {timeout}s"
             except Exception as exc:
                 last_error = str(exc)
             logger.warning(
-                "agent.act_attempt_failed", agent=self.name,
-                attempt=attempt, max_attempts=DEFAULT_ACT_MAX_ATTEMPTS,
-                error=last_error, decision_type=decision.decision_type,
+                "agent.act_attempt_failed",
+                agent=self.name,
+                attempt=attempt,
+                max_attempts=DEFAULT_ACT_MAX_ATTEMPTS,
+                error=last_error,
+                decision_type=decision.decision_type,
             )
             if attempt < DEFAULT_ACT_MAX_ATTEMPTS:
-                await asyncio.sleep(
-                    random.uniform(0, min(delay, DEFAULT_ACT_MAX_DELAY_S))
-                )
+                await asyncio.sleep(random.uniform(0, min(delay, DEFAULT_ACT_MAX_DELAY_S)))
                 delay *= 2
         logger.error(
-            "agent.act_exhausted", agent=self.name,
-            decision_type=decision.decision_type, last_error=last_error,
+            "agent.act_exhausted",
+            agent=self.name,
+            decision_type=decision.decision_type,
+            last_error=last_error,
         )
         return None
 
@@ -399,36 +392,39 @@ class BaseAgent(ABC):
 
         try:
             from core.flags import get_flag
+
             global_on = await get_flag("critic.enabled", default=False)
             if not global_on:
                 return decision
-            agent_on = await get_flag(
-                f"{self.flag_prefix}critic_review.enabled", default=False
-            )
+            agent_on = await get_flag(f"{self.flag_prefix}critic_review.enabled", default=False)
             if not agent_on:
                 return decision
         except Exception as exc:
             logger.warning(
                 "agent.critique_flag_read_failed",
-                agent=self.name, error=str(exc),
+                agent=self.name,
+                error=str(exc),
             )
             return decision
 
         try:
             from agents.registry import AgentRegistry
+
             critic = AgentRegistry.get("critic")
         except Exception:
             critic = None
         if critic is None:
             logger.warning(
-                "agent.critique_skipped_no_critic", agent=self.name,
+                "agent.critique_skipped_no_critic",
+                agent=self.name,
             )
             return decision
 
         review = getattr(critic, "review", None)
         if review is None:
             logger.warning(
-                "agent.critique_skipped_no_review_method", agent=self.name,
+                "agent.critique_skipped_no_review_method",
+                agent=self.name,
             )
             return decision
 
@@ -444,14 +440,18 @@ class BaseAgent(ABC):
             )
         except asyncio.TimeoutError:
             logger.warning(
-                "agent.critique_timeout", agent=self.name,
-                timeout_s=timeout, scope_id=observation.scope_id,
+                "agent.critique_timeout",
+                agent=self.name,
+                timeout_s=timeout,
+                scope_id=observation.scope_id,
             )
             return decision
         except Exception as exc:
             logger.warning(
-                "agent.critique_failed", agent=self.name,
-                error=str(exc), scope_id=observation.scope_id,
+                "agent.critique_failed",
+                agent=self.name,
+                error=str(exc),
+                scope_id=observation.scope_id,
             )
             return decision
 
@@ -486,19 +486,19 @@ class BaseAgent(ABC):
             return modified
         if verdict_str == "APPROVE":
             logger.debug(
-                "agent.critique_approved", agent=self.name,
+                "agent.critique_approved",
+                agent=self.name,
                 scope_id=observation.scope_id,
             )
         else:
             logger.warning(
                 "agent.critique_unknown_verdict",
-                agent=self.name, verdict=verdict_str,
+                agent=self.name,
+                verdict=verdict_str,
             )
         return decision
 
-    async def _run_remember_bg(
-        self, decision: AgentDecision, acted_row: dict[str, Any]
-    ) -> None:
+    async def _run_remember_bg(self, decision: AgentDecision, acted_row: dict[str, Any]) -> None:
         """Background task entry-point for :meth:`remember`.
 
         Wraps :meth:`remember` in a timeout + try/except so a stuck
@@ -506,18 +506,18 @@ class BaseAgent(ABC):
         """
         timeout = self._timeout_for("remember")
         try:
-            await asyncio.wait_for(
-                self.remember(decision, acted_row), timeout=timeout
-            )
+            await asyncio.wait_for(self.remember(decision, acted_row), timeout=timeout)
         except asyncio.TimeoutError:
             logger.warning(
-                "agent.remember_timeout", agent=self.name,
+                "agent.remember_timeout",
+                agent=self.name,
                 timeout_s=timeout,
                 decision_id=acted_row.get("id"),
             )
         except Exception as exc:
             logger.warning(
-                "agent.remember_bg_failed", agent=self.name,
+                "agent.remember_bg_failed",
+                agent=self.name,
                 decision_id=acted_row.get("id"),
                 error=str(exc),
             )

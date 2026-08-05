@@ -5,33 +5,30 @@ Pure-function tests for the per-niche threshold tuner. The DB layer
 elsewhere; here we lock in the math so refactors can't silently change
 the behaviour of the loop closer.
 """
+
 from __future__ import annotations
 
 import pytest
-
 from quality.calibrator import (
     ABSOLUTE_CEILING,
     ABSOLUTE_FLOOR,
     MIN_SAMPLES,
     Sample,
-    calibrate_dimension,
     calibrate_all_dimensions,
+    calibrate_dimension,
 )
 from quality.gate import PRODUCTION_THRESHOLDS
-
-
 
 
 def _samples(spec: list[tuple[float, str]]) -> list[Sample]:
     return [Sample(score=s, tier=t) for s, t in spec]
 
 
-
-
 def test_insufficient_samples_returns_default():
     """With < MIN_SAMPLES we keep the static default and flag it."""
     res = calibrate_dimension(
-        "hook_retention_score", _samples([(8.0, "S")] * 5),
+        "hook_retention_score",
+        _samples([(8.0, "S")] * 5),
         default_floor=7.5,
     )
     assert res.status == "insufficient_samples"
@@ -54,8 +51,6 @@ def test_zero_flops_returns_default():
     assert res.floor == 7.5
 
 
-
-
 def test_finds_lowest_threshold_meeting_precision():
     """When wins cluster high and flops cluster low, the calibrator
     picks the lowest threshold whose precision clears TARGET_PRECISION.
@@ -68,10 +63,29 @@ def test_finds_lowest_threshold_meeting_precision():
     samples = (
         _samples([(s, "S") for s in [8.0, 8.2, 8.5, 8.7, 9.0, 8.1, 8.3, 8.6]])
         + _samples([(s, "A") for s in [8.4]])
-        + _samples([(s, "D") for s in [
-            5.0, 5.2, 5.5, 5.8, 6.0, 6.2, 6.4, 6.5,
-            6.6, 6.7, 6.8, 6.9, 7.0, 5.3, 6.1, 6.3,
-        ]])
+        + _samples(
+            [
+                (s, "D")
+                for s in [
+                    5.0,
+                    5.2,
+                    5.5,
+                    5.8,
+                    6.0,
+                    6.2,
+                    6.4,
+                    6.5,
+                    6.6,
+                    6.7,
+                    6.8,
+                    6.9,
+                    7.0,
+                    5.3,
+                    6.1,
+                    6.3,
+                ]
+            ]
+        )
     )
     res = calibrate_dimension("hook_retention_score", samples, default_floor=7.5)
     assert res.status == "auto"
@@ -102,8 +116,6 @@ def test_lowest_acceptable_not_highest_precision():
     assert res.floor <= 8.0
 
 
-
-
 def test_monotonicity_guard_clamps_to_min_s_tier():
     """If the algorithm would set t=8.5 but an S-tier video scored 8.3,
     we clamp to 8.3. We never block proven winners."""
@@ -115,9 +127,7 @@ def test_monotonicity_guard_clamps_to_min_s_tier():
     )
     res = calibrate_dimension("hook_retention_score", samples, default_floor=7.5)
     assert res.status == "auto"
-    assert res.floor <= 8.3, (
-        f"monotonicity guard violated: floor={res.floor} would block S=8.3"
-    )
+    assert res.floor <= 8.3, f"monotonicity guard violated: floor={res.floor} would block S=8.3"
 
 
 def test_monotonicity_guard_recomputes_metrics_at_clamped_value():
@@ -135,13 +145,8 @@ def test_monotonicity_guard_recomputes_metrics_at_clamped_value():
     assert res.s_tier_preserved == pytest.approx(1.0, abs=1e-6)
 
 
-
-
 def test_floor_is_clamped_to_absolute_bounds():
-    samples = (
-        _samples([(9.9, "S")] * 15)
-        + _samples([(9.5, "D")] * 10)
-    )
+    samples = _samples([(9.9, "S")] * 15) + _samples([(9.5, "D")] * 10)
     res = calibrate_dimension("hook_retention_score", samples, default_floor=7.5)
     assert ABSOLUTE_FLOOR <= res.floor <= ABSOLUTE_CEILING
 
@@ -158,8 +163,6 @@ def test_no_threshold_meets_precision_returns_default():
     assert ABSOLUTE_FLOOR <= res.floor <= ABSOLUTE_CEILING
 
 
-
-
 def test_calibrate_all_dimensions_covers_every_threshold_dim():
     """Caller can pass an empty per-dim dict — every dimension must
     still come back with a result (using its default)."""
@@ -170,16 +173,14 @@ def test_calibrate_all_dimensions_covers_every_threshold_dim():
     assert all(r.status == "insufficient_samples" for r in out)
 
 
-
-
 def test_result_as_dict_is_json_safe():
-    samples = (
-        _samples([(s, "S") for s in [8.0, 8.5, 9.0, 8.2]] * 3)
-        + _samples([(s, "D") for s in [5.0, 5.5, 6.0, 6.5]] * 3)
+    samples = _samples([(s, "S") for s in [8.0, 8.5, 9.0, 8.2]] * 3) + _samples(
+        [(s, "D") for s in [5.0, 5.5, 6.0, 6.5]] * 3
     )
     res = calibrate_dimension("hook_retention_score", samples, default_floor=7.5)
     d = res.as_dict()
     import json
+
     json.dumps(d)
     assert d["dimension"] == "hook_retention_score"
     assert isinstance(d["floor"], float)

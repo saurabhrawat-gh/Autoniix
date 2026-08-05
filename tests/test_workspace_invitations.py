@@ -34,6 +34,7 @@ an advisory-lock transaction on ``conn = pool.acquire()``.  Mock targets:
 If the handler's call sequence changes, these tests will fail loudly —
 that's intentional.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -48,6 +49,7 @@ _WS = "services_api.dashboard.v2.workspace"
 
 def _make_principal(role: str = "owner", *, workspace_id: int = 1, user_id: int = 42):
     from services_api.dashboard.v2._deps import Principal
+
     return Principal(
         user_id=user_id,
         email="owner@test.com",
@@ -80,14 +82,13 @@ def _resend_on_ctx():
     )
 
 
-
 class TestRoleValidation:
-
     @pytest.mark.asyncio
     @pytest.mark.parametrize("bad_role", ["owner", "admin", "producer", "editor", "reviewer", "analyst", ""])
     async def test_ws_inv_01_02_invalid_role_rejected(self, bad_role: str):
         """WS-INV-01/02 — Owner cannot be invited; legacy roles rejected with 400."""
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
+
         actor = _make_principal()
         body = InviteIn(email="x@test.com", role=bad_role)
         with _pool_ctx(FakePool()):
@@ -99,7 +100,7 @@ class TestRoleValidation:
     @pytest.mark.asyncio
     async def test_ws_inv_03_viewer_invite_succeeds(self):
         """WS-INV-03 — Owner invites with role=viewer (default) → 200, token returned once."""
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise"), None]
@@ -119,7 +120,7 @@ class TestRoleValidation:
     @pytest.mark.asyncio
     async def test_ws_inv_04_member_invite_succeeds(self):
         """WS-INV-04 — Owner invites with role=member → 200."""
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise"), None]
@@ -134,12 +135,11 @@ class TestRoleValidation:
         assert result["status"] == "ok"
 
 
-
 class TestInputValidation:
-
     def test_ws_inv_05_malformed_email_rejected_by_pydantic(self):
         """WS-INV-05 — Malformed email → ValidationError at model construction."""
         from services_api.dashboard.v2.workspace import InviteIn
+
         with pytest.raises(Exception) as exc:
             InviteIn(email="not-an-email", role="viewer")
         assert "email" in str(exc.value).lower() or "value_error" in str(exc.value).lower()
@@ -148,6 +148,7 @@ class TestInputValidation:
     def test_ws_inv_09_10_expires_days_out_of_range(self, bad_expires: int):
         """WS-INV-09/10 — expires_days must satisfy 1 <= n <= 30."""
         from services_api.dashboard.v2.workspace import InviteIn
+
         with pytest.raises(Exception):
             InviteIn(email="x@test.com", role="viewer", expires_days=bad_expires)
 
@@ -155,13 +156,14 @@ class TestInputValidation:
     def test_ws_inv_11_expires_days_in_range_accepted(self, good_expires: int):
         """WS-INV-11 — expires_days=1..30 is accepted."""
         from services_api.dashboard.v2.workspace import InviteIn
+
         m = InviteIn(email="x@test.com", role="viewer", expires_days=good_expires)
         assert m.expires_days == good_expires
 
     @pytest.mark.asyncio
     async def test_ws_inv_12_uppercase_email_normalized_to_lowercase(self):
         """WS-INV-12 — email is .lower()'d before insertion (and on lookup)."""
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise"), None]
@@ -175,7 +177,8 @@ class TestInputValidation:
             )
 
         insert_calls = [
-            c for c in pool.conn.fetchval.await_args_list
+            c
+            for c in pool.conn.fetchval.await_args_list
             if c.args and isinstance(c.args[0], str) and "INSERT INTO workspace_invitations" in c.args[0]
         ]
         assert len(insert_calls) == 1
@@ -185,13 +188,11 @@ class TestInputValidation:
         )
 
 
-
 class TestDedup:
-
     @pytest.mark.asyncio
     async def test_ws_inv_06_existing_member_409(self):
         """WS-INV-06 — Inviting a user who's already a member → 409."""
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise")]
@@ -210,7 +211,7 @@ class TestDedup:
     @pytest.mark.asyncio
     async def test_ws_inv_07_pending_invite_dedup_409(self):
         """WS-INV-07 — Pending unexpired invite for same email → 409."""
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise")]
@@ -233,7 +234,7 @@ class TestDedup:
         The handler's pending-invite query filters ``expires_at > NOW()``, so
         an expired row returns NULL and the new invite proceeds.
         """
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise"), None]
@@ -249,13 +250,11 @@ class TestDedup:
         assert result["id"] == 300
 
 
-
 class TestPlanLimits:
-
     @pytest.mark.asyncio
     async def test_ws_inv_13_starter_3_used_blocks(self):
         """WS-INV-13 — Starter 3/3 used → 402."""
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="starter")]
@@ -275,7 +274,7 @@ class TestPlanLimits:
     @pytest.mark.asyncio
     async def test_ws_inv_14_starter_2_member_1_pending_blocks(self):
         """WS-INV-14 — Starter with 2 members + 1 pending → 402 (3 = limit)."""
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="starter")]
@@ -297,7 +296,7 @@ class TestPlanLimits:
         The pending_count query filters ``expires_at > NOW()`` so expired
         invites do NOT count toward the limit.
         """
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="starter"), None]
@@ -314,7 +313,7 @@ class TestPlanLimits:
     @pytest.mark.asyncio
     async def test_ws_inv_16_growth_9_members_allows(self):
         """WS-INV-16 — Growth plan with 9 members → 200 (limit=10)."""
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="growth"), None]
@@ -331,7 +330,7 @@ class TestPlanLimits:
     @pytest.mark.asyncio
     async def test_ws_inv_17_growth_10_members_blocks(self):
         """WS-INV-17 — Growth plan with 10 members → 402."""
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="growth")]
@@ -354,7 +353,7 @@ class TestPlanLimits:
     )
     async def test_ws_inv_18_19_unlimited_plans(self, plan: str, member_count: int):
         """WS-INV-18/19 — scale and enterprise are unlimited (member-count check skipped)."""
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan=plan), None]
@@ -371,7 +370,7 @@ class TestPlanLimits:
     @pytest.mark.asyncio
     async def test_ws_inv_20_plan_null_falls_back_to_starter(self):
         """WS-INV-20 — plan=NULL in DB → handler falls back to 'starter' semantics."""
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan=None)]
@@ -395,7 +394,7 @@ class TestPlanLimits:
         AND this assertion accordingly. (Filed as a discussion point in
         AE-273 if it ever matters in prod.)
         """
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise_plus_xl"), None]
@@ -410,9 +409,7 @@ class TestPlanLimits:
         assert result["status"] == "ok"
 
 
-
 class TestRevocation:
-
     @pytest.mark.asyncio
     async def test_ws_inv_22_revoke_own_pending_invite(self):
         """WS-INV-22 — Revoking own pending invite → 200."""
@@ -456,8 +453,7 @@ class TestRevocation:
 
         with _pool_ctx(pool):
             with pytest.raises(HTTPException) as exc:
-                await revoke_invite(invite_id=999, request=MagicMock(),
-                                    actor=_make_principal(workspace_id=1))
+                await revoke_invite(invite_id=999, request=MagicMock(), actor=_make_principal(workspace_id=1))
         assert exc.value.status_code == 404
 
     @pytest.mark.asyncio
@@ -476,9 +472,7 @@ class TestRevocation:
         assert result["status"] == "ok"
 
 
-
 class TestRaceCondition:
-
     @pytest.mark.asyncio
     async def test_ws_inv_26_simultaneous_invites_dedup_check_runs(self):
         """WS-INV-26 — Two owners simultaneously invite same email.
@@ -494,7 +488,7 @@ class TestRaceCondition:
         primitive works; the race is a higher-layer concurrency bug
         tracked separately.
         """
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise")]
@@ -510,21 +504,35 @@ class TestRaceCondition:
         assert exc.value.status_code == 409
 
 
-
 class TestReadAfterWrite:
-
     @pytest.mark.asyncio
     async def test_ws_inv_27_list_invites_returns_pending_rows(self):
         """WS-INV-27 — GET /invites returns pending invitations for the current workspace."""
         from services_api.dashboard.v2.workspace import list_invites
 
         pool = FakePool()
-        pool.fetch = AsyncMock(return_value=[
-            FakeRecord(id=1, email="a@x.com", role="viewer",
-                       accepted_at=None, expires_at=None, created_at=None, resent_at=None),
-            FakeRecord(id=2, email="b@x.com", role="member",
-                       accepted_at=None, expires_at=None, created_at=None, resent_at=None),
-        ])
+        pool.fetch = AsyncMock(
+            return_value=[
+                FakeRecord(
+                    id=1,
+                    email="a@x.com",
+                    role="viewer",
+                    accepted_at=None,
+                    expires_at=None,
+                    created_at=None,
+                    resent_at=None,
+                ),
+                FakeRecord(
+                    id=2,
+                    email="b@x.com",
+                    role="member",
+                    accepted_at=None,
+                    expires_at=None,
+                    created_at=None,
+                    resent_at=None,
+                ),
+            ]
+        )
 
         with _pool_ctx(pool):
             result = await list_invites(p=_make_principal())
@@ -533,13 +541,12 @@ class TestReadAfterWrite:
         assert result["data"][0]["accepted_at"] is None
 
 
-
 class TestSideEffects:
-
     @pytest.mark.asyncio
     async def test_ws_inv_28_frontend_url_unset_returns_relative_url(self, monkeypatch):
         """WS-INV-28 — FRONTEND_URL unset → relative ``/accept-invite?token=...`` URL."""
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
+
         monkeypatch.delenv("FRONTEND_URL", raising=False)
 
         pool = FakePool()
@@ -558,7 +565,7 @@ class TestSideEffects:
     @pytest.mark.asyncio
     async def test_ws_inv_29_slack_webhook_called_with_payload(self):
         """WS-INV-29 — When Slack webhook configured, _notify_slack invoked with the message."""
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
 
         pool = FakePool()
         pool.fetchrow.side_effect = [
@@ -567,8 +574,12 @@ class TestSideEffects:
         ]
         pool.conn.fetchval.side_effect = [None, None, 901]
 
-        with _pool_ctx(pool), _audit_ctx(), _resend_off_ctx(), \
-             patch(f"{_WS}._notify_slack", new_callable=AsyncMock) as mock_slack:
+        with (
+            _pool_ctx(pool),
+            _audit_ctx(),
+            _resend_off_ctx(),
+            patch(f"{_WS}._notify_slack", new_callable=AsyncMock) as mock_slack,
+        ):
             await create_invite(
                 body=InviteIn(email="slack-target@test.com", role="member"),
                 request=MagicMock(),
@@ -589,7 +600,7 @@ class TestSideEffects:
         the wrapper contract by raising from inside the mock and
         confirming the handler still returns 200.
         """
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
 
         pool = FakePool()
         pool.fetchrow.side_effect = [
@@ -604,8 +615,7 @@ class TestSideEffects:
             except Exception:
                 pass
 
-        with _pool_ctx(pool), _audit_ctx(), _resend_off_ctx(), \
-             patch(f"{_WS}._notify_slack", new=_bombing_slack):
+        with _pool_ctx(pool), _audit_ctx(), _resend_off_ctx(), patch(f"{_WS}._notify_slack", new=_bombing_slack):
             result = await create_invite(
                 body=InviteIn(email="x@test.com", role="viewer"),
                 request=MagicMock(),
@@ -616,7 +626,7 @@ class TestSideEffects:
     @pytest.mark.asyncio
     async def test_ws_inv_31_resend_configured_sends_email(self):
         """WS-INV-31 — Resend configured → send_email called with correct template + payload."""
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
 
         pool = FakePool()
         pool.fetchrow.side_effect = [
@@ -627,8 +637,12 @@ class TestSideEffects:
         ]
         pool.conn.fetchval.side_effect = [None, None, 903]
 
-        with _pool_ctx(pool), _audit_ctx(), _resend_on_ctx(), \
-             patch("services_api.dashboard.v2._resend.send_email") as mock_send:
+        with (
+            _pool_ctx(pool),
+            _audit_ctx(),
+            _resend_on_ctx(),
+            patch("services_api.dashboard.v2._resend.send_email") as mock_send,
+        ):
             await create_invite(
                 body=InviteIn(email="invitee@test.com", role="member"),
                 request=MagicMock(),
@@ -652,14 +666,18 @@ class TestSideEffects:
         when ``_resend.is_configured()`` is False, the handler does NOT
         do the extra 2 fetchrow calls, keeping mocking simple.
         """
-        from services_api.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
 
         pool = FakePool()
         pool.fetchrow.side_effect = [FakeRecord(plan="enterprise"), None]
         pool.conn.fetchval.side_effect = [None, None, 904]
 
-        with _pool_ctx(pool), _audit_ctx(), _resend_off_ctx(), \
-             patch("services_api.dashboard.v2._resend.send_email") as mock_send:
+        with (
+            _pool_ctx(pool),
+            _audit_ctx(),
+            _resend_off_ctx(),
+            patch("services_api.dashboard.v2._resend.send_email") as mock_send,
+        ):
             result = await create_invite(
                 body=InviteIn(email="x@test.com", role="viewer"),
                 request=MagicMock(),

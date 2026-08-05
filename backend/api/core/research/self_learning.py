@@ -8,13 +8,12 @@ Learns from actual YouTube performance data to improve topic selection.
 
 All computation is local (scikit-learn + numpy). Zero API cost.
 """
+
 from __future__ import annotations
 
 import asyncio
-import io
 import json
 import pickle
-from datetime import datetime, timedelta
 
 import numpy as np
 import structlog
@@ -24,11 +23,16 @@ from core.db import get_pool
 logger = structlog.get_logger()
 
 FEATURE_NAMES = [
-    "freshness_score", "novelty_score", "trend_momentum",
-    "supply_demand_gap", "hookability_score", "competitor_gap",
-    "burst_score", "seasonality_score", "phrase_novelty",
+    "freshness_score",
+    "novelty_score",
+    "trend_momentum",
+    "supply_demand_gap",
+    "hookability_score",
+    "competitor_gap",
+    "burst_score",
+    "seasonality_score",
+    "phrase_novelty",
 ]
-
 
 
 async def _load_model(niche: str | None = None):
@@ -102,6 +106,7 @@ async def predict_success(
     if content_id:
         try:
             from intelligence.prediction_calibration import log_prediction
+
             await log_prediction(
                 content_id=content_id,
                 model_kind="topic_success",
@@ -119,7 +124,6 @@ async def predict_success(
         "confidence": round(confidence, 3),
         "training_samples": int(metrics.get("n_samples", 0)),
     }
-
 
 
 async def thompson_sample(
@@ -150,19 +154,26 @@ async def thompson_sample(
     """
     pool = await get_pool()
 
-    rows = await pool.fetch("""
+    rows = await pool.fetch(
+        """
         SELECT arm_name, alpha, beta, pulls, rewards FROM bandit_state WHERE niche = $1
-    """, niche)
+    """,
+        niche,
+    )
 
     arm_states = {r["arm_name"]: dict(r) for r in rows}
 
     for arm in arms:
         if arm not in arm_states:
-            await pool.execute("""
+            await pool.execute(
+                """
                 INSERT INTO bandit_state (niche, arm_name, alpha, beta, pulls, rewards)
                 VALUES ($1, $2, 1, 1, 0, 0)
                 ON CONFLICT (niche, arm_name) DO NOTHING
-            """, niche, arm)
+            """,
+                niche,
+                arm,
+            )
             arm_states[arm] = {"alpha": 1.0, "beta": 1.0, "pulls": 0, "rewards": 0.0}
 
     samples = {}
@@ -180,6 +191,7 @@ async def thompson_sample(
     if channel_id:
         try:
             from intelligence.diversity_floor import evaluate_diversity_floor
+
             decision = await evaluate_diversity_floor(
                 channel_id=channel_id,
                 bandit_type="topic_cluster",
@@ -189,21 +201,26 @@ async def thompson_sample(
             if decision["force"] and decision["forced_arm"]:
                 selected = decision["forced_arm"]
                 forced_exploration = True
-                logger.info("bandit.diversity_override",
-                            niche=niche, channel_id=channel_id,
-                            entropy=entropy,
-                            thompson_pick=thompson_pick,
-                            forced_pick=selected)
+                logger.info(
+                    "bandit.diversity_override",
+                    niche=niche,
+                    channel_id=channel_id,
+                    entropy=entropy,
+                    thompson_pick=thompson_pick,
+                    forced_pick=selected,
+                )
         except Exception as exc:
-            logger.warning("bandit.diversity_check_failed",
-                           niche=niche, error=str(exc))
+            logger.warning("bandit.diversity_check_failed", niche=niche, error=str(exc))
 
     if channel_id:
         try:
             from intelligence.diversity_floor import log_bandit_pick
+
             await log_bandit_pick(
-                niche=niche, bandit_type="topic_cluster",
-                channel_id=channel_id, arm_name=selected,
+                niche=niche,
+                bandit_type="topic_cluster",
+                channel_id=channel_id,
+                arm_name=selected,
                 forced_exploration=forced_exploration,
             )
         except Exception:
@@ -220,10 +237,14 @@ async def thompson_sample(
         "entropy": entropy,
     }
 
-    logger.info("bandit.sampled", niche=niche, selected=selected,
-                value=round(samples[selected], 3),
-                pulls=arm_states.get(selected, {}).get("pulls", 0),
-                forced=forced_exploration)
+    logger.info(
+        "bandit.sampled",
+        niche=niche,
+        selected=selected,
+        value=round(samples[selected], 3),
+        pulls=arm_states.get(selected, {}).get("pulls", 0),
+        forced=forced_exploration,
+    )
     return result
 
 
@@ -233,7 +254,8 @@ async def bandit_update(niche: str, arm: str, reward: float) -> None:
     reward: 1.0 = success, 0.0 = failure, or continuous in [0,1].
     """
     pool = await get_pool()
-    await pool.execute("""
+    await pool.execute(
+        """
         UPDATE bandit_state SET
             alpha = alpha + $1,
             beta = beta + (1 - $1),
@@ -241,10 +263,13 @@ async def bandit_update(niche: str, arm: str, reward: float) -> None:
             rewards = rewards + $1,
             updated_at = NOW()
         WHERE niche = $2 AND arm_name = $3
-    """, reward, niche, arm)
+    """,
+        reward,
+        niche,
+        arm,
+    )
 
     logger.info("bandit.updated", niche=niche, arm=arm, reward=round(reward, 3))
-
 
 
 async def ingest_performance(content_id: str, analytics: dict) -> dict:
@@ -300,7 +325,8 @@ async def ingest_performance(content_id: str, analytics: dict) -> dict:
         is_success = False
 
     try:
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO performance_outcomes
                 (content_id, channel_id, yt_video_id, impressions,
                  views_24h, views_48h, views_7d, ctr, avg_view_duration,
@@ -327,17 +353,31 @@ async def ingest_performance(content_id: str, analytics: dict) -> dict:
                 fetched_at = NOW(),
                 updated_at = NOW()
         """,
-            content_id, analytics.get("yt_video_id"),
-            analytics.get("impressions", 0), views_24h, views_48h,
-            analytics.get("views_7d", 0), ctr, avd, avg_pct,
-            likes, comments, subs_gained, engagement, is_success, tier,
+            content_id,
+            analytics.get("yt_video_id"),
+            analytics.get("impressions", 0),
+            views_24h,
+            views_48h,
+            analytics.get("views_7d", 0),
+            ctr,
+            avd,
+            avg_pct,
+            likes,
+            comments,
+            subs_gained,
+            engagement,
+            is_success,
+            tier,
         )
     except Exception as e:
         logger.warning("feedback.store_failed", content_id=content_id, error=str(e))
 
-    feat_row = await pool.fetchrow("""
+    feat_row = await pool.fetchrow(
+        """
         SELECT bandit_arm, channel_id FROM research_features WHERE content_id = $1
-    """, content_id)
+    """,
+        content_id,
+    )
     if feat_row and feat_row["bandit_arm"]:
         ch_row = await pool.fetchrow("SELECT niche FROM channels WHERE channel_id = $1", feat_row["channel_id"])
         if ch_row:
@@ -346,14 +386,14 @@ async def ingest_performance(content_id: str, analytics: dict) -> dict:
 
     try:
         from intelligence.prediction_calibration import update_prediction_actual
+
         await update_prediction_actual(
             content_id=content_id,
             model_kind="topic_success",
             actual_outcome=1.0 if is_success else 0.0,
         )
     except Exception as exc:
-        logger.warning("feedback.calibration_update_failed",
-                       content_id=content_id, error=str(exc))
+        logger.warning("feedback.calibration_update_failed", content_id=content_id, error=str(exc))
 
     result = {
         "is_success": is_success,
@@ -364,7 +404,6 @@ async def ingest_performance(content_id: str, analytics: dict) -> dict:
 
     logger.info("feedback.ingested", content_id=content_id, tier=tier, score=score)
     return result
-
 
 
 async def train_model(niche: str | None = None, min_samples: int = 20) -> dict:
@@ -415,10 +454,9 @@ async def train_model(niche: str | None = None, min_samples: int = 20) -> dict:
     n_weighted = int((sample_weights > 1.0).sum())
 
     def _train():
-        from sklearn.ensemble import GradientBoostingClassifier
         from sklearn.calibration import CalibratedClassifierCV
+        from sklearn.ensemble import GradientBoostingClassifier
         from sklearn.model_selection import cross_val_score
-        from sklearn.metrics import roc_auc_score
 
         base_model = GradientBoostingClassifier(
             n_estimators=100,
@@ -439,8 +477,7 @@ async def train_model(niche: str | None = None, min_samples: int = 20) -> dict:
         total_imp = sum(base_model.feature_importances_)
         if total_imp > 0:
             new_weights = {
-                f: round(imp / total_imp, 4)
-                for f, imp in zip(FEATURE_NAMES, base_model.feature_importances_)
+                f: round(imp / total_imp, 4) for f, imp in zip(FEATURE_NAMES, base_model.feature_importances_)
             }
         else:
             new_weights = None
@@ -452,57 +489,76 @@ async def train_model(niche: str | None = None, min_samples: int = 20) -> dict:
             "positive_rate": round(float(y.mean()), 4),
             "feature_importances": importances,
             "weights": new_weights,
-            "n_weighted_samples":   n_weighted,
-            "weighted_fraction":    round(n_weighted / len(y), 4) if len(y) else 0.0,
-            "mean_sample_weight":   round(float(sample_weights.mean()), 3),
-            "max_sample_weight":    round(float(sample_weights.max()), 3),
+            "n_weighted_samples": n_weighted,
+            "weighted_fraction": round(n_weighted / len(y), 4) if len(y) else 0.0,
+            "mean_sample_weight": round(float(sample_weights.mean()), 3),
+            "max_sample_weight": round(float(sample_weights.max()), 3),
         }
 
     model, metrics = await asyncio.to_thread(_train)
 
     model_blob = pickle.dumps(model)
 
-    version_row = await pool.fetchrow("""
+    version_row = await pool.fetchrow(
+        """
         SELECT COALESCE(MAX(model_version), 0) + 1 AS next_v FROM ml_models
         WHERE model_name = 'topic_success_predictor' AND niche = $1
-    """, niche or "__global__")
+    """,
+        niche or "__global__",
+    )
     next_version = version_row["next_v"]
 
-    await pool.execute("""
+    await pool.execute(
+        """
         UPDATE ml_models SET is_active = FALSE
         WHERE model_name = 'topic_success_predictor' AND niche = $1
-    """, niche or "__global__")
+    """,
+        niche or "__global__",
+    )
 
-    await pool.execute("""
+    await pool.execute(
+        """
         INSERT INTO ml_models (model_name, model_version, niche, model_type,
             model_blob, feature_names, metrics, training_samples, is_active)
         VALUES ($1, $2, $3, 'gradient_boosted', $4, $5, $6, $7, TRUE)
     """,
-        "topic_success_predictor", next_version, niche or "__global__",
-        model_blob, json.dumps(FEATURE_NAMES), json.dumps(metrics),
+        "topic_success_predictor",
+        next_version,
+        niche or "__global__",
+        model_blob,
+        json.dumps(FEATURE_NAMES),
+        json.dumps(metrics),
         len(rows),
     )
 
     if metrics.get("weights"):
-        await pool.execute("""
+        await pool.execute(
+            """
             INSERT INTO ml_models (model_name, model_version, niche, model_type,
                 feature_names, metrics, is_active)
             VALUES ('opportunity_weights', $1, $2, 'weight_vector', '[]', $3, TRUE)
             ON CONFLICT (model_name, niche, model_version) DO UPDATE SET
                 metrics = EXCLUDED.metrics, is_active = TRUE
-        """, next_version, niche or "__global__", json.dumps({"weights": metrics["weights"]}))
+        """,
+            next_version,
+            niche or "__global__",
+            json.dumps({"weights": metrics["weights"]}),
+        )
 
-    logger.info("trainer.completed",
-                niche=niche, version=next_version,
-                auc=metrics["roc_auc"], samples=len(rows),
-                importances=metrics["feature_importances"])
+    logger.info(
+        "trainer.completed",
+        niche=niche,
+        version=next_version,
+        auc=metrics["roc_auc"],
+        samples=len(rows),
+        importances=metrics["feature_importances"],
+    )
 
     return {
         "status": "trained",
         "model_version": next_version,
         "metrics": metrics,
     }
-
 
 
 async def check_model_drift(niche: str | None = None) -> dict:
@@ -533,6 +589,7 @@ async def check_model_drift(niche: str | None = None) -> dict:
 
     def _check():
         from sklearn.metrics import roc_auc_score
+
         try:
             auc = roc_auc_score(actuals, predictions)
             return float(auc)

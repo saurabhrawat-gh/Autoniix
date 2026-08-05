@@ -9,13 +9,13 @@ the DAM can hit this single column.
 Images / videos / audio that do not have a textual description fall back
 to display_name + tag list, which is still useful for free-text search.
 """
+
 from __future__ import annotations
 
 import json
 from typing import Any
 
 import structlog
-
 from llm.embeddings import EmbeddingConfigError, EmbeddingError, embed_text
 
 logger = structlog.get_logger()

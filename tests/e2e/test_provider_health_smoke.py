@@ -17,6 +17,7 @@ The test:
   4. Fails the smoke gate with a detailed report if any required category
      has zero healthy credentials.
 """
+
 from __future__ import annotations
 
 import os
@@ -62,18 +63,20 @@ def test_provider_health_smoke():
                 ok = resp.json().get("ok", False) if resp.status_code == 200 else False
             except Exception as exc:
                 ok = False
-                results.append({"id": cid, "category": cat,
-                                 "provider": cred.get("provider_name"),
-                                 "ok": False, "error": str(exc)})
+                results.append(
+                    {"id": cid, "category": cat, "provider": cred.get("provider_name"), "ok": False, "error": str(exc)}
+                )
                 continue
 
-            results.append({
-                "id": cid,
-                "category": cat,
-                "provider": cred.get("provider_name"),
-                "ok": ok,
-                "latency_ms": resp.json().get("latency_ms") if resp.status_code == 200 else None,
-            })
+            results.append(
+                {
+                    "id": cid,
+                    "category": cat,
+                    "provider": cred.get("provider_name"),
+                    "ok": ok,
+                    "latency_ms": resp.json().get("latency_ms") if resp.status_code == 200 else None,
+                }
+            )
             if ok:
                 healthy_categories.add(cat)
 

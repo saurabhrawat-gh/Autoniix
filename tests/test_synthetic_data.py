@@ -2,6 +2,7 @@
 
 Tests: row generation functions produce valid data within expected ranges.
 """
+
 from __future__ import annotations
 
 import sys
@@ -10,11 +11,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.generate_training_data import (
-    _gen_voice_row,
-    _gen_thumbnail_row,
+    NICHE_PROFILES,
     _gen_delivery_row,
     _gen_feedback_row,
-    NICHE_PROFILES,
+    _gen_thumbnail_row,
+    _gen_voice_row,
 )
 
 
@@ -92,9 +93,17 @@ class TestGenFeedbackRow:
 
 class TestNicheProfiles:
     def test_all_profiles_have_required_keys(self):
-        required = {"avg_views", "std_views", "avg_ctr", "std_ctr",
-                    "avg_retention", "std_retention", "common_emotions",
-                    "avg_duration_s", "std_duration_s"}
+        required = {
+            "avg_views",
+            "std_views",
+            "avg_ctr",
+            "std_ctr",
+            "avg_retention",
+            "std_retention",
+            "common_emotions",
+            "avg_duration_s",
+            "std_duration_s",
+        }
         for niche, profile in NICHE_PROFILES.items():
             missing = required - set(profile.keys())
             assert not missing, f"{niche} missing keys: {missing}"

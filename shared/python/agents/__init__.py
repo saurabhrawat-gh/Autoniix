@@ -24,6 +24,7 @@ framework is a discipline, not a straitjacket.
 
 Part of AE-P1 / Agentic Foundation.
 """
+
 from __future__ import annotations
 
 from agents.base import AgentDecision, AgentObservation, BaseAgent

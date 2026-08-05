@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from contextlib import asynccontextmanager
 
 import httpx
@@ -12,18 +11,16 @@ from pydantic import BaseModel, Field
 
 from core.config import settings
 from core.db import close_pool, get_pool
+from observability.metrics import instrument_app
 from schemas.common import HealthResponse, ServiceResponse
-
 from services_api.assembly.render_predictor import (
     compute_direction_complexity,
     estimate_render_duration,
-    simplify_direction_for_retry,
     log_render_attempt,
+    simplify_direction_for_retry,
 )
-from observability.metrics import instrument_app
 
 logger = structlog.get_logger()
-
 
 
 class AssemblyRequest(BaseModel):
@@ -38,7 +35,6 @@ class AssemblyRequest(BaseModel):
 
 class RenderStatusRequest(BaseModel):
     render_id: str
-
 
 
 async def _load_channel(channel_id: str) -> dict:
@@ -155,16 +151,13 @@ async def _render_diagnostic_via_remotion(
                     return None
                 return url, float(rr.get("qc", {}).get("durationSec") or duration_s)
             if rr.get("status") == "failed":
-                logger.warning("assembly.diagnostic_render_failed",
-                               content_id=content_id, error=rr.get("error"))
+                logger.warning("assembly.diagnostic_render_failed", content_id=content_id, error=rr.get("error"))
                 return None
         logger.warning("assembly.diagnostic_render_timeout", content_id=content_id)
         return None
     except Exception as exc:
-        logger.warning("assembly.diagnostic_render_exception",
-                       content_id=content_id, error=str(exc))
+        logger.warning("assembly.diagnostic_render_exception", content_id=content_id, error=str(exc))
         return None
-
 
 
 @asynccontextmanager
@@ -176,12 +169,15 @@ async def lifespan(app: FastAPI):
 
 
 from observability.sentry import init_sentry
+
 init_sentry("assembly")
 
 app = FastAPI(title="Assembly Service", version="0.1.0", lifespan=lifespan)
 
 
 instrument_app(app, service_name="assembly")
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="assembly")
@@ -190,8 +186,7 @@ async def health():
 @app.post("/assemble", response_model=ServiceResponse)
 async def assemble(req: AssemblyRequest):
     """Submit Direction v3 to Remotion API for rendering, poll until complete."""
-    logger.info("assembly.assembling", content_id=req.content_id,
-                 segments=len(req.direction_v3.get("segments", [])))
+    logger.info("assembly.assembling", content_id=req.content_id, segments=len(req.direction_v3.get("segments", [])))
 
     try:
         direction_v3 = req.direction_v3
@@ -245,8 +240,7 @@ async def assemble(req: AssemblyRequest):
         target_duration_s = direction_v3.get("meta", {}).get("duration_target_seconds", 0)
         if target_duration_s and abs(total_duration_ms / 1000 - target_duration_s) > target_duration_s * 0.2:
             sync_issues.append(
-                f"Duration mismatch: segments total {total_duration_ms/1000:.1f}s, "
-                f"target {target_duration_s:.1f}s"
+                f"Duration mismatch: segments total {total_duration_ms / 1000:.1f}s, target {target_duration_s:.1f}s"
             )
 
         if sync_issues:
@@ -261,14 +255,15 @@ async def assemble(req: AssemblyRequest):
 
         complexity = compute_direction_complexity(direction_v3)
         estimated_render_s = estimate_render_duration(complexity)
-        logger.info("assembly.complexity",
-                     complexity=complexity.get("complexity"),
-                     risk=complexity.get("risk"),
-                     estimated_render_s=estimated_render_s)
+        logger.info(
+            "assembly.complexity",
+            complexity=complexity.get("complexity"),
+            risk=complexity.get("risk"),
+            estimated_render_s=estimated_render_s,
+        )
 
         if complexity.get("risk") == "high":
-            logger.warning("assembly.high_complexity",
-                           risk_factors=complexity.get("risk_factors", []))
+            logger.warning("assembly.high_complexity", risk_factors=complexity.get("risk_factors", []))
 
         remotion_url = settings.remotion_base_url
         render_quality = "preview" if is_test_mode else "high"
@@ -292,23 +287,27 @@ async def assemble(req: AssemblyRequest):
                 render_data = resp.json()
         except Exception as remotion_err:
             if not is_test_mode:
-                raise HTTPException(status_code=503,
-                                    detail=f"Remotion service unreachable: {remotion_err}")
-            logger.warning("assembly.remotion_unreachable_diagnostic_fallback",
-                           error=str(remotion_err), content_id=req.content_id)
+                raise HTTPException(status_code=503, detail=f"Remotion service unreachable: {remotion_err}")
+            logger.warning(
+                "assembly.remotion_unreachable_diagnostic_fallback", error=str(remotion_err), content_id=req.content_id
+            )
             total_ms = sum(s.get("duration_ms", 0) for s in segments)
             duration_s = round(total_ms / 1000, 1) if total_ms else 8.0
             aspect = direction_v3.get("meta", {}).get("aspect", "16:9")
             diag = await _render_diagnostic_via_remotion(
-                content_id=req.content_id, channel_id=req.channel_id,
-                title=req.title, composition=composition, aspect=aspect,
+                content_id=req.content_id,
+                channel_id=req.channel_id,
+                title=req.title,
+                composition=composition,
+                aspect=aspect,
                 duration_s=duration_s,
                 reason=f"Remotion error on first submit: {str(remotion_err)[:120]}",
                 remotion_url=remotion_url,
             )
             if diag is None:
-                raise HTTPException(status_code=502,
-                                    detail=f"Remotion unreachable and diagnostic fallback failed: {remotion_err}")
+                raise HTTPException(
+                    status_code=502, detail=f"Remotion unreachable and diagnostic fallback failed: {remotion_err}"
+                )
             diag_url, diag_dur = diag
             try:
                 pool = await get_pool()
@@ -316,7 +315,9 @@ async def assemble(req: AssemblyRequest):
                     "UPDATE videos SET rendered_video_url = $1, "
                     "production_score = $2, status = 'rendered', updated_at = NOW() "
                     "WHERE content_id = $3",
-                    diag_url, 3.0, req.content_id,
+                    diag_url,
+                    3.0,
+                    req.content_id,
                 )
             except Exception as db_err:
                 logger.warning("assembly.fallback_db_failed", error=str(db_err))
@@ -370,8 +371,13 @@ async def assemble(req: AssemblyRequest):
                     raise HTTPException(status_code=500, detail=f"Render failed: {error_msg}")
                 else:
                     progress = render_result.get("progress", 0)
-                    logger.info("assembly.render_progress", render_id=render_id,
-                                 status=status, progress=progress, elapsed=elapsed)
+                    logger.info(
+                        "assembly.render_progress",
+                        render_id=render_id,
+                        status=status,
+                        progress=progress,
+                        elapsed=elapsed,
+                    )
 
             except httpx.HTTPError as poll_err:
                 logger.warning("assembly.poll_error", error=str(poll_err))
@@ -379,17 +385,22 @@ async def assemble(req: AssemblyRequest):
         if not render_result or render_result.get("status") != "completed":
             logger.warning("assembly.render_failed_trying_simplified")
             await log_render_attempt(
-                req.content_id, req.channel_id, render_id,
-                complexity, success=False, error_category="timeout")
+                req.content_id, req.channel_id, render_id, complexity, success=False, error_category="timeout"
+            )
 
             simplified = simplify_direction_for_retry(direction_v3)
             try:
                 async with httpx.AsyncClient(timeout=30.0) as client:
-                    resp2 = await client.post(f"{remotion_url}/api/render", json={
-                        "composition": composition,
-                        "inputProps": simplified, "outputFormat": "mp4",
-                        "quality": 80, "codec": "h264",
-                    })
+                    resp2 = await client.post(
+                        f"{remotion_url}/api/render",
+                        json={
+                            "composition": composition,
+                            "inputProps": simplified,
+                            "outputFormat": "mp4",
+                            "quality": 80,
+                            "codec": "h264",
+                        },
+                    )
                     resp2.raise_for_status()
                     retry_data = resp2.json()
                     retry_id = retry_data.get("renderId", retry_data.get("id", ""))
@@ -413,25 +424,32 @@ async def assemble(req: AssemblyRequest):
 
             if not render_result or render_result.get("status") not in ("completed", "done"):
                 await log_render_attempt(
-                    req.content_id, req.channel_id, render_id,
-                    complexity, success=False, retry_count=1, error_category="timeout_retry")
+                    req.content_id,
+                    req.channel_id,
+                    render_id,
+                    complexity,
+                    success=False,
+                    retry_count=1,
+                    error_category="timeout_retry",
+                )
                 if not is_test_mode:
                     raise HTTPException(status_code=504, detail="Render timed out after retry")
-                logger.warning("assembly.render_timeout_diagnostic_fallback",
-                               content_id=req.content_id)
+                logger.warning("assembly.render_timeout_diagnostic_fallback", content_id=req.content_id)
                 total_ms = sum(s.get("duration_ms", 0) for s in segments)
                 duration_s = round(total_ms / 1000, 1) if total_ms else 8.0
                 aspect = direction_v3.get("meta", {}).get("aspect", "16:9")
                 diag = await _render_diagnostic_via_remotion(
-                    content_id=req.content_id, channel_id=req.channel_id,
-                    title=req.title, composition=composition, aspect=aspect,
+                    content_id=req.content_id,
+                    channel_id=req.channel_id,
+                    title=req.title,
+                    composition=composition,
+                    aspect=aspect,
                     duration_s=duration_s,
                     reason="Render + simplified retry both timed out",
                     remotion_url=remotion_url,
                 )
                 if diag is None:
-                    raise HTTPException(status_code=504,
-                                        detail="Render timed out and diagnostic fallback failed")
+                    raise HTTPException(status_code=504, detail="Render timed out and diagnostic fallback failed")
                 diag_url, diag_dur = diag
                 try:
                     pool = await get_pool()
@@ -439,7 +457,9 @@ async def assemble(req: AssemblyRequest):
                         "UPDATE videos SET rendered_video_url = $1, "
                         "production_score = $2, status = 'rendered', updated_at = NOW() "
                         "WHERE content_id = $3",
-                        diag_url, 3.0, req.content_id,
+                        diag_url,
+                        3.0,
+                        req.content_id,
                     )
                 except Exception as db_err:
                     logger.warning("assembly.fallback_db_failed", error=str(db_err))
@@ -481,21 +501,30 @@ async def assemble(req: AssemblyRequest):
             await pool.execute(
                 "UPDATE videos SET rendered_video_url = $1, production_score = $2, "
                 "status = 'rendered', updated_at = NOW() WHERE content_id = $3",
-                video_url, production_score, req.content_id)
+                video_url,
+                production_score,
+                req.content_id,
+            )
         except Exception as e:
             logger.warning("assembly.db_update_failed", error=str(e))
 
         await log_render_attempt(
-            req.content_id, req.channel_id, render_id,
-            complexity, success=True,
+            req.content_id,
+            req.channel_id,
+            render_id,
+            complexity,
+            success=True,
             render_duration_s=render_duration,
-            video_duration_s=actual_duration)
+            video_duration_s=actual_duration,
+        )
 
-        logger.info("assembly.completed",
-                     render_id=render_id,
-                     video_url=video_url[:80] if video_url else "",
-                     production_score=production_score,
-                     render_time=render_duration)
+        logger.info(
+            "assembly.completed",
+            render_id=render_id,
+            video_url=video_url[:80] if video_url else "",
+            production_score=production_score,
+            render_time=render_duration,
+        )
 
         return ServiceResponse(
             status="success",

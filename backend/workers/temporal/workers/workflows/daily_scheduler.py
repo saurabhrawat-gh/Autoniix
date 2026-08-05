@@ -3,6 +3,7 @@
 Ported from ``go-workflows/daily_scheduler.go``. Task queue: ``scheduler-v2``.
 Child workflows run on ``video-production-v2``.
 """
+
 from __future__ import annotations
 
 from datetime import timedelta
@@ -55,9 +56,7 @@ class DailySchedulerWorkflow:
             mode = ch.get("content_mode") or "long_form"
             mode_prefix = "S" if mode in ("short_form", "short") else "L"
 
-            topic_candidates = [
-                t for t in (ch.get("topic_candidates") or []) if isinstance(t, str)
-            ]
+            topic_candidates = [t for t in (ch.get("topic_candidates") or []) if isinstance(t, str)]
             max_cost = float(ch.get("max_cost_usd") or 2.50)
 
             try:

@@ -6,6 +6,7 @@ so niche-pulse tables are seeded on day one instead of waiting up to 7 days.
 Usage:
     python -m scripts.backfill_niche_pulse [--temporal-host localhost:7233]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -21,14 +22,19 @@ from core.config import settings
 
 async def main(temporal_host: str) -> None:
     conn = await asyncpg.connect(
-        host=settings.db_host, port=settings.db_port, database=settings.db_name,
-        user=settings.db_user, password=settings.db_password,
+        host=settings.db_host,
+        port=settings.db_port,
+        database=settings.db_name,
+        user=settings.db_user,
+        password=settings.db_password,
     )
     try:
-        niches = [r["niche"] for r in await conn.fetch(
-            "SELECT DISTINCT niche FROM channels "
-            "WHERE status = 'active' AND niche IS NOT NULL ORDER BY niche"
-        )]
+        niches = [
+            r["niche"]
+            for r in await conn.fetch(
+                "SELECT DISTINCT niche FROM channels WHERE status = 'active' AND niche IS NOT NULL ORDER BY niche"
+            )
+        ]
     finally:
         await conn.close()
 

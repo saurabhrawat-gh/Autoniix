@@ -13,6 +13,7 @@ Transforms the base script + prosody + assets into a Remotion-ready render confi
 
 All computation is local (rule-based + learned patterns). Zero API cost.
 """
+
 from __future__ import annotations
 
 import random
@@ -25,40 +26,59 @@ logger = structlog.get_logger()
 SCENE_PRESETS = {
     "hook": ["scene.kinetic_typography", "scene.zoom_focus", "scene.text_reveal"],
     "intro": ["scene.ken_burns", "scene.stock_footage", "scene.text_reveal"],
-    "body": ["scene.stock_footage", "scene.ken_burns", "scene.kinetic_typography",
-             "scene.split_screen", "scene.parallax"],
+    "body": [
+        "scene.stock_footage",
+        "scene.ken_burns",
+        "scene.kinetic_typography",
+        "scene.split_screen",
+        "scene.parallax",
+    ],
     "climax": ["scene.zoom_focus", "scene.kinetic_typography", "scene.stock_footage"],
     "outro": ["scene.ken_burns", "scene.stock_footage", "scene.quote_card"],
 }
 
 CAMERA_TEMPLATES = {
     "hook": {
-        "type": "push_in", "speed": "fast",
-        "start_position": "center", "end_position": "center",
+        "type": "push_in",
+        "speed": "fast",
+        "start_position": "center",
+        "end_position": "center",
     },
     "intro": {
-        "type": "ken_burns", "speed": "slow",
-        "start_position": "left", "end_position": "right",
+        "type": "ken_burns",
+        "speed": "slow",
+        "start_position": "left",
+        "end_position": "right",
     },
     "body_a": {
-        "type": "ken_burns", "speed": "slow",
-        "start_position": "center", "end_position": "center",
+        "type": "ken_burns",
+        "speed": "slow",
+        "start_position": "center",
+        "end_position": "center",
     },
     "body_b": {
-        "type": "pan_left", "speed": "medium",
-        "start_position": "right", "end_position": "left",
+        "type": "pan_left",
+        "speed": "medium",
+        "start_position": "right",
+        "end_position": "left",
     },
     "body_c": {
-        "type": "static", "speed": "slow",
-        "start_position": "center", "end_position": "center",
+        "type": "static",
+        "speed": "slow",
+        "start_position": "center",
+        "end_position": "center",
     },
     "climax": {
-        "type": "zoom_in", "speed": "fast",
-        "start_position": "center", "end_position": "center",
+        "type": "zoom_in",
+        "speed": "fast",
+        "start_position": "center",
+        "end_position": "center",
     },
     "outro": {
-        "type": "static", "speed": "slow",
-        "start_position": "center", "end_position": "center",
+        "type": "static",
+        "speed": "slow",
+        "start_position": "center",
+        "end_position": "center",
     },
 }
 
@@ -78,8 +98,14 @@ TRANSITIONS = {
     "outro": ["dissolve", "fade"],
 }
 TRANSITION_DURATIONS = {
-    "cut": 100, "dissolve": 500, "slide_left": 400, "slide_right": 400,
-    "zoom": 350, "whip_pan": 300, "glitch": 250, "fade": 600,
+    "cut": 100,
+    "dissolve": 500,
+    "slide_left": 400,
+    "slide_right": 400,
+    "zoom": 350,
+    "whip_pan": 300,
+    "glitch": 250,
+    "fade": 600,
 }
 
 MOTION_TEMPLATES = {
@@ -128,7 +154,6 @@ SFX_MAP = {
 }
 
 EMPHASIS_EFFECTS = ["scale", "color_flash", "glow", "underline", "shake"]
-
 
 
 def _text_display_duration_ms(text: str) -> int:
@@ -183,11 +208,13 @@ def _generate_text_strategy(
     primary_color = (channel or {}).get("primary_color", "#FFFFFF")
     for i, word in enumerate(emphasis_words[:3]):
         effect = EMPHASIS_EFFECTS[i % len(EMPHASIS_EFFECTS)]
-        emphasis_data.append({
-            "word": word,
-            "effect": effect,
-            "color": primary_color,
-        })
+        emphasis_data.append(
+            {
+                "word": word,
+                "effect": effect,
+                "color": primary_color,
+            }
+        )
 
     display_ms = _text_display_duration_ms(text_overlay) if text_overlay else 3000
 
@@ -245,10 +272,12 @@ def _generate_motion_design(emotion: str, section: str, channel: dict | None = N
 
     elements = []
     for tmpl in templates:
-        elements.append({
-            **tmpl,
-            "color": primary_color,
-        })
+        elements.append(
+            {
+                **tmpl,
+                "color": primary_color,
+            }
+        )
 
     if section == "climax":
         for el in elements:
@@ -281,11 +310,13 @@ def _generate_audio_cues(
     if emphasis_words and duration_s > 0:
         interval_ms = int((duration_s * 1000) / (len(emphasis_words) + 1))
         for i, _ in enumerate(emphasis_words[:2]):
-            sfx.append({
-                "name": "shimmer",
-                "trigger_ms": interval_ms * (i + 1),
-                "volume": 0.2,
-            })
+            sfx.append(
+                {
+                    "name": "shimmer",
+                    "trigger_ms": interval_ms * (i + 1),
+                    "volume": 0.2,
+                }
+            )
 
     if section == "climax":
         for s in SFX_MAP["climax"]:
@@ -309,7 +340,6 @@ def _generate_audio_cues(
         "sfx": sfx,
         "music_shift": music_shift,
     }
-
 
 
 def generate_segment_direction(
@@ -342,7 +372,10 @@ def generate_segment_direction(
     camera = _select_camera(section, body_index=segment_index)
 
     text_strategy = _generate_text_strategy(
-        segment, emphasis_words, section, channel,
+        segment,
+        emphasis_words,
+        section,
+        channel,
         appear_ms=int(duration_s * 200),
     )
 
@@ -373,7 +406,6 @@ def generate_segment_direction(
         "transition_in": transition,
         "visual_effects": [],
     }
-
 
 
 def generate_script_direction(
@@ -424,26 +456,16 @@ def generate_script_direction(
 
     transitions_used = [ds["transition_in"]["type"] for ds in direction_segments]
     transition_variety = len(set(transitions_used))
-    consecutive_same = sum(
-        1 for i in range(1, len(transitions_used))
-        if transitions_used[i] == transitions_used[i - 1]
-    )
+    consecutive_same = sum(1 for i in range(1, len(transitions_used)) if transitions_used[i] == transitions_used[i - 1])
 
     presets_used = [ds["scene_preset"] for ds in direction_segments]
     preset_variety = len(set(presets_used))
-    consecutive_same_preset = sum(
-        1 for i in range(1, len(presets_used))
-        if presets_used[i] == presets_used[i - 1]
-    )
+    consecutive_same_preset = sum(1 for i in range(1, len(presets_used)) if presets_used[i] == presets_used[i - 1])
 
     has_text_every_seg = all(
-        ds["text_strategy"]["primary_text"] or ds["text_strategy"]["emphasis_words"]
-        for ds in direction_segments
+        ds["text_strategy"]["primary_text"] or ds["text_strategy"]["emphasis_words"] for ds in direction_segments
     )
-    has_motion_every_seg = all(
-        len(ds["motion_design"]["elements"]) > 0
-        for ds in direction_segments
-    )
+    has_motion_every_seg = all(len(ds["motion_design"]["elements"]) > 0 for ds in direction_segments)
 
     return {
         "version": "v3_direction",
@@ -466,10 +488,6 @@ def generate_script_direction(
             "consecutive_same_presets": consecutive_same_preset,
             "has_text_all_segments": has_text_every_seg,
             "has_motion_all_segments": has_motion_every_seg,
-            "direction_ok": (
-                consecutive_same <= 1
-                and preset_variety >= min(3, total)
-                and has_motion_every_seg
-            ),
+            "direction_ok": (consecutive_same <= 1 and preset_variety >= min(3, total) and has_motion_every_seg),
         },
     }

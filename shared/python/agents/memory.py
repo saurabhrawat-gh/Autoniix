@@ -16,20 +16,21 @@ wrapper just gives every agent a typed, well-named entry point.
 
 Part of AE-P1 / Agentic Foundation.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
 
 import structlog
-
-from core.flags import get_flag
 from llm.embeddings import (
     EmbeddingConfigError,
     EmbeddingError,
     embed_and_store,
     semantic_search,
 )
+
+from core.flags import get_flag
 
 logger = structlog.get_logger()
 
@@ -42,6 +43,7 @@ class MemoryRecallResult:
     ``cosine_sim`` and ``score``). ``query_text`` is the exact string we
     embedded — captured so the agent can log it for audit.
     """
+
     rows: list[dict[str, Any]]
     query_text: str
     skipped_reason: str | None = None
@@ -71,7 +73,6 @@ class AgentMemory:
         self.table = table
         self.embedding_column = embedding_column
 
-
     async def recall(
         self,
         query: str,
@@ -91,20 +92,12 @@ class AgentMemory:
         Optional ``scope`` / ``scope_id`` narrow recall to the same scope
         (e.g. only this channel's past decisions).
         """
-        enabled = await get_flag(
-            f"{self.agent_name}.memory_recall.enabled", default=False
-        )
+        enabled = await get_flag(f"{self.agent_name}.memory_recall.enabled", default=False)
         if not enabled:
-            return MemoryRecallResult(
-                rows=[], query_text=query, skipped_reason="disabled_by_flag"
-            )
+            return MemoryRecallResult(rows=[], query_text=query, skipped_reason="disabled_by_flag")
 
         top_k = top_k or self.DEFAULT_TOP_K
-        threshold = (
-            score_threshold
-            if score_threshold is not None
-            else self.DEFAULT_SCORE_THRESHOLD
-        )
+        threshold = score_threshold if score_threshold is not None else self.DEFAULT_SCORE_THRESHOLD
 
         where, where_params = self._build_scope_filter(scope, scope_id)
 
@@ -114,10 +107,7 @@ class AgentMemory:
                 table=self.table,
                 top_k=top_k,
                 column=self.embedding_column,
-                select_columns=(
-                    "id, decision_type, scope, scope_id, directive, "
-                    "reasoning, confidence, created_at"
-                ),
+                select_columns=("id, decision_type, scope, scope_id, directive, reasoning, confidence, created_at"),
                 where=where,
                 where_params=where_params,
             )
@@ -128,9 +118,7 @@ class AgentMemory:
                 table=self.table,
                 error=str(exc),
             )
-            return MemoryRecallResult(
-                rows=[], query_text=query, skipped_reason="embedding_failed"
-            )
+            return MemoryRecallResult(rows=[], query_text=query, skipped_reason="embedding_failed")
 
         filtered = [r for r in rows if float(r.get("score") or 0) >= threshold]
         return MemoryRecallResult(rows=filtered, query_text=query)
@@ -149,11 +137,9 @@ class AgentMemory:
         similar past situations.
         """
         from agents.base import AgentObservation
+
         if not isinstance(observation, AgentObservation):
-            raise TypeError(
-                "recall_for_observation expects AgentObservation; "
-                f"got {type(observation).__name__}"
-            )
+            raise TypeError(f"recall_for_observation expects AgentObservation; got {type(observation).__name__}")
 
         query = self._observation_to_query(observation)
         return await self.recall(
@@ -174,11 +160,9 @@ class AgentMemory:
         Skipped silently (logged) if embeddings are not configured.
         """
         from agents.base import AgentDecision
+
         if not isinstance(decision, AgentDecision):
-            raise TypeError(
-                "remember expects AgentDecision; got "
-                f"{type(decision).__name__}"
-            )
+            raise TypeError(f"remember expects AgentDecision; got {type(decision).__name__}")
 
         row_id = acted_row.get("id")
         if row_id is None:
@@ -189,10 +173,7 @@ class AgentMemory:
             )
             return
 
-        text = (
-            f"{decision.decision_type}: {decision.reasoning}\n\n"
-            f"Context: {decision.context_summary}"
-        )
+        text = f"{decision.decision_type}: {decision.reasoning}\n\nContext: {decision.context_summary}"
         try:
             await embed_and_store(
                 text,
@@ -208,11 +189,8 @@ class AgentMemory:
                 error=str(exc),
             )
 
-
     @staticmethod
-    def _build_scope_filter(
-        scope: str | None, scope_id: str | None
-    ) -> tuple[str | None, tuple | None]:
+    def _build_scope_filter(scope: str | None, scope_id: str | None) -> tuple[str | None, tuple | None]:
         if scope_id is None:
             return None, None
         if scope is None:
@@ -229,6 +207,7 @@ class AgentMemory:
         JSON braces.
         """
         from agents.base import AgentObservation
+
         assert isinstance(observation, AgentObservation)
         parts = [f"scope={observation.scope}", f"scope_id={observation.scope_id}"]
         for key in sorted(observation.facts.keys()):

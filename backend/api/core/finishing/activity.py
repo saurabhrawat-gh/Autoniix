@@ -11,6 +11,7 @@ exhausted and ``require_resolve_finish`` is False, the activity returns
 ``finishing_skipped=true``. When ``require_resolve_finish`` is True it re-raises,
 letting Temporal retry per the workflow's retry policy.
 """
+
 from __future__ import annotations
 
 import os
@@ -65,6 +66,7 @@ async def _load_config(channel_id: str) -> dict:
 
 def _storage():
     from providers.registry import ProviderRegistry
+
     return ProviderRegistry.get("storage")
 
 
@@ -92,43 +94,43 @@ async def _resolve_lut(preset_key: str, dest_path: str) -> str:
             fh.write(data)
         return dest_path
     except Exception as exc:
-        logger.warning("finishing.lut_download_failed_generating",
-                       preset=preset_key, key=cube_key, error=str(exc))
+        logger.warning("finishing.lut_download_failed_generating", preset=preset_key, key=cube_key, error=str(exc))
         from scripts.seeds.lut_presets.generate_luts import write_cube
+
         write_cube(preset_key, dest_path)
         return dest_path
 
 
 async def _upload_finished(local_path: str, content_id: str) -> str:
     from providers.storage.base import StorageUpload
+
     with open(local_path, "rb") as fh:
         data = fh.read()
     key = f"videos/finished/{content_id}.mp4"
-    result = await _storage().upload(
-        StorageUpload(key=key, data=data, content_type="video/mp4")
-    )
+    result = await _storage().upload(StorageUpload(key=key, data=data, content_type="video/mp4"))
     return result.url
 
 
 async def _upload_prores(local_path: str, content_id: str) -> str:
     from providers.storage.base import StorageUpload
+
     with open(local_path, "rb") as fh:
         data = fh.read()
     key = f"videos/prores/{content_id}/master.mov"
-    await _storage().upload(
-        StorageUpload(key=key, data=data, content_type="video/quicktime")
-    )
+    await _storage().upload(StorageUpload(key=key, data=data, content_type="video/quicktime"))
     return key
 
 
-async def _mark_db(content_id: str, *, preset: str | None, prores_path: str | None,
-                   skipped: bool) -> None:
+async def _mark_db(content_id: str, *, preset: str | None, prores_path: str | None, skipped: bool) -> None:
     try:
         pool = await get_pool()
         await pool.execute(
             "UPDATE videos SET finishing_skipped = $1, finishing_preset_used = $2, "
             "prores_path = $3, updated_at = NOW() WHERE content_id = $4",
-            skipped, preset, prores_path, content_id,
+            skipped,
+            preset,
+            prores_path,
+            content_id,
         )
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning("finishing.db_update_failed", content_id=content_id, error=str(exc))
@@ -150,8 +152,10 @@ async def finishing_activity(params: dict) -> dict:
     if not video_url:
         logger.warning("finishing.no_video_url", content_id=content_id)
         await _mark_db(content_id, preset=None, prores_path=None, skipped=True)
-        return {"status": "skipped", "data": {"finished_url": "", "prores_path": None,
-                                              "skipped": True, "preset_used": None}}
+        return {
+            "status": "skipped",
+            "data": {"finished_url": "", "prores_path": None, "skipped": True, "preset_used": None},
+        }
 
     cfg_row = await _load_config(channel_id)
     cfg = FinishConfig.from_row(cfg_row)
@@ -180,17 +184,17 @@ async def finishing_activity(params: dict) -> dict:
                 break
             except FinishingError as exc:
                 last_err = exc
-                logger.warning("finishing.attempt_failed", content_id=content_id,
-                               attempt=attempt, error=str(exc))
+                logger.warning("finishing.attempt_failed", content_id=content_id, attempt=attempt, error=str(exc))
 
         if last_err is not None:
             if require_resolve:
                 raise last_err
             logger.warning("finishing.skipped_after_retries", content_id=content_id)
             await _mark_db(content_id, preset=None, prores_path=None, skipped=True)
-            return {"status": "skipped",
-                    "data": {"finished_url": "", "prores_path": None,
-                             "skipped": True, "preset_used": None}}
+            return {
+                "status": "skipped",
+                "data": {"finished_url": "", "prores_path": None, "skipped": True, "preset_used": None},
+            }
 
         finished_url = await _upload_finished(finished_path, content_id)
 
@@ -202,17 +206,27 @@ async def finishing_activity(params: dict) -> dict:
             except FinishingError as exc:
                 logger.warning("finishing.prores_failed", content_id=content_id, error=str(exc))
 
-        await _mark_db(content_id, preset=cfg.color_grade_preset,
-                       prores_path=prores_path, skipped=False)
+        await _mark_db(content_id, preset=cfg.color_grade_preset, prores_path=prores_path, skipped=False)
 
-        logger.info("activity.finishing.completed", content_id=content_id,
-                    preset=cfg.color_grade_preset, prores=bool(prores_path))
-        return {"status": "success",
-                "data": {"finished_url": finished_url, "prores_path": prores_path,
-                         "skipped": False, "preset_used": cfg.color_grade_preset}}
+        logger.info(
+            "activity.finishing.completed",
+            content_id=content_id,
+            preset=cfg.color_grade_preset,
+            prores=bool(prores_path),
+        )
+        return {
+            "status": "success",
+            "data": {
+                "finished_url": finished_url,
+                "prores_path": prores_path,
+                "skipped": False,
+                "preset_used": cfg.color_grade_preset,
+            },
+        }
     finally:
         try:
             import shutil
+
             shutil.rmtree(tmpdir, ignore_errors=True)
         except Exception:
             pass

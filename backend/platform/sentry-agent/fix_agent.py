@@ -1,4 +1,5 @@
 """Fix Agent — LLM-powered code fix, branch creation, and PR opening."""
+
 from __future__ import annotations
 
 import base64
@@ -8,7 +9,6 @@ from typing import Optional
 
 import httpx
 import structlog
-
 from config import LLM_MODEL, OPENAI_API_KEY
 from github_client import GitHubClient
 from triage import extract_stack_summary, find_culprit_file
@@ -48,9 +48,7 @@ Rules:
 
 
 class FixAgent:
-    async def attempt_fix(
-        self, sentry_issue: dict, ticket_key: str
-    ) -> Optional[str]:
+    async def attempt_fix(self, sentry_issue: dict, ticket_key: str) -> Optional[str]:
         """Try to auto-fix the error. Returns PR URL on success, None otherwise."""
         culprit_path = find_culprit_file(sentry_issue)
         if not culprit_path:
@@ -80,8 +78,7 @@ class FixAgent:
         if not fix_result:
             return None
         if not fix_result.get("can_fix"):
-            logger.info("fix_agent.llm_cannot_fix",
-                        reason=fix_result.get("explanation"), ticket=ticket_key)
+            logger.info("fix_agent.llm_cannot_fix", reason=fix_result.get("explanation"), ticket=ticket_key)
             return None
         if fix_result.get("confidence") == "low":
             logger.info("fix_agent.low_confidence", ticket=ticket_key)
@@ -91,9 +88,7 @@ class FixAgent:
         await gh.create_branch(branch_name)
 
         commit_msg = (
-            f"fix({ticket_key}): {fix_result['explanation'][:70]}\n\n"
-            f"Auto-fix for Sentry issue\n"
-            f"Jira: {ticket_key}"
+            f"fix({ticket_key}): {fix_result['explanation'][:70]}\n\nAuto-fix for Sentry issue\nJira: {ticket_key}"
         )
         await gh.update_file(
             path=culprit_path,
@@ -159,9 +154,9 @@ class FixAgent:
                 r.raise_for_status()
                 raw = r.json()["choices"][0]["message"]["content"]
                 result: dict = json.loads(raw)
-                logger.info("fix_agent.llm_response",
-                            can_fix=result.get("can_fix"),
-                            confidence=result.get("confidence"))
+                logger.info(
+                    "fix_agent.llm_response", can_fix=result.get("can_fix"), confidence=result.get("confidence")
+                )
                 return result
         except Exception as exc:
             logger.error("fix_agent.llm_failed", error=str(exc))

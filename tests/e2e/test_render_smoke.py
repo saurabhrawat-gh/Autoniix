@@ -27,18 +27,17 @@ Typical CI invocation::
 The dashboard URL is optional — when omitted, the test exercises only the
 Remotion API + MinIO path.
 """
+
 from __future__ import annotations
 
 import os
 import shutil
 import subprocess
-import tempfile
 import time
 from typing import Any
 
 import httpx
 import pytest
-
 
 REMOTION_URL = os.getenv("YT_E2E_REMOTION_URL")
 DASHBOARD_URL = os.getenv("YT_E2E_DASHBOARD_URL")
@@ -100,13 +99,22 @@ def _ffprobe_video(path: str) -> dict[str, Any]:
         pytest.skip("ffprobe not available on test runner")
     result = subprocess.run(
         [
-            "ffprobe", "-v", "error", "-print_format", "json",
-            "-show_streams", "-show_format", path,
+            "ffprobe",
+            "-v",
+            "error",
+            "-print_format",
+            "json",
+            "-show_streams",
+            "-show_format",
+            path,
         ],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     assert result.returncode == 0, f"ffprobe failed: {result.stderr}"
     import json
+
     return json.loads(result.stdout)
 
 
@@ -116,14 +124,24 @@ def _mean_luminance(path: str, samples: int = 20) -> float:
         pytest.skip("ffmpeg not available on test runner")
     result = subprocess.run(
         [
-            "ffmpeg", "-hide_banner", "-nostats", "-i", path,
-            "-vf", f"select='not(mod(n\\,{samples}))',signalstats,"
-                   "metadata=print:key=lavfi.signalstats.YAVG",
-            "-an", "-f", "null", "-",
+            "ffmpeg",
+            "-hide_banner",
+            "-nostats",
+            "-i",
+            path,
+            "-vf",
+            f"select='not(mod(n\\,{samples}))',signalstats,metadata=print:key=lavfi.signalstats.YAVG",
+            "-an",
+            "-f",
+            "null",
+            "-",
         ],
-        capture_output=True, text=True, timeout=60,
+        capture_output=True,
+        text=True,
+        timeout=60,
     )
     import re
+
     matches = re.findall(r"YAVG=([0-9.]+)", result.stderr)
     assert matches, f"no luminance samples extracted; ffmpeg stderr: {result.stderr[-500:]}"
     values = [float(m) for m in matches]
@@ -135,15 +153,18 @@ def test_render_smoke_produces_visible_mp4(tmp_path):
     direction = _build_minimal_direction()
 
     with httpx.Client(base_url=REMOTION_URL, timeout=30) as client:
-        resp = client.post("/api/render", json={
-            "composition": "MainVideo",
-            "inputProps": {"direction": direction},
-            "outputFormat": "mp4",
-            "codec": "h264",
-            "quality": 50,
-            "width": 640,
-            "height": 360,
-        })
+        resp = client.post(
+            "/api/render",
+            json={
+                "composition": "MainVideo",
+                "inputProps": {"direction": direction},
+                "outputFormat": "mp4",
+                "codec": "h264",
+                "quality": 50,
+                "width": 640,
+                "height": 360,
+            },
+        )
         resp.raise_for_status()
         render_id = resp.json()["renderId"]
 
@@ -155,9 +176,7 @@ def test_render_smoke_produces_visible_mp4(tmp_path):
             if status.get("status") == "done":
                 break
             if status.get("status") == "failed":
-                pytest.fail(
-                    f"render failed: {status.get('error')!r} (qc={status.get('qc')})"
-                )
+                pytest.fail(f"render failed: {status.get('error')!r} (qc={status.get('qc')})")
             time.sleep(2)
         else:
             pytest.fail(f"render did not complete in 300s; last status={last_status}")
@@ -167,8 +186,7 @@ def test_render_smoke_produces_visible_mp4(tmp_path):
         assert qc.get("pass") is True, f"worker QC rejected: {qc}"
         mean_lum = qc.get("meanLuminance")
         assert mean_lum is not None and mean_lum > 30, (
-            f"worker reported low mean luminance {mean_lum} — "
-            "black-frame render regression?"
+            f"worker reported low mean luminance {mean_lum} — black-frame render regression?"
         )
 
         output_url = last_status["outputUrl"]

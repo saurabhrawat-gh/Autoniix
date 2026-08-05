@@ -8,7 +8,6 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
-
 class ContentMode(str, Enum):
     long_form = "long_form"
     short_form = "short_form"
@@ -33,7 +32,6 @@ class VideoStatus(str, Enum):
     superseded = "superseded"
     failed = "failed"
     rejected = "rejected"
-
 
 
 class ServiceResponse(BaseModel):
@@ -66,7 +64,6 @@ class ResearchResponse(BaseModel):
     fact_claims: list[dict] = []
     trend_data: dict = {}
     competitor_analysis: dict = {}
-
 
 
 @dataclass

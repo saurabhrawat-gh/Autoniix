@@ -52,7 +52,7 @@ async def render_activity(params: dict) -> dict:
 
         max_polls = 120
         for i in range(max_polls):
-            activity.heartbeat(f"Polling render {render_id}: attempt {i+1}")
+            activity.heartbeat(f"Polling render {render_id}: attempt {i + 1}")
             await asyncio.sleep(30)
 
             status_resp = await client.get(f"{base_url}/api/render/{render_id}")
@@ -76,6 +76,5 @@ async def render_activity(params: dict) -> dict:
             elif status == "failed":
                 error = status_data.get("error", "Unknown render error")
                 raise RuntimeError(f"Render failed: {error}")
-
 
         raise RuntimeError(f"Render timed out after {max_polls * 30}s")

@@ -7,11 +7,11 @@ Resolution order:
 
 Cost: $0.00 on cache hit, ~$0.001 on cache miss (GPT-4o-mini).
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
-import os
 import random
 import time
 from pathlib import Path
@@ -103,6 +103,7 @@ def _pick_topic(seed: str | None = None) -> dict:
         return TOPIC_POOL[idx]
     return random.choice(TOPIC_POOL)
 
+
 _LOCAL_CACHE = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "llm"
 CACHE_DIR = _LOCAL_CACHE if _LOCAL_CACHE.parent.exists() else Path("/tmp/mock_llm_cache")
 
@@ -159,13 +160,17 @@ class MockLLM(LLMProvider):
         if self.api_key:
             try:
                 result = await self._call_cheap_model(request, model)
-                cache_file.write_text(json.dumps({
-                    "content": result.content,
-                    "tokens_in": result.tokens_in,
-                    "tokens_out": result.tokens_out,
-                    "model": model,
-                    "cached_at": time.time(),
-                }))
+                cache_file.write_text(
+                    json.dumps(
+                        {
+                            "content": result.content,
+                            "tokens_in": result.tokens_in,
+                            "tokens_out": result.tokens_out,
+                            "model": model,
+                            "cached_at": time.time(),
+                        }
+                    )
+                )
                 logger.info("mock_llm.cache_miss_called_api", key=key, cost=result.cost_usd)
                 return result
             except Exception as exc:
@@ -248,6 +253,7 @@ class MockLLM(LLMProvider):
         calls in CI.
         """
         import re as _re
+
         topic_match = _re.search(r"topic[:\s]+([^.\n]+)", user_text, flags=_re.I)
         if topic_match:
             topic = topic_match.group(1).strip()
@@ -261,14 +267,8 @@ class MockLLM(LLMProvider):
                 "The pipeline is working correctly but no real LLM was called."
             )
         if "hook" in system_text:
-            return (
-                f"Most people don't realise {topic} — and that's costing "
-                f"them every single day."
-            )
-        return (
-            f"Here's the truth about {topic}: it changes everything once "
-            f"you actually understand it."
-        )
+            return f"Most people don't realise {topic} — and that's costing them every single day."
+        return f"Here's the truth about {topic}: it changes everything once you actually understand it."
 
     def _detect_and_mock(self, system_text: str, user_text: str) -> dict:
         """Produce mock JSON matching the expected schema for each pipeline phase.
@@ -291,11 +291,18 @@ class MockLLM(LLMProvider):
                 "research_depth_score": 8.5,
                 "title_candidates": topic["title_candidates"],
                 "sources": [
-                    {"url": "https://en.wikipedia.org/wiki/Main_Page", "title": "Reference", "key_facts": topic["key_facts"]},
+                    {
+                        "url": "https://en.wikipedia.org/wiki/Main_Page",
+                        "title": "Reference",
+                        "key_facts": topic["key_facts"],
+                    },
                 ],
                 "fact_claims": [
                     {"claim": topic["key_facts"][0], "confidence": 0.85},
-                    {"claim": topic["key_facts"][-1] if len(topic["key_facts"]) > 1 else topic["key_facts"][0], "confidence": 0.80},
+                    {
+                        "claim": topic["key_facts"][-1] if len(topic["key_facts"]) > 1 else topic["key_facts"][0],
+                        "confidence": 0.80,
+                    },
                 ],
                 "trend_data": {"momentum": 0.8, "search_volume": "high"},
                 "competitor_analysis": {"gap_found": True, "angle": "fresh perspective"},
@@ -421,9 +428,21 @@ class MockLLM(LLMProvider):
         if "hook" in system_text:
             return {
                 "hooks": [
-                    {"text": "Right now, AI is making 35 decisions for you. And you have no idea.", "score": 8.8, "style": "provocative"},
-                    {"text": "What if I told you an algorithm knows you better than your mother?", "score": 8.5, "style": "question"},
-                    {"text": "I tracked every AI decision in my life for 24 hours. The results shocked me.", "score": 8.3, "style": "personal_experiment"},
+                    {
+                        "text": "Right now, AI is making 35 decisions for you. And you have no idea.",
+                        "score": 8.8,
+                        "style": "provocative",
+                    },
+                    {
+                        "text": "What if I told you an algorithm knows you better than your mother?",
+                        "score": 8.5,
+                        "style": "question",
+                    },
+                    {
+                        "text": "I tracked every AI decision in my life for 24 hours. The results shocked me.",
+                        "score": 8.3,
+                        "style": "personal_experiment",
+                    },
                 ],
                 "selected_hook": "Right now, AI is making 35 decisions for you. And you have no idea.",
                 "hook_retention_score": 8.8,
@@ -453,7 +472,11 @@ class MockLLM(LLMProvider):
                             "section": "hook",
                             "camera": {"shot": "close_up", "movement": "slow_zoom_in", "angle": "eye_level"},
                             "text_strategy": {"style": "kinetic_bold", "position": "center", "animation": "fade_in"},
-                            "motion_design": {"bg_effect": "particle_flow", "transition_in": "cut", "transition_out": "dissolve"},
+                            "motion_design": {
+                                "bg_effect": "particle_flow",
+                                "transition_in": "cut",
+                                "transition_out": "dissolve",
+                            },
                             "audio_cues": {"sfx": "tech_whoosh", "music_mood": "suspense", "volume": 0.3},
                             "background_strategy": {"type": "gradient", "colors": ["#0a0a2e", "#1a1a4e"]},
                         },
@@ -465,12 +488,54 @@ class MockLLM(LLMProvider):
         if "emotion" in system_text:
             return {
                 "emotion_map": [
-                    {"section": "hook", "emotion": "curiosity", "stability": 0.4, "similarity_boost": 0.7, "style": 0.6, "speed": 1.05},
-                    {"section": "intro", "emotion": "intrigue", "stability": 0.5, "similarity_boost": 0.75, "style": 0.5, "speed": 1.0},
-                    {"section": "body_1", "emotion": "surprise", "stability": 0.45, "similarity_boost": 0.8, "style": 0.55, "speed": 1.02},
-                    {"section": "body_2", "emotion": "amazement", "stability": 0.4, "similarity_boost": 0.85, "style": 0.6, "speed": 0.98},
-                    {"section": "conclusion", "emotion": "empowerment", "stability": 0.55, "similarity_boost": 0.8, "style": 0.65, "speed": 0.95},
-                    {"section": "cta", "emotion": "friendly", "stability": 0.6, "similarity_boost": 0.75, "style": 0.5, "speed": 1.05},
+                    {
+                        "section": "hook",
+                        "emotion": "curiosity",
+                        "stability": 0.4,
+                        "similarity_boost": 0.7,
+                        "style": 0.6,
+                        "speed": 1.05,
+                    },
+                    {
+                        "section": "intro",
+                        "emotion": "intrigue",
+                        "stability": 0.5,
+                        "similarity_boost": 0.75,
+                        "style": 0.5,
+                        "speed": 1.0,
+                    },
+                    {
+                        "section": "body_1",
+                        "emotion": "surprise",
+                        "stability": 0.45,
+                        "similarity_boost": 0.8,
+                        "style": 0.55,
+                        "speed": 1.02,
+                    },
+                    {
+                        "section": "body_2",
+                        "emotion": "amazement",
+                        "stability": 0.4,
+                        "similarity_boost": 0.85,
+                        "style": 0.6,
+                        "speed": 0.98,
+                    },
+                    {
+                        "section": "conclusion",
+                        "emotion": "empowerment",
+                        "stability": 0.55,
+                        "similarity_boost": 0.8,
+                        "style": 0.65,
+                        "speed": 0.95,
+                    },
+                    {
+                        "section": "cta",
+                        "emotion": "friendly",
+                        "stability": 0.6,
+                        "similarity_boost": 0.75,
+                        "style": 0.5,
+                        "speed": 1.05,
+                    },
                 ],
                 "emphasis_words": ["artificial intelligence", "decisions", "every single morning"],
                 "volume_shift": {"hook": 1.1, "conclusion": 1.05, "cta": 1.0},

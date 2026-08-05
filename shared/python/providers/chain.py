@@ -26,12 +26,13 @@ either by TTL expiry or by an explicit :func:`invalidate` call (which
 ``providers.invalidation.start_subscriber`` triggers in response to
 Redis pub/sub events from the BFF).
 """
+
 from __future__ import annotations
 
 import asyncio
 import os
 import time
-from typing import Any, Iterable
+from typing import Any
 
 import structlog
 
@@ -51,8 +52,7 @@ class NoProviderConfigured(RuntimeError):
     instead of a silent ghost provider.
     """
 
-    def __init__(self, category: str, *, channel_id: str | None = None,
-                 content_mode: str | None = None):
+    def __init__(self, category: str, *, channel_id: str | None = None, content_mode: str | None = None):
         self.category = category
         self.channel_id = channel_id
         self.content_mode = content_mode
@@ -62,6 +62,7 @@ class NoProviderConfigured(RuntimeError):
             f"No provider configured for category '{category}'{hint}. "
             f"Add a credential and chain entry in /dashboard/providers."
         )
+
 
 _chain_cache: dict[tuple[str, str, str, str], tuple[Any, float]] = {}
 _lock = asyncio.Lock()
@@ -80,6 +81,7 @@ async def _flag_enabled() -> bool:
     """Cheap check; returns False if the DB / flag isn't reachable."""
     try:
         from core.db import get_pool
+
         pool = await get_pool()
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
@@ -117,7 +119,11 @@ async def _load_layer(
            AND COALESCE(c.pipeline_mode, 'production') = $5
          ORDER BY c.position
         """,
-        scope, category, scope_id, content_mode, pipeline_mode,
+        scope,
+        category,
+        scope_id,
+        content_mode,
+        pipeline_mode,
     )
     return [dict(r) for r in rows]
 
@@ -149,6 +155,7 @@ async def _load_chain(
     least: ``id, provider_name, vault_path, extra_config, model, label``.
     """
     from core.db import get_pool
+
     pool = await get_pool()
 
     layers: list[tuple[str, str | None, str | None]] = []
@@ -167,28 +174,34 @@ async def _load_chain(
         for scope, sid, mode in layers:
             try:
                 rows = await _load_layer(
-                    conn, category=category, scope=scope, scope_id=sid,
-                    content_mode=mode, pipeline_mode=pipeline_mode,
+                    conn,
+                    category=category,
+                    scope=scope,
+                    scope_id=sid,
+                    content_mode=mode,
+                    pipeline_mode=pipeline_mode,
                 )
             except Exception as exc:  # noqa: BLE001
-                logger.warning("provider.chain_layer_failed",
-                               category=category, scope=scope,
-                               scope_id=sid, mode=mode, error=str(exc))
+                logger.warning(
+                    "provider.chain_layer_failed",
+                    category=category,
+                    scope=scope,
+                    scope_id=sid,
+                    mode=mode,
+                    error=str(exc),
+                )
                 continue
             for r in rows:
                 if r["id"] in seen:
                     continue
                 seen.add(r["id"])
-                r["__origin__"] = (
-                    f"{scope}+mode" if mode else scope
-                )
+                r["__origin__"] = f"{scope}+mode" if mode else scope
                 merged.append(r)
 
         try:
             fb = await _load_default_fallback(conn, category)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("provider.chain_default_fallback_failed",
-                           category=category, error=str(exc))
+            logger.warning("provider.chain_default_fallback_failed", category=category, error=str(exc))
             fb = None
         if fb and fb["id"] not in seen:
             fb["__origin__"] = "default"
@@ -229,9 +242,7 @@ class FallbackProvider:
                 try:
                     return fn(*args, **kwargs)
                 except Exception as exc:  # noqa: BLE001
-                    logger.warning("provider.fallback",
-                                   category=category, label=label,
-                                   method=name, error=str(exc))
+                    logger.warning("provider.fallback", category=category, label=label, method=name, error=str(exc))
                     last_exc = exc
             if last_exc:
                 raise last_exc
@@ -249,9 +260,7 @@ class FallbackProvider:
                         return await res
                     return res
                 except Exception as exc:  # noqa: BLE001
-                    logger.warning("provider.fallback",
-                                   category=category, label=label,
-                                   method=name, error=str(exc))
+                    logger.warning("provider.fallback", category=category, label=label, method=name, error=str(exc))
                     last_exc = exc
             if last_exc:
                 raise last_exc
@@ -325,6 +334,7 @@ async def resolve_chain(
     """
     try:
         from providers.invalidation import start_subscriber
+
         start_subscriber()
     except Exception:  # noqa: BLE001
         pass
@@ -343,13 +353,19 @@ async def resolve_chain(
             return None
         try:
             rows = await _load_chain(
-                category, channel_id=channel_id, content_mode=content_mode,
+                category,
+                channel_id=channel_id,
+                content_mode=content_mode,
                 pipeline_mode=pipeline_mode,
             )
         except Exception as exc:
-            logger.warning("provider.chain_load_failed",
-                           category=category, channel_id=channel_id,
-                           content_mode=content_mode, error=str(exc))
+            logger.warning(
+                "provider.chain_load_failed",
+                category=category,
+                channel_id=channel_id,
+                content_mode=content_mode,
+                error=str(exc),
+            )
             return None
         if not rows:
             _chain_cache[key] = (EMPTY_CHAIN, now + _TTL_SECONDS)
@@ -373,9 +389,9 @@ async def resolve_chain(
                 models.append(r.get("model"))
                 origins.append(r.get("__origin__", ""))
             except Exception as exc:
-                logger.warning("provider.chain_member_failed",
-                               category=category, provider=r["provider_name"],
-                               error=str(exc))
+                logger.warning(
+                    "provider.chain_member_failed", category=category, provider=r["provider_name"], error=str(exc)
+                )
         if not members:
             return None
         wrapped = FallbackProvider(category, members, labels)
@@ -384,10 +400,14 @@ async def resolve_chain(
         wrapped.provider_names = [r["provider_name"] for r in rows]  # type: ignore[attr-defined]
         wrapped.credential_ids = [r["id"] for r in rows]  # type: ignore[attr-defined]
         _chain_cache[key] = (wrapped, now + _TTL_SECONDS)
-        logger.info("provider.chain_resolved",
-                    category=category, channel_id=channel_id,
-                    content_mode=content_mode, members=labels,
-                    origins=origins)
+        logger.info(
+            "provider.chain_resolved",
+            category=category,
+            channel_id=channel_id,
+            content_mode=content_mode,
+            members=labels,
+            origins=origins,
+        )
         return wrapped
 
 
@@ -406,7 +426,8 @@ def invalidate(
         _chain_cache.clear()
         return
     targets = [
-        k for k in _chain_cache.keys()
+        k
+        for k in _chain_cache.keys()
         if (category is None or k[2] == category)
         and (channel_id is None or k[0] == (channel_id or ""))
         and (content_mode is None or k[1] == (content_mode or ""))

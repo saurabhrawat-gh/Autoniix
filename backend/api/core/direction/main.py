@@ -9,23 +9,19 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from core.config import settings
-from core.db import close_pool, get_pool
-from schemas.common import HealthResponse, ServiceResponse
-
 import providers.boot  # noqa: F401
-from providers.registry import ProviderRegistry
+from core.db import close_pool, get_pool
+from observability.metrics import instrument_app
 from providers.llm.base import LLMRequest
-
+from providers.registry import ProviderRegistry
+from schemas.common import HealthResponse, ServiceResponse
 from services_api.direction.direction_merger import (
     merge_script_direction_with_assets,
     score_merged_direction,
     store_direction_features,
 )
-from observability.metrics import instrument_app
 
 logger = structlog.get_logger()
-
 
 
 class DirectionRequest(BaseModel):
@@ -38,7 +34,6 @@ class DirectionRequest(BaseModel):
     asset_manifest: list[dict] = Field(default_factory=list)
     thumbnail_result: dict = Field(default_factory=dict)
     music_data: dict = Field(default_factory=dict)
-
 
 
 def _safe_format(template: str, **kwargs) -> str:
@@ -64,22 +59,31 @@ async def _load_channel(channel_id: str) -> dict:
 async def _load_prompt(prompt_id: str) -> dict:
     pool = await get_pool()
     row = await pool.fetchrow(
-        "SELECT system_prompt, user_prompt_template FROM prompt_registry "
-        "WHERE prompt_id = $1 AND is_active = true", prompt_id)
+        "SELECT system_prompt, user_prompt_template FROM prompt_registry WHERE prompt_id = $1 AND is_active = true",
+        prompt_id,
+    )
     return dict(row) if row else {}
 
 
-async def _log_usage(content_id: str, service: str, provider: str, model: str,
-                     tokens_in: int, tokens_out: int, cost: float, latency: int):
+async def _log_usage(
+    content_id: str, service: str, provider: str, model: str, tokens_in: int, tokens_out: int, cost: float, latency: int
+):
     try:
         pool = await get_pool()
         await pool.execute(
             "INSERT INTO api_usage (content_id, service, provider, model, tokens_in, tokens_out, cost_usd, latency_ms) "
             "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-            content_id, service, provider, model, tokens_in, tokens_out, float(cost), latency)
+            content_id,
+            service,
+            provider,
+            model,
+            tokens_in,
+            tokens_out,
+            float(cost),
+            latency,
+        )
     except Exception as e:
         logger.warning("direction.db_log_failed", error=str(e))
-
 
 
 @asynccontextmanager
@@ -91,12 +95,15 @@ async def lifespan(app: FastAPI):
 
 
 from observability.sentry import init_sentry
+
 init_sentry("direction")
 
 app = FastAPI(title="Direction Service", version="0.1.0", lifespan=lifespan)
 
 
 instrument_app(app, service_name="direction")
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(service="direction")
@@ -135,9 +142,14 @@ async def generate_direction(req: DirectionRequest):
 
         if use_hint and script_v3_hint.get("segments"):
             merged = merge_script_direction_with_assets(
-                script_v3_hint, req.script_segments,
-                req.voice_manifest, req.asset_manifest,
-                req.thumbnail_result, req.music_data, channel)
+                script_v3_hint,
+                req.script_segments,
+                req.voice_manifest,
+                req.asset_manifest,
+                req.thumbnail_result,
+                req.music_data,
+                channel,
+            )
 
             if merged and merged.get("segments"):
                 merged_qc = score_merged_direction(merged)
@@ -150,22 +162,26 @@ async def generate_direction(req: DirectionRequest):
                     merged["meta"]["title"] = req.title
                     used_hint = True
 
-                    await store_direction_features(
-                        req.content_id, req.channel_id, merged,
-                        used_hint=True, llm_tokens=0)
+                    await store_direction_features(req.content_id, req.channel_id, merged, used_hint=True, llm_tokens=0)
 
                     try:
                         pool = await get_pool()
                         await pool.execute(
                             "UPDATE videos SET v3_direction = $1, direction_score = $2, updated_at = NOW() "
                             "WHERE content_id = $3",
-                            json.dumps(merged), merged_score, req.content_id)
+                            json.dumps(merged),
+                            merged_score,
+                            req.content_id,
+                        )
                     except Exception:
                         pass
 
-                    logger.info("direction.completed_from_hint",
-                                 segments=len(merged.get("segments", [])),
-                                 score=merged_score, cost=0)
+                    logger.info(
+                        "direction.completed_from_hint",
+                        segments=len(merged.get("segments", [])),
+                        score=merged_score,
+                        cost=0,
+                    )
 
                     return ServiceResponse(
                         status="success",
@@ -189,28 +205,33 @@ async def generate_direction(req: DirectionRequest):
         prompt = await _load_prompt("PRM_B4_DIRECTION")
         direction_llm = ProviderRegistry.get("llm.direction")
 
-        segments_summary = json.dumps([
-            {
-                "id": s.get("id"),
-                "section": s.get("section"),
-                "narration_preview": s.get("narration", "")[:100],
-                "scene_direction": s.get("scene_direction", ""),
-                "text_overlay": s.get("text_overlay", ""),
-                "transition": s.get("transition", "cut"),
-                "duration_s": s.get("duration_s", 10),
-                "has_asset": s.get("id", "") in asset_lookup,
-                "asset_type": asset_lookup.get(s.get("id", ""), {}).get("type", "none"),
-            }
-            for s in req.script_segments
-        ], indent=2)[:4000]
+        segments_summary = json.dumps(
+            [
+                {
+                    "id": s.get("id"),
+                    "section": s.get("section"),
+                    "narration_preview": s.get("narration", "")[:100],
+                    "scene_direction": s.get("scene_direction", ""),
+                    "text_overlay": s.get("text_overlay", ""),
+                    "transition": s.get("transition", "cut"),
+                    "duration_s": s.get("duration_s", 10),
+                    "has_asset": s.get("id", "") in asset_lookup,
+                    "asset_type": asset_lookup.get(s.get("id", ""), {}).get("type", "none"),
+                }
+                for s in req.script_segments
+            ],
+            indent=2,
+        )[:4000]
 
-        system_prompt = _safe_format(prompt.get("system_prompt",
-            "Generate per-segment visual direction for Remotion rendering. Respond in JSON."),
+        system_prompt = _safe_format(
+            prompt.get(
+                "system_prompt", "Generate per-segment visual direction for Remotion rendering. Respond in JSON."
+            ),
             aspect=aspect,
             resolution=json.dumps(resolution),
         )
-        user_prompt = _safe_format(prompt.get("user_prompt_template",
-            "Segments: {segments}\nChannel style: {visual_style}"),
+        user_prompt = _safe_format(
+            prompt.get("user_prompt_template", "Segments: {segments}\nChannel style: {visual_style}"),
             title=req.title,
             segments=segments_summary,
             visual_style=channel.get("visual_style", "cinematic"),
@@ -220,19 +241,29 @@ async def generate_direction(req: DirectionRequest):
             template_preference=channel.get("remotion_template", "hybrid-kinetic"),
         )
 
-        result = await direction_llm.complete(LLMRequest(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            model="gpt-4o",
-            temperature=0.5,
-            max_tokens=3000,
-            response_format="json",
-        ))
+        result = await direction_llm.complete(
+            LLMRequest(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                model="gpt-4o",
+                temperature=0.5,
+                max_tokens=3000,
+                response_format="json",
+            )
+        )
         total_cost += result.cost_usd
-        await _log_usage(req.content_id, "direction", result.provider, result.model,
-                         result.tokens_in, result.tokens_out, result.cost_usd, result.latency_ms)
+        await _log_usage(
+            req.content_id,
+            "direction",
+            result.provider,
+            result.model,
+            result.tokens_in,
+            result.tokens_out,
+            result.cost_usd,
+            result.latency_ms,
+        )
 
         try:
             direction_data = _parse_json(result.content)
@@ -299,7 +330,9 @@ async def generate_direction(req: DirectionRequest):
                     "animation": gpt_dir.get("animation", gpt_text_strategy.get("animation", "fade_in")),
                     "zoom_direction": gpt_camera.get("type", "") if "zoom" in gpt_camera.get("type", "") else "",
                     "text_position": gpt_text_strategy.get("position", gpt_dir.get("text_position", "center")),
-                    "emphasis_words": gpt_text_strategy.get("emphasis_words", gpt_dir.get("emphasis_words", script_emphasis)),
+                    "emphasis_words": gpt_text_strategy.get(
+                        "emphasis_words", gpt_dir.get("emphasis_words", script_emphasis)
+                    ),
                 },
                 "text_strategy": {
                     "primary_text": gpt_text_strategy.get("primary_text", text_overlay),
@@ -329,7 +362,9 @@ async def generate_direction(req: DirectionRequest):
                 },
                 "transition_in": {
                     "type": gpt_transition.get("type", f"{transition}" if transition != "cut" else "cut"),
-                    "preset": f"trans.{gpt_transition.get('type', transition)}" if gpt_transition.get('type', transition) != "cut" else "trans.cut",
+                    "preset": f"trans.{gpt_transition.get('type', transition)}"
+                    if gpt_transition.get("type", transition) != "cut"
+                    else "trans.cut",
                     "duration_ms": gpt_transition.get("duration_ms", gpt_dir.get("transition_duration_ms", 500)),
                 },
                 "visual_effects": gpt_dir.get("visual_effects", []),
@@ -391,9 +426,12 @@ async def generate_direction(req: DirectionRequest):
             direction_score -= missing_text * 0.3
             issues.append(f"{missing_text} segments missing text_strategy")
 
-        missing_emphasis = sum(1 for s in remotion_segments
-                               if not s.get("scene_overrides", {}).get("emphasis_words")
-                               and not s.get("text_strategy", {}).get("emphasis_words"))
+        missing_emphasis = sum(
+            1
+            for s in remotion_segments
+            if not s.get("scene_overrides", {}).get("emphasis_words")
+            and not s.get("text_strategy", {}).get("emphasis_words")
+        )
         if missing_emphasis > 0:
             direction_score -= missing_emphasis * 0.2
             issues.append(f"{missing_emphasis} segments missing emphasis_words")
@@ -409,7 +447,7 @@ async def generate_direction(req: DirectionRequest):
             issues.append(f"{no_motion} segments have no motion_design elements")
 
         presets = [s.get("scene_preset", "") for s in remotion_segments]
-        consecutive_repeats = sum(1 for i in range(1, len(presets)) if presets[i] == presets[i-1])
+        consecutive_repeats = sum(1 for i in range(1, len(presets)) if presets[i] == presets[i - 1])
         if consecutive_repeats > 0:
             direction_score -= consecutive_repeats * 0.3
             issues.append(f"{consecutive_repeats} consecutive scene_preset repeats")
@@ -424,23 +462,31 @@ async def generate_direction(req: DirectionRequest):
         direction_v3["direction_issues"] = issues
 
         await store_direction_features(
-            req.content_id, req.channel_id, direction_v3,
-            used_hint=False, llm_tokens=result.tokens_in + result.tokens_out)
+            req.content_id,
+            req.channel_id,
+            direction_v3,
+            used_hint=False,
+            llm_tokens=result.tokens_in + result.tokens_out,
+        )
 
         try:
             pool = await get_pool()
             await pool.execute(
-                "UPDATE videos SET v3_direction = $1, direction_score = $2, updated_at = NOW() "
-                "WHERE content_id = $3",
-                json.dumps(direction_v3), direction_score, req.content_id)
+                "UPDATE videos SET v3_direction = $1, direction_score = $2, updated_at = NOW() WHERE content_id = $3",
+                json.dumps(direction_v3),
+                direction_score,
+                req.content_id,
+            )
         except Exception as e:
             logger.warning("direction.db_update_failed", error=str(e))
 
-        logger.info("direction.completed",
-                     segments=len(remotion_segments),
-                     duration=total_duration_s,
-                     score=direction_score,
-                     cost=round(total_cost, 4))
+        logger.info(
+            "direction.completed",
+            segments=len(remotion_segments),
+            duration=total_duration_s,
+            score=direction_score,
+            cost=round(total_cost, 4),
+        )
 
         return ServiceResponse(
             status="success",
@@ -464,8 +510,7 @@ async def generate_direction(req: DirectionRequest):
 async def _load_config(key: str) -> str:
     try:
         pool = await get_pool()
-        row = await pool.fetchrow(
-            "SELECT config_value FROM system_config WHERE config_key = $1", key)
+        row = await pool.fetchrow("SELECT config_value FROM system_config WHERE config_key = $1", key)
         return row["config_value"] if row else ""
     except Exception:
         return ""

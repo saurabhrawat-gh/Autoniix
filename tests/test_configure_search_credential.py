@@ -6,14 +6,14 @@ Covers:
 - Wizard splits api_key → vault, no non-secret fields for serpapi
 - health_check uses self.api_key (not settings snapshot)
 """
-from __future__ import annotations
 
-import pytest
+from __future__ import annotations
 
 
 def test_serpapi_api_key_settable(monkeypatch):
     """SerpAPISearch.api_key can be overridden when settings value is empty."""
     import core.config as cfg
+
     monkeypatch.setattr(cfg.settings, "serpapi_key", "")
 
     from providers.search.serpapi_provider import SerpAPISearch
@@ -79,6 +79,7 @@ def test_wizard_credential_in_search():
 def test_serpapi_health_check_uses_instance_api_key(monkeypatch):
     """health_check URL uses self.api_key, not a stale settings value."""
     import core.config as cfg
+
     monkeypatch.setattr(cfg.settings, "serpapi_key", "")
 
     from providers.search.serpapi_provider import SerpAPISearch
@@ -94,12 +95,14 @@ def test_serpapi_health_check_uses_instance_api_key(monkeypatch):
 def test_instantiate_sets_serpapi_key(monkeypatch):
     """Full chain._instantiate path for serpapi injects key when settings is empty."""
     import core.config as cfg
+
     monkeypatch.setattr(cfg.settings, "serpapi_key", "")
+
+    from unittest.mock import patch
 
     import providers.boot  # noqa: F401
     from providers.chain import _instantiate
     from providers.registry import ProviderRegistry
-    from unittest.mock import patch
 
     registry = ProviderRegistry._registries.get("search", {})
     with patch("providers.chain.get_secret_at", return_value="vault-serpapi-key"):

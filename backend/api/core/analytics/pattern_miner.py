@@ -9,11 +9,11 @@ Uses statistical analysis to find:
 
 Intelligence cost: $0.00 — numpy + basic statistics, all local.
 """
+
 from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta
-from typing import Any
 
 import numpy as np
 import structlog
@@ -28,7 +28,8 @@ async def mine_performance_patterns(channel_id: str, niche: str = "") -> dict:
     try:
         pool = await get_pool()
 
-        rows = await pool.fetch("""
+        rows = await pool.fetch(
+            """
             SELECT fl.video_id, fl.title, fl.idea_score, fl.script_score,
                    fl.thumbnail_score, fl.hook_retention_score, fl.final_score,
                    fl.yt_views, fl.yt_likes, fl.yt_comments,
@@ -37,7 +38,9 @@ async def mine_performance_patterns(channel_id: str, niche: str = "") -> dict:
             FROM feedback_loop fl
             WHERE fl.channel_id = $1 AND fl.yt_views IS NOT NULL
             ORDER BY fl.created_at DESC LIMIT 100
-        """, channel_id)
+        """,
+            channel_id,
+        )
 
         if len(rows) < 5:
             return {"status": "insufficient_data", "videos_analyzed": len(rows)}
@@ -46,17 +49,19 @@ async def mine_performance_patterns(channel_id: str, niche: str = "") -> dict:
 
         patterns = {}
 
-        for score_key in ["idea_score", "script_score", "thumbnail_score",
-                          "hook_retention_score", "final_score"]:
+        for score_key in ["idea_score", "script_score", "thumbnail_score", "hook_retention_score", "final_score"]:
             scores = [float(v.get(score_key) or 0) for v in videos if v.get(score_key)]
             views = [int(v.get("yt_views") or 0) for v in videos if v.get(score_key)]
             if len(scores) >= 5 and len(views) >= 5:
-                correlation = float(np.corrcoef(scores[:len(views)], views[:len(scores)])[0][1])
+                correlation = float(np.corrcoef(scores[: len(views)], views[: len(scores)])[0][1])
                 if not np.isnan(correlation):
                     patterns[f"{score_key}_correlation"] = {
                         "correlation": round(correlation, 4),
-                        "strength": "strong" if abs(correlation) > 0.5 else
-                                   "moderate" if abs(correlation) > 0.3 else "weak",
+                        "strength": "strong"
+                        if abs(correlation) > 0.5
+                        else "moderate"
+                        if abs(correlation) > 0.3
+                        else "weak",
                         "samples": len(scores),
                     }
 
@@ -98,20 +103,22 @@ async def mine_performance_patterns(channel_id: str, niche: str = "") -> dict:
                 if std_views > 0:
                     z_score = (views - mean_views) / std_views
                     if abs(z_score) > 2.0:
-                        anomalies.append({
-                            "title": v.get("title", "")[:60],
-                            "views": views,
-                            "z_score": round(z_score, 2),
-                            "type": "overperformer" if z_score > 0 else "underperformer",
-                        })
+                        anomalies.append(
+                            {
+                                "title": v.get("title", "")[:60],
+                                "views": views,
+                                "z_score": round(z_score, 2),
+                                "type": "overperformer" if z_score > 0 else "underperformer",
+                            }
+                        )
             patterns["anomalies"] = anomalies
 
-        recent_30d = [v for v in videos
-                     if v.get("created_at") and
-                     v["created_at"] > datetime.utcnow() - timedelta(days=30)]
-        older_30d = [v for v in videos
-                    if v.get("created_at") and
-                    v["created_at"] <= datetime.utcnow() - timedelta(days=30)]
+        recent_30d = [
+            v for v in videos if v.get("created_at") and v["created_at"] > datetime.utcnow() - timedelta(days=30)
+        ]
+        older_30d = [
+            v for v in videos if v.get("created_at") and v["created_at"] <= datetime.utcnow() - timedelta(days=30)
+        ]
 
         if recent_30d and older_30d:
             recent_avg = np.mean([int(v.get("yt_views") or 0) for v in recent_30d])
@@ -120,8 +127,7 @@ async def mine_performance_patterns(channel_id: str, niche: str = "") -> dict:
                 trend = (recent_avg - older_avg) / older_avg
                 patterns["content_fatigue"] = {
                     "trend_pct": round(trend * 100, 1),
-                    "status": "declining" if trend < -0.2 else
-                             "stable" if abs(trend) <= 0.2 else "growing",
+                    "status": "declining" if trend < -0.2 else "stable" if abs(trend) <= 0.2 else "growing",
                     "recent_avg_views": round(recent_avg),
                     "older_avg_views": round(older_avg),
                 }
@@ -129,7 +135,8 @@ async def mine_performance_patterns(channel_id: str, niche: str = "") -> dict:
         for pattern_key, pattern_data in patterns.items():
             try:
                 confidence = 0.5 + min(0.5, len(videos) / 100)
-                await pool.execute("""
+                await pool.execute(
+                    """
                     INSERT INTO analytics_patterns (channel_id, pattern_type, pattern_key,
                         pattern_data, confidence, sample_count, last_validated)
                     VALUES ($1, 'performance', $2, $3, $4, $5, NOW())
@@ -139,13 +146,17 @@ async def mine_performance_patterns(channel_id: str, niche: str = "") -> dict:
                         sample_count = EXCLUDED.sample_count,
                         last_validated = NOW(),
                         updated_at = NOW()
-                """, channel_id, pattern_key, json.dumps(pattern_data, default=str),
-                    confidence, len(videos))
+                """,
+                    channel_id,
+                    pattern_key,
+                    json.dumps(pattern_data, default=str),
+                    confidence,
+                    len(videos),
+                )
             except Exception:
                 pass
 
-        logger.info("analytics.patterns_mined", channel_id=channel_id,
-                     patterns=len(patterns), videos=len(videos))
+        logger.info("analytics.patterns_mined", channel_id=channel_id, patterns=len(patterns), videos=len(videos))
 
         return {
             "status": "success",
@@ -162,12 +173,15 @@ async def get_channel_insights(channel_id: str) -> dict:
     """Get stored performance patterns and insights for a channel."""
     try:
         pool = await get_pool()
-        rows = await pool.fetch("""
+        rows = await pool.fetch(
+            """
             SELECT pattern_type, pattern_key, pattern_data, confidence, sample_count
             FROM analytics_patterns
             WHERE channel_id = $1
             ORDER BY confidence DESC
-        """, channel_id)
+        """,
+            channel_id,
+        )
 
         insights = {}
         for r in rows:

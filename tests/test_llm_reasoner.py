@@ -1,20 +1,17 @@
 """Unit tests for src/agents/llm_reasoner.py and the LLM decide path in
 BrainAgent. All LLM calls are mocked — no network, no DB."""
+
 from __future__ import annotations
 
 import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from agents.llm_reasoner import (
-    BRAIN_SYSTEM_PROMPT,
-    DECISION_JSON_SCHEMA,
     LLMReasoner,
 )
+
 from providers.llm.base import LLMResult
-
-
 
 
 def _llm_result(content: str) -> LLMResult:
@@ -120,6 +117,7 @@ class TestLLMReasonerReason:
 
     async def test_budget_exceeded_returns_none(self, reasoner):
         from llm.router import BudgetExceeded
+
         with patch(
             "agents.llm_reasoner.route",
             new=AsyncMock(side_effect=BudgetExceeded("ch1", 5.0, 1.0)),
@@ -129,6 +127,7 @@ class TestLLMReasonerReason:
 
     async def test_providers_exhausted_returns_none(self, reasoner):
         from llm.router import LadderExhausted
+
         with patch(
             "agents.llm_reasoner.route",
             new=AsyncMock(side_effect=LadderExhausted("llm", [("openai", "boom")])),
@@ -176,12 +175,11 @@ class TestLLMReasonerReason:
         assert out is None
 
 
-
-
 class TestBrainAgentLLMDecide:
     @pytest.fixture
     def signals(self):
         from services_api.brain.analyser import ChannelSignals
+
         return ChannelSignals(
             channel_id="ch1",
             avg_composite_score=4.0,
@@ -207,16 +205,18 @@ class TestBrainAgentLLMDecide:
             ),
             patch(
                 "services_api.brain.agent._write_decision",
-                new=AsyncMock(return_value={
-                    "id": 99,
-                    "decision_type": "HALT",
-                    "scope": "channel",
-                    "scope_id": "ch1",
-                    "directive": llm_payload["directive"],
-                    "reasoning": llm_payload["reasoning"],
-                    "confidence": 0.78,
-                    "context_summary": "ctx",
-                }),
+                new=AsyncMock(
+                    return_value={
+                        "id": 99,
+                        "decision_type": "HALT",
+                        "scope": "channel",
+                        "scope_id": "ch1",
+                        "directive": llm_payload["directive"],
+                        "reasoning": llm_payload["reasoning"],
+                        "confidence": 0.78,
+                        "context_summary": "ctx",
+                    }
+                ),
             ),
         ):
             decision = await _llm_decide_impl(BrainAgent(), signals, None, [])
@@ -259,6 +259,7 @@ class TestBrainAgentLLMDecide:
             "confidence": 0.9,
             "context_summary": "ctx",
         }
+
         async def _flag(key, default=None):
             return key == "brain.llm_reasoning.enabled"
 
@@ -273,11 +274,13 @@ class TestBrainAgentLLMDecide:
                 new=AsyncMock(return_value=rule_decision),
             ),
         ):
-            decision = await BrainAgent().decide({
-                "signals": signals,
-                "content_id": None,
-                "memories": [],
-            })
+            decision = await BrainAgent().decide(
+                {
+                    "signals": signals,
+                    "content_id": None,
+                    "memories": [],
+                }
+            )
 
         assert decision is not None
         assert decision.decision_type == "HALT"
@@ -310,11 +313,13 @@ class TestBrainAgentLLMDecide:
                 new=AsyncMock(return_value=rule_decision),
             ),
         ):
-            decision = await BrainAgent().decide({
-                "signals": signals,
-                "content_id": None,
-                "memories": [],
-            })
+            decision = await BrainAgent().decide(
+                {
+                    "signals": signals,
+                    "content_id": None,
+                    "memories": [],
+                }
+            )
 
         assert decision is not None
         assert decision.extras["reasoning_path"] == "rules"

@@ -8,6 +8,7 @@ Start with::
 
     python -m temporal_workers.run_production_v2
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -18,9 +19,17 @@ from temporalio.worker import Worker
 
 from core.config import settings
 from observability.sentry import init_sentry
+
 init_sentry("worker-production-v2")
 
 # Activities (same set as run_production.py)
+from src.temporal_workflows.brain_activities import brain_directive_check_activity
+
+from services_api.finishing.activity import finishing_activity
+from temporal_workers.activities.analytics import analytics_activity
+from temporal_workers.activities.assembly import assembly_activity
+from temporal_workers.activities.assets import assets_activity
+from temporal_workers.activities.brand import brand_activity
 from temporal_workers.activities.common import (
     acquire_channel_lock,
     check_system_status,
@@ -32,21 +41,15 @@ from temporal_workers.activities.common import (
     send_notification,
     update_video_status,
 )
+from temporal_workers.activities.delivery import compute_metadata_activity, delivery_activity
+from temporal_workers.activities.direction import direction_activity
+from temporal_workers.activities.editor import editor_activity
+from temporal_workers.activities.music import music_activity
+from temporal_workers.activities.render import render_activity
 from temporal_workers.activities.research import research_activity
 from temporal_workers.activities.script import script_activity, title_activity
-from temporal_workers.activities.voice import voice_activity
-from temporal_workers.activities.assets import assets_activity
 from temporal_workers.activities.thumbnail import thumbnail_activity
-from temporal_workers.activities.direction import direction_activity
-from temporal_workers.activities.music import music_activity
-from temporal_workers.activities.assembly import assembly_activity
-from services_api.finishing.activity import finishing_activity
-from temporal_workers.activities.render import render_activity
-from temporal_workers.activities.delivery import delivery_activity, compute_metadata_activity
-from temporal_workers.activities.analytics import analytics_activity
-from temporal_workers.activities.brand import brand_activity
-from temporal_workers.activities.editor import editor_activity
-from src.temporal_workflows.brain_activities import brain_directive_check_activity
+from temporal_workers.activities.voice import voice_activity
 
 # Python-ported workflow (Phase 4)
 from temporal_workers.workflows import VideoProductionWorkflow

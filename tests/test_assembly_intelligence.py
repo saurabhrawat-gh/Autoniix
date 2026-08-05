@@ -2,9 +2,8 @@
 
 Tests: render_predictor (complexity analysis, duration estimation, simplification)
 """
-from __future__ import annotations
 
-import pytest
+from __future__ import annotations
 
 from services_api.assembly.render_predictor import (
     compute_direction_complexity,
@@ -27,8 +26,13 @@ class TestComputeDirectionComplexity:
     def test_simple_direction(self):
         direction = {
             "segments": [
-                {"id": "s1", "duration_ms": 5000, "motion_design": {"elements": []},
-                 "visual_effects": [], "audio_cues": {"sfx": []}},
+                {
+                    "id": "s1",
+                    "duration_ms": 5000,
+                    "motion_design": {"elements": []},
+                    "visual_effects": [],
+                    "audio_cues": {"sfx": []},
+                },
             ],
         }
         result = compute_direction_complexity(direction)
@@ -81,7 +85,8 @@ class TestSimplifyDirectionForRetry:
         simplified = simplify_direction_for_retry(sample_direction_v3)
         for seg in simplified.get("segments", []):
             assert len(seg.get("visual_effects", [])) <= len(
-                sample_direction_v3["segments"][0].get("visual_effects", []))
+                sample_direction_v3["segments"][0].get("visual_effects", [])
+            )
 
     def test_preserves_segment_count(self, sample_direction_v3):
         simplified = simplify_direction_for_retry(sample_direction_v3)

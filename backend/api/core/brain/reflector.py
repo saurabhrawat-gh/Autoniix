@@ -23,6 +23,7 @@ new mapping is just a row in :data:`_PATTERN_TO_FLAG`.
 
 Part of AE-P1 / Agentic Foundation.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -41,6 +42,7 @@ logger = structlog.get_logger()
 @dataclass
 class Pattern:
     """One row of the per-decision_type aggregation."""
+
     decision_type: str
     sample_size: int
     avg_score: float
@@ -50,6 +52,7 @@ class Pattern:
 @dataclass
 class Proposal:
     """One proposed flag change. Persisted into ``brain_flag_proposals``."""
+
     flag_key: str
     current_payload: dict[str, Any] | None
     proposed_payload: dict[str, Any]
@@ -99,8 +102,6 @@ _PATTERN_TO_FLAG: dict[str, dict[str, Any]] = {
 }
 
 
-
-
 async def reflect_once(*, dry_run: bool = False) -> int:
     """Run a single reflection pass.
 
@@ -143,9 +144,7 @@ async def run_reflector_loop(
 
         if interval_s is None:
             try:
-                hours = await get_flag(
-                    "brain.reflector.interval_hours", default=24
-                )
+                hours = await get_flag("brain.reflector.interval_hours", default=24)
                 sleep_for = max(60, int(float(hours) * 3600))
             except Exception:
                 sleep_for = 24 * 3600
@@ -163,18 +162,10 @@ async def run_reflector_loop(
     logger.info("brain.reflector.stopped")
 
 
-
-
 async def _reflect(*, dry_run: bool) -> int:
-    min_sample_size = int(
-        await get_flag("brain.reflector.min_sample_size", default=5) or 5
-    )
-    score_threshold = float(
-        await get_flag("brain.reflector.score_threshold", default=4) or 4
-    )
-    lookback_days = int(
-        await get_flag("brain.reflector.lookback_days", default=14) or 14
-    )
+    min_sample_size = int(await get_flag("brain.reflector.min_sample_size", default=5) or 5)
+    score_threshold = float(await get_flag("brain.reflector.score_threshold", default=4) or 4)
+    lookback_days = int(await get_flag("brain.reflector.lookback_days", default=14) or 14)
 
     patterns = await _analyse_patterns(lookback_days=lookback_days)
     if not patterns:
@@ -190,9 +181,7 @@ async def _reflect(*, dry_run: bool) -> int:
             continue
         if pattern.avg_score >= score_threshold:
             continue
-        proposal = await _propose_for_pattern(
-            pattern, lookback_days=lookback_days
-        )
+        proposal = await _propose_for_pattern(pattern, lookback_days=lookback_days)
         if proposal is not None:
             proposals.append(proposal)
 
@@ -223,7 +212,8 @@ async def _reflect(*, dry_run: bool) -> int:
         except Exception as exc:
             logger.warning(
                 "brain.reflector.persist_failed",
-                flag_key=proposal.flag_key, error=str(exc),
+                flag_key=proposal.flag_key,
+                error=str(exc),
             )
 
     logger.info(
@@ -265,9 +255,7 @@ async def _analyse_patterns(*, lookback_days: int) -> list[Pattern]:
     ]
 
 
-async def _propose_for_pattern(
-    pattern: Pattern, *, lookback_days: int
-) -> Proposal | None:
+async def _propose_for_pattern(pattern: Pattern, *, lookback_days: int) -> Proposal | None:
     """Turn an under-performing pattern into a concrete flag proposal.
 
     Returns ``None`` if there is no mapping for the decision_type, the
@@ -286,7 +274,8 @@ async def _propose_for_pattern(
     current_value = (current or {}).get("value")
     if current_value is None:
         logger.warning(
-            "brain.reflector.flag_missing", flag_key=flag_key,
+            "brain.reflector.flag_missing",
+            flag_key=flag_key,
         )
         return None
 
@@ -295,14 +284,12 @@ async def _propose_for_pattern(
     except Exception as exc:
         logger.warning(
             "brain.reflector.next_value_failed",
-            flag_key=flag_key, error=str(exc),
+            flag_key=flag_key,
+            error=str(exc),
         )
         return None
 
-    if (
-        new_value < mapping["min_value"]
-        or new_value > mapping["max_value"]
-    ):
+    if new_value < mapping["min_value"] or new_value > mapping["max_value"]:
         logger.info(
             "brain.reflector.proposal_out_of_range",
             flag_key=flag_key,

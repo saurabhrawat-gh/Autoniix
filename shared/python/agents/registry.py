@@ -14,6 +14,7 @@ Why a registry rather than direct imports:
 
 Part of AE-P1 / Agentic Foundation.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

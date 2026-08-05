@@ -26,6 +26,7 @@ Run::
 
 Idempotent: ``ON CONFLICT DO NOTHING`` against (query_hash, provider, asset_url).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -59,17 +60,22 @@ def load_seed(seed_path: Path = SEED_FILE) -> dict[str, Any]:
         raise FileNotFoundError(f"seed catalog missing: {seed_path}")
     data = json.loads(seed_path.read_text("utf-8"))
     if data.get("schema_version") != 1:
-        raise ValueError(
-            f"seed catalog schema_version mismatch: expected 1, got {data.get('schema_version')!r}"
-        )
+        raise ValueError(f"seed catalog schema_version mismatch: expected 1, got {data.get('schema_version')!r}")
     assets = data.get("assets")
     if not isinstance(assets, list) or not assets:
         raise ValueError("seed catalog: 'assets' must be a non-empty list")
 
     required = {
-        "niche", "queries", "provider", "asset_url", "asset_type",
-        "duration_s", "resolution_width", "resolution_height",
-        "license_type", "tags",
+        "niche",
+        "queries",
+        "provider",
+        "asset_url",
+        "asset_type",
+        "duration_s",
+        "resolution_width",
+        "resolution_height",
+        "license_type",
+        "tags",
     }
     for i, a in enumerate(assets):
         missing = required - set(a)
@@ -95,23 +101,25 @@ def expand_to_rows(seed: dict[str, Any], niche: str | None = None) -> list[dict[
         if niche and a["niche"] != niche:
             continue
         for q in a["queries"]:
-            rows.append({
-                "query_hash": query_hash(q),
-                "query_text": q,
-                "provider": a["provider"],
-                "asset_url": a["asset_url"],
-                "asset_type": a["asset_type"],
-                "duration_s": float(a["duration_s"]),
-                "resolution_width": int(a["resolution_width"]),
-                "resolution_height": int(a["resolution_height"]),
-                "license_type": a["license_type"],
-                "tags": a["tags"],
-                # 6.5 means: above the 6.0 cache hit threshold (so reuses)
-                # but below typical Pexels/Pixabay scores (7.0+) so live
-                # search wins when free APIs are configured.
-                "quality_score": 6.5,
-                "relevance_score": 6.5,
-            })
+            rows.append(
+                {
+                    "query_hash": query_hash(q),
+                    "query_text": q,
+                    "provider": a["provider"],
+                    "asset_url": a["asset_url"],
+                    "asset_type": a["asset_type"],
+                    "duration_s": float(a["duration_s"]),
+                    "resolution_width": int(a["resolution_width"]),
+                    "resolution_height": int(a["resolution_height"]),
+                    "license_type": a["license_type"],
+                    "tags": a["tags"],
+                    # 6.5 means: above the 6.0 cache hit threshold (so reuses)
+                    # but below typical Pexels/Pixabay scores (7.0+) so live
+                    # search wins when free APIs are configured.
+                    "quality_score": 6.5,
+                    "relevance_score": 6.5,
+                }
+            )
     return rows
 
 
@@ -137,9 +145,10 @@ async def insert_rows(rows: list[dict[str, Any]]) -> int:
         # locking in production, but for the offline bootstrap a simple
         # "skip if exists" loop is sufficient and keeps the SQL simple.
         existing = await pool.fetchval(
-            "SELECT 1 FROM asset_library "
-            "WHERE query_hash = $1 AND provider = $2 AND asset_url = $3 LIMIT 1",
-            r["query_hash"], r["provider"], r["asset_url"],
+            "SELECT 1 FROM asset_library WHERE query_hash = $1 AND provider = $2 AND asset_url = $3 LIMIT 1",
+            r["query_hash"],
+            r["provider"],
+            r["asset_url"],
         )
         if existing:
             continue
@@ -151,10 +160,18 @@ async def insert_rows(rows: list[dict[str, Any]]) -> int:
                 quality_score, relevance_score, license_type, tags
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             """,
-            r["query_hash"], r["query_text"], r["provider"], r["asset_url"],
-            r["asset_type"], r["resolution_width"], r["resolution_height"],
-            r["duration_s"], r["quality_score"], r["relevance_score"],
-            r["license_type"], r["tags"],
+            r["query_hash"],
+            r["query_text"],
+            r["provider"],
+            r["asset_url"],
+            r["asset_type"],
+            r["resolution_width"],
+            r["resolution_height"],
+            r["duration_s"],
+            r["quality_score"],
+            r["relevance_score"],
+            r["license_type"],
+            r["tags"],
         )
         inserted += 1
     return inserted
@@ -177,6 +194,7 @@ async def validate_urls(rows: list[dict[str, Any]], timeout_s: float = 8.0) -> l
 
     bad: list[tuple[dict, str]] = []
     async with httpx.AsyncClient(timeout=timeout_s, follow_redirects=True) as client:
+
         async def _check(r: dict) -> None:
             try:
                 resp = await client.head(r["asset_url"])
@@ -195,12 +213,11 @@ async def validate_urls(rows: list[dict[str, Any]], timeout_s: float = 8.0) -> l
 def main() -> None:
     ap = argparse.ArgumentParser(description="Offline free-tier asset_library bootstrap")
     ap.add_argument("--niche", help="Limit to one niche (e.g. space, tech)")
-    ap.add_argument("--check", action="store_true",
-                    help="Parse + expand only; no DB writes")
-    ap.add_argument("--validate-urls", action="store_true",
-                    help="Also HEAD every asset_url and report unreachable rows")
-    ap.add_argument("--seed", default=str(SEED_FILE),
-                    help=f"Seed JSON path (default: {SEED_FILE})")
+    ap.add_argument("--check", action="store_true", help="Parse + expand only; no DB writes")
+    ap.add_argument(
+        "--validate-urls", action="store_true", help="Also HEAD every asset_url and report unreachable rows"
+    )
+    ap.add_argument("--seed", default=str(SEED_FILE), help=f"Seed JSON path (default: {SEED_FILE})")
     args = ap.parse_args()
 
     seed = load_seed(Path(args.seed))

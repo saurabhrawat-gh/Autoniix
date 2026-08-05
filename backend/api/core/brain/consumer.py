@@ -17,15 +17,15 @@ handles envelope-level validation).
 
 AE-P1 / Brain Service.
 """
+
 from __future__ import annotations
 
 import asyncio
-import json
 
 import structlog
-
 from events.bus import publish, subscribe
 from events.topics import Topic
+
 from core.flags import get_flag
 from services_api.brain.analyser import analyse_channel
 from services_api.brain.engine import evaluate
@@ -62,11 +62,9 @@ async def handle_pipeline_event(envelope: dict) -> None:
     use_agent = await get_flag("brain.memory_recall.enabled", default=False)
     if use_agent:
         from services_api.brain.agent import BrainAgent
-        await BrainAgent().run(
-            {"channel_id": channel_id, "content_id": content_id}
-        )
-        return
 
+        await BrainAgent().run({"channel_id": channel_id, "content_id": content_id})
+        return
 
     signals = await analyse_channel(channel_id)
     decision = await evaluate(signals, content_id=content_id)

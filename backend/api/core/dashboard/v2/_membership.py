@@ -12,6 +12,7 @@ user's *next* request gets HTTP 403 ``workspace_access_revoked``.
 Failures in Redis degrade gracefully to TTL-only refresh — the maximum
 window before revocation takes effect is then ``_TTL_SECONDS``.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -58,12 +59,12 @@ async def check_membership(user_id: int, workspace_id: int) -> bool:
         pool = await get_pool()
         row = await pool.fetchval(
             "SELECT 1 FROM workspace_members WHERE user_id=$1 AND workspace_id=$2",
-            user_id, workspace_id,
+            user_id,
+            workspace_id,
         )
         is_member = row is not None
     except Exception as exc:
-        logger.warning("membership.cache.db_error",
-                       user_id=user_id, workspace_id=workspace_id, error=str(exc))
+        logger.warning("membership.cache.db_error", user_id=user_id, workspace_id=workspace_id, error=str(exc))
         return True
 
     _cache[(user_id, workspace_id)] = (is_member, time.monotonic() + _TTL_SECONDS)
@@ -82,8 +83,7 @@ def invalidate(user_id: int | None = None, workspace_id: int | None = None) -> N
         logger.debug("membership.cache.cleared_all")
         return
     to_delete = [
-        k for k in _cache
-        if (user_id is None or k[0] == user_id) and (workspace_id is None or k[1] == workspace_id)
+        k for k in _cache if (user_id is None or k[0] == user_id) and (workspace_id is None or k[1] == workspace_id)
     ]
     for k in to_delete:
         del _cache[k]
@@ -95,11 +95,11 @@ async def publish_revoked(user_id: int, workspace_id: int) -> None:
     """Broadcast a membership-revoked event.  Best-effort; never raises."""
     try:
         from core.redis_client import get_redis
+
         redis = await get_redis()
         payload = json.dumps({"user_id": user_id, "workspace_id": workspace_id})
         await redis.publish(CHANNEL_NAME, payload)
-        logger.info("membership.revoked.published",
-                    user_id=user_id, workspace_id=workspace_id)
+        logger.info("membership.revoked.published", user_id=user_id, workspace_id=workspace_id)
     except Exception as exc:
         logger.warning("membership.revoked.publish_failed", error=str(exc))
 
@@ -126,6 +126,7 @@ async def _consume(pubsub: Any) -> None:
 
 async def _subscriber_loop() -> None:
     from core.redis_client import get_redis
+
     while True:
         try:
             redis = await get_redis()

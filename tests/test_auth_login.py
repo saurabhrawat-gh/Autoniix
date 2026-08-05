@@ -9,6 +9,7 @@ Covers:
 - TC-110-06: _verify_pw never raises — always returns bool (regression guard)
 - TC-110-07: Expired/missing refresh cookie → 401 on /refresh (login still shows error)
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -41,6 +42,7 @@ def _make_request(client_host: str = "127.0.0.1") -> Request:
 
 def _make_user(**overrides) -> FakeRecord:
     from services_api.dashboard.v2.auth import _hash_pw
+
     defaults = dict(
         id=1,
         email="admin@autoniix.com",
@@ -55,18 +57,19 @@ def _make_user(**overrides) -> FakeRecord:
     return FakeRecord(defaults)
 
 
-
 @pytest.mark.asyncio
 async def test_login_valid_credentials_returns_200_and_tokens():
-    from services_api.dashboard.v2.auth import login, LoginIn
+    from services_api.dashboard.v2.auth import LoginIn, login
 
     pool = FakePool()
     user = _make_user()
-    pool.fetchrow = AsyncMock(side_effect=[
-        user,
-        FakeRecord(active_workspace_id=1),
-        FakeRecord(role="owner"),
-    ])
+    pool.fetchrow = AsyncMock(
+        side_effect=[
+            user,
+            FakeRecord(active_workspace_id=1),
+            FakeRecord(role="owner"),
+        ]
+    )
     pool.execute = AsyncMock(return_value="INSERT 0 1")
 
     body = LoginIn(email="admin@autoniix.com", password="correct-password")
@@ -81,10 +84,9 @@ async def test_login_valid_credentials_returns_200_and_tokens():
     response.set_cookie.assert_called()
 
 
-
 @pytest.mark.asyncio
 async def test_login_wrong_password_raises_401():
-    from services_api.dashboard.v2.auth import login, LoginIn
+    from services_api.dashboard.v2.auth import LoginIn, login
 
     pool = FakePool()
     pool.fetchrow = AsyncMock(return_value=_make_user())
@@ -98,10 +100,9 @@ async def test_login_wrong_password_raises_401():
     assert "credentials" in exc_info.value.detail.lower()
 
 
-
 @pytest.mark.asyncio
 async def test_login_unknown_email_raises_401():
-    from services_api.dashboard.v2.auth import login, LoginIn
+    from services_api.dashboard.v2.auth import LoginIn, login
 
     pool = FakePool()
     pool.fetchrow = AsyncMock(return_value=None)
@@ -114,10 +115,9 @@ async def test_login_unknown_email_raises_401():
     assert exc_info.value.status_code == 401
 
 
-
 @pytest.mark.asyncio
 async def test_login_disabled_account_raises_401():
-    from services_api.dashboard.v2.auth import login, LoginIn
+    from services_api.dashboard.v2.auth import LoginIn, login
 
     pool = FakePool()
     pool.fetchrow = AsyncMock(return_value=_make_user(disabled=True))
@@ -130,10 +130,9 @@ async def test_login_disabled_account_raises_401():
     assert exc_info.value.status_code == 401
 
 
-
 @pytest.mark.asyncio
 async def test_login_null_password_hash_raises_401_not_500():
-    from services_api.dashboard.v2.auth import login, LoginIn
+    from services_api.dashboard.v2.auth import LoginIn, login
 
     pool = FakePool()
     pool.fetchrow = AsyncMock(return_value=_make_user(password_hash=None))
@@ -144,7 +143,6 @@ async def test_login_null_password_hash_raises_401_not_500():
             await login(request=_make_request(), body=body, response=MagicMock())
 
     assert exc_info.value.status_code == 401
-
 
 
 def test_verify_pw_never_raises_on_garbage_input():
@@ -161,7 +159,6 @@ def test_verify_pw_never_raises_on_garbage_input():
     for pw, hashed in bad_inputs:
         result = _verify_pw(pw, hashed or "")
         assert result is False, f"Expected False for pw={pw!r} hash={hashed!r}, got {result}"
-
 
 
 def test_hash_and_verify_roundtrip():

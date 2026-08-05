@@ -15,6 +15,7 @@ Signals:
 Queries:
 - ``get_status`` — current phase, cost, approval state, pause/cancel flags
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -28,9 +29,9 @@ from .types import (
     RETRY_FINISH,
     RETRY_RENDER,
     RETRY_STANDARD,
+    WORKFLOW_PHASES,
     VideoParams,
     VideoResult,
-    WORKFLOW_PHASES,
     add_cost,
     should_skip,
 )
@@ -201,9 +202,7 @@ class VideoProductionWorkflow:
             except Exception:  # noqa: BLE001
                 pass
 
-        async def complete_phase(
-            phase: str, cost: float, detail: dict[str, Any] | None
-        ) -> None:
+        async def complete_phase(phase: str, cost: float, detail: dict[str, Any] | None) -> None:
             try:
                 await workflow.execute_activity(
                     "emit_job_event",
@@ -273,9 +272,7 @@ class VideoProductionWorkflow:
                     research_data = saved.get("research_data") or {}
                     topic = saved.get("topic", topic)
                     title = saved.get("title", title)
-                    quality_scores["research_depth_score"] = float(
-                        saved.get("research_score", 7.0)
-                    )
+                    quality_scores["research_depth_score"] = float(saved.get("research_score", 7.0))
                 elif prev_phase == "brand_check":
                     brand_profile = saved.get("brand_profile") or {}
                 elif prev_phase == "scripting":
@@ -285,30 +282,20 @@ class VideoProductionWorkflow:
                     script_direction_data = saved.get("script_direction_data") or {}
                     segments = saved.get("segments") or []
                     final_title = saved.get("final_title", title)
-                    quality_scores["script_structure_score"] = float(
-                        saved.get("script_score", 7.0)
-                    )
-                    quality_scores["hook_retention_score"] = float(
-                        saved.get("hook_score", 7.0)
-                    )
+                    quality_scores["script_structure_score"] = float(saved.get("script_score", 7.0))
+                    quality_scores["hook_retention_score"] = float(saved.get("hook_score", 7.0))
                 elif prev_phase == "generating_voice":
                     voice_data = saved.get("voice_data") or {}
                     voice_segments_input = saved.get("voice_segments_input") or []
-                    quality_scores["voice_quality_score"] = float(
-                        saved.get("voice_score", 7.0)
-                    )
+                    quality_scores["voice_quality_score"] = float(saved.get("voice_score", 7.0))
                 elif prev_phase == "generating_assets":
                     assets_result = saved.get("assets_result") or {}
                     thumbnail_data = saved.get("thumbnail_data") or {}
                     music_data = saved.get("music_data") or {}
-                    quality_scores["thumbnail_score"] = float(
-                        saved.get("thumb_score", 7.0)
-                    )
+                    quality_scores["thumbnail_score"] = float(saved.get("thumb_score", 7.0))
                 elif prev_phase == "directing":
                     direction_v3 = saved.get("direction_v3") or {}
-                    quality_scores["direction_score"] = float(
-                        saved.get("dir_score", 7.0)
-                    )
+                    quality_scores["direction_score"] = float(saved.get("dir_score", 7.0))
                 elif prev_phase == "post_production":
                     dv3 = saved.get("direction_v3")
                     if dv3:
@@ -436,14 +423,10 @@ class VideoProductionWorkflow:
                 final_title = script_data.get("title", title)
                 script_score = float(script_data.get("script_structure_score", 7.0))
                 quality_scores["script_structure_score"] = script_score
-                quality_scores["hook_retention_score"] = float(
-                    script_data.get("hook_retention_score", 7.0)
-                )
+                quality_scores["hook_retention_score"] = float(script_data.get("hook_retention_score", 7.0))
                 if script_score < thresholds["script_structure_score"]:
                     log.warn("script score below target — proceeding", extra={"score": script_score})
-                await complete_phase(
-                    "scripting", 0.0, {"segments": len(segments), "score": script_score}
-                )
+                await complete_phase("scripting", 0.0, {"segments": len(segments), "score": script_score})
                 log.info("script done", extra={"segments": len(segments), "score": script_score})
                 await save_phase(
                     "scripting",
@@ -481,13 +464,9 @@ class VideoProductionWorkflow:
                         prosody = voice_prosody_segs[i]
                         if isinstance(prosody, dict):
                             seg_input["tts_params"] = prosody.get("tts_params") or {}
-                            seg_input["dominant_emotion"] = prosody.get(
-                                "dominant_emotion", ""
-                            )
+                            seg_input["dominant_emotion"] = prosody.get("dominant_emotion", "")
                             if not seg_input["emphasis_words"]:
-                                seg_input["emphasis_words"] = (
-                                    prosody.get("emphasis_words") or []
-                                )
+                                seg_input["emphasis_words"] = prosody.get("emphasis_words") or []
                     voice_segments_input.append(seg_input)
 
                 voice_result = await workflow.execute_activity(
@@ -551,9 +530,7 @@ class VideoProductionWorkflow:
                         intel = asset_intel_segs[i]
                         if isinstance(intel, dict):
                             seg_input["primary_query"] = intel.get("primary_query", "")
-                            seg_input["alternate_queries"] = (
-                                intel.get("alternate_queries") or []
-                            )
+                            seg_input["alternate_queries"] = intel.get("alternate_queries") or []
                             seg_input["shot_type"] = intel.get("shot_type", "")
                             seg_input["mood"] = intel.get("mood") or {}
                     assets_segments_input.append(seg_input)
@@ -617,9 +594,7 @@ class VideoProductionWorkflow:
                         raise thumb_settled
                     thumb_res = thumb_settled
                 else:
-                    assets_result, music_settled = await asyncio.gather(
-                        assets_task, music_task, return_exceptions=True
-                    )
+                    assets_result, music_settled = await asyncio.gather(assets_task, music_task, return_exceptions=True)
                     if isinstance(assets_result, BaseException):
                         raise assets_result
                     if isinstance(music_settled, BaseException):
@@ -657,12 +632,8 @@ class VideoProductionWorkflow:
                         "thumbnail score below target — proceeding",
                         extra={"score": thumb_score},
                     )
-                await complete_phase(
-                    "generating_assets", 0.0, {"thumb_score": thumb_score}
-                )
-                log.info(
-                    "assets + thumbnail + music done", extra={"thumb_score": thumb_score}
-                )
+                await complete_phase("generating_assets", 0.0, {"thumb_score": thumb_score})
+                log.info("assets + thumbnail + music done", extra={"thumb_score": thumb_score})
                 await save_phase(
                     "generating_assets",
                     {
@@ -707,9 +678,7 @@ class VideoProductionWorkflow:
                     log.warn("direction score below threshold", extra={"score": dir_score})
                 await complete_phase("directing", 0.0, {"score": dir_score})
                 log.info("direction done", extra={"score": dir_score})
-                await save_phase(
-                    "directing", {"direction_v3": direction_v3, "dir_score": dir_score}
-                )
+                await save_phase("directing", {"direction_v3": direction_v3, "dir_score": dir_score})
             await self._check_pause()
             self._check_brain()
 
@@ -764,9 +733,7 @@ class VideoProductionWorkflow:
                         "content_mode": params.content_mode,
                         "title": final_title,
                         "direction_v3": direction_v3,
-                        "thumbnail_url": (thumbnail_data.get("selected_thumbnail") or {}).get(
-                            "url", ""
-                        ),
+                        "thumbnail_url": (thumbnail_data.get("selected_thumbnail") or {}).get("url", ""),
                         "environment": env,
                     },
                     start_to_close_timeout=timedelta(hours=1),
@@ -777,9 +744,7 @@ class VideoProductionWorkflow:
                 video_url = assembly_data.get("video_url", "")
                 prod_score = float(assembly_data.get("production_score", 7.0))
                 quality_scores["production_score"] = prod_score
-                await complete_phase(
-                    "rendering", 0.0, {"video_url": video_url, "score": prod_score}
-                )
+                await complete_phase("rendering", 0.0, {"video_url": video_url, "score": prod_score})
                 log.info("render done", extra={"video_url": video_url, "score": prod_score})
                 await save_phase(
                     "rendering",
@@ -826,18 +791,14 @@ class VideoProductionWorkflow:
                     0.0,
                     {"skipped": fin_data.get("skipped"), "preset": fin_data.get("preset_used")},
                 )
-                await save_phase(
-                    "finishing", {"video_url": video_url, "finishing": fin_data}
-                )
+                await save_phase("finishing", {"video_url": video_url, "finishing": fin_data})
             else:
                 log.info("finishing skipped — no rendered video_url")
 
             # ── Composite quality score ────────────────────────────────────
             composite_score = 0.0
             if quality_scores:
-                composite_score = round(
-                    sum(quality_scores.values()) / len(quality_scores), 1
-                )
+                composite_score = round(sum(quality_scores.values()) / len(quality_scores), 1)
             quality_scores["composite_score"] = composite_score
             needs_human_review = (
                 composite_score < thresholds["composite_score"]
@@ -851,10 +812,7 @@ class VideoProductionWorkflow:
 
             if needs_human_review:
                 await set_phase("pending_review")
-                failed_gates = [
-                    k for k, v in quality_scores.items()
-                    if k in thresholds and v < thresholds[k]
-                ]
+                failed_gates = [k for k, v in quality_scores.items() if k in thresholds and v < thresholds[k]]
                 try:
                     await workflow.execute_activity(
                         "send_notification",
@@ -940,9 +898,7 @@ class VideoProductionWorkflow:
                             "description": description,
                             "tags": list(tags),
                             "video_url": video_url,
-                            "thumbnail_url": (
-                                thumbnail_data.get("selected_thumbnail") or {}
-                            ).get("url", ""),
+                            "thumbnail_url": (thumbnail_data.get("selected_thumbnail") or {}).get("url", ""),
                             "privacy_status": "private",
                             "is_short": params.content_mode == "short",
                             "quality_scores": quality_scores,

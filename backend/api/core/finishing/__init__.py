@@ -8,6 +8,7 @@ Public surface:
     - ``lut_registry``        7 built-in LUT presets + MinIO key / preview helpers
     - ``ffmpeg_finisher``     pure ffmpeg pipeline builder + two-pass loudnorm runner
 """
+
 from __future__ import annotations
 
 from . import lut_registry  # noqa: F401

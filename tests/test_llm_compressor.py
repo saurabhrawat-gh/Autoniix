@@ -8,11 +8,10 @@ Covers:
 - Router integration (compression applied transparently)
 - Graceful degradation when llmlingua is not installed
 """
+
 from __future__ import annotations
 
 import pytest
-
-from providers.llm.base import LLMRequest
 from llm.compressor import (
     CompressionStats,
     PromptCompressor,
@@ -23,6 +22,7 @@ from llm.compressor import (
     compress_request,
 )
 
+from providers.llm.base import LLMRequest
 
 
 class TestTokenEstimation:
@@ -57,15 +57,17 @@ class TestTokenEstimation:
         """Multimodal content with image parts should only count text."""
         req = LLMRequest(
             messages=[
-                {"role": "user", "content": [
-                    {"type": "text", "text": "Describe this image."},
-                    {"type": "image_url", "image_url": {"url": "https://example.com/img.png"}},
-                ]},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Describe this image."},
+                        {"type": "image_url", "image_url": {"url": "https://example.com/img.png"}},
+                    ],
+                },
             ],
         )
         tokens = _estimate_request_tokens(req)
         assert tokens > 0
-
 
 
 class TestContextPruning:
@@ -112,7 +114,6 @@ class TestContextPruning:
         assert req.messages[0]["content"] == original_content
 
 
-
 class TestCacheMarkers:
     def test_add_cache_markers_claude(self):
         req = LLMRequest(
@@ -149,7 +150,6 @@ class TestCacheMarkers:
         )
         marked = _add_cache_markers(req)
         assert "cache_control" in marked.messages[0]
-
 
 
 class TestPromptCompressor:
@@ -210,7 +210,6 @@ class TestPromptCompressor:
         assert comp.tier == "off"
 
 
-
 class TestCompressionStats:
     def test_reduction_ratio(self):
         stats = CompressionStats(
@@ -230,7 +229,6 @@ class TestCompressionStats:
         )
         assert stats.reduction_ratio == 1.0
         assert stats.savings_pct == 0.0
-
 
 
 class TestCompressRequest:
@@ -256,39 +254,58 @@ class TestCompressRequest:
         assert stats.savings_pct >= 0
 
 
-
 class TestRouterCompressionIntegration:
     """Verify the router applies compression transparently."""
 
     @pytest.mark.asyncio
     async def test_router_passes_compression_stats(self, monkeypatch):
         """When compression is enabled, the result should carry CompressionStats."""
+        from llm.router import Router
+
         from providers.llm.base import LLMProvider, LLMRequest, LLMResult
         from providers.registry import ProviderRegistry
-        from llm.router import Router
 
         class _FakeOK(LLMProvider):
             async def complete(self, request: LLMRequest) -> LLMResult:
                 return LLMResult(
-                    content='{"ok": true}', model="fake", tokens_in=10,
-                    tokens_out=5, cost_usd=0.0001, provider="fake_ok", latency_ms=1,
+                    content='{"ok": true}',
+                    model="fake",
+                    tokens_in=10,
+                    tokens_out=5,
+                    cost_usd=0.0001,
+                    provider="fake_ok",
+                    latency_ms=1,
                 )
-            def estimate_cost(self, *a, **kw): return 0.0
-            async def health_check(self): return True
-            def provider_name(self): return "fake_ok"
-            def default_model(self): return "fake"
-            def supported_models(self): return ["fake"]
+
+            def estimate_cost(self, *a, **kw):
+                return 0.0
+
+            async def health_check(self):
+                return True
+
+            def provider_name(self):
+                return "fake_ok"
+
+            def default_model(self):
+                return "fake"
+
+            def supported_models(self):
+                return ["fake"]
 
         ProviderRegistry.register("llm", "fake_ok", _FakeOK)
 
         async def _async_cap(*a, **kw):
             return 0.0
+
         async def _async_spent(*a, **kw):
             return 0.0
+
         async def _async_chain_pairs(*a, **kw):
             return []
+
         async def _async_record(*a, **kw):
             return None
+
         monkeypatch.setattr("llm.router._cap_for", _async_cap)
         monkeypatch.setattr("llm.router._spent_today", _async_spent)
         monkeypatch.setattr("llm.router._db_chain_pairs", _async_chain_pairs)
@@ -314,32 +331,52 @@ class TestRouterCompressionIntegration:
     @pytest.mark.asyncio
     async def test_router_off_tier_no_compression(self, monkeypatch):
         """When compression is off, result.compression should be None."""
+        from llm.router import Router
+
         from providers.llm.base import LLMProvider, LLMRequest, LLMResult
         from providers.registry import ProviderRegistry
-        from llm.router import Router
 
         class _FakeOK(LLMProvider):
             async def complete(self, request: LLMRequest) -> LLMResult:
                 return LLMResult(
-                    content='{"ok": true}', model="fake", tokens_in=10,
-                    tokens_out=5, cost_usd=0.0001, provider="fake_ok", latency_ms=1,
+                    content='{"ok": true}',
+                    model="fake",
+                    tokens_in=10,
+                    tokens_out=5,
+                    cost_usd=0.0001,
+                    provider="fake_ok",
+                    latency_ms=1,
                 )
-            def estimate_cost(self, *a, **kw): return 0.0
-            async def health_check(self): return True
-            def provider_name(self): return "fake_ok"
-            def default_model(self): return "fake"
-            def supported_models(self): return ["fake"]
+
+            def estimate_cost(self, *a, **kw):
+                return 0.0
+
+            async def health_check(self):
+                return True
+
+            def provider_name(self):
+                return "fake_ok"
+
+            def default_model(self):
+                return "fake"
+
+            def supported_models(self):
+                return ["fake"]
 
         ProviderRegistry.register("llm", "fake_ok2", _FakeOK)
 
         async def _async_cap(*a, **kw):
             return 0.0
+
         async def _async_spent(*a, **kw):
             return 0.0
+
         async def _async_chain_pairs(*a, **kw):
             return []
+
         async def _async_record(*a, **kw):
             return None
+
         monkeypatch.setattr("llm.router._cap_for", _async_cap)
         monkeypatch.setattr("llm.router._spent_today", _async_spent)
         monkeypatch.setattr("llm.router._db_chain_pairs", _async_chain_pairs)
