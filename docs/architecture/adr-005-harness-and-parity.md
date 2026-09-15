@@ -66,15 +66,15 @@ TODO — remove the ignore when cleaned up.
 
 ## Consequences
 
-+  Local `make pre-deploy` green ⇒ CI green (target: ≥99% reliability).
-+  New CI jobs must be added in both `ci.yml` and `ci-local.sh` — enforced by
-   code review of PRs that touch either file.
-+  The `harness/all-green` single-check pattern makes branch protection
-   trivial to configure and reason about.
-−  The dockerized `pre-deploy` adds 3-5 min to push flow on `develop`/`main`.
-   Acceptable given the assurance it provides.
-−  Ratcheting ruff rules is manual — a nightly job could be added later to
-   propose the next rule to enable.
+- Local `make pre-deploy` green ⇒ CI green (target: ≥99% reliability).
+- New CI jobs must be added in both `ci.yml` and `ci-local.sh` — enforced by
+  code review of PRs that touch either file.
+- The `harness/all-green` single-check pattern makes branch protection
+  trivial to configure and reason about.
+  − The dockerized `pre-deploy` adds 3-5 min to push flow on `develop`/`main`.
+  Acceptable given the assurance it provides.
+  − Ratcheting ruff rules is manual — a nightly job could be added later to
+  propose the next rule to enable.
 
 ## Verification
 

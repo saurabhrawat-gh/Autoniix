@@ -17,9 +17,7 @@ export interface ListAnimationProps {
 
 const BULLETS: Record<BulletStyle, (i: number, accent: string) => React.ReactNode> = {
   check: (_i, a) => <span style={{ color: a, marginRight: 24 }}>✓</span>,
-  number: (i, a) => (
-    <span style={{ color: a, marginRight: 24, fontWeight: 900 }}>{i + 1}.</span>
-  ),
+  number: (i, a) => <span style={{ color: a, marginRight: 24, fontWeight: 900 }}>{i + 1}.</span>,
   dot: (_i, a) => <span style={{ color: a, marginRight: 24 }}>•</span>,
   arrow: (_i, a) => <span style={{ color: a, marginRight: 24 }}>→</span>,
 };

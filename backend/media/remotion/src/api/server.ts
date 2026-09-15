@@ -50,7 +50,10 @@ app.post("/api/render", async (req, res) => {
         estimatedDuration: 180,
       });
     }
-    logger.warn({ renderId, issues: parsed.error.issues }, "scene-graph dispatch fallback: direction-v3 parse failed");
+    logger.warn(
+      { renderId, issues: parsed.error.issues },
+      "scene-graph dispatch fallback: direction-v3 parse failed",
+    );
   }
 
   const data: RenderJobData = {

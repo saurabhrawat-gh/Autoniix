@@ -30,7 +30,6 @@ concurrency:
 #   direct pushes to main are rejected by the `guard` job.
 
 jobs:
-
   # ─── Gate 1: push provenance ──────────────────────────────────────────────
   guard:
     name: Guard — main only from develop

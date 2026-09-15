@@ -4,15 +4,15 @@ const ConfigSchema = z.object({
   nodeEnv: z.enum(["development", "production", "test"]).default("development"),
   port: z.coerce.number().int().min(1).max(65535).default(8080),
   logLevel: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
-  
+
   databaseUrl: z.string().url(),
-  
+
   jwtSecret: z.string().min(32),
   jwtExpiresIn: z.string().default("15m"),
   refreshTokenExpiresIn: z.string().default("7d"),
-  
+
   corsOrigin: z.string().default("http://localhost:3000"),
-  
+
   rateLimitMax: z.coerce.number().int().min(1).default(100),
   rateLimitWindow: z.coerce.number().int().min(1000).default(60000),
 });

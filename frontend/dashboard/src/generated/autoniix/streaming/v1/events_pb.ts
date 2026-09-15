@@ -13,8 +13,12 @@ import type { Message } from "@bufbuild/protobuf";
 /**
  * Describes the file autoniix/streaming/v1/events.proto.
  */
-export const file_autoniix_streaming_v1_events: GenFile = /*@__PURE__*/
-  fileDesc("CiJhdXRvbmlpeC9zdHJlYW1pbmcvdjEvZXZlbnRzLnByb3RvEhVhdXRvbmlpeC5zdHJlYW1pbmcudjEibgoQU3Vic2NyaWJlUmVxdWVzdBIUCgx3b3Jrc3BhY2VfaWQYASABKAkSEwoLZXZlbnRfdHlwZXMYAiADKAkSFQoNbGFzdF9ldmVudF9pZBgDIAEoCRIYChByZXBsYXlfZnJvbV9sYXN0GAQgASgIIj0KDlB1Ymxpc2hSZXF1ZXN0EisKBWV2ZW50GAEgASgLMhwuYXV0b25paXguc3RyZWFtaW5nLnYxLkV2ZW50Ij0KEkFja25vd2xlZGdlUmVxdWVzdBIQCghldmVudF9pZBgBIAEoCRIVCg1zdWJzY3JpYmVyX2lkGAIgASgJIuUCCgVFdmVudBIKCgJpZBgBIAEoCRIMCgR0eXBlGAIgASgJEhQKDHdvcmtzcGFjZV9pZBgDIAEoCRItCgl0aW1lc3RhbXAYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjQKCWpvYl9ldmVudBgFIAEoCzIfLmF1dG9uaWl4LnN0cmVhbWluZy52MS5Kb2JFdmVudEgAEjgKC3ZpZGVvX2V2ZW50GAYgASgLMiEuYXV0b25paXguc3RyZWFtaW5nLnYxLlZpZGVvRXZlbnRIABI6CgxzeXN0ZW1fZXZlbnQYByABKAsyIi5hdXRvbmlpeC5zdHJlYW1pbmcudjEuU3lzdGVtRXZlbnRIABJGChJub3RpZmljYXRpb25fZXZlbnQYCCABKAsyKC5hdXRvbmlpeC5zdHJlYW1pbmcudjEuTm90aWZpY2F0aW9uRXZlbnRIAEIJCgdwYXlsb2FkIoMBCghKb2JFdmVudBIOCgZqb2JfaWQYASABKAkSLQoGc3RhdHVzGAIgASgOMh0uYXV0b25paXguY29tbW9uLnYxLkpvYlN0YXR1cxINCgVzdGFnZRgDIAEoCRIYChBwcm9ncmVzc19wZXJjZW50GAQgASgBEg8KB21lc3NhZ2UYBSABKAkiogEKClZpZGVvRXZlbnQSEAoIdmlkZW9faWQYASABKAkSDgoGYWN0aW9uGAIgASgJEkEKCG1ldGFkYXRhGAMgAygLMi8uYXV0b25paXguc3RyZWFtaW5nLnYxLlZpZGVvRXZlbnQuTWV0YWRhdGFFbnRyeRovCg1NZXRhZGF0YUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEisgEKC1N5c3RlbUV2ZW50EhEKCWNvbXBvbmVudBgBIAEoCRINCgVsZXZlbBgCIAEoCRIPCgdtZXNzYWdlGAMgASgJEkAKB2RldGFpbHMYBCADKAsyLy5hdXRvbmlpeC5zdHJlYW1pbmcudjEuU3lzdGVtRXZlbnQuRGV0YWlsc0VudHJ5Gi4KDERldGFpbHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIlkKEU5vdGlmaWNhdGlvbkV2ZW50Eg0KBXRpdGxlGAEgASgJEg8KB21lc3NhZ2UYAiABKAkSEAoIc2V2ZXJpdHkYAyABKAkSEgoKYWN0aW9uX3VybBgEIAEoCTKMAgoSRXZlbnRTdHJlYW1TZXJ2aWNlElQKCVN1YnNjcmliZRInLmF1dG9uaWl4LnN0cmVhbWluZy52MS5TdWJzY3JpYmVSZXF1ZXN0GhwuYXV0b25paXguc3RyZWFtaW5nLnYxLkV2ZW50MAESSwoHUHVibGlzaBIlLmF1dG9uaWl4LnN0cmVhbWluZy52MS5QdWJsaXNoUmVxdWVzdBoZLmF1dG9uaWl4LmNvbW1vbi52MS5FbXB0eRJTCgtBY2tub3dsZWRnZRIpLmF1dG9uaWl4LnN0cmVhbWluZy52MS5BY2tub3dsZWRnZVJlcXVlc3QaGS5hdXRvbmlpeC5jb21tb24udjEuRW1wdHlC5QEKGWNvbS5hdXRvbmlpeC5zdHJlYW1pbmcudjFCC0V2ZW50c1Byb3RvUAFaRWdpdGh1Yi5jb20vYXV0b25paXgvYXV0b25paXgvZ2VuL2dvL2F1dG9uaWl4L3N0cmVhbWluZy92MTtzdHJlYW1pbmd2MaICA0FTWKoCFUF1dG9uaWl4LlN0cmVhbWluZy5WMcoCFUF1dG9uaWl4XFN0cmVhbWluZ1xWMeICIUF1dG9uaWl4XFN0cmVhbWluZ1xWMVxHUEJNZXRhZGF0YeoCF0F1dG9uaWl4OjpTdHJlYW1pbmc6OlYxYgZwcm90bzM", [file_autoniix_common_v1_common, file_google_protobuf_timestamp]);
+export const file_autoniix_streaming_v1_events: GenFile =
+  /*@__PURE__*/
+  fileDesc(
+    "CiJhdXRvbmlpeC9zdHJlYW1pbmcvdjEvZXZlbnRzLnByb3RvEhVhdXRvbmlpeC5zdHJlYW1pbmcudjEibgoQU3Vic2NyaWJlUmVxdWVzdBIUCgx3b3Jrc3BhY2VfaWQYASABKAkSEwoLZXZlbnRfdHlwZXMYAiADKAkSFQoNbGFzdF9ldmVudF9pZBgDIAEoCRIYChByZXBsYXlfZnJvbV9sYXN0GAQgASgIIj0KDlB1Ymxpc2hSZXF1ZXN0EisKBWV2ZW50GAEgASgLMhwuYXV0b25paXguc3RyZWFtaW5nLnYxLkV2ZW50Ij0KEkFja25vd2xlZGdlUmVxdWVzdBIQCghldmVudF9pZBgBIAEoCRIVCg1zdWJzY3JpYmVyX2lkGAIgASgJIuUCCgVFdmVudBIKCgJpZBgBIAEoCRIMCgR0eXBlGAIgASgJEhQKDHdvcmtzcGFjZV9pZBgDIAEoCRItCgl0aW1lc3RhbXAYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjQKCWpvYl9ldmVudBgFIAEoCzIfLmF1dG9uaWl4LnN0cmVhbWluZy52MS5Kb2JFdmVudEgAEjgKC3ZpZGVvX2V2ZW50GAYgASgLMiEuYXV0b25paXguc3RyZWFtaW5nLnYxLlZpZGVvRXZlbnRIABI6CgxzeXN0ZW1fZXZlbnQYByABKAsyIi5hdXRvbmlpeC5zdHJlYW1pbmcudjEuU3lzdGVtRXZlbnRIABJGChJub3RpZmljYXRpb25fZXZlbnQYCCABKAsyKC5hdXRvbmlpeC5zdHJlYW1pbmcudjEuTm90aWZpY2F0aW9uRXZlbnRIAEIJCgdwYXlsb2FkIoMBCghKb2JFdmVudBIOCgZqb2JfaWQYASABKAkSLQoGc3RhdHVzGAIgASgOMh0uYXV0b25paXguY29tbW9uLnYxLkpvYlN0YXR1cxINCgVzdGFnZRgDIAEoCRIYChBwcm9ncmVzc19wZXJjZW50GAQgASgBEg8KB21lc3NhZ2UYBSABKAkiogEKClZpZGVvRXZlbnQSEAoIdmlkZW9faWQYASABKAkSDgoGYWN0aW9uGAIgASgJEkEKCG1ldGFkYXRhGAMgAygLMi8uYXV0b25paXguc3RyZWFtaW5nLnYxLlZpZGVvRXZlbnQuTWV0YWRhdGFFbnRyeRovCg1NZXRhZGF0YUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEisgEKC1N5c3RlbUV2ZW50EhEKCWNvbXBvbmVudBgBIAEoCRINCgVsZXZlbBgCIAEoCRIPCgdtZXNzYWdlGAMgASgJEkAKB2RldGFpbHMYBCADKAsyLy5hdXRvbmlpeC5zdHJlYW1pbmcudjEuU3lzdGVtRXZlbnQuRGV0YWlsc0VudHJ5Gi4KDERldGFpbHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIlkKEU5vdGlmaWNhdGlvbkV2ZW50Eg0KBXRpdGxlGAEgASgJEg8KB21lc3NhZ2UYAiABKAkSEAoIc2V2ZXJpdHkYAyABKAkSEgoKYWN0aW9uX3VybBgEIAEoCTKMAgoSRXZlbnRTdHJlYW1TZXJ2aWNlElQKCVN1YnNjcmliZRInLmF1dG9uaWl4LnN0cmVhbWluZy52MS5TdWJzY3JpYmVSZXF1ZXN0GhwuYXV0b25paXguc3RyZWFtaW5nLnYxLkV2ZW50MAESSwoHUHVibGlzaBIlLmF1dG9uaWl4LnN0cmVhbWluZy52MS5QdWJsaXNoUmVxdWVzdBoZLmF1dG9uaWl4LmNvbW1vbi52MS5FbXB0eRJTCgtBY2tub3dsZWRnZRIpLmF1dG9uaWl4LnN0cmVhbWluZy52MS5BY2tub3dsZWRnZVJlcXVlc3QaGS5hdXRvbmlpeC5jb21tb24udjEuRW1wdHlC5QEKGWNvbS5hdXRvbmlpeC5zdHJlYW1pbmcudjFCC0V2ZW50c1Byb3RvUAFaRWdpdGh1Yi5jb20vYXV0b25paXgvYXV0b25paXgvZ2VuL2dvL2F1dG9uaWl4L3N0cmVhbWluZy92MTtzdHJlYW1pbmd2MaICA0FTWKoCFUF1dG9uaWl4LlN0cmVhbWluZy5WMcoCFUF1dG9uaWl4XFN0cmVhbWluZ1xWMeICIUF1dG9uaWl4XFN0cmVhbWluZ1xWMVxHUEJNZXRhZGF0YeoCF0F1dG9uaWl4OjpTdHJlYW1pbmc6OlYxYgZwcm90bzM",
+    [file_autoniix_common_v1_common, file_google_protobuf_timestamp]
+  );
 
 /**
  * @generated from message autoniix.streaming.v1.SubscribeRequest
@@ -45,7 +49,8 @@ export type SubscribeRequest = Message<"autoniix.streaming.v1.SubscribeRequest">
  * Describes the message autoniix.streaming.v1.SubscribeRequest.
  * Use `create(SubscribeRequestSchema)` to create a new message.
  */
-export const SubscribeRequestSchema: GenMessage<SubscribeRequest> = /*@__PURE__*/
+export const SubscribeRequestSchema: GenMessage<SubscribeRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_streaming_v1_events, 0);
 
 /**
@@ -62,7 +67,8 @@ export type PublishRequest = Message<"autoniix.streaming.v1.PublishRequest"> & {
  * Describes the message autoniix.streaming.v1.PublishRequest.
  * Use `create(PublishRequestSchema)` to create a new message.
  */
-export const PublishRequestSchema: GenMessage<PublishRequest> = /*@__PURE__*/
+export const PublishRequestSchema: GenMessage<PublishRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_streaming_v1_events, 1);
 
 /**
@@ -84,7 +90,8 @@ export type AcknowledgeRequest = Message<"autoniix.streaming.v1.AcknowledgeReque
  * Describes the message autoniix.streaming.v1.AcknowledgeRequest.
  * Use `create(AcknowledgeRequestSchema)` to create a new message.
  */
-export const AcknowledgeRequestSchema: GenMessage<AcknowledgeRequest> = /*@__PURE__*/
+export const AcknowledgeRequestSchema: GenMessage<AcknowledgeRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_streaming_v1_events, 2);
 
 /**
@@ -114,39 +121,43 @@ export type Event = Message<"autoniix.streaming.v1.Event"> & {
   /**
    * @generated from oneof autoniix.streaming.v1.Event.payload
    */
-  payload: {
-    /**
-     * @generated from field: autoniix.streaming.v1.JobEvent job_event = 5;
-     */
-    value: JobEvent;
-    case: "jobEvent";
-  } | {
-    /**
-     * @generated from field: autoniix.streaming.v1.VideoEvent video_event = 6;
-     */
-    value: VideoEvent;
-    case: "videoEvent";
-  } | {
-    /**
-     * @generated from field: autoniix.streaming.v1.SystemEvent system_event = 7;
-     */
-    value: SystemEvent;
-    case: "systemEvent";
-  } | {
-    /**
-     * @generated from field: autoniix.streaming.v1.NotificationEvent notification_event = 8;
-     */
-    value: NotificationEvent;
-    case: "notificationEvent";
-  } | { case: undefined; value?: undefined };
+  payload:
+    | {
+        /**
+         * @generated from field: autoniix.streaming.v1.JobEvent job_event = 5;
+         */
+        value: JobEvent;
+        case: "jobEvent";
+      }
+    | {
+        /**
+         * @generated from field: autoniix.streaming.v1.VideoEvent video_event = 6;
+         */
+        value: VideoEvent;
+        case: "videoEvent";
+      }
+    | {
+        /**
+         * @generated from field: autoniix.streaming.v1.SystemEvent system_event = 7;
+         */
+        value: SystemEvent;
+        case: "systemEvent";
+      }
+    | {
+        /**
+         * @generated from field: autoniix.streaming.v1.NotificationEvent notification_event = 8;
+         */
+        value: NotificationEvent;
+        case: "notificationEvent";
+      }
+    | { case: undefined; value?: undefined };
 };
 
 /**
  * Describes the message autoniix.streaming.v1.Event.
  * Use `create(EventSchema)` to create a new message.
  */
-export const EventSchema: GenMessage<Event> = /*@__PURE__*/
-  messageDesc(file_autoniix_streaming_v1_events, 3);
+export const EventSchema: GenMessage<Event> = /*@__PURE__*/ messageDesc(file_autoniix_streaming_v1_events, 3);
 
 /**
  * @generated from message autoniix.streaming.v1.JobEvent
@@ -182,8 +193,7 @@ export type JobEvent = Message<"autoniix.streaming.v1.JobEvent"> & {
  * Describes the message autoniix.streaming.v1.JobEvent.
  * Use `create(JobEventSchema)` to create a new message.
  */
-export const JobEventSchema: GenMessage<JobEvent> = /*@__PURE__*/
-  messageDesc(file_autoniix_streaming_v1_events, 4);
+export const JobEventSchema: GenMessage<JobEvent> = /*@__PURE__*/ messageDesc(file_autoniix_streaming_v1_events, 4);
 
 /**
  * @generated from message autoniix.streaming.v1.VideoEvent
@@ -209,8 +219,7 @@ export type VideoEvent = Message<"autoniix.streaming.v1.VideoEvent"> & {
  * Describes the message autoniix.streaming.v1.VideoEvent.
  * Use `create(VideoEventSchema)` to create a new message.
  */
-export const VideoEventSchema: GenMessage<VideoEvent> = /*@__PURE__*/
-  messageDesc(file_autoniix_streaming_v1_events, 5);
+export const VideoEventSchema: GenMessage<VideoEvent> = /*@__PURE__*/ messageDesc(file_autoniix_streaming_v1_events, 5);
 
 /**
  * @generated from message autoniix.streaming.v1.SystemEvent
@@ -241,7 +250,8 @@ export type SystemEvent = Message<"autoniix.streaming.v1.SystemEvent"> & {
  * Describes the message autoniix.streaming.v1.SystemEvent.
  * Use `create(SystemEventSchema)` to create a new message.
  */
-export const SystemEventSchema: GenMessage<SystemEvent> = /*@__PURE__*/
+export const SystemEventSchema: GenMessage<SystemEvent> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_streaming_v1_events, 6);
 
 /**
@@ -273,7 +283,8 @@ export type NotificationEvent = Message<"autoniix.streaming.v1.NotificationEvent
  * Describes the message autoniix.streaming.v1.NotificationEvent.
  * Use `create(NotificationEventSchema)` to create a new message.
  */
-export const NotificationEventSchema: GenMessage<NotificationEvent> = /*@__PURE__*/
+export const NotificationEventSchema: GenMessage<NotificationEvent> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_streaming_v1_events, 7);
 
 /**
@@ -287,7 +298,7 @@ export const EventStreamService: GenService<{
     methodKind: "server_streaming";
     input: typeof SubscribeRequestSchema;
     output: typeof EventSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.streaming.v1.EventStreamService.Publish
    */
@@ -295,7 +306,7 @@ export const EventStreamService: GenService<{
     methodKind: "unary";
     input: typeof PublishRequestSchema;
     output: typeof EmptySchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.streaming.v1.EventStreamService.Acknowledge
    */
@@ -303,7 +314,5 @@ export const EventStreamService: GenService<{
     methodKind: "unary";
     input: typeof AcknowledgeRequestSchema;
     output: typeof EmptySchema;
-  },
-}> = /*@__PURE__*/
-  serviceDesc(file_autoniix_streaming_v1_events, 0);
-
+  };
+}> = /*@__PURE__*/ serviceDesc(file_autoniix_streaming_v1_events, 0);

@@ -64,8 +64,7 @@ export const EASINGS = {
   linear: (t: number) => t,
   ease_out_cubic: (t: number) => 1 - Math.pow(1 - t, 3),
   ease_in_cubic: (t: number) => t * t * t,
-  ease_in_out_cubic: (t: number) =>
-    t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+  ease_in_out_cubic: (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
   power2: (t: number) => 1 - Math.pow(1 - t, 2),
   power3: (t: number) => 1 - Math.pow(1 - t, 3),
 } as const;
@@ -126,10 +125,7 @@ export interface TypewriterFrame {
   progress: number;
 }
 
-export function computeTypewriter(
-  params: TypewriterParams,
-  tLocalMs: number,
-): TypewriterFrame {
+export function computeTypewriter(params: TypewriterParams, tLocalMs: number): TypewriterFrame {
   const cps = params.cps ?? 30;
   const delay = params.delayMs ?? 0;
   const elapsedSec = Math.max(0, (tLocalMs - delay) / 1000);
@@ -176,9 +172,7 @@ export function computeScrambleDecode(
   const charset = params.charset ?? DEFAULT_CHARSET;
   const revealMode: ScrambleRevealMode = params.revealMode ?? "left_to_right";
   const scrambleFps = params.scrambleFps ?? 24;
-  const seedKey =
-    params.seed ??
-    stableSeed(`scramble:${params.text}:${params.durationMs}`);
+  const seedKey = params.seed ?? stableSeed(`scramble:${params.text}:${params.durationMs}`);
 
   const text = params.text;
   const N = text.length;
@@ -301,10 +295,7 @@ function bezierAt(
  * Treats segments uniformly (good enough for typography UX; can be upgraded
  * to arc-length parameterization later).
  */
-function samplePath(
-  path: BezierPath,
-  u: number,
-): { pos: [number, number]; tan: [number, number] } {
+function samplePath(path: BezierPath, u: number): { pos: [number, number]; tan: [number, number] } {
   if (path.segments.length === 0) {
     return { pos: path.start, tan: [1, 0] };
   }
@@ -315,10 +306,7 @@ function samplePath(
   return bezierAt(prevEnd, s.c1, s.c2, s.end, localU);
 }
 
-export function computePathFollow(
-  params: PathFollowParams,
-  tLocalMs: number,
-): PathFollowGlyph[] {
+export function computePathFollow(params: PathFollowParams, tLocalMs: number): PathFollowGlyph[] {
   void tLocalMs;
   const spread = params.spread ?? 1;
   const alignToPath = params.alignToPath ?? true;
@@ -371,10 +359,7 @@ export function computeStaggerWords(
   tLocalMs: number,
 ): StaggerWordsFrame {
   const eased = EASINGS[params.easing ?? "ease_out_cubic"];
-  const total = Math.max(
-    1,
-    params.words.length * params.delayPerWordMs + params.wordDurationMs,
-  );
+  const total = Math.max(1, params.words.length * params.delayPerWordMs + params.wordDurationMs);
   const perWord = params.words.map((word, i) => {
     const start = i * params.delayPerWordMs;
     const t = clamp((tLocalMs - start) / Math.max(1, params.wordDurationMs), 0, 1);

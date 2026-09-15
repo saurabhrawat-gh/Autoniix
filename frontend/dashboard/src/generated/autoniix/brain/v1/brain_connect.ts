@@ -3,7 +3,15 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { EvaluateQualityRequest, EvaluateQualityResponse, GetThresholdsRequest, GetThresholdsResponse, MakeDecisionRequest, MakeDecisionResponse, UpdateThresholdsRequest } from "./brain_pb.js";
+import {
+  EvaluateQualityRequest,
+  EvaluateQualityResponse,
+  GetThresholdsRequest,
+  GetThresholdsResponse,
+  MakeDecisionRequest,
+  MakeDecisionResponse,
+  UpdateThresholdsRequest,
+} from "./brain_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 import { Empty } from "../../common/v1/common_pb.js";
 
@@ -49,6 +57,5 @@ export const BrainService = {
       O: GetThresholdsResponse,
       kind: MethodKind.Unary,
     },
-  }
+  },
 } as const;
-

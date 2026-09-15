@@ -25,19 +25,19 @@ The polyglot foundation was **architecturally correct** but **operationally prem
 
 ## Decision Summary
 
-| Concern | ADR-001 (Polyglot) | ADR-004 (Two-Language) |
-|---------|-------------------|----------------------|
-| Backend languages | Rust + Go + Python | **Python only** |
-| Frontend language | TypeScript | TypeScript (unchanged) |
-| API Gateway | Rust (Axum) | **Node (Fastify)** |
-| Streaming hub | Rust | **Node (Fastify + ws)** |
-| Temporal workers | Go | **Python** |
-| Backend services | Python | Python (unchanged) |
-| Contract protocol | Protocol Buffers + Connect-RPC | **Zod + OpenAPI + REST** |
-| Type safety FE↔BE | ✅ (protobuf codegen) | ✅ (Zod → TS types + Pydantic) |
-| Build time (cold) | 15–20 min | **2–4 min** |
-| CI complexity | 5 toolchains | **2 toolchains** |
-| When to revisit | When we have 100K+ users OR p95 latency >500ms OR cost/user >$0.50 | — |
+| Concern           | ADR-001 (Polyglot)                                                 | ADR-004 (Two-Language)         |
+| ----------------- | ------------------------------------------------------------------ | ------------------------------ |
+| Backend languages | Rust + Go + Python                                                 | **Python only**                |
+| Frontend language | TypeScript                                                         | TypeScript (unchanged)         |
+| API Gateway       | Rust (Axum)                                                        | **Node (Fastify)**             |
+| Streaming hub     | Rust                                                               | **Node (Fastify + ws)**        |
+| Temporal workers  | Go                                                                 | **Python**                     |
+| Backend services  | Python                                                             | Python (unchanged)             |
+| Contract protocol | Protocol Buffers + Connect-RPC                                     | **Zod + OpenAPI + REST**       |
+| Type safety FE↔BE | ✅ (protobuf codegen)                                              | ✅ (Zod → TS types + Pydantic) |
+| Build time (cold) | 15–20 min                                                          | **2–4 min**                    |
+| CI complexity     | 5 toolchains                                                       | **2 toolchains**               |
+| When to revisit   | When we have 100K+ users OR p95 latency >500ms OR cost/user >$0.50 | —                              |
 
 ---
 
@@ -59,17 +59,17 @@ These decisions remain **locked** and unchanged:
 
 ## Part 2: New Language Boundaries
 
-| Layer | Language | Runtime | Framework |
-|-------|----------|---------|-----------|
-| Dashboard (web app) | TypeScript | Node 22 | Next.js 15 |
-| Marketing site | TypeScript | Node 22 | Next.js 15 |
-| **API Gateway / BFF** | **TypeScript** | Node 22 | **Fastify 5** |
-| **Streaming hub** | **TypeScript** | Node 22 | **Fastify + ws** |
-| All backend services | Python 3.12 | Python | FastAPI |
-| **Temporal workflows** | **Python 3.12** | Python | **temporalio SDK** |
-| **Temporal workers** | **Python 3.12** | Python | **temporalio SDK** |
-| AI / agents / brain | Python 3.12 | Python | FastAPI |
-| Remotion renderer | TypeScript | Node 22 | Remotion |
+| Layer                  | Language        | Runtime | Framework          |
+| ---------------------- | --------------- | ------- | ------------------ |
+| Dashboard (web app)    | TypeScript      | Node 22 | Next.js 15         |
+| Marketing site         | TypeScript      | Node 22 | Next.js 15         |
+| **API Gateway / BFF**  | **TypeScript**  | Node 22 | **Fastify 5**      |
+| **Streaming hub**      | **TypeScript**  | Node 22 | **Fastify + ws**   |
+| All backend services   | Python 3.12     | Python  | FastAPI            |
+| **Temporal workflows** | **Python 3.12** | Python  | **temporalio SDK** |
+| **Temporal workers**   | **Python 3.12** | Python  | **temporalio SDK** |
+| AI / agents / brain    | Python 3.12     | Python  | FastAPI            |
+| Remotion renderer      | TypeScript      | Node 22 | Remotion           |
 
 **Deleted languages:** Rust, Go.  
 **Deleted tooling:** Cargo, rustc, go, buf, protoc.
@@ -79,6 +79,7 @@ These decisions remain **locked** and unchanged:
 ## Part 3: Contract Layer — Zod + OpenAPI
 
 **Problem with Protocol Buffers:**
+
 - Requires `buf` toolchain + `protoc` plugins for 4 languages
 - Breaking change detection via `buf breaking` only works if all `.proto` files are perfectly maintained
 - Codegen must run before every build in every language
@@ -103,6 +104,7 @@ Generated outputs:
 ```
 
 **Why Zod:**
+
 - TypeScript-native, no external codegen needed for TS consumers
 - Runtime validation + compile-time types in one definition
 - `zod-to-openapi` generates perfect OpenAPI 3.1 specs
@@ -110,6 +112,7 @@ Generated outputs:
 - Breaking changes detected by TypeScript compiler (field renames, type changes)
 
 **Contract flow:**
+
 ```
 1. Developer edits shared/ts/contracts/src/channel.schema.ts
 2. TypeScript compiler validates Zod schema
@@ -201,6 +204,7 @@ autoniix/
 ```
 
 **Deleted:**
+
 - `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`
 - `go.mod`, `go.sum`, `.go-version`
 - `proto/` (entire directory)
@@ -215,17 +219,18 @@ autoniix/
 
 ### 6.1 Python Stack
 
-| Concern | Tool | Config |
-|---------|------|--------|
-| Package manager | **uv** (10-100× faster than pip) | `pyproject.toml` workspace |
-| Formatter | **Ruff format** | `ruff.toml` |
-| Linter | **Ruff** (replaces flake8, isort, pylint, bandit) | `ruff.toml` |
-| Type checker | **mypy --strict** (libs) + **basedpyright** (services) | `pyproject.toml` |
-| Test runner | **pytest** + asyncio + cov + xdist | `pytest.ini` |
-| DB tests | **testcontainers-python** | — |
-| Migrations | **alembic** | `alembic.ini` |
+| Concern         | Tool                                                   | Config                     |
+| --------------- | ------------------------------------------------------ | -------------------------- |
+| Package manager | **uv** (10-100× faster than pip)                       | `pyproject.toml` workspace |
+| Formatter       | **Ruff format**                                        | `ruff.toml`                |
+| Linter          | **Ruff** (replaces flake8, isort, pylint, bandit)      | `ruff.toml`                |
+| Type checker    | **mypy --strict** (libs) + **basedpyright** (services) | `pyproject.toml`           |
+| Test runner     | **pytest** + asyncio + cov + xdist                     | `pytest.ini`               |
+| DB tests        | **testcontainers-python**                              | —                          |
+| Migrations      | **alembic**                                            | `alembic.ini`              |
 
 **Ruff config:**
+
 ```toml
 target-version = "py312"
 line-length = 100
@@ -237,18 +242,19 @@ ignore = ["D100","D104","PLR0913"]
 
 ### 6.2 TypeScript Stack
 
-| Concern | Tool | Config |
-|---------|------|--------|
-| Package manager | **pnpm** (3× faster than npm) | `pnpm-workspace.yaml` |
-| Build orchestrator | **Turborepo** | `turbo.json` |
-| Formatter | **Prettier 3** | `.prettierrc.json` |
-| Linter | **ESLint 9 flat config** | `eslint.config.mjs` |
-| Type checker | **tsc --noEmit --strict** | `tsconfig.base.json` |
-| Unit tests | **Vitest** | `vitest.config.ts` |
-| E2E tests | **Playwright** | `playwright.config.ts` |
-| API mocking | **MSW** | — |
+| Concern            | Tool                          | Config                 |
+| ------------------ | ----------------------------- | ---------------------- |
+| Package manager    | **pnpm** (3× faster than npm) | `pnpm-workspace.yaml`  |
+| Build orchestrator | **Turborepo**                 | `turbo.json`           |
+| Formatter          | **Prettier 3**                | `.prettierrc.json`     |
+| Linter             | **ESLint 9 flat config**      | `eslint.config.mjs`    |
+| Type checker       | **tsc --noEmit --strict**     | `tsconfig.base.json`   |
+| Unit tests         | **Vitest**                    | `vitest.config.ts`     |
+| E2E tests          | **Playwright**                | `playwright.config.ts` |
+| API mocking        | **MSW**                       | —                      |
 
 **TypeScript strict config:**
+
 ```json
 {
   "compilerOptions": {
@@ -265,12 +271,14 @@ ignore = ["D100","D104","PLR0913"]
 ### 6.3 Import Rules (Enforced by Linters)
 
 **Python:**
+
 1. Absolute imports only, no relative imports across service boundaries
 2. Order: stdlib → third-party → `libs.*` → `services.<self>.*` → local
 3. No cross-service imports (enforced by `tach`)
 4. `libs.python.contracts` is the only shared package
 
 **TypeScript:**
+
 1. No default exports except React components + Next.js pages
 2. `import type` mandatory for type-only imports
 3. Path aliases only: `@autoniix/contracts`, `@autoniix/ui`, etc.
@@ -278,12 +286,12 @@ ignore = ["D100","D104","PLR0913"]
 
 ### 6.4 Testing Layers
 
-| Layer | Python | TypeScript | Coverage floor |
-|-------|--------|------------|----------------|
-| Unit | pytest | Vitest | **80%** |
-| Integration | pytest + testcontainers | Vitest + testcontainers | 60% |
-| Contract | pytest vs OpenAPI | Vitest vs Zod | 100% |
-| E2E | — | Playwright | Critical flows |
+| Layer       | Python                  | TypeScript              | Coverage floor |
+| ----------- | ----------------------- | ----------------------- | -------------- |
+| Unit        | pytest                  | Vitest                  | **80%**        |
+| Integration | pytest + testcontainers | Vitest + testcontainers | 60%            |
+| Contract    | pytest vs OpenAPI       | Vitest vs Zod           | 100%           |
+| E2E         | —                       | Playwright              | Critical flows |
 
 ---
 
@@ -292,41 +300,43 @@ ignore = ["D100","D104","PLR0913"]
 Replace 6 workflows with **3**:
 
 **`ci.yml`** — runs on every PR (~4–6 min):
+
 ```yaml
 jobs:
   install:
     - uv sync
     - pnpm install
-  
+
   lint:
     - ruff check
     - eslint
     - prettier --check
-  
+
   typecheck:
     - mypy
     - basedpyright
     - tsc --noEmit
-  
+
   test:
     - pytest (parallel)
     - vitest (parallel)
-  
+
   contract:
     - schema round-trip validation
-  
+
   build:
     - docker buildx (all images, cached)
-  
+
   e2e:
     - docker compose up
     - playwright
-  
+
   coverage:
     - codecov (fail if diff < 80%)
 ```
 
 **`release.yml`** — on merge to `main`:
+
 - Tag images with git SHA
 - Push to registry
 - Trigger deploy
@@ -337,16 +347,16 @@ jobs:
 
 ## Part 8: Migration Plan (7 Phases)
 
-| Phase | Duration | Deliverable | Risk |
-|-------|----------|-------------|------|
-| **0. Freeze + ADR** | 1 day | This document + freeze polyglot work | None |
-| **1. Contracts** | 2–3 days | `libs/ts/contracts` + `libs/python/contracts` | Low |
-| **2. Gateway** | 5–7 days | Node Fastify BFF, feature-flagged at Caddy | Low (rollback = flip flag) |
-| **3. Streaming** | 2 days | Node WS/SSE service | Low |
-| **4. Temporal** | 3–4 days | Python workers (revive existing) | Low (keep Go workers idle) |
-| **5. Services** | 5–7 days | Python FastAPI for research/script/voice/etc | Low |
-| **6. Delete** | 1 day | Remove Rust/Go/proto | Low (git revert) |
-| **7. Standardize** | 3–4 days | Apply lint/format/test rules, green CI | Low |
+| Phase               | Duration | Deliverable                                   | Risk                       |
+| ------------------- | -------- | --------------------------------------------- | -------------------------- |
+| **0. Freeze + ADR** | 1 day    | This document + freeze polyglot work          | None                       |
+| **1. Contracts**    | 2–3 days | `libs/ts/contracts` + `libs/python/contracts` | Low                        |
+| **2. Gateway**      | 5–7 days | Node Fastify BFF, feature-flagged at Caddy    | Low (rollback = flip flag) |
+| **3. Streaming**    | 2 days   | Node WS/SSE service                           | Low                        |
+| **4. Temporal**     | 3–4 days | Python workers (revive existing)              | Low (keep Go workers idle) |
+| **5. Services**     | 5–7 days | Python FastAPI for research/script/voice/etc  | Low                        |
+| **6. Delete**       | 1 day    | Remove Rust/Go/proto                          | Low (git revert)           |
+| **7. Standardize**  | 3–4 days | Apply lint/format/test rules, green CI        | Low                        |
 
 **Total: ~4 weeks**
 
@@ -356,18 +366,18 @@ Each phase is independently shippable. Rollback at any phase is trivial.
 
 ## Part 9: What We Lose (And Why It's OK)
 
-| ADR-001 Benefit | Lost? | Why It's OK Now |
-|----------------|-------|-----------------|
-| 50× cost efficiency at scale | ✅ Yes | We have 1 user, not 1M users |
-| Millisecond cold starts | ✅ Yes | Docker Compose, not serverless |
-| Compile-time SQL verification | ✅ Yes | Tests + migrations catch SQL errors |
-| Sub-10ms p50 latency | ✅ Yes | Current p50 is ~80ms, users don't notice |
-| Memory footprint (20MB vs 200MB) | ✅ Yes | VPS has 16GB RAM, not a constraint |
-| Type safety across wire | ❌ **Kept** | Zod + OpenAPI gives same guarantee |
-| Microservices boundaries | ❌ **Kept** | Same boundaries, different languages |
-| Temporal workflows | ❌ **Kept** | Python SDK is mature |
-| Observability | ❌ **Kept** | Unchanged |
-| Scale-out triggers | ❌ **Kept** | Deferred, not deleted |
+| ADR-001 Benefit                  | Lost?       | Why It's OK Now                          |
+| -------------------------------- | ----------- | ---------------------------------------- |
+| 50× cost efficiency at scale     | ✅ Yes      | We have 1 user, not 1M users             |
+| Millisecond cold starts          | ✅ Yes      | Docker Compose, not serverless           |
+| Compile-time SQL verification    | ✅ Yes      | Tests + migrations catch SQL errors      |
+| Sub-10ms p50 latency             | ✅ Yes      | Current p50 is ~80ms, users don't notice |
+| Memory footprint (20MB vs 200MB) | ✅ Yes      | VPS has 16GB RAM, not a constraint       |
+| Type safety across wire          | ❌ **Kept** | Zod + OpenAPI gives same guarantee       |
+| Microservices boundaries         | ❌ **Kept** | Same boundaries, different languages     |
+| Temporal workflows               | ❌ **Kept** | Python SDK is mature                     |
+| Observability                    | ❌ **Kept** | Unchanged                                |
+| Scale-out triggers               | ❌ **Kept** | Deferred, not deleted                    |
 
 ---
 
@@ -383,6 +393,7 @@ We will **revert to ADR-001** (or a hybrid) when **any** of these triggers fire:
 6. **Kubernetes migration** — might want Go for k8s operators
 
 Until then, **Python + TypeScript is the correct choice** because:
+
 - Faster builds = faster shipping
 - Simpler CI = fewer broken builds
 - 2 languages = easier onboarding
@@ -393,6 +404,7 @@ Until then, **Python + TypeScript is the correct choice** because:
 ## Part 11: Quality Gates (Hard CI Blocks)
 
 A PR **cannot merge** if:
+
 1. Any linter error (ruff, eslint)
 2. Any format diff (ruff format, prettier)
 3. Any type error (mypy, basedpyright, tsc)
@@ -407,6 +419,7 @@ A PR **cannot merge** if:
 ## Part 12: Tool Versions (Simplified)
 
 **`versions.env` v2:**
+
 ```
 NODE=22.23.1
 NPM=10.9.8
@@ -479,13 +492,13 @@ This ADR **supersedes ADR-001** for the current stage (1–10K users). ADR-001's
 
 ## Appendix A: Build Time Comparison
 
-| Task | ADR-001 (Polyglot) | ADR-004 (Two-Lang) | Speedup |
-|------|-------------------|-------------------|---------|
-| Cold build (all services) | 15–20 min | 2–4 min | **5×** |
-| Incremental build | 3–5 min | 30–60 sec | **4×** |
-| CI (full) | 20–25 min | 4–6 min | **4×** |
-| Docker image (gateway) | 8–12 min | 45–60 sec | **10×** |
-| Pre-commit hook | 15–30 sec | 5–10 sec | **2×** |
+| Task                      | ADR-001 (Polyglot) | ADR-004 (Two-Lang) | Speedup |
+| ------------------------- | ------------------ | ------------------ | ------- |
+| Cold build (all services) | 15–20 min          | 2–4 min            | **5×**  |
+| Incremental build         | 3–5 min            | 30–60 sec          | **4×**  |
+| CI (full)                 | 20–25 min          | 4–6 min            | **4×**  |
+| Docker image (gateway)    | 8–12 min           | 45–60 sec          | **10×** |
+| Pre-commit hook           | 15–30 sec          | 5–10 sec           | **2×**  |
 
 ---
 

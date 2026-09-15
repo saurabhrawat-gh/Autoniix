@@ -140,7 +140,12 @@ class HttpModelServerClient implements ModelServerClient {
       body: JSON.stringify(req),
     });
     if (!r.ok) throw new Error(`model server submit failed: HTTP ${r.status}`);
-    const body = (await r.json()) as { jobId: string; status?: string; outputUrl?: string; outputSha256?: string };
+    const body = (await r.json()) as {
+      jobId: string;
+      status?: string;
+      outputUrl?: string;
+      outputSha256?: string;
+    };
     if (body.status === "done" && body.outputUrl) {
       return {
         status: "done",
@@ -254,7 +259,9 @@ export function filterToModelRequest(
       };
     case "upscale":
       if ((filter.model ?? "ffmpeg-lanczos") !== "real-esrgan") {
-        throw new Error("filterToModelRequest: upscale.model must be 'real-esrgan' for GPU routing");
+        throw new Error(
+          "filterToModelRequest: upscale.model must be 'real-esrgan' for GPU routing",
+        );
       }
       return {
         kind: "real-esrgan",

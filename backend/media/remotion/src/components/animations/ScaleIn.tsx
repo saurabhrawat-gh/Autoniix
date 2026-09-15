@@ -29,11 +29,7 @@ export const ScaleIn: React.FC<ScaleInProps> = ({
     }),
   );
   const scale =
-    overshoot > 0
-      ? interpolate(p, [0, 0.6, 1], [from, 1 + overshoot, 1])
-      : from + (1 - from) * p;
+    overshoot > 0 ? interpolate(p, [0, 0.6, 1], [from, 1 + overshoot, 1]) : from + (1 - from) * p;
 
-  return (
-    <div style={{ opacity: p, transform: `scale(${scale})`, ...style }}>{children}</div>
-  );
+  return <div style={{ opacity: p, transform: `scale(${scale})`, ...style }}>{children}</div>;
 };

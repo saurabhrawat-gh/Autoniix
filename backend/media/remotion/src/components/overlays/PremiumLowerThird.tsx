@@ -1,21 +1,28 @@
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring, Easing } from "remotion";
+import {
+  AbsoluteFill,
+  useCurrentFrame,
+  useVideoConfig,
+  interpolate,
+  spring,
+  Easing,
+} from "remotion";
 
 /**
  * PREMIUM LOWER THIRD - 100% Quality
- * 
+ *
  * Matches/exceeds:
  * - After Effects Lower Third Templates
  * - Motion Graphics Templates
  * - Broadcast Graphics
- * 
+ *
  * Features:
  * - 5 professional design variations
  * - Smooth animations with physics
  * - Customizable colors and typography
  * - Animated bars, lines, and shapes
  * - Professional timing and easing
- * 
+ *
  * Quality: 100% - Broadcast-grade lower thirds
  */
 
@@ -422,9 +429,5 @@ export const PremiumLowerThird: React.FC<PremiumLowerThirdProps> = ({
     );
   };
 
-  return (
-    <AbsoluteFill style={{ pointerEvents: "none" }}>
-      {renderVariation()}
-    </AbsoluteFill>
-  );
+  return <AbsoluteFill style={{ pointerEvents: "none" }}>{renderVariation()}</AbsoluteFill>;
 };

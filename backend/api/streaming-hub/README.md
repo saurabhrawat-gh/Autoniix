@@ -13,6 +13,7 @@
 Long-lived HTTP GET streaming events to the browser.
 
 **Query params:**
+
 - `workspace_id` (required) — only events for this workspace are streamed
 - `event_types` (optional, CSV) — filter by event type, e.g. `job.progress,job.completed`
 - `token` (optional) — JWT (else use `Authorization: Bearer` header)
@@ -26,10 +27,12 @@ Real-time bidirectional stream. Auth via `?token=<jwt>` query parameter
 (browsers can't send auth headers on the WS handshake).
 
 **Client → server:**
+
 - `{ "action": "subscribe", "event_types": [...] }` — refine filter
 - `{ "action": "ping" }`
 
 **Server → client:**
+
 - Events as-is
 - `{ "type": "ack", ... }`, `{ "type": "pong", "ts": ... }`, `{ "type": "error", ... }`
 
@@ -78,6 +81,7 @@ Host($GW_DOMAIN) && PathPrefix(/api/v2/stream, /api/v2/ws) && Headers(X-Gateway-
 - **No default** — traffic without the header falls through to the legacy Go hub
 
 **Rollout:**
+
 1. `make sh2-up` — start alongside legacy hub
 2. Add `X-Gateway-Version: v2` to dashboard requests
 3. Watch subscriber count in `/health`

@@ -3,11 +3,7 @@ import type { FastifyReply } from "fastify";
 const ACCESS_MAX_AGE = 3600; // 1 hour
 const REFRESH_MAX_AGE = 2592000; // 30 days
 
-export function setAuthCookies(
-  reply: FastifyReply,
-  accessToken: string,
-  refreshToken: string
-): void {
+export function setAuthCookies(reply: FastifyReply, accessToken: string, refreshToken: string): void {
   reply
     .setCookie("access_token", accessToken, {
       path: "/",

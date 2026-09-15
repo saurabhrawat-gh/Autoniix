@@ -3,12 +3,12 @@
 GPU inference service for the four AI quality filters consumed by the
 Remotion clip-filter pipeline:
 
-| Endpoint kind  | Model                                                                     | Purpose                                  |
-| -------------- | ------------------------------------------------------------------------- | ---------------------------------------- |
-| `rife`         | [RIFE-v4.x](https://github.com/megvii-research/ECCV2022-RIFE)             | Optical-flow frame interpolation (warp)  |
-| `scunet`       | [SCUNet](https://github.com/cszn/SCUNet)                                  | Real-image denoising                     |
-| `real-esrgan`  | [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN)                     | 2× / 4× super-resolution                 |
-| `ddcolor`      | [DDColor](https://github.com/piddnad/DDColor)                             | B&W → colour                             |
+| Endpoint kind | Model                                                         | Purpose                                 |
+| ------------- | ------------------------------------------------------------- | --------------------------------------- |
+| `rife`        | [RIFE-v4.x](https://github.com/megvii-research/ECCV2022-RIFE) | Optical-flow frame interpolation (warp) |
+| `scunet`      | [SCUNet](https://github.com/cszn/SCUNet)                      | Real-image denoising                    |
+| `real-esrgan` | [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN)         | 2× / 4× super-resolution                |
+| `ddcolor`     | [DDColor](https://github.com/piddnad/DDColor)                 | B&W → colour                            |
 
 ## Protocol (matches `services/remotion/src/services/modelServerClient.ts`)
 

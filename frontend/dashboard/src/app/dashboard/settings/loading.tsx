@@ -1,4 +1,4 @@
-import { SkeletonCard } from '@/lib/components/Skeleton';
+import { SkeletonCard } from "@/lib/components/Skeleton";
 
 export default function SettingsLoading() {
   return (

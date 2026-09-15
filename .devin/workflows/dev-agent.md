@@ -3,6 +3,7 @@ description: Dev Agent — pick up the oldest ready-for-dev GitHub Issue and imp
 ---
 
 > **Source of Truth — LOCKED:**
+>
 > - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project. All new tickets go here.
 > - Jira **Autoniix Engineering (AE)** space is **archived** — read-only, never create tickets there.
 > - GitHub **Autoniix MVP** project board is **closed** — do not reference it.
@@ -22,6 +23,7 @@ Use this workflow to implement a feature from a GitHub Issue marked `ready-for-d
 > The user manually runs `git checkout main && git merge --no-ff develop && git push origin main` when they are ready to trigger a build.
 
 There are two paths depending on issue type:
+
 - **Normal path** (`feature` / `bug` / `task`) → merges to `develop`
 - **Hotfix path** (`hotfix` / `bug:production`) → merges to `develop` (same as normal path — user promotes to `main` manually)
 
@@ -51,6 +53,7 @@ This bypasses autopick. The user has explicitly chosen the ticket.
 Only run this step if the user did NOT pass a Jira key (i.e. plain `/dev-agent` invocation).
 
 Before anything else, check for open hotfix issues:
+
 - Call `mcp0_list_issues` with label `bug:production` AND state `open`
 - Also call `mcp0_list_issues` with label `hotfix` AND state `open`
 - If ANY results exist → **immediately take the Hotfix Path** for the highest-priority one (`priority:critical` first, then `priority:high`, then oldest) — note: hotfix path targets `develop`, not `main`
@@ -61,6 +64,7 @@ Before anything else, check for open hotfix issues:
 ## Normal Path (feature / bug / task)
 
 ### 1. Fetch the issue
+
 - Use `mcp0_list_issues` on `saurabhrawat-gh/Autoniix` with label `ready-for-dev`, sorted by `created` asc, then by priority (`priority:critical` first)
 - Pick the highest-priority open issue that is NOT a `hotfix` or `bug:production`
 - Read the full issue body: Summary, Use Cases, Acceptance Criteria, Impacted Files, DoD
@@ -68,6 +72,7 @@ Before anything else, check for open hotfix issues:
 - Note the issue title format: `[Area] | Description` — confirm the area before starting
 
 ### 1a. Read Research Notes
+
 - Search the issue comments for a comment containing `## Research Notes`
 - If found: read the Codebase Impact map, Dependency section, and Recommended Approach
 - **Follow the recommended approach exactly** — do not deviate from it
@@ -83,16 +88,17 @@ Before anything else, check for open hotfix issues:
 - Post comment: "Starting implementation of #{issue_number}."
 
 ### 3. Pre-implementation audit
+
 - Run `/pre-commit` on all Impacted Files listed in the issue
 - Run `/safety-audit` if credentials, auth, or DB changes are involved
 
 ### 4. Create a branch from develop
 
-| Issue Type | Branch prefix | Example |
-|---|---|---|
-| `feature` | `feat/` | `feat/issue-42-add-slack-webhook` |
-| `bug` / `bug:normal` | `fix/` | `fix/issue-38-refresh-token-rotation` |
-| `task` | `chore/` | `chore/issue-20-5role-migration` |
+| Issue Type           | Branch prefix | Example                               |
+| -------------------- | ------------- | ------------------------------------- |
+| `feature`            | `feat/`       | `feat/issue-42-add-slack-webhook`     |
+| `bug` / `bug:normal` | `fix/`        | `fix/issue-38-refresh-token-rotation` |
+| `task`               | `chore/`      | `chore/issue-20-5role-migration`      |
 
 ```bash
 git checkout develop
@@ -101,6 +107,7 @@ git checkout -b {prefix}/issue-{number}-{short-slug}
 ```
 
 ### 5. Implement in this order
+
 a. DB migration (if schema changes needed) — create in `scripts/migrations/`
 b. Backend changes (FastAPI routes, business logic, dependencies)
 c. Tests — write BEFORE or ALONGSIDE implementation, never after
@@ -108,6 +115,7 @@ d. Frontend changes (API client → page component)
 e. Update `.env.example` if new env vars added
 
 ### 6. Verify acceptance criteria
+
 - Go through every AC checkbox in the issue
 - For each: run a test OR perform the manual verification step stated in the issue
 - Do NOT tick any checkbox in the issue — the user ticks those during QA
@@ -137,6 +145,7 @@ Before pushing to `develop`, run `make pre-deploy` — this dockerizes the full
 mirror and writes the sentinel required by the pre-push hook.
 
 **Required outcome before proceeding:**
+
 - `✅  ci-local passed — CI would be green.` → continue to step 8
 - `❌  ci-local FAILED — the following GH jobs would be red: ...` → **STOP.**
   Fix every listed job (the names match GitHub Actions jobs 1:1).
@@ -146,24 +155,26 @@ mirror and writes the sentinel required by the pre-push hook.
 > `make pre-deploy` sentinel.** The pre-push hook enforces it, and every
 > failed remote build costs real money and blocks the deploy pipeline.
 > **Never push to `origin/main`.** Use `gh workflow run
-> promote-develop-to-main.yml` (see `.devin/workflows/pre-deploy.md`).
+promote-develop-to-main.yml` (see `.devin/workflows/pre-deploy.md`).
 
 ### 8. Run diff review
+
 - Run `/diff-review` — verify no unrelated changes, no style drift
 
 ### 9. Commit to the branch
 
 | Issue Type | Commit prefix |
-|---|---|
-| `feature` | `feat(#N):` |
-| `bug` | `fix(#N):` |
-| `task` | `chore(#N):` |
+| ---------- | ------------- |
+| `feature`  | `feat(#N):`   |
+| `bug`      | `fix(#N):`    |
+| `task`     | `chore(#N):`  |
 
 ```bash
 git add -A && git commit -m "{prefix}: {short description}"
 ```
 
 ### 10. Merge branch to develop locally, then delete the feature branch (no push of feature branch)
+
 ```bash
 git checkout develop
 git pull --ff-only origin develop
@@ -173,14 +184,17 @@ git branch -d {branch-name}
 ```
 
 **After merge, re-run local CI on develop to confirm no merge conflicts broke anything:**
+
 ```bash
 # turbo
 bash scripts/ci-local.sh        # CI mirror — always required
 # add --python / --node / --go / --proto / --full if relevant to the merge
 ```
+
 If red: fix before push. If green: proceed to step 11.
 
 **Hard rules — non-negotiable:**
+
 - Feature branches must NEVER be pushed to `origin` for any reason
 - Feature branches must be deleted locally immediately after merging into `develop`
 - If `git branch -d` refuses (unmerged), STOP and report — do not force-delete without product-owner approval
@@ -189,6 +203,7 @@ If red: fix before push. If green: proceed to step 11.
 ### 11. Set issue to ready-to-deploy, update Jira, push develop
 
 **HARD GATE — do not push to `origin/develop` unless BOTH of these are true:**
+
 1. Step 7 (pre-merge) finished with `✅ CI MIRROR PASSED` (or `✅ ALL CHECKS PASSED` if optional flags used)
 2. Step 10 (post-merge) finished with the same green outcome
 
@@ -214,16 +229,17 @@ If either was red at any point, you must NOT have reached this step. Go back and
   ```
 
 ### 12. Emit HandoffPayload
+
 ```yaml
 handoff:
   from_team: dev
   to_team: security
-  issue: {N}
-  branch: {branch_name}
+  issue: { N }
+  branch: { branch_name }
   summary: "Implementation complete. Merged to develop. Awaiting manual develop→main promotion by product owner."
   changed_files:
-    - {list all files modified or created}
-  risk_level: {low|medium|high based on changes: auth/db/external_api = high, new endpoint = medium, test/docs = low}
+    - { list all files modified or created }
+  risk_level: { low|medium|high based on changes: auth/db/external_api = high, new endpoint = medium, test/docs = low }
   actions_pending:
     - "Security Agent scans diff for secrets and policy violations"
     - "Product owner: verify on https://dash.autoniix.com once in-prod, then type verified #{N}"
@@ -239,6 +255,7 @@ Use this path ONLY for issues labelled `hotfix` or `bug:production`.
 > **⚠️ Hotfix path targets `develop`, NOT `main`.** The product owner manually promotes develop → main when ready to deploy.
 
 ### H1. Fetch the hotfix issue
+
 - Use `mcp0_list_issues` with label `hotfix` OR `bug:production`, sorted by `priority:critical` first
 - Read the full issue body
 
@@ -252,6 +269,7 @@ Use this path ONLY for issues labelled `hotfix` or `bug:production`.
 - Call `mcp0_editJiraIssue` to assign to Dev Agent: `{"assignee": {"accountId": "712020:863fd585-7c67-4cac-86c6-8885e80502b3"}}`
 
 ### H3. Create branch from develop
+
 ```bash
 git checkout develop
 git pull origin develop
@@ -259,9 +277,11 @@ git checkout -b hotfix/issue-{number}-{short-slug}
 ```
 
 ### H4. Implement and verify
+
 - Same as steps 5–8 of the normal path
 
 ### H5. Commit
+
 ```bash
 git add -A && git commit -m "hotfix(#N): {short description}"
 ```
@@ -269,10 +289,12 @@ git add -A && git commit -m "hotfix(#N): {short description}"
 ### H6. Run local CI, then merge to develop
 
 **GATE: Run local CI first — no second chances once merged:**
+
 ```bash
 # turbo
 bash scripts/ci-local.sh   # run everything — hotfixes touch critical paths
 ```
+
 Wait for `✅  ALL CI CHECKS PASSED`. If red: fix first. Do NOT push a red hotfix.
 
 ```bash
@@ -287,11 +309,13 @@ git branch -d hotfix/issue-{number}-{short-slug}
 > **Do NOT merge to `main`.** The product owner will manually promote develop → main when ready.
 
 **Hard rules — non-negotiable (same as Normal Path):**
+
 - Hotfix branches must NEVER be pushed to `origin`
 - Hotfix branches must be deleted locally immediately after merging into `develop`
 - The only branches that ever exist on `origin` are `main` and `develop`
 
 ### H8. Set issue to ready-to-deploy, update Jira
+
 - Call `mcp0_update_issue`: remove `in-progress`, add `ready-to-deploy`
 - Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, issueIdOrKey = Jira key, transition id `5` (→ Ready To Deploy)
 - Call `mcp0_add_issue_comment`:
@@ -304,15 +328,16 @@ git branch -d hotfix/issue-{number}-{short-slug}
   ```
 
 ### H9. Emit HandoffPayload
+
 ```yaml
 handoff:
   from_team: dev
   to_team: security
-  issue: {N}
+  issue: { N }
   branch: hotfix/issue-{N}-{slug}
   summary: "Hotfix merged to develop. Awaiting manual develop→main promotion by product owner."
   changed_files:
-    - {list all files modified or created}
+    - { list all files modified or created }
   risk_level: high
   actions_pending:
     - "Security Agent scans hotfix diff"
@@ -324,6 +349,7 @@ handoff:
 ---
 
 ## Rules
+
 - Never implement without reading the full issue body
 - Never skip writing tests (even for hotfixes — at minimum a regression test)
 - One issue per branch — never bundle multiple issues

@@ -3,14 +3,14 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring } fr
 
 /**
  * Advanced kinetic typography with word-by-word choreography.
- * 
+ *
  * Premium features:
  * - Per-word animation timing
  * - Elastic spring physics
  * - Rotation, scale, position per word
  * - Stagger delays
  * - Multiple animation presets
- * 
+ *
  * Quality: Matches After Effects text animators at 95%+ accuracy.
  */
 
@@ -44,17 +44,17 @@ export const AdvancedKineticText: React.FC<AdvancedKineticTextProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  
+
   const words = text.split(" ");
-  
+
   const renderWord = (word: string, index: number) => {
     const startFrame = index * staggerFrames;
     const progress = Math.max(0, frame - startFrame);
-    
+
     let transform = "";
     let opacity = 1;
     let filter = "";
-    
+
     switch (style) {
       case "cascade": {
         const y = spring({
@@ -75,7 +75,7 @@ export const AdvancedKineticText: React.FC<AdvancedKineticTextProps> = ({
         transform = `translateY(${y}px) scale(${scale})`;
         break;
       }
-      
+
       case "elastic": {
         const scale = spring({
           frame: progress,
@@ -95,7 +95,7 @@ export const AdvancedKineticText: React.FC<AdvancedKineticTextProps> = ({
         transform = `scale(${scale}) rotate(${rotation}deg)`;
         break;
       }
-      
+
       case "typewriter": {
         const visible = progress >= 0;
         const scale = spring({
@@ -109,17 +109,22 @@ export const AdvancedKineticText: React.FC<AdvancedKineticTextProps> = ({
         transform = `scale(${scale})`;
         break;
       }
-      
+
       case "glitch": {
-        const glitchIntensity = interpolate(progress, [0, 5, 10], [10, 0, 0], { extrapolateRight: "clamp" });
+        const glitchIntensity = interpolate(progress, [0, 5, 10], [10, 0, 0], {
+          extrapolateRight: "clamp",
+        });
         const offsetX = (Math.random() - 0.5) * glitchIntensity;
         const offsetY = (Math.random() - 0.5) * glitchIntensity;
         opacity = interpolate(progress, [0, 8], [0, 1], { extrapolateRight: "clamp" });
         transform = `translate(${offsetX}px, ${offsetY}px)`;
-        filter = progress < 10 ? `drop-shadow(${glitchIntensity}px 0 0 #ff0000) drop-shadow(-${glitchIntensity}px 0 0 #00ffff)` : "";
+        filter =
+          progress < 10
+            ? `drop-shadow(${glitchIntensity}px 0 0 #ff0000) drop-shadow(-${glitchIntensity}px 0 0 #00ffff)`
+            : "";
         break;
       }
-      
+
       case "wave": {
         const waveOffset = Math.sin((frame - startFrame) * 0.2 + index * 0.5) * 20;
         const scale = spring({
@@ -133,7 +138,7 @@ export const AdvancedKineticText: React.FC<AdvancedKineticTextProps> = ({
         transform = `translateY(${waveOffset}px) scale(${scale})`;
         break;
       }
-      
+
       case "explode": {
         const angle = (index / words.length) * Math.PI * 2;
         const distance = spring({
@@ -157,12 +162,14 @@ export const AdvancedKineticText: React.FC<AdvancedKineticTextProps> = ({
         break;
       }
     }
-    
+
     if (motionBlur && progress < 20) {
-      const blurAmount = interpolate(progress, [0, 10, 20], [5, 2, 0], { extrapolateRight: "clamp" });
+      const blurAmount = interpolate(progress, [0, 10, 20], [5, 2, 0], {
+        extrapolateRight: "clamp",
+      });
       filter += ` blur(${blurAmount}px)`;
     }
-    
+
     return (
       <span
         key={index}
@@ -179,7 +186,7 @@ export const AdvancedKineticText: React.FC<AdvancedKineticTextProps> = ({
       </span>
     );
   };
-  
+
   return (
     <AbsoluteFill
       style={{

@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 import providers.boot  # noqa: F401
 from core.config import settings
 from core.db import close_pool, get_pool
+from core.http_retry import with_http_retry
 from core.redis_client import close_redis
 from observability.metrics import instrument_app
 from providers.llm.base import LLMRequest
@@ -139,165 +140,229 @@ async def _load_prompt(prompt_id: str) -> dict:
     return dict(row) if row else {}
 
 
+@with_http_retry(max_attempts=3, base_delay=2.0)
 async def _search_youtube(topic: str, niche: str) -> list[dict]:
-    """Search YouTube Data API for trending/relevant videos."""
+    """Search YouTube Data API for trending/relevant videos with retry logic."""
     api_key = settings.youtube_api_key
     if not api_key:
+        logger.warning("research.youtube_search_skipped", reason="no_api_key")
         return []
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.get(
-                "https://www.googleapis.com/youtube/v3/search",
-                params={
-                    "part": "snippet",
-                    "q": f"{topic} {niche}",
-                    "type": "video",
-                    "order": "relevance",
-                    "maxResults": 10,
-                    "key": api_key,
-                },
-            )
-            resp.raise_for_status()
-            items = resp.json().get("items", [])
-            return [
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.get(
+            "https://www.googleapis.com/youtube/v3/search",
+            params={
+                "part": "snippet",
+                "q": f"{topic} {niche}",
+                "type": "video",
+                "order": "relevance",
+                "maxResults": 10,
+                "key": api_key,
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        # Validate response structure
+        if "items" not in data:
+            logger.warning("research.youtube_invalid_response", data_keys=list(data.keys()))
+            return []
+
+        items = data["items"]
+        results = []
+        for it in items:
+            # Validate each item has required fields
+            if not it.get("id", {}).get("videoId"):
+                continue
+            snippet = it.get("snippet", {})
+            if not snippet.get("title"):
+                continue
+
+            results.append(
                 {
                     "source": "youtube",
-                    "title": it["snippet"]["title"],
-                    "description": it["snippet"]["description"][:200],
+                    "title": snippet["title"],
+                    "description": snippet.get("description", "")[:200],
                     "url": f"https://youtube.com/watch?v={it['id']['videoId']}",
-                    "channel": it["snippet"]["channelTitle"],
-                    "published": it["snippet"]["publishedAt"],
+                    "channel": snippet.get("channelTitle", "Unknown"),
+                    "published": snippet.get("publishedAt", ""),
                 }
-                for it in items
-                if it.get("id", {}).get("videoId")
-            ]
-    except Exception as e:
-        logger.warning("research.youtube_search_failed", error=str(e))
-        return []
-
-
-async def _search_serpapi(queries: list[str]) -> list[dict]:
-    """Search via SerpAPI (Google + Google Trends)."""
-    try:
-        search_provider = ProviderRegistry.get("search")
-        from providers.search.base import SearchRequest
-
-        results = []
-        for q in queries[:3]:
-            result = await search_provider.search(
-                SearchRequest(
-                    query=q,
-                    num_results=5,
-                )
             )
-            for r in result.results:
-                results.append(
-                    {
-                        "source": "google",
-                        "title": r.get("title", ""),
-                        "snippet": r.get("snippet", ""),
-                        "url": r.get("link", ""),
-                    }
-                )
+
+        logger.info("research.youtube_search_success", topic=topic, results_count=len(results))
         return results
-    except Exception as e:
-        logger.warning("research.serpapi_failed", error=str(e))
-        return []
 
 
-async def _search_reddit(topic: str, niche: str) -> list[dict]:
-    """Search Reddit for relevant discussions."""
-    try:
-        async with httpx.AsyncClient(
-            timeout=10.0,
-            headers={
-                "User-Agent": "YTAutomation/1.0",
-            },
-        ) as client:
-            resp = await client.get(
-                "https://www.reddit.com/search.json",
-                params={"q": f"{topic} {niche}", "sort": "relevance", "limit": 10, "t": "month"},
+@with_http_retry(max_attempts=3, base_delay=1.5)
+async def _search_serpapi(queries: list[str]) -> list[dict]:
+    """Search via SerpAPI (Google + Google Trends) with retry logic."""
+    search_provider = ProviderRegistry.get("search")
+    from providers.search.base import SearchRequest
+
+    results = []
+    for q in queries[:3]:  # Limit to 3 queries to control cost
+        result = await search_provider.search(
+            SearchRequest(
+                query=q,
+                num_results=5,
             )
-            resp.raise_for_status()
-            posts = resp.json().get("data", {}).get("children", [])
-            return [
+        )
+
+        # Validate result structure
+        if not hasattr(result, "results") or not result.results:
+            logger.warning("research.serpapi_empty_result", query=q)
+            continue
+
+        for r in result.results:
+            # Validate each result has required fields
+            if not r.get("title") or not r.get("link"):
+                continue
+
+            results.append(
+                {
+                    "source": "google",
+                    "title": r["title"],
+                    "snippet": r.get("snippet", ""),
+                    "url": r["link"],
+                }
+            )
+
+    logger.info("research.serpapi_success", queries_count=len(queries[:3]), results_count=len(results))
+    return results
+
+
+@with_http_retry(max_attempts=3, base_delay=1.0)
+async def _search_reddit(topic: str, niche: str) -> list[dict]:
+    """Search Reddit for relevant discussions with retry logic."""
+    async with httpx.AsyncClient(
+        timeout=10.0,
+        headers={
+            "User-Agent": "YTAutomation/1.0",
+        },
+    ) as client:
+        resp = await client.get(
+            "https://www.reddit.com/search.json",
+            params={"q": f"{topic} {niche}", "sort": "relevance", "limit": 10, "t": "month"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        # Validate response structure
+        if "data" not in data or "children" not in data["data"]:
+            logger.warning("research.reddit_invalid_response", data_keys=list(data.keys()))
+            return []
+
+        posts = data["data"]["children"]
+        results = []
+        for p in posts[:10]:
+            # Validate each post has required fields
+            post_data = p.get("data", {})
+            if not post_data.get("title") or not post_data.get("permalink"):
+                continue
+
+            results.append(
                 {
                     "source": "reddit",
-                    "title": p["data"]["title"],
-                    "snippet": p["data"].get("selftext", "")[:200],
-                    "url": f"https://reddit.com{p['data']['permalink']}",
-                    "subreddit": p["data"]["subreddit"],
-                    "score": p["data"].get("score", 0),
+                    "title": post_data["title"],
+                    "snippet": post_data.get("selftext", "")[:200],
+                    "url": f"https://reddit.com{post_data['permalink']}",
+                    "subreddit": post_data.get("subreddit", "unknown"),
+                    "score": post_data.get("score", 0),
                 }
-                for p in posts[:10]
-            ]
-    except Exception as e:
-        logger.warning("research.reddit_failed", error=str(e))
-        return []
+            )
+
+        logger.info("research.reddit_success", topic=topic, results_count=len(results))
+        return results
 
 
+@with_http_retry(max_attempts=3, base_delay=1.0)
 async def _search_news(topic: str, niche: str) -> list[dict]:
-    """Search News API for recent articles."""
+    """Search News API for recent articles with retry logic."""
     api_key = settings.news_api_key
     if not api_key:
+        logger.warning("research.news_search_skipped", reason="no_api_key")
         return []
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                "https://newsapi.org/v2/everything",
-                params={
-                    "q": f"{topic} {niche}",
-                    "sortBy": "relevancy",
-                    "pageSize": 5,
-                    "language": "en",
-                    "apiKey": api_key,
-                },
-            )
-            resp.raise_for_status()
-            articles = resp.json().get("articles", [])
-            return [
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(
+            "https://newsapi.org/v2/everything",
+            params={
+                "q": f"{topic} {niche}",
+                "sortBy": "relevancy",
+                "pageSize": 5,
+                "language": "en",
+                "apiKey": api_key,
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        # Validate response structure
+        if "articles" not in data:
+            logger.warning("research.news_invalid_response", data_keys=list(data.keys()))
+            return []
+
+        articles = data["articles"]
+        results = []
+        for a in articles:
+            # Validate each article has required fields
+            if not a.get("title") or not a.get("url"):
+                continue
+
+            results.append(
                 {
                     "source": "news",
-                    "title": a.get("title", ""),
+                    "title": a["title"],
                     "snippet": a.get("description", "")[:200],
-                    "url": a.get("url", ""),
+                    "url": a["url"],
                     "published": a.get("publishedAt", ""),
                 }
-                for a in articles
-            ]
-    except Exception as e:
-        logger.warning("research.news_failed", error=str(e))
-        return []
-
-
-async def _search_wikipedia(topic: str) -> list[dict]:
-    """Search Wikipedia for background knowledge."""
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                "https://en.wikipedia.org/w/api.php",
-                params={
-                    "action": "query",
-                    "list": "search",
-                    "srsearch": topic,
-                    "srlimit": 3,
-                    "format": "json",
-                },
             )
-            resp.raise_for_status()
-            results = resp.json().get("query", {}).get("search", [])
-            return [
+
+        logger.info("research.news_success", topic=topic, results_count=len(results))
+        return results
+
+
+@with_http_retry(max_attempts=3, base_delay=0.5)
+async def _search_wikipedia(topic: str) -> list[dict]:
+    """Search Wikipedia for background knowledge with retry logic."""
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(
+            "https://en.wikipedia.org/w/api.php",
+            params={
+                "action": "query",
+                "list": "search",
+                "srsearch": topic,
+                "srlimit": 3,
+                "format": "json",
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        # Validate response structure
+        if "query" not in data or "search" not in data["query"]:
+            logger.warning("research.wikipedia_invalid_response", data_keys=list(data.keys()))
+            return []
+
+        search_results = data["query"]["search"]
+        results = []
+        for r in search_results:
+            # Validate each result has required fields
+            if not r.get("title"):
+                continue
+
+            results.append(
                 {
                     "source": "wikipedia",
                     "title": r["title"],
                     "snippet": re.sub(r"<[^>]+>", "", r.get("snippet", "")),
                     "url": f"https://en.wikipedia.org/wiki/{r['title'].replace(' ', '_')}",
                 }
-                for r in results
-            ]
-    except Exception as e:
-        logger.warning("research.wikipedia_failed", error=str(e))
-        return []
+            )
+
+        logger.info("research.wikipedia_success", topic=topic, results_count=len(results))
+        return results
 
 
 @asynccontextmanager

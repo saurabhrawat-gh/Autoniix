@@ -14,6 +14,7 @@ Invoke with: `/resume-ci`.
 ## Step 1 — `ci.yml`
 
 Ensure the `on:` block reads:
+
 ```yaml
 on:
   push:
@@ -36,6 +37,7 @@ uncommented.
 ## Step 3 — `versions-in-sync.yml`
 
 Ensure the `on:` block reads:
+
 ```yaml
 on:
   push:
@@ -48,6 +50,7 @@ on:
 ## Step 4 — Remove build-freeze banners
 
 Remove any `🚫 BUILD FREEZE` blockquote from:
+
 - `.devin/workflows/dev-agent.md`
 - `.devin/workflows/devops-agent.md`
 - `.devin/workflows/conductor.md`

@@ -13,7 +13,13 @@ export interface DuotoneProps {
 
 const hexToRgb = (hex: string): [number, number, number] => {
   const h = hex.replace("#", "");
-  const n = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const n =
+    h.length === 3
+      ? h
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : h;
   const num = parseInt(n, 16);
   return [(num >> 16) & 0xff, (num >> 8) & 0xff, num & 0xff];
 };

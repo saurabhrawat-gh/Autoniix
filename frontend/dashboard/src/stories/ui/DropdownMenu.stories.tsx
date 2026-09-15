@@ -1,16 +1,22 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from "@storybook/react";
 import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
-  DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel,
-  DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
   Button,
-} from '@/lib/ui';
-import { Settings, Trash2, Copy, Archive, ChevronDown } from 'lucide-react';
+} from "@/lib/ui";
+import { Settings, Trash2, Copy, Archive, ChevronDown } from "lucide-react";
 
 const meta: Meta = {
-  title: 'UI/DropdownMenu',
-  tags: ['autodocs'],
-  parameters: { layout: 'centered' },
+  title: "UI/DropdownMenu",
+  tags: ["autodocs"],
+  parameters: { layout: "centered" },
 };
 export default meta;
 type Story = StoryObj;
@@ -43,7 +49,9 @@ export const WithLabel: Story = {
   render: () => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon">⋯</Button>
+        <Button variant="ghost" size="icon">
+          ⋯
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuLabel>Channel options</DropdownMenuLabel>

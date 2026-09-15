@@ -69,22 +69,22 @@ export async function createApp(config: Config) {
 
   await app.register(healthRoutes);
   await app.register(authRoutes);
-  
+
   const { jobRoutes } = await import("./routes/jobs.js");
   await app.register(jobRoutes);
-  
+
   const { channelRoutes } = await import("./routes/channels.js");
   await app.register(channelRoutes);
-  
+
   const { workspaceRoutes } = await import("./routes/workspace.js");
   await app.register(workspaceRoutes);
-  
+
   const { contentRoutes } = await import("./routes/content.js");
   await app.register(contentRoutes);
-  
+
   const { userRoutes } = await import("./routes/user.js");
   await app.register(userRoutes);
-  
+
   const { notificationRoutes } = await import("./routes/notifications.js");
   await app.register(notificationRoutes);
 

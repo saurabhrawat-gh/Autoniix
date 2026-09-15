@@ -1,260 +1,174 @@
 [
   {
     "path": "/api/admin/clean-slate",
-    "methods": [
-      "POST"
-    ]
+    "methods": ["POST"]
   },
   {
     "path": "/api/auth/login",
-    "methods": [
-      "POST"
-    ]
+    "methods": ["POST"]
   },
   {
     "path": "/api/auth/logout",
-    "methods": [
-      "POST"
-    ]
+    "methods": ["POST"]
   },
   {
     "path": "/api/auth/me",
-    "methods": [
-      "GET"
-    ]
+    "methods": ["GET"]
   },
   {
     "path": "/api/channels",
-    "methods": [
-      "GET"
-    ]
+    "methods": ["GET"]
   },
   {
     "path": "/api/channels",
-    "methods": [
-      "POST"
-    ]
+    "methods": ["POST"]
   },
   {
     "path": "/api/channels/generate-brand-dna",
-    "methods": [
-      "POST"
-    ]
+    "methods": ["POST"]
   },
   {
     "path": "/api/channels/{channel_id}",
-    "methods": [
-      "PUT"
-    ]
+    "methods": ["PUT"]
   },
   {
     "path": "/api/channels/{channel_id}/archive",
-    "methods": [
-      "PUT"
-    ]
+    "methods": ["PUT"]
   },
   {
     "path": "/api/channels/{channel_id}/clone",
-    "methods": [
-      "POST"
-    ]
+    "methods": ["POST"]
   },
   {
     "path": "/api/channels/{channel_id}/disable",
-    "methods": [
-      "PUT"
-    ]
+    "methods": ["PUT"]
   },
   {
     "path": "/api/channels/{channel_id}/enable",
-    "methods": [
-      "PUT"
-    ]
+    "methods": ["PUT"]
   },
   {
     "path": "/api/channels/{channel_id}/export",
-    "methods": [
-      "GET"
-    ]
+    "methods": ["GET"]
   },
   {
     "path": "/api/channels/{channel_id}/jobs",
-    "methods": [
-      "GET"
-    ]
+    "methods": ["GET"]
   },
   {
     "path": "/api/channels/{channel_id}/learning-insights",
-    "methods": [
-      "GET"
-    ]
+    "methods": ["GET"]
   },
   {
     "path": "/api/channels/{channel_id}/pause",
-    "methods": [
-      "POST"
-    ]
+    "methods": ["POST"]
   },
   {
     "path": "/api/channels/{channel_id}/restore",
-    "methods": [
-      "PUT"
-    ]
+    "methods": ["PUT"]
   },
   {
     "path": "/api/channels/{channel_id}/resume",
-    "methods": [
-      "POST"
-    ]
+    "methods": ["POST"]
   },
   {
     "path": "/api/channels/{channel_id}/stop",
-    "methods": [
-      "POST"
-    ]
+    "methods": ["POST"]
   },
   {
     "path": "/api/channels/{channel_id}/trigger",
-    "methods": [
-      "POST"
-    ]
+    "methods": ["POST"]
   },
   {
     "path": "/api/channels/{channel_id}/workflow-status",
-    "methods": [
-      "GET"
-    ]
+    "methods": ["GET"]
   },
   {
     "path": "/api/config",
-    "methods": [
-      "GET"
-    ]
+    "methods": ["GET"]
   },
   {
     "path": "/api/config",
-    "methods": [
-      "PUT"
-    ]
+    "methods": ["PUT"]
   },
   {
     "path": "/api/emergency-resume",
-    "methods": [
-      "POST"
-    ]
+    "methods": ["POST"]
   },
   {
     "path": "/api/emergency-stop",
-    "methods": [
-      "POST"
-    ]
+    "methods": ["POST"]
   },
   {
     "path": "/api/fleet-health",
-    "methods": [
-      "GET"
-    ]
+    "methods": ["GET"]
   },
   {
     "path": "/api/jobs/active",
-    "methods": [
-      "GET"
-    ]
+    "methods": ["GET"]
   },
   {
     "path": "/api/jobs/{content_id}/approve",
-    "methods": [
-      "POST"
-    ]
+    "methods": ["POST"]
   },
   {
     "path": "/api/jobs/{content_id}/metadata",
-    "methods": [
-      "GET"
-    ]
+    "methods": ["GET"]
   },
   {
     "path": "/api/jobs/{content_id}/output",
-    "methods": [
-      "GET"
-    ]
+    "methods": ["GET"]
   },
   {
     "path": "/api/jobs/{content_id}/pause",
-    "methods": [
-      "POST"
-    ]
+    "methods": ["POST"]
   },
   {
     "path": "/api/jobs/{content_id}/presigned",
-    "methods": [
-      "GET"
-    ]
+    "methods": ["GET"]
   },
   {
     "path": "/api/jobs/{content_id}/progress",
-    "methods": [
-      "GET"
-    ]
+    "methods": ["GET"]
   },
   {
     "path": "/api/jobs/{content_id}/reject",
-    "methods": [
-      "POST"
-    ]
+    "methods": ["POST"]
   },
   {
     "path": "/api/jobs/{content_id}/restart",
-    "methods": [
-      "POST"
-    ]
+    "methods": ["POST"]
   },
   {
     "path": "/api/jobs/{content_id}/resume",
-    "methods": [
-      "POST"
-    ]
+    "methods": ["POST"]
   },
   {
     "path": "/api/jobs/{content_id}/retry",
-    "methods": [
-      "POST"
-    ]
+    "methods": ["POST"]
   },
   {
     "path": "/api/jobs/{content_id}/stop",
-    "methods": [
-      "POST"
-    ]
+    "methods": ["POST"]
   },
   {
     "path": "/api/jobs/{content_id}/video",
-    "methods": [
-      "GET"
-    ]
+    "methods": ["GET"]
   },
   {
     "path": "/api/niche-templates",
-    "methods": [
-      "GET"
-    ]
+    "methods": ["GET"]
   },
   {
     "path": "/api/stats",
-    "methods": [
-      "GET"
-    ]
+    "methods": ["GET"]
   },
   {
     "path": "/api/test-data",
-    "methods": [
-      "DELETE"
-    ]
+    "methods": ["DELETE"]
   },
   {
     "path": "/api/test-data/stats",
-    "methods": [
-      "GET"
-    ]
+    "methods": ["GET"]
   }
 ]

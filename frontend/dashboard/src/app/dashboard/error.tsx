@@ -1,21 +1,15 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { AlertTriangle, RotateCw, Home } from '@/lib/components/Icon';
-import { Button } from '@/lib/ui';
+import { useEffect } from "react";
+import Link from "next/link";
+import { motion } from "framer-motion";
+import { AlertTriangle, RotateCw, Home } from "@/lib/components/Icon";
+import { Button } from "@/lib/ui";
 
-export default function DashboardError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
+export default function DashboardError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     // eslint-disable-next-line no-console
-    console.error('[dashboard error]', error);
+    console.error("[dashboard error]", error);
   }, [error]);
 
   return (
@@ -32,11 +26,9 @@ export default function DashboardError({
         <div>
           <h1 className="text-base font-semibold text-content-primary">Something went wrong</h1>
           <p className="text-xs text-content-tertiary mt-1">
-            {error?.message || 'An unexpected error occurred while rendering this page.'}
+            {error?.message || "An unexpected error occurred while rendering this page."}
           </p>
-          {error?.digest && (
-            <p className="text-[10px] text-content-tertiary mt-2 font-mono">digest: {error.digest}</p>
-          )}
+          {error?.digest && <p className="text-[10px] text-content-tertiary mt-2 font-mono">digest: {error.digest}</p>}
         </div>
         <div className="flex items-center justify-center gap-2 pt-2">
           <Button onClick={() => reset()} size="sm" leftIcon={<RotateCw size={14} />}>

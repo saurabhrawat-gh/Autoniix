@@ -1,10 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": [
-    "proto/**/*.proto",
-    "proto/buf.yaml",
-    "proto/buf.gen.yaml"
-  ],
+  "globalDependencies": ["proto/**/*.proto", "proto/buf.yaml", "proto/buf.gen.yaml"],
   "pipeline": {
     "proto:lint": {
       "cache": true,
@@ -13,12 +9,7 @@
     "proto:generate": {
       "cache": true,
       "inputs": ["proto/**/*.proto", "proto/buf.yaml", "proto/buf.gen.yaml"],
-      "outputs": [
-        "gen/go/**",
-        "gen/rust/**",
-        "gen/python/**",
-        "dashboard/src/generated/**"
-      ]
+      "outputs": ["gen/go/**", "gen/rust/**", "gen/python/**", "dashboard/src/generated/**"]
     },
     "proto:breaking": {
       "cache": true,
@@ -36,12 +27,7 @@
     },
     "build": {
       "dependsOn": ["^build", "proto:generate"],
-      "outputs": [
-        "dist/**",
-        "build/**",
-        "target/release/**",
-        ".next/**"
-      ]
+      "outputs": ["dist/**", "build/**", "target/release/**", ".next/**"]
     },
     "test": {
       "dependsOn": ["build"],

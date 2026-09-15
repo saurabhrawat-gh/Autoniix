@@ -17,7 +17,10 @@ import path from "node:path";
 import { DirectionV3 } from "../src/schemas/directionV3";
 import { lower, hashNode, tagCapabilities } from "../src/scene-graph";
 
-const fixturePath = path.resolve(__dirname, "../src/scene-graph/__fixtures__/minimal-direction.json");
+const fixturePath = path.resolve(
+  __dirname,
+  "../src/scene-graph/__fixtures__/minimal-direction.json",
+);
 const raw = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
 const direction = DirectionV3.parse(raw);
 

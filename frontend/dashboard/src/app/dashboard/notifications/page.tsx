@@ -1,46 +1,54 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { Bell, AlertTriangle, AlertCircle, Info, Settings as Cog } from 'lucide-react';
-import { notifyApi } from '@/lib/api-v2';
-import { wsEvents } from '@/lib/api-v2';
-import { Button } from '@/lib/ui';
-import { cn } from '@/lib/utils';
+import { useEffect, useState } from "react";
+import { Bell, AlertTriangle, AlertCircle, Info, Settings as Cog } from "lucide-react";
+import { notifyApi } from "@/lib/api-v2";
+import { wsEvents } from "@/lib/api-v2";
+import { Button } from "@/lib/ui";
+import { cn } from "@/lib/utils";
 
 export default function Notifications() {
-  const [tab, setTab] = useState<'inbox'|'routes'|'deliveries'>('inbox');
+  const [tab, setTab] = useState<"inbox" | "routes" | "deliveries">("inbox");
   return (
-    <main className="flex-1 px-4 sm:px-6 py-6 max-w-[1400px] mx-auto w-full"><div className="space-y-5">
-      <h1 className="text-2xl font-semibold">Notifications</h1>
-      <div className="flex gap-1 border-b border-border">
-        {(['inbox','routes','deliveries'] as const).map(t => (
-          <Button
-            key={t}
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setTab(t)}
-            className={cn(
-              'h-auto px-3 py-2 text-sm rounded-none border-b-2 -mb-px',
-              tab === t ? 'border-accent text-accent hover:text-accent' : 'border-transparent opacity-70 hover:opacity-100',
-            )}>
-            {t}
-          </Button>
-        ))}
+    <main className="flex-1 px-4 sm:px-6 py-6 max-w-[1400px] mx-auto w-full">
+      <div className="space-y-5">
+        <h1 className="text-2xl font-semibold">Notifications</h1>
+        <div className="flex gap-1 border-b border-border">
+          {(["inbox", "routes", "deliveries"] as const).map((t) => (
+            <Button
+              key={t}
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setTab(t)}
+              className={cn(
+                "h-auto px-3 py-2 text-sm rounded-none border-b-2 -mb-px",
+                tab === t
+                  ? "border-accent text-accent hover:text-accent"
+                  : "border-transparent opacity-70 hover:opacity-100"
+              )}
+            >
+              {t}
+            </Button>
+          ))}
+        </div>
+        {tab === "inbox" && <Inbox />}
+        {tab === "routes" && <Routes />}
+        {tab === "deliveries" && <Deliveries />}
       </div>
-      {tab === 'inbox' && <Inbox />}
-      {tab === 'routes' && <Routes />}
-      {tab === 'deliveries' && <Deliveries />}
-    </div>
     </main>
   );
 }
 
 function Inbox() {
   const [rows, setRows] = useState<any[]>([]);
-  const [sev, setSev] = useState<string>('');
-  const refresh = () => { notifyApi.list(false, sev || undefined).then(r => setRows(r.data || [])); };
-  useEffect(() => { refresh(); }, [sev]);
+  const [sev, setSev] = useState<string>("");
+  const refresh = () => {
+    notifyApi.list(false, sev || undefined).then((r) => setRows(r.data || []));
+  };
+  useEffect(() => {
+    refresh();
+  }, [sev]);
 
   useEffect(() => {
     let ws: WebSocket | null = null;
@@ -52,40 +60,55 @@ function Inbox() {
         ws.onmessage = (ev) => {
           try {
             const msg = JSON.parse(ev.data);
-            if (msg?.type === 'notification') refresh();
-          } catch { /* noop */ }
+            if (msg?.type === "notification") refresh();
+          } catch {
+            /* noop */
+          }
         };
-        ws.onclose = () => { if (alive) reconnect = setTimeout(connect, 4000); };
-        ws.onerror = () => { ws?.close(); };
-      } catch { /* noop */ }
+        ws.onclose = () => {
+          if (alive) reconnect = setTimeout(connect, 4000);
+        };
+        ws.onerror = () => {
+          ws?.close();
+        };
+      } catch {
+        /* noop */
+      }
     };
     connect();
-    return () => { alive = false; clearTimeout(reconnect); ws?.close(); };
+    return () => {
+      alive = false;
+      clearTimeout(reconnect);
+      ws?.close();
+    };
   }, [sev]);
   return (
     <div>
       <div className="flex gap-2 mb-3">
-        {['','info','warn','error','critical'].map(s => (
-          <Button
-            key={s}
-            size="sm"
-            variant={sev === s ? 'primary' : 'outline'}
-            onClick={() => setSev(s)}
-          >
-            {s || 'all'}
+        {["", "info", "warn", "error", "critical"].map((s) => (
+          <Button key={s} size="sm" variant={sev === s ? "primary" : "outline"} onClick={() => setSev(s)}>
+            {s || "all"}
           </Button>
         ))}
       </div>
       <div className="rounded-xl border border-border bg-surface-0 divide-y divide-border">
         {rows.length === 0 && <div className="p-6 text-sm opacity-60 text-center">No notifications.</div>}
-        {rows.map(n => {
-          const Icon = n.severity === 'critical' || n.severity === 'error' ? AlertCircle :
-                       n.severity === 'warn' ? AlertTriangle : Info;
-          const color = n.severity === 'critical' || n.severity === 'error' ? 'text-status-error' :
-                        n.severity === 'warn' ? 'text-status-warning' : 'text-status-info';
+        {rows.map((n) => {
+          const Icon =
+            n.severity === "critical" || n.severity === "error"
+              ? AlertCircle
+              : n.severity === "warn"
+                ? AlertTriangle
+                : Info;
+          const color =
+            n.severity === "critical" || n.severity === "error"
+              ? "text-status-error"
+              : n.severity === "warn"
+                ? "text-status-warning"
+                : "text-status-info";
           return (
             <div key={n.id} className="p-3 flex gap-3">
-              <Icon size={16} className={color + ' shrink-0 mt-0.5'} />
+              <Icon size={16} className={color + " shrink-0 mt-0.5"} />
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium">{n.title}</div>
                 {n.body && <div className="text-xs opacity-70 mt-0.5">{n.body}</div>}
@@ -112,31 +135,37 @@ function Inbox() {
 
 function Routes() {
   const [rows, setRows] = useState<any[]>([]);
-  const refresh = () => { notifyApi.routes().then(r => setRows(r.data || [])); };
-  useEffect(() => { refresh(); }, []);
+  const refresh = () => {
+    notifyApi.routes().then((r) => setRows(r.data || []));
+  };
+  useEffect(() => {
+    refresh();
+  }, []);
   return (
     <div className="space-y-3">
-      <p className="text-sm opacity-70">Route rules decide where notifications are delivered. Slack and webhook channels need a configured URL.</p>
+      <p className="text-sm opacity-70">
+        Route rules decide where notifications are delivered. Slack and webhook channels need a configured URL.
+      </p>
       <div className="rounded-xl border border-border bg-surface-0 divide-y divide-border">
-        {rows.map(r => (
+        {rows.map((r) => (
           <div key={r.id} className="p-3 flex items-center gap-3">
             <Cog size={14} className="opacity-50" />
             <div className="flex-1">
               <div className="text-sm font-medium">{r.name}</div>
               <div className="text-xs opacity-60 font-mono">
-                {r.event_pattern} · ≥{r.severity_min} → {r.channels.join(', ')}
+                {r.event_pattern} · ≥{r.severity_min} → {r.channels.join(", ")}
               </div>
             </div>
             <Button
               size="sm"
-              variant={r.enabled ? 'primary' : 'outline'}
-              className={r.enabled ? 'bg-status-success hover:bg-status-success/90 text-content-inverse' : ''}
+              variant={r.enabled ? "primary" : "outline"}
+              className={r.enabled ? "bg-status-success hover:bg-status-success/90 text-content-inverse" : ""}
               onClick={async () => {
                 await notifyApi.updateRoute(r.id, { ...r, enabled: !r.enabled });
                 refresh();
               }}
             >
-              {r.enabled ? 'enabled' : 'disabled'}
+              {r.enabled ? "enabled" : "disabled"}
             </Button>
           </div>
         ))}
@@ -147,16 +176,26 @@ function Routes() {
 
 function Deliveries() {
   const [rows, setRows] = useState<any[]>([]);
-  useEffect(() => { notifyApi.deliveries().then(r => setRows(r.data || [])); }, []);
+  useEffect(() => {
+    notifyApi.deliveries().then((r) => setRows(r.data || []));
+  }, []);
   return (
     <div className="rounded-xl border border-border bg-surface-0 divide-y divide-border">
       {rows.length === 0 && <div className="p-6 text-sm opacity-60 text-center">No delivery records.</div>}
-      {rows.map(d => (
+      {rows.map((d) => (
         <div key={d.id} className="p-3 text-sm flex items-center gap-3">
-          <span className={cn('text-[10px] uppercase px-1.5 py-0.5 rounded',
-            d.status === 'sent' ? 'bg-status-success/15 text-status-success'
-             : d.status === 'failed' ? 'bg-status-error/15 text-status-error'
-             : 'bg-surface-3/15 text-content-tertiary')}>{d.status}</span>
+          <span
+            className={cn(
+              "text-[10px] uppercase px-1.5 py-0.5 rounded",
+              d.status === "sent"
+                ? "bg-status-success/15 text-status-success"
+                : d.status === "failed"
+                  ? "bg-status-error/15 text-status-error"
+                  : "bg-surface-3/15 text-content-tertiary"
+            )}
+          >
+            {d.status}
+          </span>
           <span className="opacity-80">{d.channel}</span>
           {d.error && <span className="text-xs text-status-error truncate">{d.error}</span>}
           <span className="ml-auto text-xs opacity-50">{new Date(d.created_at).toLocaleString()}</span>

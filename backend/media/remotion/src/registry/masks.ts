@@ -252,11 +252,7 @@ export function maskAtTime(track: MaskTrack, tLocalMs: number): MaskFrame {
  *
  * `width` / `height` scale the normalized coords to the wrapping element.
  */
-export function shapeToSvgPath(
-  shape: MaskShape,
-  width: number,
-  height: number,
-): string | null {
+export function shapeToSvgPath(shape: MaskShape, width: number, height: number): string | null {
   const w = width;
   const h = height;
   switch (shape.kind) {

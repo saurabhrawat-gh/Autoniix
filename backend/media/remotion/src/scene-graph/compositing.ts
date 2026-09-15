@@ -35,18 +35,14 @@ export function isBlendMode(v: unknown): v is BlendMode {
  */
 export function validateCompositing(c: Compositing, clipId: string): Compositing {
   if (c.blendMode !== undefined && !isBlendMode(c.blendMode)) {
-    throw new Error(
-      `compositing(${clipId}): unknown blendMode ${JSON.stringify(c.blendMode)}`,
-    );
+    throw new Error(`compositing(${clipId}): unknown blendMode ${JSON.stringify(c.blendMode)}`);
   }
   if (c.opacity !== undefined) {
     if (typeof c.opacity !== "number" || !Number.isFinite(c.opacity)) {
       throw new Error(`compositing(${clipId}): opacity must be a finite number`);
     }
     if (c.opacity < 0 || c.opacity > 1) {
-      throw new Error(
-        `compositing(${clipId}): opacity ${c.opacity} out of [0,1] range`,
-      );
+      throw new Error(`compositing(${clipId}): opacity ${c.opacity} out of [0,1] range`);
     }
   }
   return c;

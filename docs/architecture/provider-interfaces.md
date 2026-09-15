@@ -26,6 +26,7 @@
 ```
 
 **To swap Fish Audio → ElevenLabs:**
+
 1. Set `TTS_PROVIDER=elevenlabs` in `.env`
 2. Set `ELEVENLABS_API_KEY=sk_...` in `.env`
 3. Restart voice service
@@ -67,7 +68,7 @@ class ProviderRegistry:
             "image": "IMAGE_PROVIDER",
             "storage": "STORAGE_PROVIDER",
         }
-        
+
         name = override or os.getenv(env_map.get(category, ""), "")
         if not name:
             raise ValueError(f"No provider configured for category '{category}'")
@@ -669,17 +670,17 @@ import lib.providers.tts.elevenlabs
 
 async def generate_voice(text: str, voice_id: str) -> TTSResult:
     tts = ProviderRegistry.get("tts")  # Reads TTS_PROVIDER env var
-    
+
     # Pre-flight cost check
     estimated = tts.estimate_cost(text)
     if estimated > budget_remaining:
         raise BudgetExceededError(...)
-    
+
     result = await tts.synthesize(TTSRequest(text=text, voice_id=voice_id))
-    
+
     # Log cost
     await log_api_usage(provider=result.provider, cost_usd=result.cost_usd, ...)
-    
+
     return result
 ```
 
@@ -746,12 +747,14 @@ ProviderRegistry.register("tts", "google_tts", GoogleTTS)
 ```
 
 2. **Import in the service entrypoint:**
+
 ```python
 # services/voice/main.py
 import lib.providers.tts.google_tts  # Add this line
 ```
 
 3. **Set env var:**
+
 ```bash
 TTS_PROVIDER=google_tts
 GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
@@ -798,6 +801,7 @@ async def call_with_fallback(category: str, method: str, *args, **kwargs):
 ```
 
 Usage:
+
 ```python
 result = await call_with_fallback("tts", "synthesize", tts_request)
 ```

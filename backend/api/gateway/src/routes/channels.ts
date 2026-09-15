@@ -34,15 +34,12 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
       const status = query.status;
       const includeArchived = query.include_archived === "true";
 
-      const { channels, total } = await channelRepo.findByWorkspace(
-        request.principal.workspace_id,
-        {
-          status,
-          includeArchived,
-          limit: pageSize,
-          offset: (page - 1) * pageSize,
-        }
-      );
+      const { channels, total } = await channelRepo.findByWorkspace(request.principal.workspace_id, {
+        status,
+        includeArchived,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      });
 
       return reply.send({
         channels: channels.map((c) => channelRepo.toChannel(c)),
@@ -113,10 +110,7 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
 
     try {
       const { channel_id } = request.params as { channel_id: string };
-      const channel = await channelRepo.findById(
-        channel_id,
-        request.principal.workspace_id
-      );
+      const channel = await channelRepo.findById(channel_id, request.principal.workspace_id);
 
       if (!channel) {
         return reply.code(404).send({
@@ -147,22 +141,18 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
       const { channel_id } = request.params as { channel_id: string };
       const body = request.body as any;
 
-      const channel = await channelRepo.update(
-        channel_id,
-        request.principal.workspace_id,
-        {
-          channel_name: body.channel_name,
-          niche: body.niche,
-          sub_niche: body.sub_niche,
-          handle: body.handle,
-          description: body.description,
-          tone: body.tone,
-          brand_personality: body.brand_personality,
-          auto_upload: body.auto_upload,
-          human_review_required: body.human_review_required,
-          content_type_tags: body.content_type_tags,
-        }
-      );
+      const channel = await channelRepo.update(channel_id, request.principal.workspace_id, {
+        channel_name: body.channel_name,
+        niche: body.niche,
+        sub_niche: body.sub_niche,
+        handle: body.handle,
+        description: body.description,
+        tone: body.tone,
+        brand_personality: body.brand_personality,
+        auto_upload: body.auto_upload,
+        human_review_required: body.human_review_required,
+        content_type_tags: body.content_type_tags,
+      });
 
       return reply.send({
         channel: channelRepo.toChannel(channel),
@@ -190,10 +180,7 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
 
     try {
       const { channel_id } = request.params as { channel_id: string };
-      const channel = await channelRepo.findById(
-        channel_id,
-        request.principal.workspace_id
-      );
+      const channel = await channelRepo.findById(channel_id, request.principal.workspace_id);
 
       if (!channel) {
         return reply.code(404).send({
@@ -221,11 +208,7 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
 
     try {
       const { channel_id } = request.params as { channel_id: string };
-      const channel = await channelRepo.updateStatus(
-        channel_id,
-        request.principal.workspace_id,
-        "active"
-      );
+      const channel = await channelRepo.updateStatus(channel_id, request.principal.workspace_id, "active");
       return reply.send({ channel: channelRepo.toChannel(channel) });
     } catch (error: any) {
       request.log.error(error);
@@ -244,11 +227,7 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
 
     try {
       const { channel_id } = request.params as { channel_id: string };
-      const channel = await channelRepo.updateStatus(
-        channel_id,
-        request.principal.workspace_id,
-        "disabled"
-      );
+      const channel = await channelRepo.updateStatus(channel_id, request.principal.workspace_id, "disabled");
       return reply.send({ channel: channelRepo.toChannel(channel) });
     } catch (error: any) {
       request.log.error(error);
@@ -267,11 +246,7 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
 
     try {
       const { channel_id } = request.params as { channel_id: string };
-      const channel = await channelRepo.updateStatus(
-        channel_id,
-        request.principal.workspace_id,
-        "archived"
-      );
+      const channel = await channelRepo.updateStatus(channel_id, request.principal.workspace_id, "archived");
       return reply.send({ channel: channelRepo.toChannel(channel) });
     } catch (error: any) {
       request.log.error(error);
@@ -290,11 +265,7 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
 
     try {
       const { channel_id } = request.params as { channel_id: string };
-      const channel = await channelRepo.updateStatus(
-        channel_id,
-        request.principal.workspace_id,
-        "active"
-      );
+      const channel = await channelRepo.updateStatus(channel_id, request.principal.workspace_id, "active");
       return reply.send({ channel: channelRepo.toChannel(channel) });
     } catch (error: any) {
       request.log.error(error);

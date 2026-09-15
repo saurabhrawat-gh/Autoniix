@@ -4,7 +4,7 @@ import { healthCheck } from "../database.js";
 export async function healthRoutes(app: FastifyInstance): Promise<void> {
   app.get("/health", async (request, reply) => {
     const dbHealthy = await healthCheck(app.db);
-    
+
     if (!dbHealthy) {
       return reply.code(503).send({
         status: "unhealthy",
@@ -22,7 +22,7 @@ export async function healthRoutes(app: FastifyInstance): Promise<void> {
 
   app.get("/ready", async (request, reply) => {
     const dbHealthy = await healthCheck(app.db);
-    
+
     if (!dbHealthy) {
       return reply.code(503).send({ ready: false });
     }

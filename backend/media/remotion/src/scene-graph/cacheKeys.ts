@@ -31,8 +31,7 @@ export function textAnimHash(clip: Clip): string | null {
   const inAnims = sc.animationsIn ?? [];
   const outAnims = sc.animationsOut ?? [];
   const textPrefixes = ["anim.text.", "anim.in.typewriter", "anim.in.scramble"];
-  const isTextAnim = (preset: string): boolean =>
-    textPrefixes.some((p) => preset.startsWith(p));
+  const isTextAnim = (preset: string): boolean => textPrefixes.some((p) => preset.startsWith(p));
   const items = [...inAnims, ...outAnims].filter((a) => isTextAnim(a.preset));
   if (items.length === 0) return null;
   return hashNode({ items });

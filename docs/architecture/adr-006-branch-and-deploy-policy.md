@@ -72,13 +72,14 @@ tracks this.
 
 ## Consequences
 
-+ Direct pushes to `main` are impossible from three angles simultaneously.
-+ Every `main` commit is a merge from `develop` (or `hotfix/*`), tested and
+- Direct pushes to `main` are impossible from three angles simultaneously.
+- Every `main` commit is a merge from `develop` (or `hotfix/*`), tested and
   known-green before landing.
-+ Deploy fires only on green-verified `main` pushes.
-- Adds one workflow-dispatch step to weekly releases. Mitigated by the
+- Deploy fires only on green-verified `main` pushes.
+
+* Adds one workflow-dispatch step to weekly releases. Mitigated by the
   `auto` mode.
-- If GitHub auto-merge is disabled at the org level, `auto` mode degrades to
+* If GitHub auto-merge is disabled at the org level, `auto` mode degrades to
   `manual` — documented in the promote workflow output.
 
 ## Bypass audit

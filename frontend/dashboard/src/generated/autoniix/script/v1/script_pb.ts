@@ -11,8 +11,12 @@ import type { Message } from "@bufbuild/protobuf";
 /**
  * Describes the file autoniix/script/v1/script.proto.
  */
-export const file_autoniix_script_v1_script: GenFile = /*@__PURE__*/
-  fileDesc("Ch9hdXRvbmlpeC9zY3JpcHQvdjEvc2NyaXB0LnByb3RvEhJhdXRvbmlpeC5zY3JpcHQudjEi+wEKFUdlbmVyYXRlU2NyaXB0UmVxdWVzdBINCgV0b3BpYxgBIAEoCRINCgVuaWNoZRgCIAEoCRISCgpjaGFubmVsX2lkGAMgASgJEh8KF3RhcmdldF9kdXJhdGlvbl9zZWNvbmRzGAQgASgFEg0KBXN0eWxlGAUgASgJEk0KCnBhcmFtZXRlcnMYBiADKAsyOS5hdXRvbmlpeC5zY3JpcHQudjEuR2VuZXJhdGVTY3JpcHRSZXF1ZXN0LlBhcmFtZXRlcnNFbnRyeRoxCg9QYXJhbWV0ZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJ5ChZHZW5lcmF0ZVNjcmlwdFJlc3BvbnNlEioKBnNjcmlwdBgBIAEoCzIaLmF1dG9uaWl4LnNjcmlwdC52MS5TY3JpcHQSFwoPZ2VuZXJhdGlvbl9jb3N0GAIgASgBEhoKEmdlbmVyYXRpb25fdGltZV9tcxgDIAEoBSLNAQoTRXhwYW5kU2NyaXB0UmVxdWVzdBIRCglzY3JpcHRfaWQYASABKAkSDwoHb3V0bGluZRgCIAEoCRISCgpjaGFubmVsX2lkGAMgASgJEksKCnBhcmFtZXRlcnMYBCADKAsyNy5hdXRvbmlpeC5zY3JpcHQudjEuRXhwYW5kU2NyaXB0UmVxdWVzdC5QYXJhbWV0ZXJzRW50cnkaMQoPUGFyYW1ldGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiQgoURXhwYW5kU2NyaXB0UmVzcG9uc2USKgoGc2NyaXB0GAEgASgLMhouYXV0b25paXguc2NyaXB0LnYxLlNjcmlwdCI7ChVWYWxpZGF0ZVNjcmlwdFJlcXVlc3QSEQoJc2NyaXB0X2lkGAEgASgJEg8KB2NvbnRlbnQYAiABKAkicwoWVmFsaWRhdGVTY3JpcHRSZXNwb25zZRINCgV2YWxpZBgBIAEoCBIzCgZpc3N1ZXMYAiADKAsyIy5hdXRvbmlpeC5zY3JpcHQudjEuVmFsaWRhdGlvbklzc3VlEhUKDXF1YWxpdHlfc2NvcmUYAyABKAEiaAoXR2V0U2NyaXB0SGlzdG9yeVJlcXVlc3QSEgoKY2hhbm5lbF9pZBgBIAEoCRI5CgpwYWdpbmF0aW9uGAIgASgLMiUuYXV0b25paXguY29tbW9uLnYxLlBhZ2luYXRpb25SZXF1ZXN0IoMBChhHZXRTY3JpcHRIaXN0b3J5UmVzcG9uc2USKwoHc2NyaXB0cxgBIAMoCzIaLmF1dG9uaWl4LnNjcmlwdC52MS5TY3JpcHQSOgoKcGFnaW5hdGlvbhgCIAEoCzImLmF1dG9uaWl4LmNvbW1vbi52MS5QYWdpbmF0aW9uUmVzcG9uc2Ui3gEKBlNjcmlwdBIKCgJpZBgBIAEoCRINCgV0b3BpYxgCIAEoCRIPCgdjb250ZW50GAMgASgJEjMKCHNlZ21lbnRzGAQgAygLMiEuYXV0b25paXguc2NyaXB0LnYxLlNjcmlwdFNlZ21lbnQSGAoQZHVyYXRpb25fc2Vjb25kcxgFIAEoBRISCgp3b3JkX2NvdW50GAYgASgFEg0KBXN0eWxlGAcgASgJEjYKCG1ldGFkYXRhGAggASgLMiQuYXV0b25paXguY29tbW9uLnYxLlJlc291cmNlTWV0YWRhdGEibAoNU2NyaXB0U2VnbWVudBINCgVpbmRleBgBIAEoBRIMCgR0ZXh0GAIgASgJEhUKDXN0YXJ0X3RpbWVfbXMYAyABKAUSEwoLZW5kX3RpbWVfbXMYBCABKAUSEgoKc2NlbmVfdHlwZRgFIAEoCSJXCg9WYWxpZGF0aW9uSXNzdWUSDAoEdHlwZRgBIAEoCRIPCgdtZXNzYWdlGAIgASgJEhAKCHNldmVyaXR5GAMgASgJEhMKC2xpbmVfbnVtYmVyGAQgASgFMrMDCg1TY3JpcHRTZXJ2aWNlEmcKDkdlbmVyYXRlU2NyaXB0EikuYXV0b25paXguc2NyaXB0LnYxLkdlbmVyYXRlU2NyaXB0UmVxdWVzdBoqLmF1dG9uaWl4LnNjcmlwdC52MS5HZW5lcmF0ZVNjcmlwdFJlc3BvbnNlEmEKDEV4cGFuZFNjcmlwdBInLmF1dG9uaWl4LnNjcmlwdC52MS5FeHBhbmRTY3JpcHRSZXF1ZXN0GiguYXV0b25paXguc2NyaXB0LnYxLkV4cGFuZFNjcmlwdFJlc3BvbnNlEmcKDlZhbGlkYXRlU2NyaXB0EikuYXV0b25paXguc2NyaXB0LnYxLlZhbGlkYXRlU2NyaXB0UmVxdWVzdBoqLmF1dG9uaWl4LnNjcmlwdC52MS5WYWxpZGF0ZVNjcmlwdFJlc3BvbnNlEm0KEEdldFNjcmlwdEhpc3RvcnkSKy5hdXRvbmlpeC5zY3JpcHQudjEuR2V0U2NyaXB0SGlzdG9yeVJlcXVlc3QaLC5hdXRvbmlpeC5zY3JpcHQudjEuR2V0U2NyaXB0SGlzdG9yeVJlc3BvbnNlQtABChZjb20uYXV0b25paXguc2NyaXB0LnYxQgtTY3JpcHRQcm90b1ABWj9naXRodWIuY29tL2F1dG9uaWl4L2F1dG9uaWl4L2dlbi9nby9hdXRvbmlpeC9zY3JpcHQvdjE7c2NyaXB0djGiAgNBU1iqAhJBdXRvbmlpeC5TY3JpcHQuVjHKAhJBdXRvbmlpeFxTY3JpcHRcVjHiAh5BdXRvbmlpeFxTY3JpcHRcVjFcR1BCTWV0YWRhdGHqAhRBdXRvbmlpeDo6U2NyaXB0OjpWMWIGcHJvdG8z", [file_autoniix_common_v1_common]);
+export const file_autoniix_script_v1_script: GenFile =
+  /*@__PURE__*/
+  fileDesc(
+    "Ch9hdXRvbmlpeC9zY3JpcHQvdjEvc2NyaXB0LnByb3RvEhJhdXRvbmlpeC5zY3JpcHQudjEi+wEKFUdlbmVyYXRlU2NyaXB0UmVxdWVzdBINCgV0b3BpYxgBIAEoCRINCgVuaWNoZRgCIAEoCRISCgpjaGFubmVsX2lkGAMgASgJEh8KF3RhcmdldF9kdXJhdGlvbl9zZWNvbmRzGAQgASgFEg0KBXN0eWxlGAUgASgJEk0KCnBhcmFtZXRlcnMYBiADKAsyOS5hdXRvbmlpeC5zY3JpcHQudjEuR2VuZXJhdGVTY3JpcHRSZXF1ZXN0LlBhcmFtZXRlcnNFbnRyeRoxCg9QYXJhbWV0ZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJ5ChZHZW5lcmF0ZVNjcmlwdFJlc3BvbnNlEioKBnNjcmlwdBgBIAEoCzIaLmF1dG9uaWl4LnNjcmlwdC52MS5TY3JpcHQSFwoPZ2VuZXJhdGlvbl9jb3N0GAIgASgBEhoKEmdlbmVyYXRpb25fdGltZV9tcxgDIAEoBSLNAQoTRXhwYW5kU2NyaXB0UmVxdWVzdBIRCglzY3JpcHRfaWQYASABKAkSDwoHb3V0bGluZRgCIAEoCRISCgpjaGFubmVsX2lkGAMgASgJEksKCnBhcmFtZXRlcnMYBCADKAsyNy5hdXRvbmlpeC5zY3JpcHQudjEuRXhwYW5kU2NyaXB0UmVxdWVzdC5QYXJhbWV0ZXJzRW50cnkaMQoPUGFyYW1ldGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiQgoURXhwYW5kU2NyaXB0UmVzcG9uc2USKgoGc2NyaXB0GAEgASgLMhouYXV0b25paXguc2NyaXB0LnYxLlNjcmlwdCI7ChVWYWxpZGF0ZVNjcmlwdFJlcXVlc3QSEQoJc2NyaXB0X2lkGAEgASgJEg8KB2NvbnRlbnQYAiABKAkicwoWVmFsaWRhdGVTY3JpcHRSZXNwb25zZRINCgV2YWxpZBgBIAEoCBIzCgZpc3N1ZXMYAiADKAsyIy5hdXRvbmlpeC5zY3JpcHQudjEuVmFsaWRhdGlvbklzc3VlEhUKDXF1YWxpdHlfc2NvcmUYAyABKAEiaAoXR2V0U2NyaXB0SGlzdG9yeVJlcXVlc3QSEgoKY2hhbm5lbF9pZBgBIAEoCRI5CgpwYWdpbmF0aW9uGAIgASgLMiUuYXV0b25paXguY29tbW9uLnYxLlBhZ2luYXRpb25SZXF1ZXN0IoMBChhHZXRTY3JpcHRIaXN0b3J5UmVzcG9uc2USKwoHc2NyaXB0cxgBIAMoCzIaLmF1dG9uaWl4LnNjcmlwdC52MS5TY3JpcHQSOgoKcGFnaW5hdGlvbhgCIAEoCzImLmF1dG9uaWl4LmNvbW1vbi52MS5QYWdpbmF0aW9uUmVzcG9uc2Ui3gEKBlNjcmlwdBIKCgJpZBgBIAEoCRINCgV0b3BpYxgCIAEoCRIPCgdjb250ZW50GAMgASgJEjMKCHNlZ21lbnRzGAQgAygLMiEuYXV0b25paXguc2NyaXB0LnYxLlNjcmlwdFNlZ21lbnQSGAoQZHVyYXRpb25fc2Vjb25kcxgFIAEoBRISCgp3b3JkX2NvdW50GAYgASgFEg0KBXN0eWxlGAcgASgJEjYKCG1ldGFkYXRhGAggASgLMiQuYXV0b25paXguY29tbW9uLnYxLlJlc291cmNlTWV0YWRhdGEibAoNU2NyaXB0U2VnbWVudBINCgVpbmRleBgBIAEoBRIMCgR0ZXh0GAIgASgJEhUKDXN0YXJ0X3RpbWVfbXMYAyABKAUSEwoLZW5kX3RpbWVfbXMYBCABKAUSEgoKc2NlbmVfdHlwZRgFIAEoCSJXCg9WYWxpZGF0aW9uSXNzdWUSDAoEdHlwZRgBIAEoCRIPCgdtZXNzYWdlGAIgASgJEhAKCHNldmVyaXR5GAMgASgJEhMKC2xpbmVfbnVtYmVyGAQgASgFMrMDCg1TY3JpcHRTZXJ2aWNlEmcKDkdlbmVyYXRlU2NyaXB0EikuYXV0b25paXguc2NyaXB0LnYxLkdlbmVyYXRlU2NyaXB0UmVxdWVzdBoqLmF1dG9uaWl4LnNjcmlwdC52MS5HZW5lcmF0ZVNjcmlwdFJlc3BvbnNlEmEKDEV4cGFuZFNjcmlwdBInLmF1dG9uaWl4LnNjcmlwdC52MS5FeHBhbmRTY3JpcHRSZXF1ZXN0GiguYXV0b25paXguc2NyaXB0LnYxLkV4cGFuZFNjcmlwdFJlc3BvbnNlEmcKDlZhbGlkYXRlU2NyaXB0EikuYXV0b25paXguc2NyaXB0LnYxLlZhbGlkYXRlU2NyaXB0UmVxdWVzdBoqLmF1dG9uaWl4LnNjcmlwdC52MS5WYWxpZGF0ZVNjcmlwdFJlc3BvbnNlEm0KEEdldFNjcmlwdEhpc3RvcnkSKy5hdXRvbmlpeC5zY3JpcHQudjEuR2V0U2NyaXB0SGlzdG9yeVJlcXVlc3QaLC5hdXRvbmlpeC5zY3JpcHQudjEuR2V0U2NyaXB0SGlzdG9yeVJlc3BvbnNlQtABChZjb20uYXV0b25paXguc2NyaXB0LnYxQgtTY3JpcHRQcm90b1ABWj9naXRodWIuY29tL2F1dG9uaWl4L2F1dG9uaWl4L2dlbi9nby9hdXRvbmlpeC9zY3JpcHQvdjE7c2NyaXB0djGiAgNBU1iqAhJBdXRvbmlpeC5TY3JpcHQuVjHKAhJBdXRvbmlpeFxTY3JpcHRcVjHiAh5BdXRvbmlpeFxTY3JpcHRcVjFcR1BCTWV0YWRhdGHqAhRBdXRvbmlpeDo6U2NyaXB0OjpWMWIGcHJvdG8z",
+    [file_autoniix_common_v1_common]
+  );
 
 /**
  * @generated from message autoniix.script.v1.GenerateScriptRequest
@@ -53,7 +57,8 @@ export type GenerateScriptRequest = Message<"autoniix.script.v1.GenerateScriptRe
  * Describes the message autoniix.script.v1.GenerateScriptRequest.
  * Use `create(GenerateScriptRequestSchema)` to create a new message.
  */
-export const GenerateScriptRequestSchema: GenMessage<GenerateScriptRequest> = /*@__PURE__*/
+export const GenerateScriptRequestSchema: GenMessage<GenerateScriptRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_script_v1_script, 0);
 
 /**
@@ -80,7 +85,8 @@ export type GenerateScriptResponse = Message<"autoniix.script.v1.GenerateScriptR
  * Describes the message autoniix.script.v1.GenerateScriptResponse.
  * Use `create(GenerateScriptResponseSchema)` to create a new message.
  */
-export const GenerateScriptResponseSchema: GenMessage<GenerateScriptResponse> = /*@__PURE__*/
+export const GenerateScriptResponseSchema: GenMessage<GenerateScriptResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_script_v1_script, 1);
 
 /**
@@ -112,7 +118,8 @@ export type ExpandScriptRequest = Message<"autoniix.script.v1.ExpandScriptReques
  * Describes the message autoniix.script.v1.ExpandScriptRequest.
  * Use `create(ExpandScriptRequestSchema)` to create a new message.
  */
-export const ExpandScriptRequestSchema: GenMessage<ExpandScriptRequest> = /*@__PURE__*/
+export const ExpandScriptRequestSchema: GenMessage<ExpandScriptRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_script_v1_script, 2);
 
 /**
@@ -129,7 +136,8 @@ export type ExpandScriptResponse = Message<"autoniix.script.v1.ExpandScriptRespo
  * Describes the message autoniix.script.v1.ExpandScriptResponse.
  * Use `create(ExpandScriptResponseSchema)` to create a new message.
  */
-export const ExpandScriptResponseSchema: GenMessage<ExpandScriptResponse> = /*@__PURE__*/
+export const ExpandScriptResponseSchema: GenMessage<ExpandScriptResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_script_v1_script, 3);
 
 /**
@@ -151,7 +159,8 @@ export type ValidateScriptRequest = Message<"autoniix.script.v1.ValidateScriptRe
  * Describes the message autoniix.script.v1.ValidateScriptRequest.
  * Use `create(ValidateScriptRequestSchema)` to create a new message.
  */
-export const ValidateScriptRequestSchema: GenMessage<ValidateScriptRequest> = /*@__PURE__*/
+export const ValidateScriptRequestSchema: GenMessage<ValidateScriptRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_script_v1_script, 4);
 
 /**
@@ -178,7 +187,8 @@ export type ValidateScriptResponse = Message<"autoniix.script.v1.ValidateScriptR
  * Describes the message autoniix.script.v1.ValidateScriptResponse.
  * Use `create(ValidateScriptResponseSchema)` to create a new message.
  */
-export const ValidateScriptResponseSchema: GenMessage<ValidateScriptResponse> = /*@__PURE__*/
+export const ValidateScriptResponseSchema: GenMessage<ValidateScriptResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_script_v1_script, 5);
 
 /**
@@ -200,7 +210,8 @@ export type GetScriptHistoryRequest = Message<"autoniix.script.v1.GetScriptHisto
  * Describes the message autoniix.script.v1.GetScriptHistoryRequest.
  * Use `create(GetScriptHistoryRequestSchema)` to create a new message.
  */
-export const GetScriptHistoryRequestSchema: GenMessage<GetScriptHistoryRequest> = /*@__PURE__*/
+export const GetScriptHistoryRequestSchema: GenMessage<GetScriptHistoryRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_script_v1_script, 6);
 
 /**
@@ -222,7 +233,8 @@ export type GetScriptHistoryResponse = Message<"autoniix.script.v1.GetScriptHist
  * Describes the message autoniix.script.v1.GetScriptHistoryResponse.
  * Use `create(GetScriptHistoryResponseSchema)` to create a new message.
  */
-export const GetScriptHistoryResponseSchema: GenMessage<GetScriptHistoryResponse> = /*@__PURE__*/
+export const GetScriptHistoryResponseSchema: GenMessage<GetScriptHistoryResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_script_v1_script, 7);
 
 /**
@@ -274,8 +286,7 @@ export type Script = Message<"autoniix.script.v1.Script"> & {
  * Describes the message autoniix.script.v1.Script.
  * Use `create(ScriptSchema)` to create a new message.
  */
-export const ScriptSchema: GenMessage<Script> = /*@__PURE__*/
-  messageDesc(file_autoniix_script_v1_script, 8);
+export const ScriptSchema: GenMessage<Script> = /*@__PURE__*/ messageDesc(file_autoniix_script_v1_script, 8);
 
 /**
  * @generated from message autoniix.script.v1.ScriptSegment
@@ -311,7 +322,8 @@ export type ScriptSegment = Message<"autoniix.script.v1.ScriptSegment"> & {
  * Describes the message autoniix.script.v1.ScriptSegment.
  * Use `create(ScriptSegmentSchema)` to create a new message.
  */
-export const ScriptSegmentSchema: GenMessage<ScriptSegment> = /*@__PURE__*/
+export const ScriptSegmentSchema: GenMessage<ScriptSegment> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_script_v1_script, 9);
 
 /**
@@ -343,7 +355,8 @@ export type ValidationIssue = Message<"autoniix.script.v1.ValidationIssue"> & {
  * Describes the message autoniix.script.v1.ValidationIssue.
  * Use `create(ValidationIssueSchema)` to create a new message.
  */
-export const ValidationIssueSchema: GenMessage<ValidationIssue> = /*@__PURE__*/
+export const ValidationIssueSchema: GenMessage<ValidationIssue> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_script_v1_script, 10);
 
 /**
@@ -357,7 +370,7 @@ export const ScriptService: GenService<{
     methodKind: "unary";
     input: typeof GenerateScriptRequestSchema;
     output: typeof GenerateScriptResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.script.v1.ScriptService.ExpandScript
    */
@@ -365,7 +378,7 @@ export const ScriptService: GenService<{
     methodKind: "unary";
     input: typeof ExpandScriptRequestSchema;
     output: typeof ExpandScriptResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.script.v1.ScriptService.ValidateScript
    */
@@ -373,7 +386,7 @@ export const ScriptService: GenService<{
     methodKind: "unary";
     input: typeof ValidateScriptRequestSchema;
     output: typeof ValidateScriptResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.script.v1.ScriptService.GetScriptHistory
    */
@@ -381,7 +394,5 @@ export const ScriptService: GenService<{
     methodKind: "unary";
     input: typeof GetScriptHistoryRequestSchema;
     output: typeof GetScriptHistoryResponseSchema;
-  },
-}> = /*@__PURE__*/
-  serviceDesc(file_autoniix_script_v1_script, 0);
-
+  };
+}> = /*@__PURE__*/ serviceDesc(file_autoniix_script_v1_script, 0);

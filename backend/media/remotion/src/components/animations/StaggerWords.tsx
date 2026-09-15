@@ -1,9 +1,6 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig } from "remotion";
-import {
-  computeStaggerWords,
-  type EasingName,
-} from "../../registry/textAnimations";
+import { computeStaggerWords, type EasingName } from "../../registry/textAnimations";
 
 /**
  * Phase 1B — Per-word staggered reveal.
@@ -33,10 +30,7 @@ export interface StaggerWordsProps {
   wordStyle?: React.CSSProperties;
 }
 
-function applyChildAnim(
-  anim: StaggerChildAnim,
-  progress: number,
-): React.CSSProperties {
+function applyChildAnim(anim: StaggerChildAnim, progress: number): React.CSSProperties {
   switch (anim) {
     case "fade":
       return { opacity: progress };
@@ -46,9 +40,8 @@ function applyChildAnim(
         transform: `translateY(${(1 - progress) * 16}px)`,
       };
     case "scale_pop": {
-      const overshoot = progress < 0.7
-        ? 0.6 + (progress / 0.7) * 0.5
-        : 1.10 - ((progress - 0.7) / 0.3) * 0.10;
+      const overshoot =
+        progress < 0.7 ? 0.6 + (progress / 0.7) * 0.5 : 1.1 - ((progress - 0.7) / 0.3) * 0.1;
       return {
         opacity: progress,
         transform: `scale(${overshoot})`,

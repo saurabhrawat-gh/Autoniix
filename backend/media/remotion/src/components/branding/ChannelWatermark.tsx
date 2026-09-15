@@ -16,6 +16,4 @@ export const ChannelWatermark: React.FC<ChannelWatermarkProps> = ({
   opacity = 0.85,
   padding = 56,
   ...rest
-}) => (
-  <LogoBug corner={corner} heightPx={heightPx} opacity={opacity} padding={padding} {...rest} />
-);
+}) => <LogoBug corner={corner} heightPx={heightPx} opacity={opacity} padding={padding} {...rest} />;

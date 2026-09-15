@@ -95,6 +95,4 @@ export const GetCurrentUserResponseSchema = z.object({
   workspace: WorkspaceSchema,
 });
 
-export type GetCurrentUserResponse = z.infer<
-  typeof GetCurrentUserResponseSchema
->;
+export type GetCurrentUserResponse = z.infer<typeof GetCurrentUserResponseSchema>;

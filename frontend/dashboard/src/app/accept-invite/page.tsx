@@ -1,34 +1,38 @@
-'use client';
+"use client";
 
-import { useState, useEffect, Suspense } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import { authApi } from '@/lib/api-v2';
-import { Button, Input, Card } from '@/lib/ui';
-import { ShieldCheck, AlertCircle, CheckCircle2 } from '@/lib/components/Icon';
-import { FormField } from '@/lib/components/FormField';
-import { acceptInviteSchema, type AcceptInviteValues } from '@/lib/schemas/auth';
+import { useState, useEffect, Suspense } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { authApi } from "@/lib/api-v2";
+import { Button, Input, Card } from "@/lib/ui";
+import { ShieldCheck, AlertCircle, CheckCircle2 } from "@/lib/components/Icon";
+import { FormField } from "@/lib/components/FormField";
+import { acceptInviteSchema, type AcceptInviteValues } from "@/lib/schemas/auth";
 
 function AcceptInviteContent() {
   const router = useRouter();
   const params = useSearchParams();
-  const token = params.get('token') || '';
+  const token = params.get("token") || "";
 
   const [serverError, setServerError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [needsAccount, setNeedsAccount] = useState<boolean | null>(null);
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<AcceptInviteValues>({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<AcceptInviteValues>({
     resolver: zodResolver(acceptInviteSchema),
   });
 
   useEffect(() => {
     if (!token) return;
     fetch(`/api/v2/auth/invite-info?token=${encodeURIComponent(token)}`)
-      .then(r => r.json())
-      .then(d => setNeedsAccount(!d.user_exists))
+      .then((r) => r.json())
+      .then((d) => setNeedsAccount(!d.user_exists))
       .catch(() => setNeedsAccount(true));
   }, [token]);
 
@@ -38,12 +42,12 @@ function AcceptInviteContent() {
       await authApi.acceptInvite(
         token,
         needsAccount ? values.password : undefined,
-        needsAccount && values.name ? values.name : undefined,
+        needsAccount && values.name ? values.name : undefined
       );
       setDone(true);
-      setTimeout(() => router.push('/dashboard'), 1500);
+      setTimeout(() => router.push("/dashboard"), 1500);
     } catch (e: any) {
-      setServerError(e?.message || 'Failed to accept invite');
+      setServerError(e?.message || "Failed to accept invite");
     }
   }
 
@@ -70,13 +74,25 @@ function AcceptInviteContent() {
       {needsAccount && (
         <>
           <FormField id="ai-name" label="Display name" hint="Optional" error={errors.name}>
-            <Input id="ai-name" placeholder="Your name" autoComplete="name" {...register('name')} />
+            <Input id="ai-name" placeholder="Your name" autoComplete="name" {...register("name")} />
           </FormField>
           <FormField id="ai-pw" label="Create password" required error={errors.password}>
-            <Input id="ai-pw" type="password" placeholder="At least 8 characters" autoComplete="new-password" {...register('password')} />
+            <Input
+              id="ai-pw"
+              type="password"
+              placeholder="At least 8 characters"
+              autoComplete="new-password"
+              {...register("password")}
+            />
           </FormField>
           <FormField id="ai-cpw" label="Confirm password" required error={errors.confirm}>
-            <Input id="ai-cpw" type="password" placeholder="Repeat password" autoComplete="new-password" {...register('confirm')} />
+            <Input
+              id="ai-cpw"
+              type="password"
+              placeholder="Repeat password"
+              autoComplete="new-password"
+              {...register("confirm")}
+            />
           </FormField>
         </>
       )}
@@ -94,18 +110,15 @@ function AcceptInviteContent() {
         </div>
       )}
 
-      <Button
-        type="submit"
-        loading={isSubmitting}
-        className="w-full"
-        leftIcon={<ShieldCheck size={15} />}
-      >
-        {needsAccount ? 'Create account & join' : 'Accept invitation'}
+      <Button type="submit" loading={isSubmitting} className="w-full" leftIcon={<ShieldCheck size={15} />}>
+        {needsAccount ? "Create account & join" : "Accept invitation"}
       </Button>
 
       <p className="text-center text-xs text-content-tertiary">
-        Already have an account?{' '}
-        <Link href="/login" className="text-accent hover:underline">Sign in first</Link>
+        Already have an account?{" "}
+        <Link href="/login" className="text-accent hover:underline">
+          Sign in first
+        </Link>
       </p>
     </form>
   );

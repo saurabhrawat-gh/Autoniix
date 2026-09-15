@@ -37,9 +37,7 @@ function _stringify(v: unknown): string {
     const keys = Object.keys(obj)
       .filter((k) => obj[k] !== undefined && k !== "hash")
       .sort();
-    const body = keys
-      .map((k) => JSON.stringify(k) + ":" + _stringify(obj[k]))
-      .join(",");
+    const body = keys.map((k) => JSON.stringify(k) + ":" + _stringify(obj[k])).join(",");
     return "{" + body + "}";
   }
   throw new Error(`unserializable value in canonicalize: ${t}`);

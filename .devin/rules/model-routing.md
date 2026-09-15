@@ -13,6 +13,7 @@ tasks at 4x credit multiplier. Only escalate when needed.
 Switch models mid-session using `/model <name>` when:
 
 ### Escalate to Opus (`/model opus`)
+
 - Designing system architecture or multi-service communication patterns
 - Implementing complex distributed workflows (Temporal, sagas, event sourcing)
 - Building agentic decision systems (multi-agent coordination, confidence thresholds)
@@ -22,6 +23,7 @@ Switch models mid-session using `/model <name>` when:
 - Refactoring that spans 5+ files with interdependent changes
 
 ### Drop to SWE (`/model swe`)
+
 - Fixing typos, formatting, or lint issues
 - Adding/updating docstrings and comments
 - Writing simple unit tests for existing functions
@@ -30,6 +32,7 @@ Switch models mid-session using `/model <name>` when:
 - Adding a single endpoint that follows an existing pattern
 
 ### Stay on Sonnet for
+
 - Implementing React components, hooks, and pages
 - Writing FastAPI endpoints, middleware, and service layer code
 - Database queries, migrations (routine), and ORM models
@@ -42,17 +45,17 @@ Switch models mid-session using `/model <name>` when:
 
 When reading a task description, use these signals:
 
-| Signal | Model |
-|---|---|
-| "design", "architecture", "how should I structure" | Opus |
-| "implement", "add endpoint", "create component" | Sonnet |
-| "fix typo", "rename", "update docs" | SWE |
-| "debug", "why is this failing" | Sonnet first, escalate to Opus if unsolved in 2 turns |
-| "refactor" (single file) | Sonnet |
-| "refactor" (multi-file, cross-cutting) | Opus |
-| "optimize performance" | Opus |
-| "add test", "write spec" | Sonnet |
-| Multi-agent, event-driven, state machine | Opus |
+| Signal                                             | Model                                                 |
+| -------------------------------------------------- | ----------------------------------------------------- |
+| "design", "architecture", "how should I structure" | Opus                                                  |
+| "implement", "add endpoint", "create component"    | Sonnet                                                |
+| "fix typo", "rename", "update docs"                | SWE                                                   |
+| "debug", "why is this failing"                     | Sonnet first, escalate to Opus if unsolved in 2 turns |
+| "refactor" (single file)                           | Sonnet                                                |
+| "refactor" (multi-file, cross-cutting)             | Opus                                                  |
+| "optimize performance"                             | Opus                                                  |
+| "add test", "write spec"                           | Sonnet                                                |
+| Multi-agent, event-driven, state machine           | Opus                                                  |
 
 ## Cost Awareness
 

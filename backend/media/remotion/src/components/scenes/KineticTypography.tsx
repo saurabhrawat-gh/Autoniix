@@ -5,11 +5,7 @@ import { ScaleIn } from "../animations/ScaleIn";
 import { SlideIn } from "../animations/SlideIn";
 import { Typewriter } from "../animations/Typewriter";
 
-export type KineticAnim =
-  | "scale_punch"
-  | "word_cascade"
-  | "typewriter"
-  | "fade_up";
+export type KineticAnim = "scale_punch" | "word_cascade" | "typewriter" | "fade_up";
 
 export interface KineticTypographyProps {
   text: string;

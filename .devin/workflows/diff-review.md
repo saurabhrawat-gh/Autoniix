@@ -9,6 +9,7 @@ Run this after making code changes to verify surgical compliance — no style dr
 ## Steps
 
 1. **Generate the diff**
+
    ```bash
    # turbo
    git diff --stat

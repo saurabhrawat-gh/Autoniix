@@ -12,6 +12,7 @@
 **Symptom:** `cargo run` fails or container exits immediately
 
 **Diagnosis:**
+
 ```bash
 # Check logs
 docker compose logs rust-gateway --tail=100
@@ -23,6 +24,7 @@ docker compose logs rust-gateway --tail=100
 ```
 
 **Fix:**
+
 ```bash
 # Ensure .env has required vars
 grep AUTH_JWT_SECRET .env
@@ -40,6 +42,7 @@ lsof -i :8080
 **Symptom:** Rust-issued tokens return 401 on Python endpoints
 
 **Diagnosis:**
+
 ```bash
 # Verify shared secret
 echo "Rust: $(grep AUTH_JWT_SECRET rust/gateway/.env)"
@@ -56,6 +59,7 @@ echo "eyJ..." | jwt decode -s $(grep AUTH_JWT_SECRET .env | cut -d= -f2)
 **Symptom:** Rust gateway returns 500 on auth endpoints
 
 **Diagnosis:**
+
 ```bash
 # Run schema compatibility tests
 TEST_DATABASE_URL=postgresql://localhost/autoniix_test \
@@ -67,6 +71,7 @@ docker compose exec -T postgres-app psql -U app -d autoniix -c \
 ```
 
 **Fix:**
+
 - Rust must use integer-keyed schema (users.id is `i64`, not UUID)
 - Workspace roles read from `workspace_members`, not `user_roles`
 - Refresh tokens stored in `sessions` table (opaque, not JWT)
@@ -76,6 +81,7 @@ docker compose exec -T postgres-app psql -U app -d autoniix -c \
 **Symptom:** p95 latency > 200ms on auth endpoints
 
 **Diagnosis:**
+
 ```bash
 # Check Prometheus metrics
 curl http://localhost:8080/metrics | grep http_request_duration
@@ -85,6 +91,7 @@ curl http://localhost:8080/metrics | grep sqlx_pool
 ```
 
 **Fix:**
+
 - Increase `max_connections` in pool config
 - Check for slow queries: `SELECT * FROM pg_stat_activity WHERE state = 'active'`
 - Run Criterion benchmarks: `cargo bench -p gateway`
@@ -94,6 +101,7 @@ curl http://localhost:8080/metrics | grep sqlx_pool
 **Symptom:** `cargo test -p harness equivalence` fails
 
 **Diagnosis:**
+
 ```bash
 # Run with verbose output
 RUST_GATEWAY_URL=http://localhost:8080 \
@@ -102,6 +110,7 @@ cargo test -p harness equivalence -- --nocapture
 ```
 
 **Fix:**
+
 - Check divergence registry for intentional differences
 - Verify both services are running and healthy
 - Compare response bodies manually
@@ -110,19 +119,19 @@ cargo test -p harness equivalence -- --nocapture
 
 ## Health Check Endpoints
 
-| Service | Endpoint | Expected |
-|---------|----------|----------|
-| Rust Gateway | `GET /health` | 200 OK |
-| Python Dashboard | `GET /health` | 200 OK |
-| PostgreSQL | `pg_isready` | accepts connections |
+| Service          | Endpoint      | Expected            |
+| ---------------- | ------------- | ------------------- |
+| Rust Gateway     | `GET /health` | 200 OK              |
+| Python Dashboard | `GET /health` | 200 OK              |
+| PostgreSQL       | `pg_isready`  | accepts connections |
 
 ---
 
 ## Log Locations
 
-| Component | Location |
-|-----------|----------|
-| Rust Gateway | `docker compose logs rust-gateway` |
+| Component        | Location                            |
+| ---------------- | ----------------------------------- |
+| Rust Gateway     | `docker compose logs rust-gateway`  |
 | Python Dashboard | `docker compose logs dashboard-bff` |
-| PostgreSQL | `docker compose logs postgres-app` |
-| Traefik | `docker compose logs traefik` |
+| PostgreSQL       | `docker compose logs postgres-app`  |
+| Traefik          | `docker compose logs traefik`       |

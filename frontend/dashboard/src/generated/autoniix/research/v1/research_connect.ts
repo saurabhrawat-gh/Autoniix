@@ -3,7 +3,18 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CalculateSaturationRequest, CalculateSaturationResponse, CheckSimilarityRequest, CheckSimilarityResponse, DiscoverTopicsRequest, DiscoverTopicsResponse, GetCompetitorInsightsRequest, GetCompetitorInsightsResponse, SelectTopicRequest, SelectTopicResponse } from "./research_pb.js";
+import {
+  CalculateSaturationRequest,
+  CalculateSaturationResponse,
+  CheckSimilarityRequest,
+  CheckSimilarityResponse,
+  DiscoverTopicsRequest,
+  DiscoverTopicsResponse,
+  GetCompetitorInsightsRequest,
+  GetCompetitorInsightsResponse,
+  SelectTopicRequest,
+  SelectTopicResponse,
+} from "./research_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -57,6 +68,5 @@ export const ResearchService = {
       O: GetCompetitorInsightsResponse,
       kind: MethodKind.Unary,
     },
-  }
+  },
 } as const;
-

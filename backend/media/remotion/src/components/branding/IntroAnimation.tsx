@@ -27,12 +27,10 @@ export const IntroAnimation: React.FC<IntroAnimationProps> = ({
     [-100, 120],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
   );
-  const fadeOut = interpolate(
-    frame,
-    [durationInFrames - 14, durationInFrames],
-    [1, 0],
-    { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
-  );
+  const fadeOut = interpolate(frame, [durationInFrames - 14, durationInFrames], [1, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
 
   return (
     <AbsoluteFill

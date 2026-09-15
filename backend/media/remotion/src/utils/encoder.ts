@@ -49,7 +49,9 @@ export async function detectEncoders(): Promise<Set<EncoderName>> {
   if (cachedAvailable) return cachedAvailable;
   const set = new Set<EncoderName>();
   try {
-    const { stdout } = await execFileAsync("ffmpeg", ["-hide_banner", "-encoders"], { maxBuffer: 4 * 1024 * 1024 });
+    const { stdout } = await execFileAsync("ffmpeg", ["-hide_banner", "-encoders"], {
+      maxBuffer: 4 * 1024 * 1024,
+    });
     const candidates: EncoderName[] = [
       "libx264",
       "h264_nvenc",
@@ -136,7 +138,11 @@ function forcedFromHint(
 }
 
 function wrap(codec: CodecFamily, encoder: EncoderName): EncoderSelection {
-  const isHardware = encoder !== "libx264" && encoder !== "libx265" && encoder !== "libvpx" && encoder !== "libvpx-vp9";
+  const isHardware =
+    encoder !== "libx264" &&
+    encoder !== "libx265" &&
+    encoder !== "libvpx" &&
+    encoder !== "libvpx-vp9";
   return {
     codec,
     encoder,

@@ -7,6 +7,7 @@ description: Security Agent — scans every diff for hardcoded secrets, vulnerab
 The Security Agent runs after every Dev Team implementation and before QA Mode B testing. It ensures no security issue reaches testing or production.
 
 **Usage:**
+
 ```
 /security-agent #N           — scan the diff for a specific issue branch
 /security-agent audit        — full periodic security audit (no specific issue)
@@ -37,6 +38,7 @@ The Security Agent runs after every Dev Team implementation and before QA Mode B
 Scan every file listed in the Dev Team's HandoffPayload `changed_files`.
 
 **Patterns to flag (CRITICAL — block merge if found):**
+
 - Any string matching: `sk-`, `xai-`, `OPENAI_API_KEY`, `SERPAPI_KEY`, `ELEVENLABS_API_KEY`
 - Any hardcoded password: `password = "`, `secret = "`, `token = "`
 - Any private key block: `-----BEGIN`, `-----END`
@@ -45,24 +47,27 @@ Scan every file listed in the Dev Team's HandoffPayload `changed_files`.
 - Any `.env` file committed accidentally
 
 **Patterns that are acceptable (do not flag):**
+
 - `os.getenv("OPENAI_API_KEY")` — environment variable reference
 - `os.environ.get("SECRET_KEY")` — environment variable reference
 - Placeholder strings: `"your-api-key-here"`, `"change-me"`
 - Test fixture values clearly marked as fake
 
 Output from Secret Scanner:
+
 ```markdown
 ### Secret Scan
 
-| File | Line | Finding | Severity |
-|---|---|---|---|
-| src/api/webhooks.py | 42 | Hardcoded Slack token | CRITICAL |
-| .env.example | — | No issues | — |
+| File                | Line | Finding               | Severity |
+| ------------------- | ---- | --------------------- | -------- |
+| src/api/webhooks.py | 42   | Hardcoded Slack token | CRITICAL |
+| .env.example        | —    | No issues             | —        |
 
 **Verdict:** BLOCKED / CLEAN
 ```
 
 If BLOCKED → set `risk_level: critical` in the report. Do NOT allow the pipeline to proceed. Print:
+
 ```
 🚨 SECURITY BLOCK: Hardcoded credential found in {file}:{line}
    The Dev Agent must fix this before QA can start.
@@ -79,13 +84,14 @@ If BLOCKED → set `risk_level: critical` in the report. Do NOT allow the pipeli
 4. Flag any package that is extremely outdated (> 2 major versions behind)
 
 Output from Dep Scanner:
+
 ```markdown
 ### Dependency Audit
 
-| Package | Current | Issue | Severity |
-|---|---|---|---|
-| cryptography | 41.0.0 | CVE-2023-49083 — update to 41.0.7+ | HIGH |
-| next | 14.0.0 | No known CVEs at this version | — |
+| Package      | Current | Issue                              | Severity |
+| ------------ | ------- | ---------------------------------- | -------- |
+| cryptography | 41.0.0  | CVE-2023-49083 — update to 41.0.7+ | HIGH     |
+| next         | 14.0.0  | No known CVEs at this version      | —        |
 
 **Verdict:** ACTION REQUIRED / CLEAN
 ```
@@ -96,31 +102,32 @@ Output from Dep Scanner:
 
 Check the changed files against the Autoniix security policy:
 
-| Check | Pass condition |
-|---|---|
+| Check                     | Pass condition                                                                                                 |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | Auth on all new endpoints | Every new FastAPI route has a dependency on `get_current_user` or is explicitly marked `public` with a comment |
-| Role check | If the endpoint changes data: role check (`owner/admin`) is enforced, not just authentication |
-| SQL injection | No raw string concatenation into SQL — must use parameterized queries or ORM |
-| Input validation | All request body inputs are validated via Pydantic model or explicit check |
-| Error messages | No stack traces or internal paths exposed in HTTP error responses |
-| CORS | No `allow_origins=["*"]` added in production paths |
-| Rate limiting | Any endpoint that calls an external API has a rate limit or quota check |
-| Secrets in logs | No `print(api_key)` or `logger.info(token)` — secrets must never be logged |
+| Role check                | If the endpoint changes data: role check (`owner/admin`) is enforced, not just authentication                  |
+| SQL injection             | No raw string concatenation into SQL — must use parameterized queries or ORM                                   |
+| Input validation          | All request body inputs are validated via Pydantic model or explicit check                                     |
+| Error messages            | No stack traces or internal paths exposed in HTTP error responses                                              |
+| CORS                      | No `allow_origins=["*"]` added in production paths                                                             |
+| Rate limiting             | Any endpoint that calls an external API has a rate limit or quota check                                        |
+| Secrets in logs           | No `print(api_key)` or `logger.info(token)` — secrets must never be logged                                     |
 
 Output from Policy Enforcer:
+
 ```markdown
 ### Policy Check
 
-| Check | Status | Notes |
-|---|---|---|
-| Auth on new endpoints | ✅ pass | — |
-| Role check | ⚠️ warning | POST /webhooks allows `editor` — should be `admin` only |
-| SQL injection | ✅ pass | — |
-| Input validation | ✅ pass | — |
-| Error exposure | ✅ pass | — |
-| CORS | ✅ pass | — |
-| Rate limiting | ⚠️ warning | No rate limit on /webhooks/slack — adds external API call |
-| Secrets in logs | ✅ pass | — |
+| Check                 | Status     | Notes                                                     |
+| --------------------- | ---------- | --------------------------------------------------------- |
+| Auth on new endpoints | ✅ pass    | —                                                         |
+| Role check            | ⚠️ warning | POST /webhooks allows `editor` — should be `admin` only   |
+| SQL injection         | ✅ pass    | —                                                         |
+| Input validation      | ✅ pass    | —                                                         |
+| Error exposure        | ✅ pass    | —                                                         |
+| CORS                  | ✅ pass    | —                                                         |
+| Rate limiting         | ⚠️ warning | No rate limit on /webhooks/slack — adds external API call |
+| Secrets in logs       | ✅ pass    | —                                                         |
 
 **Verdict:** PASS WITH WARNINGS
 ```
@@ -132,13 +139,14 @@ Output from Policy Enforcer:
 Compile all three sub-agent outputs and determine the overall risk level.
 
 **Risk determination:**
-| Condition | Risk level |
-|---|---|
-| Any Secret Scanner CRITICAL | `critical` — BLOCK, route back to Dev |
-| Any Dep Scanner HIGH+ CVE | `high` — mandatory checkpoint |
-| Any Policy Enforcer FAIL | `high` — mandatory checkpoint |
-| Only Policy Enforcer WARNINGs | `medium` — checkpoint fires |
-| All scans clean | `low` — auto-proceed |
+
+| Condition                     | Risk level                            |
+| ----------------------------- | ------------------------------------- |
+| Any Secret Scanner CRITICAL   | `critical` — BLOCK, route back to Dev |
+| Any Dep Scanner HIGH+ CVE     | `high` — mandatory checkpoint         |
+| Any Policy Enforcer FAIL      | `high` — mandatory checkpoint         |
+| Only Policy Enforcer WARNINGs | `medium` — checkpoint fires           |
+| All scans clean               | `low` — auto-proceed                  |
 
 Post the security report as a comment on the issue:
 
@@ -148,15 +156,19 @@ Post the security report as a comment on the issue:
 > Scanned by Security Agent after Dev Team implementation.
 
 ### Secret Scan
+
 {Secret Scanner output}
 
 ### Dependency Audit
+
 {Dep Scanner output}
 
 ### Policy Check
+
 {Policy Enforcer output}
 
 ---
+
 **Overall Risk:** {LOW / MEDIUM / HIGH / CRITICAL}
 **Verdict:** {CLEAN / WARNINGS / BLOCKED}
 
@@ -170,11 +182,12 @@ Post the security report as a comment on the issue:
 ## Step 6 — Emit HandoffPayload
 
 **If BLOCKED (critical):**
+
 ```yaml
 handoff:
   from_team: security
-  to_team: dev           # route back
-  issue: {N}
+  to_team: dev # route back
+  issue: { N }
   summary: "BLOCKED: {finding description}"
   risk_level: critical
   actions_pending:
@@ -185,14 +198,15 @@ handoff:
 ```
 
 **If CLEAN or WARNINGS:**
+
 ```yaml
 handoff:
   from_team: security
-  to_team: qa            # Mode B
-  issue: {N}
-  branch: {branch}
+  to_team: qa # Mode B
+  issue: { N }
+  branch: { branch }
   summary: "Security scan complete. Risk: {level}. {N_warnings} warnings noted."
-  risk_level: {level}
+  risk_level: { level }
   actions_pending:
     - "QA Mode B: walk through test cases with product owner"
   blockers: []
@@ -211,6 +225,7 @@ When invoked without a specific issue, run a full periodic audit:
 5. **Open ports / DNS** — verify DNS records via `mcp1_DNS_getDNSRecordsV1` match expected config
 
 For each HIGH+ finding, file a GitHub issue:
+
 - Title: `bug | Prod | Infra | {finding}`
 - Labels: `bug`, `bug:production`, `priority:critical`, `security`, `ready-for-dev`
 

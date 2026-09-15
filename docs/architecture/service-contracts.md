@@ -15,19 +15,19 @@ Every request to every service includes a standard envelope:
   "channel_id": "BS001",
   "idempotency_key": "sha256:abcdef1234567890",
   "budget_guard": {
-    "max_cost_usd": 2.50,
+    "max_cost_usd": 2.5,
     "accrued_cost_usd": 0.42
   }
 }
 ```
 
-| Field | Type | Required | Purpose |
-|-------|------|----------|---------|
-| `request_id` | string | yes | Unique per-request, for tracing |
-| `content_id` | string | yes | Video identifier |
-| `channel_id` | string | yes | Channel identifier |
-| `idempotency_key` | string | yes | SHA256 of deterministic inputs; prevents duplicate work |
-| `budget_guard` | object | yes | Pre-flight cost check; service aborts if `accrued + estimated > max` |
+| Field             | Type   | Required | Purpose                                                              |
+| ----------------- | ------ | -------- | -------------------------------------------------------------------- |
+| `request_id`      | string | yes      | Unique per-request, for tracing                                      |
+| `content_id`      | string | yes      | Video identifier                                                     |
+| `channel_id`      | string | yes      | Channel identifier                                                   |
+| `idempotency_key` | string | yes      | SHA256 of deterministic inputs; prevents duplicate work              |
+| `budget_guard`    | object | yes      | Pre-flight cost check; service aborts if `accrued + estimated > max` |
 
 ### Common Response Envelope
 
@@ -42,7 +42,7 @@ Every request to every service includes a standard envelope:
     "tokens_out": 800,
     "cost_usd": 0.011
   },
-  "data": { }
+  "data": {}
 }
 ```
 
@@ -72,13 +72,14 @@ Error codes: `PROVIDER_RATE_LIMIT`, `PROVIDER_ERROR`, `BUDGET_EXCEEDED`, `VALIDA
 ### POST /research
 
 **Request:**
+
 ```json
 {
   "request_id": "...",
   "content_id": "...",
   "channel_id": "BS001",
   "idempotency_key": "...",
-  "budget_guard": { "max_cost_usd": 2.50, "accrued_cost_usd": 0 },
+  "budget_guard": { "max_cost_usd": 2.5, "accrued_cost_usd": 0 },
   "payload": {
     "content_mode": "long_form",
     "niche": "health",
@@ -99,19 +100,31 @@ Error codes: `PROVIDER_RATE_LIMIT`, `PROVIDER_ERROR`, `BUDGET_EXCEEDED`, `VALIDA
 ```
 
 **Response:**
+
 ```json
 {
   "request_id": "...",
   "status": "success",
-  "cost": { "provider": "google", "model": "gemini-2.5-flash", "tokens_in": 3200, "tokens_out": 2800, "cost_usd": 0.0045 },
+  "cost": {
+    "provider": "google",
+    "model": "gemini-2.5-flash",
+    "tokens_in": 3200,
+    "tokens_out": 2800,
+    "cost_usd": 0.0045
+  },
   "data": {
     "selected_topic": "Why your body shivers",
     "research_package": {
       "core_facts": [
-        { "claim": "Shivering generates heat through muscle contraction", "confidence": 0.95, "source": "https://pubmed.ncbi.nlm.nih.gov/...", "source_type": "peer_reviewed" }
+        {
+          "claim": "Shivering generates heat through muscle contraction",
+          "confidence": 0.95,
+          "source": "https://pubmed.ncbi.nlm.nih.gov/...",
+          "source_type": "peer_reviewed"
+        }
       ],
       "competitor_analysis": {
-        "top_videos": [ { "title": "...", "views": 1200000, "channel": "...", "gap": "No mention of fever shivering" } ],
+        "top_videos": [{ "title": "...", "views": 1200000, "channel": "...", "gap": "No mention of fever shivering" }],
         "content_gap": "Emotional shivering (frisson) not covered"
       },
       "angle": "The 4 types of shivers your body produces (and what each means)",
@@ -131,16 +144,17 @@ Error codes: `PROVIDER_RATE_LIMIT`, `PROVIDER_ERROR`, `BUDGET_EXCEEDED`, `VALIDA
 ### POST /script
 
 **Request:**
+
 ```json
 {
   "request_id": "...",
   "content_id": "...",
   "channel_id": "BS001",
   "idempotency_key": "...",
-  "budget_guard": { "max_cost_usd": 2.50, "accrued_cost_usd": 0.05 },
+  "budget_guard": { "max_cost_usd": 2.5, "accrued_cost_usd": 0.05 },
   "payload": {
     "content_mode": "long_form",
-    "research_package": { },
+    "research_package": {},
     "channel_dna": {
       "tone": "curious_authoritative",
       "target_wpm": 150,
@@ -156,11 +170,18 @@ Error codes: `PROVIDER_RATE_LIMIT`, `PROVIDER_ERROR`, `BUDGET_EXCEEDED`, `VALIDA
 ```
 
 **Response:**
+
 ```json
 {
   "request_id": "...",
   "status": "success",
-  "cost": { "provider": "anthropic", "model": "claude-sonnet", "tokens_in": 4500, "tokens_out": 3200, "cost_usd": 0.0615 },
+  "cost": {
+    "provider": "anthropic",
+    "model": "claude-sonnet",
+    "tokens_in": 4500,
+    "tokens_out": 3200,
+    "cost_usd": 0.0615
+  },
   "data": {
     "script_base": {
       "title": "4 Types of Shivers Your Body Produces (And What Each Means)",
@@ -207,13 +228,14 @@ Error codes: `PROVIDER_RATE_LIMIT`, `PROVIDER_ERROR`, `BUDGET_EXCEEDED`, `VALIDA
 ### POST /voice
 
 **Request:**
+
 ```json
 {
   "request_id": "...",
   "content_id": "...",
   "channel_id": "BS001",
   "idempotency_key": "...",
-  "budget_guard": { "max_cost_usd": 2.50, "accrued_cost_usd": 0.15 },
+  "budget_guard": { "max_cost_usd": 2.5, "accrued_cost_usd": 0.15 },
   "payload": {
     "voice_config": {
       "provider": "fish_audio",
@@ -224,7 +246,13 @@ Error codes: `PROVIDER_RATE_LIMIT`, `PROVIDER_ERROR`, `BUDGET_EXCEEDED`, `VALIDA
       "normalize": true
     },
     "scenes": [
-      { "id": "s1", "text": "Right now, your muscles are doing something you can't feel...", "emotion": "curious", "emphasis": ["muscles", "feel"], "visual_only": false },
+      {
+        "id": "s1",
+        "text": "Right now, your muscles are doing something you can't feel...",
+        "emotion": "curious",
+        "emphasis": ["muscles", "feel"],
+        "visual_only": false
+      },
       { "id": "s2", "text": "", "emotion": null, "emphasis": [], "visual_only": true }
     ]
   }
@@ -232,6 +260,7 @@ Error codes: `PROVIDER_RATE_LIMIT`, `PROVIDER_ERROR`, `BUDGET_EXCEEDED`, `VALIDA
 ```
 
 **Response:**
+
 ```json
 {
   "request_id": "...",
@@ -239,7 +268,12 @@ Error codes: `PROVIDER_RATE_LIMIT`, `PROVIDER_ERROR`, `BUDGET_EXCEEDED`, `VALIDA
   "cost": { "provider": "fish_audio", "model": "tts-v1", "bytes_charged": 4200, "cost_usd": 0.000063 },
   "data": {
     "scenes": [
-      { "id": "s1", "audio_url": "s3://yt-automation/audio/BS001/VID_.../scene_s1.mp3", "duration_s": 8.2, "word_count": 12 },
+      {
+        "id": "s1",
+        "audio_url": "s3://yt-automation/audio/BS001/VID_.../scene_s1.mp3",
+        "duration_s": 8.2,
+        "word_count": 12
+      },
       { "id": "s2", "audio_url": null, "duration_s": 0, "word_count": 0 }
     ],
     "total_duration_s": 8.2,
@@ -258,16 +292,23 @@ Error codes: `PROVIDER_RATE_LIMIT`, `PROVIDER_ERROR`, `BUDGET_EXCEEDED`, `VALIDA
 ### POST /assets
 
 **Request:**
+
 ```json
 {
   "request_id": "...",
   "content_id": "...",
   "channel_id": "BS001",
   "idempotency_key": "...",
-  "budget_guard": { "max_cost_usd": 2.50, "accrued_cost_usd": 0.20 },
+  "budget_guard": { "max_cost_usd": 2.5, "accrued_cost_usd": 0.2 },
   "payload": {
     "scenes": [
-      { "scene_id": "s1", "search_terms": ["muscle fiber contraction 4k", "cold weather reaction"], "min_resolution": "1280x720", "duration_s": 8, "style_preference": "cinematic" }
+      {
+        "scene_id": "s1",
+        "search_terms": ["muscle fiber contraction 4k", "cold weather reaction"],
+        "min_resolution": "1280x720",
+        "duration_s": 8,
+        "style_preference": "cinematic"
+      }
     ],
     "music_config": {
       "mood_curve": ["tense", "curious", "resolve"],
@@ -276,15 +317,14 @@ Error codes: `PROVIDER_RATE_LIMIT`, `PROVIDER_ERROR`, `BUDGET_EXCEEDED`, `VALIDA
       "duration_s": 480
     },
     "sfx_config": {
-      "triggers": [
-        { "scene_id": "s1", "type": "whoosh", "at_s": 2.0 }
-      ]
+      "triggers": [{ "scene_id": "s1", "type": "whoosh", "at_s": 2.0 }]
     }
   }
 }
 ```
 
 **Response:**
+
 ```json
 {
   "request_id": "...",
@@ -295,7 +335,15 @@ Error codes: `PROVIDER_RATE_LIMIT`, `PROVIDER_ERROR`, `BUDGET_EXCEEDED`, `VALIDA
       {
         "scene_id": "s1",
         "clips": [
-          { "id": "clip_001", "url": "s3://yt-automation/assets/.../stock_001.mp4", "source": "pexels", "resolution": "1920x1080", "duration_s": 12, "relevance_score": 8.5, "license": "free" }
+          {
+            "id": "clip_001",
+            "url": "s3://yt-automation/assets/.../stock_001.mp4",
+            "source": "pexels",
+            "resolution": "1920x1080",
+            "duration_s": 12,
+            "relevance_score": 8.5,
+            "license": "free"
+          }
         ]
       }
     ],
@@ -306,9 +354,7 @@ Error codes: `PROVIDER_RATE_LIMIT`, `PROVIDER_ERROR`, `BUDGET_EXCEEDED`, `VALIDA
       "duration_s": 485,
       "license": "CC0"
     },
-    "sfx": [
-      { "trigger_id": "s1_whoosh", "url": "s3://yt-automation/assets/.../sfx_whoosh.mp3" }
-    ],
+    "sfx": [{ "trigger_id": "s1_whoosh", "url": "s3://yt-automation/assets/.../sfx_whoosh.mp3" }],
     "cache_hits": 2,
     "dedup_filtered": 1
   }
@@ -324,13 +370,14 @@ Error codes: `PROVIDER_RATE_LIMIT`, `PROVIDER_ERROR`, `BUDGET_EXCEEDED`, `VALIDA
 ### POST /thumbnail
 
 **Request:**
+
 ```json
 {
   "request_id": "...",
   "content_id": "...",
   "channel_id": "BS001",
   "idempotency_key": "...",
-  "budget_guard": { "max_cost_usd": 2.50, "accrued_cost_usd": 0.30 },
+  "budget_guard": { "max_cost_usd": 2.5, "accrued_cost_usd": 0.3 },
   "payload": {
     "title": "4 Types of Shivers Your Body Produces",
     "hook": "Your body has a secret heating system",
@@ -348,6 +395,7 @@ Error codes: `PROVIDER_RATE_LIMIT`, `PROVIDER_ERROR`, `BUDGET_EXCEEDED`, `VALIDA
 ```
 
 **Response:**
+
 ```json
 {
   "request_id": "...",
@@ -379,26 +427,28 @@ Error codes: `PROVIDER_RATE_LIMIT`, `PROVIDER_ERROR`, `BUDGET_EXCEEDED`, `VALIDA
 ### POST /assembly
 
 **Request:**
+
 ```json
 {
   "request_id": "...",
   "content_id": "...",
   "channel_id": "BS001",
   "idempotency_key": "...",
-  "budget_guard": { "max_cost_usd": 2.50, "accrued_cost_usd": 0.50 },
+  "budget_guard": { "max_cost_usd": 2.5, "accrued_cost_usd": 0.5 },
   "payload": {
-    "script_base": { },
+    "script_base": {},
     "voice_result": { "scenes": [] },
-    "asset_manifest": { },
-    "thumbnail_result": { },
-    "channel_dna": { },
+    "asset_manifest": {},
+    "thumbnail_result": {},
+    "channel_dna": {},
     "template": "hybrid-kinetic",
-    "brand_config": { }
+    "brand_config": {}
   }
 }
 ```
 
 **Response:**
+
 ```json
 {
   "request_id": "...",
@@ -407,9 +457,17 @@ Error codes: `PROVIDER_RATE_LIMIT`, `PROVIDER_ERROR`, `BUDGET_EXCEEDED`, `VALIDA
   "data": {
     "v3_json": {
       "version": "3.0",
-      "meta": { "video_id": "...", "channel_id": "BS001", "title": "...", "duration_target_seconds": 480, "aspect": "16:9", "fps": 30, "resolution": { "width": 1920, "height": 1080 } },
+      "meta": {
+        "video_id": "...",
+        "channel_id": "BS001",
+        "title": "...",
+        "duration_target_seconds": 480,
+        "aspect": "16:9",
+        "fps": 30,
+        "resolution": { "width": 1920, "height": 1080 }
+      },
       "template": "hybrid-kinetic",
-      "theme": { },
+      "theme": {},
       "grade_preset": "fx.grade.cinematic_teal_orange",
       "segments": []
     },
@@ -419,7 +477,11 @@ Error codes: `PROVIDER_RATE_LIMIT`, `PROVIDER_ERROR`, `BUDGET_EXCEEDED`, `VALIDA
       "gates_total": 30,
       "gates_failed": ["asset_diversity"],
       "final_composite_score": 8.4,
-      "compliance": { "policy_risk": "low", "ai_disclosure_required": true, "niche_disclaimers": ["For educational purposes only"] }
+      "compliance": {
+        "policy_risk": "low",
+        "ai_disclosure_required": true,
+        "niche_disclaimers": ["For educational purposes only"]
+      }
     },
     "content_fingerprint": "sha256:abc123..."
   }
@@ -439,6 +501,7 @@ See `docs/architecture/remotion-integration.md` for full integration contract.
 **Request:** Direction v3 JSON envelope (see Remotion repo Zod schema).
 
 **Response:**
+
 ```json
 { "renderId": "render_abc123", "status": "rendering", "estimatedDuration": 180 }
 ```
@@ -446,7 +509,14 @@ See `docs/architecture/remotion-integration.md` for full integration contract.
 ### GET /api/render/:id
 
 ```json
-{ "renderId": "render_abc123", "status": "done", "progress": 1.0, "outputUrl": "s3://...", "duration": 145, "fileSize": 52428800 }
+{
+  "renderId": "render_abc123",
+  "status": "done",
+  "progress": 1.0,
+  "outputUrl": "s3://...",
+  "duration": 145,
+  "fileSize": 52428800
+}
 ```
 
 ### Callback (POST to callbackUrl)
@@ -464,13 +534,14 @@ See `docs/architecture/remotion-integration.md` for full integration contract.
 ### POST /deliver
 
 **Request:**
+
 ```json
 {
   "request_id": "...",
   "content_id": "...",
   "channel_id": "BS001",
   "idempotency_key": "...",
-  "budget_guard": { "max_cost_usd": 2.50, "accrued_cost_usd": 0.70 },
+  "budget_guard": { "max_cost_usd": 2.5, "accrued_cost_usd": 0.7 },
   "payload": {
     "video_url": "s3://yt-automation/renders/.../video.mp4",
     "thumbnail_url": "s3://yt-automation/thumbnails/.../final_1.png",
@@ -494,6 +565,7 @@ See `docs/architecture/remotion-integration.md` for full integration contract.
 ```
 
 **Response:**
+
 ```json
 {
   "request_id": "...",
@@ -516,6 +588,7 @@ See `docs/architecture/remotion-integration.md` for full integration contract.
 ### POST /analytics
 
 **Request:**
+
 ```json
 {
   "request_id": "...",
@@ -528,15 +601,16 @@ See `docs/architecture/remotion-integration.md` for full integration contract.
 ```
 
 **Response:**
+
 ```json
 {
   "data": {
     "channel_id": "BS001",
     "period": "2025-03-26 to 2025-04-25",
     "summary": { "total_views": 45000, "avg_ctr": 6.2, "avg_retention": 48.5, "subscriber_gain": 320 },
-    "top_performers": [ { "video_id": "...", "views": 12000, "ctr": 8.1 } ],
-    "patterns": [ { "insight": "Curiosity-gap hooks outperform reveal hooks by 40%", "confidence": 0.82 } ],
-    "recommendations": [ "Increase use of data visualization scenes", "Test shorter intros (< 10s)" ]
+    "top_performers": [{ "video_id": "...", "views": 12000, "ctr": 8.1 }],
+    "patterns": [{ "insight": "Curiosity-gap hooks outperform reveal hooks by 40%", "confidence": 0.82 }],
+    "recommendations": ["Increase use of data visualization scenes", "Test shorter intros (< 10s)"]
   }
 }
 ```
@@ -560,21 +634,21 @@ See `docs/architecture/remotion-integration.md` for full integration contract.
 
 ### REST API
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | /channels | List all channels |
-| POST | /channels | Create channel |
-| PATCH | /channels/:id | Update channel config |
-| DELETE | /channels/:id | Disable channel |
-| GET | /videos | List videos (filterable) |
-| GET | /videos/:id | Video detail + artifacts |
-| POST | /system/pause | Pause all production |
-| POST | /system/resume | Resume production |
-| POST | /system/emergency-stop | Emergency stop |
-| GET | /system/status | System health + budget |
-| PATCH | /config/:key | Update system config |
-| GET | /audit | Audit log (paginated) |
-| GET | /costs | Cost report (by date/channel) |
+| Method | Path                   | Purpose                       |
+| ------ | ---------------------- | ----------------------------- |
+| GET    | /channels              | List all channels             |
+| POST   | /channels              | Create channel                |
+| PATCH  | /channels/:id          | Update channel config         |
+| DELETE | /channels/:id          | Disable channel               |
+| GET    | /videos                | List videos (filterable)      |
+| GET    | /videos/:id            | Video detail + artifacts      |
+| POST   | /system/pause          | Pause all production          |
+| POST   | /system/resume         | Resume production             |
+| POST   | /system/emergency-stop | Emergency stop                |
+| GET    | /system/status         | System health + budget        |
+| PATCH  | /config/:key           | Update system config          |
+| GET    | /audit                 | Audit log (paginated)         |
+| GET    | /costs                 | Cost report (by date/channel) |
 
 All endpoints require `Authorization: Bearer <jwt>`. Roles: `admin` (full), `operator` (channels + system), `viewer` (read-only).
 
@@ -584,29 +658,29 @@ All endpoints require `Authorization: Bearer <jwt>`. Roles: `admin` (full), `ope
 
 ### Retry Policies
 
-| Activity | max_attempts | initial_interval | backoff | max_interval | non_retryable_errors |
-|----------|-------------|------------------|---------|-------------|---------------------|
-| research | 3 | 10s | 2.0 | 60s | BUDGET_EXCEEDED, VALIDATION_ERROR |
-| script | 2 | 15s | 2.0 | 60s | BUDGET_EXCEEDED, VALIDATION_ERROR |
-| voice | 3 | 5s | 2.0 | 30s | BUDGET_EXCEEDED |
-| assets | 2 | 10s | 2.0 | 60s | BUDGET_EXCEEDED |
-| thumbnail | 2 | 10s | 2.0 | 60s | BUDGET_EXCEEDED |
-| assembly | 2 | 10s | 2.0 | 60s | BUDGET_EXCEEDED, QUALITY_GATE_FAILED |
-| render | 2 | 30s | 2.0 | 120s | BUDGET_EXCEEDED |
-| delivery | 3 | 10s | 2.0 | 60s | VALIDATION_ERROR |
+| Activity  | max_attempts | initial_interval | backoff | max_interval | non_retryable_errors                 |
+| --------- | ------------ | ---------------- | ------- | ------------ | ------------------------------------ |
+| research  | 3            | 10s              | 2.0     | 60s          | BUDGET_EXCEEDED, VALIDATION_ERROR    |
+| script    | 2            | 15s              | 2.0     | 60s          | BUDGET_EXCEEDED, VALIDATION_ERROR    |
+| voice     | 3            | 5s               | 2.0     | 30s          | BUDGET_EXCEEDED                      |
+| assets    | 2            | 10s              | 2.0     | 60s          | BUDGET_EXCEEDED                      |
+| thumbnail | 2            | 10s              | 2.0     | 60s          | BUDGET_EXCEEDED                      |
+| assembly  | 2            | 10s              | 2.0     | 60s          | BUDGET_EXCEEDED, QUALITY_GATE_FAILED |
+| render    | 2            | 30s              | 2.0     | 120s         | BUDGET_EXCEEDED                      |
+| delivery  | 3            | 10s              | 2.0     | 60s          | VALIDATION_ERROR                     |
 
 ### Timeouts (start_to_close)
 
-| Activity | Timeout | Heartbeat |
-|----------|---------|-----------|
-| research | 5 min | — |
-| script | 10 min | — |
-| voice | 5 min | — |
-| assets | 5 min | — |
-| thumbnail | 5 min | — |
-| assembly | 8 min | — |
-| render | 20 min | 2 min |
-| delivery | 5 min | — |
+| Activity  | Timeout | Heartbeat |
+| --------- | ------- | --------- |
+| research  | 5 min   | —         |
+| script    | 10 min  | —         |
+| voice     | 5 min   | —         |
+| assets    | 5 min   | —         |
+| thumbnail | 5 min   | —         |
+| assembly  | 8 min   | —         |
+| render    | 20 min  | 2 min     |
+| delivery  | 5 min   | —         |
 
 ### Idempotency
 

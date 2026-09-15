@@ -44,6 +44,9 @@ _BACKOFF_CAP_S = 600
 
 _POLL_INTERVAL_S = 5.0
 _DEFAULT_CONCURRENCY = int(os.getenv("MEDIA_JOBS_CONCURRENCY", "2"))
+# Per-job wall-clock cap — protects the worker from a hung handler
+# (e.g. ffprobe on a corrupt file, autotag on a stalled LLM call).
+_JOB_TIMEOUT_S = int(os.getenv("MEDIA_JOBS_JOB_TIMEOUT_S", "600"))
 
 
 def _worker_id() -> str:
@@ -187,7 +190,11 @@ async def process_one(pool: Any) -> bool:
     log.info("media_jobs.claimed")
 
     try:
-        outcome = await handler(pool, asset, claimed)
+        outcome = await asyncio.wait_for(handler(pool, asset, claimed), timeout=_JOB_TIMEOUT_S)
+    except asyncio.TimeoutError:
+        log.warning("media_jobs.handler_timeout", timeout_s=_JOB_TIMEOUT_S)
+        await _finalize_failure(pool, claimed, f"handler timeout after {_JOB_TIMEOUT_S}s")
+        return True
     except Exception as exc:  # noqa: BLE001 — convert to retry/fail decision
         log.warning("media_jobs.handler_exception", error=str(exc))
         await _finalize_failure(pool, claimed, f"unhandled exception: {exc!s}")

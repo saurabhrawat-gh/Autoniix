@@ -112,21 +112,36 @@ export class RuleVlmProvider implements VlmProvider {
       const f = input.frames[i]!;
       const l = lums[i]!;
       if (l < 0.02) {
-        flagged.push({ shardId: f.shardId, reason: "black_flash", severity: "high", detail: `lum=${l.toFixed(3)}` });
+        flagged.push({
+          shardId: f.shardId,
+          reason: "black_flash",
+          severity: "high",
+          detail: `lum=${l.toFixed(3)}`,
+        });
       } else if (l > 0.97) {
-        flagged.push({ shardId: f.shardId, reason: "low_legibility", severity: "medium", detail: `lum=${l.toFixed(3)}` });
+        flagged.push({
+          shardId: f.shardId,
+          reason: "low_legibility",
+          severity: "medium",
+          detail: `lum=${l.toFixed(3)}`,
+        });
       }
     }
 
     const composition: RubricScore = { score: 7.5, issues: [] };
     const motion: RubricScore = { score: 7.0, issues: [] };
-    const text: RubricScore = lumStd > 0.4
-      ? { score: 5.5, issues: ["high luminance variance suggests caption/background contrast issues"] }
-      : { score: 8.0, issues: [] };
+    const text: RubricScore =
+      lumStd > 0.4
+        ? {
+            score: 5.5,
+            issues: ["high luminance variance suggests caption/background contrast issues"],
+          }
+        : { score: 8.0, issues: [] };
     const cut: RubricScore = { score: 7.0, issues: [] };
-    const color: RubricScore = lumStd > 0.5
-      ? { score: 5.0, issues: ["inconsistent exposure across frames"] }
-      : { score: 8.0, issues: [] };
+    const color: RubricScore =
+      lumStd > 0.5
+        ? { score: 5.0, issues: ["inconsistent exposure across frames"] }
+        : { score: 8.0, issues: [] };
     const brand: RubricScore = { score: 7.0, issues: [] };
     const audio: RubricScore = { score: 7.0, issues: [] };
 
@@ -141,7 +156,14 @@ export class RuleVlmProvider implements VlmProvider {
     };
 
     const overall =
-      (composition.score + motion.score + text.score + cut.score + color.score + brand.score + audio.score) / 7;
+      (composition.score +
+        motion.score +
+        text.score +
+        cut.score +
+        color.score +
+        brand.score +
+        audio.score) /
+      7;
 
     const hasHighFlag = flagged.some((f) => f.severity === "high");
     const pass = overall >= passThreshold && !hasHighFlag;
@@ -204,7 +226,6 @@ export function makeDefaultCritic(): { agent: CriticAgent; defaultCtx: AgentCtx 
     },
   };
 }
-
 
 function avg(xs: number[]): number {
   if (xs.length === 0) return 0;

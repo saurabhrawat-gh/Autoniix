@@ -1,11 +1,5 @@
 import React from "react";
-import {
-  AbsoluteFill,
-  interpolate,
-  spring,
-  useCurrentFrame,
-  useVideoConfig,
-} from "remotion";
+import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 
 /**
  * A short "Subscribe!" chip that pops in, dwells, then slides out. Intended to
@@ -29,12 +23,10 @@ export const SubscribePing: React.FC<SubscribePingProps> = ({
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const enter = spring({ frame, fps, from: 0, to: 1, config: { damping: 12, stiffness: 140 } });
-  const exit = interpolate(
-    frame,
-    [durationInFrames - 12, durationInFrames],
-    [1, 0],
-    { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
-  );
+  const exit = interpolate(frame, [durationInFrames - 12, durationInFrames], [1, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
   const pulse = 1 + 0.06 * Math.sin((frame / fps) * 2 * Math.PI * 1.5);
   const p = Math.min(enter, exit);
   void dwellFrames;
@@ -44,9 +36,7 @@ export const SubscribePing: React.FC<SubscribePingProps> = ({
   const color = style === "minimal_pill" ? "#0A0A0A" : "#FFFFFF";
   const border = style === "neon" ? "2px solid #00E0FF" : "none";
   const boxShadow =
-    style === "neon"
-      ? "0 0 20px #00E0FF, 0 0 40px #00E0FF"
-      : "0 8px 30px rgba(0,0,0,0.4)";
+    style === "neon" ? "0 0 20px #00E0FF, 0 0 40px #00E0FF" : "0 8px 30px rgba(0,0,0,0.4)";
 
   const pos: React.CSSProperties = {};
   if (position.includes("t")) pos.top = 60;

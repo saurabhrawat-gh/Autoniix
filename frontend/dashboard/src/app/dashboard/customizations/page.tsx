@@ -1,22 +1,19 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useCallback } from 'react';
-import { PageHeader } from '@/lib/components/PageHeader';
-import { usePermissions } from '@/lib/hooks/usePermissions';
-import { lookupValuesApi, LookupValue } from '@/lib/api-v2';
-import { useToast } from '@/lib/toast';
-import {
-  Button, Input, Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
-} from '@/lib/ui';
-import { Plus, Edit2, PowerOff, Check, X } from '@/lib/components/Icon';
-import { cn } from '@/lib/utils';
-
+import { useEffect, useState, useCallback } from "react";
+import { PageHeader } from "@/lib/components/PageHeader";
+import { usePermissions } from "@/lib/hooks/usePermissions";
+import { lookupValuesApi, LookupValue } from "@/lib/api-v2";
+import { useToast } from "@/lib/toast";
+import { Button, Input, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/lib/ui";
+import { Plus, Edit2, PowerOff, Check, X } from "@/lib/components/Icon";
+import { cn } from "@/lib/utils";
 
 const OWNER_TYPES = [
-  { value: 'niche',            label: 'Niche' },
-  { value: 'sub_niche',        label: 'Sub-niche' },
-  { value: 'audience_tag',     label: 'Audience tag' },
-  { value: 'content_type_tag', label: 'Content type tag' },
+  { value: "niche", label: "Niche" },
+  { value: "sub_niche", label: "Sub-niche" },
+  { value: "audience_tag", label: "Audience tag" },
+  { value: "content_type_tag", label: "Content type tag" },
 ];
 
 export default function CustomizationsPage() {
@@ -27,16 +24,16 @@ export default function CustomizationsPage() {
   const [rows, setRows] = useState<LookupValue[]>([]);
   const [fetching, setFetching] = useState(false);
 
-  const globalRows = rows.filter(r => r.workspace_id === null);
-  const customRows = rows.filter(r => r.workspace_id !== null);
+  const globalRows = rows.filter((r) => r.workspace_id === null);
+  const customRows = rows.filter((r) => r.workspace_id !== null);
 
-  const [addValue, setAddValue] = useState('');
-  const [addLabel, setAddLabel] = useState('');
-  const [addParent, setAddParent] = useState('');
+  const [addValue, setAddValue] = useState("");
+  const [addLabel, setAddLabel] = useState("");
+  const [addParent, setAddParent] = useState("");
   const [saving, setSaving] = useState(false);
 
   const [editId, setEditId] = useState<number | null>(null);
-  const [editLabel, setEditLabel] = useState('');
+  const [editLabel, setEditLabel] = useState("");
 
   const load = useCallback(async () => {
     setFetching(true);
@@ -44,13 +41,15 @@ export default function CustomizationsPage() {
       const res = await lookupValuesApi.list(selectedType);
       setRows(res.data ?? []);
     } catch {
-      showToast('Failed to load values', 'error');
+      showToast("Failed to load values", "error");
     } finally {
       setFetching(false);
     }
   }, [selectedType, showToast]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const handleAdd = async () => {
     if (!addValue.trim() || !addLabel.trim()) return;
@@ -62,11 +61,13 @@ export default function CustomizationsPage() {
         label: addLabel.trim(),
         parent_value: addParent.trim() || undefined,
       });
-      showToast('Custom value added', 'success');
-      setAddValue(''); setAddLabel(''); setAddParent('');
+      showToast("Custom value added", "success");
+      setAddValue("");
+      setAddLabel("");
+      setAddParent("");
       load();
     } catch (e: any) {
-      showToast(e.message ?? 'Failed to add', 'error');
+      showToast(e.message ?? "Failed to add", "error");
     } finally {
       setSaving(false);
     }
@@ -75,11 +76,11 @@ export default function CustomizationsPage() {
   const handleSaveEdit = async (id: number) => {
     try {
       await lookupValuesApi.update(id, { label: editLabel });
-      showToast('Updated', 'success');
+      showToast("Updated", "success");
       setEditId(null);
       load();
     } catch (e: any) {
-      showToast(e.message ?? 'Failed to update', 'error');
+      showToast(e.message ?? "Failed to update", "error");
     }
   };
 
@@ -88,15 +89,15 @@ export default function CustomizationsPage() {
       await lookupValuesApi.deactivate(id);
       load();
     } catch (e: any) {
-      showToast(e.message ?? 'Failed to remove', 'error');
+      showToast(e.message ?? "Failed to remove", "error");
     }
   };
 
-  const isParentType = selectedType === 'sub_niche';
+  const isParentType = selectedType === "sub_niche";
 
   if (loading) return null;
 
-  const canEdit = role === 'owner';
+  const canEdit = role === "owner";
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
@@ -108,14 +109,20 @@ export default function CustomizationsPage() {
       {/* Type selector */}
       <div className="flex items-center gap-3">
         <Select value={selectedType} onValueChange={setSelectedType}>
-          <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-52">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
-            {OWNER_TYPES.map(t => (
-              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+            {OWNER_TYPES.map((t) => (
+              <SelectItem key={t.value} value={t.value}>
+                {t.label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <span className="text-xs opacity-50">{customRows.length} custom + {globalRows.length} global defaults</span>
+        <span className="text-xs opacity-50">
+          {customRows.length} custom + {globalRows.length} global defaults
+        </span>
       </div>
 
       {/* Add custom value (owner only) */}
@@ -128,16 +135,31 @@ export default function CustomizationsPage() {
           <div className="flex flex-wrap gap-2 items-end">
             <div className="flex flex-col gap-1">
               <label className="text-xs opacity-60">Value (key)</label>
-              <Input className="w-36" placeholder="my_niche" value={addValue} onChange={e => setAddValue(e.target.value)} />
+              <Input
+                className="w-36"
+                placeholder="my_niche"
+                value={addValue}
+                onChange={(e) => setAddValue(e.target.value)}
+              />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs opacity-60">Label (display)</label>
-              <Input className="w-48" placeholder="My Custom Niche" value={addLabel} onChange={e => setAddLabel(e.target.value)} />
+              <Input
+                className="w-48"
+                placeholder="My Custom Niche"
+                value={addLabel}
+                onChange={(e) => setAddLabel(e.target.value)}
+              />
             </div>
             {isParentType && (
               <div className="flex flex-col gap-1">
                 <label className="text-xs opacity-60">Parent niche value</label>
-                <Input className="w-36" placeholder="technology" value={addParent} onChange={e => setAddParent(e.target.value)} />
+                <Input
+                  className="w-36"
+                  placeholder="technology"
+                  value={addParent}
+                  onChange={(e) => setAddParent(e.target.value)}
+                />
               </div>
             )}
             <Button
@@ -166,7 +188,10 @@ export default function CustomizationsPage() {
           editId={editId}
           editLabel={editLabel}
           setEditLabel={setEditLabel}
-          onStartEdit={(row) => { setEditId(row.id); setEditLabel(row.label); }}
+          onStartEdit={(row) => {
+            setEditId(row.id);
+            setEditLabel(row.label);
+          }}
           onSaveEdit={handleSaveEdit}
           onCancelEdit={() => setEditId(null)}
           onDeactivate={handleDeactivate}
@@ -179,7 +204,9 @@ export default function CustomizationsPage() {
       <section className="space-y-2">
         <h3 className="text-sm font-semibold">
           Global defaults
-          <span className="ml-2 text-xs font-normal opacity-50">— managed by superadmin, visible to all workspaces</span>
+          <span className="ml-2 text-xs font-normal opacity-50">
+            — managed by superadmin, visible to all workspaces
+          </span>
         </h3>
         <ValueTable
           rows={globalRows}
@@ -200,7 +227,6 @@ export default function CustomizationsPage() {
   );
 }
 
-
 interface ValueTableProps {
   rows: LookupValue[];
   isParentType: boolean;
@@ -217,8 +243,18 @@ interface ValueTableProps {
 }
 
 function ValueTable({
-  rows, isParentType, fetching, editId, editLabel, setEditLabel,
-  onStartEdit, onSaveEdit, onCancelEdit, onDeactivate, canEdit, emptyMessage,
+  rows,
+  isParentType,
+  fetching,
+  editId,
+  editLabel,
+  setEditLabel,
+  onStartEdit,
+  onSaveEdit,
+  onCancelEdit,
+  onDeactivate,
+  canEdit,
+  emptyMessage,
 }: ValueTableProps) {
   const colSpan = isParentType ? 4 : 3;
 
@@ -235,38 +271,73 @@ function ValueTable({
         </thead>
         <tbody>
           {fetching ? (
-            <tr><td colSpan={colSpan} className="px-4 py-6 text-center opacity-40">Loading…</td></tr>
-          ) : rows.length === 0 ? (
-            <tr><td colSpan={colSpan} className="px-4 py-6 text-center opacity-40">{emptyMessage}</td></tr>
-          ) : rows.map(row => (
-            <tr key={row.id} className={cn('border-b border-border last:border-0 hover:bg-surface-1/50', !row.is_active && 'opacity-40')}>
-              <td className="px-4 py-2 font-mono text-xs">{row.value}</td>
-              <td className="px-4 py-2">
-                {canEdit && editId === row.id ? (
-                  <Input className="h-7 text-sm w-full" value={editLabel} onChange={e => setEditLabel(e.target.value)} />
-                ) : row.label}
+            <tr>
+              <td colSpan={colSpan} className="px-4 py-6 text-center opacity-40">
+                Loading…
               </td>
-              {isParentType && <td className="px-4 py-2 font-mono text-xs opacity-60">{row.parent_value ?? '—'}</td>}
-              {canEdit && (
-                <td className="px-4 py-2">
-                  <div className="flex justify-end gap-1">
-                    {editId === row.id ? (
-                      <>
-                        <Button size="icon-sm" variant="ghost" onClick={() => onSaveEdit(row.id)} title="Save"><Check size={13} /></Button>
-                        <Button size="icon-sm" variant="ghost" onClick={onCancelEdit} title="Cancel"><X size={13} /></Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button size="icon-sm" variant="ghost" onClick={() => onStartEdit(row)} title="Edit"><Edit2 size={13} /></Button>
-                        <Button size="icon-sm" variant="ghost" onClick={() => onDeactivate(row.id)} title="Remove"
-                          className="text-status-error hover:bg-status-error/10"><PowerOff size={13} /></Button>
-                      </>
-                    )}
-                  </div>
-                </td>
-              )}
             </tr>
-          ))}
+          ) : rows.length === 0 ? (
+            <tr>
+              <td colSpan={colSpan} className="px-4 py-6 text-center opacity-40">
+                {emptyMessage}
+              </td>
+            </tr>
+          ) : (
+            rows.map((row) => (
+              <tr
+                key={row.id}
+                className={cn(
+                  "border-b border-border last:border-0 hover:bg-surface-1/50",
+                  !row.is_active && "opacity-40"
+                )}
+              >
+                <td className="px-4 py-2 font-mono text-xs">{row.value}</td>
+                <td className="px-4 py-2">
+                  {canEdit && editId === row.id ? (
+                    <Input
+                      className="h-7 text-sm w-full"
+                      value={editLabel}
+                      onChange={(e) => setEditLabel(e.target.value)}
+                    />
+                  ) : (
+                    row.label
+                  )}
+                </td>
+                {isParentType && <td className="px-4 py-2 font-mono text-xs opacity-60">{row.parent_value ?? "—"}</td>}
+                {canEdit && (
+                  <td className="px-4 py-2">
+                    <div className="flex justify-end gap-1">
+                      {editId === row.id ? (
+                        <>
+                          <Button size="icon-sm" variant="ghost" onClick={() => onSaveEdit(row.id)} title="Save">
+                            <Check size={13} />
+                          </Button>
+                          <Button size="icon-sm" variant="ghost" onClick={onCancelEdit} title="Cancel">
+                            <X size={13} />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button size="icon-sm" variant="ghost" onClick={() => onStartEdit(row)} title="Edit">
+                            <Edit2 size={13} />
+                          </Button>
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            onClick={() => onDeactivate(row.id)}
+                            title="Remove"
+                            className="text-status-error hover:bg-status-error/10"
+                          >
+                            <PowerOff size={13} />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </div>

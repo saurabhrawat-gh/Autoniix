@@ -8,12 +8,7 @@ export interface PulseProps {
   style?: React.CSSProperties;
 }
 
-export const Pulse: React.FC<PulseProps> = ({
-  bpm = 90,
-  amplitude = 0.06,
-  children,
-  style,
-}) => {
+export const Pulse: React.FC<PulseProps> = ({ bpm = 90, amplitude = 0.06, children, style }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const hz = bpm / 60;

@@ -15,15 +15,12 @@ export async function contentRoutes(app: FastifyInstance): Promise<void> {
       const page = parseInt(query.page || "1", 10);
       const pageSize = Math.min(parseInt(query.page_size || "20", 10), 100);
 
-      const { content, total } = await contentRepo.findByWorkspace(
-        request.principal.workspace_id,
-        {
-          channelId: query.channel_id,
-          status: query.status,
-          limit: pageSize,
-          offset: (page - 1) * pageSize,
-        }
-      );
+      const { content, total } = await contentRepo.findByWorkspace(request.principal.workspace_id, {
+        channelId: query.channel_id,
+        status: query.status,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      });
 
       return reply.send({
         content: content.map((c) => contentRepo.toContent(c)),
@@ -88,10 +85,7 @@ export async function contentRoutes(app: FastifyInstance): Promise<void> {
 
     try {
       const { content_id } = request.params as { content_id: string };
-      const content = await contentRepo.findById(
-        content_id,
-        request.principal.workspace_id
-      );
+      const content = await contentRepo.findById(content_id, request.principal.workspace_id);
 
       if (!content) {
         return reply.code(404).send({
@@ -122,20 +116,16 @@ export async function contentRoutes(app: FastifyInstance): Promise<void> {
       const { content_id } = request.params as { content_id: string };
       const body = request.body as any;
 
-      const content = await contentRepo.update(
-        content_id,
-        request.principal.workspace_id,
-        {
-          title: body.title,
-          description: body.description,
-          status: body.status,
-          content_type: body.content_type,
-          duration_seconds: body.duration_seconds,
-          thumbnail_url: body.thumbnail_url,
-          video_url: body.video_url,
-          metadata: body.metadata,
-        }
-      );
+      const content = await contentRepo.update(content_id, request.principal.workspace_id, {
+        title: body.title,
+        description: body.description,
+        status: body.status,
+        content_type: body.content_type,
+        duration_seconds: body.duration_seconds,
+        thumbnail_url: body.thumbnail_url,
+        video_url: body.video_url,
+        metadata: body.metadata,
+      });
 
       return reply.send({
         content: contentRepo.toContent(content),
@@ -163,10 +153,7 @@ export async function contentRoutes(app: FastifyInstance): Promise<void> {
 
     try {
       const { content_id } = request.params as { content_id: string };
-      const content = await contentRepo.findById(
-        content_id,
-        request.principal.workspace_id
-      );
+      const content = await contentRepo.findById(content_id, request.principal.workspace_id);
 
       if (!content) {
         return reply.code(404).send({

@@ -8,15 +8,15 @@
 
 ## Module Map
 
-| Module | Purpose | Key Functions |
-|--------|---------|---------------|
-| script_analyzer.py | Core NLP analysis | emotion detection, emphasis scoring, readability, AI pattern detection, specificity |
+| Module                 | Purpose             | Key Functions                                                                         |
+| ---------------------- | ------------------- | ------------------------------------------------------------------------------------- |
+| script_analyzer.py     | Core NLP analysis   | emotion detection, emphasis scoring, readability, AI pattern detection, specificity   |
 | retention_optimizer.py | Attention economics | curiosity loops, But/Therefore ratio, pattern interrupt, emotional arc, hook strength |
-| humanizer.py | Anti-AI filter | 40+ contractions, 17 AI pattern replacements, sentence variation, spoken rhythm |
-| prosody_engine.py | Script v1 Voice | per-sentence SSML, emotion→TTS mapping, section prosody, pause rules |
-| asset_engine.py | Script v2 Assets | NER-based queries, WordNet synonyms, emotion→visual mood, shot type inference |
-| direction_engine.py | Script v3 Direction | scene presets, camera templates, motion design, SFX library, Remotion v3 config |
-| self_learning.py | ML loop | GBM predictor, Thompson Sampling bandits, feedback ingestor, drift detection |
+| humanizer.py           | Anti-AI filter      | 40+ contractions, 17 AI pattern replacements, sentence variation, spoken rhythm       |
+| prosody_engine.py      | Script v1 Voice     | per-sentence SSML, emotion→TTS mapping, section prosody, pause rules                  |
+| asset_engine.py        | Script v2 Assets    | NER-based queries, WordNet synonyms, emotion→visual mood, shot type inference         |
+| direction_engine.py    | Script v3 Direction | scene presets, camera templates, motion design, SFX library, Remotion v3 config       |
+| self_learning.py       | ML loop             | GBM predictor, Thompson Sampling bandits, feedback ingestor, drift detection          |
 
 ## Pipeline Flow
 
@@ -36,17 +36,20 @@
 ```
 
 ## Self-Learning Endpoints
+
 - `/script-feedback` — Ingest outcome data (retention, engagement)
 - `/script-train` — Retrain GBM + update bandit priors
 - `/script-drift` — Check for concept drift in predictions
 
 ## DB Tables
+
 - `script_features` — Per-script NLP features (emotion, readability, specificity, etc.)
 - `script_outcomes` — Real-world outcomes (retention, engagement, CTR)
 - `script_models` — Trained GBM model artifacts
 - `script_bandit_state` — Thompson Sampling arm states (hook_style, pacing_strategy)
 
 ## Dependencies
+
 - spaCy (en_core_web_sm) — NLP, NER, POS
 - textstat — readability metrics
 - NLTK WordNet — synonym expansion
@@ -54,4 +57,5 @@
 - numpy — numerical operations
 
 ## Cost
+
 All intelligence computation is **local**. $0.00 additional API cost per script.

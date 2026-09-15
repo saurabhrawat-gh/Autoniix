@@ -1,13 +1,13 @@
-import type { Meta, StoryObj } from '@storybook/react';
-import { Switch, Label } from '@/lib/ui';
+import type { Meta, StoryObj } from "@storybook/react";
+import { Switch, Label } from "@/lib/ui";
 
 const meta: Meta<typeof Switch> = {
-  title: 'UI/Switch',
+  title: "UI/Switch",
   component: Switch,
-  tags: ['autodocs'],
+  tags: ["autodocs"],
   argTypes: {
-    checked: { control: 'boolean' },
-    disabled: { control: 'boolean' },
+    checked: { control: "boolean" },
+    disabled: { control: "boolean" },
   },
 };
 

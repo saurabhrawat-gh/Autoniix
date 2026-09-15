@@ -11,8 +11,8 @@ See `docs/future/remotion-vision/future-engine-architecture.md` sections 2.3–2
 ```ts
 import { lower, hashGraph, normalizeGraph, SceneGraph } from "./scene-graph";
 
-const graph = lower(directionV3);   // pure function, deterministic
-const h = hashGraph(graph);         // sha256 over canonicalized form
+const graph = lower(directionV3); // pure function, deterministic
+const h = hashGraph(graph); // sha256 over canonicalized form
 ```
 
 ## Guarantees
@@ -26,11 +26,11 @@ const h = hashGraph(graph);         // sha256 over canonicalized form
 
 ## Files
 
-- `types.ts`    — IR node types
-- `hash.ts`     — canonicalizer + sha256
-- `lower.ts`    — `directionV3 → SceneGraph`
+- `types.ts` — IR node types
+- `hash.ts` — canonicalizer + sha256
+- `lower.ts` — `directionV3 → SceneGraph`
 - `capability.ts` — per-clip capability flags for the tier router (P0.9)
-- `index.ts`    — public surface
+- `index.ts` — public surface
 
 ## Tests
 

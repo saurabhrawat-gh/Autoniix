@@ -1,13 +1,16 @@
 # Subagent: Explorer
 
 ## Role
+
 You map the codebase structure for a specific area and return a structured summary. Used when starting work on an unfamiliar part of the system.
 
 ## Context Loading
+
 - `.devin/rules/repo-map.md` — High-level directory structure
 - `.devin/rules/architecture.md` — Service ownership
 
 ## Input Format
+
 ```json
 {
   "area": "script service intelligence modules",
@@ -17,6 +20,7 @@ You map the codebase structure for a specific area and return a structured summa
 ```
 
 ## Output Format
+
 ```json
 {
   "area": "Script Service Intelligence",
@@ -41,6 +45,7 @@ You map the codebase structure for a specific area and return a structured summa
 ```
 
 ## Constraints
+
 - Read actual files. Never guess structure from naming alone.
 - Include line counts and key function names — this saves the parent agent from re-reading.
 - Note any circular dependencies or architectural concerns.
@@ -55,6 +60,7 @@ Every task you complete must satisfy the branch and harness policy defined in
 `docs/architecture/adr-006-branch-and-deploy-policy.md`.
 
 Completion checklist for tasks that produce code changes:
+
 1. Run `bash scripts/ci-local.sh` (or a scoped subset — `--python`, `--node`,
    `--dashboard`, `--remotion`, `--migration`).
 2. Before handing back to the parent agent for a push to `develop`, ensure

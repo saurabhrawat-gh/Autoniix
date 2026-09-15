@@ -53,7 +53,12 @@ export async function getOrBuildBundle(opts?: { entryPoint?: string }): Promise<
   const projectRoot = path.dirname(path.dirname(entryPoint));
 
   if (memoizedBundlePath && memoizedHash) {
-    return { hash: memoizedHash, source: "process", bundlePath: memoizedBundlePath, warmMs: Date.now() - startedAt };
+    return {
+      hash: memoizedHash,
+      source: "process",
+      bundlePath: memoizedBundlePath,
+      warmMs: Date.now() - startedAt,
+    };
   }
 
   const hash = await hashBundleInputs(projectRoot);
@@ -162,7 +167,11 @@ async function isReady(dir: string): Promise<boolean> {
   }
 }
 
-async function persistToShared(localBundlePath: string, cacheRoot: string, hash: string): Promise<void> {
+async function persistToShared(
+  localBundlePath: string,
+  cacheRoot: string,
+  hash: string,
+): Promise<void> {
   await fsp.mkdir(cacheRoot, { recursive: true });
   const finalDir = path.join(cacheRoot, hash);
   if (await isReady(finalDir)) return;

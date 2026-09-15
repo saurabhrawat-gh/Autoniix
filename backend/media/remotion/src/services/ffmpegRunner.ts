@@ -72,11 +72,7 @@ interface RawRun {
   stderr: string;
 }
 
-function runOnce(
-  binary: string,
-  args: string[],
-  opts: RunOnceOpts = {},
-): Promise<RawRun> {
+function runOnce(binary: string, args: string[], opts: RunOnceOpts = {}): Promise<RawRun> {
   const timeoutMs = opts.timeoutMs ?? 10 * 60 * 1000;
   return new Promise((resolve, reject) => {
     const child = spawn(binary, args, {
@@ -158,9 +154,7 @@ export async function runFfmpegRecipe(
     const tail = stderr.slice(-2048);
     results.push({ command: cmd, exitCode: code, durationMs: dt, stderrTail: tail });
     if (code !== 0) {
-      const err = new Error(
-        `ffmpeg failed (${code}) at "${cmd.summary}":\n${tail}`,
-      );
+      const err = new Error(`ffmpeg failed (${code}) at "${cmd.summary}":\n${tail}`);
       throw err;
     }
     if (cmd.finalOutput) {

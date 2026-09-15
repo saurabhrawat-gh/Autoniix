@@ -30,13 +30,13 @@ curl -X PUT https://unleash.local/api/features/rust_auth_signup \
 
 **Kill-switch SLA:** Disable any flag in <60 seconds without deploy.
 
-| Flag | Endpoint | Status |
-|------|----------|--------|
-| `rust_auth_signup` | POST /api/v2/auth/signup | Active |
-| `rust_auth_signin` | POST /api/v2/auth/signin | Active |
+| Flag                | Endpoint                  | Status |
+| ------------------- | ------------------------- | ------ |
+| `rust_auth_signup`  | POST /api/v2/auth/signup  | Active |
+| `rust_auth_signin`  | POST /api/v2/auth/signin  | Active |
 | `rust_auth_refresh` | POST /api/v2/auth/refresh | Active |
-| `rust_auth_me` | GET /api/v2/me | Active |
-| `rust_auth_logout` | POST /api/v2/auth/logout | Active |
+| `rust_auth_me`      | GET /api/v2/me            | Active |
+| `rust_auth_logout`  | POST /api/v2/auth/logout  | Active |
 
 ### Level 2: Full Service (Container Stop)
 
@@ -82,12 +82,12 @@ DELETE FROM users WHERE email LIKE '%@rust.%';
 
 ## Automatic Rollback Triggers
 
-| Trigger | Threshold | Action |
-|---------|-----------|--------|
-| Error rate | > 0.1% for 5 min | Auto-rollback to Python |
-| p95 latency | > Python + 20% for 10 min | Auto-rollback |
-| 5xx spike | > 10/min | Auto-rollback |
-| Equivalence test fail | In prod sampling | Page on-call, manual decision |
+| Trigger               | Threshold                 | Action                        |
+| --------------------- | ------------------------- | ----------------------------- |
+| Error rate            | > 0.1% for 5 min          | Auto-rollback to Python       |
+| p95 latency           | > Python + 20% for 10 min | Auto-rollback                 |
+| 5xx spike             | > 10/min                  | Auto-rollback                 |
+| Equivalence test fail | In prod sampling          | Page on-call, manual decision |
 
 ---
 

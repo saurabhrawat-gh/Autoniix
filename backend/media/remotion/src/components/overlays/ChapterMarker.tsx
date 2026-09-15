@@ -17,7 +17,8 @@ export const ChapterMarker: React.FC<ChapterMarkerProps> = ({
   color = "#FFFFFF",
   position = "top",
 }) => {
-  const posStyle: React.CSSProperties = position === "top" ? { top: 60, left: 60 } : { bottom: 60, left: 60 };
+  const posStyle: React.CSSProperties =
+    position === "top" ? { top: 60, left: 60 } : { bottom: 60, left: 60 };
 
   return (
     <AbsoluteFill style={{ pointerEvents: "none" }}>

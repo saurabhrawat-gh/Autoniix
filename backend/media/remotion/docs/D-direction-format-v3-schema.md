@@ -14,23 +14,23 @@
     "channel_id": "chan_xyz",
     "title": "Why You Shiver When You Pee",
     "duration_target_seconds": 600,
-    "aspect": "16:9",                    // or "9:16" | "1:1"
+    "aspect": "16:9", // or "9:16" | "1:1"
     "fps": 30,
-    "resolution": { "width": 1920, "height": 1080 }
+    "resolution": { "width": 1920, "height": 1080 },
   },
-  "template": "hybrid-kinetic",          // one of 21 template IDs
+  "template": "hybrid-kinetic", // one of 21 template IDs
   "theme": {
     "primary_color": "#FF3B30",
     "accent_color": "#FFD60A",
     "background_color": "#0A0A0A",
     "text_color": "#FFFFFF",
-    "fonts": { "heading": "Montserrat", "body": "Inter" }
+    "fonts": { "heading": "Montserrat", "body": "Inter" },
   },
   "grade_preset": "fx.grade.cinematic_teal_orange",
   "global_effects": ["fx.grain.film_35mm", "fx.vignette.soft"],
   "global_overlays": [
     { "preset": "ov.caption.word_highlight_yellow" },
-    { "preset": "ov.logobug.tr_small", "overrides": { "src": "https://cdn/logo.png" } }
+    { "preset": "ov.logobug.tr_small", "overrides": { "src": "https://cdn/logo.png" } },
   ],
   "audio": {
     "voiceover_url": "https://cdn/.../vo.mp3",
@@ -38,15 +38,15 @@
     "music_url": "https://cdn/.../bgm.mp3",
     "music_volume_db": -18,
     "ducking": { "enabled": true, "threshold_db": -30, "attack_ms": 100, "release_ms": 400 },
-    "loudness_target_lufs": -14
+    "loudness_target_lufs": -14,
   },
   "branding": {
     "intro_preset": "branding.intro.logo_reveal_neon",
     "outro_preset": "branding.outro.endscreen_2vid_1sub",
-    "watermark": { "preset": "ov.logobug.tr_small", "src": "https://cdn/logo.png" }
+    "watermark": { "preset": "ov.logobug.tr_small", "src": "https://cdn/logo.png" },
   },
-  "segments": [ /* ordered list, see §2 */ ],
-  "thumbnail": { /* see §3 */ }
+  "segments": [/* ordered list, see §2 */],
+  "thumbnail": {/* see §3 */},
 }
 ```
 
@@ -62,24 +62,25 @@
   "scene_preset": "scene.hook.question_flash",
   "scene_overrides": {
     "text": "Why do you shiver when you pee?",
-    "subtitle": "You're not weird. It's physics."
+    "subtitle": "You're not weird. It's physics.",
   },
-  "animations_in":  [ { "preset": "anim.in.scale_punch", "target": "headline" } ],
-  "animations_out": [ { "preset": "anim.out.fade" } ],
+  "animations_in": [{ "preset": "anim.in.scale_punch", "target": "headline" }],
+  "animations_out": [{ "preset": "anim.out.fade" }],
   "effects": ["fx.chromatic.subtle"],
-  "overlays": [ { "preset": "ov.caption.word_highlight_yellow" } ],
+  "overlays": [{ "preset": "ov.caption.word_highlight_yellow" }],
   "sfx": [
     { "preset": "sfx.whoosh.fast", "at_ms": 0 },
-    { "preset": "sfx.impact.heavy", "at_ms": 300 }
+    { "preset": "sfx.impact.heavy", "at_ms": 300 },
   ],
   "transition_out": {
     "preset": "trans.zoom.punch_hard",
-    "overrides": { "durationInFrames": 6 }
-  }
+    "overrides": { "durationInFrames": 6 },
+  },
 }
 ```
 
 ### Rules
+
 - Exactly one `scene_preset` per segment.
 - `transition_out` is the transition **into the next** segment; last segment's is ignored.
 - `overrides` shallow-merge onto preset `defaultProps`.
@@ -128,10 +129,10 @@ import { EFFECT_PRESETS } from "../registry/effects";
 import { OVERLAY_PRESETS } from "../registry/overlays";
 
 const transitionId = z.enum(Object.keys(TRANSITION_PRESETS) as [string, ...string[]]);
-const animationId  = z.enum(Object.keys(ANIMATION_PRESETS)  as [string, ...string[]]);
-const sceneId      = z.enum(Object.keys(SCENE_PRESETS)      as [string, ...string[]]);
-const effectId     = z.enum(Object.keys(EFFECT_PRESETS)     as [string, ...string[]]);
-const overlayId    = z.enum(Object.keys(OVERLAY_PRESETS)    as [string, ...string[]]);
+const animationId = z.enum(Object.keys(ANIMATION_PRESETS) as [string, ...string[]]);
+const sceneId = z.enum(Object.keys(SCENE_PRESETS) as [string, ...string[]]);
+const effectId = z.enum(Object.keys(EFFECT_PRESETS) as [string, ...string[]]);
+const overlayId = z.enum(Object.keys(OVERLAY_PRESETS) as [string, ...string[]]);
 
 const PresetRef = <T extends z.ZodTypeAny>(idSchema: T) =>
   z.object({
@@ -155,10 +156,14 @@ const Segment = z.object({
   animations_out: z.array(Animation).optional(),
   effects: z.array(effectId).optional(),
   overlays: z.array(PresetRef(overlayId)).optional(),
-  sfx: z.array(z.object({
-    preset: z.string(),
-    at_ms: z.number().int().nonnegative(),
-  })).optional(),
+  sfx: z
+    .array(
+      z.object({
+        preset: z.string(),
+        at_ms: z.number().int().nonnegative(),
+      }),
+    )
+    .optional(),
   transition_out: PresetRef(transitionId).optional(),
 });
 
@@ -192,36 +197,42 @@ export const DirectionV3 = z.object({
     voiceover_srt_url: z.string().url().optional(),
     music_url: z.string().url().optional(),
     music_volume_db: z.number().optional(),
-    ducking: z.object({
-      enabled: z.boolean(),
-      threshold_db: z.number(),
-      attack_ms: z.number(),
-      release_ms: z.number(),
-    }).optional(),
+    ducking: z
+      .object({
+        enabled: z.boolean(),
+        threshold_db: z.number(),
+        attack_ms: z.number(),
+        release_ms: z.number(),
+      })
+      .optional(),
     loudness_target_lufs: z.number().optional(),
   }),
-  branding: z.object({
-    intro_preset: z.string().optional(),
-    outro_preset: z.string().optional(),
-    watermark: PresetRef(overlayId).optional(),
-  }).optional(),
+  branding: z
+    .object({
+      intro_preset: z.string().optional(),
+      outro_preset: z.string().optional(),
+      watermark: PresetRef(overlayId).optional(),
+    })
+    .optional(),
   segments: z.array(Segment).min(1),
-  thumbnail: z.object({
-    composition: z.literal("ThumbnailComp"),
-    layout_preset: z.string(),
-    background_url: z.string().url(),
-    title: z.object({
-      text: z.string(),
-      font: z.string(),
-      weight: z.number(),
-      size: z.number(),
-      color: z.string(),
-      stroke: z.object({ color: z.string(), width: z.number() }).optional(),
-    }),
-    format: z.enum(["png", "jpg"]),
-    width: z.number().int().positive(),
-    height: z.number().int().positive(),
-  }).optional(),
+  thumbnail: z
+    .object({
+      composition: z.literal("ThumbnailComp"),
+      layout_preset: z.string(),
+      background_url: z.string().url(),
+      title: z.object({
+        text: z.string(),
+        font: z.string(),
+        weight: z.number(),
+        size: z.number(),
+        color: z.string(),
+        stroke: z.object({ color: z.string(), width: z.number() }).optional(),
+      }),
+      format: z.enum(["png", "jpg"]),
+      width: z.number().int().positive(),
+      height: z.number().int().positive(),
+    })
+    .optional(),
 });
 
 export type DirectionV3Input = z.infer<typeof DirectionV3>;
@@ -280,9 +291,9 @@ export function validateAgainstTemplate(d: DirectionV3Input) {
 export default {
   id: "hybrid-kinetic",
   ratio_budgets: {
-    stock:    [0.35, 0.50],
-    kinetic:  [0.25, 0.35],
-    data:     [0.10, 0.15],
+    stock: [0.35, 0.5],
+    kinetic: [0.25, 0.35],
+    data: [0.1, 0.15],
   },
   cuts_per_minute: [8, 14],
   allowed_transitions: ["trans.cut", "trans.slide", "trans.zoom", "trans.dissolve"],
@@ -297,14 +308,14 @@ export default {
 
 ## 7. Why preset-ID references over inline props
 
-| Concern | Inline props | Preset IDs |
-|---------|-------------|-----------|
-| LLM prompt size | Huge, complex nested props | Small enum of strings |
-| LLM accuracy | Often hallucinates props | Constrained to valid IDs |
-| Visual consistency | Each call may vary | Guaranteed design-system fidelity |
-| Iterate on design | Edit every JSON | Edit one registry entry |
-| A/B testing | Impossible | Swap preset IDs |
-| Marketplace | Hard | Trivial (JSON-only) |
+| Concern            | Inline props               | Preset IDs                        |
+| ------------------ | -------------------------- | --------------------------------- |
+| LLM prompt size    | Huge, complex nested props | Small enum of strings             |
+| LLM accuracy       | Often hallucinates props   | Constrained to valid IDs          |
+| Visual consistency | Each call may vary         | Guaranteed design-system fidelity |
+| Iterate on design  | Edit every JSON            | Edit one registry entry           |
+| A/B testing        | Impossible                 | Swap preset IDs                   |
+| Marketplace        | Hard                       | Trivial (JSON-only)               |
 
 ---
 
@@ -324,21 +335,29 @@ A codemod can be written once registry is stable.
 {
   "version": "3.0",
   "meta": {
-    "video_id": "v1", "channel_id": "c1", "title": "Test",
-    "duration_target_seconds": 10, "aspect": "16:9", "fps": 30,
+    "video_id": "v1",
+    "channel_id": "c1",
+    "title": "Test",
+    "duration_target_seconds": 10,
+    "aspect": "16:9",
+    "fps": 30,
     "resolution": { "width": 1920, "height": 1080 }
   },
   "template": "hybrid-kinetic",
   "theme": {
-    "primary_color": "#FF3B30", "accent_color": "#FFD60A",
-    "background_color": "#000", "text_color": "#FFF",
+    "primary_color": "#FF3B30",
+    "accent_color": "#FFD60A",
+    "background_color": "#000",
+    "text_color": "#FFF",
     "fonts": { "heading": "Montserrat", "body": "Inter" }
   },
   "grade_preset": "fx.grade.cinematic_teal_orange",
   "audio": { "voiceover_url": "https://cdn/vo.mp3" },
   "segments": [
     {
-      "id": "s1", "start_ms": 0, "duration_ms": 5000,
+      "id": "s1",
+      "start_ms": 0,
+      "duration_ms": 5000,
       "scene_preset": "scene.kinetic.scale_punch",
       "scene_overrides": { "text": "Hello World" }
     }

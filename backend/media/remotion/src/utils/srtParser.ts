@@ -14,9 +14,7 @@ export interface SrtWord {
 const timecodeToMs = (tc: string): number => {
   const m = tc.match(/(\d{2}):(\d{2}):(\d{2})[,.](\d{3})/);
   if (!m) return 0;
-  return (
-    Number(m[1]) * 3_600_000 + Number(m[2]) * 60_000 + Number(m[3]) * 1000 + Number(m[4])
-  );
+  return Number(m[1]) * 3_600_000 + Number(m[2]) * 60_000 + Number(m[3]) * 1000 + Number(m[4]);
 };
 
 /**
@@ -54,7 +52,10 @@ export function parseSrt(content: string): SrtCue[] {
       index,
       startMs: timecodeToMs(start),
       endMs: timecodeToMs(end),
-      text: textLines.join(" ").replace(/<[^>]+>/g, "").trim(),
+      text: textLines
+        .join(" ")
+        .replace(/<[^>]+>/g, "")
+        .trim(),
     });
   }
   return cues;

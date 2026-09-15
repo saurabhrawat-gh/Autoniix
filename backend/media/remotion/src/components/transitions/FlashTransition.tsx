@@ -1,12 +1,15 @@
-import { TransitionPresentation, TransitionPresentationComponentProps } from "@remotion/transitions";
+import {
+  TransitionPresentation,
+  TransitionPresentationComponentProps,
+} from "@remotion/transitions";
 import React from "react";
 import { AbsoluteFill, interpolate } from "remotion";
 
 /**
  * Premium flash transition with customizable color and intensity.
- * 
+ *
  * Creates an impact frame effect commonly used in action content, sports, and hype videos.
- * 
+ *
  * Quality: Matches After Effects flash transitions at 100%.
  */
 
@@ -19,7 +22,9 @@ export interface FlashTransitionProps extends Record<string, unknown> {
   peakDuration?: number;
 }
 
-export const flashTransition = (props?: FlashTransitionProps): TransitionPresentation<FlashTransitionProps> => {
+export const flashTransition = (
+  props?: FlashTransitionProps,
+): TransitionPresentation<FlashTransitionProps> => {
   const color = props?.color ?? "#FFFFFF";
   const intensity = props?.intensity ?? 1.0;
   const peakDuration = props?.peakDuration ?? 0.15;
@@ -34,12 +39,12 @@ export const flashTransition = (props?: FlashTransitionProps): TransitionPresent
 
     const peakStart = 0.5 - peakDuration / 2;
     const peakEnd = 0.5 + peakDuration / 2;
-    
+
     const flashOpacity = interpolate(
       progress,
       [0, peakStart, peakEnd, 1],
       [0, intensity, intensity, 0],
-      { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
     );
 
     let sceneOpacity: number;
@@ -51,9 +56,7 @@ export const flashTransition = (props?: FlashTransitionProps): TransitionPresent
 
     return (
       <AbsoluteFill>
-        <AbsoluteFill style={{ opacity: sceneOpacity }}>
-          {children}
-        </AbsoluteFill>
+        <AbsoluteFill style={{ opacity: sceneOpacity }}>{children}</AbsoluteFill>
         <AbsoluteFill
           style={{
             backgroundColor: color,

@@ -59,7 +59,8 @@ function parseCubeFile(text: string): ParsedLUT {
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (!line || line.startsWith("#")) continue;
-    if (line.startsWith("TITLE") || line.startsWith("DOMAIN_MIN") || line.startsWith("DOMAIN_MAX")) continue;
+    if (line.startsWith("TITLE") || line.startsWith("DOMAIN_MIN") || line.startsWith("DOMAIN_MAX"))
+      continue;
 
     if (line.startsWith("LUT_3D_SIZE")) {
       size = parseInt(line.split(/\s+/)[1] ?? "0", 10);
@@ -169,10 +170,26 @@ function extractColorMatrix(lut: ParsedLUT): number[] {
   const [kr, kg, kb] = sampleLUT(lut, 0, 0, 0);
 
   return [
-    1, rg - 0, rb - 0, 0, kr,
-    gr - 0, 1, gb - 0, 0, kg,
-    br - 0, bg - 0, 1, 0, kb,
-    0, 0, 0, 1, 0,
+    1,
+    rg - 0,
+    rb - 0,
+    0,
+    kr,
+    gr - 0,
+    1,
+    gb - 0,
+    0,
+    kg,
+    br - 0,
+    bg - 0,
+    1,
+    0,
+    kb,
+    0,
+    0,
+    0,
+    1,
+    0,
   ];
 }
 
@@ -189,11 +206,7 @@ function nextFilterId(): string {
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
 
-export const LUTGrade: React.FC<LUTGradeProps> = ({
-  lutSrc,
-  intensity = 1,
-  children,
-}) => {
+export const LUTGrade: React.FC<LUTGradeProps> = ({ lutSrc, intensity = 1, children }) => {
   const [curves, setCurves] = useState<ChannelCurves | null>(null);
   const [colorMatrix, setColorMatrix] = useState<number[] | null>(null);
   const handleRef = useRef<ReturnType<typeof delayRender> | null>(null);
@@ -251,9 +264,11 @@ export const LUTGrade: React.FC<LUTGradeProps> = ({
   }
 
   const matrixValues = colorMatrix
-    ? colorMatrix.map((v) => {
-        return v;
-      }).join(" ")
+    ? colorMatrix
+        .map((v) => {
+          return v;
+        })
+        .join(" ")
     : undefined;
 
   return (
@@ -278,9 +293,7 @@ export const LUTGrade: React.FC<LUTGradeProps> = ({
               <feFuncB type="table" tableValues={finalB} />
             </feComponentTransfer>
             {/* Cross-channel tinting (teal shadows, orange highlights, etc.) */}
-            {matrixValues && (
-              <feColorMatrix type="matrix" values={matrixValues} />
-            )}
+            {matrixValues && <feColorMatrix type="matrix" values={matrixValues} />}
           </filter>
         </defs>
       </svg>

@@ -35,13 +35,24 @@ The Temporal `render_activity` in the main platform repo calls this service's HT
         "resolution": { "width": 1920, "height": 1080 }
       },
       "template": "hybrid-kinetic",
-      "theme": { "primary_color": "#FF3B30", "accent_color": "#FFD60A", "background_color": "#000", "text_color": "#FFF", "fonts": { "heading": "Inter", "body": "Inter" } },
+      "theme": {
+        "primary_color": "#FF3B30",
+        "accent_color": "#FFD60A",
+        "background_color": "#000",
+        "text_color": "#FFF",
+        "fonts": { "heading": "Inter", "body": "Inter" }
+      },
       "grade_preset": "fx.grade.cinematic_teal_orange",
       "global_overlays": [
         { "type": "vignette", "intensity": 0.3 },
         { "type": "film_grain", "preset": "fx.grain.35mm", "intensity": 0.15 }
       ],
-      "audio_master": { "music_url": "s3://...", "music_volume": 0.15, "ducking": true, "ducking_threshold": -20 },
+      "audio_master": {
+        "music_url": "s3://...",
+        "music_volume": 0.15,
+        "ducking": true,
+        "ducking_threshold": -20
+      },
       "segments": []
     }
   },
@@ -142,6 +153,7 @@ REDIS_URL=redis://localhost:6379
 Temporal's `render_activity` calls `GET /api/health` before submitting a job.
 
 **Expected response:**
+
 ```json
 {
   "status": "healthy",
@@ -153,6 +165,7 @@ Temporal's `render_activity` calls `GET /api/health` before submitting a job.
 ```
 
 **Pre-flight rules (enforced by Temporal activity):**
+
 - `status` must be `"healthy"`
 - `activeRenders` must be `< maxConcurrent`
 - If either fails → Temporal retries with backoff (up to 2 attempts)

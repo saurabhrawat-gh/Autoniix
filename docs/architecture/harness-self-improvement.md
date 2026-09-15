@@ -59,11 +59,13 @@ when `harness:verified` is set.
 ## E5 — ML retrain trigger (scaffolded)
 
 Existing pieces already in the repo:
+
 - `scripts/trigger_first_retrain.py`
 - `scripts/generate_training_data.py`
 - `backend/api/core/brain/scorer.py`
 
 Target behaviour (follow-up):
+
 - Weekly Temporal schedule (register via `scripts/register_schedules.py`).
 - Aggregate production retention features → dataset artefact under
   `.harness/datasets/<date>/`.

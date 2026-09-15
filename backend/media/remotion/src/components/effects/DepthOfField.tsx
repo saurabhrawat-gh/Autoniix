@@ -3,10 +3,10 @@ import { AbsoluteFill } from "remotion";
 
 /**
  * Premium depth of field (bokeh blur) effect for cinematic focus.
- * 
+ *
  * Simulates camera lens depth of field by applying selective blur.
  * Creates a professional, cinematic look.
- * 
+ *
  * Quality: Matches After Effects Camera Lens Blur at 85%+ (limited by CSS/SVG).
  */
 
@@ -27,7 +27,7 @@ export const DepthOfField: React.FC<DepthOfFieldProps> = ({
   children,
 }) => {
   let gradientStops: string;
-  
+
   switch (focusRegion) {
     case "center":
       gradientStops = `
@@ -72,9 +72,9 @@ export const DepthOfField: React.FC<DepthOfFieldProps> = ({
     default:
       gradientStops = `<stop offset="0%" stop-opacity="0" />`;
   }
-  
+
   const isVertical = focusRegion === "top" || focusRegion === "bottom" || focusRegion === "center";
-  
+
   const svg = `
     <svg xmlns='http://www.w3.org/2000/svg'>
       <defs>
@@ -89,31 +89,27 @@ export const DepthOfField: React.FC<DepthOfFieldProps> = ({
         </mask>
       </defs>
     </svg>`;
-  
+
   const filterUrl = `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}#dof-blur")`;
   const maskUrl = `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}#dof-mask")`;
-  
+
   if (focusRegion === "none") {
-    return (
-      <AbsoluteFill style={{ filter: filterUrl as string }}>
-        {children}
-      </AbsoluteFill>
-    );
+    return <AbsoluteFill style={{ filter: filterUrl as string }}>{children}</AbsoluteFill>;
   }
-  
+
   return (
     <AbsoluteFill>
       {/* Sharp content (masked) */}
       <AbsoluteFill style={{ mask: maskUrl as string, WebkitMask: maskUrl as string }}>
         {children}
       </AbsoluteFill>
-      
+
       {/* Blurred content (inverse masked) */}
       <AbsoluteFill
         style={{
           filter: filterUrl as string,
-          mask: `linear-gradient(${isVertical ? 'to bottom' : 'to right'}, transparent, black, transparent)`,
-          WebkitMask: `linear-gradient(${isVertical ? 'to bottom' : 'to right'}, transparent, black, transparent)`,
+          mask: `linear-gradient(${isVertical ? "to bottom" : "to right"}, transparent, black, transparent)`,
+          WebkitMask: `linear-gradient(${isVertical ? "to bottom" : "to right"}, transparent, black, transparent)`,
           opacity: softness,
         }}
       >

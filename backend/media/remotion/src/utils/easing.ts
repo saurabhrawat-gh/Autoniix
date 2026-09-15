@@ -4,14 +4,7 @@ import { Easing } from "remotion";
  * Named easings used by animation/transition presets. Keep the enum string
  * values stable — they're referenced from the registry and from upstream JSON.
  */
-export type EaseName =
-  | "linear"
-  | "sine"
-  | "power2"
-  | "power3"
-  | "bounce"
-  | "elastic"
-  | "back";
+export type EaseName = "linear" | "sine" | "power2" | "power3" | "bounce" | "elastic" | "back";
 
 export const easings: Record<EaseName, (t: number) => number> = {
   linear: (t) => t,

@@ -1,16 +1,19 @@
-import { TransitionPresentation, TransitionPresentationComponentProps } from "@remotion/transitions";
+import {
+  TransitionPresentation,
+  TransitionPresentationComponentProps,
+} from "@remotion/transitions";
 import React from "react";
 import { AbsoluteFill, interpolate } from "remotion";
 
 /**
  * Premium zoom punch transition with motion blur and impact frame.
- * 
+ *
  * Simulates the aggressive zoom transitions seen in MrBeast, sports videos, and hype content.
  * Includes:
  * - Exponential zoom curve
  * - Motion blur during fast movement
  * - Optional impact frame (white flash at peak)
- * 
+ *
  * Quality: Matches After Effects zoom transitions at 95%+.
  */
 
@@ -23,7 +26,9 @@ export interface ZoomPunchProps extends Record<string, unknown> {
   direction?: "in" | "out";
 }
 
-export const zoomPunchTransition = (props?: ZoomPunchProps): TransitionPresentation<ZoomPunchProps> => {
+export const zoomPunchTransition = (
+  props?: ZoomPunchProps,
+): TransitionPresentation<ZoomPunchProps> => {
   const intensity = props?.intensity ?? 2.5;
   const flash = props?.flash ?? true;
   const direction = props?.direction ?? "in";
@@ -37,7 +42,7 @@ export const zoomPunchTransition = (props?: ZoomPunchProps): TransitionPresentat
     const progress = presentationProgress;
 
     const zoomCurve = Math.pow(progress, 2.5);
-    
+
     let scale: number;
     let opacity: number;
     let blur: number;
@@ -66,7 +71,10 @@ export const zoomPunchTransition = (props?: ZoomPunchProps): TransitionPresentat
     }
 
     if (flash) {
-      flashOpacity = interpolate(progress, [0.4, 0.5, 0.6], [0, 0.8, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+      flashOpacity = interpolate(progress, [0.4, 0.5, 0.6], [0, 0.8, 0], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      });
     }
 
     return (

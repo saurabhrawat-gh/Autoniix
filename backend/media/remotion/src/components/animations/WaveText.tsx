@@ -29,10 +29,7 @@ export const WaveText: React.FC<WaveTextProps> = ({
         const phase = (i / wavelengthChars) * 2 * Math.PI - speed * 2 * Math.PI * t;
         const y = Math.sin(phase) * amplitudePx;
         return (
-          <span
-            key={i}
-            style={{ display: "inline-block", transform: `translateY(${y}px)` }}
-          >
+          <span key={i} style={{ display: "inline-block", transform: `translateY(${y}px)` }}>
             {ch}
           </span>
         );

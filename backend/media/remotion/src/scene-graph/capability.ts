@@ -20,7 +20,12 @@ export type ClipCapability = {
   shaderPure: boolean;
 };
 
-export type ClipCapabilityTagged = { clipId: string; trackId: string; tier: "t0" | "t1" | "t2"; caps: ClipCapability };
+export type ClipCapabilityTagged = {
+  clipId: string;
+  trackId: string;
+  tier: "t0" | "t1" | "t2";
+  caps: ClipCapability;
+};
 
 /**
  * Conservative initial tagging:
@@ -37,7 +42,12 @@ const SHADER_PURE_SCENES = new Set<string>([
 
 const STOCK_SCENES = new Set<string>(["StockFootageScene"]);
 
-const DOM_HEAVY_SCENES = new Set<string>(["CodeTyping", "BrowserMockup", "SocialMockup", "PhoneMockup"]);
+const DOM_HEAVY_SCENES = new Set<string>([
+  "CodeTyping",
+  "BrowserMockup",
+  "SocialMockup",
+  "PhoneMockup",
+]);
 
 export function tagCapabilities(graph: SceneGraph): ClipCapabilityTagged[] {
   const out: ClipCapabilityTagged[] = [];
@@ -53,7 +63,13 @@ export function tagCapabilities(graph: SceneGraph): ClipCapabilityTagged[] {
 
 function clipCapability(clip: Clip): ClipCapability {
   if (clip.kind !== "scene") {
-    return { requiresReact: true, requiresDom: false, requiresWebgl: false, stockOnly: false, shaderPure: false };
+    return {
+      requiresReact: true,
+      requiresDom: false,
+      requiresWebgl: false,
+      stockOnly: false,
+      shaderPure: false,
+    };
   }
   const s = clip as SceneClip;
   const hasOverlays = (s.overlays?.length ?? 0) > 0;
@@ -63,10 +79,22 @@ function clipCapability(clip: Clip): ClipCapability {
   const hasAnims = hasAnimIn || hasAnimOut;
 
   if (STOCK_SCENES.has(s.scenePreset) && !hasOverlays && !hasEffects && !hasAnims) {
-    return { requiresReact: false, requiresDom: false, requiresWebgl: false, stockOnly: true, shaderPure: false };
+    return {
+      requiresReact: false,
+      requiresDom: false,
+      requiresWebgl: false,
+      stockOnly: true,
+      shaderPure: false,
+    };
   }
   if (SHADER_PURE_SCENES.has(s.scenePreset) && !hasOverlays) {
-    return { requiresReact: false, requiresDom: false, requiresWebgl: true, stockOnly: false, shaderPure: true };
+    return {
+      requiresReact: false,
+      requiresDom: false,
+      requiresWebgl: true,
+      stockOnly: false,
+      shaderPure: true,
+    };
   }
   return {
     requiresReact: true,

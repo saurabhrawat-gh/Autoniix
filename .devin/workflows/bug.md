@@ -3,6 +3,7 @@ description: Bug command — create a correctly formatted, labelled, and priorit
 ---
 
 > **Source of Truth — LOCKED:**
+>
 > - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project. Every bug must create a matching Jira IM ticket and be recorded in `scripts/issue_map.json`.
 > - Jira **Autoniix Engineering (AE)** space is **archived** — read-only, never create tickets there.
 > - GitHub **Autoniix MVP** project board is **closed** — do not reference it.
@@ -12,11 +13,13 @@ description: Bug command — create a correctly formatted, labelled, and priorit
 Use this workflow whenever you find a bug during local testing or production verification.
 
 **Usage:**
+
 ```
 bug: {description}, issue #N
 ```
 
 **Examples:**
+
 ```
 bug: login page crashes when email has special chars, issue #21
 bug: payment webhook not firing in production, issue #67
@@ -24,6 +27,7 @@ bug: video render hangs on empty script field, issue #54
 ```
 
 The workflow detects context automatically from issue #N's current label:
+
 - Issue #N is `in-qa` → creates a **QA bug** (`bug:normal`, normal queue)
 - Issue #N is `in-prod` → creates a **production bug** (`bug:production`, hotfix — highest priority)
 
@@ -32,14 +36,17 @@ The workflow detects context automatically from issue #N's current label:
 ## Step 1 — Parse the input
 
 Extract:
+
 - `description` — the text before ", issue #"
 - `parent_number` — the issue number after "issue #"
 
 If either is missing, print:
+
 ```
 ⚠️  Could not parse. Expected format: bug: {description}, issue #N
     Example: bug: login crashes with special chars, issue #21
 ```
+
 And stop.
 
 ---
@@ -49,6 +56,7 @@ And stop.
 Call `mcp0_get_issue` for `parent_number`.
 
 Read:
+
 - `title` — to understand the domain
 - `labels` — to determine context (QA vs prod)
 - `body` — to extract any "Layer" hints (Impacted Files section, API routes, etc.)
@@ -59,11 +67,11 @@ Read:
 
 ### Context (from parent labels)
 
-| Parent has label | Bug context | Bug type label | Priority | Branch |
-|---|---|---|---|---|
-| `in-qa` | QA bug — found during local testing | `bug:normal` | Same as parent (default `priority:high`) | `fix/` → `develop` |
-| `in-prod` | Prod bug — found in production | `bug:production` + `hotfix` | `priority:critical` | `hotfix/` → `main` |
-| Neither | Ambiguous — ask once | — | — | — |
+| Parent has label | Bug context                         | Bug type label              | Priority                                 | Branch             |
+| ---------------- | ----------------------------------- | --------------------------- | ---------------------------------------- | ------------------ |
+| `in-qa`          | QA bug — found during local testing | `bug:normal`                | Same as parent (default `priority:high`) | `fix/` → `develop` |
+| `in-prod`        | Prod bug — found in production      | `bug:production` + `hotfix` | `priority:critical`                      | `hotfix/` → `main` |
+| Neither          | Ambiguous — ask once                | —                           | —                                        | —                  |
 
 If ambiguous: ask "Is this a QA bug (found locally) or production bug (found on dash.autoniix.com)?" — take the answer and proceed.
 
@@ -71,16 +79,16 @@ If ambiguous: ask "Is this a QA bug (found locally) or production bug (found on 
 
 Determine the most appropriate layer from these options:
 
-| Layer | When to use |
-|---|---|
-| `UI` | Frontend component, page, button, form, visual rendering |
+| Layer     | When to use                                                      |
+| --------- | ---------------------------------------------------------------- |
+| `UI`      | Frontend component, page, button, form, visual rendering         |
 | `Gateway` | API route, auth middleware, request validation, CORS, rate limit |
 | `Service` | Backend business logic, worker, Temporal activity, provider call |
-| `DB` | Database query, migration, data integrity, ORM |
-| `Auth` | Login, logout, token, session, role check, permission |
-| `Worker` | Temporal workflow, background job, queue, scheduler |
-| `Infra` | Docker, Caddy, DNS, environment variable, deployment |
-| `Test` | Test itself is broken (not the feature) |
+| `DB`      | Database query, migration, data integrity, ORM                   |
+| `Auth`    | Login, logout, token, session, role check, permission            |
+| `Worker`  | Temporal workflow, background job, queue, scheduler              |
+| `Infra`   | Docker, Caddy, DNS, environment variable, deployment             |
+| `Test`    | Test itself is broken (not the feature)                          |
 
 If unclear from description, pick the closest one and note it in the issue body.
 
@@ -92,15 +100,16 @@ If unclear from description, pick the closest one and note it in the issue body.
 
 > The bug type (QA/Production) is conveyed by the `bug:normal` / `bug:production` label — do not add it to the title.
 
-| Area | Maps from |
-|---|---|
-| `Gateway` | auth, routing, Rust gateway, API gateway |
-| `Dashboard` | UI, frontend, Next.js |
-| `Service` | Python backend, DB, API service |
-| `Worker` | Temporal, background jobs |
-| `Infra` | Docker, CI/CD, infrastructure |
+| Area        | Maps from                                |
+| ----------- | ---------------------------------------- |
+| `Gateway`   | auth, routing, Rust gateway, API gateway |
+| `Dashboard` | UI, frontend, Next.js                    |
+| `Service`   | Python backend, DB, API service          |
+| `Worker`    | Temporal, background jobs                |
+| `Infra`     | Docker, CI/CD, infrastructure            |
 
 **Examples:**
+
 ```
 Gateway | OAuth token refresh fails on expired session
 Service | Video render hangs on empty script field
@@ -153,6 +162,7 @@ Dashboard | Login page crashes with special chars in email
 ## Step 6 — Set labels
 
 **QA bug (`bug:normal`):**
+
 - `bug`
 - `bug:normal`
 - `priority:high` (or same as parent if parent has higher/lower)
@@ -160,6 +170,7 @@ Dashboard | Login page crashes with special chars in email
 - The same type label as parent: `feature` / `task` as appropriate
 
 **Prod bug (`bug:production`):**
+
 - `bug`
 - `bug:production`
 - `hotfix`
@@ -171,6 +182,7 @@ Dashboard | Login page crashes with special chars in email
 ## Step 7 — Create the GitHub issue
 
 Call `mcp1_create_issue`:
+
 - `owner`: saurabhrawat-gh
 - `repo`: Autoniix
 - `title`: the formatted title from Step 4
@@ -180,6 +192,7 @@ Call `mcp1_create_issue`:
 ## Step 7b — Create matching Jira IM ticket
 
 Call `mcp0_createJiraIssue`:
+
 - `cloudId`: `73672c49-7089-4f35-adde-e3fa0d1e438f`
 - `projectKey`: `IM`
 - `issueTypeName`: `Bug`
@@ -195,6 +208,7 @@ Then add the new mapping to `scripts/issue_map.json`: `"{new_gh_issue_number}": 
 Call `mcp0_add_issue_comment` on `parent_number`:
 
 **For QA bug:**
+
 ```
 🐛 **Bug filed during QA** → #{new_issue_number}
 
@@ -206,6 +220,7 @@ Dev Agent will pick up #{new_issue_number} after any active hotfixes.
 ```
 
 **For prod bug:**
+
 ```
 🔥 **Production bug filed** → #{new_issue_number}
 

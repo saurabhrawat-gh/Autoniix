@@ -20,12 +20,7 @@ const STYLE_DEFAULTS: Record<
   confetti: { color: "#FF3B30", speed: 250, sizeMin: 4, sizeMax: 8, count: 120 },
 };
 
-export const Particles: React.FC<ParticlesProps> = ({
-  style = "dust",
-  count,
-  color,
-  speed,
-}) => {
+export const Particles: React.FC<ParticlesProps> = ({ style = "dust", count, color, speed }) => {
   const defaults = STYLE_DEFAULTS[style];
   const n = count ?? defaults.count;
   const c = color ?? defaults.color;

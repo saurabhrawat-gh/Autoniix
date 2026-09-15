@@ -73,7 +73,14 @@ export const EndCard: React.FC<EndCardProps> = ({
         )}
       </div>
       {videos.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(${videos.length}, 1fr)`, gap: 32, width: "90%" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(${videos.length}, 1fr)`,
+            gap: 32,
+            width: "90%",
+          }}
+        >
           {videos.slice(0, 4).map((v, i) => (
             <div
               key={i}
@@ -84,7 +91,15 @@ export const EndCard: React.FC<EndCardProps> = ({
               }}
             >
               {v.thumbnailUrl && (
-                <Img src={v.thumbnailUrl} style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", display: "block" }} />
+                <Img
+                  src={v.thumbnailUrl}
+                  style={{
+                    width: "100%",
+                    aspectRatio: "16/9",
+                    objectFit: "cover",
+                    display: "block",
+                  }}
+                />
               )}
               <div
                 style={{

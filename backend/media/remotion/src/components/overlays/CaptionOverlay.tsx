@@ -10,10 +10,7 @@ import {
 import { parseSrt, wordsFromCues, type SrtCue, type SrtWord } from "../../utils/srtParser";
 
 export type CaptionStyle =
-  | "word_highlight_yellow"
-  | "subtitle_bottom_center"
-  | "karaoke_colored"
-  | "big_bold_shorts";
+  "word_highlight_yellow" | "subtitle_bottom_center" | "karaoke_colored" | "big_bold_shorts";
 
 export interface CaptionOverlayProps {
   srtUrl?: string;

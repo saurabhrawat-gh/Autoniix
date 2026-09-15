@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime
 
@@ -100,18 +101,129 @@ async def refresh_access_token() -> str:
         resp = await client.post(
             "https://oauth2.googleapis.com/token",
             data={
-                "client_id": settings.google_oauth_client_id if hasattr(settings, "google_oauth_client_id") else "",
-                "client_secret": settings.google_oauth_client_secret
-                if hasattr(settings, "google_oauth_client_secret")
-                else "",
-                "refresh_token": settings.google_oauth_refresh_token
-                if hasattr(settings, "google_oauth_refresh_token")
-                else "",
+                "client_id": (settings.google_oauth_client_id if hasattr(settings, "google_oauth_client_id") else ""),
+                "client_secret": (
+                    settings.google_oauth_client_secret if hasattr(settings, "google_oauth_client_secret") else ""
+                ),
+                "refresh_token": (
+                    settings.google_oauth_refresh_token if hasattr(settings, "google_oauth_refresh_token") else ""
+                ),
                 "grant_type": "refresh_token",
             },
         )
         resp.raise_for_status()
         return resp.json()["access_token"]
+
+
+async def verify_youtube_upload(video_id: str, access_token: str, max_retries: int = 5) -> dict:
+    """Verify YouTube video upload and processing status.
+
+    Polls YouTube API to confirm video is accessible and processing.
+    Returns video status dict with processing details.
+
+    Args:
+        video_id: YouTube video ID
+        access_token: OAuth access token
+        max_retries: Maximum number of polling attempts (default 5)
+
+    Returns:
+        dict with keys: status, processing_status, upload_status, failure_reason
+
+    Raises:
+        HTTPException if video not found or processing failed
+    """
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    for attempt in range(max_retries):
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(
+                    f"https://www.googleapis.com/youtube/v3/videos?part=status,processingDetails&id={video_id}",
+                    headers=headers,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+
+            items = data.get("items", [])
+            if not items:
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(3)
+                    continue
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"YouTube video {video_id} not found after {max_retries} attempts",
+                )
+
+            video = items[0]
+            status = video.get("status", {})
+            processing = video.get("processingDetails", {})
+
+            upload_status = status.get("uploadStatus", "unknown")
+            privacy_status = status.get("privacyStatus", "unknown")
+            failure_reason = status.get("rejectionReason") or status.get("failureReason")
+
+            processing_status = processing.get("processingStatus", "unknown")
+            processing_progress = processing.get("processingProgress", {})
+
+            result = {
+                "video_id": video_id,
+                "upload_status": upload_status,
+                "privacy_status": privacy_status,
+                "processing_status": processing_status,
+                "processing_progress": processing_progress,
+                "failure_reason": failure_reason,
+                "verified": True,
+            }
+
+            # Check for failures
+            if upload_status in ("failed", "rejected", "deleted"):
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"YouTube upload failed: {upload_status} - {failure_reason or 'unknown reason'}",
+                )
+
+            # Success if uploaded (processing can continue in background)
+            if upload_status in ("uploaded", "processed"):
+                logger.info(
+                    "delivery.youtube_verified",
+                    video_id=video_id,
+                    upload_status=upload_status,
+                    processing_status=processing_status,
+                )
+                return result
+
+            # Wait and retry if still uploading
+            if attempt < max_retries - 1:
+                await asyncio.sleep(3)
+                continue
+
+            # Return current status even if not fully processed
+            logger.warning(
+                "delivery.youtube_verification_incomplete",
+                video_id=video_id,
+                upload_status=upload_status,
+                attempts=max_retries,
+            )
+            return result
+
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404 and attempt < max_retries - 1:
+                await asyncio.sleep(3)
+                continue
+            raise HTTPException(
+                status_code=e.response.status_code,
+                detail=f"YouTube API error: {e.response.text[:200]}",
+            )
+        except Exception as e:
+            if attempt < max_retries - 1:
+                await asyncio.sleep(3)
+                continue
+            raise HTTPException(status_code=500, detail=f"YouTube verification failed: {str(e)}")
+
+    raise HTTPException(
+        status_code=500,
+        detail=f"YouTube verification timeout after {max_retries} attempts",
+    )
 
 
 def _compute_final_score(scores: dict) -> float:
@@ -151,7 +263,11 @@ async def human_review(req: HumanReviewRequest):
 
         return ServiceResponse(
             status="success",
-            data={"content_id": req.content_id, "review_status": status, "reviewer": req.reviewer},
+            data={
+                "content_id": req.content_id,
+                "review_status": status,
+                "reviewer": req.reviewer,
+            },
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -174,7 +290,11 @@ async def upload(req: DeliveryRequest):
                 req.channel_id,
             )
         except Exception as exc:
-            logger.warning("delivery.niche_lookup_failed", channel_id=req.channel_id, error=str(exc))
+            logger.warning(
+                "delivery.niche_lookup_failed",
+                channel_id=req.channel_id,
+                error=str(exc),
+            )
         gate_decision = await qg_evaluate_niche(
             req.quality_scores,
             niche=niche,
@@ -191,7 +311,11 @@ async def upload(req: DeliveryRequest):
         )
 
         if not gate_decision.passed and not req.quality_gate_override:
-            await qg_record(content_id=req.content_id, channel_id=req.channel_id, decision=gate_decision)
+            await qg_record(
+                content_id=req.content_id,
+                channel_id=req.channel_id,
+                decision=gate_decision,
+            )
             QUALITY_GATE_BLOCKS_TOTAL.labels(profile=gate_profile).inc()
             try:
                 pool = await get_pool()
@@ -233,11 +357,18 @@ async def upload(req: DeliveryRequest):
         optimized_tags = suggest_tags(req.title, "", req.tags)
         upload_timing = await predict_optimal_upload_time(req.channel_id)
 
-        logger.info("delivery.seo_analysis", title_seo=seo_result.get("seo_score"), desc_score=desc_result.get("score"))
+        logger.info(
+            "delivery.seo_analysis",
+            title_seo=seo_result.get("seo_score"),
+            desc_score=desc_result.get("score"),
+        )
 
         if req.human_review_required:
             pool = await get_pool()
-            row = await pool.fetchrow("SELECT human_review_status FROM videos WHERE content_id = $1", req.content_id)
+            row = await pool.fetchrow(
+                "SELECT human_review_status FROM videos WHERE content_id = $1",
+                req.content_id,
+            )
             if not row or row["human_review_status"] != "approved":
                 await pool.execute(
                     "UPDATE videos SET status = 'pending_review', final_composite_score = $1, "
@@ -298,6 +429,18 @@ async def upload(req: DeliveryRequest):
 
         youtube_video_id = yt_data.get("id", "")
 
+        if not youtube_video_id:
+            raise HTTPException(status_code=500, detail="No video ID returned from YouTube upload")
+
+        # Verify upload succeeded and video is accessible
+        verification_result = await verify_youtube_upload(youtube_video_id, access_token)
+        logger.info(
+            "delivery.upload_verified",
+            video_id=youtube_video_id,
+            upload_status=verification_result.get("upload_status"),
+            processing_status=verification_result.get("processing_status"),
+        )
+
         if req.thumbnail_url and youtube_video_id:
             try:
                 async with httpx.AsyncClient(timeout=60.0) as client:
@@ -357,7 +500,14 @@ async def upload(req: DeliveryRequest):
 
         logger.info("delivery.uploaded", youtube_video_id=youtube_video_id)
 
-        await store_delivery_features(req.content_id, req.channel_id, req.title, req.description, req.tags, seo_result)
+        await store_delivery_features(
+            req.content_id,
+            req.channel_id,
+            req.title,
+            req.description,
+            req.tags,
+            seo_result,
+        )
 
         return ServiceResponse(
             status="success",
@@ -487,7 +637,12 @@ async def compute_metadata(req: ComputeMetadataRequest):
             logger.warning("delivery.compute_metadata_db_failed", error=str(db_err))
 
         await store_delivery_features(
-            req.content_id, req.channel_id, req.title, req.description, optimized_tags, seo_result
+            req.content_id,
+            req.channel_id,
+            req.title,
+            req.description,
+            optimized_tags,
+            seo_result,
         )
 
         logger.info(

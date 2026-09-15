@@ -3,7 +3,14 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { GetVoiceAudioRequest, GetVoiceAudioResponse, ListVoiceModelsRequest, ListVoiceModelsResponse, SynthesizeVoiceRequest, SynthesizeVoiceResponse } from "./voice_pb.js";
+import {
+  GetVoiceAudioRequest,
+  GetVoiceAudioResponse,
+  ListVoiceModelsRequest,
+  ListVoiceModelsResponse,
+  SynthesizeVoiceRequest,
+  SynthesizeVoiceResponse,
+} from "./voice_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -39,6 +46,5 @@ export const VoiceService = {
       O: GetVoiceAudioResponse,
       kind: MethodKind.Unary,
     },
-  }
+  },
 } as const;
-

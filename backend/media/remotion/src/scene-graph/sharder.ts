@@ -81,9 +81,7 @@ export function planShards(graph: SceneGraph, opts: ShardOptions = {}): ShardPla
   for (let i = 0; i < cutPointsMs.length - 1; i++) {
     const startMs = cutPointsMs[i]!;
     const endMs = cutPointsMs[i + 1]!;
-    const containedClips = sceneClips.filter(
-      (c) => c.range[0] >= startMs && c.range[1] <= endMs,
-    );
+    const containedClips = sceneClips.filter((c) => c.range[0] >= startMs && c.range[1] <= endMs);
     const shard: Shard = {
       index: i,
       startMs,

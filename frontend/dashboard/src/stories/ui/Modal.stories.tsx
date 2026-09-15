@@ -1,14 +1,20 @@
-import type { Meta, StoryObj } from '@storybook/react';
-import { useState } from 'react';
+import type { Meta, StoryObj } from "@storybook/react";
+import { useState } from "react";
 import {
-  Modal, ModalTrigger, ModalContent, ModalHeader,
-  ModalTitle, ModalDescription, ModalFooter, Button,
-} from '@/lib/ui';
+  Modal,
+  ModalTrigger,
+  ModalContent,
+  ModalHeader,
+  ModalTitle,
+  ModalDescription,
+  ModalFooter,
+  Button,
+} from "@/lib/ui";
 
 const meta: Meta = {
-  title: 'UI/Modal',
-  tags: ['autodocs'],
-  parameters: { layout: 'centered' },
+  title: "UI/Modal",
+  tags: ["autodocs"],
+  parameters: { layout: "centered" },
 };
 export default meta;
 type Story = StoryObj;
@@ -25,7 +31,9 @@ export const Default: Story = {
           <ModalDescription>Give your workspace a name to get started.</ModalDescription>
         </ModalHeader>
         <ModalFooter>
-          <Button variant="ghost" size="sm">Cancel</Button>
+          <Button variant="ghost" size="sm">
+            Cancel
+          </Button>
           <Button size="sm">Create</Button>
         </ModalFooter>
       </ModalContent>
@@ -45,7 +53,9 @@ export const Small: Story = {
           <ModalDescription>Are you sure you want to proceed?</ModalDescription>
         </ModalHeader>
         <ModalFooter>
-          <Button variant="ghost" size="sm">No</Button>
+          <Button variant="ghost" size="sm">
+            No
+          </Button>
           <Button size="sm">Yes</Button>
         </ModalFooter>
       </ModalContent>
@@ -64,11 +74,11 @@ export const Large: Story = {
           <ModalTitle>Configure provider chain</ModalTitle>
           <ModalDescription>Set up the AI provider sequence for this channel.</ModalDescription>
         </ModalHeader>
-        <div className="py-4 text-sm text-content-tertiary">
-          Provider chain configuration UI would go here.
-        </div>
+        <div className="py-4 text-sm text-content-tertiary">Provider chain configuration UI would go here.</div>
         <ModalFooter>
-          <Button variant="ghost" size="sm">Cancel</Button>
+          <Button variant="ghost" size="sm">
+            Cancel
+          </Button>
           <Button size="sm">Save configuration</Button>
         </ModalFooter>
       </ModalContent>
@@ -92,7 +102,9 @@ export const Drawer: Story = {
         </div>
         <div className="border-t border-border px-6 py-4">
           <ModalFooter>
-            <Button variant="ghost" size="sm">Cancel</Button>
+            <Button variant="ghost" size="sm">
+              Cancel
+            </Button>
             <Button size="sm">Save</Button>
           </ModalFooter>
         </div>

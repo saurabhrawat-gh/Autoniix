@@ -19,10 +19,7 @@ export interface SegmentRendererProps {
  */
 export const SegmentRenderer: React.FC<SegmentRendererProps> = ({ segment }) => {
   const { fps } = useVideoConfig();
-  const sceneResolved = resolvePreset(
-    segment.scene_preset,
-    segment.scene_overrides ?? {},
-  );
+  const sceneResolved = resolvePreset(segment.scene_preset, segment.scene_overrides ?? {});
 
   let sceneEl: React.ReactNode;
   if (!sceneResolved) {
@@ -57,7 +54,10 @@ export const SegmentRenderer: React.FC<SegmentRendererProps> = ({ segment }) => 
   }
 
   const WRAPPING_PREFIXES = ["fx.lut."];
-  const wrappingEffects: Array<{ Component: React.ComponentType<any>; props: Record<string, any> }> = [];
+  const wrappingEffects: Array<{
+    Component: React.ComponentType<any>;
+    props: Record<string, any>;
+  }> = [];
   const overlayEffects: React.ReactNode[] = [];
 
   for (const [i, id] of (segment.effects ?? []).entries()) {

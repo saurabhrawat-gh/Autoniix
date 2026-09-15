@@ -20,11 +20,7 @@
  */
 
 import { createHash } from "node:crypto";
-import type {
-  Clip,
-  SceneGraph,
-  Track,
-} from "../scene-graph/types";
+import type { Clip, SceneGraph, Track } from "../scene-graph/types";
 
 /* ====================================================================== */
 /* Public types                                                            */
@@ -166,14 +162,20 @@ function collectCaptionStems(
   out: StemRender[],
   skipped: AlphaStemsPlan["skipped"],
 ): void {
-  const clips = t.clips.filter((c): c is Extract<Clip, { kind: "caption" }> => c.kind === "caption");
+  const clips = t.clips.filter(
+    (c): c is Extract<Clip, { kind: "caption" }> => c.kind === "caption",
+  );
   if (clips.length === 0) {
     skipped.push({ kind: "captions", trackId: t.id, reason: "no caption clips" });
     return;
   }
   const start = Math.min(...clips.map((c) => c.range[0]));
   const end = Math.max(...clips.map((c) => c.range[1]));
-  const id = stemId("captions", [t.id], clips.map((c) => c.hash));
+  const id = stemId(
+    "captions",
+    [t.id],
+    clips.map((c) => c.hash),
+  );
   out.push({
     id,
     kind: "captions",
@@ -215,7 +217,11 @@ function collectOverlayStems(
   if (groupAdjacent) {
     const start = Math.min(...clips.map((c) => clipStart(c)!));
     const end = Math.max(...clips.map((c) => clipEnd(c)!));
-    const id = stemId("overlays", [t.id], clips.map((c) => clipHash(c)));
+    const id = stemId(
+      "overlays",
+      [t.id],
+      clips.map((c) => clipHash(c)),
+    );
     out.push({
       id,
       kind: "overlays",
@@ -296,10 +302,11 @@ function collectTitleCardStems(
       if (c.kind !== "scene") continue;
       const sc = c as Extract<Clip, { kind: "scene" }>;
       const anims = [...(sc.animationsIn ?? []), ...(sc.animationsOut ?? [])];
-      const hasTextAnim = anims.some((a) =>
-        a.preset.startsWith("anim.text.") ||
-        a.preset.startsWith("anim.in.typewriter") ||
-        a.preset.startsWith("anim.in.scramble"),
+      const hasTextAnim = anims.some(
+        (a) =>
+          a.preset.startsWith("anim.text.") ||
+          a.preset.startsWith("anim.in.typewriter") ||
+          a.preset.startsWith("anim.in.scramble"),
       );
       if (!hasTextAnim) continue;
       const id = stemId("title-cards", [t.id, sc.id], [sc.hash]);

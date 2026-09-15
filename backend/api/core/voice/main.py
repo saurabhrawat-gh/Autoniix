@@ -7,6 +7,8 @@ from contextlib import asynccontextmanager
 import structlog
 import uvicorn
 from fastapi import FastAPI, HTTPException
+from media.ffprobe import FfprobeUnavailable, probe_audio_duration_seconds
+from media.word_alignment import AlignedWord, normalize_inworld_alignment
 from pydantic import BaseModel, Field
 
 import providers.boot  # noqa: F401
@@ -197,9 +199,10 @@ async def synthesize(req: VoiceRequest):
                 sent["volume_shift"] = em.get("volume_shift", "normal")
             logger.info("voice.emotion_predicted_locally", sentences=len(all_sentences))
         else:
+            from llm import BudgetExceeded as _BudgetExceeded, route as _route
+
             emotion_source = "llm"
             emotion_prompt = await _load_prompt("PRM_B2_EMOTION_MAP")
-            emotion_llm = ProviderRegistry.get("llm.emotion")
 
             full_narration = " ".join(s["text"] for s in all_sentences)
 
@@ -213,18 +216,24 @@ async def synthesize(req: VoiceRequest):
                 pacing_style=channel.get("pacing_style", ""),
             )
 
-            em_result = await emotion_llm.complete(
-                LLMRequest(
-                    messages=[
-                        {"role": "system", "content": em_system},
-                        {"role": "user", "content": em_user},
-                    ],
-                    model="gpt-4o-mini",
-                    temperature=0.3,
-                    max_tokens=2000,
-                    response_format="json",
+            try:
+                em_result = await _route(
+                    category="llm.emotion",
+                    request=LLMRequest(
+                        messages=[
+                            {"role": "system", "content": em_system},
+                            {"role": "user", "content": em_user},
+                        ],
+                        temperature=0.3,
+                        max_tokens=2000,
+                        response_format="json",
+                    ),
+                    channel_id=req.channel_id,
+                    content_id=f"voice-{req.content_id}",
+                    record_usage=False,
                 )
-            )
+            except _BudgetExceeded as exc:
+                raise HTTPException(status_code=402, detail=str(exc))
             total_cost += em_result.cost_usd
             await _log_usage(
                 req.content_id,
@@ -283,6 +292,7 @@ async def synthesize(req: VoiceRequest):
         total_duration = 0.0
         total_chars = 0
         tts_provider_name = tts.provider_name()
+        all_word_alignment: list[AlignedWord] = []
 
         for sent in all_sentences:
             tts_result = await tts.synthesize_with_params(
@@ -294,6 +304,16 @@ async def synthesize(req: VoiceRequest):
                 speed=sent.get("speed", 1.0),
             )
 
+            # Extract word alignment if available (Inworld TTS)
+            word_timestamps = []
+            if hasattr(tts_result, "word_timestamps") and tts_result.word_timestamps:
+                word_timestamps = normalize_inworld_alignment(
+                    tts_result.word_timestamps,
+                    segment_id=sent["segment_id"],
+                    emphasis_words=sent.get("emphasis_words", []),
+                )
+                all_word_alignment.extend(word_timestamps)
+
             audio_chunks.append(
                 {
                     "segment_id": sent["segment_id"],
@@ -302,6 +322,7 @@ async def synthesize(req: VoiceRequest):
                     "audio_bytes": tts_result.audio_bytes,
                     "duration_s": tts_result.duration_s,
                     "pause_after_ms": sent.get("pause_after_ms", 300),
+                    "word_alignment": word_timestamps,
                 }
             )
             total_duration += tts_result.duration_s
@@ -313,6 +334,26 @@ async def synthesize(req: VoiceRequest):
         key = f"voice/{req.content_id}/narration.mp3"
         sr = await storage.upload(StorageUpload(key=key, data=combined_audio, content_type="audio/mpeg"))
         url = sr.url
+
+        # Measure real duration with ffprobe instead of estimating
+        measured_duration_s = total_duration  # fallback to estimate
+        duration_measured = False
+        try:
+            measured_duration_s = await probe_audio_duration_seconds(combined_audio, fallback_s=total_duration)
+            duration_measured = True
+            logger.info(
+                "voice.duration_measured",
+                estimated_s=round(total_duration, 2),
+                measured_s=round(measured_duration_s, 2),
+                drift_s=round(abs(measured_duration_s - total_duration), 2),
+            )
+        except FfprobeUnavailable:
+            logger.warning("voice.ffprobe_unavailable", fallback_s=total_duration)
+        except Exception as exc:
+            logger.warning("voice.ffprobe_failed", error=str(exc), fallback_s=total_duration)
+
+        # Update total_duration to measured value
+        total_duration = measured_duration_s
 
         segment_urls = {}
         current_seg = None
@@ -410,12 +451,38 @@ async def synthesize(req: VoiceRequest):
 
         await _log_usage(req.content_id, "voice", tts_provider_name, "tts", total_chars, 0, total_cost, 0)
 
+        # Extract emphasis hits for downstream services (Assets, Music, Direction)
+        emphasis_hits = [
+            {
+                "word": w.word,
+                "at_ms": (w.start_ms + w.end_ms) // 2,
+                "start_ms": w.start_ms,
+                "end_ms": w.end_ms,
+                "intensity": 0.9,
+            }
+            for w in all_word_alignment
+            if w.is_emphasis
+        ]
+
         manifest = {
             "audio_url": url,
             "segment_urls": segment_urls,
             "duration_s": round(total_duration, 2),
+            "duration_ms": int(total_duration * 1000),
+            "duration_measured": duration_measured,
             "word_count": word_count,
             "sentence_count": len(all_sentences),
+            "word_alignment": [
+                {
+                    "word": w.word,
+                    "start_ms": w.start_ms,
+                    "end_ms": w.end_ms,
+                    "is_emphasis": w.is_emphasis,
+                    "segment_id": w.segment_id,
+                }
+                for w in all_word_alignment
+            ],
+            "emphasis_hits": emphasis_hits,
             "emotion_map": [
                 {
                     "segment_id": s["segment_id"],
@@ -440,6 +507,7 @@ async def synthesize(req: VoiceRequest):
                 "emotion_variety": emotion_variety,
                 "ml_params_applied": optimal_params is not None,
                 "llm_cost_saved": emotion_source == "local",
+                "word_alignment_available": len(all_word_alignment) > 0,
             },
         }
 

@@ -17,7 +17,10 @@ import { applyPatch, lower } from "../src/scene-graph";
 import { makeDirector, makeEditor } from "../src/agents";
 
 async function main() {
-  const fixturePath = path.resolve(__dirname, "../src/scene-graph/__fixtures__/minimal-direction.json");
+  const fixturePath = path.resolve(
+    __dirname,
+    "../src/scene-graph/__fixtures__/minimal-direction.json",
+  );
   const raw = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
 
   const baseSeg = raw.segments[0];
@@ -77,7 +80,6 @@ async function main() {
     console.error(`FAIL: Editor not idempotent — animationFixes=${eRes2.output.animationFixes}`);
     process.exit(1);
   }
-
 }
 
 main().catch((e) => {

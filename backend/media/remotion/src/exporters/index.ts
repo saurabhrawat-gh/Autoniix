@@ -19,11 +19,7 @@ export type { FcpxmlExportOptions } from "./fcpxml";
 export { exportOtio, buildOtioTimeline } from "./otio";
 export type { OtioExportOptions } from "./otio";
 
-export {
-  planAlphaStems,
-  PRORES_4444,
-  VP9_ALPHA,
-} from "./alphaStems";
+export { planAlphaStems, PRORES_4444, VP9_ALPHA } from "./alphaStems";
 export type {
   AlphaOutputFormat,
   AlphaStemsPlan,

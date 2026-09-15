@@ -18,10 +18,7 @@ export async function createApp(config: Config): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
       level: config.logLevel,
-      transport:
-        config.nodeEnv === "development"
-          ? { target: "pino-pretty" }
-          : undefined,
+      transport: config.nodeEnv === "development" ? { target: "pino-pretty" } : undefined,
     },
     trustProxy: true,
   });

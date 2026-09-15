@@ -121,5 +121,5 @@ export async function dispatchSharded(input: DispatchInput): Promise<DispatchRes
 /** Tier merge: pick the more capability-demanding tier for the shard. */
 function mergeTier(a: TierName, b: TierName): TierName {
   const order: Record<TierName, number> = { t2: 0, t0: 1, t1: 2 };
-  return (order[a] >= order[b] ? a : b);
+  return order[a] >= order[b] ? a : b;
 }

@@ -12,8 +12,12 @@ import type { Message } from "@bufbuild/protobuf";
 /**
  * Describes the file autoniix/delivery/v1/delivery.proto.
  */
-export const file_autoniix_delivery_v1_delivery: GenFile = /*@__PURE__*/
-  fileDesc("CiNhdXRvbmlpeC9kZWxpdmVyeS92MS9kZWxpdmVyeS5wcm90bxIUYXV0b25paXguZGVsaXZlcnkudjEikQQKElVwbG9hZFZpZGVvUmVxdWVzdBISCgpjb250ZW50X2lkGAEgASgJEhIKCmNoYW5uZWxfaWQYAiABKAkSFAoMY29udGVudF9tb2RlGAMgASgJEg0KBXRpdGxlGAQgASgJEhMKC2Rlc2NyaXB0aW9uGAUgASgJEgwKBHRhZ3MYBiADKAkSEQoJdmlkZW9fdXJsGAcgASgJEhUKDXRodW1ibmFpbF91cmwYCCABKAkSFgoOcHJpdmFjeV9zdGF0dXMYCSABKAkSEwoLY2F0ZWdvcnlfaWQYCiABKAkSEAoIaXNfc2hvcnQYCyABKAgSMAoMc2NoZWR1bGVkX2F0GAwgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBJTCg5xdWFsaXR5X3Njb3JlcxgNIAMoCzI7LmF1dG9uaWl4LmRlbGl2ZXJ5LnYxLlVwbG9hZFZpZGVvUmVxdWVzdC5RdWFsaXR5U2NvcmVzRW50cnkSHQoVcXVhbGl0eV9nYXRlX292ZXJyaWRlGA4gASgIEiQKHHF1YWxpdHlfZ2F0ZV9vdmVycmlkZV9yZWFzb24YDyABKAkSIAoYcXVhbGl0eV9nYXRlX292ZXJyaWRlX2J5GBAgASgJGjQKElF1YWxpdHlTY29yZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAE6AjgBIqUBChNVcGxvYWRWaWRlb1Jlc3BvbnNlEhgKEHlvdXR1YmVfdmlkZW9faWQYASABKAkSEwoLeW91dHViZV91cmwYAiABKAkSFgoOcHJpdmFjeV9zdGF0dXMYAyABKAkSNQoMaW50ZWxsaWdlbmNlGAQgASgLMh8uYXV0b25paXguZGVsaXZlcnkudjEuU0VPUmVzdWx0EhAKCGNvc3RfdXNkGAUgASgBIrgCChZDb21wdXRlTWV0YWRhdGFSZXF1ZXN0EhIKCmNvbnRlbnRfaWQYASABKAkSEgoKY2hhbm5lbF9pZBgCIAEoCRIUCgxjb250ZW50X21vZGUYAyABKAkSDQoFdGl0bGUYBCABKAkSEwoLZGVzY3JpcHRpb24YBSABKAkSDAoEdGFncxgGIAMoCRINCgVuaWNoZRgHIAEoCRJXCg5xdWFsaXR5X3Njb3JlcxgIIAMoCzI/LmF1dG9uaWl4LmRlbGl2ZXJ5LnYxLkNvbXB1dGVNZXRhZGF0YVJlcXVlc3QuUXVhbGl0eVNjb3Jlc0VudHJ5EhAKCGlzX3Nob3J0GAkgASgIGjQKElF1YWxpdHlTY29yZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAE6AjgBIqQBChdDb21wdXRlTWV0YWRhdGFSZXNwb25zZRINCgV0aXRsZRgBIAEoCRITCgtkZXNjcmlwdGlvbhgCIAEoCRIMCgR0YWdzGAMgAygJEhAKCGhhc2h0YWdzGAQgAygJEhMKC2NhdGVnb3J5X2lkGAUgASgJEhEKCXNlb19zY29yZRgGIAEoARIdChVmaW5hbF9jb21wb3NpdGVfc2NvcmUYByABKAEiaQoSR2V0U0VPU2NvcmVSZXF1ZXN0Eg0KBXRpdGxlGAEgASgJEhMKC2Rlc2NyaXB0aW9uGAIgASgJEgwKBHRhZ3MYAyADKAkSDQoFbmljaGUYBCABKAkSEgoKY2hhbm5lbF9pZBgFIAEoCSLaAQoTR2V0U0VPU2NvcmVSZXNwb25zZRIRCglzZW9fc2NvcmUYASABKAESDwoHZmFjdG9ycxgCIAMoCRIWCg5zdWdnZXN0ZWRfdGFncxgDIAMoCRJSCg11cGxvYWRfdGltaW5nGAQgAygLMjsuYXV0b25paXguZGVsaXZlcnkudjEuR2V0U0VPU2NvcmVSZXNwb25zZS5VcGxvYWRUaW1pbmdFbnRyeRozChFVcGxvYWRUaW1pbmdFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIlsKEkh1bWFuUmV2aWV3UmVxdWVzdBISCgpjb250ZW50X2lkGAEgASgJEhAKCGFwcHJvdmVkGAIgASgIEhAKCHJldmlld2VyGAMgASgJEg0KBW5vdGVzGAQgASgJIjcKE0h1bWFuUmV2aWV3UmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCBIPCgdtZXNzYWdlGAIgASgJInEKCVNFT1Jlc3VsdBIRCglzZW9fc2NvcmUYASABKAESHAoUZGVzY3JpcHRpb25fYW5hbHlzaXMYAiABKAkSGwoTb3B0aW1hbF91cGxvYWRfdGltZRgDIAEoCRIWCg50YWdzX3N1Z2dlc3RlZBgEIAEoBTKtAwoPRGVsaXZlcnlTZXJ2aWNlEmIKC1VwbG9hZFZpZGVvEiguYXV0b25paXguZGVsaXZlcnkudjEuVXBsb2FkVmlkZW9SZXF1ZXN0GikuYXV0b25paXguZGVsaXZlcnkudjEuVXBsb2FkVmlkZW9SZXNwb25zZRJuCg9Db21wdXRlTWV0YWRhdGESLC5hdXRvbmlpeC5kZWxpdmVyeS52MS5Db21wdXRlTWV0YWRhdGFSZXF1ZXN0Gi0uYXV0b25paXguZGVsaXZlcnkudjEuQ29tcHV0ZU1ldGFkYXRhUmVzcG9uc2USYgoLR2V0U0VPU2NvcmUSKC5hdXRvbmlpeC5kZWxpdmVyeS52MS5HZXRTRU9TY29yZVJlcXVlc3QaKS5hdXRvbmlpeC5kZWxpdmVyeS52MS5HZXRTRU9TY29yZVJlc3BvbnNlEmIKC0h1bWFuUmV2aWV3EiguYXV0b25paXguZGVsaXZlcnkudjEuSHVtYW5SZXZpZXdSZXF1ZXN0GikuYXV0b25paXguZGVsaXZlcnkudjEuSHVtYW5SZXZpZXdSZXNwb25zZULgAQoYY29tLmF1dG9uaWl4LmRlbGl2ZXJ5LnYxQg1EZWxpdmVyeVByb3RvUAFaQ2dpdGh1Yi5jb20vYXV0b25paXgvYXV0b25paXgvZ2VuL2dvL2F1dG9uaWl4L2RlbGl2ZXJ5L3YxO2RlbGl2ZXJ5djGiAgNBRFiqAhRBdXRvbmlpeC5EZWxpdmVyeS5WMcoCFEF1dG9uaWl4XERlbGl2ZXJ5XFYx4gIgQXV0b25paXhcRGVsaXZlcnlcVjFcR1BCTWV0YWRhdGHqAhZBdXRvbmlpeDo6RGVsaXZlcnk6OlYxYgZwcm90bzM", [file_autoniix_common_v1_common, file_google_protobuf_timestamp]);
+export const file_autoniix_delivery_v1_delivery: GenFile =
+  /*@__PURE__*/
+  fileDesc(
+    "CiNhdXRvbmlpeC9kZWxpdmVyeS92MS9kZWxpdmVyeS5wcm90bxIUYXV0b25paXguZGVsaXZlcnkudjEikQQKElVwbG9hZFZpZGVvUmVxdWVzdBISCgpjb250ZW50X2lkGAEgASgJEhIKCmNoYW5uZWxfaWQYAiABKAkSFAoMY29udGVudF9tb2RlGAMgASgJEg0KBXRpdGxlGAQgASgJEhMKC2Rlc2NyaXB0aW9uGAUgASgJEgwKBHRhZ3MYBiADKAkSEQoJdmlkZW9fdXJsGAcgASgJEhUKDXRodW1ibmFpbF91cmwYCCABKAkSFgoOcHJpdmFjeV9zdGF0dXMYCSABKAkSEwoLY2F0ZWdvcnlfaWQYCiABKAkSEAoIaXNfc2hvcnQYCyABKAgSMAoMc2NoZWR1bGVkX2F0GAwgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBJTCg5xdWFsaXR5X3Njb3JlcxgNIAMoCzI7LmF1dG9uaWl4LmRlbGl2ZXJ5LnYxLlVwbG9hZFZpZGVvUmVxdWVzdC5RdWFsaXR5U2NvcmVzRW50cnkSHQoVcXVhbGl0eV9nYXRlX292ZXJyaWRlGA4gASgIEiQKHHF1YWxpdHlfZ2F0ZV9vdmVycmlkZV9yZWFzb24YDyABKAkSIAoYcXVhbGl0eV9nYXRlX292ZXJyaWRlX2J5GBAgASgJGjQKElF1YWxpdHlTY29yZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAE6AjgBIqUBChNVcGxvYWRWaWRlb1Jlc3BvbnNlEhgKEHlvdXR1YmVfdmlkZW9faWQYASABKAkSEwoLeW91dHViZV91cmwYAiABKAkSFgoOcHJpdmFjeV9zdGF0dXMYAyABKAkSNQoMaW50ZWxsaWdlbmNlGAQgASgLMh8uYXV0b25paXguZGVsaXZlcnkudjEuU0VPUmVzdWx0EhAKCGNvc3RfdXNkGAUgASgBIrgCChZDb21wdXRlTWV0YWRhdGFSZXF1ZXN0EhIKCmNvbnRlbnRfaWQYASABKAkSEgoKY2hhbm5lbF9pZBgCIAEoCRIUCgxjb250ZW50X21vZGUYAyABKAkSDQoFdGl0bGUYBCABKAkSEwoLZGVzY3JpcHRpb24YBSABKAkSDAoEdGFncxgGIAMoCRINCgVuaWNoZRgHIAEoCRJXCg5xdWFsaXR5X3Njb3JlcxgIIAMoCzI/LmF1dG9uaWl4LmRlbGl2ZXJ5LnYxLkNvbXB1dGVNZXRhZGF0YVJlcXVlc3QuUXVhbGl0eVNjb3Jlc0VudHJ5EhAKCGlzX3Nob3J0GAkgASgIGjQKElF1YWxpdHlTY29yZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAE6AjgBIqQBChdDb21wdXRlTWV0YWRhdGFSZXNwb25zZRINCgV0aXRsZRgBIAEoCRITCgtkZXNjcmlwdGlvbhgCIAEoCRIMCgR0YWdzGAMgAygJEhAKCGhhc2h0YWdzGAQgAygJEhMKC2NhdGVnb3J5X2lkGAUgASgJEhEKCXNlb19zY29yZRgGIAEoARIdChVmaW5hbF9jb21wb3NpdGVfc2NvcmUYByABKAEiaQoSR2V0U0VPU2NvcmVSZXF1ZXN0Eg0KBXRpdGxlGAEgASgJEhMKC2Rlc2NyaXB0aW9uGAIgASgJEgwKBHRhZ3MYAyADKAkSDQoFbmljaGUYBCABKAkSEgoKY2hhbm5lbF9pZBgFIAEoCSLaAQoTR2V0U0VPU2NvcmVSZXNwb25zZRIRCglzZW9fc2NvcmUYASABKAESDwoHZmFjdG9ycxgCIAMoCRIWCg5zdWdnZXN0ZWRfdGFncxgDIAMoCRJSCg11cGxvYWRfdGltaW5nGAQgAygLMjsuYXV0b25paXguZGVsaXZlcnkudjEuR2V0U0VPU2NvcmVSZXNwb25zZS5VcGxvYWRUaW1pbmdFbnRyeRozChFVcGxvYWRUaW1pbmdFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIlsKEkh1bWFuUmV2aWV3UmVxdWVzdBISCgpjb250ZW50X2lkGAEgASgJEhAKCGFwcHJvdmVkGAIgASgIEhAKCHJldmlld2VyGAMgASgJEg0KBW5vdGVzGAQgASgJIjcKE0h1bWFuUmV2aWV3UmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCBIPCgdtZXNzYWdlGAIgASgJInEKCVNFT1Jlc3VsdBIRCglzZW9fc2NvcmUYASABKAESHAoUZGVzY3JpcHRpb25fYW5hbHlzaXMYAiABKAkSGwoTb3B0aW1hbF91cGxvYWRfdGltZRgDIAEoCRIWCg50YWdzX3N1Z2dlc3RlZBgEIAEoBTKtAwoPRGVsaXZlcnlTZXJ2aWNlEmIKC1VwbG9hZFZpZGVvEiguYXV0b25paXguZGVsaXZlcnkudjEuVXBsb2FkVmlkZW9SZXF1ZXN0GikuYXV0b25paXguZGVsaXZlcnkudjEuVXBsb2FkVmlkZW9SZXNwb25zZRJuCg9Db21wdXRlTWV0YWRhdGESLC5hdXRvbmlpeC5kZWxpdmVyeS52MS5Db21wdXRlTWV0YWRhdGFSZXF1ZXN0Gi0uYXV0b25paXguZGVsaXZlcnkudjEuQ29tcHV0ZU1ldGFkYXRhUmVzcG9uc2USYgoLR2V0U0VPU2NvcmUSKC5hdXRvbmlpeC5kZWxpdmVyeS52MS5HZXRTRU9TY29yZVJlcXVlc3QaKS5hdXRvbmlpeC5kZWxpdmVyeS52MS5HZXRTRU9TY29yZVJlc3BvbnNlEmIKC0h1bWFuUmV2aWV3EiguYXV0b25paXguZGVsaXZlcnkudjEuSHVtYW5SZXZpZXdSZXF1ZXN0GikuYXV0b25paXguZGVsaXZlcnkudjEuSHVtYW5SZXZpZXdSZXNwb25zZULgAQoYY29tLmF1dG9uaWl4LmRlbGl2ZXJ5LnYxQg1EZWxpdmVyeVByb3RvUAFaQ2dpdGh1Yi5jb20vYXV0b25paXgvYXV0b25paXgvZ2VuL2dvL2F1dG9uaWl4L2RlbGl2ZXJ5L3YxO2RlbGl2ZXJ5djGiAgNBRFiqAhRBdXRvbmlpeC5EZWxpdmVyeS5WMcoCFEF1dG9uaWl4XERlbGl2ZXJ5XFYx4gIgQXV0b25paXhcRGVsaXZlcnlcVjFcR1BCTWV0YWRhdGHqAhZBdXRvbmlpeDo6RGVsaXZlcnk6OlYxYgZwcm90bzM",
+    [file_autoniix_common_v1_common, file_google_protobuf_timestamp]
+  );
 
 /**
  * @generated from message autoniix.delivery.v1.UploadVideoRequest
@@ -104,7 +108,8 @@ export type UploadVideoRequest = Message<"autoniix.delivery.v1.UploadVideoReques
  * Describes the message autoniix.delivery.v1.UploadVideoRequest.
  * Use `create(UploadVideoRequestSchema)` to create a new message.
  */
-export const UploadVideoRequestSchema: GenMessage<UploadVideoRequest> = /*@__PURE__*/
+export const UploadVideoRequestSchema: GenMessage<UploadVideoRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_delivery_v1_delivery, 0);
 
 /**
@@ -141,7 +146,8 @@ export type UploadVideoResponse = Message<"autoniix.delivery.v1.UploadVideoRespo
  * Describes the message autoniix.delivery.v1.UploadVideoResponse.
  * Use `create(UploadVideoResponseSchema)` to create a new message.
  */
-export const UploadVideoResponseSchema: GenMessage<UploadVideoResponse> = /*@__PURE__*/
+export const UploadVideoResponseSchema: GenMessage<UploadVideoResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_delivery_v1_delivery, 1);
 
 /**
@@ -198,7 +204,8 @@ export type ComputeMetadataRequest = Message<"autoniix.delivery.v1.ComputeMetada
  * Describes the message autoniix.delivery.v1.ComputeMetadataRequest.
  * Use `create(ComputeMetadataRequestSchema)` to create a new message.
  */
-export const ComputeMetadataRequestSchema: GenMessage<ComputeMetadataRequest> = /*@__PURE__*/
+export const ComputeMetadataRequestSchema: GenMessage<ComputeMetadataRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_delivery_v1_delivery, 2);
 
 /**
@@ -245,7 +252,8 @@ export type ComputeMetadataResponse = Message<"autoniix.delivery.v1.ComputeMetad
  * Describes the message autoniix.delivery.v1.ComputeMetadataResponse.
  * Use `create(ComputeMetadataResponseSchema)` to create a new message.
  */
-export const ComputeMetadataResponseSchema: GenMessage<ComputeMetadataResponse> = /*@__PURE__*/
+export const ComputeMetadataResponseSchema: GenMessage<ComputeMetadataResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_delivery_v1_delivery, 3);
 
 /**
@@ -282,7 +290,8 @@ export type GetSEOScoreRequest = Message<"autoniix.delivery.v1.GetSEOScoreReques
  * Describes the message autoniix.delivery.v1.GetSEOScoreRequest.
  * Use `create(GetSEOScoreRequestSchema)` to create a new message.
  */
-export const GetSEOScoreRequestSchema: GenMessage<GetSEOScoreRequest> = /*@__PURE__*/
+export const GetSEOScoreRequestSchema: GenMessage<GetSEOScoreRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_delivery_v1_delivery, 4);
 
 /**
@@ -314,7 +323,8 @@ export type GetSEOScoreResponse = Message<"autoniix.delivery.v1.GetSEOScoreRespo
  * Describes the message autoniix.delivery.v1.GetSEOScoreResponse.
  * Use `create(GetSEOScoreResponseSchema)` to create a new message.
  */
-export const GetSEOScoreResponseSchema: GenMessage<GetSEOScoreResponse> = /*@__PURE__*/
+export const GetSEOScoreResponseSchema: GenMessage<GetSEOScoreResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_delivery_v1_delivery, 5);
 
 /**
@@ -346,7 +356,8 @@ export type HumanReviewRequest = Message<"autoniix.delivery.v1.HumanReviewReques
  * Describes the message autoniix.delivery.v1.HumanReviewRequest.
  * Use `create(HumanReviewRequestSchema)` to create a new message.
  */
-export const HumanReviewRequestSchema: GenMessage<HumanReviewRequest> = /*@__PURE__*/
+export const HumanReviewRequestSchema: GenMessage<HumanReviewRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_delivery_v1_delivery, 6);
 
 /**
@@ -368,7 +379,8 @@ export type HumanReviewResponse = Message<"autoniix.delivery.v1.HumanReviewRespo
  * Describes the message autoniix.delivery.v1.HumanReviewResponse.
  * Use `create(HumanReviewResponseSchema)` to create a new message.
  */
-export const HumanReviewResponseSchema: GenMessage<HumanReviewResponse> = /*@__PURE__*/
+export const HumanReviewResponseSchema: GenMessage<HumanReviewResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_delivery_v1_delivery, 7);
 
 /**
@@ -400,8 +412,7 @@ export type SEOResult = Message<"autoniix.delivery.v1.SEOResult"> & {
  * Describes the message autoniix.delivery.v1.SEOResult.
  * Use `create(SEOResultSchema)` to create a new message.
  */
-export const SEOResultSchema: GenMessage<SEOResult> = /*@__PURE__*/
-  messageDesc(file_autoniix_delivery_v1_delivery, 8);
+export const SEOResultSchema: GenMessage<SEOResult> = /*@__PURE__*/ messageDesc(file_autoniix_delivery_v1_delivery, 8);
 
 /**
  * @generated from service autoniix.delivery.v1.DeliveryService
@@ -414,7 +425,7 @@ export const DeliveryService: GenService<{
     methodKind: "unary";
     input: typeof UploadVideoRequestSchema;
     output: typeof UploadVideoResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.delivery.v1.DeliveryService.ComputeMetadata
    */
@@ -422,7 +433,7 @@ export const DeliveryService: GenService<{
     methodKind: "unary";
     input: typeof ComputeMetadataRequestSchema;
     output: typeof ComputeMetadataResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.delivery.v1.DeliveryService.GetSEOScore
    */
@@ -430,7 +441,7 @@ export const DeliveryService: GenService<{
     methodKind: "unary";
     input: typeof GetSEOScoreRequestSchema;
     output: typeof GetSEOScoreResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.delivery.v1.DeliveryService.HumanReview
    */
@@ -438,7 +449,5 @@ export const DeliveryService: GenService<{
     methodKind: "unary";
     input: typeof HumanReviewRequestSchema;
     output: typeof HumanReviewResponseSchema;
-  },
-}> = /*@__PURE__*/
-  serviceDesc(file_autoniix_delivery_v1_delivery, 0);
-
+  };
+}> = /*@__PURE__*/ serviceDesc(file_autoniix_delivery_v1_delivery, 0);

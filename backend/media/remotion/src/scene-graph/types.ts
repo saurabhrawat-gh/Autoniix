@@ -210,7 +210,12 @@ export type StockClip = {
   id: string;
   assetSha256: string;
   assetUrl: string;
-  transform: { fit: "cover" | "contain"; zoom?: number; panFrom?: [number, number]; panTo?: [number, number] };
+  transform: {
+    fit: "cover" | "contain";
+    zoom?: number;
+    panFrom?: [number, number];
+    panTo?: [number, number];
+  };
   range: [Ms, Ms];
   /** Phase 1A: per-layer compositing (blend mode + opacity). Optional. */
   compositing?: Compositing;
@@ -274,13 +279,7 @@ export type ComposeClip = {
   hash: Hash;
 };
 
-export type Clip =
-  | SceneClip
-  | StockClip
-  | CaptionClip
-  | FxClip
-  | TransitionClip
-  | ComposeClip;
+export type Clip = SceneClip | StockClip | CaptionClip | FxClip | TransitionClip | ComposeClip;
 
 export type TrackKind = "video" | "overlay" | "caption" | "fx";
 
@@ -346,7 +345,12 @@ export type PatchOp =
   | { op: "setClipProps"; trackId: string; clipId: string; props: Record<string, unknown> }
   | { op: "setClipCompositing"; trackId: string; clipId: string; compositing: Compositing }
   | { op: "setClipMasks"; trackId: string; clipId: string; masks: ClipMaskRef[] }
-  | { op: "setClipColorGrade"; trackId: string; clipId: string; colorGradeTrack: ColorGradeTrackRef }
+  | {
+      op: "setClipColorGrade";
+      trackId: string;
+      clipId: string;
+      colorGradeTrack: ColorGradeTrackRef;
+    }
   | { op: "setClipFilters"; trackId: string; clipId: string; filters: ClipFilterRef[] };
 
 export type Patch = {

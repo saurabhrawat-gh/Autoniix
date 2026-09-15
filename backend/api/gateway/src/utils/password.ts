@@ -14,10 +14,7 @@ export class PasswordManager {
     }
   }
 
-  static async verifyPassword(
-    password: string,
-    hash: string
-  ): Promise<boolean> {
+  static async verifyPassword(password: string, hash: string): Promise<boolean> {
     try {
       return await verify(hash, password);
     } catch (error) {

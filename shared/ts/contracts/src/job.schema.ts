@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { JobStatusSchema, PaginationRequestSchema, PaginationResponseSchema, TimeRangeSchema } from "./common.schema.js";
+import {
+  JobStatusSchema,
+  PaginationRequestSchema,
+  PaginationResponseSchema,
+  TimeRangeSchema,
+} from "./common.schema.js";
 
 export const JobConfigSchema = z.object({
   num_videos: z.number().int().min(1).max(100),
@@ -122,9 +127,7 @@ export const StreamJobProgressRequestSchema = z.object({
   job_id: z.string().uuid(),
 });
 
-export type StreamJobProgressRequest = z.infer<
-  typeof StreamJobProgressRequestSchema
->;
+export type StreamJobProgressRequest = z.infer<typeof StreamJobProgressRequestSchema>;
 
 export const JobProgressEventSchema = z.object({
   job_id: z.string().uuid(),

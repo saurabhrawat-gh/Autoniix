@@ -12,7 +12,7 @@ export async function workspaceRoutes(app: FastifyInstance): Promise<void> {
 
     try {
       const workspaces = await userRepo.getUserWorkspaces(request.principal.user_id);
-      const workspace = workspaces.find(w => w.id === request.principal!.workspace_id);
+      const workspace = workspaces.find((w) => w.id === request.principal!.workspace_id);
 
       if (!workspace) {
         return reply.code(404).send({
@@ -74,13 +74,15 @@ export async function workspaceRoutes(app: FastifyInstance): Promise<void> {
     }
 
     try {
-      const members = await app.db<Array<{
-        user_id: string;
-        email: string;
-        full_name: string;
-        role: string;
-        joined_at: Date;
-      }>>`
+      const members = await app.db<
+        Array<{
+          user_id: string;
+          email: string;
+          full_name: string;
+          role: string;
+          joined_at: Date;
+        }>
+      >`
         SELECT 
           u.id as user_id,
           u.email,
@@ -94,7 +96,7 @@ export async function workspaceRoutes(app: FastifyInstance): Promise<void> {
       `;
 
       return reply.send({
-        members: members.map(m => ({
+        members: members.map((m) => ({
           user_id: m.user_id,
           email: m.email,
           full_name: m.full_name,
@@ -183,10 +185,7 @@ export async function workspaceRoutes(app: FastifyInstance): Promise<void> {
       }
 
       // Prevent removing the owner
-      const targetMembership = await userRepo.getWorkspaceMembership(
-        user_id,
-        request.principal.workspace_id
-      );
+      const targetMembership = await userRepo.getWorkspaceMembership(user_id, request.principal.workspace_id);
 
       if (targetMembership?.role === "owner") {
         return reply.code(400).send({
@@ -216,7 +215,12 @@ export async function workspaceRoutes(app: FastifyInstance): Promise<void> {
     if (!request.principal) {
       return reply.code(401).send({ error: "Unauthorized" });
     }
-    return reply.code(501).send({ error: "Not Implemented", message: "Workspace deletion (soft-delete with grace period) not yet implemented" });
+    return reply
+      .code(501)
+      .send({
+        error: "Not Implemented",
+        message: "Workspace deletion (soft-delete with grace period) not yet implemented",
+      });
   });
 
   app.post("/api/v2/workspaces/:id/cancel-deletion", async (request, reply) => {

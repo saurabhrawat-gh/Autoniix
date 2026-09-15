@@ -27,7 +27,10 @@ export const CountdownScene: React.FC<CountdownSceneProps> = ({
   const t = frame / fps;
   const totalS = durationInFrames / fps;
   const progress = Math.min(1, t / totalS);
-  const current = Math.max(endSeconds, Math.round(startSeconds + (endSeconds - startSeconds) * progress));
+  const current = Math.max(
+    endSeconds,
+    Math.round(startSeconds + (endSeconds - startSeconds) * progress),
+  );
 
   const intFrame = Math.floor((current / Math.max(1, startSeconds)) * durationInFrames);
   const pop = spring({
@@ -46,7 +49,14 @@ export const CountdownScene: React.FC<CountdownSceneProps> = ({
     return (
       <AbsoluteFill style={{ backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>
         <svg width={size} height={size}>
-          <circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.12)" strokeWidth={14} fill="none" />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            stroke="rgba(255,255,255,0.12)"
+            strokeWidth={14}
+            fill="none"
+          />
           <circle
             cx={size / 2}
             cy={size / 2}
@@ -73,7 +83,15 @@ export const CountdownScene: React.FC<CountdownSceneProps> = ({
           </text>
         </svg>
         {suffix && (
-          <div style={{ marginTop: 32, fontSize: 42, color, fontFamily: "Inter, sans-serif", opacity: 0.8 }}>
+          <div
+            style={{
+              marginTop: 32,
+              fontSize: 42,
+              color,
+              fontFamily: "Inter, sans-serif",
+              opacity: 0.8,
+            }}
+          >
             {suffix}
           </div>
         )}

@@ -11,21 +11,23 @@ import type { Message } from "@bufbuild/protobuf";
 /**
  * Describes the file autoniix/common/v1/common.proto.
  */
-export const file_autoniix_common_v1_common: GenFile = /*@__PURE__*/
-  fileDesc("Ch9hdXRvbmlpeC9jb21tb24vdjEvY29tbW9uLnByb3RvEhJhdXRvbmlpeC5jb21tb24udjEiBwoFRW1wdHkiewoJUHJpbmNpcGFsEg8KB3VzZXJfaWQYASABKAkSFAoMd29ya3NwYWNlX2lkGAIgASgJEg0KBWVtYWlsGAMgASgJEg0KBXJvbGVzGAQgAygJEhQKDGdsb2JhbF9yb2xlcxgFIAMoCRITCgtwZXJtaXNzaW9ucxgGIAMoCSJEChFQYWdpbmF0aW9uUmVxdWVzdBIMCgRwYWdlGAEgASgFEhEKCXBhZ2Vfc2l6ZRgCIAEoBRIOCgZjdXJzb3IYAyABKAkiawoSUGFnaW5hdGlvblJlc3BvbnNlEg0KBXRvdGFsGAEgASgFEgwKBHBhZ2UYAiABKAUSEQoJcGFnZV9zaXplGAMgASgFEhMKC25leHRfY3Vyc29yGAQgASgJEhAKCGhhc19tb3JlGAUgASgIIp4BCgtFcnJvckRldGFpbBIMCgRjb2RlGAEgASgJEg8KB21lc3NhZ2UYAiABKAkSPwoIbWV0YWRhdGEYAyADKAsyLS5hdXRvbmlpeC5jb21tb24udjEuRXJyb3JEZXRhaWwuTWV0YWRhdGFFbnRyeRovCg1NZXRhZGF0YUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiXwoJVGltZVJhbmdlEikKBXN0YXJ0GAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBInCgNlbmQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIrcBChBSZXNvdXJjZU1ldGFkYXRhEgoKAmlkGAEgASgJEi4KCmNyZWF0ZWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhIKCmNyZWF0ZWRfYnkYBCABKAkSEgoKdXBkYXRlZF9ieRgFIAEoCRIPCgd2ZXJzaW9uGAYgASgDKrcBCglKb2JTdGF0dXMSGgoWSk9CX1NUQVRVU19VTlNQRUNJRklFRBAAEhYKEkpPQl9TVEFUVVNfUEVORElORxABEhYKEkpPQl9TVEFUVVNfUlVOTklORxACEhgKFEpPQl9TVEFUVVNfQ09NUExFVEVEEAMSFQoRSk9CX1NUQVRVU19GQUlMRUQQBBIVChFKT0JfU1RBVFVTX1BBVVNFRBAFEhYKEkpPQl9TVEFUVVNfU1RPUFBFRBAGQtABChZjb20uYXV0b25paXguY29tbW9uLnYxQgtDb21tb25Qcm90b1ABWj9naXRodWIuY29tL2F1dG9uaWl4L2F1dG9uaWl4L2dlbi9nby9hdXRvbmlpeC9jb21tb24vdjE7Y29tbW9udjGiAgNBQ1iqAhJBdXRvbmlpeC5Db21tb24uVjHKAhJBdXRvbmlpeFxDb21tb25cVjHiAh5BdXRvbmlpeFxDb21tb25cVjFcR1BCTWV0YWRhdGHqAhRBdXRvbmlpeDo6Q29tbW9uOjpWMWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+export const file_autoniix_common_v1_common: GenFile =
+  /*@__PURE__*/
+  fileDesc(
+    "Ch9hdXRvbmlpeC9jb21tb24vdjEvY29tbW9uLnByb3RvEhJhdXRvbmlpeC5jb21tb24udjEiBwoFRW1wdHkiewoJUHJpbmNpcGFsEg8KB3VzZXJfaWQYASABKAkSFAoMd29ya3NwYWNlX2lkGAIgASgJEg0KBWVtYWlsGAMgASgJEg0KBXJvbGVzGAQgAygJEhQKDGdsb2JhbF9yb2xlcxgFIAMoCRITCgtwZXJtaXNzaW9ucxgGIAMoCSJEChFQYWdpbmF0aW9uUmVxdWVzdBIMCgRwYWdlGAEgASgFEhEKCXBhZ2Vfc2l6ZRgCIAEoBRIOCgZjdXJzb3IYAyABKAkiawoSUGFnaW5hdGlvblJlc3BvbnNlEg0KBXRvdGFsGAEgASgFEgwKBHBhZ2UYAiABKAUSEQoJcGFnZV9zaXplGAMgASgFEhMKC25leHRfY3Vyc29yGAQgASgJEhAKCGhhc19tb3JlGAUgASgIIp4BCgtFcnJvckRldGFpbBIMCgRjb2RlGAEgASgJEg8KB21lc3NhZ2UYAiABKAkSPwoIbWV0YWRhdGEYAyADKAsyLS5hdXRvbmlpeC5jb21tb24udjEuRXJyb3JEZXRhaWwuTWV0YWRhdGFFbnRyeRovCg1NZXRhZGF0YUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiXwoJVGltZVJhbmdlEikKBXN0YXJ0GAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBInCgNlbmQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIrcBChBSZXNvdXJjZU1ldGFkYXRhEgoKAmlkGAEgASgJEi4KCmNyZWF0ZWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhIKCmNyZWF0ZWRfYnkYBCABKAkSEgoKdXBkYXRlZF9ieRgFIAEoCRIPCgd2ZXJzaW9uGAYgASgDKrcBCglKb2JTdGF0dXMSGgoWSk9CX1NUQVRVU19VTlNQRUNJRklFRBAAEhYKEkpPQl9TVEFUVVNfUEVORElORxABEhYKEkpPQl9TVEFUVVNfUlVOTklORxACEhgKFEpPQl9TVEFUVVNfQ09NUExFVEVEEAMSFQoRSk9CX1NUQVRVU19GQUlMRUQQBBIVChFKT0JfU1RBVFVTX1BBVVNFRBAFEhYKEkpPQl9TVEFUVVNfU1RPUFBFRBAGQtABChZjb20uYXV0b25paXguY29tbW9uLnYxQgtDb21tb25Qcm90b1ABWj9naXRodWIuY29tL2F1dG9uaWl4L2F1dG9uaWl4L2dlbi9nby9hdXRvbmlpeC9jb21tb24vdjE7Y29tbW9udjGiAgNBQ1iqAhJBdXRvbmlpeC5Db21tb24uVjHKAhJBdXRvbmlpeFxDb21tb25cVjHiAh5BdXRvbmlpeFxDb21tb25cVjFcR1BCTWV0YWRhdGHqAhRBdXRvbmlpeDo6Q29tbW9uOjpWMWIGcHJvdG8z",
+    [file_google_protobuf_timestamp]
+  );
 
 /**
  * @generated from message autoniix.common.v1.Empty
  */
-export type Empty = Message<"autoniix.common.v1.Empty"> & {
-};
+export type Empty = Message<"autoniix.common.v1.Empty"> & {};
 
 /**
  * Describes the message autoniix.common.v1.Empty.
  * Use `create(EmptySchema)` to create a new message.
  */
-export const EmptySchema: GenMessage<Empty> = /*@__PURE__*/
-  messageDesc(file_autoniix_common_v1_common, 0);
+export const EmptySchema: GenMessage<Empty> = /*@__PURE__*/ messageDesc(file_autoniix_common_v1_common, 0);
 
 /**
  * @generated from message autoniix.common.v1.Principal
@@ -66,8 +68,7 @@ export type Principal = Message<"autoniix.common.v1.Principal"> & {
  * Describes the message autoniix.common.v1.Principal.
  * Use `create(PrincipalSchema)` to create a new message.
  */
-export const PrincipalSchema: GenMessage<Principal> = /*@__PURE__*/
-  messageDesc(file_autoniix_common_v1_common, 1);
+export const PrincipalSchema: GenMessage<Principal> = /*@__PURE__*/ messageDesc(file_autoniix_common_v1_common, 1);
 
 /**
  * @generated from message autoniix.common.v1.PaginationRequest
@@ -93,7 +94,8 @@ export type PaginationRequest = Message<"autoniix.common.v1.PaginationRequest"> 
  * Describes the message autoniix.common.v1.PaginationRequest.
  * Use `create(PaginationRequestSchema)` to create a new message.
  */
-export const PaginationRequestSchema: GenMessage<PaginationRequest> = /*@__PURE__*/
+export const PaginationRequestSchema: GenMessage<PaginationRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_common_v1_common, 2);
 
 /**
@@ -130,7 +132,8 @@ export type PaginationResponse = Message<"autoniix.common.v1.PaginationResponse"
  * Describes the message autoniix.common.v1.PaginationResponse.
  * Use `create(PaginationResponseSchema)` to create a new message.
  */
-export const PaginationResponseSchema: GenMessage<PaginationResponse> = /*@__PURE__*/
+export const PaginationResponseSchema: GenMessage<PaginationResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_common_v1_common, 3);
 
 /**
@@ -157,8 +160,7 @@ export type ErrorDetail = Message<"autoniix.common.v1.ErrorDetail"> & {
  * Describes the message autoniix.common.v1.ErrorDetail.
  * Use `create(ErrorDetailSchema)` to create a new message.
  */
-export const ErrorDetailSchema: GenMessage<ErrorDetail> = /*@__PURE__*/
-  messageDesc(file_autoniix_common_v1_common, 4);
+export const ErrorDetailSchema: GenMessage<ErrorDetail> = /*@__PURE__*/ messageDesc(file_autoniix_common_v1_common, 4);
 
 /**
  * @generated from message autoniix.common.v1.TimeRange
@@ -179,8 +181,7 @@ export type TimeRange = Message<"autoniix.common.v1.TimeRange"> & {
  * Describes the message autoniix.common.v1.TimeRange.
  * Use `create(TimeRangeSchema)` to create a new message.
  */
-export const TimeRangeSchema: GenMessage<TimeRange> = /*@__PURE__*/
-  messageDesc(file_autoniix_common_v1_common, 5);
+export const TimeRangeSchema: GenMessage<TimeRange> = /*@__PURE__*/ messageDesc(file_autoniix_common_v1_common, 5);
 
 /**
  * @generated from message autoniix.common.v1.ResourceMetadata
@@ -221,7 +222,8 @@ export type ResourceMetadata = Message<"autoniix.common.v1.ResourceMetadata"> & 
  * Describes the message autoniix.common.v1.ResourceMetadata.
  * Use `create(ResourceMetadataSchema)` to create a new message.
  */
-export const ResourceMetadataSchema: GenMessage<ResourceMetadata> = /*@__PURE__*/
+export const ResourceMetadataSchema: GenMessage<ResourceMetadata> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_common_v1_common, 6);
 
 /**
@@ -267,6 +269,4 @@ export enum JobStatus {
 /**
  * Describes the enum autoniix.common.v1.JobStatus.
  */
-export const JobStatusSchema: GenEnum<JobStatus> = /*@__PURE__*/
-  enumDesc(file_autoniix_common_v1_common, 0);
-
+export const JobStatusSchema: GenEnum<JobStatus> = /*@__PURE__*/ enumDesc(file_autoniix_common_v1_common, 0);

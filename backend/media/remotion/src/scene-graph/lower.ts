@@ -16,15 +16,7 @@
  */
 
 import type { DirectionV3Input, SegmentV3 } from "../schemas/directionV3";
-import type {
-  AudioGraph,
-  Clip,
-  PresetRef,
-  SceneClip,
-  SceneGraph,
-  SfxCue,
-  Track,
-} from "./types";
+import type { AudioGraph, Clip, PresetRef, SceneClip, SceneGraph, SfxCue, Track } from "./types";
 import { hashNode } from "./hash";
 
 export function lower(direction: DirectionV3Input): SceneGraph {
@@ -100,7 +92,10 @@ export function lower(direction: DirectionV3Input): SceneGraph {
           introPreset: direction.branding.intro_preset,
           outroPreset: direction.branding.outro_preset,
           watermark: direction.branding.watermark
-            ? { preset: direction.branding.watermark.preset, overrides: direction.branding.watermark.overrides }
+            ? {
+                preset: direction.branding.watermark.preset,
+                overrides: direction.branding.watermark.overrides,
+              }
             : undefined,
         }
       : undefined,
@@ -120,8 +115,16 @@ function makeSceneClip(s: SegmentV3): SceneClip {
     scenePreset: s.scene_preset,
     sceneOverrides: s.scene_overrides,
     range: [s.start_ms, s.start_ms + s.duration_ms],
-    animationsIn: s.animations_in?.map((a) => ({ preset: a.preset, target: a.target, overrides: a.overrides })),
-    animationsOut: s.animations_out?.map((a) => ({ preset: a.preset, target: a.target, overrides: a.overrides })),
+    animationsIn: s.animations_in?.map((a) => ({
+      preset: a.preset,
+      target: a.target,
+      overrides: a.overrides,
+    })),
+    animationsOut: s.animations_out?.map((a) => ({
+      preset: a.preset,
+      target: a.target,
+      overrides: a.overrides,
+    })),
     effects: s.effects ? [...s.effects] : undefined,
     overlays: s.overlays?.map((o) => ({ preset: o.preset, overrides: o.overrides })),
     sfx: s.sfx?.map((x) => ({ preset: x.preset, atMs: x.at_ms, volumeDb: x.volume_db })),

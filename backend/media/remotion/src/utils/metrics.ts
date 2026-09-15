@@ -119,11 +119,10 @@ function phase1Metrics(): Phase1Metrics {
       "How often luma/chroma masks fell through to passthrough because the shader path was unavailable",
       ["kind"],
     ),
-    maskUsage: makeCounter(
-      "yt_mask_usage_total",
-      "Per-clip animated mask usage count",
-      ["kind", "blend"],
-    ),
+    maskUsage: makeCounter("yt_mask_usage_total", "Per-clip animated mask usage count", [
+      "kind",
+      "blend",
+    ]),
     colorGradePass: makeHistogram(
       "yt_color_grade_pass_duration_seconds",
       "Wall time spent applying a color grade pass",
@@ -166,12 +165,10 @@ export const metrics = {
       phase1Metrics().textAnimRender.observe({ kind }, seconds),
   },
   mask: {
-    used: (kind: string, blend: string): void =>
-      phase1Metrics().maskUsage.inc({ kind, blend }, 1),
+    used: (kind: string, blend: string): void => phase1Metrics().maskUsage.inc({ kind, blend }, 1),
     observed: (kind: string, seconds: number): void =>
       phase1Metrics().maskRender.observe({ kind }, seconds),
-    shaderFallback: (kind: string): void =>
-      phase1Metrics().maskShaderFallback.inc({ kind }, 1),
+    shaderFallback: (kind: string): void => phase1Metrics().maskShaderFallback.inc({ kind }, 1),
   },
   colorGrade: {
     observed: (path: "css" | "webgl", seconds: number): void =>

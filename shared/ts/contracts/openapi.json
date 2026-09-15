@@ -45,14 +45,7 @@
             "format": "date-time"
           }
         },
-        "required": [
-          "id",
-          "email",
-          "full_name",
-          "avatar_url",
-          "roles",
-          "created_at"
-        ]
+        "required": ["id", "email", "full_name", "avatar_url", "roles", "created_at"]
       },
       "Workspace": {
         "type": "object",
@@ -75,12 +68,7 @@
             "format": "date-time"
           }
         },
-        "required": [
-          "id",
-          "name",
-          "owner_id",
-          "created_at"
-        ]
+        "required": ["id", "name", "owner_id", "created_at"]
       },
       "Job": {
         "type": "object",
@@ -99,14 +87,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "pending",
-              "running",
-              "completed",
-              "failed",
-              "paused",
-              "stopped"
-            ]
+            "enum": ["pending", "running", "completed", "failed", "paused", "stopped"]
           },
           "config": {
             "type": "object",
@@ -132,10 +113,7 @@
                 }
               }
             },
-            "required": [
-              "num_videos",
-              "niche"
-            ]
+            "required": ["num_videos", "niche"]
           },
           "progress": {
             "type": "object",
@@ -237,10 +215,7 @@
             }
           }
         },
-        "required": [
-          "num_videos",
-          "niche"
-        ]
+        "required": ["num_videos", "niche"]
       },
       "JobProgress": {
         "type": "object",
@@ -295,14 +270,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "pending",
-              "running",
-              "completed",
-              "failed",
-              "paused",
-              "stopped"
-            ]
+            "enum": ["pending", "running", "completed", "failed", "paused", "stopped"]
           },
           "progress": {
             "type": "object",
@@ -360,14 +328,7 @@
             "format": "date-time"
           }
         },
-        "required": [
-          "job_id",
-          "status",
-          "progress",
-          "stage",
-          "message",
-          "timestamp"
-        ]
+        "required": ["job_id", "status", "progress", "stage", "message", "timestamp"]
       },
       "Principal": {
         "type": "object",
@@ -403,14 +364,7 @@
             }
           }
         },
-        "required": [
-          "user_id",
-          "workspace_id",
-          "email",
-          "roles",
-          "global_roles",
-          "permissions"
-        ]
+        "required": ["user_id", "workspace_id", "email", "roles", "global_roles", "permissions"]
       },
       "PaginationRequest": {
         "type": "object",
@@ -454,13 +408,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "total",
-          "page",
-          "page_size",
-          "next_cursor",
-          "has_more"
-        ]
+        "required": ["total", "page", "page_size", "next_cursor", "has_more"]
       },
       "ErrorDetail": {
         "type": "object",
@@ -478,21 +426,11 @@
             }
           }
         },
-        "required": [
-          "code",
-          "message"
-        ]
+        "required": ["code", "message"]
       },
       "JobStatus": {
         "type": "string",
-        "enum": [
-          "pending",
-          "running",
-          "completed",
-          "failed",
-          "paused",
-          "stopped"
-        ]
+        "enum": ["pending", "running", "completed", "failed", "paused", "stopped"]
       },
       "TimeRange": {
         "type": "object",
@@ -506,10 +444,7 @@
             "format": "date-time"
           }
         },
-        "required": [
-          "start",
-          "end"
-        ]
+        "required": ["start", "end"]
       },
       "ResourceMetadata": {
         "type": "object",
@@ -539,14 +474,7 @@
             "minimum": 0
           }
         },
-        "required": [
-          "id",
-          "created_at",
-          "updated_at",
-          "created_by",
-          "updated_by",
-          "version"
-        ]
+        "required": ["id", "created_at", "updated_at", "created_by", "updated_by", "version"]
       }
     },
     "parameters": {}
@@ -575,10 +503,7 @@
                     "format": "uuid"
                   }
                 },
-                "required": [
-                  "email",
-                  "password"
-                ]
+                "required": ["email", "password"]
               }
             }
           }
@@ -633,22 +558,10 @@
                           "format": "date-time"
                         }
                       },
-                      "required": [
-                        "id",
-                        "email",
-                        "full_name",
-                        "avatar_url",
-                        "roles",
-                        "created_at"
-                      ]
+                      "required": ["id", "email", "full_name", "avatar_url", "roles", "created_at"]
                     }
                   },
-                  "required": [
-                    "access_token",
-                    "refresh_token",
-                    "expires_at",
-                    "user"
-                  ]
+                  "required": ["access_token", "refresh_token", "expires_at", "user"]
                 }
               }
             }
@@ -685,12 +598,7 @@
                     "maxLength": 255
                   }
                 },
-                "required": [
-                  "email",
-                  "password",
-                  "full_name",
-                  "workspace_name"
-                ]
+                "required": ["email", "password", "full_name", "workspace_name"]
               }
             }
           }
@@ -745,14 +653,7 @@
                           "format": "date-time"
                         }
                       },
-                      "required": [
-                        "id",
-                        "email",
-                        "full_name",
-                        "avatar_url",
-                        "roles",
-                        "created_at"
-                      ]
+                      "required": ["id", "email", "full_name", "avatar_url", "roles", "created_at"]
                     },
                     "workspace": {
                       "type": "object",
@@ -775,21 +676,10 @@
                           "format": "date-time"
                         }
                       },
-                      "required": [
-                        "id",
-                        "name",
-                        "owner_id",
-                        "created_at"
-                      ]
+                      "required": ["id", "name", "owner_id", "created_at"]
                     }
                   },
-                  "required": [
-                    "access_token",
-                    "refresh_token",
-                    "expires_at",
-                    "user",
-                    "workspace"
-                  ]
+                  "required": ["access_token", "refresh_token", "expires_at", "user", "workspace"]
                 }
               }
             }
@@ -810,9 +700,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "refresh_token"
-                ]
+                "required": ["refresh_token"]
               }
             }
           }
@@ -836,11 +724,7 @@
                       "format": "date-time"
                     }
                   },
-                  "required": [
-                    "access_token",
-                    "refresh_token",
-                    "expires_at"
-                  ]
+                  "required": ["access_token", "refresh_token", "expires_at"]
                 }
               }
             }
@@ -915,14 +799,7 @@
                           "format": "date-time"
                         }
                       },
-                      "required": [
-                        "id",
-                        "email",
-                        "full_name",
-                        "avatar_url",
-                        "roles",
-                        "created_at"
-                      ]
+                      "required": ["id", "email", "full_name", "avatar_url", "roles", "created_at"]
                     },
                     "workspace": {
                       "type": "object",
@@ -945,18 +822,10 @@
                           "format": "date-time"
                         }
                       },
-                      "required": [
-                        "id",
-                        "name",
-                        "owner_id",
-                        "created_at"
-                      ]
+                      "required": ["id", "name", "owner_id", "created_at"]
                     }
                   },
-                  "required": [
-                    "user",
-                    "workspace"
-                  ]
+                  "required": ["user", "workspace"]
                 }
               }
             }
@@ -997,14 +866,7 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "enum": [
-                  "pending",
-                  "running",
-                  "completed",
-                  "failed",
-                  "paused",
-                  "stopped"
-                ]
+                "enum": ["pending", "running", "completed", "failed", "paused", "stopped"]
               }
             },
             "required": false,
@@ -1024,10 +886,7 @@
                   "format": "date-time"
                 }
               },
-              "required": [
-                "start",
-                "end"
-              ]
+              "required": ["start", "end"]
             },
             "required": false,
             "name": "time_range",
@@ -1078,14 +937,7 @@
                           },
                           "status": {
                             "type": "string",
-                            "enum": [
-                              "pending",
-                              "running",
-                              "completed",
-                              "failed",
-                              "paused",
-                              "stopped"
-                            ]
+                            "enum": ["pending", "running", "completed", "failed", "paused", "stopped"]
                           },
                           "config": {
                             "type": "object",
@@ -1111,10 +963,7 @@
                                 }
                               }
                             },
-                            "required": [
-                              "num_videos",
-                              "niche"
-                            ]
+                            "required": ["num_videos", "niche"]
                           },
                           "progress": {
                             "type": "object",
@@ -1216,19 +1065,10 @@
                           "type": "boolean"
                         }
                       },
-                      "required": [
-                        "total",
-                        "page",
-                        "page_size",
-                        "next_cursor",
-                        "has_more"
-                      ]
+                      "required": ["total", "page", "page_size", "next_cursor", "has_more"]
                     }
                   },
-                  "required": [
-                    "jobs",
-                    "pagination"
-                  ]
+                  "required": ["jobs", "pagination"]
                 }
               }
             }
@@ -1271,16 +1111,10 @@
                         }
                       }
                     },
-                    "required": [
-                      "num_videos",
-                      "niche"
-                    ]
+                    "required": ["num_videos", "niche"]
                   }
                 },
-                "required": [
-                  "channel_id",
-                  "config"
-                ]
+                "required": ["channel_id", "config"]
               }
             }
           }
@@ -1310,14 +1144,7 @@
                         },
                         "status": {
                           "type": "string",
-                          "enum": [
-                            "pending",
-                            "running",
-                            "completed",
-                            "failed",
-                            "paused",
-                            "stopped"
-                          ]
+                          "enum": ["pending", "running", "completed", "failed", "paused", "stopped"]
                         },
                         "config": {
                           "type": "object",
@@ -1343,10 +1170,7 @@
                               }
                             }
                           },
-                          "required": [
-                            "num_videos",
-                            "niche"
-                          ]
+                          "required": ["num_videos", "niche"]
                         },
                         "progress": {
                           "type": "object",
@@ -1425,9 +1249,7 @@
                       ]
                     }
                   },
-                  "required": [
-                    "job"
-                  ]
+                  "required": ["job"]
                 }
               }
             }
@@ -1474,14 +1296,7 @@
                         },
                         "status": {
                           "type": "string",
-                          "enum": [
-                            "pending",
-                            "running",
-                            "completed",
-                            "failed",
-                            "paused",
-                            "stopped"
-                          ]
+                          "enum": ["pending", "running", "completed", "failed", "paused", "stopped"]
                         },
                         "config": {
                           "type": "object",
@@ -1507,10 +1322,7 @@
                               }
                             }
                           },
-                          "required": [
-                            "num_videos",
-                            "niche"
-                          ]
+                          "required": ["num_videos", "niche"]
                         },
                         "progress": {
                           "type": "object",
@@ -1589,9 +1401,7 @@
                       ]
                     }
                   },
-                  "required": [
-                    "job"
-                  ]
+                  "required": ["job"]
                 }
               }
             }
@@ -1641,15 +1451,10 @@
                         }
                       }
                     },
-                    "required": [
-                      "num_videos",
-                      "niche"
-                    ]
+                    "required": ["num_videos", "niche"]
                   }
                 },
-                "required": [
-                  "config"
-                ]
+                "required": ["config"]
               }
             }
           }
@@ -1679,14 +1484,7 @@
                         },
                         "status": {
                           "type": "string",
-                          "enum": [
-                            "pending",
-                            "running",
-                            "completed",
-                            "failed",
-                            "paused",
-                            "stopped"
-                          ]
+                          "enum": ["pending", "running", "completed", "failed", "paused", "stopped"]
                         },
                         "config": {
                           "type": "object",
@@ -1712,10 +1510,7 @@
                               }
                             }
                           },
-                          "required": [
-                            "num_videos",
-                            "niche"
-                          ]
+                          "required": ["num_videos", "niche"]
                         },
                         "progress": {
                           "type": "object",
@@ -1794,9 +1589,7 @@
                       ]
                     }
                   },
-                  "required": [
-                    "job"
-                  ]
+                  "required": ["job"]
                 }
               }
             }

@@ -1,20 +1,20 @@
-import React from 'react';
-import type { Preview } from '@storybook/react';
-import { NextIntlClientProvider } from 'next-intl';
-import '../src/app/globals.css';
-import messages from '../messages/en.json';
+import React from "react";
+import type { Preview } from "@storybook/react";
+import { NextIntlClientProvider } from "next-intl";
+import "../src/app/globals.css";
+import messages from "../messages/en.json";
 
 const preview: Preview = {
   globalTypes: {
     theme: {
-      description: 'Global theme',
-      defaultValue: 'light',
+      description: "Global theme",
+      defaultValue: "light",
       toolbar: {
-        title: 'Theme',
-        icon: 'paintbrush',
+        title: "Theme",
+        icon: "paintbrush",
         items: [
-          { value: 'light', title: 'Light', icon: 'sun' },
-          { value: 'dark', title: 'Dark', icon: 'moon' },
+          { value: "light", title: "Light", icon: "sun" },
+          { value: "dark", title: "Dark", icon: "moon" },
         ],
         dynamicTitle: true,
       },
@@ -23,13 +23,14 @@ const preview: Preview = {
   decorators: [
     (Story, context) => {
       const theme = context.globals.theme as string;
-      if (typeof document !== 'undefined') {
-        document.documentElement.classList.toggle('dark', theme === 'dark');
+      if (typeof document !== "undefined") {
+        document.documentElement.classList.toggle("dark", theme === "dark");
       }
-      return React.createElement(
-        NextIntlClientProvider,
-        { locale: 'en', messages, children: React.createElement(Story) }
-      );
+      return React.createElement(NextIntlClientProvider, {
+        locale: "en",
+        messages,
+        children: React.createElement(Story),
+      });
     },
   ],
   parameters: {
@@ -41,12 +42,12 @@ const preview: Preview = {
     },
     backgrounds: { disable: true },
     a11y: {
-      element: '#storybook-root',
+      element: "#storybook-root",
       config: {},
       options: {
         runOnly: {
-          type: 'tag',
-          values: ['wcag2a', 'wcag2aa'],
+          type: "tag",
+          values: ["wcag2a", "wcag2aa"],
         },
       },
     },

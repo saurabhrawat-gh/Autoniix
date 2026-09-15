@@ -40,6 +40,5 @@ export const EventStreamService = {
       O: Empty,
       kind: MethodKind.Unary,
     },
-  }
+  },
 } as const;
-

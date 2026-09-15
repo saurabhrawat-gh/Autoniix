@@ -8,43 +8,43 @@
 
 ### Components (35)
 
-| # | Component | Purpose |
-|---|-----------|---------|
-| 1 | `StockFootageScene` | Video playback w/ trim, fit, KenBurns |
-| 2 | `KineticTypography` | Animated text sequences |
-| 3 | `DataVisualization` | Charts, graphs, stats |
-| 4 | `FullScreenText` | Bold statement card |
-| 5 | `SplitComparison` | Side-by-side A/B |
-| 6 | `TimelineAnimation` | Process / steps |
-| 7 | `QuoteCard` | Styled pull-quote |
-| 8 | `ListAnimation` | Animated bullets / numbered list |
-| 9 | `IconAnimation` | Lottie / SVG icon w/ label |
-| 10 | `ImageParallax` | Multi-layer depth parallax |
-| 11 | `TextReveal` | Char-by-char or mask reveal |
-| 12 | `MapAnimation` | Region highlight, route draw |
-| 13 | `CountdownScene` | Numeric countdown |
-| 14 | `BeforeAfterSlider` | Swipe reveal comparison |
-| 15 | `MemeFrame` | Top/bottom caption image |
-| 16 | `NewsTicker` | Scrolling bottom ticker |
-| 17 | `SocialMockup` | Tweet / IG / YT comment card |
-| 18 | `CodeTyping` | Syntax-highlighted typewriter |
-| 19 | `TerminalLog` | Fake CLI / chat transcript |
-| 20 | `WhiteboardDraw` | SVG stroke draw-on |
-| 21 | `Carousel` | Auto-advancing card deck |
-| 22 | `GridGallery` | Staggered image grid |
-| 23 | `PolaroidStack` | Photo-toss stack |
-| 24 | `DocumentReveal` | Receipt / paper unfurl |
-| 25 | `PhoneMockup` | iPhone frame w/ screen content |
-| 26 | `BrowserMockup` | Chrome window w/ screenshot |
-| 27 | `GaugeMeter` | Speedometer / dial |
-| 28 | `LeaderboardStats` | Ranked list w/ bars |
-| 29 | `VsBattleCard` | Versus fight-card |
-| 30 | `ReactionCam` | PiP webcam frame |
-| 31 | `LyricVideo` | Beat-synced lyrics |
-| 32 | `PodcastWaveform` | Audio waveform visualizer |
-| 33 | `ProductShowcase3D` | R3F rotating product |
-| 34 | `WeatherCard` | Forecast widget |
-| 35 | `HookOpener` | First-3-second pattern interrupt |
+| #   | Component           | Purpose                               |
+| --- | ------------------- | ------------------------------------- |
+| 1   | `StockFootageScene` | Video playback w/ trim, fit, KenBurns |
+| 2   | `KineticTypography` | Animated text sequences               |
+| 3   | `DataVisualization` | Charts, graphs, stats                 |
+| 4   | `FullScreenText`    | Bold statement card                   |
+| 5   | `SplitComparison`   | Side-by-side A/B                      |
+| 6   | `TimelineAnimation` | Process / steps                       |
+| 7   | `QuoteCard`         | Styled pull-quote                     |
+| 8   | `ListAnimation`     | Animated bullets / numbered list      |
+| 9   | `IconAnimation`     | Lottie / SVG icon w/ label            |
+| 10  | `ImageParallax`     | Multi-layer depth parallax            |
+| 11  | `TextReveal`        | Char-by-char or mask reveal           |
+| 12  | `MapAnimation`      | Region highlight, route draw          |
+| 13  | `CountdownScene`    | Numeric countdown                     |
+| 14  | `BeforeAfterSlider` | Swipe reveal comparison               |
+| 15  | `MemeFrame`         | Top/bottom caption image              |
+| 16  | `NewsTicker`        | Scrolling bottom ticker               |
+| 17  | `SocialMockup`      | Tweet / IG / YT comment card          |
+| 18  | `CodeTyping`        | Syntax-highlighted typewriter         |
+| 19  | `TerminalLog`       | Fake CLI / chat transcript            |
+| 20  | `WhiteboardDraw`    | SVG stroke draw-on                    |
+| 21  | `Carousel`          | Auto-advancing card deck              |
+| 22  | `GridGallery`       | Staggered image grid                  |
+| 23  | `PolaroidStack`     | Photo-toss stack                      |
+| 24  | `DocumentReveal`    | Receipt / paper unfurl                |
+| 25  | `PhoneMockup`       | iPhone frame w/ screen content        |
+| 26  | `BrowserMockup`     | Chrome window w/ screenshot           |
+| 27  | `GaugeMeter`        | Speedometer / dial                    |
+| 28  | `LeaderboardStats`  | Ranked list w/ bars                   |
+| 29  | `VsBattleCard`      | Versus fight-card                     |
+| 30  | `ReactionCam`       | PiP webcam frame                      |
+| 31  | `LyricVideo`        | Beat-synced lyrics                    |
+| 32  | `PodcastWaveform`   | Audio waveform visualizer             |
+| 33  | `ProductShowcase3D` | R3F rotating product                  |
+| 34  | `WeatherCard`       | Forecast widget                       |
+| 35  | `HookOpener`        | First-3-second pattern interrupt      |
 
 ### Preset examples (50+ total, abbreviated)
 
@@ -300,16 +300,16 @@ Each defines segment-type ratios, allowed/forbidden transitions, color grade, ca
 
 ## Totals
 
-| Category | Components | Presets |
-|----------|-----------|---------|
-| Scenes | 35 | 50+ |
-| Transitions | 18 | 60+ |
-| Animations | 15 | 50+ |
-| Effects | 20 | 40+ |
-| Overlays | 18 | 30+ |
-| Branding | 6 | per-channel |
-| Audio | 9 | 150+ SFX |
-| Templates | — | 21 |
-| **TOTAL** | **~121 components** | **~400+ presets** |
+| Category    | Components          | Presets           |
+| ----------- | ------------------- | ----------------- |
+| Scenes      | 35                  | 50+               |
+| Transitions | 18                  | 60+               |
+| Animations  | 15                  | 50+               |
+| Effects     | 20                  | 40+               |
+| Overlays    | 18                  | 30+               |
+| Branding    | 6                   | per-channel       |
+| Audio       | 9                   | 150+ SFX          |
+| Templates   | —                   | 21                |
+| **TOTAL**   | **~121 components** | **~400+ presets** |
 
 Matches InVideo / Pictory tier. CapCut-class (1000+) achievable by expanding preset variations further.

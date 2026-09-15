@@ -29,12 +29,7 @@
  */
 
 import { createHash } from "node:crypto";
-import type {
-  Clip,
-  SceneGraph,
-  SceneGraphMeta,
-  Track,
-} from "../scene-graph/types";
+import type { Clip, SceneGraph, SceneGraphMeta, Track } from "../scene-graph/types";
 
 const FCPXML_VERSION = "1.11";
 
@@ -193,12 +188,7 @@ function assetIdForUrl(url: string, sha256: string, ctx: FcpxmlContext): string 
 /* Clip emission                                                           */
 /* ====================================================================== */
 
-function emitClipOnSpine(
-  c: Clip,
-  ctx: FcpxmlContext,
-  xml: string[],
-  indent: string,
-): void {
+function emitClipOnSpine(c: Clip, ctx: FcpxmlContext, xml: string[], indent: string): void {
   emitClip(c, ctx, xml, indent, /* connected */ false, /* lane */ 0);
 }
 
@@ -325,11 +315,16 @@ function renderAdjustments(c: Clip): string[] {
     }
   }
 
-  const grade = (c as {
-    colorGradeTrack?: {
-      keys?: Array<{ tMs?: number; primary?: { saturation?: number; contrast?: number; temperature?: number } }>;
-    };
-  }).colorGradeTrack;
+  const grade = (
+    c as {
+      colorGradeTrack?: {
+        keys?: Array<{
+          tMs?: number;
+          primary?: { saturation?: number; contrast?: number; temperature?: number };
+        }>;
+      };
+    }
+  ).colorGradeTrack;
   if (grade?.keys?.length) {
     const k0 = grade.keys[0]!;
     const p = k0.primary ?? {};

@@ -1,73 +1,95 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useCallback } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { systemApi, authApi } from '@/lib/api-v2';
-import { isLoggedIn } from '@/lib/api-v2';
-import { cn } from '@/lib/utils';
-import { useToast } from '@/lib/toast';
-import { PageHeader } from '@/lib/components/PageHeader';
-import { Skeleton } from '@/lib/components/Skeleton';
+import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { systemApi, authApi } from "@/lib/api-v2";
+import { isLoggedIn } from "@/lib/api-v2";
+import { cn } from "@/lib/utils";
+import { useToast } from "@/lib/toast";
+import { PageHeader } from "@/lib/components/PageHeader";
+import { Skeleton } from "@/lib/components/Skeleton";
 import {
-  Power, PowerOff, Flag, ChevronRight, Database, Bell, Lock,
-  DollarSign, SlidersHorizontal,
-} from '@/lib/components/Icon';
-import { useAppState } from '@/lib/components/AppStateProvider';
-import { useTheme } from '@/lib/theme';
+  Power,
+  PowerOff,
+  Flag,
+  ChevronRight,
+  Database,
+  Bell,
+  Lock,
+  DollarSign,
+  SlidersHorizontal,
+} from "@/lib/components/Icon";
+import { useAppState } from "@/lib/components/AppStateProvider";
+import { useTheme } from "@/lib/theme";
 import {
-  Button, Input, Textarea, Label, Switch,
-  Tabs, TabsList, TabsTrigger, TabsContent,
-  Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
-  Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter,
-  DialogCloseButton, DialogTitle, DialogDescription,
-} from '@/lib/ui';
-
+  Button,
+  Input,
+  Textarea,
+  Label,
+  Switch,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogCloseButton,
+  DialogTitle,
+  DialogDescription,
+} from "@/lib/ui";
 
 const FRIENDLY_LABELS: Record<string, string> = {
-  dashboard_admin_password: 'Admin Password',
-  dashboard_session_ttl_hours: 'Session TTL (hours)',
-  notify_daily_summary: 'Daily Summary Notification',
-  notify_on_complete: 'Notify on Completion',
-  notify_on_failure: 'Notify on Failure',
-  notify_on_review: 'Notify on Review Needed',
-  telegram_bot_token: 'Telegram Bot Token',
-  telegram_chat_id: 'Telegram Chat ID',
-  daily_budget_limit: 'Daily Budget Limit',
-  daily_budget_used: 'Daily Budget Used',
-  monthly_budget_usd: 'Monthly Budget (USD)',
-  daily_cost_limit_usd: 'Daily Cost Limit (USD)',
-  per_video_budget_usd: 'Per-Video Budget (USD)',
-  emergency_stop: 'Emergency Stop',
-  auto_approve_threshold: 'Auto-Approve Threshold',
-  max_daily_videos: 'Max Daily Videos',
-  default_content_mode: 'Default Content Mode',
-  human_review_required: 'Human Review Required',
+  dashboard_admin_password: "Admin Password",
+  dashboard_session_ttl_hours: "Session TTL (hours)",
+  notify_daily_summary: "Daily Summary Notification",
+  notify_on_complete: "Notify on Completion",
+  notify_on_failure: "Notify on Failure",
+  notify_on_review: "Notify on Review Needed",
+  telegram_bot_token: "Telegram Bot Token",
+  telegram_chat_id: "Telegram Chat ID",
+  daily_budget_limit: "Daily Budget Limit",
+  daily_budget_used: "Daily Budget Used",
+  monthly_budget_usd: "Monthly Budget (USD)",
+  daily_cost_limit_usd: "Daily Cost Limit (USD)",
+  per_video_budget_usd: "Per-Video Budget (USD)",
+  emergency_stop: "Emergency Stop",
+  auto_approve_threshold: "Auto-Approve Threshold",
+  max_daily_videos: "Max Daily Videos",
+  default_content_mode: "Default Content Mode",
+  human_review_required: "Human Review Required",
 };
 
-const SENSITIVE_KEYS = ['password', 'token', 'secret', 'api_key'];
+const SENSITIVE_KEYS = ["password", "token", "secret", "api_key"];
 
 function friendlyName(key: string): string {
   if (FRIENDLY_LABELS[key]) return FRIENDLY_LABELS[key];
-  return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 function isSensitive(key: string): boolean {
-  return SENSITIVE_KEYS.some(s => key.toLowerCase().includes(s));
+  return SENSITIVE_KEYS.some((s) => key.toLowerCase().includes(s));
 }
 function isBooleanValue(val: string): boolean {
-  return val === 'true' || val === 'false';
+  return val === "true" || val === "false";
 }
 function isJsonObject(val: string): boolean {
   if (!val) return false;
   const t = val.trim();
-  return t.startsWith('{') && t.endsWith('}');
+  return t.startsWith("{") && t.endsWith("}");
 }
-
 
 type SettingSchema = {
   label: string;
   description: string;
-  type: 'select' | 'number' | 'toggle' | 'text';
+  type: "select" | "number" | "toggle" | "text";
   options?: { value: string; label: string }[];
   min?: number;
   max?: number;
@@ -76,70 +98,79 @@ type SettingSchema = {
 };
 
 const CONTENT_SCHEMA: Record<string, SettingSchema> = {
-  'content.default_mode': {
-    label: 'Default Content Mode',
-    description: 'Applied to all channels unless overridden at channel or content-mode scope.',
-    type: 'select',
+  "content.default_mode": {
+    label: "Default Content Mode",
+    description: "Applied to all channels unless overridden at channel or content-mode scope.",
+    type: "select",
     options: [
-      { value: 'short', label: 'Short-form' },
-      { value: 'long', label: 'Long-form' },
-      { value: 'mixed', label: 'Mixed' },
+      { value: "short", label: "Short-form" },
+      { value: "long", label: "Long-form" },
+      { value: "mixed", label: "Mixed" },
     ],
   },
-  'content.quality_threshold': {
-    label: 'Quality Threshold',
-    description: 'Minimum quality score (0–1.0) required for a video to pass QA.',
-    type: 'number',
-    min: 0, max: 1, step: 0.01,
+  "content.quality_threshold": {
+    label: "Quality Threshold",
+    description: "Minimum quality score (0–1.0) required for a video to pass QA.",
+    type: "number",
+    min: 0,
+    max: 1,
+    step: 0.01,
   },
-  'content.human_review_required': {
-    label: 'Human Review Required',
-    description: 'Force all generated content through human review before publishing.',
-    type: 'toggle',
+  "content.human_review_required": {
+    label: "Human Review Required",
+    description: "Force all generated content through human review before publishing.",
+    type: "toggle",
   },
-  'content.auto_approve_threshold': {
-    label: 'Auto-Approve Threshold',
-    description: 'Quality score above which content is auto-approved without human review.',
-    type: 'number',
-    min: 0, max: 1, step: 0.01,
+  "content.auto_approve_threshold": {
+    label: "Auto-Approve Threshold",
+    description: "Quality score above which content is auto-approved without human review.",
+    type: "number",
+    min: 0,
+    max: 1,
+    step: 0.01,
   },
-  'content.max_daily_videos': {
-    label: 'Max Daily Videos',
-    description: 'Hard cap on videos published per day across all channels system-wide.',
-    type: 'number',
-    min: 0, max: 9999, step: 1,
-    unit: 'videos/day',
+  "content.max_daily_videos": {
+    label: "Max Daily Videos",
+    description: "Hard cap on videos published per day across all channels system-wide.",
+    type: "number",
+    min: 0,
+    max: 9999,
+    step: 1,
+    unit: "videos/day",
   },
 };
 
 const BUDGET_SCHEMA: Record<string, SettingSchema> = {
-  'budget.per_video_usd': {
-    label: 'Per-Video Budget',
-    description: 'Default maximum API and compute spend per video job.',
-    type: 'number',
-    min: 0, step: 0.01,
-    unit: 'USD',
+  "budget.per_video_usd": {
+    label: "Per-Video Budget",
+    description: "Default maximum API and compute spend per video job.",
+    type: "number",
+    min: 0,
+    step: 0.01,
+    unit: "USD",
   },
-  'budget.daily_limit_usd': {
-    label: 'Daily Cost Limit',
-    description: 'Hard ceiling on total daily API/compute costs. Jobs are blocked beyond this.',
-    type: 'number',
-    min: 0, step: 0.01,
-    unit: 'USD',
+  "budget.daily_limit_usd": {
+    label: "Daily Cost Limit",
+    description: "Hard ceiling on total daily API/compute costs. Jobs are blocked beyond this.",
+    type: "number",
+    min: 0,
+    step: 0.01,
+    unit: "USD",
   },
-  'budget.monthly_limit_usd': {
-    label: 'Monthly Budget',
-    description: 'Soft monthly spend cap — triggers an alert when reached but does not block jobs.',
-    type: 'number',
-    min: 0, step: 0.01,
-    unit: 'USD',
+  "budget.monthly_limit_usd": {
+    label: "Monthly Budget",
+    description: "Soft monthly spend cap — triggers an alert when reached but does not block jobs.",
+    type: "number",
+    min: 0,
+    step: 0.01,
+    unit: "USD",
   },
 };
 
 function isJsonArray(val: string): boolean {
   if (!val) return false;
   const t = val.trim();
-  return t.startsWith('[') && t.endsWith(']');
+  return t.startsWith("[") && t.endsWith("]");
 }
 
 export default function SettingsPage() {
@@ -152,11 +183,11 @@ export default function SettingsPage() {
   const [emergency, setEmergency] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState('');
-  const [chipInput, setChipInput] = useState('');
-  const [jsonError, setJsonError] = useState('');
+  const [editValue, setEditValue] = useState("");
+  const [chipInput, setChipInput] = useState("");
+  const [jsonError, setJsonError] = useState("");
   const [cleanSlateOpen, setCleanSlateOpen] = useState(false);
-  const [cleanSlateInput, setCleanSlateInput] = useState('');
+  const [cleanSlateInput, setCleanSlateInput] = useState("");
   const [cleanSlateRunning, setCleanSlateRunning] = useState(false);
 
   const [entityMap, setEntityMap] = useState<Record<string, { value: unknown; locked: boolean }>>({});
@@ -172,11 +203,14 @@ export default function SettingsPage() {
       const data = res.data ?? [];
       setConfigs(data);
       setConfigError(null);
-      const stopped = data.some((c: any) => c.key === 'emergency_stop' && c.value === 'true');
+      const stopped = data.some((c: any) => c.key === "emergency_stop" && c.value === "true");
       setEmergency(stopped);
-      if (stopped) { setEditMode(false); setEditing(null); }
+      if (stopped) {
+        setEditMode(false);
+        setEditing(null);
+      }
     } catch (e: any) {
-      setConfigError(e?.message || 'Failed to load config');
+      setConfigError(e?.message || "Failed to load config");
     }
   }, []);
 
@@ -184,38 +218,54 @@ export default function SettingsPage() {
     try {
       const res = await systemApi.getEntitySettings();
       const map: Record<string, { value: unknown; locked: boolean }> = {};
-      for (const row of (res.data ?? [])) map[row.key] = { value: row.value, locked: row.locked };
+      for (const row of res.data ?? []) map[row.key] = { value: row.value, locked: row.locked };
       setEntityMap(map);
     } catch {}
   }, []);
 
   useEffect(() => {
-    if (!isLoggedIn()) { router.replace('/login'); return; }
+    if (!isLoggedIn()) {
+      router.replace("/login");
+      return;
+    }
     Promise.all([loadConfigs(), loadEntitySettings()]).finally(() => setLoading(false));
     authApi.me().catch(() => {});
   }, [router, loadConfigs, loadEntitySettings]);
 
   useEffect(() => {
     if (!editing) return;
-    if (!isJsonObject(editValue) && !isJsonArray(editValue)) { setJsonError(''); return; }
-    try { JSON.parse(editValue); setJsonError(''); }
-    catch (e: any) { setJsonError((e?.message || 'Invalid JSON').replace(/^JSON\.parse:\s*/, '')); }
+    if (!isJsonObject(editValue) && !isJsonArray(editValue)) {
+      setJsonError("");
+      return;
+    }
+    try {
+      JSON.parse(editValue);
+      setJsonError("");
+    } catch (e: any) {
+      setJsonError((e?.message || "Invalid JSON").replace(/^JSON\.parse:\s*/, ""));
+    }
   }, [editValue, editing]);
 
   async function saveConfig(key: string, value?: string) {
     const val = value !== undefined ? value : editValue;
     if (isJsonObject(val) || isJsonArray(val)) {
-      try { JSON.parse(val); } catch { setJsonError('Invalid JSON'); return; }
+      try {
+        JSON.parse(val);
+      } catch {
+        setJsonError("Invalid JSON");
+        return;
+      }
     }
     try {
       await systemApi.updateConfig(key, val);
-      setEditing(null); setJsonError('');
+      setEditing(null);
+      setJsonError("");
       loadConfigs();
     } catch {}
   }
 
   async function toggleBool(key: string, currentValue: string) {
-    await saveConfig(key, currentValue === 'true' ? 'false' : 'true');
+    await saveConfig(key, currentValue === "true" ? "false" : "true");
   }
 
   async function toggleEmergency() {
@@ -227,39 +277,50 @@ export default function SettingsPage() {
   }
 
   function startEdit(key: string, value: string) {
-    setEditing(key); setEditValue(value); setJsonError(''); setChipInput('');
+    setEditing(key);
+    setEditValue(value);
+    setJsonError("");
+    setChipInput("");
   }
 
   function addChip() {
     if (!chipInput.trim()) return;
     try {
       const arr = JSON.parse(editValue);
-      if (Array.isArray(arr)) { arr.push(chipInput.trim()); setEditValue(JSON.stringify(arr)); setChipInput(''); }
+      if (Array.isArray(arr)) {
+        arr.push(chipInput.trim());
+        setEditValue(JSON.stringify(arr));
+        setChipInput("");
+      }
     } catch {}
   }
 
   function removeChip(index: number) {
     try {
       const arr = JSON.parse(editValue);
-      if (Array.isArray(arr)) { arr.splice(index, 1); setEditValue(JSON.stringify(arr)); }
+      if (Array.isArray(arr)) {
+        arr.splice(index, 1);
+        setEditValue(JSON.stringify(arr));
+      }
     } catch {}
   }
 
   async function handleCleanSlate() {
-    if (cleanSlateInput !== 'RESET') return;
+    if (cleanSlateInput !== "RESET") return;
     setCleanSlateRunning(true);
     try {
       const res = await systemApi.cleanSlate();
       const d = (res as any)?.data || {};
       showToast(
         `Clean slate done: ${d.workflows_terminated || 0} workflow(s) terminated, ` +
-        `${(d.tables_truncated || []).length} table(s) cleared`,
-        'success'
+          `${(d.tables_truncated || []).length} table(s) cleared`,
+        "success"
       );
-      setCleanSlateOpen(false); setCleanSlateInput('');
-      setTimeout(() => router.push('/dashboard'), 500);
+      setCleanSlateOpen(false);
+      setCleanSlateInput("");
+      setTimeout(() => router.push("/dashboard"), 500);
     } catch (err: any) {
-      showToast(err?.message || 'Clean slate failed', 'error');
+      showToast(err?.message || "Clean slate failed", "error");
     } finally {
       setCleanSlateRunning(false);
     }
@@ -272,51 +333,77 @@ export default function SettingsPage() {
     return key in entityLocked ? entityLocked[key] : (entityMap[key]?.locked ?? false);
   }
   function setEsVal(key: string, val: unknown) {
-    setEntityEdits(prev => ({ ...prev, [key]: val }));
+    setEntityEdits((prev) => ({ ...prev, [key]: val }));
   }
   function setEsLocked(key: string, locked: boolean) {
-    setEntityLocked(prev => ({ ...prev, [key]: locked }));
+    setEntityLocked((prev) => ({ ...prev, [key]: locked }));
   }
   async function saveEntitySetting(key: string) {
     setSavingKey(key);
     try {
       await systemApi.setEntitySetting(key, esVal(key), esLocked(key));
-      setEntityMap(prev => ({ ...prev, [key]: { value: esVal(key), locked: esLocked(key) } }));
-      setEntityEdits(prev => { const n = { ...prev }; delete n[key]; return n; });
-      setEntityLocked(prev => { const n = { ...prev }; delete n[key]; return n; });
-      showToast('Setting saved', 'success');
+      setEntityMap((prev) => ({ ...prev, [key]: { value: esVal(key), locked: esLocked(key) } }));
+      setEntityEdits((prev) => {
+        const n = { ...prev };
+        delete n[key];
+        return n;
+      });
+      setEntityLocked((prev) => {
+        const n = { ...prev };
+        delete n[key];
+        return n;
+      });
+      showToast("Setting saved", "success");
     } catch (e: any) {
-      showToast(e?.message || 'Save failed', 'error');
+      showToast(e?.message || "Save failed", "error");
     } finally {
       setSavingKey(null);
     }
   }
 
-  if (loading) return (
-    <div className="flex-1 flex flex-col">
-      <PageHeader title="Settings" subtitle="Loading…" crumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Settings' }]} containerClassName="max-w-5xl" />
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-6 py-6 space-y-3">
-          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
-        </div>
-      </main>
-    </div>
+  if (loading)
+    return (
+      <div className="flex-1 flex flex-col">
+        <PageHeader
+          title="Settings"
+          subtitle="Loading…"
+          crumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Settings" }]}
+          containerClassName="max-w-5xl"
+        />
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-5xl mx-auto px-6 py-6 space-y-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </div>
+        </main>
+      </div>
+    );
+
+  const sysOpsKeys = ["emergency_stop", "environment_mode", "dashboard_admin_password", "dashboard_session_ttl_hours"];
+  const notifCfgs = configs.filter((c) => c.key.startsWith("notify_") || c.key.startsWith("telegram_"));
+  const opsCfgs = configs.filter((c) => sysOpsKeys.includes(c.key));
+  const otherCfgs = configs.filter(
+    (c) => !sysOpsKeys.includes(c.key) && !c.key.startsWith("notify_") && !c.key.startsWith("telegram_")
   );
 
-  const sysOpsKeys = ['emergency_stop', 'environment_mode', 'dashboard_admin_password', 'dashboard_session_ttl_hours'];
-  const notifCfgs = configs.filter(c => c.key.startsWith('notify_') || c.key.startsWith('telegram_'));
-  const opsCfgs = configs.filter(c => sysOpsKeys.includes(c.key));
-  const otherCfgs = configs.filter(c => !sysOpsKeys.includes(c.key) && !c.key.startsWith('notify_') && !c.key.startsWith('telegram_'));
-
   const cfgRowProps = (cfg: any) => ({
-    cfg, editMode, isEditing: editing === cfg.key, editValue, chipInput, jsonError,
+    cfg,
+    editMode,
+    isEditing: editing === cfg.key,
+    editValue,
+    chipInput,
+    jsonError,
     onStartEdit: () => startEdit(cfg.key, cfg.value),
     onEditValueChange: setEditValue,
     onChipInputChange: setChipInput,
     onAddChip: addChip,
     onRemoveChip: removeChip,
     onSave: () => saveConfig(cfg.key),
-    onCancel: () => { setEditing(null); setJsonError(''); },
+    onCancel: () => {
+      setEditing(null);
+      setJsonError("");
+    },
     onToggleBool: () => toggleBool(cfg.key, cfg.value),
   });
 
@@ -325,22 +412,22 @@ export default function SettingsPage() {
       <PageHeader
         title="System Settings"
         subtitle="Configure defaults for every workspace and all content pipelines."
-        crumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Settings' }]}
+        crumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Settings" }]}
         containerClassName="max-w-5xl"
-        actions={(
+        actions={
           <Button
             onClick={toggleEmergency}
             size="sm"
             leftIcon={emergency ? <Power size={14} /> : <PowerOff size={14} />}
             className={cn(
               emergency
-                ? 'bg-status-success hover:bg-status-success/90 text-content-inverse'
-                : 'bg-status-error hover:bg-status-error/90 text-content-inverse'
+                ? "bg-status-success hover:bg-status-success/90 text-content-inverse"
+                : "bg-status-error hover:bg-status-error/90 text-content-inverse"
             )}
           >
-            {emergency ? 'Resume System' : 'Emergency Stop'}
+            {emergency ? "Resume System" : "Emergency Stop"}
           </Button>
-        )}
+        }
       />
 
       <main className="flex-1 overflow-y-auto">
@@ -349,7 +436,9 @@ export default function SettingsPage() {
             <div className="mb-4 p-4 rounded-lg bg-status-error/10 border border-status-error/20 text-sm">
               <span className="font-semibold text-status-error">Config load failed: </span>
               <span className="text-content-secondary">{configError}</span>
-              <Button variant="link" size="sm" onClick={loadConfigs} className="ml-3 h-auto p-0 text-xs">Retry</Button>
+              <Button variant="link" size="sm" onClick={loadConfigs} className="ml-3 h-auto p-0 text-xs">
+                Retry
+              </Button>
             </div>
           )}
 
@@ -368,7 +457,9 @@ export default function SettingsPage() {
               {emergency && (
                 <div className="mb-4 p-4 rounded-lg bg-status-error/10 border border-status-error/30 flex items-center gap-3">
                   <PowerOff size={16} className="text-status-error shrink-0" />
-                  <div className="text-sm text-status-error font-medium">System is stopped. All workflows are paused.</div>
+                  <div className="text-sm text-status-error font-medium">
+                    System is stopped. All workflows are paused.
+                  </div>
                 </div>
               )}
               <div className="mb-6">
@@ -376,20 +467,29 @@ export default function SettingsPage() {
                   <h2 className="text-xs font-semibold text-content-secondary">Operations</h2>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <span className="text-xs text-content-tertiary">Edit Mode</span>
-                    <Switch checked={editMode && !systemStopped} onCheckedChange={v => !systemStopped && setEditMode(v)} disabled={systemStopped} aria-label="Toggle edit mode" />
+                    <Switch
+                      checked={editMode && !systemStopped}
+                      onCheckedChange={(v) => !systemStopped && setEditMode(v)}
+                      disabled={systemStopped}
+                      aria-label="Toggle edit mode"
+                    />
                   </label>
                 </div>
-                <div className={cn('card divide-y divide-border', systemStopped && 'lockdown-frost')}>
-                  {opsCfgs.length > 0
-                    ? opsCfgs.map((cfg: any) => <ConfigRow key={cfg.key} {...cfgRowProps(cfg)} />)
-                    : <div className="px-5 py-4 text-sm text-content-tertiary">No operations keys in system_config.</div>}
+                <div className={cn("card divide-y divide-border", systemStopped && "lockdown-frost")}>
+                  {opsCfgs.length > 0 ? (
+                    opsCfgs.map((cfg: any) => <ConfigRow key={cfg.key} {...cfgRowProps(cfg)} />)
+                  ) : (
+                    <div className="px-5 py-4 text-sm text-content-tertiary">No operations keys in system_config.</div>
+                  )}
                 </div>
               </div>
               {otherCfgs.length > 0 && (
                 <div className="mb-6">
                   <h2 className="text-xs font-semibold text-content-secondary mb-3">Other</h2>
-                  <div className={cn('card divide-y divide-border', systemStopped && 'lockdown-frost')}>
-                    {otherCfgs.map((cfg: any) => <ConfigRow key={cfg.key} {...cfgRowProps(cfg)} />)}
+                  <div className={cn("card divide-y divide-border", systemStopped && "lockdown-frost")}>
+                    {otherCfgs.map((cfg: any) => (
+                      <ConfigRow key={cfg.key} {...cfgRowProps(cfg)} />
+                    ))}
                   </div>
                 </div>
               )}
@@ -400,13 +500,18 @@ export default function SettingsPage() {
                     <div>
                       <div className="text-sm font-medium text-content-primary">Clean Slate — Reset All Jobs</div>
                       <div className="text-xs text-content-tertiary mt-1">
-                        Wipes all video history, job events, analytics, renders, and checkpoints.
-                        Preserves channels, brand profiles, config, prompts, and ML models.
-                        Dashboard returns to <span className="font-mono">0 delivered · 0 in-progress · 0 total</span>.
+                        Wipes all video history, job events, analytics, renders, and checkpoints. Preserves channels,
+                        brand profiles, config, prompts, and ML models. Dashboard returns to{" "}
+                        <span className="font-mono">0 delivered · 0 in-progress · 0 total</span>.
                       </div>
                     </div>
-                    <Button variant="outline" size="sm" onClick={() => setCleanSlateOpen(true)} disabled={systemStopped}
-                      className="shrink-0 bg-status-error/10 text-status-error border-status-error/30 hover:bg-status-error/20 hover:text-status-error">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCleanSlateOpen(true)}
+                      disabled={systemStopped}
+                      className="shrink-0 bg-status-error/10 text-status-error border-status-error/30 hover:bg-status-error/20 hover:text-status-error"
+                    >
                       Clean Slate
                     </Button>
                   </div>
@@ -417,14 +522,25 @@ export default function SettingsPage() {
             {/* ── Content Defaults tab ──────────────────────────────────── */}
             <TabsContent value="content">
               <p className="text-sm text-content-secondary mb-6">
-                These values set system-wide defaults for all content pipelines.
-                Workspace owners and individual channels can override any setting.
-                {' '}<span className="inline-flex items-center gap-1 text-xs text-content-tertiary"><Lock size={11} /> Locked settings cannot be overridden downstream.</span>
+                These values set system-wide defaults for all content pipelines. Workspace owners and individual
+                channels can override any setting.{" "}
+                <span className="inline-flex items-center gap-1 text-xs text-content-tertiary">
+                  <Lock size={11} /> Locked settings cannot be overridden downstream.
+                </span>
               </p>
               <div className="space-y-4">
                 {Object.entries(CONTENT_SCHEMA).map(([key, schema]) => (
-                  <EntitySettingRow key={key} esKey={key} schema={schema} value={esVal(key)} locked={esLocked(key)} saving={savingKey === key}
-                    onChange={v => setEsVal(key, v)} onLockedChange={l => setEsLocked(key, l)} onSave={() => saveEntitySetting(key)} />
+                  <EntitySettingRow
+                    key={key}
+                    esKey={key}
+                    schema={schema}
+                    value={esVal(key)}
+                    locked={esLocked(key)}
+                    saving={savingKey === key}
+                    onChange={(v) => setEsVal(key, v)}
+                    onLockedChange={(l) => setEsLocked(key, l)}
+                    onSave={() => saveEntitySetting(key)}
+                  />
                 ))}
               </div>
             </TabsContent>
@@ -432,12 +548,22 @@ export default function SettingsPage() {
             {/* ── Budget tab ───────────────────────────────────────────── */}
             <TabsContent value="budget">
               <p className="text-sm text-content-secondary mb-6">
-                Default cost controls applied system-wide. Each workspace and channel can independently override these limits.
+                Default cost controls applied system-wide. Each workspace and channel can independently override these
+                limits.
               </p>
               <div className="space-y-4">
                 {Object.entries(BUDGET_SCHEMA).map(([key, schema]) => (
-                  <EntitySettingRow key={key} esKey={key} schema={schema} value={esVal(key)} locked={esLocked(key)} saving={savingKey === key}
-                    onChange={v => setEsVal(key, v)} onLockedChange={l => setEsLocked(key, l)} onSave={() => saveEntitySetting(key)} />
+                  <EntitySettingRow
+                    key={key}
+                    esKey={key}
+                    schema={schema}
+                    value={esVal(key)}
+                    locked={esLocked(key)}
+                    saving={savingKey === key}
+                    onChange={(v) => setEsVal(key, v)}
+                    onLockedChange={(l) => setEsLocked(key, l)}
+                    onSave={() => saveEntitySetting(key)}
+                  />
                 ))}
               </div>
             </TabsContent>
@@ -449,13 +575,22 @@ export default function SettingsPage() {
                   <h2 className="text-xs font-semibold text-content-secondary">Notifications</h2>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <span className="text-xs text-content-tertiary">Edit Mode</span>
-                    <Switch checked={editMode && !systemStopped} onCheckedChange={v => !systemStopped && setEditMode(v)} disabled={systemStopped} aria-label="Toggle edit mode" />
+                    <Switch
+                      checked={editMode && !systemStopped}
+                      onCheckedChange={(v) => !systemStopped && setEditMode(v)}
+                      disabled={systemStopped}
+                      aria-label="Toggle edit mode"
+                    />
                   </label>
                 </div>
                 <div className="card divide-y divide-border">
-                  {notifCfgs.length > 0
-                    ? notifCfgs.map((cfg: any) => <ConfigRow key={cfg.key} {...cfgRowProps(cfg)} />)
-                    : <div className="px-5 py-4 text-sm text-content-tertiary">No notification keys in system_config.</div>}
+                  {notifCfgs.length > 0 ? (
+                    notifCfgs.map((cfg: any) => <ConfigRow key={cfg.key} {...cfgRowProps(cfg)} />)
+                  ) : (
+                    <div className="px-5 py-4 text-sm text-content-tertiary">
+                      No notification keys in system_config.
+                    </div>
+                  )}
                 </div>
               </div>
             </TabsContent>
@@ -471,8 +606,10 @@ export default function SettingsPage() {
                 Global reference data inherited by all workspaces. Superadmin-only.
               </p>
               <div className="space-y-3">
-                <Link href="/dashboard/lookup-values"
-                  className="card flex items-center justify-between gap-4 p-5 hover:bg-surface-1 transition-colors group">
+                <Link
+                  href="/dashboard/lookup-values"
+                  className="card flex items-center justify-between gap-4 p-5 hover:bg-surface-1 transition-colors group"
+                >
                   <div className="flex items-start gap-3">
                     <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-md bg-accent/10 text-accent shrink-0">
                       <Database size={16} />
@@ -480,14 +617,17 @@ export default function SettingsPage() {
                     <div>
                       <div className="text-sm font-medium text-content-primary">Lookup Values</div>
                       <div className="text-xs text-content-tertiary mt-0.5">
-                        Manage global dropdown options — niches, languages, geographies, content type tags, LUT presets, and more.
+                        Manage global dropdown options — niches, languages, geographies, content type tags, LUT presets,
+                        and more.
                       </div>
                     </div>
                   </div>
                   <ChevronRight size={16} className="text-content-tertiary group-hover:text-content-primary shrink-0" />
                 </Link>
-                <Link href="/dashboard/settings/flags"
-                  className="card flex items-center justify-between gap-4 p-5 hover:bg-surface-1 transition-colors group">
+                <Link
+                  href="/dashboard/settings/flags"
+                  className="card flex items-center justify-between gap-4 p-5 hover:bg-surface-1 transition-colors group"
+                >
                   <div className="flex items-start gap-3">
                     <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-md bg-accent/10 text-accent shrink-0">
                       <Flag size={16} />
@@ -508,14 +648,30 @@ export default function SettingsPage() {
       </main>
 
       {/* Clean Slate Confirmation Dialog */}
-      <Dialog open={cleanSlateOpen} onOpenChange={o => { if (!o && !cleanSlateRunning) { setCleanSlateOpen(false); setCleanSlateInput(''); } }}>
+      <Dialog
+        open={cleanSlateOpen}
+        onOpenChange={(o) => {
+          if (!o && !cleanSlateRunning) {
+            setCleanSlateOpen(false);
+            setCleanSlateInput("");
+          }
+        }}
+      >
         <DialogContent className="border-status-error/30">
           <DialogHeader>
             <div>
               <DialogTitle>This will delete ALL job history</DialogTitle>
               <DialogDescription>This action cannot be undone.</DialogDescription>
             </div>
-            <DialogCloseButton onClick={() => { if (!cleanSlateRunning) { setCleanSlateOpen(false); setCleanSlateInput(''); } }} disabled={cleanSlateRunning} />
+            <DialogCloseButton
+              onClick={() => {
+                if (!cleanSlateRunning) {
+                  setCleanSlateOpen(false);
+                  setCleanSlateInput("");
+                }
+              }}
+              disabled={cleanSlateRunning}
+            />
           </DialogHeader>
           <DialogBody>
             <div className="space-y-3 text-xs">
@@ -539,12 +695,36 @@ export default function SettingsPage() {
               <Label htmlFor="reset-confirm" className="text-xs text-content-secondary mb-1.5 block">
                 Type <span className="font-mono font-semibold text-status-error">RESET</span> to confirm:
               </Label>
-              <Input id="reset-confirm" type="text" value={cleanSlateInput} onChange={e => setCleanSlateInput(e.target.value)} disabled={cleanSlateRunning} placeholder="RESET" className="font-mono" autoFocus />
+              <Input
+                id="reset-confirm"
+                type="text"
+                value={cleanSlateInput}
+                onChange={(e) => setCleanSlateInput(e.target.value)}
+                disabled={cleanSlateRunning}
+                placeholder="RESET"
+                className="font-mono"
+                autoFocus
+              />
             </div>
             <DialogFooter>
-              <Button variant="ghost" size="sm" onClick={() => { setCleanSlateOpen(false); setCleanSlateInput(''); }} disabled={cleanSlateRunning}>Cancel</Button>
-              <Button variant="destructive" size="sm" onClick={handleCleanSlate} disabled={cleanSlateInput !== 'RESET' || cleanSlateRunning}>
-                {cleanSlateRunning ? 'Wiping…' : 'Clean Slate'}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setCleanSlateOpen(false);
+                  setCleanSlateInput("");
+                }}
+                disabled={cleanSlateRunning}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleCleanSlate}
+                disabled={cleanSlateInput !== "RESET" || cleanSlateRunning}
+              >
+                {cleanSlateRunning ? "Wiping…" : "Clean Slate"}
               </Button>
             </DialogFooter>
           </DialogBody>
@@ -554,7 +734,16 @@ export default function SettingsPage() {
   );
 }
 
-function EntitySettingRow({ esKey, schema, value, locked, saving, onChange, onLockedChange, onSave }: {
+function EntitySettingRow({
+  esKey,
+  schema,
+  value,
+  locked,
+  saving,
+  onChange,
+  onLockedChange,
+  onSave,
+}: {
   esKey: string;
   schema: SettingSchema;
   value: unknown;
@@ -572,7 +761,8 @@ function EntitySettingRow({ esKey, schema, value, locked, saving, onChange, onLo
             <div className="text-sm font-medium text-content-primary">{schema.label}</div>
             {locked && (
               <span className="inline-flex items-center gap-1 text-[10px] font-medium text-status-warning bg-status-warning/10 px-1.5 py-0.5 rounded">
-                <Lock size={9} />Locked
+                <Lock size={9} />
+                Locked
               </span>
             )}
           </div>
@@ -580,20 +770,22 @@ function EntitySettingRow({ esKey, schema, value, locked, saving, onChange, onLo
           <code className="text-[10px] text-content-tertiary/50 font-mono mt-1 block">{esKey}</code>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          {schema.type === 'toggle' ? (
+          {schema.type === "toggle" ? (
             <Switch
-              checked={value === true || value === 'true'}
-              onCheckedChange={v => onChange(v)}
+              checked={value === true || value === "true"}
+              onCheckedChange={(v) => onChange(v)}
               aria-label={schema.label}
             />
-          ) : schema.type === 'select' ? (
-            <Select value={String(value ?? '')} onValueChange={v => onChange(v)}>
+          ) : schema.type === "select" ? (
+            <Select value={String(value ?? "")} onValueChange={(v) => onChange(v)}>
               <SelectTrigger className="w-40 h-8 text-xs">
                 <SelectValue placeholder="Select…" />
               </SelectTrigger>
               <SelectContent>
-                {schema.options?.map(opt => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                {schema.options?.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -601,8 +793,8 @@ function EntitySettingRow({ esKey, schema, value, locked, saving, onChange, onLo
             <div className="flex items-center gap-1.5">
               <Input
                 type="number"
-                value={value === null || value === undefined ? '' : String(value)}
-                onChange={e => onChange(e.target.value === '' ? null : Number(e.target.value))}
+                value={value === null || value === undefined ? "" : String(value)}
+                onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
                 min={schema.min}
                 max={schema.max}
                 step={schema.step}
@@ -612,7 +804,7 @@ function EntitySettingRow({ esKey, schema, value, locked, saving, onChange, onLo
             </div>
           )}
           <Button size="sm" onClick={onSave} disabled={saving}>
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? "Saving…" : "Save"}
           </Button>
         </div>
       </div>
@@ -631,14 +823,35 @@ function EntitySettingRow({ esKey, schema, value, locked, saving, onChange, onLo
   );
 }
 
-function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
-  onStartEdit, onEditValueChange, onChipInputChange, onAddChip, onRemoveChip,
-  onSave, onCancel, onToggleBool }: {
-  cfg: any; editMode: boolean; isEditing: boolean; editValue: string;
-  chipInput: string; jsonError: string;
-  onStartEdit: () => void; onEditValueChange: (v: string) => void;
-  onChipInputChange: (v: string) => void; onAddChip: () => void;
-  onRemoveChip: (i: number) => void; onSave: () => void; onCancel: () => void;
+function ConfigRow({
+  cfg,
+  editMode,
+  isEditing,
+  editValue,
+  chipInput,
+  jsonError,
+  onStartEdit,
+  onEditValueChange,
+  onChipInputChange,
+  onAddChip,
+  onRemoveChip,
+  onSave,
+  onCancel,
+  onToggleBool,
+}: {
+  cfg: any;
+  editMode: boolean;
+  isEditing: boolean;
+  editValue: string;
+  chipInput: string;
+  jsonError: string;
+  onStartEdit: () => void;
+  onEditValueChange: (v: string) => void;
+  onChipInputChange: (v: string) => void;
+  onAddChip: () => void;
+  onRemoveChip: (i: number) => void;
+  onSave: () => void;
+  onCancel: () => void;
   onToggleBool: () => void;
 }) {
   const sensitive = isSensitive(cfg.key);
@@ -646,10 +859,12 @@ function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
   const isJson = isJsonObject(cfg.value);
   const isArr = isJsonArray(cfg.value);
 
-  let displayValue = cfg.value || '—';
-  if (sensitive && !isEditing) displayValue = '••••••••';
+  let displayValue = cfg.value || "—";
+  if (sensitive && !isEditing) displayValue = "••••••••";
   if (isJson && !isEditing) {
-    try { displayValue = JSON.stringify(JSON.parse(cfg.value), null, 0).slice(0, 60) + (cfg.value.length > 60 ? '…' : ''); } catch {}
+    try {
+      displayValue = JSON.stringify(JSON.parse(cfg.value), null, 0).slice(0, 60) + (cfg.value.length > 60 ? "…" : "");
+    } catch {}
   }
 
   return (
@@ -666,7 +881,7 @@ function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
         {isBool && !isEditing ? (
           <div className="flex items-center gap-3">
             <Switch
-              checked={cfg.value === 'true'}
+              checked={cfg.value === "true"}
               onCheckedChange={editMode ? onToggleBool : undefined}
               disabled={!editMode}
               aria-label={`Toggle ${cfg.key}`}
@@ -681,13 +896,26 @@ function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
                   try {
                     const arr = JSON.parse(cfg.value);
                     return arr.slice(0, 5).map((item: string, i: number) => (
-                      <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-surface-2 text-content-secondary">
+                      <span
+                        key={i}
+                        className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-surface-2 text-content-secondary"
+                      >
                         {String(item)}
                       </span>
                     ));
-                  } catch { return <span className="text-xs text-content-tertiary">{displayValue}</span>; }
+                  } catch {
+                    return <span className="text-xs text-content-tertiary">{displayValue}</span>;
+                  }
                 })()}
-                {(() => { try { return JSON.parse(cfg.value).length > 5 ? <span className="text-[11px] text-content-tertiary">+{JSON.parse(cfg.value).length - 5}</span> : null; } catch { return null; } })()}
+                {(() => {
+                  try {
+                    return JSON.parse(cfg.value).length > 5 ? (
+                      <span className="text-[11px] text-content-tertiary">+{JSON.parse(cfg.value).length - 5}</span>
+                    ) : null;
+                  } catch {
+                    return null;
+                  }
+                })()}
               </div>
             ) : (
               <code className="text-xs text-content-secondary bg-surface-2 px-2.5 py-1 rounded-md max-w-xs truncate block">
@@ -714,7 +942,10 @@ function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
                   try {
                     const arr = JSON.parse(editValue);
                     return arr.map((item: string, i: number) => (
-                      <span key={i} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-surface-2 text-content-primary">
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-surface-2 text-content-primary"
+                      >
                         {String(item)}
                         <Button
                           variant="ghost"
@@ -727,18 +958,27 @@ function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
                         </Button>
                       </span>
                     ));
-                  } catch { return null; }
+                  } catch {
+                    return null;
+                  }
                 })()}
               </div>
               <div className="flex gap-2">
                 <Input
                   value={chipInput}
                   onChange={(e) => onChipInputChange(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onAddChip(); } }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      onAddChip();
+                    }
+                  }}
                   placeholder="Type and press Enter to add"
                   className="flex-1 h-8 text-xs"
                 />
-                <Button variant="secondary" size="sm" onClick={onAddChip}>Add</Button>
+                <Button variant="secondary" size="sm" onClick={onAddChip}>
+                  Add
+                </Button>
               </div>
             </div>
           ) : isJson ? (
@@ -750,7 +990,7 @@ function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
                   onChange={(e) => onEditValueChange(e.target.value)}
                   spellCheck={false}
                   error={!!jsonError}
-                  aria-describedby={jsonError ? 'json-error' : undefined}
+                  aria-describedby={jsonError ? "json-error" : undefined}
                   className="text-xs font-mono min-h-[120px] resize-y"
                 />
                 <div className="absolute top-2 right-2 text-[10px] font-medium pointer-events-none">
@@ -763,7 +1003,9 @@ function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
               </div>
               <div className="flex items-center justify-between mt-1">
                 {jsonError ? (
-                  <p id="json-error" className="text-xs text-status-error" role="alert">{jsonError}</p>
+                  <p id="json-error" className="text-xs text-status-error" role="alert">
+                    {jsonError}
+                  </p>
                 ) : (
                   <p className="text-[10px] text-content-tertiary">JSON is valid.</p>
                 )}
@@ -773,7 +1015,9 @@ function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
                   size="sm"
                   disabled={!!jsonError}
                   onClick={() => {
-                    try { onEditValueChange(JSON.stringify(JSON.parse(editValue), null, 2)); } catch {}
+                    try {
+                      onEditValueChange(JSON.stringify(JSON.parse(editValue), null, 2));
+                    } catch {}
                   }}
                   className="h-auto p-0 text-[10px] text-content-tertiary hover:text-accent"
                 >
@@ -792,8 +1036,12 @@ function ConfigRow({ cfg, editMode, isEditing, editValue, chipInput, jsonError,
             />
           )}
           <div className="flex justify-end gap-2 mt-3">
-            <Button variant="secondary" size="sm" onClick={onCancel}>Cancel</Button>
-            <Button size="sm" onClick={onSave} disabled={!!jsonError}>Save</Button>
+            <Button variant="secondary" size="sm" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={onSave} disabled={!!jsonError}>
+              Save
+            </Button>
           </div>
         </div>
       )}
@@ -805,28 +1053,24 @@ function DisplayPreferences() {
   const { theme, setTheme } = useTheme();
   const { density, setDensity } = useAppState();
 
-  const themeOpts: { value: 'light' | 'dark' | 'system'; label: string }[] = [
-    { value: 'light', label: 'Light' },
-    { value: 'dark', label: 'Dark' },
-    { value: 'system', label: 'System' },
+  const themeOpts: { value: "light" | "dark" | "system"; label: string }[] = [
+    { value: "light", label: "Light" },
+    { value: "dark", label: "Dark" },
+    { value: "system", label: "System" },
   ];
-  const densityOpts: { value: 'comfortable' | 'compact'; label: string }[] = [
-    { value: 'comfortable', label: 'Comfortable' },
-    { value: 'compact', label: 'Compact' },
+  const densityOpts: { value: "comfortable" | "compact"; label: string }[] = [
+    { value: "comfortable", label: "Comfortable" },
+    { value: "compact", label: "Compact" },
   ];
 
   return (
     <div className="mb-8">
-      <h2 className="text-xs font-semibold text-content-secondary mb-3 flex items-center gap-2">
-        Display
-      </h2>
+      <h2 className="text-xs font-semibold text-content-secondary mb-3 flex items-center gap-2">Display</h2>
       <div className="card p-5 space-y-5">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
             <div className="text-sm font-medium text-content-primary">Theme</div>
-            <div className="text-xs text-content-tertiary mt-0.5">
-              Light, dark, or follow your operating system.
-            </div>
+            <div className="text-xs text-content-tertiary mt-0.5">Light, dark, or follow your operating system.</div>
           </div>
           <div role="radiogroup" aria-label="Theme" className="inline-flex rounded-lg bg-surface-2 p-1">
             {themeOpts.map((opt) => (
@@ -838,10 +1082,10 @@ function DisplayPreferences() {
                 size="sm"
                 onClick={() => setTheme(opt.value)}
                 className={cn(
-                  'h-7 px-3 text-xs',
+                  "h-7 px-3 text-xs",
                   theme === opt.value
-                    ? 'bg-surface-0 text-content-primary shadow-card hover:bg-surface-0'
-                    : 'text-content-tertiary hover:text-content-primary',
+                    ? "bg-surface-0 text-content-primary shadow-card hover:bg-surface-0"
+                    : "text-content-tertiary hover:text-content-primary"
                 )}
               >
                 {opt.label}
@@ -853,9 +1097,7 @@ function DisplayPreferences() {
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
             <div className="text-sm font-medium text-content-primary">Density</div>
-            <div className="text-xs text-content-tertiary mt-0.5">
-              Compact tightens spacing in cards and list rows.
-            </div>
+            <div className="text-xs text-content-tertiary mt-0.5">Compact tightens spacing in cards and list rows.</div>
           </div>
           <div role="radiogroup" aria-label="Density" className="inline-flex rounded-lg bg-surface-2 p-1">
             {densityOpts.map((opt) => (
@@ -867,10 +1109,10 @@ function DisplayPreferences() {
                 size="sm"
                 onClick={() => setDensity(opt.value)}
                 className={cn(
-                  'h-7 px-3 text-xs',
+                  "h-7 px-3 text-xs",
                   density === opt.value
-                    ? 'bg-surface-0 text-content-primary shadow-card hover:bg-surface-0'
-                    : 'text-content-tertiary hover:text-content-primary',
+                    ? "bg-surface-0 text-content-primary shadow-card hover:bg-surface-0"
+                    : "text-content-tertiary hover:text-content-primary"
                 )}
               >
                 {opt.label}

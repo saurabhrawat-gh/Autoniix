@@ -40,15 +40,13 @@ export async function handleConcatJob(job: Job<ConcatJobData>): Promise<ConcatJo
 }
 
 export function startConcatWorker(): Worker<ConcatJobData> {
-  const worker = new Worker<ConcatJobData>(
-    CONCAT_QUEUE,
-    async (job) => handleConcatJob(job),
-    {
-      connection,
-      concurrency: Math.max(env.RENDER_CONCURRENCY, 2),
-    },
+  const worker = new Worker<ConcatJobData>(CONCAT_QUEUE, async (job) => handleConcatJob(job), {
+    connection,
+    concurrency: Math.max(env.RENDER_CONCURRENCY, 2),
+  });
+  worker.on("failed", (job, err) =>
+    logger.error({ jobId: job?.id, err: err.message }, "concat failed"),
   );
-  worker.on("failed", (job, err) => logger.error({ jobId: job?.id, err: err.message }, "concat failed"));
   logger.info({ queueName: CONCAT_QUEUE }, "concat worker started");
   return worker;
 }

@@ -266,6 +266,7 @@ docs/
 ## Migration Notes
 
 This structure is the result of the Phase 7 cleanup (August 2026):
+
 - Deleted all Rust/Go code and protobuf definitions.
 - Renamed `libs/` → `shared/`.
 - Renamed `apps/` → `frontend/`.

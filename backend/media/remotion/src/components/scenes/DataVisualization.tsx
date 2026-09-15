@@ -121,66 +121,66 @@ export const DataVisualization: React.FC<DataVisualizationProps> = ({
           </div>
         )}
 
-        {type === "line" && (() => {
-          const plotW = width - 200;
-          const plotH = height - 320;
-          const step = plotW / Math.max(1, data.length - 1);
-          const toY = (v: number) => plotH - (v / max) * plotH * p;
-          const points = data.map((d, i) => `${i * step},${toY(d.value)}`).join(" ");
-          const visibleLen = p;
-          return (
-            <svg width={plotW} height={plotH} style={{ overflow: "visible" }}>
-              <polyline
-                fill="none"
-                stroke={accent}
-                strokeWidth={6}
-                points={points}
-                strokeDasharray={`${plotW * 2}`}
-                strokeDashoffset={plotW * 2 * (1 - visibleLen)}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              {data.map((d, i) => (
-                <circle
-                  key={i}
-                  cx={i * step}
-                  cy={toY(d.value)}
-                  r={p > (i / data.length) ? 10 : 0}
-                  fill={colors[i]}
+        {type === "line" &&
+          (() => {
+            const plotW = width - 200;
+            const plotH = height - 320;
+            const step = plotW / Math.max(1, data.length - 1);
+            const toY = (v: number) => plotH - (v / max) * plotH * p;
+            const points = data.map((d, i) => `${i * step},${toY(d.value)}`).join(" ");
+            const visibleLen = p;
+            return (
+              <svg width={plotW} height={plotH} style={{ overflow: "visible" }}>
+                <polyline
+                  fill="none"
+                  stroke={accent}
+                  strokeWidth={6}
+                  points={points}
+                  strokeDasharray={`${plotW * 2}`}
+                  strokeDashoffset={plotW * 2 * (1 - visibleLen)}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
-              ))}
-            </svg>
-          );
-        })()}
-
-        {(type === "pie" || type === "donut") && (() => {
-          const size = Math.min(width - 200, height - 320);
-          const r = size / 2;
-          const cx = r;
-          const cy = r;
-          let angle = -Math.PI / 2;
-          const arcs = data.map((d, i) => {
-            const slice = (d.value / total) * 2 * Math.PI * p;
-            const startX = cx + r * Math.cos(angle);
-            const startY = cy + r * Math.sin(angle);
-            angle += slice;
-            const endX = cx + r * Math.cos(angle);
-            const endY = cy + r * Math.sin(angle);
-            const large = slice > Math.PI ? 1 : 0;
-            const path = `M ${cx} ${cy} L ${startX} ${startY} A ${r} ${r} 0 ${large} 1 ${endX} ${endY} Z`;
-            return <path key={i} d={path} fill={colors[i]} />;
-          });
-          return (
-            <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
-              <svg width={size} height={size}>
-                {arcs}
-                {type === "donut" && (
-                  <circle cx={cx} cy={cy} r={r * 0.55} fill={bg} />
-                )}
+                {data.map((d, i) => (
+                  <circle
+                    key={i}
+                    cx={i * step}
+                    cy={toY(d.value)}
+                    r={p > i / data.length ? 10 : 0}
+                    fill={colors[i]}
+                  />
+                ))}
               </svg>
-            </div>
-          );
-        })()}
+            );
+          })()}
+
+        {(type === "pie" || type === "donut") &&
+          (() => {
+            const size = Math.min(width - 200, height - 320);
+            const r = size / 2;
+            const cx = r;
+            const cy = r;
+            let angle = -Math.PI / 2;
+            const arcs = data.map((d, i) => {
+              const slice = (d.value / total) * 2 * Math.PI * p;
+              const startX = cx + r * Math.cos(angle);
+              const startY = cy + r * Math.sin(angle);
+              angle += slice;
+              const endX = cx + r * Math.cos(angle);
+              const endY = cy + r * Math.sin(angle);
+              const large = slice > Math.PI ? 1 : 0;
+              const path = `M ${cx} ${cy} L ${startX} ${startY} A ${r} ${r} 0 ${large} 1 ${endX} ${endY} Z`;
+              return <path key={i} d={path} fill={colors[i]} />;
+            });
+            return (
+              <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+                <svg width={size} height={size}>
+                  {arcs}
+                  {type === "donut" && <circle cx={cx} cy={cy} r={r * 0.55} fill={bg} />}
+                </svg>
+              </div>
+            );
+          })()}
       </div>
     </AbsoluteFill>
   );

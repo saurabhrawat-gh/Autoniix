@@ -26,9 +26,7 @@ export function validateAgainstTemplate(d: DirectionV3Input): ValidationReport {
     if (!tId) continue;
 
     if (tpl.forbidden_transition_prefixes?.some((p) => tId.startsWith(p))) {
-      errors.push(
-        `Segment ${seg.id}: transition "${tId}" is forbidden by template "${tpl.id}".`,
-      );
+      errors.push(`Segment ${seg.id}: transition "${tId}" is forbidden by template "${tpl.id}".`);
     }
     if (
       tpl.allowed_transition_prefixes &&

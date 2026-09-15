@@ -295,6 +295,14 @@ class Router:
 
     def __init__(self) -> None:
         self._breakers: dict[str, _Breaker] = {}
+        # Per-channel asyncio locks serialize the budget-check-then-call
+        # window so N concurrent activities for the same channel can't each
+        # observe "under cap" and collectively overshoot. Distinct channels
+        # run in parallel — locks are keyed by channel_id.
+        self._channel_locks: dict[str, asyncio.Lock] = {}
+        # Guards the lock-map mutation itself (creating a new asyncio.Lock
+        # on the map is not thread-safe under multi-threaded event loops).
+        self._locks_meta_lock: asyncio.Lock = asyncio.Lock()
 
     def _breaker(self, name: str) -> _Breaker:
         b = self._breakers.get(name)
@@ -302,6 +310,21 @@ class Router:
             b = _Breaker()
             self._breakers[name] = b
         return b
+
+    async def _channel_lock(self, channel_id: str) -> asyncio.Lock:
+        # ``channel_id=""`` (no channel context) uses a single shared
+        # "unattributed" lock — cheap and preserves ordering for internal
+        # calls that don't carry a channel.
+        key = channel_id or "__no_channel__"
+        lock = self._channel_locks.get(key)
+        if lock is not None:
+            return lock
+        async with self._locks_meta_lock:
+            lock = self._channel_locks.get(key)
+            if lock is None:
+                lock = asyncio.Lock()
+                self._channel_locks[key] = lock
+        return lock
 
     async def route(
         self,
@@ -314,6 +337,40 @@ class Router:
         ladder: Iterable[str] | None = None,
         record_usage: bool = True,
         compression_tier: str | None = None,
+    ) -> LLMResult:
+        """Route an LLM call through the ladder with per-channel budget serialization.
+
+        Per-channel asyncio lock ensures that budget-check → LLM-call →
+        api_usage write happen atomically for a given channel. Different
+        channels remain fully parallel. Within a channel, LLM calls are
+        serialized — this is acceptable because a channel's pipeline
+        is inherently a per-channel critical section (the workflow already
+        holds a Temporal channel_lock).
+        """
+        lock = await self._channel_lock(channel_id)
+        async with lock:
+            return await self._route_locked(
+                category=category,
+                request=request,
+                channel_id=channel_id,
+                content_id=content_id,
+                content_mode=content_mode,
+                ladder=ladder,
+                record_usage=record_usage,
+                compression_tier=compression_tier,
+            )
+
+    async def _route_locked(
+        self,
+        *,
+        category: str,
+        request: LLMRequest,
+        channel_id: str,
+        content_id: str,
+        content_mode: str | None,
+        ladder: Iterable[str] | None,
+        record_usage: bool,
+        compression_tier: str | None,
     ) -> LLMResult:
         cap = await _cap_for(channel_id)
         if cap > 0:

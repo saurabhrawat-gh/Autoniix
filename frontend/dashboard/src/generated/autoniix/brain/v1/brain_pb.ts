@@ -11,8 +11,12 @@ import type { Message } from "@bufbuild/protobuf";
 /**
  * Describes the file autoniix/brain/v1/brain.proto.
  */
-export const file_autoniix_brain_v1_brain: GenFile = /*@__PURE__*/
-  fileDesc("Ch1hdXRvbmlpeC9icmFpbi92MS9icmFpbi5wcm90bxIRYXV0b25paXguYnJhaW4udjEi6gEKE01ha2VEZWNpc2lvblJlcXVlc3QSEgoKY29udGVudF9pZBgBIAEoCRJECgdtZXRyaWNzGAIgAygLMjMuYXV0b25paXguYnJhaW4udjEuTWFrZURlY2lzaW9uUmVxdWVzdC5NZXRyaWNzRW50cnkSEgoKY2hhbm5lbF9pZBgDIAEoCRIVCg1kZWNpc2lvbl90eXBlGAQgASgJGk4KDE1ldHJpY3NFbnRyeRILCgNrZXkYASABKAkSLQoFdmFsdWUYAiABKAsyHi5hdXRvbmlpeC5icmFpbi52MS5NZXRyaWNWYWx1ZToCOAEifQoUTWFrZURlY2lzaW9uUmVzcG9uc2USEAoIZGVjaXNpb24YASABKAkSEgoKY29uZmlkZW5jZRgCIAEoARIsCgtmaXJlZF9ydWxlcxgDIAMoCzIXLmF1dG9uaWl4LmJyYWluLnYxLlJ1bGUSEQoJcmVhc29uaW5nGAQgASgJInQKFkV2YWx1YXRlUXVhbGl0eVJlcXVlc3QSEgoKY29udGVudF9pZBgBIAEoCRISCgpjaGFubmVsX2lkGAIgASgJEjIKB21ldHJpY3MYAyABKAsyIS5hdXRvbmlpeC5icmFpbi52MS5RdWFsaXR5TWV0cmljcyKHAQoXRXZhbHVhdGVRdWFsaXR5UmVzcG9uc2USDgoGcGFzc2VkGAEgASgIEhUKDXF1YWxpdHlfc2NvcmUYAiABKAESLQoFZ2F0ZXMYAyADKAsyHi5hdXRvbmlpeC5icmFpbi52MS5RdWFsaXR5R2F0ZRIWCg5yZWNvbW1lbmRhdGlvbhgEIAEoCSKwAQoXVXBkYXRlVGhyZXNob2xkc1JlcXVlc3QSEgoKY2hhbm5lbF9pZBgBIAEoCRJOCgp0aHJlc2hvbGRzGAIgAygLMjouYXV0b25paXguYnJhaW4udjEuVXBkYXRlVGhyZXNob2xkc1JlcXVlc3QuVGhyZXNob2xkc0VudHJ5GjEKD1RocmVzaG9sZHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAE6AjgBIioKFEdldFRocmVzaG9sZHNSZXF1ZXN0EhIKCmNoYW5uZWxfaWQYASABKAkimAEKFUdldFRocmVzaG9sZHNSZXNwb25zZRJMCgp0aHJlc2hvbGRzGAEgAygLMjguYXV0b25paXguYnJhaW4udjEuR2V0VGhyZXNob2xkc1Jlc3BvbnNlLlRocmVzaG9sZHNFbnRyeRoxCg9UaHJlc2hvbGRzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgBOgI4ASJMCgtNZXRyaWNWYWx1ZRIRCgdudW1lcmljGAEgASgBSAASDgoEdGV4dBgCIAEoCUgAEhEKB2Jvb2xlYW4YAyABKAhIAEIHCgV2YWx1ZSJVCgRSdWxlEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEQoJY29uZGl0aW9uGAMgASgJEg4KBmFjdGlvbhgEIAEoCRIQCghwcmlvcml0eRgFIAEoBSKQAQoOUXVhbGl0eU1ldHJpY3MSGAoQc2NyaXB0X2NvaGVyZW5jZRgBIAEoARIVCg12b2ljZV9xdWFsaXR5GAIgASgBEhYKDnZpc3VhbF9xdWFsaXR5GAMgASgBEhwKFGVuZ2FnZW1lbnRfcHJlZGljdGVkGAQgASgBEhcKD2JyYW5kX2FsaWdubWVudBgFIAEoASJmCgtRdWFsaXR5R2F0ZRIMCgRuYW1lGAEgASgJEg4KBnBhc3NlZBgCIAEoCBIRCgl0aHJlc2hvbGQYAyABKAESFAoMYWN0dWFsX3ZhbHVlGAQgASgBEhAKCHNldmVyaXR5GAUgASgJMpgDCgxCcmFpblNlcnZpY2USXwoMTWFrZURlY2lzaW9uEiYuYXV0b25paXguYnJhaW4udjEuTWFrZURlY2lzaW9uUmVxdWVzdBonLmF1dG9uaWl4LmJyYWluLnYxLk1ha2VEZWNpc2lvblJlc3BvbnNlEmgKD0V2YWx1YXRlUXVhbGl0eRIpLmF1dG9uaWl4LmJyYWluLnYxLkV2YWx1YXRlUXVhbGl0eVJlcXVlc3QaKi5hdXRvbmlpeC5icmFpbi52MS5FdmFsdWF0ZVF1YWxpdHlSZXNwb25zZRJZChBVcGRhdGVUaHJlc2hvbGRzEiouYXV0b25paXguYnJhaW4udjEuVXBkYXRlVGhyZXNob2xkc1JlcXVlc3QaGS5hdXRvbmlpeC5jb21tb24udjEuRW1wdHkSYgoNR2V0VGhyZXNob2xkcxInLmF1dG9uaWl4LmJyYWluLnYxLkdldFRocmVzaG9sZHNSZXF1ZXN0GiguYXV0b25paXguYnJhaW4udjEuR2V0VGhyZXNob2xkc1Jlc3BvbnNlQsgBChVjb20uYXV0b25paXguYnJhaW4udjFCCkJyYWluUHJvdG9QAVo9Z2l0aHViLmNvbS9hdXRvbmlpeC9hdXRvbmlpeC9nZW4vZ28vYXV0b25paXgvYnJhaW4vdjE7YnJhaW52MaICA0FCWKoCEUF1dG9uaWl4LkJyYWluLlYxygIRQXV0b25paXhcQnJhaW5cVjHiAh1BdXRvbmlpeFxCcmFpblxWMVxHUEJNZXRhZGF0YeoCE0F1dG9uaWl4OjpCcmFpbjo6VjFiBnByb3RvMw", [file_autoniix_common_v1_common]);
+export const file_autoniix_brain_v1_brain: GenFile =
+  /*@__PURE__*/
+  fileDesc(
+    "Ch1hdXRvbmlpeC9icmFpbi92MS9icmFpbi5wcm90bxIRYXV0b25paXguYnJhaW4udjEi6gEKE01ha2VEZWNpc2lvblJlcXVlc3QSEgoKY29udGVudF9pZBgBIAEoCRJECgdtZXRyaWNzGAIgAygLMjMuYXV0b25paXguYnJhaW4udjEuTWFrZURlY2lzaW9uUmVxdWVzdC5NZXRyaWNzRW50cnkSEgoKY2hhbm5lbF9pZBgDIAEoCRIVCg1kZWNpc2lvbl90eXBlGAQgASgJGk4KDE1ldHJpY3NFbnRyeRILCgNrZXkYASABKAkSLQoFdmFsdWUYAiABKAsyHi5hdXRvbmlpeC5icmFpbi52MS5NZXRyaWNWYWx1ZToCOAEifQoUTWFrZURlY2lzaW9uUmVzcG9uc2USEAoIZGVjaXNpb24YASABKAkSEgoKY29uZmlkZW5jZRgCIAEoARIsCgtmaXJlZF9ydWxlcxgDIAMoCzIXLmF1dG9uaWl4LmJyYWluLnYxLlJ1bGUSEQoJcmVhc29uaW5nGAQgASgJInQKFkV2YWx1YXRlUXVhbGl0eVJlcXVlc3QSEgoKY29udGVudF9pZBgBIAEoCRISCgpjaGFubmVsX2lkGAIgASgJEjIKB21ldHJpY3MYAyABKAsyIS5hdXRvbmlpeC5icmFpbi52MS5RdWFsaXR5TWV0cmljcyKHAQoXRXZhbHVhdGVRdWFsaXR5UmVzcG9uc2USDgoGcGFzc2VkGAEgASgIEhUKDXF1YWxpdHlfc2NvcmUYAiABKAESLQoFZ2F0ZXMYAyADKAsyHi5hdXRvbmlpeC5icmFpbi52MS5RdWFsaXR5R2F0ZRIWCg5yZWNvbW1lbmRhdGlvbhgEIAEoCSKwAQoXVXBkYXRlVGhyZXNob2xkc1JlcXVlc3QSEgoKY2hhbm5lbF9pZBgBIAEoCRJOCgp0aHJlc2hvbGRzGAIgAygLMjouYXV0b25paXguYnJhaW4udjEuVXBkYXRlVGhyZXNob2xkc1JlcXVlc3QuVGhyZXNob2xkc0VudHJ5GjEKD1RocmVzaG9sZHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAE6AjgBIioKFEdldFRocmVzaG9sZHNSZXF1ZXN0EhIKCmNoYW5uZWxfaWQYASABKAkimAEKFUdldFRocmVzaG9sZHNSZXNwb25zZRJMCgp0aHJlc2hvbGRzGAEgAygLMjguYXV0b25paXguYnJhaW4udjEuR2V0VGhyZXNob2xkc1Jlc3BvbnNlLlRocmVzaG9sZHNFbnRyeRoxCg9UaHJlc2hvbGRzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgBOgI4ASJMCgtNZXRyaWNWYWx1ZRIRCgdudW1lcmljGAEgASgBSAASDgoEdGV4dBgCIAEoCUgAEhEKB2Jvb2xlYW4YAyABKAhIAEIHCgV2YWx1ZSJVCgRSdWxlEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEQoJY29uZGl0aW9uGAMgASgJEg4KBmFjdGlvbhgEIAEoCRIQCghwcmlvcml0eRgFIAEoBSKQAQoOUXVhbGl0eU1ldHJpY3MSGAoQc2NyaXB0X2NvaGVyZW5jZRgBIAEoARIVCg12b2ljZV9xdWFsaXR5GAIgASgBEhYKDnZpc3VhbF9xdWFsaXR5GAMgASgBEhwKFGVuZ2FnZW1lbnRfcHJlZGljdGVkGAQgASgBEhcKD2JyYW5kX2FsaWdubWVudBgFIAEoASJmCgtRdWFsaXR5R2F0ZRIMCgRuYW1lGAEgASgJEg4KBnBhc3NlZBgCIAEoCBIRCgl0aHJlc2hvbGQYAyABKAESFAoMYWN0dWFsX3ZhbHVlGAQgASgBEhAKCHNldmVyaXR5GAUgASgJMpgDCgxCcmFpblNlcnZpY2USXwoMTWFrZURlY2lzaW9uEiYuYXV0b25paXguYnJhaW4udjEuTWFrZURlY2lzaW9uUmVxdWVzdBonLmF1dG9uaWl4LmJyYWluLnYxLk1ha2VEZWNpc2lvblJlc3BvbnNlEmgKD0V2YWx1YXRlUXVhbGl0eRIpLmF1dG9uaWl4LmJyYWluLnYxLkV2YWx1YXRlUXVhbGl0eVJlcXVlc3QaKi5hdXRvbmlpeC5icmFpbi52MS5FdmFsdWF0ZVF1YWxpdHlSZXNwb25zZRJZChBVcGRhdGVUaHJlc2hvbGRzEiouYXV0b25paXguYnJhaW4udjEuVXBkYXRlVGhyZXNob2xkc1JlcXVlc3QaGS5hdXRvbmlpeC5jb21tb24udjEuRW1wdHkSYgoNR2V0VGhyZXNob2xkcxInLmF1dG9uaWl4LmJyYWluLnYxLkdldFRocmVzaG9sZHNSZXF1ZXN0GiguYXV0b25paXguYnJhaW4udjEuR2V0VGhyZXNob2xkc1Jlc3BvbnNlQsgBChVjb20uYXV0b25paXguYnJhaW4udjFCCkJyYWluUHJvdG9QAVo9Z2l0aHViLmNvbS9hdXRvbmlpeC9hdXRvbmlpeC9nZW4vZ28vYXV0b25paXgvYnJhaW4vdjE7YnJhaW52MaICA0FCWKoCEUF1dG9uaWl4LkJyYWluLlYxygIRQXV0b25paXhcQnJhaW5cVjHiAh1BdXRvbmlpeFxCcmFpblxWMVxHUEJNZXRhZGF0YeoCE0F1dG9uaWl4OjpCcmFpbjo6VjFiBnByb3RvMw",
+    [file_autoniix_common_v1_common]
+  );
 
 /**
  * @generated from message autoniix.brain.v1.MakeDecisionRequest
@@ -43,7 +47,8 @@ export type MakeDecisionRequest = Message<"autoniix.brain.v1.MakeDecisionRequest
  * Describes the message autoniix.brain.v1.MakeDecisionRequest.
  * Use `create(MakeDecisionRequestSchema)` to create a new message.
  */
-export const MakeDecisionRequestSchema: GenMessage<MakeDecisionRequest> = /*@__PURE__*/
+export const MakeDecisionRequestSchema: GenMessage<MakeDecisionRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_brain_v1_brain, 0);
 
 /**
@@ -75,7 +80,8 @@ export type MakeDecisionResponse = Message<"autoniix.brain.v1.MakeDecisionRespon
  * Describes the message autoniix.brain.v1.MakeDecisionResponse.
  * Use `create(MakeDecisionResponseSchema)` to create a new message.
  */
-export const MakeDecisionResponseSchema: GenMessage<MakeDecisionResponse> = /*@__PURE__*/
+export const MakeDecisionResponseSchema: GenMessage<MakeDecisionResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_brain_v1_brain, 1);
 
 /**
@@ -102,7 +108,8 @@ export type EvaluateQualityRequest = Message<"autoniix.brain.v1.EvaluateQualityR
  * Describes the message autoniix.brain.v1.EvaluateQualityRequest.
  * Use `create(EvaluateQualityRequestSchema)` to create a new message.
  */
-export const EvaluateQualityRequestSchema: GenMessage<EvaluateQualityRequest> = /*@__PURE__*/
+export const EvaluateQualityRequestSchema: GenMessage<EvaluateQualityRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_brain_v1_brain, 2);
 
 /**
@@ -134,7 +141,8 @@ export type EvaluateQualityResponse = Message<"autoniix.brain.v1.EvaluateQuality
  * Describes the message autoniix.brain.v1.EvaluateQualityResponse.
  * Use `create(EvaluateQualityResponseSchema)` to create a new message.
  */
-export const EvaluateQualityResponseSchema: GenMessage<EvaluateQualityResponse> = /*@__PURE__*/
+export const EvaluateQualityResponseSchema: GenMessage<EvaluateQualityResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_brain_v1_brain, 3);
 
 /**
@@ -156,7 +164,8 @@ export type UpdateThresholdsRequest = Message<"autoniix.brain.v1.UpdateThreshold
  * Describes the message autoniix.brain.v1.UpdateThresholdsRequest.
  * Use `create(UpdateThresholdsRequestSchema)` to create a new message.
  */
-export const UpdateThresholdsRequestSchema: GenMessage<UpdateThresholdsRequest> = /*@__PURE__*/
+export const UpdateThresholdsRequestSchema: GenMessage<UpdateThresholdsRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_brain_v1_brain, 4);
 
 /**
@@ -173,7 +182,8 @@ export type GetThresholdsRequest = Message<"autoniix.brain.v1.GetThresholdsReque
  * Describes the message autoniix.brain.v1.GetThresholdsRequest.
  * Use `create(GetThresholdsRequestSchema)` to create a new message.
  */
-export const GetThresholdsRequestSchema: GenMessage<GetThresholdsRequest> = /*@__PURE__*/
+export const GetThresholdsRequestSchema: GenMessage<GetThresholdsRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_brain_v1_brain, 5);
 
 /**
@@ -190,7 +200,8 @@ export type GetThresholdsResponse = Message<"autoniix.brain.v1.GetThresholdsResp
  * Describes the message autoniix.brain.v1.GetThresholdsResponse.
  * Use `create(GetThresholdsResponseSchema)` to create a new message.
  */
-export const GetThresholdsResponseSchema: GenMessage<GetThresholdsResponse> = /*@__PURE__*/
+export const GetThresholdsResponseSchema: GenMessage<GetThresholdsResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_brain_v1_brain, 6);
 
 /**
@@ -200,33 +211,36 @@ export type MetricValue = Message<"autoniix.brain.v1.MetricValue"> & {
   /**
    * @generated from oneof autoniix.brain.v1.MetricValue.value
    */
-  value: {
-    /**
-     * @generated from field: double numeric = 1;
-     */
-    value: number;
-    case: "numeric";
-  } | {
-    /**
-     * @generated from field: string text = 2;
-     */
-    value: string;
-    case: "text";
-  } | {
-    /**
-     * @generated from field: bool boolean = 3;
-     */
-    value: boolean;
-    case: "boolean";
-  } | { case: undefined; value?: undefined };
+  value:
+    | {
+        /**
+         * @generated from field: double numeric = 1;
+         */
+        value: number;
+        case: "numeric";
+      }
+    | {
+        /**
+         * @generated from field: string text = 2;
+         */
+        value: string;
+        case: "text";
+      }
+    | {
+        /**
+         * @generated from field: bool boolean = 3;
+         */
+        value: boolean;
+        case: "boolean";
+      }
+    | { case: undefined; value?: undefined };
 };
 
 /**
  * Describes the message autoniix.brain.v1.MetricValue.
  * Use `create(MetricValueSchema)` to create a new message.
  */
-export const MetricValueSchema: GenMessage<MetricValue> = /*@__PURE__*/
-  messageDesc(file_autoniix_brain_v1_brain, 7);
+export const MetricValueSchema: GenMessage<MetricValue> = /*@__PURE__*/ messageDesc(file_autoniix_brain_v1_brain, 7);
 
 /**
  * @generated from message autoniix.brain.v1.Rule
@@ -262,8 +276,7 @@ export type Rule = Message<"autoniix.brain.v1.Rule"> & {
  * Describes the message autoniix.brain.v1.Rule.
  * Use `create(RuleSchema)` to create a new message.
  */
-export const RuleSchema: GenMessage<Rule> = /*@__PURE__*/
-  messageDesc(file_autoniix_brain_v1_brain, 8);
+export const RuleSchema: GenMessage<Rule> = /*@__PURE__*/ messageDesc(file_autoniix_brain_v1_brain, 8);
 
 /**
  * @generated from message autoniix.brain.v1.QualityMetrics
@@ -299,7 +312,8 @@ export type QualityMetrics = Message<"autoniix.brain.v1.QualityMetrics"> & {
  * Describes the message autoniix.brain.v1.QualityMetrics.
  * Use `create(QualityMetricsSchema)` to create a new message.
  */
-export const QualityMetricsSchema: GenMessage<QualityMetrics> = /*@__PURE__*/
+export const QualityMetricsSchema: GenMessage<QualityMetrics> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_brain_v1_brain, 9);
 
 /**
@@ -336,8 +350,7 @@ export type QualityGate = Message<"autoniix.brain.v1.QualityGate"> & {
  * Describes the message autoniix.brain.v1.QualityGate.
  * Use `create(QualityGateSchema)` to create a new message.
  */
-export const QualityGateSchema: GenMessage<QualityGate> = /*@__PURE__*/
-  messageDesc(file_autoniix_brain_v1_brain, 10);
+export const QualityGateSchema: GenMessage<QualityGate> = /*@__PURE__*/ messageDesc(file_autoniix_brain_v1_brain, 10);
 
 /**
  * @generated from service autoniix.brain.v1.BrainService
@@ -350,7 +363,7 @@ export const BrainService: GenService<{
     methodKind: "unary";
     input: typeof MakeDecisionRequestSchema;
     output: typeof MakeDecisionResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.brain.v1.BrainService.EvaluateQuality
    */
@@ -358,7 +371,7 @@ export const BrainService: GenService<{
     methodKind: "unary";
     input: typeof EvaluateQualityRequestSchema;
     output: typeof EvaluateQualityResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.brain.v1.BrainService.UpdateThresholds
    */
@@ -366,7 +379,7 @@ export const BrainService: GenService<{
     methodKind: "unary";
     input: typeof UpdateThresholdsRequestSchema;
     output: typeof EmptySchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.brain.v1.BrainService.GetThresholds
    */
@@ -374,7 +387,5 @@ export const BrainService: GenService<{
     methodKind: "unary";
     input: typeof GetThresholdsRequestSchema;
     output: typeof GetThresholdsResponseSchema;
-  },
-}> = /*@__PURE__*/
-  serviceDesc(file_autoniix_brain_v1_brain, 0);
-
+  };
+}> = /*@__PURE__*/ serviceDesc(file_autoniix_brain_v1_brain, 0);

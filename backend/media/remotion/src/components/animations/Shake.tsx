@@ -23,15 +23,11 @@ export const Shake: React.FC<ShakeProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const active = frame >= delay && frame < delay + durationInFrames;
-  const falloff = active
-    ? 1 - (frame - delay) / durationInFrames
-    : 0;
+  const falloff = active ? 1 - (frame - delay) / durationInFrames : 0;
 
   const dx = active ? (random(`${seed}-x-${frame}`) * 2 - 1) * intensity * falloff : 0;
   const dy = active ? (random(`${seed}-y-${frame}`) * 2 - 1) * intensity * falloff : 0;
-  const rz = active
-    ? (random(`${seed}-r-${frame}`) * 2 - 1) * rotationDeg * falloff
-    : 0;
+  const rz = active ? (random(`${seed}-r-${frame}`) * 2 - 1) * rotationDeg * falloff : 0;
 
   return (
     <div

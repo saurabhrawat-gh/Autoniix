@@ -23,6 +23,8 @@ export function registerSseRoutes(app: FastifyInstance, hub: Hub): void {
     const query = request.query as {
       workspace_id?: string;
       event_types?: string;
+      content_id?: string;
+      last_event_id?: string;
     };
 
     if (!query.workspace_id) {
@@ -41,8 +43,17 @@ export function registerSseRoutes(app: FastifyInstance, hub: Hub): void {
     }
 
     const eventTypes = query.event_types
-      ? query.event_types.split(",").map((s) => s.trim()).filter(Boolean)
+      ? query.event_types
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
       : undefined;
+
+    // SSE resume: honor the standard `Last-Event-ID` header (auto-set by
+    // EventSource on reconnect), falling back to a query param. When
+    // combined with a ``content_id`` we replay the per-job Redis stream
+    // from that ID so no events are lost across a network blip.
+    const lastEventId = (request.headers["last-event-id"] as string | undefined) || query.last_event_id || "";
 
     // Raw response for SSE — bypass Fastify serialization
     reply.raw.writeHead(200, {
@@ -54,7 +65,10 @@ export function registerSseRoutes(app: FastifyInstance, hub: Hub): void {
     reply.hijack();
 
     const push = (event: Event) => {
-      const line = `id: ${event.id}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
+      // Use the durable stream_id (if present) for SSE `id:` so
+      // Last-Event-ID resume points at the right stream offset.
+      const sseId = event.stream_id ?? event.id;
+      const line = `id: ${sseId}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
       reply.raw.write(line);
     };
 
@@ -62,14 +76,20 @@ export function registerSseRoutes(app: FastifyInstance, hub: Hub): void {
       reply.raw.write(`: keepalive ${Date.now()}\n\n`);
     }, KEEPALIVE_MS);
 
-    const subId = hub.subscribe(
-      { workspaceId: query.workspace_id, eventTypes },
-      push,
-      () => {
-        clearInterval(keepalive);
-        reply.raw.end();
+    // Replay any events the client missed while disconnected.
+    if (query.content_id && lastEventId) {
+      try {
+        const missed = await hub.replaySince(query.content_id, lastEventId);
+        for (const evt of missed) push(evt);
+      } catch (err) {
+        request.log.warn({ err }, "streaming.sse_replay_failed");
       }
-    );
+    }
+
+    const subId = hub.subscribe({ workspaceId: query.workspace_id, eventTypes }, push, () => {
+      clearInterval(keepalive);
+      reply.raw.end();
+    });
 
     // Send initial "connected" event so client knows the stream is live
     push({
@@ -77,7 +97,7 @@ export function registerSseRoutes(app: FastifyInstance, hub: Hub): void {
       type: "stream.connected",
       workspace_id: query.workspace_id,
       ts: Date.now(),
-      data: { subscriber_id: subId },
+      data: { subscriber_id: subId, resumed_from: lastEventId || null },
     });
 
     request.raw.on("close", () => {
@@ -92,10 +112,7 @@ interface AuthedPrincipal {
   workspace_id: string;
 }
 
-async function authenticate(
-  app: FastifyInstance,
-  request: FastifyRequest
-): Promise<AuthedPrincipal | null> {
+async function authenticate(app: FastifyInstance, request: FastifyRequest): Promise<AuthedPrincipal | null> {
   const query = request.query as { token?: string };
   const headerToken = extractBearer(request.headers.authorization);
   const token = headerToken || query.token;

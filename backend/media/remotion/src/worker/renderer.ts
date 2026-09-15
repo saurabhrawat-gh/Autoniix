@@ -1,11 +1,6 @@
 import path from "node:path";
 import fs from "node:fs";
-import {
-  renderMedia,
-  renderStill,
-  selectComposition,
-  type Codec,
-} from "@remotion/renderer";
+import { renderMedia, renderStill, selectComposition, type Codec } from "@remotion/renderer";
 import { env } from "../utils/env";
 import { logger } from "../utils/logger";
 import { uploadFile } from "../utils/storage";
@@ -21,7 +16,10 @@ import type { RenderJobData } from "../api/queue";
 /** Bundle the Remotion entry, using the shared cache when available (P0.5). */
 async function getBundle(): Promise<string> {
   const stats = await getOrBuildBundle();
-  logger.info({ source: stats.source, hash: stats.hash.slice(0, 12), warmMs: stats.warmMs }, "bundle ready");
+  logger.info(
+    { source: stats.source, hash: stats.hash.slice(0, 12), warmMs: stats.warmMs },
+    "bundle ready",
+  );
   return stats.bundlePath;
 }
 
@@ -62,18 +60,14 @@ export async function runRender(
     if (directionRaw) {
       const parsed = DirectionV3.safeParse(directionRaw);
       if (!parsed.success) {
-        throw new Error(
-          `direction JSON failed schema validation: ${parsed.error.message}`,
-        );
+        throw new Error(`direction JSON failed schema validation: ${parsed.error.message}`);
       }
       const report = validateAgainstTemplate(parsed.data);
       if (report.warnings.length) {
         logger.warn({ warnings: report.warnings }, "template validation warnings");
       }
       if (!report.valid) {
-        throw new Error(
-          `template validation failed: ${report.errors.join("; ")}`,
-        );
+        throw new Error(`template validation failed: ${report.errors.join("; ")}`);
       }
     }
   }
@@ -125,9 +119,9 @@ export async function runRender(
   const quality = job.quality ?? 80;
   const baseCrf = Math.max(1, Math.round(51 - (quality / 100) * 50));
 
-  const codecFamily = (codec === "h264" || codec === "h265" || codec === "vp8" || codec === "vp9"
-    ? codec
-    : "h264") as CodecFamily;
+  const codecFamily = (
+    codec === "h264" || codec === "h265" || codec === "vp8" || codec === "vp9" ? codec : "h264"
+  ) as CodecFamily;
   const enc = await selectEncoder(codecFamily);
   const crf = Math.max(1, Math.min(51, baseCrf + enc.crfOffset));
   logger.info(
@@ -149,8 +143,9 @@ export async function runRender(
     hardwareAcceleration: enc.hardwareAcceleration,
   });
 
-  const targetLufs = (job.inputProps as { direction?: { audio?: { loudness_target_lufs?: number } } })
-    .direction?.audio?.loudness_target_lufs;
+  const targetLufs = (
+    job.inputProps as { direction?: { audio?: { loudness_target_lufs?: number } } }
+  ).direction?.audio?.loudness_target_lufs;
   if (typeof targetLufs === "number" && ext !== "webm") {
     try {
       logger.info({ targetLufs }, "normalizing loudness");
@@ -160,18 +155,29 @@ export async function runRender(
     }
   }
 
-  const directionForQc = (job.inputProps as { direction?: { meta?: { duration_target_seconds?: number }; segments?: Array<{ duration_ms: number }>; audio?: { voiceover_url?: string } } }).direction;
+  const directionForQc = (
+    job.inputProps as {
+      direction?: {
+        meta?: { duration_target_seconds?: number };
+        segments?: Array<{ duration_ms: number }>;
+        audio?: { voiceover_url?: string };
+      };
+    }
+  ).direction;
   const segMs = directionForQc?.segments?.reduce((a, s) => a + (s.duration_ms || 0), 0) ?? 0;
-  const expectedDurationSec = segMs > 0
-    ? segMs / 1000
-    : directionForQc?.meta?.duration_target_seconds ?? 0;
+  const expectedDurationSec =
+    segMs > 0 ? segMs / 1000 : (directionForQc?.meta?.duration_target_seconds ?? 0);
   const expectAudio = Boolean(directionForQc?.audio?.voiceover_url);
   const qcResult = await postRenderQc(outPath, {
     expectedDurationSec,
     expectAudio,
   });
   if (!qcResult.pass) {
-    try { fs.unlinkSync(outPath); } catch { /* ignore */ }
+    try {
+      fs.unlinkSync(outPath);
+    } catch {
+      /* ignore */
+    }
     throw new RenderQcError(qcResult.reasons);
   }
 
@@ -191,7 +197,11 @@ export async function runRender(
         extractMixedAudio(outPath, audioWavPath),
       ]);
       const [videoUp, audioUp] = await Promise.all([
-        uploadFile(videoOnlyPath, `renders/${job.renderId}.video_only.${ext}`, `video/${ext === "mp4" ? "mp4" : "webm"}`),
+        uploadFile(
+          videoOnlyPath,
+          `renders/${job.renderId}.video_only.${ext}`,
+          `video/${ext === "mp4" ? "mp4" : "webm"}`,
+        ),
         uploadFile(audioWavPath, `renders/${job.renderId}.audio.wav`, "audio/wav"),
       ]);
       stems = { videoOnlyUrl: videoUp.url, audioMixUrl: audioUp.url };

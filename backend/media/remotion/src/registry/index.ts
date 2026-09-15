@@ -3,11 +3,47 @@ import { TRANSITION_PRESETS, resolveTransition } from "./transitions";
 import { ANIMATION_PRESETS } from "./animations";
 import { EFFECT_PRESETS } from "./effects";
 import { OVERLAY_PRESETS } from "./overlays";
-import { SFX_LIBRARY, resolveSfx, listSfx, sfxCount, listSfxPremiumFirst, listSfxBySource } from "./sfxLibrary";
-import { grainLibrary, resolveGrain, getGrainByTag, getRandomGrain, grainPath, registerGrainAssets } from "./grainLibrary";
-import { lutLibrary, resolveLUT, getLUTsByCategory, getLUTsByTag, getRandomLUT, lutPath, registerLutAssets } from "./lutLibrary";
-import { overlayLibrary, resolveOverlay, getOverlaysByType, getOverlaysByTag, getRandomOverlay, overlayPath, registerOverlayAssets } from "./overlayLibrary";
-import { resolveAsset, resolveAssetById, resolveRandom, getAssetStats, getAssetCount } from "../services/assetResolver";
+import {
+  SFX_LIBRARY,
+  resolveSfx,
+  listSfx,
+  sfxCount,
+  listSfxPremiumFirst,
+  listSfxBySource,
+} from "./sfxLibrary";
+import {
+  grainLibrary,
+  resolveGrain,
+  getGrainByTag,
+  getRandomGrain,
+  grainPath,
+  registerGrainAssets,
+} from "./grainLibrary";
+import {
+  lutLibrary,
+  resolveLUT,
+  getLUTsByCategory,
+  getLUTsByTag,
+  getRandomLUT,
+  lutPath,
+  registerLutAssets,
+} from "./lutLibrary";
+import {
+  overlayLibrary,
+  resolveOverlay,
+  getOverlaysByType,
+  getOverlaysByTag,
+  getRandomOverlay,
+  overlayPath,
+  registerOverlayAssets,
+} from "./overlayLibrary";
+import {
+  resolveAsset,
+  resolveAssetById,
+  resolveRandom,
+  getAssetStats,
+  getAssetCount,
+} from "../services/assetResolver";
 import type { PresetCategory, PresetEntry, PresetRegistry } from "./types";
 import type { TransitionPresetEntry } from "./transitionTypes";
 import type { SfxEntry, SfxCategory, SfxSource } from "./sfxLibrary";
@@ -52,7 +88,15 @@ export {
   getAssetStats,
   getAssetCount,
 };
-export type { TransitionPresetEntry, SfxEntry, SfxCategory, SfxSource, AssetEntry, AssetCategory, ResolveResult };
+export type {
+  TransitionPresetEntry,
+  SfxEntry,
+  SfxCategory,
+  SfxSource,
+  AssetEntry,
+  AssetCategory,
+  ResolveResult,
+};
 
 /**
  * Unified map for component-style presets (scenes, animations, effects, overlays).
@@ -69,7 +113,11 @@ export const ALL_PRESETS: PresetRegistry = {
 export function resolvePreset(
   id: string,
   overrides: Record<string, unknown> = {},
-): { Component: PresetEntry["component"]; props: Record<string, unknown>; meta: { category: PresetCategory; tags: string[] } } | null {
+): {
+  Component: PresetEntry["component"];
+  props: Record<string, unknown>;
+  meta: { category: PresetCategory; tags: string[] };
+} | null {
   const entry = ALL_PRESETS[id];
   if (!entry) return null;
   return {

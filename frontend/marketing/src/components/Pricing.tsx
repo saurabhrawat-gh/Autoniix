@@ -1,14 +1,14 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Check, Zap, ArrowRight } from 'lucide-react'
-import GlowButton from './ui/GlowButton'
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Check, Zap, ArrowRight } from "lucide-react";
+import GlowButton from "./ui/GlowButton";
 
 const plans = [
   {
-    id: 'solo',
-    name: 'Solo',
+    id: "solo",
+    name: "Solo",
     monthly: 19,
     annual: 15,
     profiles: 1,
@@ -16,11 +16,11 @@ const plans = [
     seats: 1,
     popular: false,
     enterprise: false,
-    features: ['1 content profile', '20 videos / month', '1 team seat', 'AI research + scripting', 'Basic analytics'],
+    features: ["1 content profile", "20 videos / month", "1 team seat", "AI research + scripting", "Basic analytics"],
   },
   {
-    id: 'starter',
-    name: 'Starter',
+    id: "starter",
+    name: "Starter",
     monthly: 49,
     annual: 39,
     profiles: 3,
@@ -28,11 +28,18 @@ const plans = [
     seats: 2,
     popular: false,
     enterprise: false,
-    features: ['3 content profiles', '75 videos / month', '2 team seats', 'AI research + scripting', 'Voice synthesis', 'Advanced analytics'],
+    features: [
+      "3 content profiles",
+      "75 videos / month",
+      "2 team seats",
+      "AI research + scripting",
+      "Voice synthesis",
+      "Advanced analytics",
+    ],
   },
   {
-    id: 'pro',
-    name: 'Pro',
+    id: "pro",
+    name: "Pro",
     monthly: 99,
     annual: 79,
     profiles: 10,
@@ -40,11 +47,19 @@ const plans = [
     seats: 5,
     popular: true,
     enterprise: false,
-    features: ['10 content profiles', '250 videos / month', '5 team seats', 'All AI models', 'Priority rendering', 'Full analytics + intelligence', 'Human review workflows'],
+    features: [
+      "10 content profiles",
+      "250 videos / month",
+      "5 team seats",
+      "All AI models",
+      "Priority rendering",
+      "Full analytics + intelligence",
+      "Human review workflows",
+    ],
   },
   {
-    id: 'business',
-    name: 'Business',
+    id: "business",
+    name: "Business",
     monthly: 249,
     annual: 199,
     profiles: 30,
@@ -52,11 +67,19 @@ const plans = [
     seats: 15,
     popular: false,
     enterprise: false,
-    features: ['30 content profiles', '750 videos / month', '15 team seats', 'All Pro features', 'Shorts + long-form pipelines', 'Dedicated support', '+$15/seat beyond 15'],
+    features: [
+      "30 content profiles",
+      "750 videos / month",
+      "15 team seats",
+      "All Pro features",
+      "Shorts + long-form pipelines",
+      "Dedicated support",
+      "+$15/seat beyond 15",
+    ],
   },
   {
-    id: 'enterprise',
-    name: 'Enterprise',
+    id: "enterprise",
+    name: "Enterprise",
     monthly: null,
     annual: null,
     profiles: null,
@@ -64,15 +87,23 @@ const plans = [
     seats: null,
     popular: false,
     enterprise: true,
-    features: ['Unlimited profiles', 'Unlimited videos', 'Unlimited seats', 'Custom SLA', 'Dedicated infrastructure', 'Onboarding & training', 'SSO + compliance'],
+    features: [
+      "Unlimited profiles",
+      "Unlimited videos",
+      "Unlimited seats",
+      "Custom SLA",
+      "Dedicated infrastructure",
+      "Onboarding & training",
+      "SSO + compliance",
+    ],
   },
-]
+];
 
 export default function Pricing() {
-  const [annual, setAnnual] = useState(false)
+  const [annual, setAnnual] = useState(false);
 
   return (
-    <section id="pricing" className="section-pad relative" style={{ overflowX: 'clip' }}>
+    <section id="pricing" className="section-pad relative" style={{ overflowX: "clip" }}>
       {/* Aurora + rainbow ambient */}
       <div className="section-glow-aurora" style={{ opacity: 0.8 }} />
       <div className="rainbow-glow" style={{ opacity: 0.4 }} />
@@ -81,7 +112,10 @@ export default function Pricing() {
       <div className="section-blend section-blend-bottom" />
       <div
         className="absolute top-0 left-0 right-0 h-px"
-        style={{ background: 'linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-secondary) 28%, transparent), transparent)' }}
+        style={{
+          background:
+            "linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-secondary) 28%, transparent), transparent)",
+        }}
       />
 
       <div className="max-w-7xl mx-auto px-6">
@@ -89,22 +123,22 @@ export default function Pricing() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-80px' }}
+          viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.55 }}
           className="text-center mb-12"
         >
           <div
             className="inline-flex items-center gap-2 px-3 py-1 rounded-full border t-eyebrow mb-5"
-            style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+            style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
           >
             Pricing
           </div>
-          <h2 className="t-display-lg mb-4" style={{ color: 'var(--text-primary)' }}>
+          <h2 className="t-display-lg mb-4" style={{ color: "var(--text-primary)" }}>
             Simple, transparent
             <br />
             <span className="gradient-text-animated">pricing</span>
           </h2>
-          <p className="t-body-lg max-w-lg mx-auto mb-8" style={{ color: 'var(--text-muted)' }}>
+          <p className="t-body-lg max-w-lg mx-auto mb-8" style={{ color: "var(--text-muted)" }}>
             Start free. Scale as you grow. No surprises.
           </p>
 
@@ -113,7 +147,7 @@ export default function Pricing() {
             <button
               onClick={() => setAnnual(false)}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                !annual ? 'bg-[#00D89F]/15 text-[#00D89F]' : 'text-white/50 hover:text-white/70'
+                !annual ? "bg-[#00D89F]/15 text-[#00D89F]" : "text-white/50 hover:text-white/70"
               }`}
             >
               Monthly
@@ -121,7 +155,7 @@ export default function Pricing() {
             <button
               onClick={() => setAnnual(true)}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-                annual ? 'bg-[#00D89F]/15 text-[#00D89F]' : 'text-white/50 hover:text-white/70'
+                annual ? "bg-[#00D89F]/15 text-[#00D89F]" : "text-white/50 hover:text-white/70"
               }`}
             >
               Annual
@@ -139,14 +173,14 @@ export default function Pricing() {
               key={plan.id}
               initial={{ opacity: 0, y: 32 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-40px' }}
+              viewport={{ once: true, margin: "-40px" }}
               transition={{ duration: 0.5, delay: i * 0.07 }}
               className={`relative flex flex-col rounded-2xl p-5 border transition-all duration-300 ${
                 plan.popular
-                  ? 'pricing-popular bg-gradient-to-b from-[#00D89F]/8 to-transparent scale-[1.03] z-10'
+                  ? "pricing-popular bg-gradient-to-b from-[#00D89F]/8 to-transparent scale-[1.03] z-10"
                   : plan.enterprise
-                  ? 'pricing-enterprise glass-card'
-                  : 'glass-card hover:border-white/15'
+                    ? "pricing-enterprise glass-card"
+                    : "glass-card hover:border-white/15"
               }`}
             >
               {/* Popular badge */}
@@ -159,32 +193,57 @@ export default function Pricing() {
 
               {/* Plan name */}
               <div className="mb-4">
-                <p className="t-eyebrow mb-1" style={{ color: 'var(--text-muted)' }}>{plan.name}</p>
+                <p className="t-eyebrow mb-1" style={{ color: "var(--text-muted)" }}>
+                  {plan.name}
+                </p>
 
                 {/* Price */}
                 <AnimatePresence mode="wait">
                   {plan.enterprise ? (
-                    <div style={{ color: 'var(--text-primary)', fontSize: '1.75rem', fontWeight: 500, letterSpacing: '-0.025em', lineHeight: 1 }}>Custom</div>
+                    <div
+                      style={{
+                        color: "var(--text-primary)",
+                        fontSize: "1.75rem",
+                        fontWeight: 500,
+                        letterSpacing: "-0.025em",
+                        lineHeight: 1,
+                      }}
+                    >
+                      Custom
+                    </div>
                   ) : (
                     <motion.div
-                      key={annual ? 'annual' : 'monthly'}
+                      key={annual ? "annual" : "monthly"}
                       initial={{ opacity: 0, y: -8 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 8 }}
                       transition={{ duration: 0.2 }}
                       className="flex items-end gap-1"
                     >
-                      <span style={{ color: 'var(--text-primary)', fontSize: '2.25rem', fontWeight: 500, letterSpacing: '-0.03em', lineHeight: 1 }}>
+                      <span
+                        style={{
+                          color: "var(--text-primary)",
+                          fontSize: "2.25rem",
+                          fontWeight: 500,
+                          letterSpacing: "-0.03em",
+                          lineHeight: 1,
+                        }}
+                      >
                         ${annual ? plan.annual : plan.monthly}
                       </span>
-                      <span className="t-body-sm mb-1" style={{ color: 'var(--text-muted)' }}>/mo</span>
+                      <span className="t-body-sm mb-1" style={{ color: "var(--text-muted)" }}>
+                        /mo
+                      </span>
                     </motion.div>
                   )}
                 </AnimatePresence>
 
                 {annual && !plan.enterprise && (
-                  <p className="t-micro mt-1.5" style={{ color: 'var(--accent)', textTransform: 'none', letterSpacing: 0 }}>
-                    billed ${((annual ? plan.annual! : plan.monthly!) * 12)} / year
+                  <p
+                    className="t-micro mt-1.5"
+                    style={{ color: "var(--accent)", textTransform: "none", letterSpacing: 0 }}
+                  >
+                    billed ${(annual ? plan.annual! : plan.monthly!) * 12} / year
                   </p>
                 )}
               </div>
@@ -193,11 +252,14 @@ export default function Pricing() {
               {!plan.enterprise && (
                 <div className="flex flex-wrap gap-1.5 mb-5">
                   {[
-                    `${plan.profiles} profile${plan.profiles !== 1 ? 's' : ''}`,
+                    `${plan.profiles} profile${plan.profiles !== 1 ? "s" : ""}`,
                     `${plan.videos} videos`,
-                    `${plan.seats} seat${plan.seats !== 1 ? 's' : ''}`,
+                    `${plan.seats} seat${plan.seats !== 1 ? "s" : ""}`,
                   ].map((tag) => (
-                    <span key={tag} className="text-xs bg-white/5 border border-white/8 text-white/50 px-2 py-0.5 rounded-md">
+                    <span
+                      key={tag}
+                      className="text-xs bg-white/5 border border-white/8 text-white/50 px-2 py-0.5 rounded-md"
+                    >
                       {tag}
                     </span>
                   ))}
@@ -207,11 +269,15 @@ export default function Pricing() {
               {/* Features */}
               <ul className="space-y-2 flex-1 mb-6">
                 {plan.features.map((feat) => (
-                  <li key={feat} className="flex items-start gap-2 t-body-sm" style={{ color: 'var(--text-secondary)' }}>
+                  <li
+                    key={feat}
+                    className="flex items-start gap-2 t-body-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
                     <Check
                       className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"
                       strokeWidth={1.75}
-                      style={{ color: plan.enterprise ? 'var(--accent-secondary)' : 'var(--accent)' }}
+                      style={{ color: plan.enterprise ? "var(--accent-secondary)" : "var(--accent)" }}
                     />
                     {feat}
                   </li>
@@ -229,14 +295,12 @@ export default function Pricing() {
                 </a>
               ) : (
                 <GlowButton
-                  variant={plan.popular ? 'primary' : 'ghost'}
+                  variant={plan.popular ? "primary" : "ghost"}
                   size="sm"
                   className="w-full justify-center"
-                  onClick={() =>
-                    window.open(`https://dash.autoniix.com/register?plan=${plan.id}`, '_blank')
-                  }
+                  onClick={() => window.open(`https://dash.autoniix.com/register?plan=${plan.id}`, "_blank")}
                 >
-                  {plan.id === 'solo' ? 'Start free' : 'Get started'}
+                  {plan.id === "solo" ? "Start free" : "Get started"}
                 </GlowButton>
               )}
             </motion.div>
@@ -250,12 +314,12 @@ export default function Pricing() {
           viewport={{ once: true }}
           transition={{ delay: 0.5 }}
           className="text-center t-body-sm mt-8"
-          style={{ color: 'var(--text-faint)' }}
+          style={{ color: "var(--text-faint)" }}
         >
-          Extra seats at +$15/seat/mo. All plans include AI research, scripting, voice synthesis, rendering, and analytics.
-          Cancel anytime.
+          Extra seats at +$15/seat/mo. All plans include AI research, scripting, voice synthesis, rendering, and
+          analytics. Cancel anytime.
         </motion.p>
       </div>
     </section>
-  )
+  );
 }

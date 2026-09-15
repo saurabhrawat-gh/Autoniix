@@ -46,11 +46,7 @@ export class UserRepository {
     return user || null;
   }
 
-  async create(
-    email: string,
-    passwordHash: string,
-    fullName: string
-  ): Promise<UserRow> {
+  async create(email: string, passwordHash: string, fullName: string): Promise<UserRow> {
     const [user] = await this.db<UserRow[]>`
       INSERT INTO users (email, password_hash, full_name)
       VALUES (${email}, ${passwordHash}, ${fullName})
@@ -70,10 +66,7 @@ export class UserRepository {
     `;
   }
 
-  async getWorkspaceMembership(
-    userId: string,
-    workspaceId: string
-  ): Promise<WorkspaceMemberRow | null> {
+  async getWorkspaceMembership(userId: string, workspaceId: string): Promise<WorkspaceMemberRow | null> {
     const [member] = await this.db<WorkspaceMemberRow[]>`
       SELECT workspace_id, user_id, role
       FROM workspace_members
@@ -83,16 +76,13 @@ export class UserRepository {
     return member || null;
   }
 
-  async createWorkspace(
-    name: string,
-    ownerId: string
-  ): Promise<WorkspaceRow> {
+  async createWorkspace(name: string, ownerId: string): Promise<WorkspaceRow> {
     const [workspace] = await this.db<WorkspaceRow[]>`
       INSERT INTO workspaces (name, owner_id)
       VALUES (${name}, ${ownerId})
       RETURNING id, name, owner_id, created_at
     `;
-    
+
     if (!workspace) throw new Error("Failed to create workspace");
 
     await this.db`

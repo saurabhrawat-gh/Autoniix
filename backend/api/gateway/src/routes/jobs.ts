@@ -37,16 +37,13 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
       const sortBy = query.sort_by || "created_at";
       const sortDesc = query.sort_desc !== "false";
 
-      const { jobs, total } = await jobRepo.findByWorkspace(
-        request.principal.workspace_id,
-        {
-          statusFilter,
-          sortBy,
-          sortDesc,
-          limit: pageSize,
-          offset: (page - 1) * pageSize,
-        }
-      );
+      const { jobs, total } = await jobRepo.findByWorkspace(request.principal.workspace_id, {
+        statusFilter,
+        sortBy,
+        sortDesc,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      });
 
       return reply.send({
         jobs: jobs.map((j) => jobRepo.toJob(j)),
@@ -117,11 +114,7 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
       const body = CreateJobRequestSchema.parse(request.body) as CreateJobRequest;
       const { channel_id, config } = body;
 
-      const job = await jobRepo.create(
-        request.principal.workspace_id,
-        channel_id,
-        config
-      );
+      const job = await jobRepo.create(request.principal.workspace_id, channel_id, config);
 
       return reply.code(201).send({
         job: jobRepo.toJob(job),

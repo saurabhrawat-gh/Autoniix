@@ -1,74 +1,121 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useCallback } from 'react';
-import Link from 'next/link';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { providersApi, changeRequestsApi, youtubeOAuthApi, type ChangeRequest, type YouTubeOAuthStatus } from '@/lib/api-v2';
-import { cn } from '@/lib/utils';
-import { useToast } from '@/lib/toast';
+import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
-  Plug, ChevronRight, ChevronDown, AlertTriangle, HelpCircle, Cpu,
-  Activity, RotateCw, Plus, Loader2, ShieldCheck,
-  Gauge, Network, Store, CheckCircle2, ExternalLink, Zap, Trash2,
-  ClipboardCheck, Check, X, Clock, Link2, AlertCircle, Tv,
-} from '@/lib/components/Icon';
-import { Button } from '@/lib/ui';
-import { promptDialog, confirmDialog } from '@/lib/components/ConfirmDialog';
-import { useUrlState } from '@/lib/hooks/useUrlState';
+  providersApi,
+  changeRequestsApi,
+  youtubeOAuthApi,
+  type ChangeRequest,
+  type YouTubeOAuthStatus,
+} from "@/lib/api-v2";
+import { cn } from "@/lib/utils";
+import { useToast } from "@/lib/toast";
+import {
+  Plug,
+  ChevronRight,
+  ChevronDown,
+  AlertTriangle,
+  HelpCircle,
+  Cpu,
+  Activity,
+  RotateCw,
+  Plus,
+  Loader2,
+  ShieldCheck,
+  Gauge,
+  Network,
+  Store,
+  CheckCircle2,
+  ExternalLink,
+  Zap,
+  Trash2,
+  ClipboardCheck,
+  Check,
+  X,
+  Clock,
+  Link2,
+  AlertCircle,
+  Tv,
+} from "@/lib/components/Icon";
+import { Button } from "@/lib/ui";
+import { promptDialog, confirmDialog } from "@/lib/components/ConfirmDialog";
+import { useUrlState } from "@/lib/hooks/useUrlState";
 
-const STUB_KINDS = new Set(['lut', 'sfx', 'music']);
+const STUB_KINDS = new Set(["lut", "sfx", "music"]);
 
 const ONBOARDING_STEPS = [
-  { kind: 'llm',           label: 'AI Writing (LLM)',     why: 'Required for scripting, research, hooks, and quality scoring.', urgent: true },
-  { kind: 'tts',           label: 'Voice (TTS)',          why: 'Required to generate spoken narration for every video.', urgent: true },
-  { kind: 'image',         label: 'Thumbnail Image',     why: 'Required to generate video thumbnail art.', urgent: true },
-  { kind: 'search',        label: 'Web Search',          why: 'Used during research to find trends and facts.', urgent: false },
-  { kind: 'stock_footage', label: 'Stock Footage',       why: 'Fetches free b-roll clips from Pexels / Pixabay.', urgent: false },
-  { kind: 'storage',       label: 'Object Storage',      why: 'MinIO is self-hosted and configured automatically.', urgent: false },
+  {
+    kind: "llm",
+    label: "AI Writing (LLM)",
+    why: "Required for scripting, research, hooks, and quality scoring.",
+    urgent: true,
+  },
+  { kind: "tts", label: "Voice (TTS)", why: "Required to generate spoken narration for every video.", urgent: true },
+  { kind: "image", label: "Thumbnail Image", why: "Required to generate video thumbnail art.", urgent: true },
+  { kind: "search", label: "Web Search", why: "Used during research to find trends and facts.", urgent: false },
+  {
+    kind: "stock_footage",
+    label: "Stock Footage",
+    why: "Fetches free b-roll clips from Pexels / Pixabay.",
+    urgent: false,
+  },
+  {
+    kind: "storage",
+    label: "Object Storage",
+    why: "MinIO is self-hosted and configured automatically.",
+    urgent: false,
+  },
 ];
 
 const KIND_META: Record<string, { icon: string; desc: string }> = {
-  llm:           { icon: '🧠', desc: 'LLMs for script, research & critique' },
-  tts:           { icon: '🎙️', desc: 'Voice synthesis (TTS)' },
-  image:         { icon: '🖼️', desc: 'Image generation for thumbnails & assets' },
-  search:        { icon: '🔍', desc: 'Web search & trend data' },
-  storage:       { icon: '💾', desc: 'Object storage for media files' },
-  stock_footage: { icon: '🎬', desc: 'Stock footage & video clips' },
-  music:         { icon: '🎵', desc: 'Background music & audio' },
-  lut:           { icon: '🎨', desc: 'Color grading LUTs' },
-  sfx:           { icon: '🔊', desc: 'Sound effects library' },
+  llm: { icon: "🧠", desc: "LLMs for script, research & critique" },
+  tts: { icon: "🎙️", desc: "Voice synthesis (TTS)" },
+  image: { icon: "🖼️", desc: "Image generation for thumbnails & assets" },
+  search: { icon: "🔍", desc: "Web search & trend data" },
+  storage: { icon: "💾", desc: "Object storage for media files" },
+  stock_footage: { icon: "🎬", desc: "Stock footage & video clips" },
+  music: { icon: "🎵", desc: "Background music & audio" },
+  lut: { icon: "🎨", desc: "Color grading LUTs" },
+  sfx: { icon: "🔊", desc: "Sound effects library" },
 };
 
-type HealthStatus = 'healthy' | 'failing' | 'untested' | 'partial';
+type HealthStatus = "healthy" | "failing" | "untested" | "partial";
 function getCategoryHealth(healthy: number, failing: number, total: number): HealthStatus {
-  if (total === 0) return 'untested';
-  if (failing === 0 && healthy > 0) return 'healthy';
-  if (healthy === 0 && failing > 0) return 'failing';
-  if (healthy > 0 && failing > 0) return 'partial';
-  return 'untested';
+  if (total === 0) return "untested";
+  if (failing === 0 && healthy > 0) return "healthy";
+  if (healthy === 0 && failing > 0) return "failing";
+  if (healthy > 0 && failing > 0) return "partial";
+  return "untested";
 }
 const HEALTH_DOT: Record<HealthStatus, string> = {
-  healthy: 'bg-status-success', failing: 'bg-status-error animate-pulse',
-  partial: 'bg-status-warning', untested: 'bg-surface-3',
+  healthy: "bg-status-success",
+  failing: "bg-status-error animate-pulse",
+  partial: "bg-status-warning",
+  untested: "bg-surface-3",
 };
 const HEALTH_LABEL: Record<HealthStatus, string> = {
-  healthy: 'All healthy', failing: 'Degraded', partial: 'Partial', untested: 'Unconfigured',
+  healthy: "All healthy",
+  failing: "Degraded",
+  partial: "Partial",
+  untested: "Unconfigured",
 };
 
 const MODE_CHIP: Record<string, string> = {
-  byok:        'bg-surface-2 text-content-tertiary',
-  system:      'bg-surface-2 text-content-tertiary',
-  marketplace: 'bg-surface-2 text-content-tertiary',
-  internal:    'bg-status-warning/10 text-status-warning',
+  byok: "bg-surface-2 text-content-tertiary",
+  system: "bg-surface-2 text-content-tertiary",
+  marketplace: "bg-surface-2 text-content-tertiary",
+  internal: "bg-status-warning/10 text-status-warning",
 };
 
 export default function ProvidersIndex() {
   const { showToast } = useToast();
-  const PROVIDER_TABS = ['connected', 'marketplace', 'accounts'] as const;
-  type ProvidersTab = typeof PROVIDER_TABS[number];
-  const [tab, setTab] = useUrlState<ProvidersTab>('tab', {
-    defaultValue: 'connected',
-    deserialize: (raw) => (PROVIDER_TABS.includes(raw as ProvidersTab) ? (raw as ProvidersTab) : 'connected'),
+  const PROVIDER_TABS = ["connected", "marketplace", "accounts"] as const;
+  type ProvidersTab = (typeof PROVIDER_TABS)[number];
+  const [tab, setTab] = useUrlState<ProvidersTab>("tab", {
+    defaultValue: "connected",
+    deserialize: (raw) => (PROVIDER_TABS.includes(raw as ProvidersTab) ? (raw as ProvidersTab) : "connected"),
   });
   const [cats, setCats] = useState<any[]>([]);
   const [kinds, setKinds] = useState<any[]>([]);
@@ -80,7 +127,7 @@ export default function ProvidersIndex() {
   const [addProviderFor, setAddProviderFor] = useState<string | false>(false);
   const [restoring, setRestoring] = useState(false);
   const [probingAll, setProbingAll] = useState(false);
-  const [marketFilter, setMarketFilter] = useState<string>('all');
+  const [marketFilter, setMarketFilter] = useState<string>("all");
   const [expandedKind, setExpandedKind] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   const [overdueRotations, setOverdueRotations] = useState<any[]>([]);
@@ -89,7 +136,7 @@ export default function ProvidersIndex() {
   const [approvalsCount, setApprovalsCount] = useState(0);
   const [approvalsLoading, setApprovalsLoading] = useState(false);
   const [reviewingId, setReviewingId] = useState<number | null>(null);
-  const [reviewNote, setReviewNote] = useState('');
+  const [reviewNote, setReviewNote] = useState("");
   const [ytStatus, setYtStatus] = useState<YouTubeOAuthStatus | null>(null);
   const [ytLoading, setYtLoading] = useState(false);
   const [ytConnecting, setYtConnecting] = useState(false);
@@ -99,34 +146,32 @@ export default function ProvidersIndex() {
   const router = useRouter();
 
   useEffect(() => {
-    if (searchParams.get('addCategory') === '1') {
+    if (searchParams.get("addCategory") === "1") {
       setAddCategoryFor(null);
-      const currentTab = searchParams.get('tab');
-      const preserved = currentTab && currentTab !== 'connected' ? `?tab=${currentTab}` : '';
+      const currentTab = searchParams.get("tab");
+      const preserved = currentTab && currentTab !== "connected" ? `?tab=${currentTab}` : "";
       router.replace(`/dashboard/providers${preserved}`);
     }
   }, [searchParams, router]);
 
   const cleanSlate = async () => {
     const phrase = await promptDialog({
-      title: 'Wipe all provider data?',
-      description:
-        'This will DELETE every provider credential and chain in the database. ' +
-        'This cannot be undone.',
-      label: 'Type WIPE to confirm',
-      placeholder: 'WIPE',
-      match: 'WIPE',
-      confirmLabel: 'Wipe everything',
+      title: "Wipe all provider data?",
+      description: "This will DELETE every provider credential and chain in the database. " + "This cannot be undone.",
+      label: "Type WIPE to confirm",
+      placeholder: "WIPE",
+      match: "WIPE",
+      confirmLabel: "Wipe everything",
       destructive: true,
     });
     if (phrase === null) return;
     setResetting(true);
     try {
       const r = await providersApi.cleanSlate();
-      showToast(`Wiped ${r.data.tables.length} table(s)`, 'success');
+      showToast(`Wiped ${r.data.tables.length} table(s)`, "success");
       await refresh();
     } catch (e: any) {
-      showToast(e?.message || 'Reset failed', 'error');
+      showToast(e?.message || "Reset failed", "error");
     } finally {
       setResetting(false);
     }
@@ -136,10 +181,10 @@ export default function ProvidersIndex() {
     setRestoring(true);
     try {
       await providersApi.restoreDefaults();
-      showToast('Built-in sections & categories restored', 'success');
+      showToast("Built-in sections & categories restored", "success");
       await refresh();
     } catch (e: any) {
-      showToast(e?.message || 'Restore failed', 'error');
+      showToast(e?.message || "Restore failed", "error");
     } finally {
       setRestoring(false);
     }
@@ -149,106 +194,151 @@ export default function ProvidersIndex() {
     const ok = isBuiltIn
       ? (await promptDialog({
           title: `Delete built-in section "${label}"?`,
-          description: 'This removes the section and ALL its categories, their credentials, and chains. Built-in sections can be brought back with "Restore defaults". This cannot be undone.',
-          label: 'Type DELETE to confirm', placeholder: 'DELETE', match: 'DELETE',
-          confirmLabel: 'Delete section', destructive: true,
+          description:
+            'This removes the section and ALL its categories, their credentials, and chains. Built-in sections can be brought back with "Restore defaults". This cannot be undone.',
+          label: "Type DELETE to confirm",
+          placeholder: "DELETE",
+          match: "DELETE",
+          confirmLabel: "Delete section",
+          destructive: true,
         })) !== null
       : await confirmDialog({
           title: `Delete section "${label}"?`,
-          description: 'This removes the section and all its categories, credentials, and chains. This cannot be undone.',
-          confirmLabel: 'Delete section', destructive: true,
+          description:
+            "This removes the section and all its categories, credentials, and chains. This cannot be undone.",
+          confirmLabel: "Delete section",
+          destructive: true,
         });
     if (!ok) return;
     try {
       await providersApi.deleteKind(kind);
-      showToast(`Section "${label}" removed`, 'success');
+      showToast(`Section "${label}" removed`, "success");
       await refresh();
-    } catch (e: any) { showToast(e?.message || 'Delete failed', 'error'); }
+    } catch (e: any) {
+      showToast(e?.message || "Delete failed", "error");
+    }
   };
 
   const deleteCategory = async (name: string, label: string, isBuiltIn: boolean) => {
-    const hint = isBuiltIn ? ' Use "Restore defaults" to bring it back.' : '';
+    const hint = isBuiltIn ? ' Use "Restore defaults" to bring it back.' : "";
     const ok = await confirmDialog({
       title: `Delete category "${label}"?`,
       description: `Removes the category and all its credentials and chains.${hint}`,
-      confirmLabel: 'Delete category',
+      confirmLabel: "Delete category",
       destructive: true,
     });
     if (!ok) return;
     try {
       await providersApi.deleteCategory(name);
-      showToast(`Category "${label}" removed`, 'success');
+      showToast(`Category "${label}" removed`, "success");
       await refresh();
-    } catch (e: any) { showToast(e?.message || 'Delete failed', 'error'); }
+    } catch (e: any) {
+      showToast(e?.message || "Delete failed", "error");
+    }
   };
 
   const deleteProvider = async (providerKey: string, displayName: string) => {
     const ok = await confirmDialog({
       title: `Remove "${displayName}" from the marketplace?`,
-      description: 'The provider card is removed. Existing credentials that already use it keep working.',
-      confirmLabel: 'Remove provider', destructive: true,
+      description: "The provider card is removed. Existing credentials that already use it keep working.",
+      confirmLabel: "Remove provider",
+      destructive: true,
     });
     if (!ok) return;
     try {
       await providersApi.deleteMarketplaceProvider(providerKey);
-      showToast(`"${displayName}" removed`, 'success');
+      showToast(`"${displayName}" removed`, "success");
       await refresh();
-    } catch (e: any) { showToast(e?.message || 'Delete failed', 'error'); }
+    } catch (e: any) {
+      showToast(e?.message || "Delete failed", "error");
+    }
   };
 
   const refresh = useCallback(() => {
     setLoading(true);
     Promise.all([
-      providersApi.categories().then(r => setCats(r.data || [])),
-      providersApi.kinds().then(r => setKinds(r.data || [])).catch(() => {}),
-      providersApi.credentials().then(r => setCreds(r.data || [])),
-      providersApi.marketplace().then(r => setMarket(r.data || [])).catch(() => {}),
-      providersApi.allRotationStatus({ overdue_only: true }).then(r => setOverdueRotations(r.data || [])).catch(() => {}),
+      providersApi.categories().then((r) => setCats(r.data || [])),
+      providersApi
+        .kinds()
+        .then((r) => setKinds(r.data || []))
+        .catch(() => {}),
+      providersApi.credentials().then((r) => setCreds(r.data || [])),
+      providersApi
+        .marketplace()
+        .then((r) => setMarket(r.data || []))
+        .catch(() => {}),
+      providersApi
+        .allRotationStatus({ overdue_only: true })
+        .then((r) => setOverdueRotations(r.data || []))
+        .catch(() => {}),
       Promise.all([
-        changeRequestsApi.list({ status: 'pending_admin' }).then(r => r.data.length).catch(() => 0),
-        changeRequestsApi.list({ status: 'pending_owner' }).then(r => r.data.length).catch(() => 0),
-      ]).then(([a, o]) => setApprovalsCount(a + o)).catch(() => setApprovalsCount(0)),
+        changeRequestsApi
+          .list({ status: "pending_admin" })
+          .then((r) => r.data.length)
+          .catch(() => 0),
+        changeRequestsApi
+          .list({ status: "pending_owner" })
+          .then((r) => r.data.length)
+          .catch(() => 0),
+      ])
+        .then(([a, o]) => setApprovalsCount(a + o))
+        .catch(() => setApprovalsCount(0)),
     ]).finally(() => {
       setLoading(false);
-      window.dispatchEvent(new CustomEvent('providers:refresh'));
+      window.dispatchEvent(new CustomEvent("providers:refresh"));
     });
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   const loadApprovals = async () => {
     setApprovalsLoading(true);
     try {
-      const r = await changeRequestsApi.list({ status: 'pending_admin' });
-      const r2 = await changeRequestsApi.list({ status: 'pending_owner' });
+      const r = await changeRequestsApi.list({ status: "pending_admin" });
+      const r2 = await changeRequestsApi.list({ status: "pending_owner" });
       const all = [...r.data, ...r2.data];
       setApprovals(all);
       setApprovalsCount(all.length);
-    } catch { setApprovals([]); } finally { setApprovalsLoading(false); }
+    } catch {
+      setApprovals([]);
+    } finally {
+      setApprovalsLoading(false);
+    }
   };
 
-  const openApprovals = () => { setShowApprovals(true); loadApprovals(); };
+  const openApprovals = () => {
+    setShowApprovals(true);
+    loadApprovals();
+  };
 
-  const doAdminReview = async (id: number, action: 'approve_forward' | 'reject') => {
+  const doAdminReview = async (id: number, action: "approve_forward" | "reject") => {
     setReviewingId(id);
     try {
       await changeRequestsApi.adminReview(id, action, reviewNote || undefined);
-      showToast(action === 'approve_forward' ? 'Forwarded to owner' : 'Request rejected', 'success');
-      setReviewNote('');
+      showToast(action === "approve_forward" ? "Forwarded to owner" : "Request rejected", "success");
+      setReviewNote("");
       await loadApprovals();
-    } catch (e: any) { showToast(e?.message || 'Review failed', 'error'); }
-    finally { setReviewingId(null); }
+    } catch (e: any) {
+      showToast(e?.message || "Review failed", "error");
+    } finally {
+      setReviewingId(null);
+    }
   };
 
-  const doOwnerReview = async (id: number, action: 'approve' | 'reject') => {
+  const doOwnerReview = async (id: number, action: "approve" | "reject") => {
     setReviewingId(id);
     try {
       await changeRequestsApi.ownerReview(id, action, reviewNote || undefined);
-      showToast(action === 'approve' ? 'Change approved & applied' : 'Request rejected', 'success');
-      setReviewNote('');
+      showToast(action === "approve" ? "Change approved & applied" : "Request rejected", "success");
+      setReviewNote("");
       await Promise.all([loadApprovals(), refresh()]);
-    } catch (e: any) { showToast(e?.message || 'Review failed', 'error'); }
-    finally { setReviewingId(null); }
+    } catch (e: any) {
+      showToast(e?.message || "Review failed", "error");
+    } finally {
+      setReviewingId(null);
+    }
   };
 
   const loadYouTubeStatus = async () => {
@@ -256,43 +346,46 @@ export default function ProvidersIndex() {
     try {
       const r = await youtubeOAuthApi.status();
       setYtStatus(r.data);
-    } catch { setYtStatus(null); } finally { setYtLoading(false); }
+    } catch {
+      setYtStatus(null);
+    } finally {
+      setYtLoading(false);
+    }
   };
 
   useEffect(() => {
-    if (tab === 'accounts') loadYouTubeStatus();
+    if (tab === "accounts") loadYouTubeStatus();
   }, [tab]);
 
   const connectYouTube = () => {
     setYtConnecting(true);
-    const popup = window.open(
-      youtubeOAuthApi.authUrl(),
-      'youtube_oauth',
-      'width=520,height=640,left=200,top=100',
-    );
+    const popup = window.open(youtubeOAuthApi.authUrl(), "youtube_oauth", "width=520,height=640,left=200,top=100");
     const onMsg = (e: MessageEvent) => {
-      if (e.data?.type !== 'youtube_oauth') return;
-      window.removeEventListener('message', onMsg);
+      if (e.data?.type !== "youtube_oauth") return;
+      window.removeEventListener("message", onMsg);
       setYtConnecting(false);
       if (e.data.ok) {
-        showToast(`Connected: ${e.data.channel_name}`, 'success');
+        showToast(`Connected: ${e.data.channel_name}`, "success");
         loadYouTubeStatus();
       } else {
-        showToast(e.data.error || 'OAuth failed', 'error');
+        showToast(e.data.error || "OAuth failed", "error");
       }
       popup?.close();
     };
-    window.addEventListener('message', onMsg);
+    window.addEventListener("message", onMsg);
   };
 
   const disconnectYouTube = async () => {
     setYtDisconnecting(true);
     try {
       await youtubeOAuthApi.disconnect();
-      showToast('YouTube disconnected', 'success');
+      showToast("YouTube disconnected", "success");
       setYtStatus({ connected: false });
-    } catch (e: any) { showToast(e?.message || 'Disconnect failed', 'error'); }
-    finally { setYtDisconnecting(false); }
+    } catch (e: any) {
+      showToast(e?.message || "Disconnect failed", "error");
+    } finally {
+      setYtDisconnecting(false);
+    }
   };
 
   const grouped: Record<string, any[]> = cats.reduce((acc: any, c: any) => {
@@ -302,34 +395,35 @@ export default function ProvidersIndex() {
   }, {});
 
   const kindsByKey: Record<string, any> = kinds.reduce((acc: any, k: any) => {
-    acc[k.kind] = k; return acc;
+    acc[k.kind] = k;
+    return acc;
   }, {});
   const sectionMeta = (kind: string) => {
     const k = kindsByKey[kind];
-    const fallback = KIND_META[kind] || { icon: '🔌', desc: 'Provider category' };
+    const fallback = KIND_META[kind] || { icon: "🔌", desc: "Provider category" };
     return {
       icon: k?.icon || fallback.icon,
-      label: k?.label || kind.replace(/_/g, ' '),
+      label: k?.label || kind.replace(/_/g, " "),
       desc: k?.description || fallback.desc,
       isBuiltIn: k ? !k.is_user_defined : true,
     };
   };
 
-  const credsByCategory = (catName: string) => creds.filter(cr => cr.category === catName);
+  const credsByCategory = (catName: string) => creds.filter((cr) => cr.category === catName);
   const countStatus = (catName: string) => {
     const mc = credsByCategory(catName);
     return {
-      total:   mc.length,
-      healthy: mc.filter(c => c.last_health_ok === true).length,
-      failing: mc.filter(c => c.last_health_ok === false).length,
+      total: mc.length,
+      healthy: mc.filter((c) => c.last_health_ok === true).length,
+      failing: mc.filter((c) => c.last_health_ok === false).length,
     };
   };
 
-  const totalCreds    = creds.length;
-  const totalHealthy  = creds.filter(c => c.last_health_ok === true).length;
-  const totalFailing  = creds.filter(c => c.last_health_ok === false).length;
-  const totalUntested = creds.filter(c => c.last_health_ok === null).length;
-  const unconnectedCount = market.filter(m => !m.connected).length;
+  const totalCreds = creds.length;
+  const totalHealthy = creds.filter((c) => c.last_health_ok === true).length;
+  const totalFailing = creds.filter((c) => c.last_health_ok === false).length;
+  const totalUntested = creds.filter((c) => c.last_health_ok === null).length;
+  const unconnectedCount = market.filter((m) => !m.connected).length;
 
   const probeAll = async () => {
     if (!creds.length) return;
@@ -338,16 +432,17 @@ export default function ProvidersIndex() {
       const r = await providersApi.probeAll();
       await refresh();
       const { ok, total } = r.summary;
-      showToast(`Probe complete: ${ok}/${total} healthy`, ok === total ? 'success' : 'error');
+      showToast(`Probe complete: ${ok}/${total} healthy`, ok === total ? "success" : "error");
     } catch (e: any) {
-      showToast(e?.message || 'Probe failed', 'error');
+      showToast(e?.message || "Probe failed", "error");
     }
     setProbingAll(false);
   };
 
   const visibleMarket = market.filter((m: any) => !STUB_KINDS.has(m.category));
   const marketCategories = Array.from(new Set(visibleMarket.map((m: any) => m.category as string))).sort();
-  const filteredMarket = marketFilter === 'all' ? visibleMarket : visibleMarket.filter(m => m.category === marketFilter);
+  const filteredMarket =
+    marketFilter === "all" ? visibleMarket : visibleMarket.filter((m) => m.category === marketFilter);
 
   return (
     <main className="flex-1 px-4 sm:px-6 py-6 max-w-[1400px] mx-auto w-full space-y-5">
@@ -363,7 +458,7 @@ export default function ProvidersIndex() {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Button variant="outline" size="icon-sm" onClick={refresh} disabled={loading} aria-label="Refresh">
-            <RotateCw size={13} className={cn(loading && 'animate-spin')} />
+            <RotateCw size={13} className={cn(loading && "animate-spin")} />
           </Button>
           {approvalsCount > 0 && (
             <Button
@@ -374,7 +469,9 @@ export default function ProvidersIndex() {
               title="Review provider changes requested by team members who don't have permission to apply them directly. As owner, you approve or reject each one here."
             >
               Approvals
-              <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-accent/15 text-accent font-semibold">{approvalsCount}</span>
+              <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-accent/15 text-accent font-semibold">
+                {approvalsCount}
+              </span>
             </Button>
           )}
           <Button
@@ -416,13 +513,13 @@ export default function ProvidersIndex() {
       {/* Stats strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {[
-          { label: 'Connected',  value: totalCreds,    color: 'text-content-primary' },
-          { label: 'Healthy',    value: totalHealthy,  color: 'text-status-success' },
-          { label: 'Failing',    value: totalFailing,  color: 'text-status-error' },
-          { label: 'Available',  value: unconnectedCount, color: 'text-status-info' },
-        ].map(s => (
+          { label: "Connected", value: totalCreds, color: "text-content-primary" },
+          { label: "Healthy", value: totalHealthy, color: "text-status-success" },
+          { label: "Failing", value: totalFailing, color: "text-status-error" },
+          { label: "Available", value: unconnectedCount, color: "text-status-info" },
+        ].map((s) => (
           <div key={s.label} className="rounded-lg border border-border bg-surface-0 px-3 py-2">
-            <div className={cn('text-xl font-bold tabular-nums leading-none', s.color)}>{s.value}</div>
+            <div className={cn("text-xl font-bold tabular-nums leading-none", s.color)}>{s.value}</div>
             <div className="text-[10px] text-content-tertiary mt-0.5">{s.label}</div>
           </div>
         ))}
@@ -430,11 +527,13 @@ export default function ProvidersIndex() {
 
       {/* Tabs */}
       <div className="flex items-center gap-0.5 bg-surface-1 rounded-md p-0.5 w-fit">
-        {([
-          ['connected',  'Connected',   totalCreds,        <Activity key="i-c" size={11} />],
-          ['marketplace','Marketplace', unconnectedCount,  <Store key="i-m" size={11} />],
-          ['accounts',   'Accounts',    ytStatus?.connected ? 1 : 0, <Link2 key="i-a" size={11} />],
-        ] as const).map(([key, label, count, icon]) => (
+        {(
+          [
+            ["connected", "Connected", totalCreds, <Activity key="i-c" size={11} />],
+            ["marketplace", "Marketplace", unconnectedCount, <Store key="i-m" size={11} />],
+            ["accounts", "Accounts", ytStatus?.connected ? 1 : 0, <Link2 key="i-a" size={11} />],
+          ] as const
+        ).map(([key, label, count, icon]) => (
           <Button
             key={key}
             type="button"
@@ -442,18 +541,24 @@ export default function ProvidersIndex() {
             size="sm"
             onClick={() => setTab(key as any)}
             leftIcon={icon}
-            className={cn('h-7 px-3 text-xs',
-              tab === key ? 'bg-surface-0 text-content-primary shadow-sm hover:bg-surface-0' : 'text-content-tertiary hover:text-content-secondary')}
+            className={cn(
+              "h-7 px-3 text-xs",
+              tab === key
+                ? "bg-surface-0 text-content-primary shadow-sm hover:bg-surface-0"
+                : "text-content-tertiary hover:text-content-secondary"
+            )}
           >
             {label}
-            {count > 0 && <span className={cn('text-[10px]', tab === key ? 'text-accent' : 'text-content-tertiary')}>{count}</span>}
+            {count > 0 && (
+              <span className={cn("text-[10px]", tab === key ? "text-accent" : "text-content-tertiary")}>{count}</span>
+            )}
           </Button>
         ))}
       </div>
 
       {/* ── Connected tab ── */}
-      {tab === 'connected' && (
-        loading ? (
+      {tab === "connected" &&
+        (loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="rounded-xl border border-border bg-surface-0 p-4 animate-pulse h-28" />
@@ -472,14 +577,17 @@ export default function ProvidersIndex() {
                 <div className="flex items-center gap-2 mb-2">
                   <AlertTriangle size={14} className="text-status-error" />
                   <span className="text-sm font-semibold text-status-error">
-                    {overdueRotations.length} credential{overdueRotations.length !== 1 ? 's' : ''} with overdue key rotation
+                    {overdueRotations.length} credential{overdueRotations.length !== 1 ? "s" : ""} with overdue key
+                    rotation
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {overdueRotations.map((r: any) => (
-                    <Link key={r.id}
+                    <Link
+                      key={r.id}
                       href={`/dashboard/providers/${encodeURIComponent(r.category)}`}
-                      className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-surface-0 border border-status-error/30 text-status-error hover:bg-status-error/10 transition-colors">
+                      className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-surface-0 border border-status-error/30 text-status-error hover:bg-status-error/10 transition-colors"
+                    >
                       {r.label} · {r.days_since_rotation}d
                     </Link>
                   ))}
@@ -488,156 +596,220 @@ export default function ProvidersIndex() {
             )}
             {/* ── Setup guide ── */}
             {(() => {
-              const steps = ONBOARDING_STEPS
-                .map(s => {
-                  const catsForKind = (grouped[s.kind] || []);
-                  const firstCat = catsForKind[0]?.name;
-                  const kindCreds = creds.filter((c: any) => cats.find((cc: any) => cc.name === c.category)?.kind === s.kind);
-                  return {
-                    ...s,
-                    catsForKind,
-                    exists: catsForKind.length > 0,
-                    target: firstCat ? `/dashboard/providers/${encodeURIComponent(firstCat)}?add=1` : '/dashboard/providers',
-                    configured: kindCreds.length > 0,
-                    healthy: kindCreds.some((c: any) => c.last_health_ok === true),
-                  };
-                })
-                .filter(s => s.exists);
+              const steps = ONBOARDING_STEPS.map((s) => {
+                const catsForKind = grouped[s.kind] || [];
+                const firstCat = catsForKind[0]?.name;
+                const kindCreds = creds.filter(
+                  (c: any) => cats.find((cc: any) => cc.name === c.category)?.kind === s.kind
+                );
+                return {
+                  ...s,
+                  catsForKind,
+                  exists: catsForKind.length > 0,
+                  target: firstCat
+                    ? `/dashboard/providers/${encodeURIComponent(firstCat)}?add=1`
+                    : "/dashboard/providers",
+                  configured: kindCreds.length > 0,
+                  healthy: kindCreds.some((c: any) => c.last_health_ok === true),
+                };
+              }).filter((s) => s.exists);
               if (steps.length === 0) return null;
-              const requiredSteps = steps.filter(s => s.urgent);
-              const requiredDone = requiredSteps.filter(s => s.configured).length;
+              const requiredSteps = steps.filter((s) => s.urgent);
+              const requiredDone = requiredSteps.filter((s) => s.configured).length;
               return (
-              <div className="rounded-xl border border-border bg-surface-0 p-5">
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center shrink-0 mt-0.5">
-                    <Plug size={14} className="text-accent" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-content-primary">⚡ Quick Setup</h3>
-                      <span className="text-[11px] text-content-tertiary">
-                        {requiredDone} of {requiredSteps.length} required complete
-                      </span>
+                <div className="rounded-xl border border-border bg-surface-0 p-5">
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center shrink-0 mt-0.5">
+                      <Plug size={14} className="text-accent" />
                     </div>
-                    <p className="text-xs text-content-tertiary mt-0.5">
-                      Connect at least one provider in each required category to start producing videos.
-                    </p>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-content-primary">⚡ Quick Setup</h3>
+                        <span className="text-[11px] text-content-tertiary">
+                          {requiredDone} of {requiredSteps.length} required complete
+                        </span>
+                      </div>
+                      <p className="text-xs text-content-tertiary mt-0.5">
+                        Connect at least one provider in each required category to start producing videos.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {steps.map((step, i) => {
+                      const isExpanded = expandedKind === step.kind;
+                      return (
+                        <div
+                          key={step.kind}
+                          className={cn("rounded-lg border border-border bg-surface-0 transition-all")}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setExpandedKind(isExpanded ? null : step.kind)}
+                            className="flex items-center gap-3 w-full px-4 py-3 hover:bg-surface-1/50 transition-colors rounded-lg group text-left"
+                          >
+                            <div
+                              className={cn(
+                                "w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold",
+                                step.configured
+                                  ? "bg-status-success text-white"
+                                  : "bg-surface-2 text-content-tertiary group-hover:bg-accent/15 group-hover:text-accent"
+                              )}
+                            >
+                              {step.configured ? "✓" : i + 1}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span
+                                  className={cn(
+                                    "text-sm font-medium transition-colors",
+                                    step.configured
+                                      ? "text-content-secondary"
+                                      : "text-content-primary group-hover:text-accent"
+                                  )}
+                                >
+                                  {step.label}
+                                </span>
+                                {step.urgent && !step.configured && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-error/10 text-status-error font-medium">
+                                    Required
+                                  </span>
+                                )}
+                                {step.configured && step.healthy && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-success/10 text-status-success font-medium">
+                                    Healthy
+                                  </span>
+                                )}
+                                {step.configured && (
+                                  <span className="text-[10px] text-content-tertiary">
+                                    {step.catsForKind.filter((c: any) => countStatus(c.name).total > 0).length}/
+                                    {step.catsForKind.length} categories
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-content-tertiary mt-0.5">{step.why}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <ChevronDown
+                                size={13}
+                                className={cn(
+                                  "text-content-tertiary transition-transform duration-200",
+                                  isExpanded && "rotate-180"
+                                )}
+                              />
+                            </div>
+                          </button>
+                          {isExpanded && (
+                            <div className="px-4 pb-3 border-t border-border/40">
+                              <p className="text-[10px] uppercase tracking-wide text-content-tertiary pt-2.5 pb-1.5">
+                                Categories in this section
+                              </p>
+                              <div className="space-y-1.5">
+                                {step.catsForKind.map((cat: any) => {
+                                  const st = countStatus(cat.name);
+                                  const catConfigured = st.total > 0;
+                                  const catHealthy = st.healthy > 0;
+                                  return (
+                                    <div
+                                      key={cat.name}
+                                      className="flex items-center gap-3 rounded-md border border-border/60 bg-surface-0/80 px-3 py-2"
+                                    >
+                                      <span
+                                        className={cn(
+                                          "w-1.5 h-1.5 rounded-full shrink-0",
+                                          catConfigured
+                                            ? catHealthy
+                                              ? "bg-status-success"
+                                              : "bg-status-warning"
+                                            : "bg-surface-3"
+                                        )}
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="text-[12px] font-medium text-content-primary">
+                                            {cat.label}
+                                          </span>
+                                          <span className="text-[10px] font-mono text-content-tertiary">
+                                            {cat.name}
+                                          </span>
+                                        </div>
+                                        {st.total > 0 && (
+                                          <p className="text-[10px] text-content-tertiary mt-0.5">
+                                            {st.total} credential{st.total !== 1 ? "s" : ""}
+                                            {st.healthy > 0 ? ` · ${st.healthy} healthy` : ""}
+                                            {st.failing > 0 ? ` · ${st.failing} failing` : ""}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <Link
+                                        href={
+                                          catConfigured
+                                            ? `/dashboard/providers/${encodeURIComponent(cat.name)}`
+                                            : `/dashboard/providers/${encodeURIComponent(cat.name)}?add=1`
+                                        }
+                                        className={cn(
+                                          "shrink-0 flex items-center gap-1 text-[11px] h-7 px-2.5 rounded-full border transition-colors",
+                                          catConfigured
+                                            ? "border-border text-content-secondary hover:bg-surface-2"
+                                            : "border-accent/40 text-accent bg-accent/5 hover:bg-accent/10"
+                                        )}
+                                      >
+                                        {catConfigured ? (
+                                          <>
+                                            <ChevronRight size={11} /> Manage
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Plus size={11} /> Connect
+                                          </>
+                                        )}
+                                      </Link>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-                <div className="space-y-2">
-                  {steps.map((step, i) => {
-                    const isExpanded = expandedKind === step.kind;
-                    return (
-                      <div key={step.kind} className={cn('rounded-lg border border-border bg-surface-0 transition-all')}>
-                        <button
-                          type="button"
-                          onClick={() => setExpandedKind(isExpanded ? null : step.kind)}
-                          className="flex items-center gap-3 w-full px-4 py-3 hover:bg-surface-1/50 transition-colors rounded-lg group text-left"
-                        >
-                          <div className={cn('w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold',
-                            step.configured ? 'bg-status-success text-white' : 'bg-surface-2 text-content-tertiary group-hover:bg-accent/15 group-hover:text-accent')}>
-                            {step.configured ? '✓' : i + 1}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className={cn('text-sm font-medium transition-colors',
-                                step.configured ? 'text-content-secondary' : 'text-content-primary group-hover:text-accent')}>
-                                {step.label}
-                              </span>
-                              {step.urgent && !step.configured && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-error/10 text-status-error font-medium">Required</span>
-                              )}
-                              {step.configured && step.healthy && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-success/10 text-status-success font-medium">Healthy</span>
-                              )}
-                              {step.configured && (
-                                <span className="text-[10px] text-content-tertiary">
-                                  {step.catsForKind.filter((c: any) => countStatus(c.name).total > 0).length}/{step.catsForKind.length} categories
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-content-tertiary mt-0.5">{step.why}</p>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <ChevronDown size={13} className={cn('text-content-tertiary transition-transform duration-200', isExpanded && 'rotate-180')} />
-                          </div>
-                        </button>
-                        {isExpanded && (
-                          <div className="px-4 pb-3 border-t border-border/40">
-                            <p className="text-[10px] uppercase tracking-wide text-content-tertiary pt-2.5 pb-1.5">Categories in this section</p>
-                            <div className="space-y-1.5">
-                              {step.catsForKind.map((cat: any) => {
-                                const st = countStatus(cat.name);
-                                const catConfigured = st.total > 0;
-                                const catHealthy = st.healthy > 0;
-                                return (
-                                  <div key={cat.name} className="flex items-center gap-3 rounded-md border border-border/60 bg-surface-0/80 px-3 py-2">
-                                    <span className={cn('w-1.5 h-1.5 rounded-full shrink-0',
-                                      catConfigured ? (catHealthy ? 'bg-status-success' : 'bg-status-warning') : 'bg-surface-3')} />
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="text-[12px] font-medium text-content-primary">{cat.label}</span>
-                                        <span className="text-[10px] font-mono text-content-tertiary">{cat.name}</span>
-                                      </div>
-                                      {st.total > 0 && (
-                                        <p className="text-[10px] text-content-tertiary mt-0.5">
-                                          {st.total} credential{st.total !== 1 ? 's' : ''}{st.healthy > 0 ? ` · ${st.healthy} healthy` : ''}{st.failing > 0 ? ` · ${st.failing} failing` : ''}
-                                        </p>
-                                      )}
-                                    </div>
-                                    <Link
-                                      href={catConfigured
-                                        ? `/dashboard/providers/${encodeURIComponent(cat.name)}`
-                                        : `/dashboard/providers/${encodeURIComponent(cat.name)}?add=1`}
-                                      className={cn('shrink-0 flex items-center gap-1 text-[11px] h-7 px-2.5 rounded-full border transition-colors',
-                                        catConfigured
-                                          ? 'border-border text-content-secondary hover:bg-surface-2'
-                                          : 'border-accent/40 text-accent bg-accent/5 hover:bg-accent/10')}
-                                    >
-                                      {catConfigured ? <><ChevronRight size={11} /> Manage</> : <><Plus size={11} /> Connect</>}
-                                    </Link>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
               );
             })()}
           </div>
-        )
-      )}
+        ))}
 
       {/* ── Marketplace tab ── */}
-      {tab === 'marketplace' && (
+      {tab === "marketplace" && (
         <div className="space-y-4">
           {/* Category filter + taxonomy actions */}
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-1.5 flex-wrap">
-              {(['all', ...marketCategories]).map(c => (
+              {["all", ...marketCategories].map((c) => (
                 <Button
                   key={c}
                   type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => setMarketFilter(c)}
-                  className={cn('h-7 px-2.5 text-xs',
+                  className={cn(
+                    "h-7 px-2.5 text-xs",
                     marketFilter === c
-                      ? 'bg-accent/10 text-accent border border-accent/30 hover:bg-accent/15'
-                      : 'border border-border text-content-tertiary hover:bg-surface-2')}>
-                  {c === 'all' ? 'All' : c.replace(/_/g, ' ')}
+                      ? "bg-accent/10 text-accent border border-accent/30 hover:bg-accent/15"
+                      : "border border-border text-content-tertiary hover:bg-surface-2"
+                  )}
+                >
+                  {c === "all" ? "All" : c.replace(/_/g, " ")}
                 </Button>
               ))}
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <Button variant="outline" size="sm"
-                onClick={() => setAddProviderFor(cats.find(c => c.name === marketFilter)?.kind || '')}
-                leftIcon={<Plus size={12} />}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setAddProviderFor(cats.find((c) => c.name === marketFilter)?.kind || "")}
+                leftIcon={<Plus size={12} />}
+              >
                 Add provider
               </Button>
               <Button variant="outline" size="sm" onClick={() => setAddSectionFor(true)} leftIcon={<Plus size={12} />}>
@@ -660,8 +832,10 @@ export default function ProvidersIndex() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {filteredMarket.map((p: any) => (
-                <div key={p.provider_key}
-                  className="group relative rounded-xl border border-border bg-surface-0 p-4 flex flex-col gap-3 transition-all">
+                <div
+                  key={p.provider_key}
+                  className="group relative rounded-xl border border-border bg-surface-0 p-4 flex flex-col gap-3 transition-all"
+                >
                   {p.is_user_defined && (
                     <button
                       type="button"
@@ -682,20 +856,36 @@ export default function ProvidersIndex() {
                           </span>
                         )}
                         {p.featured && !p.connected && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">Featured</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">
+                            Featured
+                          </span>
                         )}
                         {p.has_free_tier && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">Free tier</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">
+                            Free tier
+                          </span>
                         )}
                         {p.is_callable === false && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-warning/10 text-status-warning" title="You can save a key but the pipeline adapter isn't wired yet.">Catalog only</span>
+                          <span
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-status-warning/10 text-status-warning"
+                            title="You can save a key but the pipeline adapter isn't wired yet."
+                          >
+                            Catalog only
+                          </span>
                         )}
                         {p.is_user_defined && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">Custom</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">
+                            Custom
+                          </span>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 mt-1">
-                        <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium', MODE_CHIP[p.mode] || 'bg-surface-2 text-content-tertiary')}>
+                        <span
+                          className={cn(
+                            "text-[10px] px-1.5 py-0.5 rounded font-medium",
+                            MODE_CHIP[p.mode] || "bg-surface-2 text-content-tertiary"
+                          )}
+                        >
                           {p.mode}
                         </span>
                         <span className="text-[10px] text-content-tertiary">{p.category}</span>
@@ -707,21 +897,26 @@ export default function ProvidersIndex() {
                   {p.capabilities?.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {p.capabilities.slice(0, 4).map((cap: string) => (
-                        <span key={cap} className="text-[9px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">{cap}</span>
+                        <span key={cap} className="text-[9px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">
+                          {cap}
+                        </span>
                       ))}
                     </div>
                   )}
 
                   <div className="flex items-center justify-between mt-auto pt-1">
-                    <span className="text-xs text-content-tertiary font-mono">{p.cost_unit || '—'}</span>
+                    <span className="text-xs text-content-tertiary font-mono">{p.cost_unit || "—"}</span>
                     <div className="flex items-center gap-1.5">
                       {(p.credential_count ?? (p.connected ? 1 : 0)) > 0 && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-status-success/10 text-status-success font-medium border border-status-success/20">
                           {p.credential_count ?? 1} connected
                         </span>
                       )}
-                      <Link prefetch={false} href={`/dashboard/providers/${encodeURIComponent(p.category)}?add=1&provider=${encodeURIComponent(p.provider_key)}`}
-                        className="flex items-center gap-1 h-7 px-2.5 rounded-full bg-accent/10 text-accent text-xs font-semibold border border-accent/20 hover:bg-accent/20 transition-colors">
+                      <Link
+                        prefetch={false}
+                        href={`/dashboard/providers/${encodeURIComponent(p.category)}?add=1&provider=${encodeURIComponent(p.provider_key)}`}
+                        className="flex items-center gap-1 h-7 px-2.5 rounded-full bg-accent/10 text-accent text-xs font-semibold border border-accent/20 hover:bg-accent/20 transition-colors"
+                      >
                         <Plus size={11} /> Connect
                       </Link>
                     </div>
@@ -734,17 +929,19 @@ export default function ProvidersIndex() {
       )}
 
       {/* ── Connected Accounts tab ── */}
-      {tab === 'accounts' && (
+      {tab === "accounts" && (
         <div className="space-y-4">
           <p className="text-xs text-content-tertiary">
             OAuth-based integrations — these use account authorization rather than API keys.
           </p>
 
           {/* YouTube card */}
-          <div className={cn(
-            'rounded-xl border bg-surface-0 p-5 flex items-start gap-4 transition-all',
-            ytStatus?.connected ? 'border-status-success/30' : 'border-border',
-          )}>
+          <div
+            className={cn(
+              "rounded-xl border bg-surface-0 p-5 flex items-start gap-4 transition-all",
+              ytStatus?.connected ? "border-status-success/30" : "border-border"
+            )}
+          >
             <div className="w-10 h-10 rounded-xl bg-[#FF0000]/10 flex items-center justify-center shrink-0">
               <Tv size={20} className="text-[#FF0000]" />
             </div>
@@ -756,12 +953,16 @@ export default function ProvidersIndex() {
                     <CheckCircle2 size={9} /> Connected
                   </span>
                 ) : (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">Not connected</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">
+                    Not connected
+                  </span>
                 )}
               </div>
 
               {ytLoading ? (
-                <div className="mt-2"><Loader2 size={13} className="animate-spin text-content-tertiary" /></div>
+                <div className="mt-2">
+                  <Loader2 size={13} className="animate-spin text-content-tertiary" />
+                </div>
               ) : ytStatus?.connected ? (
                 <div className="mt-2 space-y-1.5">
                   <div className="flex items-center gap-2">
@@ -787,7 +988,8 @@ export default function ProvidersIndex() {
                 </div>
               ) : (
                 <p className="text-[11px] text-content-tertiary mt-1">
-                  Connect your YouTube channel to enable automatic video uploads, thumbnail setting, and scheduled publishing.
+                  Connect your YouTube channel to enable automatic video uploads, thumbnail setting, and scheduled
+                  publishing.
                 </p>
               )}
 
@@ -824,14 +1026,29 @@ export default function ProvidersIndex() {
       )}
 
       {/* Architecture tips (only on connected tab) */}
-      {tab === 'connected' && (
+      {tab === "connected" && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
-            { icon: <Network size={14} className="text-accent" />, title: 'Priority Chains', desc: 'Multiple credentials per category form a fallback chain. First healthy provider wins.' },
-            { icon: <ShieldCheck size={14} className="text-status-success" />, title: 'Vault-Backed Secrets', desc: 'API keys written to env/Vault — never stored in DB or repo.' },
-            { icon: <Gauge size={14} className="text-status-warning" />, title: 'Live Health Probes', desc: 'Use "Probe all" for a fan-out health check across every enabled credential.' },
-          ].map(t => (
-            <div key={t.title} className="rounded-xl border border-border bg-surface-0 px-4 py-3 flex items-center gap-3">
+            {
+              icon: <Network size={14} className="text-accent" />,
+              title: "Priority Chains",
+              desc: "Multiple credentials per category form a fallback chain. First healthy provider wins.",
+            },
+            {
+              icon: <ShieldCheck size={14} className="text-status-success" />,
+              title: "Vault-Backed Secrets",
+              desc: "API keys written to env/Vault — never stored in DB or repo.",
+            },
+            {
+              icon: <Gauge size={14} className="text-status-warning" />,
+              title: "Live Health Probes",
+              desc: 'Use "Probe all" for a fan-out health check across every enabled credential.',
+            },
+          ].map((t) => (
+            <div
+              key={t.title}
+              className="rounded-xl border border-border bg-surface-0 px-4 py-3 flex items-center gap-3"
+            >
               <div className="shrink-0">{t.icon}</div>
               <div className="text-xs font-medium text-content-secondary">{t.title}</div>
             </div>
@@ -844,17 +1061,22 @@ export default function ProvidersIndex() {
         <div className="fixed inset-0 z-50 flex justify-end" onClick={() => setShowApprovals(false)}>
           <div
             className="relative h-full w-full max-w-lg bg-surface-0 border-l border-border shadow-2xl flex flex-col"
-            onClick={e => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">
               <div className="flex items-center gap-2">
                 <ClipboardCheck size={15} className="text-accent" />
                 <h2 className="text-sm font-semibold text-content-primary">Pending Approvals</h2>
                 {approvals.length > 0 && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/15 text-accent font-semibold">{approvals.length}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/15 text-accent font-semibold">
+                    {approvals.length}
+                  </span>
                 )}
               </div>
-              <button onClick={() => setShowApprovals(false)} className="p-1 rounded hover:bg-surface-2 text-content-tertiary hover:text-content-primary transition-colors">
+              <button
+                onClick={() => setShowApprovals(false)}
+                className="p-1 rounded hover:bg-surface-2 text-content-tertiary hover:text-content-primary transition-colors"
+              >
                 <X size={14} />
               </button>
             </div>
@@ -869,91 +1091,99 @@ export default function ProvidersIndex() {
                   <Check size={28} className="mx-auto mb-3 text-status-success opacity-60" />
                   <p className="text-sm text-content-tertiary">No pending approvals</p>
                 </div>
-              ) : approvals.map(req => (
-                <div key={req.id} className="rounded-xl border border-border bg-surface-1 p-4 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold text-content-primary capitalize">
-                        {req.request_type.replace(/_/g, ' ')} — {req.category}
-                        {req.provider_name && <span className="text-content-tertiary"> / {req.provider_name}</span>}
+              ) : (
+                approvals.map((req) => (
+                  <div key={req.id} className="rounded-xl border border-border bg-surface-1 p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-content-primary capitalize">
+                          {req.request_type.replace(/_/g, " ")} — {req.category}
+                          {req.provider_name && <span className="text-content-tertiary"> / {req.provider_name}</span>}
+                        </div>
+                        <div className="text-[10px] text-content-tertiary mt-0.5">
+                          {req.requester_name || req.requester_email || `User #${req.requested_by}`}
+                          {" · "}
+                          <Clock size={9} className="inline" /> {new Date(req.requested_at).toLocaleDateString()}
+                        </div>
                       </div>
-                      <div className="text-[10px] text-content-tertiary mt-0.5">
-                        {req.requester_name || req.requester_email || `User #${req.requested_by}`}
-                        {' · '}
-                        <Clock size={9} className="inline" />{' '}
-                        {new Date(req.requested_at).toLocaleDateString()}
-                      </div>
+                      <span
+                        className={cn(
+                          "text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0",
+                          req.status === "pending_admin"
+                            ? "bg-status-warning/10 text-status-warning"
+                            : "bg-status-info/10 text-status-info"
+                        )}
+                      >
+                        {req.status === "pending_admin" ? "Needs admin" : "Needs owner"}
+                      </span>
                     </div>
-                    <span className={cn(
-                      'text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0',
-                      req.status === 'pending_admin' ? 'bg-status-warning/10 text-status-warning' : 'bg-status-info/10 text-status-info',
-                    )}>
-                      {req.status === 'pending_admin' ? 'Needs admin' : 'Needs owner'}
-                    </span>
-                  </div>
 
-                  <p className="text-[11px] text-content-secondary bg-surface-2 rounded-lg px-3 py-2 leading-relaxed">
-                    {req.reason}
-                  </p>
+                    <p className="text-[11px] text-content-secondary bg-surface-2 rounded-lg px-3 py-2 leading-relaxed">
+                      {req.reason}
+                    </p>
 
-                  {req.admin_note && (
-                    <p className="text-[10px] text-content-tertiary italic">Admin note: {req.admin_note}</p>
-                  )}
-
-                  <textarea
-                    placeholder="Optional review note…"
-                    value={reviewingId === req.id ? reviewNote : ''}
-                    onChange={e => { setReviewingId(req.id); setReviewNote(e.target.value); }}
-                    className="w-full text-xs rounded-md border border-border bg-surface-0 px-3 py-2 resize-none h-14 focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-content-quaternary"
-                  />
-
-                  <div className="flex gap-2">
-                    {req.status === 'pending_admin' ? (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 border-status-success/40 text-status-success hover:bg-status-success/10"
-                          loading={reviewingId === req.id}
-                          onClick={() => doAdminReview(req.id, 'approve_forward')}
-                        >
-                          <Check size={11} className="mr-1" /> Forward to owner
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 border-status-error/40 text-status-error hover:bg-status-error/10"
-                          loading={reviewingId === req.id}
-                          onClick={() => doAdminReview(req.id, 'reject')}
-                        >
-                          <X size={11} className="mr-1" /> Reject
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 border-status-success/40 text-status-success hover:bg-status-success/10"
-                          loading={reviewingId === req.id}
-                          onClick={() => doOwnerReview(req.id, 'approve')}
-                        >
-                          <Check size={11} className="mr-1" /> Approve & apply
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 border-status-error/40 text-status-error hover:bg-status-error/10"
-                          loading={reviewingId === req.id}
-                          onClick={() => doOwnerReview(req.id, 'reject')}
-                        >
-                          <X size={11} className="mr-1" /> Reject
-                        </Button>
-                      </>
+                    {req.admin_note && (
+                      <p className="text-[10px] text-content-tertiary italic">Admin note: {req.admin_note}</p>
                     )}
+
+                    <textarea
+                      placeholder="Optional review note…"
+                      value={reviewingId === req.id ? reviewNote : ""}
+                      onChange={(e) => {
+                        setReviewingId(req.id);
+                        setReviewNote(e.target.value);
+                      }}
+                      className="w-full text-xs rounded-md border border-border bg-surface-0 px-3 py-2 resize-none h-14 focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-content-quaternary"
+                    />
+
+                    <div className="flex gap-2">
+                      {req.status === "pending_admin" ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 border-status-success/40 text-status-success hover:bg-status-success/10"
+                            loading={reviewingId === req.id}
+                            onClick={() => doAdminReview(req.id, "approve_forward")}
+                          >
+                            <Check size={11} className="mr-1" /> Forward to owner
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 border-status-error/40 text-status-error hover:bg-status-error/10"
+                            loading={reviewingId === req.id}
+                            onClick={() => doAdminReview(req.id, "reject")}
+                          >
+                            <X size={11} className="mr-1" /> Reject
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 border-status-success/40 text-status-success hover:bg-status-success/10"
+                            loading={reviewingId === req.id}
+                            onClick={() => doOwnerReview(req.id, "approve")}
+                          >
+                            <Check size={11} className="mr-1" /> Approve & apply
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 border-status-error/40 text-status-error hover:bg-status-error/10"
+                            loading={reviewingId === req.id}
+                            onClick={() => doOwnerReview(req.id, "reject")}
+                          >
+                            <X size={11} className="mr-1" /> Reject
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -963,7 +1193,10 @@ export default function ProvidersIndex() {
       {addSectionFor && (
         <AddSectionDialog
           onClose={() => setAddSectionFor(false)}
-          onAdded={async () => { setAddSectionFor(false); await refresh(); }}
+          onAdded={async () => {
+            setAddSectionFor(false);
+            await refresh();
+          }}
         />
       )}
       {addCategoryFor !== false && (
@@ -971,34 +1204,62 @@ export default function ProvidersIndex() {
           prefillKind={addCategoryFor || null}
           kinds={kinds}
           onClose={() => setAddCategoryFor(false)}
-          onAdded={async () => { setAddCategoryFor(false); await refresh(); }}
+          onAdded={async () => {
+            setAddCategoryFor(false);
+            await refresh();
+          }}
         />
       )}
       {addProviderFor !== false && (
         <AddProviderDialog
-          prefillKind={addProviderFor || ''}
+          prefillKind={addProviderFor || ""}
           kinds={kinds}
           onClose={() => setAddProviderFor(false)}
-          onAdded={async () => { setAddProviderFor(false); await refresh(); }}
+          onAdded={async () => {
+            setAddProviderFor(false);
+            await refresh();
+          }}
         />
       )}
     </main>
   );
 }
 
-function DialogShell({ title, subtitle, onClose, children, footer }: {
-  title: string; subtitle?: string; onClose: () => void;
-  children: React.ReactNode; footer: React.ReactNode;
+function DialogShell({
+  title,
+  subtitle,
+  onClose,
+  children,
+  footer,
+}: {
+  title: string;
+  subtitle?: string;
+  onClose: () => void;
+  children: React.ReactNode;
+  footer: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="rounded-xl bg-surface-0 max-w-md w-full border border-border shadow-elevated flex flex-col" onClick={e => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="rounded-xl bg-surface-0 max-w-md w-full border border-border shadow-elevated flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border">
           <div>
             <h3 className="font-semibold text-content-primary">{title}</h3>
             {subtitle && <p className="text-[11px] text-content-tertiary mt-0.5">{subtitle}</p>}
           </div>
-          <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close" className="w-7 h-7 text-content-tertiary">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={onClose}
+            aria-label="Close"
+            className="w-7 h-7 text-content-tertiary"
+          >
             <X size={14} />
           </Button>
         </div>
@@ -1009,25 +1270,33 @@ function DialogShell({ title, subtitle, onClose, children, footer }: {
   );
 }
 
-const fieldCls = 'w-full h-9 px-3 rounded-md border border-border bg-surface-1 text-sm text-content-primary placeholder:text-content-tertiary focus:outline-none focus:ring-1 focus:ring-accent';
-const labelCls = 'block text-[11px] font-medium text-content-secondary mb-1';
+const fieldCls =
+  "w-full h-9 px-3 rounded-md border border-border bg-surface-1 text-sm text-content-primary placeholder:text-content-tertiary focus:outline-none focus:ring-1 focus:ring-accent";
+const labelCls = "block text-[11px] font-medium text-content-secondary mb-1";
 
 function AddSectionDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
   const { showToast } = useToast();
-  const [label, setLabel] = useState('');
-  const [icon, setIcon] = useState('');
-  const [description, setDescription] = useState('');
+  const [label, setLabel] = useState("");
+  const [icon, setIcon] = useState("");
+  const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
     if (!label.trim()) return;
     setBusy(true);
     try {
-      await providersApi.createKind({ label: label.trim(), icon: icon.trim() || null, description: description.trim() || null });
-      showToast(`Section "${label.trim()}" created`, 'success');
+      await providersApi.createKind({
+        label: label.trim(),
+        icon: icon.trim() || null,
+        description: description.trim() || null,
+      });
+      showToast(`Section "${label.trim()}" created`, "success");
       onAdded();
-    } catch (e: any) { showToast(e?.message || 'Could not create section', 'error'); }
-    finally { setBusy(false); }
+    } catch (e: any) {
+      showToast(e?.message || "Could not create section", "error");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -1035,34 +1304,65 @@ function AddSectionDialog({ onClose, onAdded }: { onClose: () => void; onAdded: 
       title="Add section"
       subtitle="A top-level group like Avatar Generation, Music, or Translation."
       onClose={onClose}
-      footer={<>
-        <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
-        <Button size="sm" onClick={submit} disabled={!label.trim() || busy} loading={busy}>Create section</Button>
-      </>}
+      footer={
+        <>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={submit} disabled={!label.trim() || busy} loading={busy}>
+            Create section
+          </Button>
+        </>
+      }
     >
       <div>
         <label className={labelCls}>Section name</label>
-        <input className={fieldCls} value={label} onChange={e => setLabel(e.target.value)} placeholder="e.g. Avatar Generation" autoFocus />
+        <input
+          className={fieldCls}
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="e.g. Avatar Generation"
+          autoFocus
+        />
       </div>
       <div>
         <label className={labelCls}>Icon (emoji, optional)</label>
-        <input className={fieldCls} value={icon} onChange={e => setIcon(e.target.value)} placeholder="🧑‍🎤" maxLength={4} />
+        <input
+          className={fieldCls}
+          value={icon}
+          onChange={(e) => setIcon(e.target.value)}
+          placeholder="🧑‍🎤"
+          maxLength={4}
+        />
       </div>
       <div>
         <label className={labelCls}>Description (optional)</label>
-        <input className={fieldCls} value={description} onChange={e => setDescription(e.target.value)} placeholder="What this section is for" />
+        <input
+          className={fieldCls}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="What this section is for"
+        />
       </div>
     </DialogShell>
   );
 }
 
-function AddCategoryDialog({ prefillKind, kinds, onClose, onAdded }: {
-  prefillKind: string | null; kinds: any[]; onClose: () => void; onAdded: () => void;
+function AddCategoryDialog({
+  prefillKind,
+  kinds,
+  onClose,
+  onAdded,
+}: {
+  prefillKind: string | null;
+  kinds: any[];
+  onClose: () => void;
+  onAdded: () => void;
 }) {
   const { showToast } = useToast();
-  const [label, setLabel] = useState('');
-  const [kind, setKind] = useState(prefillKind || (kinds[0]?.kind ?? ''));
-  const [description, setDescription] = useState('');
+  const [label, setLabel] = useState("");
+  const [kind, setKind] = useState(prefillKind || (kinds[0]?.kind ?? ""));
+  const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
@@ -1070,10 +1370,13 @@ function AddCategoryDialog({ prefillKind, kinds, onClose, onAdded }: {
     setBusy(true);
     try {
       await providersApi.createCategory({ label: label.trim(), kind, description: description.trim() || null });
-      showToast(`Category "${label.trim()}" created`, 'success');
+      showToast(`Category "${label.trim()}" created`, "success");
       onAdded();
-    } catch (e: any) { showToast(e?.message || 'Could not create category', 'error'); }
-    finally { setBusy(false); }
+    } catch (e: any) {
+      showToast(e?.message || "Could not create category", "error");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -1081,40 +1384,68 @@ function AddCategoryDialog({ prefillKind, kinds, onClose, onAdded }: {
       title="Add category"
       subtitle="A use-case slot inside a section — e.g. 'Product demo avatars'."
       onClose={onClose}
-      footer={<>
-        <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
-        <Button size="sm" onClick={submit} disabled={!label.trim() || !kind || busy} loading={busy}>Create category</Button>
-      </>}
+      footer={
+        <>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={submit} disabled={!label.trim() || !kind || busy} loading={busy}>
+            Create category
+          </Button>
+        </>
+      }
     >
       <div>
         <label className={labelCls}>Category name</label>
-        <input className={fieldCls} value={label} onChange={e => setLabel(e.target.value)} placeholder="e.g. Product demo avatars" autoFocus />
+        <input
+          className={fieldCls}
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="e.g. Product demo avatars"
+          autoFocus
+        />
       </div>
       <div>
         <label className={labelCls}>Section</label>
-        <select className={fieldCls} value={kind} onChange={e => setKind(e.target.value)}>
+        <select className={fieldCls} value={kind} onChange={(e) => setKind(e.target.value)}>
           {kinds.length === 0 && <option value="">No sections — create one first</option>}
           {kinds.map((k: any) => (
-            <option key={k.kind} value={k.kind}>{k.icon ? `${k.icon} ` : ''}{k.label}</option>
+            <option key={k.kind} value={k.kind}>
+              {k.icon ? `${k.icon} ` : ""}
+              {k.label}
+            </option>
           ))}
         </select>
       </div>
       <div>
         <label className={labelCls}>Description (optional)</label>
-        <input className={fieldCls} value={description} onChange={e => setDescription(e.target.value)} placeholder="What this category is for" />
+        <input
+          className={fieldCls}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="What this category is for"
+        />
       </div>
     </DialogShell>
   );
 }
 
-function AddProviderDialog({ prefillKind, kinds, onClose, onAdded }: {
-  prefillKind: string; kinds: any[]; onClose: () => void; onAdded: () => void;
+function AddProviderDialog({
+  prefillKind,
+  kinds,
+  onClose,
+  onAdded,
+}: {
+  prefillKind: string;
+  kinds: any[];
+  onClose: () => void;
+  onAdded: () => void;
 }) {
   const { showToast } = useToast();
-  const [displayName, setDisplayName] = useState('');
-  const [kind, setKind] = useState(prefillKind || (kinds[0]?.kind ?? ''));
-  const [models, setModels] = useState('');
-  const [description, setDescription] = useState('');
+  const [displayName, setDisplayName] = useState("");
+  const [kind, setKind] = useState(prefillKind || (kinds[0]?.kind ?? ""));
+  const [models, setModels] = useState("");
+  const [description, setDescription] = useState("");
   const [hasFreeTier, setHasFreeTier] = useState(false);
   const [requiresApiKey, setRequiresApiKey] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -1127,14 +1458,20 @@ function AddProviderDialog({ prefillKind, kinds, onClose, onAdded }: {
         display_name: displayName.trim(),
         kind,
         description: description.trim() || null,
-        supported_models: models.split(',').map(m => m.trim()).filter(Boolean),
+        supported_models: models
+          .split(",")
+          .map((m) => m.trim())
+          .filter(Boolean),
         has_free_tier: hasFreeTier,
         requires_api_key: requiresApiKey,
       });
-      showToast(`"${displayName.trim()}" added to marketplace`, 'success');
+      showToast(`"${displayName.trim()}" added to marketplace`, "success");
       onAdded();
-    } catch (e: any) { showToast(e?.message || 'Could not add provider', 'error'); }
-    finally { setBusy(false); }
+    } catch (e: any) {
+      showToast(e?.message || "Could not add provider", "error");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -1142,38 +1479,65 @@ function AddProviderDialog({ prefillKind, kinds, onClose, onAdded }: {
       title="Add provider"
       subtitle="Add a third-party service (e.g. HeyGen) to a section's marketplace."
       onClose={onClose}
-      footer={<>
-        <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
-        <Button size="sm" onClick={submit} disabled={!displayName.trim() || !kind || busy} loading={busy}>Add provider</Button>
-      </>}
+      footer={
+        <>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={submit} disabled={!displayName.trim() || !kind || busy} loading={busy}>
+            Add provider
+          </Button>
+        </>
+      }
     >
       <div>
         <label className={labelCls}>Provider name</label>
-        <input className={fieldCls} value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="e.g. HeyGen" autoFocus />
+        <input
+          className={fieldCls}
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="e.g. HeyGen"
+          autoFocus
+        />
       </div>
       <div>
         <label className={labelCls}>Section</label>
-        <select className={fieldCls} value={kind} onChange={e => setKind(e.target.value)}>
+        <select className={fieldCls} value={kind} onChange={(e) => setKind(e.target.value)}>
           {kinds.length === 0 && <option value="">No sections — create one first</option>}
           {kinds.map((k: any) => (
-            <option key={k.kind} value={k.kind}>{k.icon ? `${k.icon} ` : ''}{k.label}</option>
+            <option key={k.kind} value={k.kind}>
+              {k.icon ? `${k.icon} ` : ""}
+              {k.label}
+            </option>
           ))}
         </select>
       </div>
       <div>
         <label className={labelCls}>Models (optional, comma-separated)</label>
-        <input className={fieldCls} value={models} onChange={e => setModels(e.target.value)} placeholder="avatar-v3, avatar-realistic" />
+        <input
+          className={fieldCls}
+          value={models}
+          onChange={(e) => setModels(e.target.value)}
+          placeholder="avatar-v3, avatar-realistic"
+        />
       </div>
       <div>
         <label className={labelCls}>Description (optional)</label>
-        <input className={fieldCls} value={description} onChange={e => setDescription(e.target.value)} placeholder="What this provider does" />
+        <input
+          className={fieldCls}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="What this provider does"
+        />
       </div>
       <div className="flex items-center gap-4 pt-1">
         <label className="flex items-center gap-2 text-xs text-content-secondary cursor-pointer">
-          <input type="checkbox" checked={requiresApiKey} onChange={e => setRequiresApiKey(e.target.checked)} /> Needs an API key
+          <input type="checkbox" checked={requiresApiKey} onChange={(e) => setRequiresApiKey(e.target.checked)} /> Needs
+          an API key
         </label>
         <label className="flex items-center gap-2 text-xs text-content-secondary cursor-pointer">
-          <input type="checkbox" checked={hasFreeTier} onChange={e => setHasFreeTier(e.target.checked)} /> Has a free tier
+          <input type="checkbox" checked={hasFreeTier} onChange={(e) => setHasFreeTier(e.target.checked)} /> Has a free
+          tier
         </label>
       </div>
       <p className="text-[11px] text-content-tertiary">

@@ -1,4 +1,4 @@
-import { Skeleton, SkeletonCard } from '@/lib/components/Skeleton';
+import { Skeleton, SkeletonCard } from "@/lib/components/Skeleton";
 
 export default function DashboardLoading() {
   return (

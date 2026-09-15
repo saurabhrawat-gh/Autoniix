@@ -45,6 +45,7 @@ from temporal_workers.activities.common import (
     acquire_channel_lock,
     check_system_status,
     get_eligible_channels,
+    release_channel_lock,
     send_notification,
 )
 from temporal_workers.change_request_beat import expire_stale_change_requests
@@ -95,6 +96,7 @@ async def main() -> None:
             check_system_status,
             get_eligible_channels,
             acquire_channel_lock,
+            release_channel_lock,
             send_notification,
             check_model_freshness,
             check_model_drift,

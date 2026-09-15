@@ -14,7 +14,7 @@ main:
     dismiss_stale_reviews: true
     require_code_owner_reviews: false
     required_approving_review_count: 1
-  restrictions: null            # nobody may push directly; PRs only
+  restrictions: null # nobody may push directly; PRs only
   required_linear_history: true
   allow_force_pushes: false
   allow_deletions: false
@@ -27,7 +27,7 @@ develop:
       - "harness/all-green"
       - "versions.env drift check"
   enforce_admins: false
-  required_pull_request_reviews: null   # no mandatory approval on develop
+  required_pull_request_reviews: null # no mandatory approval on develop
   restrictions: null
   required_linear_history: false
   allow_force_pushes: false

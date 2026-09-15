@@ -1,35 +1,42 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles } from 'lucide-react';
-import { contentApi, channelsApi } from '@/lib/api-v2';
-import { Button, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/lib/ui';
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles } from "lucide-react";
+import { contentApi, channelsApi } from "@/lib/api-v2";
+import { Button, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/lib/ui";
 
-function startOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth(), 1); }
-function endOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth() + 1, 1); }
+function startOfMonth(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+function endOfMonth(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 1);
+}
 function fmtISO(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 function monthLabel(d: Date) {
-  return d.toLocaleString(undefined, { month: 'long', year: 'numeric' });
+  return d.toLocaleString(undefined, { month: "long", year: "numeric" });
 }
 
 export default function ContentCalendarPage() {
   const [cursor, setCursor] = useState<Date>(() => startOfMonth(new Date()));
   const [channels, setChannels] = useState<any[]>([]);
-  const [channelId, setChannelId] = useState<string>('');
+  const [channelId, setChannelId] = useState<string>("");
   const [data, setData] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { channelsApi.list(false).then(r => setChannels(r.data || [])); }, []);
+  useEffect(() => {
+    channelsApi.list(false).then((r) => setChannels(r.data || []));
+  }, []);
 
   useEffect(() => {
     setLoading(true);
     const start = fmtISO(startOfMonth(cursor));
     const end = fmtISO(endOfMonth(cursor));
-    contentApi.calendar(start, end, channelId || undefined)
-      .then(r => setData(r.data || {}))
+    contentApi
+      .calendar(start, end, channelId || undefined)
+      .then((r) => setData(r.data || {}))
       .finally(() => setLoading(false));
   }, [cursor, channelId]);
 
@@ -55,49 +62,84 @@ export default function ContentCalendarPage() {
         <span className="text-xs text-content-tertiary">{monthLabel(cursor)}</span>
         <div className="ml-auto flex items-center gap-2">
           <div className="min-w-[180px]">
-            <Select value={channelId || '__all__'} onValueChange={(v: string) => setChannelId(v === '__all__' ? '' : v)}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="All channels" /></SelectTrigger>
+            <Select
+              value={channelId || "__all__"}
+              onValueChange={(v: string) => setChannelId(v === "__all__" ? "" : v)}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="All channels" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">All channels</SelectItem>
-                {channels.map(c => <SelectItem key={c.channel_id} value={c.channel_id}>{c.channel_name}</SelectItem>)}
+                {channels.map((c) => (
+                  <SelectItem key={c.channel_id} value={c.channel_id}>
+                    {c.channel_name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setCursor(startOfMonth(new Date()))}>Today</Button>
-          <Button variant="outline" size="icon-sm" onClick={() => setCursor(c => new Date(c.getFullYear(), c.getMonth() - 1, 1))} aria-label="Previous month">
+          <Button variant="outline" size="sm" onClick={() => setCursor(startOfMonth(new Date()))}>
+            Today
+          </Button>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            onClick={() => setCursor((c) => new Date(c.getFullYear(), c.getMonth() - 1, 1))}
+            aria-label="Previous month"
+          >
             <ChevronLeft size={14} />
           </Button>
-          <Button variant="outline" size="icon-sm" onClick={() => setCursor(c => new Date(c.getFullYear(), c.getMonth() + 1, 1))} aria-label="Next month">
+          <Button
+            variant="outline"
+            size="icon-sm"
+            onClick={() => setCursor((c) => new Date(c.getFullYear(), c.getMonth() + 1, 1))}
+            aria-label="Next month"
+          >
             <ChevronRight size={14} />
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-7 gap-px rounded-xl overflow-hidden border border-border bg-border">
-        {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
-          <div key={d} className="bg-surface-1 px-2 py-1.5 text-[10px] uppercase tracking-wide text-content-tertiary">{d}</div>
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+          <div key={d} className="bg-surface-1 px-2 py-1.5 text-[10px] uppercase tracking-wide text-content-tertiary">
+            {d}
+          </div>
         ))}
         {grid.map(({ date, inMonth }, i) => {
           const key = fmtISO(date);
           const items = data[key] || [];
           const isToday = key === fmtISO(new Date());
           return (
-            <div key={i} className={'min-h-[110px] p-1.5 bg-surface-0 ' + (inMonth ? '' : 'opacity-40')}>
-              <div className={'text-[11px] mb-1 flex items-center gap-1 ' +
-                (isToday ? 'text-accent font-semibold' : 'text-content-tertiary')}>
+            <div key={i} className={"min-h-[110px] p-1.5 bg-surface-0 " + (inMonth ? "" : "opacity-40")}>
+              <div
+                className={
+                  "text-[11px] mb-1 flex items-center gap-1 " +
+                  (isToday ? "text-accent font-semibold" : "text-content-tertiary")
+                }
+              >
                 {date.getDate()}
                 {items.length > 0 && (
                   <span className="ml-auto text-[10px] px-1 rounded bg-surface-2">{items.length}</span>
                 )}
               </div>
               <div className="space-y-1">
-                {items.slice(0, 3).map(v => (
-                  <Link key={v.content_id} href={`/dashboard/review/${v.content_id}`}
-                    className={'block px-1 py-0.5 rounded text-[10px] truncate ' +
-                      (v.status === 'published' ? 'bg-status-success/15 text-status-success'
-                       : v.status === 'failed' ? 'bg-status-error/15 text-status-error'
-                       : v.status === 'scheduled' ? 'bg-status-warning/15 text-status-warning'
-                       : 'bg-surface-2 text-content-secondary')}>
+                {items.slice(0, 3).map((v) => (
+                  <Link
+                    key={v.content_id}
+                    href={`/dashboard/review/${v.content_id}`}
+                    className={
+                      "block px-1 py-0.5 rounded text-[10px] truncate " +
+                      (v.status === "published"
+                        ? "bg-status-success/15 text-status-success"
+                        : v.status === "failed"
+                          ? "bg-status-error/15 text-status-error"
+                          : v.status === "scheduled"
+                            ? "bg-status-warning/15 text-status-warning"
+                            : "bg-surface-2 text-content-secondary")
+                    }
+                  >
                     {v.title || v.content_id}
                   </Link>
                 ))}

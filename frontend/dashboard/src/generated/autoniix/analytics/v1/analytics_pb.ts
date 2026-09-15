@@ -13,8 +13,12 @@ import type { Message } from "@bufbuild/protobuf";
 /**
  * Describes the file autoniix/analytics/v1/analytics.proto.
  */
-export const file_autoniix_analytics_v1_analytics: GenFile = /*@__PURE__*/
-  fileDesc("CiVhdXRvbmlpeC9hbmFseXRpY3MvdjEvYW5hbHl0aWNzLnByb3RvEhVhdXRvbmlpeC5hbmFseXRpY3MudjEiYwoYR2V0RGFzaGJvYXJkU3RhdHNSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCRIxCgp0aW1lX3JhbmdlGAIgASgLMh0uYXV0b25paXguY29tbW9uLnYxLlRpbWVSYW5nZSLaAQoZR2V0RGFzaGJvYXJkU3RhdHNSZXNwb25zZRIUCgx0b3RhbF92aWRlb3MYASABKAUSFgoOcGVuZGluZ19yZXZpZXcYAiABKAUSGAoQcHVibGlzaGVkX3ZpZGVvcxgDIAEoBRITCgt0b3RhbF92aWV3cxgEIAEoARIVCg10b3RhbF9yZXZlbnVlGAUgASgBEhIKCnRvdGFsX2Nvc3QYBiABKAESNQoLZGFpbHlfc3RhdHMYByADKAsyIC5hdXRvbmlpeC5hbmFseXRpY3MudjEuRGFpbHlTdGF0ImEKGEdldENoYW5uZWxNZXRyaWNzUmVxdWVzdBISCgpjaGFubmVsX2lkGAEgASgJEjEKCnRpbWVfcmFuZ2UYAiABKAsyHS5hdXRvbmlpeC5jb21tb24udjEuVGltZVJhbmdlIr0BChlHZXRDaGFubmVsTWV0cmljc1Jlc3BvbnNlEhMKC3RvdGFsX3ZpZXdzGAEgASgDEhkKEXRvdGFsX3N1YnNjcmliZXJzGAIgASgDEhkKEWF2Z192aWV3X2R1cmF0aW9uGAMgASgBEhcKD2VuZ2FnZW1lbnRfcmF0ZRgEIAEoARI8Cgt0aW1lX3NlcmllcxgFIAMoCzInLmF1dG9uaWl4LmFuYWx5dGljcy52MS5NZXRyaWNUaW1lU2VyaWVzIi4KGkdldFZpZGVvUGVyZm9ybWFuY2VSZXF1ZXN0EhAKCHZpZGVvX2lkGAEgASgJIpABChtHZXRWaWRlb1BlcmZvcm1hbmNlUmVzcG9uc2USNAoHbWV0cmljcxgBIAEoCzIjLmF1dG9uaWl4LmFuYWx5dGljcy52MS5WaWRlb01ldHJpY3MSOwoIaW5zaWdodHMYAiADKAsyKS5hdXRvbmlpeC5hbmFseXRpY3MudjEuUGVyZm9ybWFuY2VJbnNpZ2h0ImEKFkdldENvc3RBbmFseXNpc1JlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJEjEKCnRpbWVfcmFuZ2UYAiABKAsyHS5hdXRvbmlpeC5jb21tb24udjEuVGltZVJhbmdlIpgBChdHZXRDb3N0QW5hbHlzaXNSZXNwb25zZRISCgp0b3RhbF9jb3N0GAEgASgBEjcKCWJyZWFrZG93bhgCIAEoCzIkLmF1dG9uaWl4LmFuYWx5dGljcy52MS5Db3N0QnJlYWtkb3duEjAKBnRyZW5kcxgDIAMoCzIgLmF1dG9uaWl4LmFuYWx5dGljcy52MS5Db3N0VHJlbmQiewoJRGFpbHlTdGF0EigKBGRhdGUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhYKDnZpZGVvc19jcmVhdGVkGAIgASgFEg0KBXZpZXdzGAMgASgDEgwKBGNvc3QYBCABKAESDwoHcmV2ZW51ZRgFIAEoASJZChBNZXRyaWNUaW1lU2VyaWVzEhMKC21ldHJpY19uYW1lGAEgASgJEjAKBnBvaW50cxgCIAMoCzIgLmF1dG9uaWl4LmFuYWx5dGljcy52MS5EYXRhUG9pbnQiSQoJRGF0YVBvaW50Ei0KCXRpbWVzdGFtcBgBIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDQoFdmFsdWUYAiABKAEiogEKDFZpZGVvTWV0cmljcxIQCgh2aWRlb19pZBgBIAEoCRINCgV2aWV3cxgCIAEoAxINCgVsaWtlcxgDIAEoAxIQCghjb21tZW50cxgEIAEoAxIbChNhdmdfdmlld19wZXJjZW50YWdlGAUgASgBEhoKEmNsaWNrX3Rocm91Z2hfcmF0ZRgGIAEoARIXCg9lbmdhZ2VtZW50X3JhdGUYByABKAEiWwoSUGVyZm9ybWFuY2VJbnNpZ2h0EgwKBHR5cGUYASABKAkSDwoHbWVzc2FnZRgCIAEoCRIQCghzZXZlcml0eRgDIAEoCRIUCgxpbXBhY3Rfc2NvcmUYBCABKAEiegoNQ29zdEJyZWFrZG93bhIQCghsbG1fY29zdBgBIAEoARISCgp2b2ljZV9jb3N0GAIgASgBEhIKCmFzc2V0X2Nvc3QYAyABKAESGwoTaW5mcmFzdHJ1Y3R1cmVfY29zdBgEIAEoARISCgpvdGhlcl9jb3N0GAUgASgBIlcKCUNvc3RUcmVuZBIoCgRkYXRlGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghjYXRlZ29yeRgCIAEoCRIOCgZhbW91bnQYAyABKAEy8gMKEEFuYWx5dGljc1NlcnZpY2USdgoRR2V0RGFzaGJvYXJkU3RhdHMSLy5hdXRvbmlpeC5hbmFseXRpY3MudjEuR2V0RGFzaGJvYXJkU3RhdHNSZXF1ZXN0GjAuYXV0b25paXguYW5hbHl0aWNzLnYxLkdldERhc2hib2FyZFN0YXRzUmVzcG9uc2USdgoRR2V0Q2hhbm5lbE1ldHJpY3MSLy5hdXRvbmlpeC5hbmFseXRpY3MudjEuR2V0Q2hhbm5lbE1ldHJpY3NSZXF1ZXN0GjAuYXV0b25paXguYW5hbHl0aWNzLnYxLkdldENoYW5uZWxNZXRyaWNzUmVzcG9uc2USfAoTR2V0VmlkZW9QZXJmb3JtYW5jZRIxLmF1dG9uaWl4LmFuYWx5dGljcy52MS5HZXRWaWRlb1BlcmZvcm1hbmNlUmVxdWVzdBoyLmF1dG9uaWl4LmFuYWx5dGljcy52MS5HZXRWaWRlb1BlcmZvcm1hbmNlUmVzcG9uc2UScAoPR2V0Q29zdEFuYWx5c2lzEi0uYXV0b25paXguYW5hbHl0aWNzLnYxLkdldENvc3RBbmFseXNpc1JlcXVlc3QaLi5hdXRvbmlpeC5hbmFseXRpY3MudjEuR2V0Q29zdEFuYWx5c2lzUmVzcG9uc2VC6AEKGWNvbS5hdXRvbmlpeC5hbmFseXRpY3MudjFCDkFuYWx5dGljc1Byb3RvUAFaRWdpdGh1Yi5jb20vYXV0b25paXgvYXV0b25paXgvZ2VuL2dvL2F1dG9uaWl4L2FuYWx5dGljcy92MTthbmFseXRpY3N2MaICA0FBWKoCFUF1dG9uaWl4LkFuYWx5dGljcy5WMcoCFUF1dG9uaWl4XEFuYWx5dGljc1xWMeICIUF1dG9uaWl4XEFuYWx5dGljc1xWMVxHUEJNZXRhZGF0YeoCF0F1dG9uaWl4OjpBbmFseXRpY3M6OlYxYgZwcm90bzM", [file_autoniix_common_v1_common, file_google_protobuf_timestamp]);
+export const file_autoniix_analytics_v1_analytics: GenFile =
+  /*@__PURE__*/
+  fileDesc(
+    "CiVhdXRvbmlpeC9hbmFseXRpY3MvdjEvYW5hbHl0aWNzLnByb3RvEhVhdXRvbmlpeC5hbmFseXRpY3MudjEiYwoYR2V0RGFzaGJvYXJkU3RhdHNSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCRIxCgp0aW1lX3JhbmdlGAIgASgLMh0uYXV0b25paXguY29tbW9uLnYxLlRpbWVSYW5nZSLaAQoZR2V0RGFzaGJvYXJkU3RhdHNSZXNwb25zZRIUCgx0b3RhbF92aWRlb3MYASABKAUSFgoOcGVuZGluZ19yZXZpZXcYAiABKAUSGAoQcHVibGlzaGVkX3ZpZGVvcxgDIAEoBRITCgt0b3RhbF92aWV3cxgEIAEoARIVCg10b3RhbF9yZXZlbnVlGAUgASgBEhIKCnRvdGFsX2Nvc3QYBiABKAESNQoLZGFpbHlfc3RhdHMYByADKAsyIC5hdXRvbmlpeC5hbmFseXRpY3MudjEuRGFpbHlTdGF0ImEKGEdldENoYW5uZWxNZXRyaWNzUmVxdWVzdBISCgpjaGFubmVsX2lkGAEgASgJEjEKCnRpbWVfcmFuZ2UYAiABKAsyHS5hdXRvbmlpeC5jb21tb24udjEuVGltZVJhbmdlIr0BChlHZXRDaGFubmVsTWV0cmljc1Jlc3BvbnNlEhMKC3RvdGFsX3ZpZXdzGAEgASgDEhkKEXRvdGFsX3N1YnNjcmliZXJzGAIgASgDEhkKEWF2Z192aWV3X2R1cmF0aW9uGAMgASgBEhcKD2VuZ2FnZW1lbnRfcmF0ZRgEIAEoARI8Cgt0aW1lX3NlcmllcxgFIAMoCzInLmF1dG9uaWl4LmFuYWx5dGljcy52MS5NZXRyaWNUaW1lU2VyaWVzIi4KGkdldFZpZGVvUGVyZm9ybWFuY2VSZXF1ZXN0EhAKCHZpZGVvX2lkGAEgASgJIpABChtHZXRWaWRlb1BlcmZvcm1hbmNlUmVzcG9uc2USNAoHbWV0cmljcxgBIAEoCzIjLmF1dG9uaWl4LmFuYWx5dGljcy52MS5WaWRlb01ldHJpY3MSOwoIaW5zaWdodHMYAiADKAsyKS5hdXRvbmlpeC5hbmFseXRpY3MudjEuUGVyZm9ybWFuY2VJbnNpZ2h0ImEKFkdldENvc3RBbmFseXNpc1JlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJEjEKCnRpbWVfcmFuZ2UYAiABKAsyHS5hdXRvbmlpeC5jb21tb24udjEuVGltZVJhbmdlIpgBChdHZXRDb3N0QW5hbHlzaXNSZXNwb25zZRISCgp0b3RhbF9jb3N0GAEgASgBEjcKCWJyZWFrZG93bhgCIAEoCzIkLmF1dG9uaWl4LmFuYWx5dGljcy52MS5Db3N0QnJlYWtkb3duEjAKBnRyZW5kcxgDIAMoCzIgLmF1dG9uaWl4LmFuYWx5dGljcy52MS5Db3N0VHJlbmQiewoJRGFpbHlTdGF0EigKBGRhdGUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhYKDnZpZGVvc19jcmVhdGVkGAIgASgFEg0KBXZpZXdzGAMgASgDEgwKBGNvc3QYBCABKAESDwoHcmV2ZW51ZRgFIAEoASJZChBNZXRyaWNUaW1lU2VyaWVzEhMKC21ldHJpY19uYW1lGAEgASgJEjAKBnBvaW50cxgCIAMoCzIgLmF1dG9uaWl4LmFuYWx5dGljcy52MS5EYXRhUG9pbnQiSQoJRGF0YVBvaW50Ei0KCXRpbWVzdGFtcBgBIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDQoFdmFsdWUYAiABKAEiogEKDFZpZGVvTWV0cmljcxIQCgh2aWRlb19pZBgBIAEoCRINCgV2aWV3cxgCIAEoAxINCgVsaWtlcxgDIAEoAxIQCghjb21tZW50cxgEIAEoAxIbChNhdmdfdmlld19wZXJjZW50YWdlGAUgASgBEhoKEmNsaWNrX3Rocm91Z2hfcmF0ZRgGIAEoARIXCg9lbmdhZ2VtZW50X3JhdGUYByABKAEiWwoSUGVyZm9ybWFuY2VJbnNpZ2h0EgwKBHR5cGUYASABKAkSDwoHbWVzc2FnZRgCIAEoCRIQCghzZXZlcml0eRgDIAEoCRIUCgxpbXBhY3Rfc2NvcmUYBCABKAEiegoNQ29zdEJyZWFrZG93bhIQCghsbG1fY29zdBgBIAEoARISCgp2b2ljZV9jb3N0GAIgASgBEhIKCmFzc2V0X2Nvc3QYAyABKAESGwoTaW5mcmFzdHJ1Y3R1cmVfY29zdBgEIAEoARISCgpvdGhlcl9jb3N0GAUgASgBIlcKCUNvc3RUcmVuZBIoCgRkYXRlGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghjYXRlZ29yeRgCIAEoCRIOCgZhbW91bnQYAyABKAEy8gMKEEFuYWx5dGljc1NlcnZpY2USdgoRR2V0RGFzaGJvYXJkU3RhdHMSLy5hdXRvbmlpeC5hbmFseXRpY3MudjEuR2V0RGFzaGJvYXJkU3RhdHNSZXF1ZXN0GjAuYXV0b25paXguYW5hbHl0aWNzLnYxLkdldERhc2hib2FyZFN0YXRzUmVzcG9uc2USdgoRR2V0Q2hhbm5lbE1ldHJpY3MSLy5hdXRvbmlpeC5hbmFseXRpY3MudjEuR2V0Q2hhbm5lbE1ldHJpY3NSZXF1ZXN0GjAuYXV0b25paXguYW5hbHl0aWNzLnYxLkdldENoYW5uZWxNZXRyaWNzUmVzcG9uc2USfAoTR2V0VmlkZW9QZXJmb3JtYW5jZRIxLmF1dG9uaWl4LmFuYWx5dGljcy52MS5HZXRWaWRlb1BlcmZvcm1hbmNlUmVxdWVzdBoyLmF1dG9uaWl4LmFuYWx5dGljcy52MS5HZXRWaWRlb1BlcmZvcm1hbmNlUmVzcG9uc2UScAoPR2V0Q29zdEFuYWx5c2lzEi0uYXV0b25paXguYW5hbHl0aWNzLnYxLkdldENvc3RBbmFseXNpc1JlcXVlc3QaLi5hdXRvbmlpeC5hbmFseXRpY3MudjEuR2V0Q29zdEFuYWx5c2lzUmVzcG9uc2VC6AEKGWNvbS5hdXRvbmlpeC5hbmFseXRpY3MudjFCDkFuYWx5dGljc1Byb3RvUAFaRWdpdGh1Yi5jb20vYXV0b25paXgvYXV0b25paXgvZ2VuL2dvL2F1dG9uaWl4L2FuYWx5dGljcy92MTthbmFseXRpY3N2MaICA0FBWKoCFUF1dG9uaWl4LkFuYWx5dGljcy5WMcoCFUF1dG9uaWl4XEFuYWx5dGljc1xWMeICIUF1dG9uaWl4XEFuYWx5dGljc1xWMVxHUEJNZXRhZGF0YeoCF0F1dG9uaWl4OjpBbmFseXRpY3M6OlYxYgZwcm90bzM",
+    [file_autoniix_common_v1_common, file_google_protobuf_timestamp]
+  );
 
 /**
  * @generated from message autoniix.analytics.v1.GetDashboardStatsRequest
@@ -35,7 +39,8 @@ export type GetDashboardStatsRequest = Message<"autoniix.analytics.v1.GetDashboa
  * Describes the message autoniix.analytics.v1.GetDashboardStatsRequest.
  * Use `create(GetDashboardStatsRequestSchema)` to create a new message.
  */
-export const GetDashboardStatsRequestSchema: GenMessage<GetDashboardStatsRequest> = /*@__PURE__*/
+export const GetDashboardStatsRequestSchema: GenMessage<GetDashboardStatsRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_analytics_v1_analytics, 0);
 
 /**
@@ -82,7 +87,8 @@ export type GetDashboardStatsResponse = Message<"autoniix.analytics.v1.GetDashbo
  * Describes the message autoniix.analytics.v1.GetDashboardStatsResponse.
  * Use `create(GetDashboardStatsResponseSchema)` to create a new message.
  */
-export const GetDashboardStatsResponseSchema: GenMessage<GetDashboardStatsResponse> = /*@__PURE__*/
+export const GetDashboardStatsResponseSchema: GenMessage<GetDashboardStatsResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_analytics_v1_analytics, 1);
 
 /**
@@ -104,7 +110,8 @@ export type GetChannelMetricsRequest = Message<"autoniix.analytics.v1.GetChannel
  * Describes the message autoniix.analytics.v1.GetChannelMetricsRequest.
  * Use `create(GetChannelMetricsRequestSchema)` to create a new message.
  */
-export const GetChannelMetricsRequestSchema: GenMessage<GetChannelMetricsRequest> = /*@__PURE__*/
+export const GetChannelMetricsRequestSchema: GenMessage<GetChannelMetricsRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_analytics_v1_analytics, 2);
 
 /**
@@ -141,7 +148,8 @@ export type GetChannelMetricsResponse = Message<"autoniix.analytics.v1.GetChanne
  * Describes the message autoniix.analytics.v1.GetChannelMetricsResponse.
  * Use `create(GetChannelMetricsResponseSchema)` to create a new message.
  */
-export const GetChannelMetricsResponseSchema: GenMessage<GetChannelMetricsResponse> = /*@__PURE__*/
+export const GetChannelMetricsResponseSchema: GenMessage<GetChannelMetricsResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_analytics_v1_analytics, 3);
 
 /**
@@ -158,7 +166,8 @@ export type GetVideoPerformanceRequest = Message<"autoniix.analytics.v1.GetVideo
  * Describes the message autoniix.analytics.v1.GetVideoPerformanceRequest.
  * Use `create(GetVideoPerformanceRequestSchema)` to create a new message.
  */
-export const GetVideoPerformanceRequestSchema: GenMessage<GetVideoPerformanceRequest> = /*@__PURE__*/
+export const GetVideoPerformanceRequestSchema: GenMessage<GetVideoPerformanceRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_analytics_v1_analytics, 4);
 
 /**
@@ -180,7 +189,8 @@ export type GetVideoPerformanceResponse = Message<"autoniix.analytics.v1.GetVide
  * Describes the message autoniix.analytics.v1.GetVideoPerformanceResponse.
  * Use `create(GetVideoPerformanceResponseSchema)` to create a new message.
  */
-export const GetVideoPerformanceResponseSchema: GenMessage<GetVideoPerformanceResponse> = /*@__PURE__*/
+export const GetVideoPerformanceResponseSchema: GenMessage<GetVideoPerformanceResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_analytics_v1_analytics, 5);
 
 /**
@@ -202,7 +212,8 @@ export type GetCostAnalysisRequest = Message<"autoniix.analytics.v1.GetCostAnaly
  * Describes the message autoniix.analytics.v1.GetCostAnalysisRequest.
  * Use `create(GetCostAnalysisRequestSchema)` to create a new message.
  */
-export const GetCostAnalysisRequestSchema: GenMessage<GetCostAnalysisRequest> = /*@__PURE__*/
+export const GetCostAnalysisRequestSchema: GenMessage<GetCostAnalysisRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_analytics_v1_analytics, 6);
 
 /**
@@ -229,7 +240,8 @@ export type GetCostAnalysisResponse = Message<"autoniix.analytics.v1.GetCostAnal
  * Describes the message autoniix.analytics.v1.GetCostAnalysisResponse.
  * Use `create(GetCostAnalysisResponseSchema)` to create a new message.
  */
-export const GetCostAnalysisResponseSchema: GenMessage<GetCostAnalysisResponse> = /*@__PURE__*/
+export const GetCostAnalysisResponseSchema: GenMessage<GetCostAnalysisResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_analytics_v1_analytics, 7);
 
 /**
@@ -266,7 +278,8 @@ export type DailyStat = Message<"autoniix.analytics.v1.DailyStat"> & {
  * Describes the message autoniix.analytics.v1.DailyStat.
  * Use `create(DailyStatSchema)` to create a new message.
  */
-export const DailyStatSchema: GenMessage<DailyStat> = /*@__PURE__*/
+export const DailyStatSchema: GenMessage<DailyStat> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_analytics_v1_analytics, 8);
 
 /**
@@ -288,7 +301,8 @@ export type MetricTimeSeries = Message<"autoniix.analytics.v1.MetricTimeSeries">
  * Describes the message autoniix.analytics.v1.MetricTimeSeries.
  * Use `create(MetricTimeSeriesSchema)` to create a new message.
  */
-export const MetricTimeSeriesSchema: GenMessage<MetricTimeSeries> = /*@__PURE__*/
+export const MetricTimeSeriesSchema: GenMessage<MetricTimeSeries> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_analytics_v1_analytics, 9);
 
 /**
@@ -310,7 +324,8 @@ export type DataPoint = Message<"autoniix.analytics.v1.DataPoint"> & {
  * Describes the message autoniix.analytics.v1.DataPoint.
  * Use `create(DataPointSchema)` to create a new message.
  */
-export const DataPointSchema: GenMessage<DataPoint> = /*@__PURE__*/
+export const DataPointSchema: GenMessage<DataPoint> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_analytics_v1_analytics, 10);
 
 /**
@@ -357,7 +372,8 @@ export type VideoMetrics = Message<"autoniix.analytics.v1.VideoMetrics"> & {
  * Describes the message autoniix.analytics.v1.VideoMetrics.
  * Use `create(VideoMetricsSchema)` to create a new message.
  */
-export const VideoMetricsSchema: GenMessage<VideoMetrics> = /*@__PURE__*/
+export const VideoMetricsSchema: GenMessage<VideoMetrics> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_analytics_v1_analytics, 11);
 
 /**
@@ -389,7 +405,8 @@ export type PerformanceInsight = Message<"autoniix.analytics.v1.PerformanceInsig
  * Describes the message autoniix.analytics.v1.PerformanceInsight.
  * Use `create(PerformanceInsightSchema)` to create a new message.
  */
-export const PerformanceInsightSchema: GenMessage<PerformanceInsight> = /*@__PURE__*/
+export const PerformanceInsightSchema: GenMessage<PerformanceInsight> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_analytics_v1_analytics, 12);
 
 /**
@@ -426,7 +443,8 @@ export type CostBreakdown = Message<"autoniix.analytics.v1.CostBreakdown"> & {
  * Describes the message autoniix.analytics.v1.CostBreakdown.
  * Use `create(CostBreakdownSchema)` to create a new message.
  */
-export const CostBreakdownSchema: GenMessage<CostBreakdown> = /*@__PURE__*/
+export const CostBreakdownSchema: GenMessage<CostBreakdown> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_analytics_v1_analytics, 13);
 
 /**
@@ -453,7 +471,8 @@ export type CostTrend = Message<"autoniix.analytics.v1.CostTrend"> & {
  * Describes the message autoniix.analytics.v1.CostTrend.
  * Use `create(CostTrendSchema)` to create a new message.
  */
-export const CostTrendSchema: GenMessage<CostTrend> = /*@__PURE__*/
+export const CostTrendSchema: GenMessage<CostTrend> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_analytics_v1_analytics, 14);
 
 /**
@@ -467,7 +486,7 @@ export const AnalyticsService: GenService<{
     methodKind: "unary";
     input: typeof GetDashboardStatsRequestSchema;
     output: typeof GetDashboardStatsResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.analytics.v1.AnalyticsService.GetChannelMetrics
    */
@@ -475,7 +494,7 @@ export const AnalyticsService: GenService<{
     methodKind: "unary";
     input: typeof GetChannelMetricsRequestSchema;
     output: typeof GetChannelMetricsResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.analytics.v1.AnalyticsService.GetVideoPerformance
    */
@@ -483,7 +502,7 @@ export const AnalyticsService: GenService<{
     methodKind: "unary";
     input: typeof GetVideoPerformanceRequestSchema;
     output: typeof GetVideoPerformanceResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.analytics.v1.AnalyticsService.GetCostAnalysis
    */
@@ -491,7 +510,5 @@ export const AnalyticsService: GenService<{
     methodKind: "unary";
     input: typeof GetCostAnalysisRequestSchema;
     output: typeof GetCostAnalysisResponseSchema;
-  },
-}> = /*@__PURE__*/
-  serviceDesc(file_autoniix_analytics_v1_analytics, 0);
-
+  };
+}> = /*@__PURE__*/ serviceDesc(file_autoniix_analytics_v1_analytics, 0);

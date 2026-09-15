@@ -10,7 +10,7 @@
 # This profile is intentionally NOT activated in local dev.
 
 api:
-  dashboard: false    # Traefik dashboard disabled — expose only if you need it
+  dashboard: false # Traefik dashboard disabled — expose only if you need it
   insecure: false
 
 entryPoints:
@@ -42,7 +42,7 @@ certificatesResolvers:
 providers:
   docker:
     endpoint: "tcp://socket-proxy:2375"
-    exposedByDefault: false    # Only route containers with traefik.enable=true
+    exposedByDefault: false # Only route containers with traefik.enable=true
     network: autoniix-net
   file:
     filename: /traefik/dynamic.yml

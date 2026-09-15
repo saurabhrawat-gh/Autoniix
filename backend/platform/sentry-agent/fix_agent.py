@@ -5,15 +5,44 @@ from __future__ import annotations
 import base64
 import json
 import re
+from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
+import redis.asyncio as aioredis
 import structlog
-from config import LLM_MODEL, OPENAI_API_KEY
+from config import (
+    AUTOFIX_MAX_PER_DAY,
+    AUTOFIX_REQUIRE_APPROVAL,
+    LLM_MODEL,
+    OPENAI_API_KEY,
+    REDIS_URL,
+)
 from github_client import GitHubClient
 from triage import extract_stack_summary, find_culprit_file
 
 logger = structlog.get_logger()
+
+
+async def _check_and_bump_daily_quota() -> tuple[bool, int]:
+    """Atomically increment today's auto-fix counter and check the cap.
+
+    Returns ``(allowed, current_count)``. Uses a UTC-day-scoped key so
+    the budget resets at midnight UTC without a background job.
+    """
+    day = datetime.now(timezone.utc).strftime("%Y%m%d")
+    key = f"sentry:autofix:count:{day}"
+    r = aioredis.from_url(REDIS_URL, decode_responses=True)
+    try:
+        count = await r.incr(key)
+        if count == 1:
+            # First bump today — set TTL so the key auto-expires.
+            await r.expire(key, 26 * 3600)  # 26h — belt-and-braces past midnight
+        allowed = count <= AUTOFIX_MAX_PER_DAY
+        return allowed, int(count)
+    finally:
+        await r.aclose()
+
 
 _SYSTEM_PROMPT = """\
 You are a senior software engineer performing surgical bug fixes.
@@ -50,6 +79,33 @@ Rules:
 class FixAgent:
     async def attempt_fix(self, sentry_issue: dict, ticket_key: str) -> Optional[str]:
         """Try to auto-fix the error. Returns PR URL on success, None otherwise."""
+        # Safety rail 1: daily budget check (per plan §2.5 — prevent
+        # notification/PR storms). Runs before any LLM or GitHub call.
+        try:
+            allowed, count = await _check_and_bump_daily_quota()
+            if not allowed:
+                logger.warning(
+                    "fix_agent.daily_quota_exceeded",
+                    ticket=ticket_key,
+                    count=count,
+                    cap=AUTOFIX_MAX_PER_DAY,
+                )
+                return None
+        except Exception as exc:  # noqa: BLE001 — fail closed on Redis error
+            logger.warning("fix_agent.quota_check_failed", error=str(exc), ticket=ticket_key)
+            return None
+
+        # Safety rail 2: require explicit env opt-in (default true =
+        # don't push PRs autonomously — just prepare the branch/commit
+        # locally and log for human review).
+        if AUTOFIX_REQUIRE_APPROVAL:
+            logger.info(
+                "fix_agent.approval_required_skipping_pr",
+                ticket=ticket_key,
+                note="set SENTRY_AUTOFIX_REQUIRE_APPROVAL=false to enable autonomous PRs",
+            )
+            return None
+
         culprit_path = find_culprit_file(sentry_issue)
         if not culprit_path:
             logger.info("fix_agent.no_culprit", ticket=ticket_key)
@@ -78,7 +134,11 @@ class FixAgent:
         if not fix_result:
             return None
         if not fix_result.get("can_fix"):
-            logger.info("fix_agent.llm_cannot_fix", reason=fix_result.get("explanation"), ticket=ticket_key)
+            logger.info(
+                "fix_agent.llm_cannot_fix",
+                reason=fix_result.get("explanation"),
+                ticket=ticket_key,
+            )
             return None
         if fix_result.get("confidence") == "low":
             logger.info("fix_agent.low_confidence", ticket=ticket_key)
@@ -155,7 +215,9 @@ class FixAgent:
                 raw = r.json()["choices"][0]["message"]["content"]
                 result: dict = json.loads(raw)
                 logger.info(
-                    "fix_agent.llm_response", can_fix=result.get("can_fix"), confidence=result.get("confidence")
+                    "fix_agent.llm_response",
+                    can_fix=result.get("can_fix"),
+                    confidence=result.get("confidence"),
                 )
                 return result
         except Exception as exc:

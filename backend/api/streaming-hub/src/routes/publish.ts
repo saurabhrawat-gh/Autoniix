@@ -36,10 +36,7 @@ export function registerPublishRoutes(app: FastifyInstance, hub: Hub): void {
     }
 
     const principal = (request.user ?? {}) as { workspace_id?: string };
-    if (
-      principal.workspace_id &&
-      principal.workspace_id !== parsed.data.workspace_id
-    ) {
+    if (principal.workspace_id && principal.workspace_id !== parsed.data.workspace_id) {
       return reply.code(403).send({
         error: "Forbidden",
         message: "Cannot publish events for another workspace",

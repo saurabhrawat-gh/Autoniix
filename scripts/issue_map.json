@@ -3,58 +3,182 @@
   "_updated": "2026-07-05T18:23Z",
   "_note": "Phase A (A1-A7) fully shipped to main. Phase B: B1-B6 all merged to develop — all ready to deploy. Epic IM-195 closed.",
   "mappings": {
-    "638": { "jira": "AE-571", "status": "open",   "title": "Epic: Multi-Language Backend Migration" },
-    "643": { "jira": "AE-572", "status": "done",   "title": "/me response alignment" },
-    "644": { "jira": "AE-573", "status": "done",   "title": "Cookie-based auth parity" },
-    "645": { "jira": "AE-577", "status": "done",   "title": "Invite-only register security gap (resolved by #667)" },
-    "646": { "jira": "AE-574", "status": "done",   "title": "Login/signin response shape" },
-    "647": { "jira": "AE-575", "status": "done",   "title": "Missing auth endpoints MFA/forgot/reset" },
-    "650": { "jira": "AE-576", "status": "done",   "title": "Gateway compile fix" },
-    "666": { "jira": "AE-578", "status": "done",   "title": "MFA TOTP challenge enforcement on sign_in" },
-    "667": { "jira": "AE-579", "status": "done",   "title": "Feature-flag controlled registration mode" },
-    "668": { "jira": "AE-580", "status": "done",   "title": "Capture client IP/UA in session records" },
-    "669": { "jira": "AE-581", "status": "done",   "title": "POST /auth/mfa/disable" },
-    "670": { "jira": "AE-582", "status": "done",   "title": "POST /auth/accept-invite" },
-    "304": { "jira": "AE-263", "status": "done",   "title": "Dashboard duplicate API calls — request dedup cache" },
-    "329": { "jira": "AE-278", "status": "done",   "title": "/dashboard/users accessible to all authenticated users" },
-    "330": { "jira": "AE-279", "status": "done",   "title": "JWT encodes workspace role not global role" },
-    "331": { "jira": "AE-280", "status": "done",   "title": "Member role can disable/enable platform users" },
-    "424": { "jira": "AE-321", "status": "done",   "title": "Multi-select credential add creates chain duplicates" },
-    "425": { "jira": "AE-324", "status": "done",   "title": "New workspace inherits all data from workspace 1 (zero isolation)" },
-    "452": { "jira": "AE-338", "status": "done",   "title": "Credential audit log tab missing from Providers" },
-    "453": { "jira": "AE-339", "status": "done",   "title": "Quota/usage display missing from Providers routing policy" },
-    "308": { "jira": "AE-264", "status": "done",   "title": "Self-serve registration grants Owner role (privilege escalation)" },
-    "332": { "jira": "AE-281", "status": "done",   "title": "No rate limit on POST /auth/register" },
-    "450": { "jira": "AE-336", "status": "done",   "title": "OpenAI SDK breaking change — raw httpx pattern already in place" },
-    "451": { "jira": "AE-337", "status": "done",   "title": "Anthropic provider not registered — claude_provider.py registers under both keys" },
-    "671": { "jira": "AE-583", "status": "done",   "title": "H.1 — Rust harness crate: ContractValidator + 9 provider mocks" },
-    "672": { "jira": "AE-584", "status": "done",   "title": "H.2 — GatewayHarness + Criterion benchmarks for auth endpoints" },
-    "673": { "jira": "AE-585", "status": "done",   "title": "H.3 — Go + Python harness templates for microservices" },
-    "674": { "jira": "AE-586", "status": "done",   "title": "H.4 — Migration validation: Python ↔ Rust equivalence + rollback tests" },
-    "676": { "jira": "AE-588", "status": "in-prod", "title": "Channels BE: 4 data-loss bugs — content_type_tags, publish_cadence, uploaded_by, content_mode patch" },
-    "677": { "jira": "AE-589", "status": "in-prod", "title": "Channels FE: wrong badge, broken redirect, handle not required" },
-    "678": { "jira": "AE-590", "status": "in-prod", "title": "Channels BE: missing list endpoints + trigger cooldown guard" },
-    "689": { "jira": "IM-173", "status": "done", "title": "Core1: Workspace deleted between invite+acceptance causes FK orphan" },
+    "638": { "jira": "AE-571", "status": "open", "title": "Epic: Multi-Language Backend Migration" },
+    "643": { "jira": "AE-572", "status": "done", "title": "/me response alignment" },
+    "644": { "jira": "AE-573", "status": "done", "title": "Cookie-based auth parity" },
+    "645": { "jira": "AE-577", "status": "done", "title": "Invite-only register security gap (resolved by #667)" },
+    "646": { "jira": "AE-574", "status": "done", "title": "Login/signin response shape" },
+    "647": { "jira": "AE-575", "status": "done", "title": "Missing auth endpoints MFA/forgot/reset" },
+    "650": { "jira": "AE-576", "status": "done", "title": "Gateway compile fix" },
+    "666": { "jira": "AE-578", "status": "done", "title": "MFA TOTP challenge enforcement on sign_in" },
+    "667": { "jira": "AE-579", "status": "done", "title": "Feature-flag controlled registration mode" },
+    "668": { "jira": "AE-580", "status": "done", "title": "Capture client IP/UA in session records" },
+    "669": { "jira": "AE-581", "status": "done", "title": "POST /auth/mfa/disable" },
+    "670": { "jira": "AE-582", "status": "done", "title": "POST /auth/accept-invite" },
+    "304": { "jira": "AE-263", "status": "done", "title": "Dashboard duplicate API calls — request dedup cache" },
+    "329": { "jira": "AE-278", "status": "done", "title": "/dashboard/users accessible to all authenticated users" },
+    "330": { "jira": "AE-279", "status": "done", "title": "JWT encodes workspace role not global role" },
+    "331": { "jira": "AE-280", "status": "done", "title": "Member role can disable/enable platform users" },
+    "424": { "jira": "AE-321", "status": "done", "title": "Multi-select credential add creates chain duplicates" },
+    "425": {
+      "jira": "AE-324",
+      "status": "done",
+      "title": "New workspace inherits all data from workspace 1 (zero isolation)"
+    },
+    "452": { "jira": "AE-338", "status": "done", "title": "Credential audit log tab missing from Providers" },
+    "453": { "jira": "AE-339", "status": "done", "title": "Quota/usage display missing from Providers routing policy" },
+    "308": {
+      "jira": "AE-264",
+      "status": "done",
+      "title": "Self-serve registration grants Owner role (privilege escalation)"
+    },
+    "332": { "jira": "AE-281", "status": "done", "title": "No rate limit on POST /auth/register" },
+    "450": {
+      "jira": "AE-336",
+      "status": "done",
+      "title": "OpenAI SDK breaking change — raw httpx pattern already in place"
+    },
+    "451": {
+      "jira": "AE-337",
+      "status": "done",
+      "title": "Anthropic provider not registered — claude_provider.py registers under both keys"
+    },
+    "671": {
+      "jira": "AE-583",
+      "status": "done",
+      "title": "H.1 — Rust harness crate: ContractValidator + 9 provider mocks"
+    },
+    "672": {
+      "jira": "AE-584",
+      "status": "done",
+      "title": "H.2 — GatewayHarness + Criterion benchmarks for auth endpoints"
+    },
+    "673": { "jira": "AE-585", "status": "done", "title": "H.3 — Go + Python harness templates for microservices" },
+    "674": {
+      "jira": "AE-586",
+      "status": "done",
+      "title": "H.4 — Migration validation: Python ↔ Rust equivalence + rollback tests"
+    },
+    "676": {
+      "jira": "AE-588",
+      "status": "in-prod",
+      "title": "Channels BE: 4 data-loss bugs — content_type_tags, publish_cadence, uploaded_by, content_mode patch"
+    },
+    "677": {
+      "jira": "AE-589",
+      "status": "in-prod",
+      "title": "Channels FE: wrong badge, broken redirect, handle not required"
+    },
+    "678": {
+      "jira": "AE-590",
+      "status": "in-prod",
+      "title": "Channels BE: missing list endpoints + trigger cooldown guard"
+    },
+    "689": {
+      "jira": "IM-173",
+      "status": "done",
+      "title": "Core1: Workspace deleted between invite+acceptance causes FK orphan"
+    },
     "690": { "jira": "IM-177", "status": "done", "title": "Core1: Active sessions list + manual revocation" },
-    "691": { "jira": "IM-179", "status": "done", "title": "Core1: Onboarding wizard — verify completion and workspace setup steps" },
-    "696": { "jira": "IM-178", "status": "done", "title": "Core1: MFA frontend UI — setup wizard, verification prompt, and disable flow" },
-    "697": { "jira": "IM-182", "status": "done", "title": "Core1: Notify all workspace members by email on deletion initiation and before hard-delete" },
-    "698": { "jira": "IM-183", "status": "done", "title": "Core1: Orphaned user protection — user with zero remaining workspaces after deletion" },
-    "704": { "jira": "IM-187", "status": "done", "title": "[Harness] Phase A — Complete migration harness infrastructure (Epic)" },
-    "705": { "jira": "IM-188", "status": "done", "title": "[Harness] A1 — OpenAPI schema generation from Rust gateway routes (utoipa)" },
-    "706": { "jira": "IM-189", "status": "done", "title": "[Harness] A2 — Provider-mock injection into gateway (PROVIDER_MODE=mock)" },
-    "707": { "jira": "IM-190", "status": "done", "title": "[Harness] A3 — Reusable GatewayHarness fixture for Rust integration tests" },
-    "708": { "jira": "IM-191", "status": "done", "title": "[Harness] A4 — Golden-file regression suite (Python v2 ↔ Rust equivalence for 74 endpoints)" },
-    "709": { "jira": "IM-192", "status": "done", "title": "[Harness] A5 — CI blocking gate: equivalence workflow + required check" },
-    "710": { "jira": "IM-193", "status": "done", "title": "[Harness] A6 — Criterion benchmarks + 10% perf-regression gate" },
-    "711": { "jira": "IM-194", "status": "done", "title": "[Harness] A7 — Go harness template (forward-looking for Phase C G0)" },
-    "700": { "jira": "IM-49",  "status": "ready-to-deploy", "title": "Core-Gateway: Per-workspace rate limiting — configurable RPM + 429 response" },
-    "712": { "jira": "IM-195", "status": "ready-to-deploy", "title": "[Phase B] Epic — Rust migration completion (replace Python v2 thin proxies)" },
-    "713": { "jira": "IM-196", "status": "ready-to-deploy", "title": "[Phase B] B1 — Native Rust implementation of providers.py (49 endpoints)" },
-    "714": { "jira": "IM-197", "status": "ready-to-deploy", "title": "[Phase B] B2 — Native Rust implementation of workspace remainder endpoints" },
-    "715": { "jira": "IM-198", "status": "ready-to-deploy", "title": "[Phase B] B3 — Native Rust implementation of library cluster (~27 endpoints)" },
-    "716": { "jira": "IM-199", "status": "ready-to-deploy", "title": "[Phase B] B4 — Native Rust implementation of jobs.py (~11 endpoints)" },
-    "717": { "jira": "IM-200", "status": "ready-to-deploy", "title": "[Phase B] B5 — Native Rust implementation of review cluster (~14 endpoints)" },
-    "718": { "jira": "IM-201", "status": "ready-to-deploy", "title": "[Phase B] B6 — Native Rust implementation of content/finishing/experiments cluster (~33 endpoints)" }
+    "691": {
+      "jira": "IM-179",
+      "status": "done",
+      "title": "Core1: Onboarding wizard — verify completion and workspace setup steps"
+    },
+    "696": {
+      "jira": "IM-178",
+      "status": "done",
+      "title": "Core1: MFA frontend UI — setup wizard, verification prompt, and disable flow"
+    },
+    "697": {
+      "jira": "IM-182",
+      "status": "done",
+      "title": "Core1: Notify all workspace members by email on deletion initiation and before hard-delete"
+    },
+    "698": {
+      "jira": "IM-183",
+      "status": "done",
+      "title": "Core1: Orphaned user protection — user with zero remaining workspaces after deletion"
+    },
+    "704": {
+      "jira": "IM-187",
+      "status": "done",
+      "title": "[Harness] Phase A — Complete migration harness infrastructure (Epic)"
+    },
+    "705": {
+      "jira": "IM-188",
+      "status": "done",
+      "title": "[Harness] A1 — OpenAPI schema generation from Rust gateway routes (utoipa)"
+    },
+    "706": {
+      "jira": "IM-189",
+      "status": "done",
+      "title": "[Harness] A2 — Provider-mock injection into gateway (PROVIDER_MODE=mock)"
+    },
+    "707": {
+      "jira": "IM-190",
+      "status": "done",
+      "title": "[Harness] A3 — Reusable GatewayHarness fixture for Rust integration tests"
+    },
+    "708": {
+      "jira": "IM-191",
+      "status": "done",
+      "title": "[Harness] A4 — Golden-file regression suite (Python v2 ↔ Rust equivalence for 74 endpoints)"
+    },
+    "709": {
+      "jira": "IM-192",
+      "status": "done",
+      "title": "[Harness] A5 — CI blocking gate: equivalence workflow + required check"
+    },
+    "710": {
+      "jira": "IM-193",
+      "status": "done",
+      "title": "[Harness] A6 — Criterion benchmarks + 10% perf-regression gate"
+    },
+    "711": {
+      "jira": "IM-194",
+      "status": "done",
+      "title": "[Harness] A7 — Go harness template (forward-looking for Phase C G0)"
+    },
+    "700": {
+      "jira": "IM-49",
+      "status": "ready-to-deploy",
+      "title": "Core-Gateway: Per-workspace rate limiting — configurable RPM + 429 response"
+    },
+    "712": {
+      "jira": "IM-195",
+      "status": "ready-to-deploy",
+      "title": "[Phase B] Epic — Rust migration completion (replace Python v2 thin proxies)"
+    },
+    "713": {
+      "jira": "IM-196",
+      "status": "ready-to-deploy",
+      "title": "[Phase B] B1 — Native Rust implementation of providers.py (49 endpoints)"
+    },
+    "714": {
+      "jira": "IM-197",
+      "status": "ready-to-deploy",
+      "title": "[Phase B] B2 — Native Rust implementation of workspace remainder endpoints"
+    },
+    "715": {
+      "jira": "IM-198",
+      "status": "ready-to-deploy",
+      "title": "[Phase B] B3 — Native Rust implementation of library cluster (~27 endpoints)"
+    },
+    "716": {
+      "jira": "IM-199",
+      "status": "ready-to-deploy",
+      "title": "[Phase B] B4 — Native Rust implementation of jobs.py (~11 endpoints)"
+    },
+    "717": {
+      "jira": "IM-200",
+      "status": "ready-to-deploy",
+      "title": "[Phase B] B5 — Native Rust implementation of review cluster (~14 endpoints)"
+    },
+    "718": {
+      "jira": "IM-201",
+      "status": "ready-to-deploy",
+      "title": "[Phase B] B6 — Native Rust implementation of content/finishing/experiments cluster (~33 endpoints)"
+    }
   }
 }

@@ -9,10 +9,12 @@
 ## Implemented Endpoints ✅
 
 ### Health (2 endpoints)
+
 - ✅ `GET /health` - Health check with DB status
 - ✅ `GET /ready` - Readiness probe
 
 ### Auth (5 endpoints)
+
 - ✅ `POST /api/v2/auth/login` - Email/password authentication
 - ✅ `POST /api/v2/auth/register` - User + workspace creation
 - ✅ `POST /api/v2/auth/refresh` - Token refresh
@@ -20,6 +22,7 @@
 - ✅ `GET /api/v2/auth/me` - Get current user + workspace
 
 ### Jobs (8 endpoints)
+
 - ✅ `GET /api/v2/jobs` - List jobs (paginated, filtered, sorted)
 - ✅ `GET /api/v2/jobs/:id` - Get job by ID
 - ✅ `POST /api/v2/jobs` - Create job
@@ -38,6 +41,7 @@
 ## Stubbed Endpoints (501 Not Implemented)
 
 ### Channels (10 implemented)
+
 - ✅ `GET /api/v2/channels` - List with pagination + filters
 - ✅ `POST /api/v2/channels` - Create channel
 - ✅ `GET /api/v2/channels/stats` - Aggregated stats
@@ -50,6 +54,7 @@
 - ✅ `PUT /api/v2/channels/:id/restore` - Restore
 
 ### Workspace (5 implemented, 2 stubbed)
+
 - ✅ `GET /api/v2/workspace` - Get current workspace
 - ✅ `PUT /api/v2/workspace` - Update workspace name
 - ✅ `GET /api/v2/workspace/members` - List members
@@ -59,6 +64,7 @@
 - 🚧 Workspace invites (list, create, revoke)
 
 ### Content (5 implemented)
+
 - ✅ `GET /api/v2/content` - List with pagination + channel/status filters
 - ✅ `POST /api/v2/content` - Create content
 - ✅ `GET /api/v2/content/:id` - Get content
@@ -66,20 +72,24 @@
 - ✅ `DELETE /api/v2/content/:id` - Delete content
 
 ### User (3 implemented)
+
 - ✅ `GET /api/v2/users/:id` - Get user (self or workspace member)
 - ✅ `PATCH /api/v2/users/:id` - Update user with password change
 - ✅ `DELETE /api/v2/users/:id` - Delete user (self only)
 
 ### Notifications (3 implemented)
+
 - ✅ `GET /api/v2/notifications` - List with pagination + unread filter
 - ✅ `PATCH /api/v2/notifications/:id/read` - Mark as read
 - ✅ `POST /api/v2/notifications/mark-all-read` - Mark all as read
 
 ### Cron Jobs
+
 - ✅ Workspace deletion warning email (48h before deletion)
 - ✅ Hard delete expired workspaces (past grace period)
 
 ### Other Modules (50+ endpoints)
+
 - 🚧 Experiments (5 endpoints)
 - 🚧 Finishing (3 endpoints)
 - 🚧 Feature Flags (3 endpoints)
@@ -121,6 +131,7 @@
 ## Remaining Work
 
 ### High Priority
+
 1. **Implement Channel Routes** (2-3 days)
    - Most complex module (~100KB in Rust)
    - CRUD + pillars + topic rules + references
@@ -138,6 +149,7 @@
    - Metadata management
 
 ### Medium Priority
+
 4. **Cron Jobs** (1 day)
    - Workspace deletion warning (48h)
    - Hard delete expired workspaces
@@ -147,6 +159,7 @@
    - Header-based routing
 
 ### Low Priority
+
 6. **Remaining Route Modules** (2-3 days)
    - Implement as needed based on usage
    - Can remain stubbed initially
@@ -164,14 +177,14 @@
 
 ## Performance Targets
 
-| Metric | Target | Status |
-|--------|--------|--------|
-| Cold start | <2s | ✅ Achieved (~1s) |
-| Build time | <1min | ✅ Achieved (~10s) |
-| TypeScript errors | 0 | ✅ Achieved |
-| p50 latency | <50ms | ⏳ Not tested |
-| p99 latency | <200ms | ⏳ Not tested |
-| Throughput | >5000 req/s | ⏳ Not tested |
+| Metric            | Target      | Status             |
+| ----------------- | ----------- | ------------------ |
+| Cold start        | <2s         | ✅ Achieved (~1s)  |
+| Build time        | <1min       | ✅ Achieved (~10s) |
+| TypeScript errors | 0           | ✅ Achieved        |
+| p50 latency       | <50ms       | ⏳ Not tested      |
+| p99 latency       | <200ms      | ⏳ Not tested      |
+| Throughput        | >5000 req/s | ⏳ Not tested      |
 
 ---
 
@@ -190,6 +203,7 @@
 ## Rollback Plan
 
 If issues arise at any point:
+
 1. Revert Caddy config (instant rollback)
 2. Route all traffic back to Rust gateway
 3. Debug issues in gateway v2

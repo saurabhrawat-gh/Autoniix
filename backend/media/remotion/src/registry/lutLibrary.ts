@@ -66,40 +66,114 @@ function batch(
 /* ------------------------------------------------------------------ */
 
 const envatoLuts: LUTPreset[] = [
-  ...batch("cinematic_teal_orange", "Cinematic Teal Orange", "cinematic", 10, "envato", 0.85, ["cinematic", "teal_orange", "blockbuster"]),
-  ...batch("cinematic_cool", "Cinematic Cool", "cinematic", 10, "envato", 0.80, ["cinematic", "cool", "blue"]),
-  ...batch("cinematic_warm", "Cinematic Warm", "cinematic", 10, "envato", 0.80, ["cinematic", "warm", "golden"]),
+  ...batch("cinematic_teal_orange", "Cinematic Teal Orange", "cinematic", 10, "envato", 0.85, [
+    "cinematic",
+    "teal_orange",
+    "blockbuster",
+  ]),
+  ...batch("cinematic_cool", "Cinematic Cool", "cinematic", 10, "envato", 0.8, [
+    "cinematic",
+    "cool",
+    "blue",
+  ]),
+  ...batch("cinematic_warm", "Cinematic Warm", "cinematic", 10, "envato", 0.8, [
+    "cinematic",
+    "warm",
+    "golden",
+  ]),
 
-  ...batch("kodak_2383", "Kodak 2383 Print", "film_emulation", 5, "envato", 0.90, ["film", "kodak", "print", "cinema"]),
-  ...batch("kodak_5219", "Kodak 5219 Negative", "film_emulation", 5, "envato", 0.85, ["film", "kodak", "negative"]),
-  ...batch("fuji_3510", "Fuji 3510 Print", "film_emulation", 5, "envato", 0.90, ["film", "fuji", "print"]),
-  ...batch("ilford_hp5", "Ilford HP5 BW", "film_emulation", 5, "envato", 0.80, ["film", "ilford", "bw", "monochrome"]),
+  ...batch("kodak_2383", "Kodak 2383 Print", "film_emulation", 5, "envato", 0.9, [
+    "film",
+    "kodak",
+    "print",
+    "cinema",
+  ]),
+  ...batch("kodak_5219", "Kodak 5219 Negative", "film_emulation", 5, "envato", 0.85, [
+    "film",
+    "kodak",
+    "negative",
+  ]),
+  ...batch("fuji_3510", "Fuji 3510 Print", "film_emulation", 5, "envato", 0.9, [
+    "film",
+    "fuji",
+    "print",
+  ]),
+  ...batch("ilford_hp5", "Ilford HP5 BW", "film_emulation", 5, "envato", 0.8, [
+    "film",
+    "ilford",
+    "bw",
+    "monochrome",
+  ]),
 
-  ...batch("moody_dark", "Moody Dark", "moody", 8, "envato", 0.75, ["moody", "dark", "desaturated"]),
-  ...batch("moody_noir", "Noir", "moody", 4, "envato", 0.70, ["moody", "noir", "contrast"]),
+  ...batch("moody_dark", "Moody Dark", "moody", 8, "envato", 0.75, [
+    "moody",
+    "dark",
+    "desaturated",
+  ]),
+  ...batch("moody_noir", "Noir", "moody", 4, "envato", 0.7, ["moody", "noir", "contrast"]),
   ...batch("moody_cold", "Cold Moody", "moody", 3, "envato", 0.75, ["moody", "cold", "blue"]),
 
-  ...batch("doc_natural", "Documentary Natural", "documentary", 8, "envato", 0.70, ["documentary", "natural", "clean"]),
-  ...batch("doc_broadcast", "Broadcast Ready", "documentary", 7, "envato", 0.65, ["documentary", "broadcast", "neutral"]),
+  ...batch("doc_natural", "Documentary Natural", "documentary", 8, "envato", 0.7, [
+    "documentary",
+    "natural",
+    "clean",
+  ]),
+  ...batch("doc_broadcast", "Broadcast Ready", "documentary", 7, "envato", 0.65, [
+    "documentary",
+    "broadcast",
+    "neutral",
+  ]),
 
-  ...batch("commercial_bright", "Commercial Bright", "commercial", 8, "envato", 0.70, ["commercial", "bright", "vibrant"]),
-  ...batch("commercial_clean", "Commercial Clean", "commercial", 7, "envato", 0.65, ["commercial", "clean", "corporate"]),
+  ...batch("commercial_bright", "Commercial Bright", "commercial", 8, "envato", 0.7, [
+    "commercial",
+    "bright",
+    "vibrant",
+  ]),
+  ...batch("commercial_clean", "Commercial Clean", "commercial", 7, "envato", 0.65, [
+    "commercial",
+    "clean",
+    "corporate",
+  ]),
 
-  ...batch("vintage_faded", "Vintage Faded", "vintage", 8, "envato", 0.75, ["vintage", "faded", "retro"]),
-  ...batch("vintage_70s", "70s Film Look", "vintage", 4, "envato", 0.80, ["vintage", "70s", "warm"]),
-  ...batch("vintage_polaroid", "Polaroid Style", "vintage", 3, "envato", 0.70, ["vintage", "polaroid", "instant"]),
+  ...batch("vintage_faded", "Vintage Faded", "vintage", 8, "envato", 0.75, [
+    "vintage",
+    "faded",
+    "retro",
+  ]),
+  ...batch("vintage_70s", "70s Film Look", "vintage", 4, "envato", 0.8, ["vintage", "70s", "warm"]),
+  ...batch("vintage_polaroid", "Polaroid Style", "vintage", 3, "envato", 0.7, [
+    "vintage",
+    "polaroid",
+    "instant",
+  ]),
 
-  ...batch("warm_golden_hour", "Golden Hour", "warm", 5, "envato", 0.75, ["warm", "golden", "sunset"]),
-  ...batch("warm_wedding", "Wedding Warm", "warm", 5, "envato", 0.70, ["warm", "wedding", "soft"]),
+  ...batch("warm_golden_hour", "Golden Hour", "warm", 5, "envato", 0.75, [
+    "warm",
+    "golden",
+    "sunset",
+  ]),
+  ...batch("warm_wedding", "Wedding Warm", "warm", 5, "envato", 0.7, ["warm", "wedding", "soft"]),
 
-  ...batch("hdr_vivid", "HDR Vivid", "hdr", 5, "envato", 0.60, ["hdr", "vivid", "punchy"]),
-  ...batch("hdr_contrast", "HDR High Contrast", "hdr", 5, "envato", 0.65, ["hdr", "contrast", "saturated"]),
+  ...batch("hdr_vivid", "HDR Vivid", "hdr", 5, "envato", 0.6, ["hdr", "vivid", "punchy"]),
+  ...batch("hdr_contrast", "HDR High Contrast", "hdr", 5, "envato", 0.65, [
+    "hdr",
+    "contrast",
+    "saturated",
+  ]),
 
-  ...batch("travel_tropical", "Travel Tropical", "travel", 5, "envato", 0.70, ["travel", "tropical", "vibrant"]),
-  ...batch("travel_urban", "Travel Urban", "travel", 5, "envato", 0.70, ["travel", "urban", "city"]),
+  ...batch("travel_tropical", "Travel Tropical", "travel", 5, "envato", 0.7, [
+    "travel",
+    "tropical",
+    "vibrant",
+  ]),
+  ...batch("travel_urban", "Travel Urban", "travel", 5, "envato", 0.7, ["travel", "urban", "city"]),
 
-  ...batch("bw_classic", "B&W Classic", "bw", 5, "envato", 0.90, ["bw", "monochrome", "classic"]),
-  ...batch("bw_high_contrast", "B&W High Contrast", "bw", 5, "envato", 0.85, ["bw", "monochrome", "contrast"]),
+  ...batch("bw_classic", "B&W Classic", "bw", 5, "envato", 0.9, ["bw", "monochrome", "classic"]),
+  ...batch("bw_high_contrast", "B&W High Contrast", "bw", 5, "envato", 0.85, [
+    "bw",
+    "monochrome",
+    "contrast",
+  ]),
 ];
 
 /* ------------------------------------------------------------------ */
@@ -107,17 +181,27 @@ const envatoLuts: LUTPreset[] = [
 /* ------------------------------------------------------------------ */
 
 const rocketstockLuts: LUTPreset[] = batch(
-  "rs", "RocketStock", "cinematic", 35, "rocketstock", 0.75,
+  "rs",
+  "RocketStock",
+  "cinematic",
+  35,
+  "rocketstock",
+  0.75,
   ["cinematic", "general"],
 );
 
-const lutifyLuts: LUTPreset[] = batch(
-  "lutify", "Lutify.me", "cinematic", 10, "lutify", 0.75,
-  ["cinematic", "film"],
-);
+const lutifyLuts: LUTPreset[] = batch("lutify", "Lutify.me", "cinematic", 10, "lutify", 0.75, [
+  "cinematic",
+  "film",
+]);
 
 const smallhdLuts: LUTPreset[] = batch(
-  "movie", "SmallHD Movie", "film_emulation", 20, "smallhd", 0.80,
+  "movie",
+  "SmallHD Movie",
+  "film_emulation",
+  20,
+  "smallhd",
+  0.8,
   ["film", "movie", "cinema"],
 );
 

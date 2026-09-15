@@ -3,6 +3,7 @@
 The `Premium3DText.tsx` component requires Three.js dependencies for **true 3D rendering**.
 
 **Current Status:**
+
 - ✅ **95% Quality** - CSS 3D transforms (no dependencies needed)
 - ⚠️ **100% Quality** - Requires Three.js installation
 
@@ -51,10 +52,12 @@ yarn add three @react-three/fiber @react-three/drei @remotion/three
 ## Components Available:
 
 ### Without Three.js (95% Quality):
+
 - ✅ `3DLogoReveal` - 6 animation styles (flip, cube, fold, explode, spiral, particles)
 - ✅ All other premium components
 
 ### With Three.js (100% Quality):
+
 - ✅ `Premium3DText` - Real 3D text with materials (metallic, glass, neon, chrome)
 - ✅ Advanced lighting and shadows
 - ✅ True depth and perspective

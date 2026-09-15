@@ -53,12 +53,12 @@ This starts `redis`, `api` (port 4000), and `worker`.
 
 ## API
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| `POST` | `/api/render` | Enqueue a video render |
-| `POST` | `/api/thumbnail` | Enqueue a thumbnail render |
+| Method | Path              | Purpose                        |
+| ------ | ----------------- | ------------------------------ |
+| `POST` | `/api/render`     | Enqueue a video render         |
+| `POST` | `/api/thumbnail`  | Enqueue a thumbnail render     |
 | `GET`  | `/api/render/:id` | Status + progress + output URL |
-| `GET`  | `/api/health` | Queue counts, memory |
+| `GET`  | `/api/health`     | Queue counts, memory           |
 
 ### Example
 
@@ -92,19 +92,27 @@ curl -X POST http://localhost:4000/api/render \
 ```
 
 Response:
+
 ```json
 { "renderId": "render_abc123", "status": "rendering", "estimatedDuration": 180 }
 ```
 
 Poll:
+
 ```bash
 curl http://localhost:4000/api/render/render_abc123
 ```
 
 When complete, the worker POSTs to `callbackUrl`:
+
 ```json
-{ "renderId":"render_abc123","status":"done","outputUrl":"https://.../render_abc123.mp4",
-  "fileSize":5242880,"duration":12 }
+{
+  "renderId": "render_abc123",
+  "status": "done",
+  "outputUrl": "https://.../render_abc123.mp4",
+  "fileSize": 5242880,
+  "duration": 12
+}
 ```
 
 ---

@@ -59,18 +59,12 @@ async function sendDeletionWarnings(db: Database, log: FastifyInstance["log"]): 
         WHERE id = ${workspace.id}
       `;
     } catch (error) {
-      log.error(
-        { error, workspace_id: workspace.id },
-        "Failed to send deletion warning"
-      );
+      log.error({ error, workspace_id: workspace.id }, "Failed to send deletion warning");
     }
   }
 }
 
-async function hardDeleteExpiredWorkspaces(
-  db: Database,
-  log: FastifyInstance["log"]
-): Promise<void> {
+async function hardDeleteExpiredWorkspaces(db: Database, log: FastifyInstance["log"]): Promise<void> {
   // Find workspaces past their scheduled deletion time.
   const expired = await db<{ id: string; name: string }[]>`
     SELECT id, name
@@ -89,15 +83,9 @@ async function hardDeleteExpiredWorkspaces(
       // The cascade is expected to be defined at the DB level via ON DELETE CASCADE.
       // If not, delete related rows here in a transaction.
       await db`DELETE FROM workspaces WHERE id = ${workspace.id}`;
-      log.info(
-        { workspace_id: workspace.id, workspace_name: workspace.name },
-        "Workspace hard-deleted"
-      );
+      log.info({ workspace_id: workspace.id, workspace_name: workspace.name }, "Workspace hard-deleted");
     } catch (error) {
-      log.error(
-        { error, workspace_id: workspace.id },
-        "Failed to hard-delete workspace"
-      );
+      log.error({ error, workspace_id: workspace.id }, "Failed to hard-delete workspace");
     }
   }
 }
@@ -126,8 +114,5 @@ export function registerWorkspaceDeletionCron(app: FastifyInstance): void {
     app.log.info("Workspace deletion cron stopped");
   });
 
-  app.log.info(
-    { interval_seconds: INTERVAL_MS / 1000 },
-    "Workspace deletion cron registered"
-  );
+  app.log.info({ interval_seconds: INTERVAL_MS / 1000 }, "Workspace deletion cron registered");
 }

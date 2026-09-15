@@ -94,7 +94,13 @@ async def store_topic_embedding(
     text_type: str,
     text: str,
 ) -> dict:
-    """Store an embedding + simhash for a topic/title/hook."""
+    """
+    Store an embedding + simhash for a topic/title/hook.
+
+    Uses INSERT ... ON CONFLICT to prevent duplicate embeddings for the same
+    content_id + text_type combination. If a duplicate exists, updates the
+    embedding and simhash with the new values.
+    """
     embedding = await compute_embedding(text)
     sh = _simhash(text)
 
@@ -105,6 +111,12 @@ async def store_topic_embedding(
         """
         INSERT INTO topic_embeddings (content_id, channel_id, text_type, text_content, embedding, simhash)
         VALUES ($1, $2, $3, $4, $5::vector, $6)
+        ON CONFLICT (content_id, text_type)
+        DO UPDATE SET
+            text_content = EXCLUDED.text_content,
+            embedding = EXCLUDED.embedding,
+            simhash = EXCLUDED.simhash,
+            updated_at = NOW()
     """,
         content_id,
         channel_id,

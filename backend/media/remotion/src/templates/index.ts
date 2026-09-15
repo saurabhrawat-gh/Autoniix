@@ -56,7 +56,6 @@ const listicleTop10: Template = {
   default_music_style: "upbeat_corporate",
 };
 
-
 const twoDAnimated: Template = {
   id: "2d-animated",
   description: "Flat-design explainer w/ icon animations, kinetic type, bright palette.",
@@ -67,7 +66,13 @@ const twoDAnimated: Template = {
     split: [0.05, 0.15],
   },
   cuts_per_minute: [12, 18],
-  allowed_transition_prefixes: ["trans.cut", "trans.slide", "trans.push", "trans.whippan", "trans.wipe"],
+  allowed_transition_prefixes: [
+    "trans.cut",
+    "trans.slide",
+    "trans.push",
+    "trans.whippan",
+    "trans.wipe",
+  ],
   forbidden_transition_prefixes: ["trans.flash", "trans.iris"],
   default_grade: "fx.grade.bright_flat",
   default_caption: "ov.caption.big_bold_shorts",
@@ -84,7 +89,13 @@ const dataHeavy: Template = {
     stock: [0.1, 0.25],
   },
   cuts_per_minute: [8, 12],
-  allowed_transition_prefixes: ["trans.cut", "trans.dissolve", "trans.slide", "trans.wipe", "trans.blurswap"],
+  allowed_transition_prefixes: [
+    "trans.cut",
+    "trans.dissolve",
+    "trans.slide",
+    "trans.wipe",
+    "trans.blurswap",
+  ],
   forbidden_transition_prefixes: ["trans.flash", "trans.whippan"],
   default_grade: "fx.grade.cinematic_teal_orange",
   default_caption: "ov.caption.subtitle_bottom_center",
@@ -101,7 +112,13 @@ const productReview: Template = {
     quote: [0.05, 0.15],
   },
   cuts_per_minute: [8, 14],
-  allowed_transition_prefixes: ["trans.cut", "trans.slide", "trans.push", "trans.dissolve", "trans.cover"],
+  allowed_transition_prefixes: [
+    "trans.cut",
+    "trans.slide",
+    "trans.push",
+    "trans.dissolve",
+    "trans.cover",
+  ],
   forbidden_transition_prefixes: [],
   default_grade: "fx.grade.high_key_commercial",
   default_caption: "ov.caption.word_highlight_yellow",
@@ -134,7 +151,13 @@ const motivationalReel: Template = {
     kinetic: [0.1, 0.2],
   },
   cuts_per_minute: [14, 22],
-  allowed_transition_prefixes: ["trans.cut", "trans.blurswap", "trans.whippan", "trans.flash", "trans.dissolve"],
+  allowed_transition_prefixes: [
+    "trans.cut",
+    "trans.blurswap",
+    "trans.whippan",
+    "trans.flash",
+    "trans.dissolve",
+  ],
   forbidden_transition_prefixes: [],
   default_grade: "fx.grade.cinematic_teal_orange",
   default_caption: "ov.caption.big_bold_shorts",

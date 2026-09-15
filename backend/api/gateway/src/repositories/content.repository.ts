@@ -51,12 +51,8 @@ export class ContentRepository {
   ): Promise<{ content: ContentRow[]; total: number }> {
     const { channelId, status, limit = 20, offset = 0 } = options;
 
-    const channelFilter = channelId
-      ? this.db`AND channel_id = ${channelId}`
-      : this.db``;
-    const statusFilter = status
-      ? this.db`AND status = ${status}`
-      : this.db``;
+    const channelFilter = channelId ? this.db`AND channel_id = ${channelId}` : this.db``;
+    const statusFilter = status ? this.db`AND status = ${status}` : this.db``;
 
     const content = await this.db<ContentRow[]>`
       SELECT content_id, workspace_id, channel_id, title, description,
@@ -85,10 +81,7 @@ export class ContentRepository {
     };
   }
 
-  async findById(
-    contentId: string,
-    workspaceId: string
-  ): Promise<ContentRow | null> {
+  async findById(contentId: string, workspaceId: string): Promise<ContentRow | null> {
     const [content] = await this.db<ContentRow[]>`
       SELECT content_id, workspace_id, channel_id, title, description,
              status, content_type, duration_seconds, thumbnail_url, video_url,
@@ -123,11 +116,7 @@ export class ContentRepository {
     return content;
   }
 
-  async update(
-    contentId: string,
-    workspaceId: string,
-    input: UpdateContentInput
-  ): Promise<ContentRow> {
+  async update(contentId: string, workspaceId: string, input: UpdateContentInput): Promise<ContentRow> {
     const existing = await this.findById(contentId, workspaceId);
     if (!existing) throw new Error("Content not found");
 

@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { flagsApi, isLoggedIn } from '@/lib/api-v2';
-import { useToast } from '@/lib/toast';
-import { PageHeader } from '@/lib/components/PageHeader';
-import { Skeleton } from '@/lib/components/Skeleton';
-import { Switch } from '@/lib/ui';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { flagsApi, isLoggedIn } from "@/lib/api-v2";
+import { useToast } from "@/lib/toast";
+import { PageHeader } from "@/lib/components/PageHeader";
+import { Skeleton } from "@/lib/components/Skeleton";
+import { Switch } from "@/lib/ui";
 
 type Flag = {
   key: string;
@@ -15,13 +15,10 @@ type Flag = {
   payload: any;
 };
 
-const SECURITY_KEYS = new Set<string>([
-  'providers.admin_credentials.enabled',
-  'providers.credentials.rotate.enabled',
-]);
+const SECURITY_KEYS = new Set<string>(["providers.admin_credentials.enabled", "providers.credentials.rotate.enabled"]);
 
 function friendlyName(key: string): string {
-  return key.replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  return key.replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 export default function FeatureFlagsPage() {
@@ -33,9 +30,9 @@ export default function FeatureFlagsPage() {
   const [pending, setPending] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
     if (!isLoggedIn()) {
-      router.replace('/login');
+      router.replace("/login");
       return;
     }
     void load();
@@ -54,7 +51,7 @@ export default function FeatureFlagsPage() {
       });
       setFlags(sorted);
     } catch (e: any) {
-      setError(e?.message || 'Failed to load feature flags');
+      setError(e?.message || "Failed to load feature flags");
     } finally {
       setLoading(false);
     }
@@ -62,22 +59,16 @@ export default function FeatureFlagsPage() {
 
   async function toggle(flag: Flag, next: boolean) {
     setPending((prev) => new Set(prev).add(flag.key));
-    setFlags((prev) =>
-      prev.map((f) => (f.key === flag.key ? { ...f, enabled: next } : f)),
-    );
+    setFlags((prev) => prev.map((f) => (f.key === flag.key ? { ...f, enabled: next } : f)));
     try {
       await flagsApi.set(flag.key, next, flag.payload || {});
-      showToast(`${friendlyName(flag.key)} ${next ? 'enabled' : 'disabled'}`, 'success');
+      showToast(`${friendlyName(flag.key)} ${next ? "enabled" : "disabled"}`, "success");
     } catch (e: any) {
-      setFlags((prev) =>
-        prev.map((f) => (f.key === flag.key ? { ...f, enabled: !next } : f)),
-      );
-      const msg = e?.message || 'Failed to update flag';
+      setFlags((prev) => prev.map((f) => (f.key === flag.key ? { ...f, enabled: !next } : f)));
+      const msg = e?.message || "Failed to update flag";
       showToast(
-        msg.includes('403')
-          ? 'You do not have permission to change this flag (owner or admin required)'
-          : msg,
-        'error',
+        msg.includes("403") ? "You do not have permission to change this flag (owner or admin required)" : msg,
+        "error"
       );
     } finally {
       setPending((prev) => {
@@ -94,9 +85,9 @@ export default function FeatureFlagsPage() {
         title="Feature Flags"
         subtitle="Toggle workspace-wide feature flags. Changes take effect on the next request — no restart required."
         crumbs={[
-          { label: 'Dashboard', href: '/dashboard' },
-          { label: 'Settings', href: '/dashboard/settings' },
-          { label: 'Feature Flags' },
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Settings", href: "/dashboard/settings" },
+          { label: "Feature Flags" },
         ]}
       />
       <div className="max-w-4xl w-full mx-auto px-6 py-6 space-y-4">
@@ -124,9 +115,7 @@ export default function FeatureFlagsPage() {
               return (
                 <div
                   key={flag.key}
-                  className={`px-5 py-4 transition-colors ${
-                    isSecurity ? 'bg-status-warning/5' : ''
-                  }`}
+                  className={`px-5 py-4 transition-colors ${isSecurity ? "bg-status-warning/5" : ""}`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
@@ -140,9 +129,7 @@ export default function FeatureFlagsPage() {
                           </span>
                         )}
                       </div>
-                      {flag.description && (
-                        <p className="mt-2 text-sm text-content-secondary">{flag.description}</p>
-                      )}
+                      {flag.description && <p className="mt-2 text-sm text-content-secondary">{flag.description}</p>}
                     </div>
                     <div className="shrink-0 pt-1">
                       <Switch
@@ -161,9 +148,8 @@ export default function FeatureFlagsPage() {
 
         <div className="rounded-lg border border-border bg-surface-1 px-4 py-3 text-xs text-content-secondary">
           <p>
-            <strong className="font-semibold text-content-primary">Note:</strong> Only owners and
-            admins can toggle feature flags. Flag reads are not cached — changes apply on the next
-            authenticated request.
+            <strong className="font-semibold text-content-primary">Note:</strong> Only owners and admins can toggle
+            feature flags. Flag reads are not cached — changes apply on the next authenticated request.
           </p>
         </div>
       </div>

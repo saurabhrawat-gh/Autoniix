@@ -11,7 +11,10 @@ import path from "node:path";
 import { TOOLS } from "../src/mcp/tools";
 
 async function main() {
-  const fixturePath = path.resolve(__dirname, "../src/scene-graph/__fixtures__/minimal-direction.json");
+  const fixturePath = path.resolve(
+    __dirname,
+    "../src/scene-graph/__fixtures__/minimal-direction.json",
+  );
   const direction = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
 
   const proposeOut = await TOOLS.propose_scene({
@@ -59,7 +62,6 @@ async function main() {
       process.exit(1);
     }
   }
-
 }
 
 main().catch((e) => {

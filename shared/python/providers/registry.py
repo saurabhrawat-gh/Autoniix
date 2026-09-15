@@ -1,11 +1,22 @@
 from __future__ import annotations
 
 import os
+import threading
 from typing import Any, Type
 
 import structlog
 
 logger = structlog.get_logger()
+
+# ── Concurrency guards ────────────────────────────────────────────────────
+# ``_registries`` (populated at import time by provider modules) is treated
+# as effectively immutable after boot, so a plain dict is fine. ``_instances``
+# on the other hand is mutated at call time by any coroutine/thread that
+# resolves a provider — we protect it with a threading lock so a stampede of
+# concurrent Temporal activity workers never causes two provider instances to
+# be constructed for the same cache key (some providers spin up HTTP clients
+# with connection pools that would leak).
+_INSTANCE_LOCK = threading.Lock()
 
 _ENV_MAP: dict[str, str] = {
     "tts": "TTS_PROVIDER",
@@ -79,8 +90,11 @@ class ProviderRegistry:
             )
 
         cache_key = f"{category}:{name}:{channel_id or ''}:{content_mode or ''}"
-        if cache_key in cls._instances:
-            return cls._instances[cache_key]
+
+        # Fast path — no lock needed for a hit against a stable cache.
+        cached = cls._instances.get(cache_key)
+        if cached is not None:
+            return cached
 
         registry = cls._registries.get(category, {})
         provider_class = registry.get(name)
@@ -91,8 +105,13 @@ class ProviderRegistry:
                 f"Add a credential in /dashboard/providers/{category}."
             )
 
-        instance = provider_class()
-        cls._instances[cache_key] = instance
+        # Slow path — construct exactly once even under concurrent stampede.
+        with _INSTANCE_LOCK:
+            cached = cls._instances.get(cache_key)
+            if cached is not None:
+                return cached
+            instance = provider_class()
+            cls._instances[cache_key] = instance
         logger.info(
             "provider.instantiated", category=category, name=name, channel_id=channel_id, content_mode=content_mode
         )
@@ -153,4 +172,5 @@ class ProviderRegistry:
     @classmethod
     def reset(cls) -> None:
         """Clear cached instances (useful for testing)."""
-        cls._instances.clear()
+        with _INSTANCE_LOCK:
+            cls._instances.clear()

@@ -46,6 +46,7 @@ python extract_schemas.py --rust-only
 ```
 
 **Output:**
+
 - `schemas/python-dashboard.json` — Python FastAPI auto-generated schema
 - `schemas/rust-gateway.json` — Rust gateway schema (from `/openapi.json` or handwritten fallback)
 

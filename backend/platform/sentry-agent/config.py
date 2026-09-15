@@ -26,3 +26,13 @@ LLM_MODEL: str = os.environ.get("SENTRY_AGENT_LLM_MODEL", "gpt-4o-mini")
 
 REDIS_URL: str = os.environ.get("REDIS_URL", "redis://redis:6379")
 DEDUP_TTL_SECONDS: int = int(os.environ.get("SENTRY_DEDUP_TTL", str(7 * 24 * 3600)))
+
+# Auto-fix safety rails (Tier 2).
+#
+# The agent can autonomously open PRs, so we cap how many it opens per
+# UTC day and require an explicit env opt-in before it will actually
+# push anything. Defaults are safe: 5/day and approval-required=true.
+# Ops can flip AUTOFIX_REQUIRE_APPROVAL=false to re-enable full autonomy
+# once the surrounding tooling is trusted in production.
+AUTOFIX_MAX_PER_DAY: int = int(os.environ.get("SENTRY_AUTOFIX_MAX_PER_DAY", "5"))
+AUTOFIX_REQUIRE_APPROVAL: bool = os.environ.get("SENTRY_AUTOFIX_REQUIRE_APPROVAL", "true").lower() == "true"

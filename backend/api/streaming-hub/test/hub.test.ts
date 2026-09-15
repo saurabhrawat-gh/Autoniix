@@ -92,11 +92,7 @@ describe("Hub", () => {
     const hub = makeHub();
     const received: Event[] = [];
     const closeSpy = vi.fn();
-    const id = hub.subscribe(
-      { workspaceId: "ws-1" },
-      (e) => received.push(e),
-      closeSpy
-    );
+    const id = hub.subscribe({ workspaceId: "ws-1" }, (e) => received.push(e), closeSpy);
     expect(hub.subscriberCount).toBe(1);
     hub.unsubscribe(id);
     expect(hub.subscriberCount).toBe(0);

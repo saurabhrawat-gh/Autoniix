@@ -3,7 +3,22 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateJobRequest, CreateJobResponse, DeleteJobRequest, GetJobRequest, GetJobResponse, JobProgressEvent, ListJobsRequest, ListJobsResponse, PauseJobRequest, ResumeJobRequest, RetryJobRequest, StreamJobProgressRequest, UpdateJobRequest, UpdateJobResponse } from "./jobs_pb.js";
+import {
+  CreateJobRequest,
+  CreateJobResponse,
+  DeleteJobRequest,
+  GetJobRequest,
+  GetJobResponse,
+  JobProgressEvent,
+  ListJobsRequest,
+  ListJobsResponse,
+  PauseJobRequest,
+  ResumeJobRequest,
+  RetryJobRequest,
+  StreamJobProgressRequest,
+  UpdateJobRequest,
+  UpdateJobResponse,
+} from "./jobs_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 import { Empty } from "../../common/v1/common_pb.js";
 
@@ -94,6 +109,5 @@ export const JobService = {
       O: JobProgressEvent,
       kind: MethodKind.ServerStreaming,
     },
-  }
+  },
 } as const;
-

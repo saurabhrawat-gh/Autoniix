@@ -12,7 +12,11 @@
 import { CriticAgent, makeDefaultCritic, type FrameSample } from "../src/agents";
 
 function mkFrame(shardId: string, lum: number, atMs: number): FrameSample {
-  return { shardId, source: { kind: "path", path: `/tmp/${shardId}.png?lum=${lum}` }, timestampMs: atMs };
+  return {
+    shardId,
+    source: { kind: "path", path: `/tmp/${shardId}.png?lum=${lum}` },
+    timestampMs: atMs,
+  };
 }
 
 async function main() {
@@ -20,7 +24,7 @@ async function main() {
 
   const goodFrames: FrameSample[] = [
     mkFrame("s0", 0.45, 0),
-    mkFrame("s0", 0.50, 1000),
+    mkFrame("s0", 0.5, 1000),
     mkFrame("s1", 0.55, 2000),
     mkFrame("s1", 0.48, 3000),
   ];
@@ -34,7 +38,7 @@ async function main() {
   const badFrames: FrameSample[] = [
     mkFrame("s0", 0.45, 0),
     mkFrame("s1", 0.005, 1000),
-    mkFrame("s1", 0.50, 2000),
+    mkFrame("s1", 0.5, 2000),
   ];
   const r2 = await agent.run({ jobId: "j2", frames: badFrames }, defaultCtx);
   if (r2.output.pass) {
@@ -52,7 +56,6 @@ async function main() {
     console.error(`FAIL: non-deterministic overall (${r1.output.overall} vs ${r3.output.overall})`);
     process.exit(1);
   }
-
 }
 
 main().catch((e) => {

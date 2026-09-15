@@ -1,21 +1,21 @@
-import type { Meta, StoryObj } from '@storybook/react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, Button, Badge } from '@/lib/ui';
+import type { Meta, StoryObj } from "@storybook/react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, Button, Badge } from "@/lib/ui";
 
 const meta: Meta<typeof Card> = {
-  title: 'UI/Card',
+  title: "UI/Card",
   component: Card,
-  tags: ['autodocs'],
+  tags: ["autodocs"],
   argTypes: {
     variant: {
-      control: 'select',
-      options: ['default', 'elevated', 'flat', 'in-progress', 'interactive'],
+      control: "select",
+      options: ["default", "elevated", "flat", "in-progress", "interactive"],
     },
     padding: {
-      control: 'select',
-      options: ['none', 'sm', 'md', 'lg', 'xl'],
+      control: "select",
+      options: ["none", "sm", "md", "lg", "xl"],
     },
   },
-  args: { variant: 'default', padding: 'none' },
+  args: { variant: "default", padding: "none" },
 };
 
 export default meta;
@@ -32,7 +32,9 @@ export const Default: Story = {
         <p className="text-sm text-content-secondary">3 videos published this week</p>
       </CardContent>
       <CardFooter>
-        <Button size="sm" variant="secondary">Settings</Button>
+        <Button size="sm" variant="secondary">
+          Settings
+        </Button>
         <Button size="sm">Trigger</Button>
       </CardFooter>
     </Card>
@@ -40,7 +42,7 @@ export const Default: Story = {
 };
 
 export const Elevated: Story = {
-  args: { variant: 'elevated', padding: 'lg' },
+  args: { variant: "elevated", padding: "lg" },
   render: (args) => (
     <Card {...args} className="w-80">
       <p className="text-content-primary font-semibold mb-1">Elevated Card</p>
@@ -50,7 +52,7 @@ export const Elevated: Story = {
 };
 
 export const Interactive: Story = {
-  args: { variant: 'interactive', padding: 'md' },
+  args: { variant: "interactive", padding: "md" },
   render: (args) => (
     <Card {...args} className="w-80 cursor-pointer">
       <div className="flex items-center justify-between">
@@ -63,7 +65,7 @@ export const Interactive: Story = {
 };
 
 export const Flat: Story = {
-  args: { variant: 'flat', padding: 'md' },
+  args: { variant: "flat", padding: "md" },
   render: (args) => (
     <Card {...args} className="w-80">
       <p className="text-content-primary">Flat card — no shadow, used inside surfaces.</p>

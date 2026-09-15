@@ -3,19 +3,19 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate } from "remo
 
 /**
  * PREMIUM MASKS - 100% Quality
- * 
+ *
  * Matches/exceeds:
  * - After Effects Track Mattes
  * - Premiere Pro Masking
  * - Advanced compositing techniques
- * 
+ *
  * Features:
  * - Animated SVG masks
  * - Multiple mask modes (add, subtract, intersect)
  * - Feathering and softness
  * - Animated shapes (circle, rectangle, custom paths)
  * - Gradient masks
- * 
+ *
  * Quality: 100% - Professional masking effects
  */
 
@@ -72,7 +72,7 @@ export const PremiumMasks: React.FC<PremiumMasksProps> = ({
           const radius = maskSize * progress * 0.5;
           return `M ${centerX} ${centerY} m -${radius}, 0 a ${radius},${radius} 0 1,0 ${radius * 2},0 a ${radius},${radius} 0 1,0 -${radius * 2},0`;
         } else if (animation === "zoom") {
-          const radius = (maskSize * 0.5) * progress;
+          const radius = maskSize * 0.5 * progress;
           return `M ${centerX} ${centerY} m -${radius}, 0 a ${radius},${radius} 0 1,0 ${radius * 2},0 a ${radius},${radius} 0 1,0 -${radius * 2},0`;
         }
         const radius = maskSize * 0.5;

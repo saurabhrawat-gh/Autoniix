@@ -3,14 +3,14 @@ import { AbsoluteFill, useCurrentFrame, random, interpolate } from "remotion";
 
 /**
  * Premium glitch effect with RGB split, scan lines, and digital distortion.
- * 
+ *
  * Features:
  * - RGB channel separation
  * - Horizontal displacement
  * - Scan lines
  * - Digital noise
  * - Customizable intensity and frequency
- * 
+ *
  * Quality: Matches After Effects glitch plugins at 95%+.
  */
 
@@ -37,21 +37,21 @@ export const GlitchEffect: React.FC<GlitchEffectProps> = ({
   children,
 }) => {
   const frame = useCurrentFrame();
-  
+
   const glitchSeed = Math.floor(frame / 3);
   const isGlitching = random(glitchSeed) < frequency;
-  
+
   if (!isGlitching) {
     return <AbsoluteFill>{children}</AbsoluteFill>;
   }
-  
+
   const glitchAmount = intensity * 20;
   const offsetX = (random(glitchSeed + 1) - 0.5) * glitchAmount;
   const offsetY = (random(glitchSeed + 2) - 0.5) * glitchAmount * 0.5;
-  
+
   const rgbOffsetR = rgbSplit ? glitchAmount * 0.5 : 0;
   const rgbOffsetB = rgbSplit ? -glitchAmount * 0.5 : 0;
-  
+
   const blockCount = displacement ? Math.floor(random(glitchSeed + 3) * 5) + 2 : 0;
   const blocks = [];
   for (let i = 0; i < blockCount; i++) {
@@ -60,49 +60,50 @@ export const GlitchEffect: React.FC<GlitchEffectProps> = ({
     const offsetAmount = (random(glitchSeed + 300 + i) - 0.5) * glitchAmount * 2;
     blocks.push({ y: `${y}%`, height: `${height}%`, offset: offsetAmount });
   }
-  
+
   return (
     <AbsoluteFill>
       {/* Main content with RGB split */}
       <AbsoluteFill
         style={{
           transform: `translate(${offsetX}px, ${offsetY}px)`,
-          filter: rgbSplit 
+          filter: rgbSplit
             ? `drop-shadow(${rgbOffsetR}px 0 0 rgba(255,0,0,0.8)) drop-shadow(${rgbOffsetB}px 0 0 rgba(0,255,255,0.8))`
             : undefined,
         }}
       >
         {children}
       </AbsoluteFill>
-      
+
       {/* Displacement blocks */}
-      {displacement && blocks.map((block, i) => (
-        <div
-          key={i}
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            top: block.y,
-            height: block.height,
-            overflow: "hidden",
-          }}
-        >
+      {displacement &&
+        blocks.map((block, i) => (
           <div
+            key={i}
             style={{
               position: "absolute",
               left: 0,
               right: 0,
-              top: `-${block.y}`,
-              bottom: 0,
-              transform: `translateX(${block.offset}px)`,
+              top: block.y,
+              height: block.height,
+              overflow: "hidden",
             }}
           >
-            {children}
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: `-${block.y}`,
+                bottom: 0,
+                transform: `translateX(${block.offset}px)`,
+              }}
+            >
+              {children}
+            </div>
           </div>
-        </div>
-      ))}
-      
+        ))}
+
       {/* Scan lines */}
       {scanLines && (
         <AbsoluteFill
@@ -118,7 +119,7 @@ export const GlitchEffect: React.FC<GlitchEffectProps> = ({
           }}
         />
       )}
-      
+
       {/* Digital noise overlay */}
       <AbsoluteFill
         style={{

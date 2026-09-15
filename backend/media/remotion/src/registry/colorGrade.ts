@@ -200,10 +200,7 @@ function lerpPrimary(a: ColorPrimary, b: ColorPrimary, t: number): ColorPrimary 
  * keys (their identity is unstable across edits); they snap to the previous
  * key's list. This matches DaVinci's behaviour for unmatched node sets.
  */
-export function colorGradeAtTime(
-  track: ColorGradeTrack,
-  tLocalMs: number,
-): ColorGradeFrame {
+export function colorGradeAtTime(track: ColorGradeTrack, tLocalMs: number): ColorGradeFrame {
   if (track.keys.length === 0) throw new Error("colorGradeAtTime: empty track");
   const keys = track.keys;
   if (tLocalMs <= keys[0]!.tMs) {
@@ -219,8 +216,8 @@ export function colorGradeAtTime(
       const t = (tLocalMs - a.tMs) / Math.max(1e-9, b.tMs - a.tMs);
       return {
         primary: lerpPrimary(a.primary, b.primary, t),
-        secondaries: t < 0.5 ? a.secondaries ?? [] : b.secondaries ?? [],
-        lutId: t < 0.5 ? a.lutId ?? null : b.lutId ?? null,
+        secondaries: t < 0.5 ? (a.secondaries ?? []) : (b.secondaries ?? []),
+        lutId: t < 0.5 ? (a.lutId ?? null) : (b.lutId ?? null),
         lutStrength: lerp(a.lutStrength ?? 1, b.lutStrength ?? 1, t),
       };
     }
@@ -321,27 +318,21 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
  * Score of how much an RGB pixel falls inside an HSL qualifier in [0..1].
  * Hue distance is wrapped (0 and 360 are the same).
  */
-export function hslQualifierWeight(
-  rgb: [number, number, number],
-  q: HslQualifier,
-): number {
+export function hslQualifierWeight(rgb: [number, number, number], q: HslQualifier): number {
   const [h, s, l] = rgbToHsl(rgb);
   const halfWidth = q.hueWidth / 2;
   let hueDist = Math.abs(((h - q.hueCenter + 540) % 360) - 180);
   hueDist = Math.min(hueDist, Math.abs(((q.hueCenter - h + 540) % 360) - 180));
   const fade = halfWidth * q.softness;
-  const hueWeight =
-    1 - smoothstep(halfWidth - fade, halfWidth + fade, hueDist);
+  const hueWeight = 1 - smoothstep(halfWidth - fade, halfWidth + fade, hueDist);
   const [s0, s1] = q.saturationRange;
   const sFade = (s1 - s0) * q.softness * 0.5;
   const satWeight =
-    smoothstep(s0 - sFade, s0 + sFade, s) *
-    (1 - smoothstep(s1 - sFade, s1 + sFade, s));
+    smoothstep(s0 - sFade, s0 + sFade, s) * (1 - smoothstep(s1 - sFade, s1 + sFade, s));
   const [l0, l1] = q.luminanceRange;
   const lFade = (l1 - l0) * q.softness * 0.5;
   const lumWeight =
-    smoothstep(l0 - lFade, l0 + lFade, l) *
-    (1 - smoothstep(l1 - lFade, l1 + lFade, l));
+    smoothstep(l0 - lFade, l0 + lFade, l) * (1 - smoothstep(l1 - lFade, l1 + lFade, l));
   return hueWeight * satWeight * lumWeight;
 }
 
@@ -356,11 +347,7 @@ export function hslQualifierWeight(
  * sampling) — feathering is approximate. Production path uses an SDF in the
  * shader; this CPU helper exists for testability.
  */
-export function powerWindowWeight(
-  u: number,
-  v: number,
-  w: PowerWindow,
-): number {
+export function powerWindowWeight(u: number, v: number, w: PowerWindow): number {
   const inv = w.invert ? 1 : 0;
   const soft = Math.max(1e-4, w.softness);
   switch (w.shape.kind) {
@@ -397,10 +384,7 @@ export function powerWindowWeight(
       for (let i = 0, j = verts.length - 1; i < verts.length; j = i++) {
         const [xi, yi] = verts[i]!;
         const [xj, yj] = verts[j]!;
-        if (
-          yi > v !== yj > v &&
-          u < ((xj - xi) * (v - yi)) / (yj - yi + 1e-9) + xi
-        ) {
+        if (yi > v !== yj > v && u < ((xj - xi) * (v - yi)) / (yj - yi + 1e-9) + xi) {
           inside = !inside;
         }
       }

@@ -23,6 +23,7 @@ Run this after making changes to scoring, thresholds, or any service that partic
    - Ensure rewrite limits haven't been increased beyond max (script: 3, thumbnail: 2).
 
 4. **Run relevant tests**
+
    ```bash
    # turbo
    pytest tests/test_*intelligence*.py tests/test_*quality*.py -v

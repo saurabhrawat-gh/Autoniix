@@ -59,11 +59,5 @@ export {
   compositingToCss,
 } from "./compositing";
 
-export {
-  blendModeHash,
-  textAnimHash,
-  maskHash,
-  colorGradeHash,
-  clipCacheKeys,
-} from "./cacheKeys";
+export { blendModeHash, textAnimHash, maskHash, colorGradeHash, clipCacheKeys } from "./cacheKeys";
 export type { ClipCacheKeys } from "./cacheKeys";

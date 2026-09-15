@@ -43,6 +43,87 @@ async def _load_channel(channel_id: str) -> dict:
     return dict(row) if row else {}
 
 
+def _auto_fix_timeline(direction_v3: dict) -> dict:
+    """Auto-fix timeline gaps, overlaps, and sync issues in Direction v3.
+
+    Fixes:
+    1. Timeline gaps/overlaps - adjusts start_ms to be continuous
+    2. First segment start_ms - ensures it starts at 0
+    3. Missing background strategies - adds gradient fallback
+    4. Missing text strategies - adds empty primary_text
+
+    Returns modified direction_v3 with fixes applied.
+    """
+    segments = direction_v3.get("segments", [])
+    if not segments:
+        return direction_v3
+
+    fixed_segments = []
+    current_time_ms = 0
+
+    for i, seg in enumerate(segments):
+        seg_copy = dict(seg)
+
+        # Fix 1: Ensure continuous timeline
+        if i == 0:
+            seg_copy["start_ms"] = 0
+            current_time_ms = 0
+        else:
+            seg_copy["start_ms"] = current_time_ms
+
+        duration_ms = seg_copy.get("duration_ms", 5000)
+        if duration_ms <= 0:
+            duration_ms = 5000
+            seg_copy["duration_ms"] = duration_ms
+
+        current_time_ms += duration_ms
+
+        # Fix 2: Add background strategy fallback if missing
+        bg_url = seg_copy.get("scene_overrides", {}).get("background_url", "")
+        bg_strategy = seg_copy.get("background_strategy", {})
+        if not bg_url and not bg_strategy.get("type"):
+            seg_copy["background_strategy"] = {
+                "type": "gradient",
+                "gradient": {
+                    "from": direction_v3.get("theme", {}).get("background_color", "#0A0A0A"),
+                    "to": direction_v3.get("theme", {}).get("primary_color", "#1A237E"),
+                    "angle": 135,
+                },
+            }
+
+        # Fix 3: Add text strategy if missing
+        if not seg_copy.get("text_strategy"):
+            seg_copy["text_strategy"] = {
+                "primary_text": (
+                    seg_copy.get("narration", {}).get("text", "") if isinstance(seg_copy.get("narration"), dict) else ""
+                ),
+                "style": "default",
+                "position": "center",
+            }
+        elif not seg_copy.get("text_strategy", {}).get("primary_text"):
+            seg_copy["text_strategy"]["primary_text"] = (
+                seg_copy.get("narration", {}).get("text", "") if isinstance(seg_copy.get("narration"), dict) else ""
+            )
+
+        fixed_segments.append(seg_copy)
+
+    direction_v3["segments"] = fixed_segments
+
+    # Update total duration in meta
+    total_duration_s = current_time_ms / 1000.0
+    if "meta" not in direction_v3:
+        direction_v3["meta"] = {}
+    direction_v3["meta"]["duration_target_seconds"] = total_duration_s
+
+    logger.info(
+        "assembly.timeline_auto_fixed",
+        segment_count=len(fixed_segments),
+        total_duration_s=total_duration_s,
+    )
+
+    return direction_v3
+
+
 def _build_diagnostic_direction(
     title: str,
     content_id: str,
@@ -151,12 +232,20 @@ async def _render_diagnostic_via_remotion(
                     return None
                 return url, float(rr.get("qc", {}).get("durationSec") or duration_s)
             if rr.get("status") == "failed":
-                logger.warning("assembly.diagnostic_render_failed", content_id=content_id, error=rr.get("error"))
+                logger.warning(
+                    "assembly.diagnostic_render_failed",
+                    content_id=content_id,
+                    error=rr.get("error"),
+                )
                 return None
         logger.warning("assembly.diagnostic_render_timeout", content_id=content_id)
         return None
     except Exception as exc:
-        logger.warning("assembly.diagnostic_render_exception", content_id=content_id, error=str(exc))
+        logger.warning(
+            "assembly.diagnostic_render_exception",
+            content_id=content_id,
+            error=str(exc),
+        )
         return None
 
 
@@ -186,7 +275,11 @@ async def health():
 @app.post("/assemble", response_model=ServiceResponse)
 async def assemble(req: AssemblyRequest):
     """Submit Direction v3 to Remotion API for rendering, poll until complete."""
-    logger.info("assembly.assembling", content_id=req.content_id, segments=len(req.direction_v3.get("segments", [])))
+    logger.info(
+        "assembly.assembling",
+        content_id=req.content_id,
+        segments=len(req.direction_v3.get("segments", [])),
+    )
 
     try:
         direction_v3 = req.direction_v3
@@ -194,6 +287,9 @@ async def assemble(req: AssemblyRequest):
             raise HTTPException(status_code=400, detail="No direction_v3 data provided")
 
         is_test_mode = req.environment != "production"
+
+        # Auto-fix timeline issues before validation
+        direction_v3 = _auto_fix_timeline(direction_v3)
         segments = direction_v3.get("segments", [])
 
         sync_issues = []
@@ -251,7 +347,11 @@ async def assemble(req: AssemblyRequest):
                 "issue_count": len(sync_issues),
             }
         else:
-            direction_v3["sync_validation"] = {"passed": True, "issues": [], "issue_count": 0}
+            direction_v3["sync_validation"] = {
+                "passed": True,
+                "issues": [],
+                "issue_count": 0,
+            }
 
         complexity = compute_direction_complexity(direction_v3)
         estimated_render_s = estimate_render_duration(complexity)
@@ -263,7 +363,10 @@ async def assemble(req: AssemblyRequest):
         )
 
         if complexity.get("risk") == "high":
-            logger.warning("assembly.high_complexity", risk_factors=complexity.get("risk_factors", []))
+            logger.warning(
+                "assembly.high_complexity",
+                risk_factors=complexity.get("risk_factors", []),
+            )
 
         remotion_url = settings.remotion_base_url
         render_quality = "preview" if is_test_mode else "high"
@@ -287,9 +390,14 @@ async def assemble(req: AssemblyRequest):
                 render_data = resp.json()
         except Exception as remotion_err:
             if not is_test_mode:
-                raise HTTPException(status_code=503, detail=f"Remotion service unreachable: {remotion_err}")
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Remotion service unreachable: {remotion_err}",
+                )
             logger.warning(
-                "assembly.remotion_unreachable_diagnostic_fallback", error=str(remotion_err), content_id=req.content_id
+                "assembly.remotion_unreachable_diagnostic_fallback",
+                error=str(remotion_err),
+                content_id=req.content_id,
             )
             total_ms = sum(s.get("duration_ms", 0) for s in segments)
             duration_s = round(total_ms / 1000, 1) if total_ms else 8.0
@@ -306,7 +414,8 @@ async def assemble(req: AssemblyRequest):
             )
             if diag is None:
                 raise HTTPException(
-                    status_code=502, detail=f"Remotion unreachable and diagnostic fallback failed: {remotion_err}"
+                    status_code=502,
+                    detail=f"Remotion unreachable and diagnostic fallback failed: {remotion_err}",
                 )
             diag_url, diag_dur = diag
             try:
@@ -348,10 +457,29 @@ async def assemble(req: AssemblyRequest):
 
         logger.info("assembly.render_submitted", render_id=render_id)
 
-        max_wait_s = 600
+        # Dynamic timeout based on content mode and complexity
+        is_long_form = req.content_mode == "long_form"
+        is_high_complexity = complexity.get("risk") == "high"
+
+        if is_long_form and is_high_complexity:
+            max_wait_s = 1200  # 20 minutes for complex long-form
+        elif is_long_form:
+            max_wait_s = 900  # 15 minutes for normal long-form
+        elif is_high_complexity:
+            max_wait_s = 600  # 10 minutes for complex shorts
+        else:
+            max_wait_s = 300  # 5 minutes for normal shorts
+
         poll_interval_s = 5
         elapsed = 0
         render_result = None
+
+        logger.info(
+            "assembly.render_timeout_set",
+            max_wait_s=max_wait_s,
+            is_long_form=is_long_form,
+            is_high_complexity=is_high_complexity,
+        )
 
         while elapsed < max_wait_s:
             await asyncio.sleep(poll_interval_s)
@@ -385,7 +513,12 @@ async def assemble(req: AssemblyRequest):
         if not render_result or render_result.get("status") != "completed":
             logger.warning("assembly.render_failed_trying_simplified")
             await log_render_attempt(
-                req.content_id, req.channel_id, render_id, complexity, success=False, error_category="timeout"
+                req.content_id,
+                req.channel_id,
+                render_id,
+                complexity,
+                success=False,
+                error_category="timeout",
             )
 
             simplified = simplify_direction_for_retry(direction_v3)
@@ -422,7 +555,10 @@ async def assemble(req: AssemblyRequest):
             except Exception as retry_err:
                 logger.error("assembly.retry_failed", error=str(retry_err))
 
-            if not render_result or render_result.get("status") not in ("completed", "done"):
+            if not render_result or render_result.get("status") not in (
+                "completed",
+                "done",
+            ):
                 await log_render_attempt(
                     req.content_id,
                     req.channel_id,
@@ -434,7 +570,10 @@ async def assemble(req: AssemblyRequest):
                 )
                 if not is_test_mode:
                     raise HTTPException(status_code=504, detail="Render timed out after retry")
-                logger.warning("assembly.render_timeout_diagnostic_fallback", content_id=req.content_id)
+                logger.warning(
+                    "assembly.render_timeout_diagnostic_fallback",
+                    content_id=req.content_id,
+                )
                 total_ms = sum(s.get("duration_ms", 0) for s in segments)
                 duration_s = round(total_ms / 1000, 1) if total_ms else 8.0
                 aspect = direction_v3.get("meta", {}).get("aspect", "16:9")
@@ -449,7 +588,10 @@ async def assemble(req: AssemblyRequest):
                     remotion_url=remotion_url,
                 )
                 if diag is None:
-                    raise HTTPException(status_code=504, detail="Render timed out and diagnostic fallback failed")
+                    raise HTTPException(
+                        status_code=504,
+                        detail="Render timed out and diagnostic fallback failed",
+                    )
                 diag_url, diag_dur = diag
                 try:
                     pool = await get_pool()

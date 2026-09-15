@@ -9,8 +9,11 @@ import type { Message } from "@bufbuild/protobuf";
 /**
  * Describes the file autoniix/voice/v1/voice.proto.
  */
-export const file_autoniix_voice_v1_voice: GenFile = /*@__PURE__*/
-  fileDesc("Ch1hdXRvbmlpeC92b2ljZS92MS92b2ljZS5wcm90bxIRYXV0b25paXgudm9pY2UudjEimQEKFlN5bnRoZXNpemVWb2ljZVJlcXVlc3QSEQoJc2NyaXB0X2lkGAEgASgJEgwKBHRleHQYAiABKAkSFgoOdm9pY2VfbW9kZWxfaWQYAyABKAkSEgoKY2hhbm5lbF9pZBgEIAEoCRIyCghzZXR0aW5ncxgFIAEoCzIgLmF1dG9uaWl4LnZvaWNlLnYxLlZvaWNlU2V0dGluZ3MibAoXU3ludGhlc2l6ZVZvaWNlUmVzcG9uc2USEAoIYXVkaW9faWQYASABKAkSEQoJYXVkaW9fdXJsGAIgASgJEhMKC2R1cmF0aW9uX21zGAMgASgFEhcKD2dlbmVyYXRpb25fY29zdBgEIAEoASI8ChZMaXN0Vm9pY2VNb2RlbHNSZXF1ZXN0EhAKCHByb3ZpZGVyGAEgASgJEhAKCGxhbmd1YWdlGAIgASgJIkgKF0xpc3RWb2ljZU1vZGVsc1Jlc3BvbnNlEi0KBm1vZGVscxgBIAMoCzIdLmF1dG9uaWl4LnZvaWNlLnYxLlZvaWNlTW9kZWwiKAoUR2V0Vm9pY2VBdWRpb1JlcXVlc3QSEAoIYXVkaW9faWQYASABKAkiUAoVR2V0Vm9pY2VBdWRpb1Jlc3BvbnNlEhIKCmF1ZGlvX2RhdGEYASABKAwSDgoGZm9ybWF0GAIgASgJEhMKC3NhbXBsZV9yYXRlGAMgASgFIoYBCgpWb2ljZU1vZGVsEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEAoIcHJvdmlkZXIYAyABKAkSEAoIbGFuZ3VhZ2UYBCABKAkSDgoGZ2VuZGVyGAUgASgJEg4KBnN0eWxlcxgGIAMoCRIaChJjb3N0X3Blcl9jaGFyYWN0ZXIYByABKAEiaQoNVm9pY2VTZXR0aW5ncxINCgVzcGVlZBgBIAEoARINCgVwaXRjaBgCIAEoARIRCglzdGFiaWxpdHkYAyABKAESGAoQc2ltaWxhcml0eV9ib29zdBgEIAEoARINCgVzdHlsZRgFIAEoCTLGAgoMVm9pY2VTZXJ2aWNlEmgKD1N5bnRoZXNpemVWb2ljZRIpLmF1dG9uaWl4LnZvaWNlLnYxLlN5bnRoZXNpemVWb2ljZVJlcXVlc3QaKi5hdXRvbmlpeC52b2ljZS52MS5TeW50aGVzaXplVm9pY2VSZXNwb25zZRJoCg9MaXN0Vm9pY2VNb2RlbHMSKS5hdXRvbmlpeC52b2ljZS52MS5MaXN0Vm9pY2VNb2RlbHNSZXF1ZXN0GiouYXV0b25paXgudm9pY2UudjEuTGlzdFZvaWNlTW9kZWxzUmVzcG9uc2USYgoNR2V0Vm9pY2VBdWRpbxInLmF1dG9uaWl4LnZvaWNlLnYxLkdldFZvaWNlQXVkaW9SZXF1ZXN0GiguYXV0b25paXgudm9pY2UudjEuR2V0Vm9pY2VBdWRpb1Jlc3BvbnNlQsgBChVjb20uYXV0b25paXgudm9pY2UudjFCClZvaWNlUHJvdG9QAVo9Z2l0aHViLmNvbS9hdXRvbmlpeC9hdXRvbmlpeC9nZW4vZ28vYXV0b25paXgvdm9pY2UvdjE7dm9pY2V2MaICA0FWWKoCEUF1dG9uaWl4LlZvaWNlLlYxygIRQXV0b25paXhcVm9pY2VcVjHiAh1BdXRvbmlpeFxWb2ljZVxWMVxHUEJNZXRhZGF0YeoCE0F1dG9uaWl4OjpWb2ljZTo6VjFiBnByb3RvMw");
+export const file_autoniix_voice_v1_voice: GenFile =
+  /*@__PURE__*/
+  fileDesc(
+    "Ch1hdXRvbmlpeC92b2ljZS92MS92b2ljZS5wcm90bxIRYXV0b25paXgudm9pY2UudjEimQEKFlN5bnRoZXNpemVWb2ljZVJlcXVlc3QSEQoJc2NyaXB0X2lkGAEgASgJEgwKBHRleHQYAiABKAkSFgoOdm9pY2VfbW9kZWxfaWQYAyABKAkSEgoKY2hhbm5lbF9pZBgEIAEoCRIyCghzZXR0aW5ncxgFIAEoCzIgLmF1dG9uaWl4LnZvaWNlLnYxLlZvaWNlU2V0dGluZ3MibAoXU3ludGhlc2l6ZVZvaWNlUmVzcG9uc2USEAoIYXVkaW9faWQYASABKAkSEQoJYXVkaW9fdXJsGAIgASgJEhMKC2R1cmF0aW9uX21zGAMgASgFEhcKD2dlbmVyYXRpb25fY29zdBgEIAEoASI8ChZMaXN0Vm9pY2VNb2RlbHNSZXF1ZXN0EhAKCHByb3ZpZGVyGAEgASgJEhAKCGxhbmd1YWdlGAIgASgJIkgKF0xpc3RWb2ljZU1vZGVsc1Jlc3BvbnNlEi0KBm1vZGVscxgBIAMoCzIdLmF1dG9uaWl4LnZvaWNlLnYxLlZvaWNlTW9kZWwiKAoUR2V0Vm9pY2VBdWRpb1JlcXVlc3QSEAoIYXVkaW9faWQYASABKAkiUAoVR2V0Vm9pY2VBdWRpb1Jlc3BvbnNlEhIKCmF1ZGlvX2RhdGEYASABKAwSDgoGZm9ybWF0GAIgASgJEhMKC3NhbXBsZV9yYXRlGAMgASgFIoYBCgpWb2ljZU1vZGVsEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEAoIcHJvdmlkZXIYAyABKAkSEAoIbGFuZ3VhZ2UYBCABKAkSDgoGZ2VuZGVyGAUgASgJEg4KBnN0eWxlcxgGIAMoCRIaChJjb3N0X3Blcl9jaGFyYWN0ZXIYByABKAEiaQoNVm9pY2VTZXR0aW5ncxINCgVzcGVlZBgBIAEoARINCgVwaXRjaBgCIAEoARIRCglzdGFiaWxpdHkYAyABKAESGAoQc2ltaWxhcml0eV9ib29zdBgEIAEoARINCgVzdHlsZRgFIAEoCTLGAgoMVm9pY2VTZXJ2aWNlEmgKD1N5bnRoZXNpemVWb2ljZRIpLmF1dG9uaWl4LnZvaWNlLnYxLlN5bnRoZXNpemVWb2ljZVJlcXVlc3QaKi5hdXRvbmlpeC52b2ljZS52MS5TeW50aGVzaXplVm9pY2VSZXNwb25zZRJoCg9MaXN0Vm9pY2VNb2RlbHMSKS5hdXRvbmlpeC52b2ljZS52MS5MaXN0Vm9pY2VNb2RlbHNSZXF1ZXN0GiouYXV0b25paXgudm9pY2UudjEuTGlzdFZvaWNlTW9kZWxzUmVzcG9uc2USYgoNR2V0Vm9pY2VBdWRpbxInLmF1dG9uaWl4LnZvaWNlLnYxLkdldFZvaWNlQXVkaW9SZXF1ZXN0GiguYXV0b25paXgudm9pY2UudjEuR2V0Vm9pY2VBdWRpb1Jlc3BvbnNlQsgBChVjb20uYXV0b25paXgudm9pY2UudjFCClZvaWNlUHJvdG9QAVo9Z2l0aHViLmNvbS9hdXRvbmlpeC9hdXRvbmlpeC9nZW4vZ28vYXV0b25paXgvdm9pY2UvdjE7dm9pY2V2MaICA0FWWKoCEUF1dG9uaWl4LlZvaWNlLlYxygIRQXV0b25paXhcVm9pY2VcVjHiAh1BdXRvbmlpeFxWb2ljZVxWMVxHUEJNZXRhZGF0YeoCE0F1dG9uaWl4OjpWb2ljZTo6VjFiBnByb3RvMw"
+  );
 
 /**
  * @generated from message autoniix.voice.v1.SynthesizeVoiceRequest
@@ -46,7 +49,8 @@ export type SynthesizeVoiceRequest = Message<"autoniix.voice.v1.SynthesizeVoiceR
  * Describes the message autoniix.voice.v1.SynthesizeVoiceRequest.
  * Use `create(SynthesizeVoiceRequestSchema)` to create a new message.
  */
-export const SynthesizeVoiceRequestSchema: GenMessage<SynthesizeVoiceRequest> = /*@__PURE__*/
+export const SynthesizeVoiceRequestSchema: GenMessage<SynthesizeVoiceRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_voice_v1_voice, 0);
 
 /**
@@ -78,7 +82,8 @@ export type SynthesizeVoiceResponse = Message<"autoniix.voice.v1.SynthesizeVoice
  * Describes the message autoniix.voice.v1.SynthesizeVoiceResponse.
  * Use `create(SynthesizeVoiceResponseSchema)` to create a new message.
  */
-export const SynthesizeVoiceResponseSchema: GenMessage<SynthesizeVoiceResponse> = /*@__PURE__*/
+export const SynthesizeVoiceResponseSchema: GenMessage<SynthesizeVoiceResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_voice_v1_voice, 1);
 
 /**
@@ -100,7 +105,8 @@ export type ListVoiceModelsRequest = Message<"autoniix.voice.v1.ListVoiceModelsR
  * Describes the message autoniix.voice.v1.ListVoiceModelsRequest.
  * Use `create(ListVoiceModelsRequestSchema)` to create a new message.
  */
-export const ListVoiceModelsRequestSchema: GenMessage<ListVoiceModelsRequest> = /*@__PURE__*/
+export const ListVoiceModelsRequestSchema: GenMessage<ListVoiceModelsRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_voice_v1_voice, 2);
 
 /**
@@ -117,7 +123,8 @@ export type ListVoiceModelsResponse = Message<"autoniix.voice.v1.ListVoiceModels
  * Describes the message autoniix.voice.v1.ListVoiceModelsResponse.
  * Use `create(ListVoiceModelsResponseSchema)` to create a new message.
  */
-export const ListVoiceModelsResponseSchema: GenMessage<ListVoiceModelsResponse> = /*@__PURE__*/
+export const ListVoiceModelsResponseSchema: GenMessage<ListVoiceModelsResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_voice_v1_voice, 3);
 
 /**
@@ -134,7 +141,8 @@ export type GetVoiceAudioRequest = Message<"autoniix.voice.v1.GetVoiceAudioReque
  * Describes the message autoniix.voice.v1.GetVoiceAudioRequest.
  * Use `create(GetVoiceAudioRequestSchema)` to create a new message.
  */
-export const GetVoiceAudioRequestSchema: GenMessage<GetVoiceAudioRequest> = /*@__PURE__*/
+export const GetVoiceAudioRequestSchema: GenMessage<GetVoiceAudioRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_voice_v1_voice, 4);
 
 /**
@@ -161,7 +169,8 @@ export type GetVoiceAudioResponse = Message<"autoniix.voice.v1.GetVoiceAudioResp
  * Describes the message autoniix.voice.v1.GetVoiceAudioResponse.
  * Use `create(GetVoiceAudioResponseSchema)` to create a new message.
  */
-export const GetVoiceAudioResponseSchema: GenMessage<GetVoiceAudioResponse> = /*@__PURE__*/
+export const GetVoiceAudioResponseSchema: GenMessage<GetVoiceAudioResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_voice_v1_voice, 5);
 
 /**
@@ -208,8 +217,7 @@ export type VoiceModel = Message<"autoniix.voice.v1.VoiceModel"> & {
  * Describes the message autoniix.voice.v1.VoiceModel.
  * Use `create(VoiceModelSchema)` to create a new message.
  */
-export const VoiceModelSchema: GenMessage<VoiceModel> = /*@__PURE__*/
-  messageDesc(file_autoniix_voice_v1_voice, 6);
+export const VoiceModelSchema: GenMessage<VoiceModel> = /*@__PURE__*/ messageDesc(file_autoniix_voice_v1_voice, 6);
 
 /**
  * @generated from message autoniix.voice.v1.VoiceSettings
@@ -245,7 +253,8 @@ export type VoiceSettings = Message<"autoniix.voice.v1.VoiceSettings"> & {
  * Describes the message autoniix.voice.v1.VoiceSettings.
  * Use `create(VoiceSettingsSchema)` to create a new message.
  */
-export const VoiceSettingsSchema: GenMessage<VoiceSettings> = /*@__PURE__*/
+export const VoiceSettingsSchema: GenMessage<VoiceSettings> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_voice_v1_voice, 7);
 
 /**
@@ -259,7 +268,7 @@ export const VoiceService: GenService<{
     methodKind: "unary";
     input: typeof SynthesizeVoiceRequestSchema;
     output: typeof SynthesizeVoiceResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.voice.v1.VoiceService.ListVoiceModels
    */
@@ -267,7 +276,7 @@ export const VoiceService: GenService<{
     methodKind: "unary";
     input: typeof ListVoiceModelsRequestSchema;
     output: typeof ListVoiceModelsResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.voice.v1.VoiceService.GetVoiceAudio
    */
@@ -275,7 +284,5 @@ export const VoiceService: GenService<{
     methodKind: "unary";
     input: typeof GetVoiceAudioRequestSchema;
     output: typeof GetVoiceAudioResponseSchema;
-  },
-}> = /*@__PURE__*/
-  serviceDesc(file_autoniix_voice_v1_voice, 0);
-
+  };
+}> = /*@__PURE__*/ serviceDesc(file_autoniix_voice_v1_voice, 0);

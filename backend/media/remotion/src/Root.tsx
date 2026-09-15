@@ -3,16 +3,8 @@ import { Composition } from "remotion";
 import { initAssetRegistries } from "./registry";
 import { loadFonts } from "./utils/fonts";
 import { MainVideo, mainVideoSchema, mainVideoDefaults } from "./compositions/MainVideo";
-import {
-  ShortFormVideo,
-  shortFormSchema,
-  shortFormDefaults,
-} from "./compositions/ShortFormVideo";
-import {
-  ThumbnailComp,
-  thumbnailSchema,
-  thumbnailDefaults,
-} from "./compositions/ThumbnailComp";
+import { ShortFormVideo, shortFormSchema, shortFormDefaults } from "./compositions/ShortFormVideo";
+import { ThumbnailComp, thumbnailSchema, thumbnailDefaults } from "./compositions/ThumbnailComp";
 
 initAssetRegistries();
 loadFonts();
@@ -34,10 +26,8 @@ export const RemotionRoot: React.FC = () => {
         calculateMetadata={({ props }) => {
           const d = props.direction;
           const totalMs =
-            d?.segments?.reduce(
-              (a: number, s: { duration_ms: number }) => a + s.duration_ms,
-              0,
-            ) ?? 0;
+            d?.segments?.reduce((a: number, s: { duration_ms: number }) => a + s.duration_ms, 0) ??
+            0;
           const fps = d?.meta?.fps ?? FPS;
           const w = d?.meta?.resolution?.width ?? 1920;
           const h = d?.meta?.resolution?.height ?? 1080;
@@ -58,10 +48,8 @@ export const RemotionRoot: React.FC = () => {
         calculateMetadata={({ props }) => {
           const d = props.direction;
           const totalMs =
-            d?.segments?.reduce(
-              (a: number, s: { duration_ms: number }) => a + s.duration_ms,
-              0,
-            ) ?? 0;
+            d?.segments?.reduce((a: number, s: { duration_ms: number }) => a + s.duration_ms, 0) ??
+            0;
           const fps = d?.meta?.fps ?? FPS;
           const w = d?.meta?.resolution?.width ?? 1080;
           const h = d?.meta?.resolution?.height ?? 1920;

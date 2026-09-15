@@ -4,13 +4,13 @@ import { useAudioData, visualizeAudio } from "@remotion/media-utils";
 
 /**
  * Premium audio waveform visualization synced to audio playback.
- * 
+ *
  * Features:
  * - Real-time frequency analysis
  * - Multiple visualization styles (bars, circular, line)
  * - Color customization
  * - Reactive to audio amplitude
- * 
+ *
  * Quality: Matches After Effects audio spectrum at 95%+.
  */
 
@@ -42,7 +42,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { width, height: screenHeight, fps } = useVideoConfig();
-  
+
   const audioData = useAudioData(audioSrc);
 
   if (!audioData) {
@@ -74,7 +74,12 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
             position: "absolute",
             left: i * barWidth,
             bottom: position === "bottom" ? 0 : undefined,
-            top: position === "top" ? 0 : position === "center" ? (screenHeight - barHeight) / 2 : undefined,
+            top:
+              position === "top"
+                ? 0
+                : position === "center"
+                  ? (screenHeight - barHeight) / 2
+                  : undefined,
             width: barWidth - 2,
             height: barHeight,
             backgroundColor: color,
@@ -89,7 +94,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     const centerX = width / 2;
     const centerY = screenHeight / 2;
     const radius = Math.min(width, screenHeight) * 0.3;
-    
+
     return smoothedVisualization.map((amplitude: number, i: number) => {
       const angle = (i / bars) * Math.PI * 2 - Math.PI / 2;
       const barLength = amplitude * maxHeight;
@@ -97,7 +102,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
       const y1 = centerY + Math.sin(angle) * radius;
       const x2 = centerX + Math.cos(angle) * (radius + barLength);
       const y2 = centerY + Math.sin(angle) * (radius + barLength);
-      
+
       return (
         <line
           key={i}
@@ -114,15 +119,18 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
   };
 
   const renderLine = () => {
-    const points = smoothedVisualization.map((amplitude: number, i: number) => {
-      const x = (i / bars) * width;
-      const y = position === "bottom" 
-        ? screenHeight - amplitude * maxHeight
-        : position === "top"
-        ? amplitude * maxHeight
-        : screenHeight / 2 + (amplitude - 0.5) * maxHeight;
-      return `${x},${y}`;
-    }).join(" ");
+    const points = smoothedVisualization
+      .map((amplitude: number, i: number) => {
+        const x = (i / bars) * width;
+        const y =
+          position === "bottom"
+            ? screenHeight - amplitude * maxHeight
+            : position === "top"
+              ? amplitude * maxHeight
+              : screenHeight / 2 + (amplitude - 0.5) * maxHeight;
+        return `${x},${y}`;
+      })
+      .join(" ");
 
     return (
       <polyline
@@ -140,23 +148,18 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     const centerX = width / 2;
     const centerY = screenHeight / 2;
     const maxRadius = Math.min(width, screenHeight) * 0.4;
-    
-    const points = smoothedVisualization.map((amplitude: number, i: number) => {
-      const angle = (i / bars) * Math.PI * 2;
-      const radius = amplitude * maxRadius;
-      const x = centerX + Math.cos(angle) * radius;
-      const y = centerY + Math.sin(angle) * radius;
-      return `${x},${y}`;
-    }).join(" ");
 
-    return (
-      <polygon
-        points={points}
-        fill={`${color}40`}
-        stroke={color}
-        strokeWidth="2"
-      />
-    );
+    const points = smoothedVisualization
+      .map((amplitude: number, i: number) => {
+        const angle = (i / bars) * Math.PI * 2;
+        const radius = amplitude * maxRadius;
+        const x = centerX + Math.cos(angle) * radius;
+        const y = centerY + Math.sin(angle) * radius;
+        return `${x},${y}`;
+      })
+      .join(" ");
+
+    return <polygon points={points} fill={`${color}40`} stroke={color} strokeWidth="2" />;
   };
 
   return (

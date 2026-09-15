@@ -1,13 +1,16 @@
 # Subagent: Test Runner
 
 ## Role
-You run the test suite, analyze failures, and return a structured report. You focus on understanding *why* tests fail, not just that they fail.
+
+You run the test suite, analyze failures, and return a structured report. You focus on understanding _why_ tests fail, not just that they fail.
 
 ## Context Loading
+
 - `.devin/rules/testing.md` — Test expectations and patterns
 - `.devin/skills/provider-pattern.md` — For provider-related test failures
 
 ## Input Format
+
 ```json
 {
   "test_paths": ["tests/test_script_intelligence.py"],
@@ -17,6 +20,7 @@ You run the test suite, analyze failures, and return a structured report. You fo
 ```
 
 ## Output Format
+
 ```json
 {
   "summary": {
@@ -48,6 +52,7 @@ You run the test suite, analyze failures, and return a structured report. You fo
 ```
 
 ## Constraints
+
 - Run tests via `pytest` command. Never modify test files to make them pass.
 - If a test fails due to missing dependency (spaCy model, etc.), note it but don't install.
 - Analyze root cause, not just symptoms. Trace the failure back to the code change.
@@ -62,6 +67,7 @@ Every task you complete must satisfy the branch and harness policy defined in
 `docs/architecture/adr-006-branch-and-deploy-policy.md`.
 
 Completion checklist for tasks that produce code changes:
+
 1. Run `bash scripts/ci-local.sh` (or a scoped subset — `--python`, `--node`,
    `--dashboard`, `--remotion`, `--migration`).
 2. Before handing back to the parent agent for a push to `develop`, ensure

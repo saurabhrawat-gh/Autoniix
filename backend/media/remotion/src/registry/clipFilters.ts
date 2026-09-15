@@ -91,12 +91,7 @@ export interface ColorizeFilter {
 }
 
 export type ClipFilter =
-  | DeinterlaceFilter
-  | StabilizeFilter
-  | WarpFilter
-  | DenoiseFilter
-  | UpscaleFilter
-  | ColorizeFilter;
+  DeinterlaceFilter | StabilizeFilter | WarpFilter | DenoiseFilter | UpscaleFilter | ColorizeFilter;
 
 /* ====================================================================== */
 /* Validation + ordering                                                  */
@@ -281,10 +276,7 @@ export interface RecipeOptions {
  * separately in `gpuFilters` so the orchestrator can call the model server
  * for them (in the same canonical order — see ORDER above).
  */
-export function buildFfmpegRecipe(
-  filters: ClipFilter[],
-  opts: RecipeOptions,
-): FfmpegRecipe {
+export function buildFfmpegRecipe(filters: ClipFilter[], opts: RecipeOptions): FfmpegRecipe {
   validateFilters(filters);
   const ordered = orderFilters(filters);
 
@@ -327,16 +319,7 @@ export function buildFfmpegRecipe(
       `vidstabdetect=shakiness=${stab.shakiness ?? 5}:result=${trf}`,
     ].join(",");
     commands.push({
-      args: [
-        "-y",
-        "-i",
-        opts.inputPath,
-        "-vf",
-        detectVf,
-        "-f",
-        "null",
-        "-",
-      ],
+      args: ["-y", "-i", opts.inputPath, "-vf", detectVf, "-f", "null", "-"],
       summary: `vidstabdetect (pass 1) → ${trf}`,
       finalOutput: false,
     });
@@ -421,7 +404,8 @@ function filterToVf(f: ClipFilter): string | null {
     }
     case "warp": {
       if (f.curve.length === 2) {
-        const totalSpeed = (f.curve[1]!.srcU - f.curve[0]!.srcU) /
+        const totalSpeed =
+          (f.curve[1]!.srcU - f.curve[0]!.srcU) /
           Math.max(1e-9, f.curve[1]!.outU - f.curve[0]!.outU);
         const pts = (1 / totalSpeed).toFixed(6);
         return `setpts=${pts}*PTS`;
@@ -447,9 +431,7 @@ function buildWarpFilterComplex(
 ): FfmpegRecipe {
   const inputDur = opts.inputDurationSec;
   if (!inputDur || inputDur <= 0) {
-    throw new Error(
-      "buildFfmpegRecipe: multi-key warp requires opts.inputDurationSec",
-    );
+    throw new Error("buildFfmpegRecipe: multi-key warp requires opts.inputDurationSec");
   }
   const outputScale = warp.outputScale ?? 1.0;
   const outputDur = inputDur * outputScale;

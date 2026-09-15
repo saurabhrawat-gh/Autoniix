@@ -38,17 +38,9 @@ export class JobRepository {
       offset?: number;
     } = {}
   ): Promise<{ jobs: JobRow[]; total: number }> {
-    const {
-      statusFilter,
-      sortBy = "created_at",
-      sortDesc = true,
-      limit = 20,
-      offset = 0,
-    } = options;
+    const { statusFilter, sortBy = "created_at", sortDesc = true, limit = 20, offset = 0 } = options;
 
-    const statusCondition = statusFilter?.length
-      ? this.db`AND status = ANY(${statusFilter})`
-      : this.db``;
+    const statusCondition = statusFilter?.length ? this.db`AND status = ANY(${statusFilter})` : this.db``;
 
     const orderDirection = sortDesc ? this.db`DESC` : this.db`ASC`;
 
@@ -76,11 +68,7 @@ export class JobRepository {
     };
   }
 
-  async create(
-    workspaceId: string,
-    channelId: string,
-    config: JobConfig
-  ): Promise<JobRow> {
+  async create(workspaceId: string, channelId: string, config: JobConfig): Promise<JobRow> {
     const [job] = await this.db<JobRow[]>`
       INSERT INTO jobs (workspace_id, channel_id, status, config)
       VALUES (${workspaceId}, ${channelId}, 'pending', ${JSON.stringify(config)})
@@ -104,13 +92,9 @@ export class JobRepository {
     return job;
   }
 
-  async updateStatus(
-    jobId: string,
-    status: JobStatus,
-    errorMessage?: string
-  ): Promise<JobRow> {
+  async updateStatus(jobId: string, status: JobStatus, errorMessage?: string): Promise<JobRow> {
     const completedAt = status === "completed" || status === "failed" ? this.db`NOW()` : this.db`NULL`;
-    
+
     const [job] = await this.db<JobRow[]>`
       UPDATE jobs
       SET status = ${status},

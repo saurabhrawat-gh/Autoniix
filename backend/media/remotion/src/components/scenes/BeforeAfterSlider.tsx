@@ -36,7 +36,16 @@ export const BeforeAfterSlider: React.FC<BeforeAfterSliderProps> = ({
 
   return (
     <AbsoluteFill style={{ background: "#000" }}>
-      <Img src={afterUrl} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+      <Img
+        src={afterUrl}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+        }}
+      />
       <div
         style={{
           position: "absolute",

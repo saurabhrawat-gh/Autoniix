@@ -6,7 +6,7 @@ name: Harness — Nightly
 
 on:
   schedule:
-    - cron: "15 2 * * *"  # 02:15 UTC daily
+    - cron: "15 2 * * *" # 02:15 UTC daily
   workflow_dispatch:
 
 concurrency:
@@ -18,7 +18,6 @@ permissions:
   security-events: write
 
 jobs:
-
   eval:
     name: Prompt / agent eval + regression check
     runs-on: ubuntu-latest
@@ -96,7 +95,7 @@ jobs:
   mutation:
     name: Mutation testing (mutmut — advisory)
     runs-on: ubuntu-latest
-    continue-on-error: true  # slow, noisy — never blocks
+    continue-on-error: true # slow, noisy — never blocks
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

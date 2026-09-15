@@ -42,7 +42,14 @@ export const TimelineAnimation: React.FC<TimelineAnimationProps> = ({
 
   if (orientation === "horizontal") {
     return (
-      <AbsoluteFill style={{ backgroundColor: bg, padding: 100, flexDirection: "column", justifyContent: "center" }}>
+      <AbsoluteFill
+        style={{
+          backgroundColor: bg,
+          padding: 100,
+          flexDirection: "column",
+          justifyContent: "center",
+        }}
+      >
         {title && (
           <div
             style={{

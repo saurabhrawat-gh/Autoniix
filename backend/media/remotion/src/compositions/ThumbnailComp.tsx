@@ -35,10 +35,7 @@ export const ThumbnailComp: React.FC<ThumbnailProps> = ({
     <AbsoluteFill style={{ backgroundColor: "#0A0A0A" }}>
       {background_url && (
         <AbsoluteFill>
-          <Img
-            src={background_url}
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          />
+          <Img src={background_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           <AbsoluteFill style={{ backgroundColor: "rgba(0,0,0,0.35)" }} />
         </AbsoluteFill>
       )}

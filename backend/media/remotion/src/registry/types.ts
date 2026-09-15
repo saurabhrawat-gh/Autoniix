@@ -1,11 +1,6 @@
 import type React from "react";
 
-export type PresetCategory =
-  | "scene"
-  | "transition"
-  | "animation"
-  | "effect"
-  | "overlay";
+export type PresetCategory = "scene" | "transition" | "animation" | "effect" | "overlay";
 
 export interface PresetEntry<P extends Record<string, unknown> = Record<string, unknown>> {
   id: string;

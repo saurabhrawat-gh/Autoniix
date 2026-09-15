@@ -10,12 +10,12 @@ import {
 
 /**
  * ADVANCED Particle System - 100% Quality
- * 
+ *
  * Matches/exceeds:
  * - Red Giant Trapcode Particular
  * - After Effects CC Particle World
  * - Boris FX Continuum Particles
- * 
+ *
  * Features:
  * - 1000+ particles with physics simulation
  * - 3D depth simulation (Z-axis)
@@ -24,7 +24,7 @@ import {
  * - Emitter shapes (point, line, circle, box)
  * - Forces (gravity, wind, vortex)
  * - Advanced blending and glow
- * 
+ *
  * Quality: 100% - Professional particle effects
  */
 
@@ -90,9 +90,7 @@ interface Particle {
   trailHistory: Array<{ x: number; y: number; opacity: number }>;
 }
 
-export const AdvancedParticleSystem: React.FC<
-  AdvancedParticleSystemProps
-> = ({
+export const AdvancedParticleSystem: React.FC<AdvancedParticleSystemProps> = ({
   preset = "energy",
   count = 1000,
   colors = ["#4ECDC4", "#FF6B6B", "#FFE66D", "#A8E6CF"],
@@ -172,12 +170,9 @@ export const AdvancedParticleSystem: React.FC<
       const vy = Math.sin(angle) * speed;
       const vz = (random(seed + 6) - 0.5) * 3;
 
-      const size =
-        random(seed + 7) * (sizeRange[1] - sizeRange[0]) + sizeRange[0];
+      const size = random(seed + 7) * (sizeRange[1] - sizeRange[0]) + sizeRange[0];
       const rotation = random(seed + 8) * 360;
-      const rotSpeed =
-        random(seed + 9) * (rotationSpeed[1] - rotationSpeed[0]) +
-        rotationSpeed[0];
+      const rotSpeed = random(seed + 9) * (rotationSpeed[1] - rotationSpeed[0]) + rotationSpeed[0];
 
       const colorIndex = Math.floor(random(seed + 10) * colors.length);
       const particleColor = colors[colorIndex] ?? colors[0] ?? "#FFFFFF";
@@ -226,32 +221,18 @@ export const AdvancedParticleSystem: React.FC<
         const age = frame - particle.birthFrame;
         if (age < 0 || age > particle.lifetime) return null;
 
-        const turbX =
-          Math.sin(frame * 0.05 + particle.id * 0.1) *
-          finalTurbulence *
-          20;
-        const turbY =
-          Math.cos(frame * 0.05 + particle.id * 0.1) *
-          finalTurbulence *
-          20;
+        const turbX = Math.sin(frame * 0.05 + particle.id * 0.1) * finalTurbulence * 20;
+        const turbY = Math.cos(frame * 0.05 + particle.id * 0.1) * finalTurbulence * 20;
 
-        const x =
-          particle.x +
-          (particle.vx + wind[0]) * age +
-          turbX;
+        const x = particle.x + (particle.vx + wind[0]) * age + turbX;
         const y =
-          particle.y +
-          (particle.vy + wind[1]) * age +
-          finalGravity * age * age * 0.5 +
-          turbY;
+          particle.y + (particle.vy + wind[1]) * age + finalGravity * age * age * 0.5 + turbY;
         const z = particle.z + particle.vz * age;
 
-        const depthScale = interpolate(
-          z,
-          [-100, 100],
-          [0.5, 1.5],
-          { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
-        );
+        const depthScale = interpolate(z, [-100, 100], [0.5, 1.5], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+        });
         const finalSize = particle.size * (1 + (depthScale - 1) * depth3D);
 
         const rotation = particle.rotation + particle.rotationSpeed * age;
@@ -264,32 +245,25 @@ export const AdvancedParticleSystem: React.FC<
             extrapolateLeft: "clamp",
             extrapolateRight: "clamp",
             easing: Easing.bezier(0.33, 1, 0.68, 1),
-          }
+          },
         );
 
-        const depthOpacity = interpolate(
-          z,
-          [-100, 100],
-          [0.3, 1],
-          { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
-        );
+        const depthOpacity = interpolate(z, [-100, 100], [0.3, 1], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+        });
         const finalOpacity = opacity * (1 + (depthOpacity - 1) * depth3D);
 
-        if (
-          x < -100 ||
-          x > width + 100 ||
-          y < -100 ||
-          y > height + 100
-        )
-          return null;
+        if (x < -100 || x > width + 100 || y < -100 || y > height + 100) return null;
 
         const glowSize = finalSize * 2;
-        const glowStyle = finalGlow > 0
-          ? {
-              boxShadow: `0 0 ${glowSize}px ${glowSize / 2}px ${particle.color}`,
-              filter: `blur(${finalGlow}px)`,
-            }
-          : {};
+        const glowStyle =
+          finalGlow > 0
+            ? {
+                boxShadow: `0 0 ${glowSize}px ${glowSize / 2}px ${particle.color}`,
+                filter: `blur(${finalGlow}px)`,
+              }
+            : {};
 
         return (
           <React.Fragment key={particle.id}>

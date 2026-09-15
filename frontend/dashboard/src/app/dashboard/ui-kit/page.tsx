@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 /**
  * /dashboard/ui-kit — UI Kit preview gallery.
@@ -8,7 +8,7 @@
  * Dev-only browse aid; not linked from the main nav.
  */
 
-import { useState } from 'react';
+import { useState } from "react";
 import {
   Activity,
   Plus,
@@ -20,7 +20,7 @@ import {
   Info,
   Mail,
   ChevronDown,
-} from 'lucide-react';
+} from "lucide-react";
 import {
   Button,
   Input,
@@ -70,8 +70,8 @@ import {
   TabsContent,
   TooltipProvider,
   SimpleTooltip,
-} from '@/lib/ui';
-import { useToast } from '@/lib/toast';
+} from "@/lib/ui";
+import { useToast } from "@/lib/toast";
 
 function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
@@ -98,9 +98,9 @@ export default function UIKitPage() {
   const { showToast } = useToast();
   const [check, setCheck] = useState(true);
   const [sw, setSw] = useState(true);
-  const [tab, setTab] = useState('overview');
-  const [radio, setRadio] = useState('a');
-  const [select, setSelect] = useState('');
+  const [tab, setTab] = useState("overview");
+  const [radio, setRadio] = useState("a");
+  const [select, setSelect] = useState("");
 
   return (
     <TooltipProvider delayDuration={250}>
@@ -108,8 +108,9 @@ export default function UIKitPage() {
         <header className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">UI Kit</h1>
           <p className="text-sm text-content-tertiary">
-            Preview of all primitives in <code className="font-mono text-xs px-1 py-0.5 rounded bg-surface-2">@/lib/ui</code>.
-            Toggle theme from the top-right to verify dark/light parity.
+            Preview of all primitives in{" "}
+            <code className="font-mono text-xs px-1 py-0.5 rounded bg-surface-2">@/lib/ui</code>. Toggle theme from the
+            top-right to verify dark/light parity.
           </p>
         </header>
 
@@ -128,12 +129,18 @@ export default function UIKitPage() {
             <Button size="sm">Small</Button>
             <Button size="md">Medium</Button>
             <Button size="lg">Large</Button>
-            <Button size="icon" variant="secondary"><Settings size={15} /></Button>
-            <Button size="icon-sm" variant="ghost"><Trash2 size={14} /></Button>
+            <Button size="icon" variant="secondary">
+              <Settings size={15} />
+            </Button>
+            <Button size="icon-sm" variant="ghost">
+              <Trash2 size={14} />
+            </Button>
           </Row>
           <Row label="With icons">
             <Button leftIcon={<Plus size={14} />}>Create</Button>
-            <Button variant="secondary" rightIcon={<ChevronDown size={14} />}>Options</Button>
+            <Button variant="secondary" rightIcon={<ChevronDown size={14} />}>
+              Options
+            </Button>
             <Button loading>Saving</Button>
             <Button disabled>Disabled</Button>
           </Row>
@@ -143,7 +150,9 @@ export default function UIKitPage() {
         <Section title="Input / Textarea / Label">
           <Row label="Basic">
             <div className="w-72 space-y-1.5">
-              <Label htmlFor="email" required>Email</Label>
+              <Label htmlFor="email" required>
+                Email
+              </Label>
               <Input id="email" type="email" placeholder="you@example.com" leftIcon={<Mail size={14} />} />
             </div>
           </Row>
@@ -232,8 +241,12 @@ export default function UIKitPage() {
                 <p className="text-sm text-content-secondary">Last published 2 days ago.</p>
               </CardContent>
               <CardFooter>
-                <Button size="sm" variant="secondary">View</Button>
-                <Button size="sm" variant="primary">Trigger</Button>
+                <Button size="sm" variant="secondary">
+                  View
+                </Button>
+                <Button size="sm" variant="primary">
+                  Trigger
+                </Button>
               </CardFooter>
             </Card>
             <Card variant="elevated" padding="lg" className="w-64">
@@ -260,8 +273,12 @@ export default function UIKitPage() {
             <Badge variant="outline">outline</Badge>
           </Row>
           <Row label="Type chips">
-            <Badge variant="short" size="sm">SHORT</Badge>
-            <Badge variant="long" size="sm">LONG</Badge>
+            <Badge variant="short" size="sm">
+              SHORT
+            </Badge>
+            <Badge variant="long" size="sm">
+              LONG
+            </Badge>
           </Row>
         </Section>
 
@@ -380,12 +397,22 @@ export default function UIKitPage() {
         <Section title="Tooltip">
           <Row label="Hover">
             <SimpleTooltip content="Trigger a render">
-              <Button variant="secondary" size="icon"><Plus size={15} /></Button>
+              <Button variant="secondary" size="icon">
+                <Plus size={15} />
+              </Button>
             </SimpleTooltip>
             <SimpleTooltip content="Open settings" side="right">
-              <Button variant="ghost" size="icon"><Settings size={15} /></Button>
+              <Button variant="ghost" size="icon">
+                <Settings size={15} />
+              </Button>
             </SimpleTooltip>
-            <SimpleTooltip content={<span>Press <Kbd>⌘</Kbd> <Kbd>K</Kbd></span>}>
+            <SimpleTooltip
+              content={
+                <span>
+                  Press <Kbd>⌘</Kbd> <Kbd>K</Kbd>
+                </span>
+              }
+            >
               <Button variant="tonal">Command palette</Button>
             </SimpleTooltip>
           </Row>
@@ -394,16 +421,40 @@ export default function UIKitPage() {
         {/* ── Toast ───────────────────────────────────────────── */}
         <Section title="Toast" description="Existing ToastProvider — fired via showToast()">
           <Row label="Trigger">
-            <Button variant="secondary" leftIcon={<CheckCircle2 size={14} />} onClick={() => showToast('Saved successfully', 'success')}>Success</Button>
-            <Button variant="secondary" leftIcon={<Info size={14} />} onClick={() => showToast('Heads up — this is informational')}>Info</Button>
-            <Button variant="secondary" leftIcon={<AlertTriangle size={14} />} onClick={() => showToast('Approaching budget limit', 'warning')}>Warning</Button>
-            <Button variant="secondary" leftIcon={<AlertTriangle size={14} />} onClick={() => showToast('Job failed to render', 'error')}>Error</Button>
+            <Button
+              variant="secondary"
+              leftIcon={<CheckCircle2 size={14} />}
+              onClick={() => showToast("Saved successfully", "success")}
+            >
+              Success
+            </Button>
+            <Button
+              variant="secondary"
+              leftIcon={<Info size={14} />}
+              onClick={() => showToast("Heads up — this is informational")}
+            >
+              Info
+            </Button>
+            <Button
+              variant="secondary"
+              leftIcon={<AlertTriangle size={14} />}
+              onClick={() => showToast("Approaching budget limit", "warning")}
+            >
+              Warning
+            </Button>
+            <Button
+              variant="secondary"
+              leftIcon={<AlertTriangle size={14} />}
+              onClick={() => showToast("Job failed to render", "error")}
+            >
+              Error
+            </Button>
             <Button
               variant="secondary"
               onClick={() =>
-                showToast('Video deleted', {
-                  variant: 'success',
-                  action: { label: 'Undo', onAct: () => showToast('Restored', 'success') },
+                showToast("Video deleted", {
+                  variant: "success",
+                  action: { label: "Undo", onAct: () => showToast("Restored", "success") },
                 })
               }
             >

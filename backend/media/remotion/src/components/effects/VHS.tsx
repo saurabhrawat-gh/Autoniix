@@ -48,10 +48,7 @@ uniform float u_intensity;
 uniform vec3 u_tint;
 `;
 
-export const VHS: React.FC<VHSProps> = ({
-  intensity = 0.7,
-  tint = [1.05, 0.95, 1.0],
-}) => (
+export const VHS: React.FC<VHSProps> = ({ intensity = 0.7, tint = [1.05, 0.95, 1.0] }) => (
   <ShaderCanvas
     fragmentShader={FRAG}
     uniforms={{ u_intensity: intensity, u_tint: tint }}

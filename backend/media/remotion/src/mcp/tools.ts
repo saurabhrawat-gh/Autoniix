@@ -25,12 +25,9 @@ import { applyPatch, lower, type SceneGraph } from "../scene-graph";
 import { DirectorAgent, EditorAgent } from "../agents";
 import type { Patch } from "../scene-graph";
 
-
 export interface ProposeSceneInput {
   /** A direction-v3 JSON OR an existing scene graph. */
-  source:
-    | { kind: "directionV3"; direction: unknown }
-    | { kind: "sceneGraph"; graph: SceneGraph };
+  source: { kind: "directionV3"; direction: unknown } | { kind: "sceneGraph"; graph: SceneGraph };
   /** Which agent passes to run. */
   passes?: ("director" | "editor")[];
   /** Niche hint, used by Director. Default "general". */
@@ -84,7 +81,6 @@ export async function proposeScene(input: ProposeSceneInput): Promise<ProposeSce
   return { graph, patches, appliedAgents };
 }
 
-
 export interface RenderPreviewInput {
   graph: SceneGraph;
   /** Time window to preview. Default = first 5 sec of the graph. */
@@ -104,7 +100,6 @@ export async function renderPreview(input: RenderPreviewInput): Promise<RenderPr
     message: `preview render of ${input.graph.meta.videoId} (${(input.rangeMs ?? [0, 5000]).join("..")}ms) not yet implemented`,
   };
 }
-
 
 export interface QueryRegistryInput {
   /** Filter by kind. Default returns all. */
@@ -130,7 +125,8 @@ export async function queryRegistry(input: QueryRegistryInput): Promise<QueryReg
   const { listPresets } = await import("../registry");
   const limit = input.limit ?? 200;
 
-  const baseFilter: { category?: "scene" | "effect" | "transition" | "animation" | "overlay" } | undefined =
+  const baseFilter:
+    { category?: "scene" | "effect" | "transition" | "animation" | "overlay" } | undefined =
     input.kind && input.kind !== "lut" && input.kind !== "sfx"
       ? { category: input.kind as "scene" | "effect" | "transition" | "animation" | "overlay" }
       : undefined;
@@ -167,7 +163,6 @@ export async function queryRegistry(input: QueryRegistryInput): Promise<QueryReg
   return { entries };
 }
 
-
 export interface GetQcReportInput {
   jobId: string;
 }
@@ -188,7 +183,6 @@ export async function getQcReport(input: GetQcReportInput): Promise<GetQcReportO
   };
 }
 
-
 export interface ListChannelsOutput {
   status: "found" | "unimplemented";
   channels: { id: string; niche?: string; brand?: Record<string, unknown> }[];
@@ -203,7 +197,6 @@ export async function listChannels(): Promise<ListChannelsOutput> {
   };
 }
 
-
 export interface GetRetentionCurveInput {
   channelId: string;
   lastN?: number;
@@ -216,7 +209,9 @@ export interface GetRetentionCurveOutput {
   message: string;
 }
 
-export async function getRetentionCurve(input: GetRetentionCurveInput): Promise<GetRetentionCurveOutput> {
+export async function getRetentionCurve(
+  input: GetRetentionCurveInput,
+): Promise<GetRetentionCurveOutput> {
   return {
     status: "unimplemented",
     channelId: input.channelId,
@@ -224,7 +219,6 @@ export async function getRetentionCurve(input: GetRetentionCurveInput): Promise<
     message: "Wired to analytics/pattern_miner in P1.",
   };
 }
-
 
 export interface RunBanditSampleInput {
   /** Cluster name, e.g. "hook_style", "pacing", "transition_family". */
@@ -264,7 +258,6 @@ export async function runBanditSample(input: RunBanditSampleInput): Promise<RunB
     message: "bandit defaults — Thompson sampling lands in P1 with channel_style_priors",
   };
 }
-
 
 export const TOOLS = {
   propose_scene: proposeScene,

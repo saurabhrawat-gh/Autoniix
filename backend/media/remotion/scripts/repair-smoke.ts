@@ -15,7 +15,10 @@ import { applyPatch, lower } from "../src/scene-graph";
 import { makeRepair } from "../src/agents";
 import type { CriticReport } from "../src/agents";
 
-const fixturePath = path.resolve(__dirname, "../src/scene-graph/__fixtures__/minimal-direction.json");
+const fixturePath = path.resolve(
+  __dirname,
+  "../src/scene-graph/__fixtures__/minimal-direction.json",
+);
 const direction = DirectionV3.parse(JSON.parse(fs.readFileSync(fixturePath, "utf8")));
 const graph = lower(direction);
 
@@ -32,7 +35,12 @@ const fakeReport: CriticReport = {
   overall: 6.4,
   shardsFlagged: [
     { shardId: "s1", reason: "low_legibility", severity: "medium", detail: "contrast low" },
-    { shardId: "s2", reason: "asset_mismatch", severity: "high", detail: "stock didn't match query" },
+    {
+      shardId: "s2",
+      reason: "asset_mismatch",
+      severity: "high",
+      detail: "stock didn't match query",
+    },
     { shardId: "s2", reason: "color_drift", severity: "medium" },
     { shardId: "s1", reason: "audio_drift", severity: "low" },
   ],
@@ -66,7 +74,6 @@ async function main() {
     console.error("FAIL: applyPatch is not deterministic");
     process.exit(1);
   }
-
 }
 
 main().catch((e) => {

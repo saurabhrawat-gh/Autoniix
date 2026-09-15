@@ -28,7 +28,6 @@ volumes:
 
 # ─── Services ────────────────────────────────────────────
 services:
-
   # ── API Gateway ──────────────────────────────────────
   traefik:
     image: traefik:v3.0
@@ -384,28 +383,28 @@ REMOTION_BASE_URL=http://remotion:4000
 
 ### Memory Budget (CX31: 8GB total)
 
-| Component | Memory Limit | Notes |
-|-----------|-------------|-------|
-| Temporal Server | 2 GB | Includes frontend, history, matching, worker |
-| PostgreSQL (app) | 1 GB | Shared buffers, work_mem |
-| PostgreSQL (temporal) | 512 MB | Lightweight |
-| Redis | 512 MB | maxmemory with LRU eviction |
-| MinIO | 256 MB | Minimal for metadata |
-| 8 Python services | 256 MB each = 2 GB | FastAPI + uvicorn |
-| 3 Temporal workers | 256-512 MB each = 1 GB | Polling + activity execution |
-| Traefik | 128 MB | Lightweight |
-| **Total** | **~7.5 GB** | Fits CX31 for 1-3 channels |
+| Component             | Memory Limit           | Notes                                        |
+| --------------------- | ---------------------- | -------------------------------------------- |
+| Temporal Server       | 2 GB                   | Includes frontend, history, matching, worker |
+| PostgreSQL (app)      | 1 GB                   | Shared buffers, work_mem                     |
+| PostgreSQL (temporal) | 512 MB                 | Lightweight                                  |
+| Redis                 | 512 MB                 | maxmemory with LRU eviction                  |
+| MinIO                 | 256 MB                 | Minimal for metadata                         |
+| 8 Python services     | 256 MB each = 2 GB     | FastAPI + uvicorn                            |
+| 3 Temporal workers    | 256-512 MB each = 1 GB | Polling + activity execution                 |
+| Traefik               | 128 MB                 | Lightweight                                  |
+| **Total**             | **~7.5 GB**            | Fits CX31 for 1-3 channels                   |
 
 ### VPS Tiers
 
-| Channels | Main VPS | DB VPS | Render VPS | Total Infra |
-|----------|---------|--------|-----------|-------------|
-| 1-3 | CX31 ($18) all-in-one | — | — | $18 |
-| 5 | CX31 ($18) | — | CX21 ($7) | $25 |
-| 10 | CX31 ($18) | CX21 ($7) | CX31 ($24) | $49 |
-| 25 | CX41 ($36) | CX31 ($18) | 2× CX31 ($48) | $102 |
-| 50 | CX51 ($61) | CX41 ($36) | 3× CX31 ($72) | $169 |
-| 100 | 3× CX41 ($108) | CX51+CX31 ($79) | 4× CX31 ($96) + misc ($17) | $300 |
+| Channels | Main VPS              | DB VPS          | Render VPS                 | Total Infra |
+| -------- | --------------------- | --------------- | -------------------------- | ----------- |
+| 1-3      | CX31 ($18) all-in-one | —               | —                          | $18         |
+| 5        | CX31 ($18)            | —               | CX21 ($7)                  | $25         |
+| 10       | CX31 ($18)            | CX21 ($7)       | CX31 ($24)                 | $49         |
+| 25       | CX41 ($36)            | CX31 ($18)      | 2× CX31 ($48)              | $102        |
+| 50       | CX51 ($61)            | CX41 ($36)      | 3× CX31 ($72)              | $169        |
+| 100      | 3× CX41 ($108)        | CX51+CX31 ($79) | 4× CX31 ($96) + misc ($17) | $300        |
 
 ---
 
@@ -433,6 +432,7 @@ find /backups -name "*.sql.gz" -mtime +30 -delete
 ```
 
 Crontab:
+
 ```
 0 3 * * * /opt/yt-automation/scripts/backup.sh >> /var/log/backup.log 2>&1
 ```
@@ -445,6 +445,7 @@ mc version enable minio/yt-automation
 ```
 
 All objects retain previous versions. To recover a deleted file:
+
 ```bash
 mc ls --versions minio/yt-automation/scripts/BS001/VID_.../
 mc cp --version-id <id> minio/yt-automation/scripts/BS001/VID_.../ ./recovered/
@@ -480,22 +481,23 @@ logger.info("voice_generated", scene_id="s1", duration_s=8.2, cost_usd=0.17, pro
 
 ```yaml
 # Add to docker-compose.yml
-  prometheus:
-    image: prom/prometheus:latest
-    volumes:
-      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
-    networks: [yt-internal]
+prometheus:
+  image: prom/prometheus:latest
+  volumes:
+    - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+  networks: [yt-internal]
 
-  grafana:
-    image: grafana/grafana:latest
-    networks: [yt-net]
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN}`)"
-      - "traefik.http.routers.grafana.tls.certresolver=letsencrypt"
+grafana:
+  image: grafana/grafana:latest
+  networks: [yt-net]
+  labels:
+    - "traefik.enable=true"
+    - "traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN}`)"
+    - "traefik.http.routers.grafana.tls.certresolver=letsencrypt"
 ```
 
 Dashboards:
+
 - Videos produced per day/channel
 - API cost per day/provider
 - Error rate per service
@@ -505,14 +507,14 @@ Dashboards:
 
 ### Alerts
 
-| Alert | Condition | Action |
-|-------|-----------|--------|
-| Service down | Health check fails 3× | Restart + notify |
-| High error rate | >20% errors in 10 min | Notify + check circuit breakers |
-| Budget 80% | Daily spend ≥ 80% of limit | Notify |
-| Disk space low | <10% free | Notify + cleanup old renders |
-| Render queue backed up | >5 pending renders | Notify + consider scaling |
-| Workflow failure spike | >3 failures in 1 hour | Notify + check Temporal UI |
+| Alert                  | Condition                  | Action                          |
+| ---------------------- | -------------------------- | ------------------------------- |
+| Service down           | Health check fails 3×      | Restart + notify                |
+| High error rate        | >20% errors in 10 min      | Notify + check circuit breakers |
+| Budget 80%             | Daily spend ≥ 80% of limit | Notify                          |
+| Disk space low         | <10% free                  | Notify + cleanup old renders    |
+| Render queue backed up | >5 pending renders         | Notify + consider scaling       |
+| Workflow failure spike | >3 failures in 1 hour      | Notify + check Temporal UI      |
 
 ---
 
@@ -520,13 +522,13 @@ Dashboards:
 
 ### When to Scale
 
-| Signal | Action |
-|--------|--------|
-| VPS CPU consistently >80% | Upgrade VPS tier or split services |
-| VPS memory consistently >85% | Upgrade VPS tier or split DB |
-| Render queue >5 pending | Add render VPS |
-| DB query latency >100ms | Move DB to dedicated VPS |
-| Redis memory >80% | Reduce TTLs or upgrade |
+| Signal                       | Action                             |
+| ---------------------------- | ---------------------------------- |
+| VPS CPU consistently >80%    | Upgrade VPS tier or split services |
+| VPS memory consistently >85% | Upgrade VPS tier or split DB       |
+| Render queue >5 pending      | Add render VPS                     |
+| DB query latency >100ms      | Move DB to dedicated VPS           |
+| Redis memory >80%            | Reduce TTLs or upgrade             |
 
 ### How to Split (5+ channels)
 
@@ -537,6 +539,7 @@ Dashboards:
 ### Docker Compose → Kubernetes (Roadmap, 50+ channels)
 
 When Docker Compose reaches its limits:
+
 1. Convert services to Helm charts
 2. Deploy to managed Kubernetes (Hetzner Cloud K8s or self-managed)
 3. Use horizontal pod autoscaling for services and render workers

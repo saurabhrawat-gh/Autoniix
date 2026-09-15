@@ -7,33 +7,44 @@ labels: story
 **Parent Epic:** #
 
 ## Summary
+
 <!-- One sentence: what this story delivers. -->
 
 ## Personas
+
 <!-- Who is affected by this change? -->
+
 - **[Role]**: ...
 
 ## Use Cases
-| ID | Actor | Action | Expected Outcome |
-|---|---|---|---|
-| UC-XX-01 | ... | ... | ... |
+
+| ID       | Actor | Action | Expected Outcome |
+| -------- | ----- | ------ | ---------------- |
+| UC-XX-01 | ...   | ...    | ...              |
 
 ## Acceptance Criteria
+
 <!-- Specific, testable conditions. Each must be verifiable. -->
+
 - [ ] ...
 - [ ] ...
 
 ## Impacted Systems
+
 <!-- Files, tables, services affected. -->
+
 - `src/...`
 - `dashboard/...`
 - Migration: `scripts/migrations/...`
 
 ## QA Test Cases
+
 <!-- Linked test-case issue(s) created by /qa-agent -->
+
 - Test plan: #
 
 ## Definition of Done
+
 - [ ] `/qa-agent` run — test-case issue(s) created and linked above
 - [ ] All acceptance criteria met
 - [ ] Tests written and passing

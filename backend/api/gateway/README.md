@@ -11,6 +11,7 @@
 Gateway v2 is a complete rewrite of the Autoniix API Gateway in Node.js/Fastify, part of the two-language simplification migration (ADR-004).
 
 **Why rewrite?**
+
 - **Build speed:** 30-60s (Node) vs. 8-15min (Rust cold build)
 - **CI simplicity:** Eliminate Rust toolchain, sqlx cache, cross-compilation
 - **Developer velocity:** Faster iteration, simpler debugging, unified stack
@@ -107,10 +108,12 @@ See `.env.example` for all required variables:
 ## API Endpoints
 
 ### Health
+
 - `GET /health` - Health check with DB status
 - `GET /ready` - Readiness probe
 
 ### Auth (v2)
+
 - `POST /api/v2/auth/login` - Sign in
 - `POST /api/v2/auth/register` - Sign up
 - `POST /api/v2/auth/refresh` - Refresh access token
@@ -118,6 +121,7 @@ See `.env.example` for all required variables:
 - `GET /api/v2/auth/me` - Get current user
 
 ### Jobs (TODO)
+
 - `GET /api/v2/jobs` - List jobs
 - `GET /api/v2/jobs/:id` - Get job
 - `POST /api/v2/jobs` - Create job
@@ -167,13 +171,13 @@ This allows instant rollback by removing the header routing rule.
 
 ## Performance Targets
 
-| Metric | Target | Rust Gateway (baseline) |
-|--------|--------|-------------------------|
-| Cold start | <2s | ~15s |
-| p50 latency | <50ms | ~30ms |
-| p99 latency | <200ms | ~150ms |
-| Throughput | >5000 req/s | ~8000 req/s |
-| Memory | <512MB | ~200MB |
+| Metric      | Target      | Rust Gateway (baseline) |
+| ----------- | ----------- | ----------------------- |
+| Cold start  | <2s         | ~15s                    |
+| p50 latency | <50ms       | ~30ms                   |
+| p99 latency | <200ms      | ~150ms                  |
+| Throughput  | >5000 req/s | ~8000 req/s             |
+| Memory      | <512MB      | ~200MB                  |
 
 **Note:** We accept slightly higher memory usage and lower throughput in exchange for 10× faster build times and simpler CI.
 

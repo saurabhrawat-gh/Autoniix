@@ -3,12 +3,12 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig, random } from "remotion"
 
 /**
  * PREMIUM Film Grain - 100% Quality
- * 
+ *
  * Matches/exceeds:
  * - Red Giant Universe "Retrograde"
  * - Magic Bullet Looks
  * - DaVinci Resolve Film Grain
- * 
+ *
  * Features:
  * - Real-time WebGL grain generation
  * - Authentic 16mm/35mm/65mm film characteristics
@@ -16,7 +16,7 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig, random } from "remotion"
  * - Color grain support (RGB channels)
  * - Grain size/intensity/saturation control
  * - Zero external dependencies
- * 
+ *
  * Quality: 100% - Indistinguishable from scanned film grain
  */
 
@@ -57,8 +57,8 @@ export const PremiumFilmGrain: React.FC<PremiumFilmGrainProps> = ({
     "16mm": { baseSize: 2.5, density: 0.8, roughness: 1.2 },
     "35mm": { baseSize: 1.5, density: 0.6, roughness: 1.0 },
     "65mm": { baseSize: 0.8, density: 0.4, roughness: 0.7 },
-    "super8": { baseSize: 3.5, density: 1.0, roughness: 1.5 },
-    "digital": { baseSize: 1.0, density: 0.3, roughness: 0.5 },
+    super8: { baseSize: 3.5, density: 1.0, roughness: 1.5 },
+    digital: { baseSize: 1.0, density: 0.3, roughness: 0.5 },
   };
 
   const stock = filmCharacteristics[filmStock];
@@ -89,14 +89,10 @@ export const PremiumFilmGrain: React.FC<PremiumFilmGrainProps> = ({
       const noise3 = random(seed + pixelIndex * 1.5 + 2000) - 0.5;
 
       const combinedNoise =
-        noise1 * grainRoughness +
-        noise2 * 0.5 * grainRoughness +
-        noise3 * 0.25 * grainRoughness;
+        noise1 * grainRoughness + noise2 * 0.5 * grainRoughness + noise3 * 0.25 * grainRoughness;
 
       const grainValue =
-        Math.abs(combinedNoise) > (1 - grainDensity) * 0.5
-          ? combinedNoise * 255 * intensity
-          : 0;
+        Math.abs(combinedNoise) > (1 - grainDensity) * 0.5 ? combinedNoise * 255 * intensity : 0;
 
       if (colorGrain > 0) {
         const rNoise = random(seed + pixelIndex * 0.2 + 3000) - 0.5;
@@ -116,17 +112,7 @@ export const PremiumFilmGrain: React.FC<PremiumFilmGrainProps> = ({
     }
 
     ctx.putImageData(imageData, 0, 0);
-  }, [
-    frame,
-    width,
-    height,
-    intensity,
-    grainSize,
-    colorGrain,
-    saturation,
-    animationSpeed,
-    stock,
-  ]);
+  }, [frame, width, height, intensity, grainSize, colorGrain, saturation, animationSpeed, stock]);
 
   return (
     <AbsoluteFill style={{ pointerEvents: "none" }}>

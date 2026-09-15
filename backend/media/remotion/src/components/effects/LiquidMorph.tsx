@@ -3,19 +3,19 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, Easing } fr
 
 /**
  * LIQUID MORPH - 100% Quality
- * 
+ *
  * Matches/exceeds:
  * - After Effects Shape Layers + Liquify
  * - Red Giant Trapcode Form
  * - Boris FX Continuum Warp
- * 
+ *
  * Features:
  * - SVG path morphing with smooth interpolation
  * - Liquid/goo effect using SVG filters
  * - Multiple morph presets
  * - Physics-based easing
  * - Customizable colors and gradients
- * 
+ *
  * Quality: 100% - Professional liquid animations
  */
 
@@ -89,8 +89,7 @@ export const LiquidMorph: React.FC<LiquidMorphProps> = ({
           const twist = Math.sin(time * 2) * Math.PI;
           const twistedAngle = angle + twist * (1 - i / points);
           radius +=
-            Math.sin(twistedAngle * 5) * baseRadius * 0.3 +
-            Math.cos(time * 3) * baseRadius * 0.2;
+            Math.sin(twistedAngle * 5) * baseRadius * 0.3 + Math.cos(time * 3) * baseRadius * 0.2;
           break;
 
         case "melt":
@@ -127,12 +126,7 @@ export const LiquidMorph: React.FC<LiquidMorphProps> = ({
 
   const path = generatePath();
 
-  const gradientRotation = interpolate(
-    frame,
-    [0, 300],
-    [0, 360],
-    { extrapolateRight: "wrap" }
-  );
+  const gradientRotation = interpolate(frame, [0, 300], [0, 360], { extrapolateRight: "wrap" });
 
   return (
     <AbsoluteFill style={{ pointerEvents: "none", mixBlendMode: blendMode }}>
@@ -181,20 +175,10 @@ export const LiquidMorph: React.FC<LiquidMorphProps> = ({
         </defs>
 
         {/* Main morphing shape */}
-        <path
-          d={path}
-          fill="url(#liquidGradient)"
-          filter="url(#gooFilter)"
-          opacity={0.9}
-        />
+        <path d={path} fill="url(#liquidGradient)" filter="url(#gooFilter)" opacity={0.9} />
 
         {/* Glow layer */}
-        <path
-          d={path}
-          fill="url(#liquidGradient)"
-          filter="url(#glowFilter)"
-          opacity={0.3}
-        />
+        <path d={path} fill="url(#liquidGradient)" filter="url(#glowFilter)" opacity={0.3} />
       </svg>
     </AbsoluteFill>
   );

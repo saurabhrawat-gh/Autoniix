@@ -30,7 +30,13 @@ export const ElasticIn: React.FC<ElasticInProps> = ({
     to: 1,
   });
   return (
-    <div style={{ transform: `scale(${s}) translateY(${(1 - s) * 20}px)`, opacity: Math.min(1, s + 0.2), ...style }}>
+    <div
+      style={{
+        transform: `scale(${s}) translateY(${(1 - s) * 20}px)`,
+        opacity: Math.min(1, s + 0.2),
+        ...style,
+      }}
+    >
       {children}
     </div>
   );

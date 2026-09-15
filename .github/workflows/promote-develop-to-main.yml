@@ -24,7 +24,7 @@ on:
         default: ""
   # Nightly dry-run so drift shows up in the Actions tab even when nobody promotes.
   schedule:
-    - cron: "30 3 * * *"  # 03:30 UTC daily
+    - cron: "30 3 * * *" # 03:30 UTC daily
 
 permissions:
   contents: write
@@ -33,14 +33,13 @@ permissions:
   statuses: read
 
 jobs:
-
   precheck:
     name: Precheck — develop is green + ahead of main
     runs-on: ubuntu-latest
     outputs:
       develop_sha: ${{ steps.develop-sha.outputs.sha }}
-      ahead_by:    ${{ steps.ahead.outputs.count }}
-      harness_ok:  ${{ steps.harness.outputs.ok }}
+      ahead_by: ${{ steps.ahead.outputs.count }}
+      harness_ok: ${{ steps.harness.outputs.ok }}
     steps:
       - uses: actions/checkout@v4
         with:

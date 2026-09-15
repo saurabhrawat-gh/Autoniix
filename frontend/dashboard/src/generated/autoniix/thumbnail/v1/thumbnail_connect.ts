@@ -3,7 +3,13 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { GenerateThumbnailRequest, GenerateThumbnailResponse, ThumbnailFeedbackRequest, ThumbnailTrainRequest, ThumbnailTrainResponse } from "./thumbnail_pb.js";
+import {
+  GenerateThumbnailRequest,
+  GenerateThumbnailResponse,
+  ThumbnailFeedbackRequest,
+  ThumbnailTrainRequest,
+  ThumbnailTrainResponse,
+} from "./thumbnail_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 import { Empty } from "../../common/v1/common_pb.js";
 
@@ -40,6 +46,5 @@ export const ThumbnailService = {
       O: ThumbnailTrainResponse,
       kind: MethodKind.Unary,
     },
-  }
+  },
 } as const;
-

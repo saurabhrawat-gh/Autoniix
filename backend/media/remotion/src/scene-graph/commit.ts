@@ -25,14 +25,8 @@ import type {
 } from "./types";
 import { hashNode } from "./hash";
 import { validateCompositing } from "./compositing";
-import {
-  validateColorGradeTrack,
-  type ColorGradeTrack,
-} from "../registry/colorGrade";
-import {
-  validateFilters,
-  type ClipFilter,
-} from "../registry/clipFilters";
+import { validateColorGradeTrack, type ColorGradeTrack } from "../registry/colorGrade";
+import { validateFilters, type ClipFilter } from "../registry/clipFilters";
 
 export function applyPatch(graph: SceneGraph, patch: Patch): SceneGraph {
   const next = JSON.parse(JSON.stringify(graph)) as SceneGraph;
@@ -145,8 +139,7 @@ function applyOp(graph: SceneGraph, op: PatchOp): void {
         );
       }
       validateColorGradeTrack(op.colorGradeTrack as unknown as ColorGradeTrack, op.clipId);
-      (clip as { colorGradeTrack?: ColorGradeTrackRef }).colorGradeTrack =
-        op.colorGradeTrack;
+      (clip as { colorGradeTrack?: ColorGradeTrackRef }).colorGradeTrack = op.colorGradeTrack;
       return;
     }
     case "setClipFilters": {

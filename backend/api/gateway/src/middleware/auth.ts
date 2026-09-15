@@ -7,13 +7,10 @@ declare module "fastify" {
   }
 }
 
-export async function authMiddleware(
-  request: FastifyRequest,
-  reply: FastifyReply
-): Promise<void> {
+export async function authMiddleware(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const token = extractToken(request);
-    
+
     if (!token) {
       return reply.code(401).send({
         error: "Unauthorized",

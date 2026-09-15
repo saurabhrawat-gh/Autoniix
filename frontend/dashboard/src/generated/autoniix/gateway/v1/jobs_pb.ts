@@ -4,7 +4,13 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { EmptySchema, JobStatus, PaginationRequest, PaginationResponse, TimeRange } from "../../common/v1/common_pb";
+import type {
+  EmptySchema,
+  JobStatus,
+  PaginationRequest,
+  PaginationResponse,
+  TimeRange,
+} from "../../common/v1/common_pb";
 import { file_autoniix_common_v1_common } from "../../common/v1/common_pb";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
@@ -13,8 +19,12 @@ import type { Message } from "@bufbuild/protobuf";
 /**
  * Describes the file autoniix/gateway/v1/jobs.proto.
  */
-export const file_autoniix_gateway_v1_jobs: GenFile = /*@__PURE__*/
-  fileDesc("Ch5hdXRvbmlpeC9nYXRld2F5L3YxL2pvYnMucHJvdG8SE2F1dG9uaWl4LmdhdGV3YXkudjEi7wEKD0xpc3RKb2JzUmVxdWVzdBIUCgx3b3Jrc3BhY2VfaWQYASABKAkSOQoKcGFnaW5hdGlvbhgCIAEoCzIlLmF1dG9uaWl4LmNvbW1vbi52MS5QYWdpbmF0aW9uUmVxdWVzdBI0Cg1zdGF0dXNfZmlsdGVyGAMgAygOMh0uYXV0b25paXguY29tbW9uLnYxLkpvYlN0YXR1cxIxCgp0aW1lX3JhbmdlGAQgASgLMh0uYXV0b25paXguY29tbW9uLnYxLlRpbWVSYW5nZRIPCgdzb3J0X2J5GAUgASgJEhEKCXNvcnRfZGVzYxgGIAEoCCJ2ChBMaXN0Sm9ic1Jlc3BvbnNlEiYKBGpvYnMYASADKAsyGC5hdXRvbmlpeC5nYXRld2F5LnYxLkpvYhI6CgpwYWdpbmF0aW9uGAIgASgLMiYuYXV0b25paXguY29tbW9uLnYxLlBhZ2luYXRpb25SZXNwb25zZSIfCg1HZXRKb2JSZXF1ZXN0Eg4KBmpvYl9pZBgBIAEoCSI3Cg5HZXRKb2JSZXNwb25zZRIlCgNqb2IYASABKAsyGC5hdXRvbmlpeC5nYXRld2F5LnYxLkpvYiJsChBDcmVhdGVKb2JSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCRISCgpjaGFubmVsX2lkGAIgASgJEi4KBmNvbmZpZxgDIAEoCzIeLmF1dG9uaWl4LmdhdGV3YXkudjEuSm9iQ29uZmlnIjoKEUNyZWF0ZUpvYlJlc3BvbnNlEiUKA2pvYhgBIAEoCzIYLmF1dG9uaWl4LmdhdGV3YXkudjEuSm9iIlIKEFVwZGF0ZUpvYlJlcXVlc3QSDgoGam9iX2lkGAEgASgJEi4KBmNvbmZpZxgCIAEoCzIeLmF1dG9uaWl4LmdhdGV3YXkudjEuSm9iQ29uZmlnIjoKEVVwZGF0ZUpvYlJlc3BvbnNlEiUKA2pvYhgBIAEoCzIYLmF1dG9uaWl4LmdhdGV3YXkudjEuSm9iIiIKEERlbGV0ZUpvYlJlcXVlc3QSDgoGam9iX2lkGAEgASgJIiEKD1BhdXNlSm9iUmVxdWVzdBIOCgZqb2JfaWQYASABKAkiIgoQUmVzdW1lSm9iUmVxdWVzdBIOCgZqb2JfaWQYASABKAkiIQoPUmV0cnlKb2JSZXF1ZXN0Eg4KBmpvYl9pZBgBIAEoCSIqChhTdHJlYW1Kb2JQcm9ncmVzc1JlcXVlc3QSDgoGam9iX2lkGAEgASgJIvcCCgNKb2ISCgoCaWQYASABKAkSFAoMd29ya3NwYWNlX2lkGAIgASgJEhIKCmNoYW5uZWxfaWQYAyABKAkSLQoGc3RhdHVzGAQgASgOMh0uYXV0b25paXguY29tbW9uLnYxLkpvYlN0YXR1cxIuCgZjb25maWcYBSABKAsyHi5hdXRvbmlpeC5nYXRld2F5LnYxLkpvYkNvbmZpZxIyCghwcm9ncmVzcxgGIAEoCzIgLmF1dG9uaWl4LmdhdGV3YXkudjEuSm9iUHJvZ3Jlc3MSLgoKY3JlYXRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMAoMY29tcGxldGVkX2F0GAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIVCg1lcnJvcl9tZXNzYWdlGAogASgJIrsBCglKb2JDb25maWcSEgoKbnVtX3ZpZGVvcxgBIAEoBRINCgVuaWNoZRgCIAEoCRIUCgxhdXRvX3B1Ymxpc2gYAyABKAgSQgoKcGFyYW1ldGVycxgEIAMoCzIuLmF1dG9uaWl4LmdhdGV3YXkudjEuSm9iQ29uZmlnLlBhcmFtZXRlcnNFbnRyeRoxCg9QYXJhbWV0ZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASLvAQoLSm9iUHJvZ3Jlc3MSFAoMdG90YWxfdmlkZW9zGAEgASgFEhgKEGNvbXBsZXRlZF92aWRlb3MYAiABKAUSFQoNZmFpbGVkX3ZpZGVvcxgDIAEoBRIVCg1jdXJyZW50X3N0YWdlGAQgASgJEhgKEHByb2dyZXNzX3BlcmNlbnQYBSABKAESLgoKc3RhcnRlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASOAoUZXN0aW1hdGVkX2NvbXBsZXRpb24YByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wItQBChBKb2JQcm9ncmVzc0V2ZW50Eg4KBmpvYl9pZBgBIAEoCRItCgZzdGF0dXMYAiABKA4yHS5hdXRvbmlpeC5jb21tb24udjEuSm9iU3RhdHVzEjIKCHByb2dyZXNzGAMgASgLMiAuYXV0b25paXguZ2F0ZXdheS52MS5Kb2JQcm9ncmVzcxINCgVzdGFnZRgEIAEoCRIPCgdtZXNzYWdlGAUgASgJEi0KCXRpbWVzdGFtcBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAylQYKCkpvYlNlcnZpY2USVwoITGlzdEpvYnMSJC5hdXRvbmlpeC5nYXRld2F5LnYxLkxpc3RKb2JzUmVxdWVzdBolLmF1dG9uaWl4LmdhdGV3YXkudjEuTGlzdEpvYnNSZXNwb25zZRJRCgZHZXRKb2ISIi5hdXRvbmlpeC5nYXRld2F5LnYxLkdldEpvYlJlcXVlc3QaIy5hdXRvbmlpeC5nYXRld2F5LnYxLkdldEpvYlJlc3BvbnNlEloKCUNyZWF0ZUpvYhIlLmF1dG9uaWl4LmdhdGV3YXkudjEuQ3JlYXRlSm9iUmVxdWVzdBomLmF1dG9uaWl4LmdhdGV3YXkudjEuQ3JlYXRlSm9iUmVzcG9uc2USWgoJVXBkYXRlSm9iEiUuYXV0b25paXguZ2F0ZXdheS52MS5VcGRhdGVKb2JSZXF1ZXN0GiYuYXV0b25paXguZ2F0ZXdheS52MS5VcGRhdGVKb2JSZXNwb25zZRJNCglEZWxldGVKb2ISJS5hdXRvbmlpeC5nYXRld2F5LnYxLkRlbGV0ZUpvYlJlcXVlc3QaGS5hdXRvbmlpeC5jb21tb24udjEuRW1wdHkSSwoIUGF1c2VKb2ISJC5hdXRvbmlpeC5nYXRld2F5LnYxLlBhdXNlSm9iUmVxdWVzdBoZLmF1dG9uaWl4LmNvbW1vbi52MS5FbXB0eRJNCglSZXN1bWVKb2ISJS5hdXRvbmlpeC5nYXRld2F5LnYxLlJlc3VtZUpvYlJlcXVlc3QaGS5hdXRvbmlpeC5jb21tb24udjEuRW1wdHkSSwoIUmV0cnlKb2ISJC5hdXRvbmlpeC5nYXRld2F5LnYxLlJldHJ5Sm9iUmVxdWVzdBoZLmF1dG9uaWl4LmNvbW1vbi52MS5FbXB0eRJrChFTdHJlYW1Kb2JQcm9ncmVzcxItLmF1dG9uaWl4LmdhdGV3YXkudjEuU3RyZWFtSm9iUHJvZ3Jlc3NSZXF1ZXN0GiUuYXV0b25paXguZ2F0ZXdheS52MS5Kb2JQcm9ncmVzc0V2ZW50MAFC1QEKF2NvbS5hdXRvbmlpeC5nYXRld2F5LnYxQglKb2JzUHJvdG9QAVpBZ2l0aHViLmNvbS9hdXRvbmlpeC9hdXRvbmlpeC9nZW4vZ28vYXV0b25paXgvZ2F0ZXdheS92MTtnYXRld2F5djGiAgNBR1iqAhNBdXRvbmlpeC5HYXRld2F5LlYxygITQXV0b25paXhcR2F0ZXdheVxWMeICH0F1dG9uaWl4XEdhdGV3YXlcVjFcR1BCTWV0YWRhdGHqAhVBdXRvbmlpeDo6R2F0ZXdheTo6VjFiBnByb3RvMw", [file_autoniix_common_v1_common, file_google_protobuf_timestamp]);
+export const file_autoniix_gateway_v1_jobs: GenFile =
+  /*@__PURE__*/
+  fileDesc(
+    "Ch5hdXRvbmlpeC9nYXRld2F5L3YxL2pvYnMucHJvdG8SE2F1dG9uaWl4LmdhdGV3YXkudjEi7wEKD0xpc3RKb2JzUmVxdWVzdBIUCgx3b3Jrc3BhY2VfaWQYASABKAkSOQoKcGFnaW5hdGlvbhgCIAEoCzIlLmF1dG9uaWl4LmNvbW1vbi52MS5QYWdpbmF0aW9uUmVxdWVzdBI0Cg1zdGF0dXNfZmlsdGVyGAMgAygOMh0uYXV0b25paXguY29tbW9uLnYxLkpvYlN0YXR1cxIxCgp0aW1lX3JhbmdlGAQgASgLMh0uYXV0b25paXguY29tbW9uLnYxLlRpbWVSYW5nZRIPCgdzb3J0X2J5GAUgASgJEhEKCXNvcnRfZGVzYxgGIAEoCCJ2ChBMaXN0Sm9ic1Jlc3BvbnNlEiYKBGpvYnMYASADKAsyGC5hdXRvbmlpeC5nYXRld2F5LnYxLkpvYhI6CgpwYWdpbmF0aW9uGAIgASgLMiYuYXV0b25paXguY29tbW9uLnYxLlBhZ2luYXRpb25SZXNwb25zZSIfCg1HZXRKb2JSZXF1ZXN0Eg4KBmpvYl9pZBgBIAEoCSI3Cg5HZXRKb2JSZXNwb25zZRIlCgNqb2IYASABKAsyGC5hdXRvbmlpeC5nYXRld2F5LnYxLkpvYiJsChBDcmVhdGVKb2JSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCRISCgpjaGFubmVsX2lkGAIgASgJEi4KBmNvbmZpZxgDIAEoCzIeLmF1dG9uaWl4LmdhdGV3YXkudjEuSm9iQ29uZmlnIjoKEUNyZWF0ZUpvYlJlc3BvbnNlEiUKA2pvYhgBIAEoCzIYLmF1dG9uaWl4LmdhdGV3YXkudjEuSm9iIlIKEFVwZGF0ZUpvYlJlcXVlc3QSDgoGam9iX2lkGAEgASgJEi4KBmNvbmZpZxgCIAEoCzIeLmF1dG9uaWl4LmdhdGV3YXkudjEuSm9iQ29uZmlnIjoKEVVwZGF0ZUpvYlJlc3BvbnNlEiUKA2pvYhgBIAEoCzIYLmF1dG9uaWl4LmdhdGV3YXkudjEuSm9iIiIKEERlbGV0ZUpvYlJlcXVlc3QSDgoGam9iX2lkGAEgASgJIiEKD1BhdXNlSm9iUmVxdWVzdBIOCgZqb2JfaWQYASABKAkiIgoQUmVzdW1lSm9iUmVxdWVzdBIOCgZqb2JfaWQYASABKAkiIQoPUmV0cnlKb2JSZXF1ZXN0Eg4KBmpvYl9pZBgBIAEoCSIqChhTdHJlYW1Kb2JQcm9ncmVzc1JlcXVlc3QSDgoGam9iX2lkGAEgASgJIvcCCgNKb2ISCgoCaWQYASABKAkSFAoMd29ya3NwYWNlX2lkGAIgASgJEhIKCmNoYW5uZWxfaWQYAyABKAkSLQoGc3RhdHVzGAQgASgOMh0uYXV0b25paXguY29tbW9uLnYxLkpvYlN0YXR1cxIuCgZjb25maWcYBSABKAsyHi5hdXRvbmlpeC5nYXRld2F5LnYxLkpvYkNvbmZpZxIyCghwcm9ncmVzcxgGIAEoCzIgLmF1dG9uaWl4LmdhdGV3YXkudjEuSm9iUHJvZ3Jlc3MSLgoKY3JlYXRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMAoMY29tcGxldGVkX2F0GAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIVCg1lcnJvcl9tZXNzYWdlGAogASgJIrsBCglKb2JDb25maWcSEgoKbnVtX3ZpZGVvcxgBIAEoBRINCgVuaWNoZRgCIAEoCRIUCgxhdXRvX3B1Ymxpc2gYAyABKAgSQgoKcGFyYW1ldGVycxgEIAMoCzIuLmF1dG9uaWl4LmdhdGV3YXkudjEuSm9iQ29uZmlnLlBhcmFtZXRlcnNFbnRyeRoxCg9QYXJhbWV0ZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASLvAQoLSm9iUHJvZ3Jlc3MSFAoMdG90YWxfdmlkZW9zGAEgASgFEhgKEGNvbXBsZXRlZF92aWRlb3MYAiABKAUSFQoNZmFpbGVkX3ZpZGVvcxgDIAEoBRIVCg1jdXJyZW50X3N0YWdlGAQgASgJEhgKEHByb2dyZXNzX3BlcmNlbnQYBSABKAESLgoKc3RhcnRlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASOAoUZXN0aW1hdGVkX2NvbXBsZXRpb24YByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wItQBChBKb2JQcm9ncmVzc0V2ZW50Eg4KBmpvYl9pZBgBIAEoCRItCgZzdGF0dXMYAiABKA4yHS5hdXRvbmlpeC5jb21tb24udjEuSm9iU3RhdHVzEjIKCHByb2dyZXNzGAMgASgLMiAuYXV0b25paXguZ2F0ZXdheS52MS5Kb2JQcm9ncmVzcxINCgVzdGFnZRgEIAEoCRIPCgdtZXNzYWdlGAUgASgJEi0KCXRpbWVzdGFtcBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAylQYKCkpvYlNlcnZpY2USVwoITGlzdEpvYnMSJC5hdXRvbmlpeC5nYXRld2F5LnYxLkxpc3RKb2JzUmVxdWVzdBolLmF1dG9uaWl4LmdhdGV3YXkudjEuTGlzdEpvYnNSZXNwb25zZRJRCgZHZXRKb2ISIi5hdXRvbmlpeC5nYXRld2F5LnYxLkdldEpvYlJlcXVlc3QaIy5hdXRvbmlpeC5nYXRld2F5LnYxLkdldEpvYlJlc3BvbnNlEloKCUNyZWF0ZUpvYhIlLmF1dG9uaWl4LmdhdGV3YXkudjEuQ3JlYXRlSm9iUmVxdWVzdBomLmF1dG9uaWl4LmdhdGV3YXkudjEuQ3JlYXRlSm9iUmVzcG9uc2USWgoJVXBkYXRlSm9iEiUuYXV0b25paXguZ2F0ZXdheS52MS5VcGRhdGVKb2JSZXF1ZXN0GiYuYXV0b25paXguZ2F0ZXdheS52MS5VcGRhdGVKb2JSZXNwb25zZRJNCglEZWxldGVKb2ISJS5hdXRvbmlpeC5nYXRld2F5LnYxLkRlbGV0ZUpvYlJlcXVlc3QaGS5hdXRvbmlpeC5jb21tb24udjEuRW1wdHkSSwoIUGF1c2VKb2ISJC5hdXRvbmlpeC5nYXRld2F5LnYxLlBhdXNlSm9iUmVxdWVzdBoZLmF1dG9uaWl4LmNvbW1vbi52MS5FbXB0eRJNCglSZXN1bWVKb2ISJS5hdXRvbmlpeC5nYXRld2F5LnYxLlJlc3VtZUpvYlJlcXVlc3QaGS5hdXRvbmlpeC5jb21tb24udjEuRW1wdHkSSwoIUmV0cnlKb2ISJC5hdXRvbmlpeC5nYXRld2F5LnYxLlJldHJ5Sm9iUmVxdWVzdBoZLmF1dG9uaWl4LmNvbW1vbi52MS5FbXB0eRJrChFTdHJlYW1Kb2JQcm9ncmVzcxItLmF1dG9uaWl4LmdhdGV3YXkudjEuU3RyZWFtSm9iUHJvZ3Jlc3NSZXF1ZXN0GiUuYXV0b25paXguZ2F0ZXdheS52MS5Kb2JQcm9ncmVzc0V2ZW50MAFC1QEKF2NvbS5hdXRvbmlpeC5nYXRld2F5LnYxQglKb2JzUHJvdG9QAVpBZ2l0aHViLmNvbS9hdXRvbmlpeC9hdXRvbmlpeC9nZW4vZ28vYXV0b25paXgvZ2F0ZXdheS92MTtnYXRld2F5djGiAgNBR1iqAhNBdXRvbmlpeC5HYXRld2F5LlYxygITQXV0b25paXhcR2F0ZXdheVxWMeICH0F1dG9uaWl4XEdhdGV3YXlcVjFcR1BCTWV0YWRhdGHqAhVBdXRvbmlpeDo6R2F0ZXdheTo6VjFiBnByb3RvMw",
+    [file_autoniix_common_v1_common, file_google_protobuf_timestamp]
+  );
 
 /**
  * @generated from message autoniix.gateway.v1.ListJobsRequest
@@ -55,7 +65,8 @@ export type ListJobsRequest = Message<"autoniix.gateway.v1.ListJobsRequest"> & {
  * Describes the message autoniix.gateway.v1.ListJobsRequest.
  * Use `create(ListJobsRequestSchema)` to create a new message.
  */
-export const ListJobsRequestSchema: GenMessage<ListJobsRequest> = /*@__PURE__*/
+export const ListJobsRequestSchema: GenMessage<ListJobsRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_jobs, 0);
 
 /**
@@ -77,7 +88,8 @@ export type ListJobsResponse = Message<"autoniix.gateway.v1.ListJobsResponse"> &
  * Describes the message autoniix.gateway.v1.ListJobsResponse.
  * Use `create(ListJobsResponseSchema)` to create a new message.
  */
-export const ListJobsResponseSchema: GenMessage<ListJobsResponse> = /*@__PURE__*/
+export const ListJobsResponseSchema: GenMessage<ListJobsResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_jobs, 1);
 
 /**
@@ -94,7 +106,8 @@ export type GetJobRequest = Message<"autoniix.gateway.v1.GetJobRequest"> & {
  * Describes the message autoniix.gateway.v1.GetJobRequest.
  * Use `create(GetJobRequestSchema)` to create a new message.
  */
-export const GetJobRequestSchema: GenMessage<GetJobRequest> = /*@__PURE__*/
+export const GetJobRequestSchema: GenMessage<GetJobRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_jobs, 2);
 
 /**
@@ -111,7 +124,8 @@ export type GetJobResponse = Message<"autoniix.gateway.v1.GetJobResponse"> & {
  * Describes the message autoniix.gateway.v1.GetJobResponse.
  * Use `create(GetJobResponseSchema)` to create a new message.
  */
-export const GetJobResponseSchema: GenMessage<GetJobResponse> = /*@__PURE__*/
+export const GetJobResponseSchema: GenMessage<GetJobResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_jobs, 3);
 
 /**
@@ -138,7 +152,8 @@ export type CreateJobRequest = Message<"autoniix.gateway.v1.CreateJobRequest"> &
  * Describes the message autoniix.gateway.v1.CreateJobRequest.
  * Use `create(CreateJobRequestSchema)` to create a new message.
  */
-export const CreateJobRequestSchema: GenMessage<CreateJobRequest> = /*@__PURE__*/
+export const CreateJobRequestSchema: GenMessage<CreateJobRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_jobs, 4);
 
 /**
@@ -155,7 +170,8 @@ export type CreateJobResponse = Message<"autoniix.gateway.v1.CreateJobResponse">
  * Describes the message autoniix.gateway.v1.CreateJobResponse.
  * Use `create(CreateJobResponseSchema)` to create a new message.
  */
-export const CreateJobResponseSchema: GenMessage<CreateJobResponse> = /*@__PURE__*/
+export const CreateJobResponseSchema: GenMessage<CreateJobResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_jobs, 5);
 
 /**
@@ -177,7 +193,8 @@ export type UpdateJobRequest = Message<"autoniix.gateway.v1.UpdateJobRequest"> &
  * Describes the message autoniix.gateway.v1.UpdateJobRequest.
  * Use `create(UpdateJobRequestSchema)` to create a new message.
  */
-export const UpdateJobRequestSchema: GenMessage<UpdateJobRequest> = /*@__PURE__*/
+export const UpdateJobRequestSchema: GenMessage<UpdateJobRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_jobs, 6);
 
 /**
@@ -194,7 +211,8 @@ export type UpdateJobResponse = Message<"autoniix.gateway.v1.UpdateJobResponse">
  * Describes the message autoniix.gateway.v1.UpdateJobResponse.
  * Use `create(UpdateJobResponseSchema)` to create a new message.
  */
-export const UpdateJobResponseSchema: GenMessage<UpdateJobResponse> = /*@__PURE__*/
+export const UpdateJobResponseSchema: GenMessage<UpdateJobResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_jobs, 7);
 
 /**
@@ -211,7 +229,8 @@ export type DeleteJobRequest = Message<"autoniix.gateway.v1.DeleteJobRequest"> &
  * Describes the message autoniix.gateway.v1.DeleteJobRequest.
  * Use `create(DeleteJobRequestSchema)` to create a new message.
  */
-export const DeleteJobRequestSchema: GenMessage<DeleteJobRequest> = /*@__PURE__*/
+export const DeleteJobRequestSchema: GenMessage<DeleteJobRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_jobs, 8);
 
 /**
@@ -228,7 +247,8 @@ export type PauseJobRequest = Message<"autoniix.gateway.v1.PauseJobRequest"> & {
  * Describes the message autoniix.gateway.v1.PauseJobRequest.
  * Use `create(PauseJobRequestSchema)` to create a new message.
  */
-export const PauseJobRequestSchema: GenMessage<PauseJobRequest> = /*@__PURE__*/
+export const PauseJobRequestSchema: GenMessage<PauseJobRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_jobs, 9);
 
 /**
@@ -245,7 +265,8 @@ export type ResumeJobRequest = Message<"autoniix.gateway.v1.ResumeJobRequest"> &
  * Describes the message autoniix.gateway.v1.ResumeJobRequest.
  * Use `create(ResumeJobRequestSchema)` to create a new message.
  */
-export const ResumeJobRequestSchema: GenMessage<ResumeJobRequest> = /*@__PURE__*/
+export const ResumeJobRequestSchema: GenMessage<ResumeJobRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_jobs, 10);
 
 /**
@@ -262,7 +283,8 @@ export type RetryJobRequest = Message<"autoniix.gateway.v1.RetryJobRequest"> & {
  * Describes the message autoniix.gateway.v1.RetryJobRequest.
  * Use `create(RetryJobRequestSchema)` to create a new message.
  */
-export const RetryJobRequestSchema: GenMessage<RetryJobRequest> = /*@__PURE__*/
+export const RetryJobRequestSchema: GenMessage<RetryJobRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_jobs, 11);
 
 /**
@@ -279,7 +301,8 @@ export type StreamJobProgressRequest = Message<"autoniix.gateway.v1.StreamJobPro
  * Describes the message autoniix.gateway.v1.StreamJobProgressRequest.
  * Use `create(StreamJobProgressRequestSchema)` to create a new message.
  */
-export const StreamJobProgressRequestSchema: GenMessage<StreamJobProgressRequest> = /*@__PURE__*/
+export const StreamJobProgressRequestSchema: GenMessage<StreamJobProgressRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_jobs, 12);
 
 /**
@@ -341,8 +364,7 @@ export type Job = Message<"autoniix.gateway.v1.Job"> & {
  * Describes the message autoniix.gateway.v1.Job.
  * Use `create(JobSchema)` to create a new message.
  */
-export const JobSchema: GenMessage<Job> = /*@__PURE__*/
-  messageDesc(file_autoniix_gateway_v1_jobs, 13);
+export const JobSchema: GenMessage<Job> = /*@__PURE__*/ messageDesc(file_autoniix_gateway_v1_jobs, 13);
 
 /**
  * @generated from message autoniix.gateway.v1.JobConfig
@@ -373,8 +395,7 @@ export type JobConfig = Message<"autoniix.gateway.v1.JobConfig"> & {
  * Describes the message autoniix.gateway.v1.JobConfig.
  * Use `create(JobConfigSchema)` to create a new message.
  */
-export const JobConfigSchema: GenMessage<JobConfig> = /*@__PURE__*/
-  messageDesc(file_autoniix_gateway_v1_jobs, 14);
+export const JobConfigSchema: GenMessage<JobConfig> = /*@__PURE__*/ messageDesc(file_autoniix_gateway_v1_jobs, 14);
 
 /**
  * @generated from message autoniix.gateway.v1.JobProgress
@@ -420,8 +441,7 @@ export type JobProgress = Message<"autoniix.gateway.v1.JobProgress"> & {
  * Describes the message autoniix.gateway.v1.JobProgress.
  * Use `create(JobProgressSchema)` to create a new message.
  */
-export const JobProgressSchema: GenMessage<JobProgress> = /*@__PURE__*/
-  messageDesc(file_autoniix_gateway_v1_jobs, 15);
+export const JobProgressSchema: GenMessage<JobProgress> = /*@__PURE__*/ messageDesc(file_autoniix_gateway_v1_jobs, 15);
 
 /**
  * @generated from message autoniix.gateway.v1.JobProgressEvent
@@ -462,7 +482,8 @@ export type JobProgressEvent = Message<"autoniix.gateway.v1.JobProgressEvent"> &
  * Describes the message autoniix.gateway.v1.JobProgressEvent.
  * Use `create(JobProgressEventSchema)` to create a new message.
  */
-export const JobProgressEventSchema: GenMessage<JobProgressEvent> = /*@__PURE__*/
+export const JobProgressEventSchema: GenMessage<JobProgressEvent> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_jobs, 16);
 
 /**
@@ -476,7 +497,7 @@ export const JobService: GenService<{
     methodKind: "unary";
     input: typeof ListJobsRequestSchema;
     output: typeof ListJobsResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.gateway.v1.JobService.GetJob
    */
@@ -484,7 +505,7 @@ export const JobService: GenService<{
     methodKind: "unary";
     input: typeof GetJobRequestSchema;
     output: typeof GetJobResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.gateway.v1.JobService.CreateJob
    */
@@ -492,7 +513,7 @@ export const JobService: GenService<{
     methodKind: "unary";
     input: typeof CreateJobRequestSchema;
     output: typeof CreateJobResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.gateway.v1.JobService.UpdateJob
    */
@@ -500,7 +521,7 @@ export const JobService: GenService<{
     methodKind: "unary";
     input: typeof UpdateJobRequestSchema;
     output: typeof UpdateJobResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.gateway.v1.JobService.DeleteJob
    */
@@ -508,7 +529,7 @@ export const JobService: GenService<{
     methodKind: "unary";
     input: typeof DeleteJobRequestSchema;
     output: typeof EmptySchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.gateway.v1.JobService.PauseJob
    */
@@ -516,7 +537,7 @@ export const JobService: GenService<{
     methodKind: "unary";
     input: typeof PauseJobRequestSchema;
     output: typeof EmptySchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.gateway.v1.JobService.ResumeJob
    */
@@ -524,7 +545,7 @@ export const JobService: GenService<{
     methodKind: "unary";
     input: typeof ResumeJobRequestSchema;
     output: typeof EmptySchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.gateway.v1.JobService.RetryJob
    */
@@ -532,7 +553,7 @@ export const JobService: GenService<{
     methodKind: "unary";
     input: typeof RetryJobRequestSchema;
     output: typeof EmptySchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.gateway.v1.JobService.StreamJobProgress
    */
@@ -540,7 +561,5 @@ export const JobService: GenService<{
     methodKind: "server_streaming";
     input: typeof StreamJobProgressRequestSchema;
     output: typeof JobProgressEventSchema;
-  },
-}> = /*@__PURE__*/
-  serviceDesc(file_autoniix_gateway_v1_jobs, 0);
-
+  };
+}> = /*@__PURE__*/ serviceDesc(file_autoniix_gateway_v1_jobs, 0);

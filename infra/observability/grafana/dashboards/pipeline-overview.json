@@ -53,9 +53,7 @@
           }
         }
       },
-      "targets": [
-        { "refId": "A", "expr": "sum(increase(render_outcomes_total{outcome=\"qc_fail\"}[1h]))" }
-      ]
+      "targets": [{ "refId": "A", "expr": "sum(increase(render_outcomes_total{outcome=\"qc_fail\"}[1h]))" }]
     },
     {
       "type": "stat",
@@ -63,9 +61,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "targets": [
-        { "refId": "A", "expr": "sum(increase(quality_gate_blocks_total[1h]))" }
-      ]
+      "targets": [{ "refId": "A", "expr": "sum(increase(quality_gate_blocks_total[1h]))" }]
     },
     {
       "type": "stat",
@@ -74,9 +70,7 @@
       "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
       "fieldConfig": { "defaults": { "unit": "currencyUSD" } },
-      "targets": [
-        { "refId": "A", "expr": "sum(increase(llm_cost_usd_total[24h]))" }
-      ]
+      "targets": [{ "refId": "A", "expr": "sum(increase(llm_cost_usd_total[24h]))" }]
     },
     {
       "type": "timeseries",

@@ -95,14 +95,15 @@ export class DirectorAgent implements Agent<DirectorInput, DirectorOutput> {
       }
     }
 
-    const patch: Patch | undefined = ops.length > 0
-      ? {
-          agent: this.name,
-          agentVersion: VERSION,
-          ops,
-          reason: `director:${pattern}${changedHook ? "+promoteHook" : ""}`,
-        }
-      : undefined;
+    const patch: Patch | undefined =
+      ops.length > 0
+        ? {
+            agent: this.name,
+            agentVersion: VERSION,
+            ops,
+            reason: `director:${pattern}${changedHook ? "+promoteHook" : ""}`,
+          }
+        : undefined;
 
     return {
       output: { pattern, changedHook, ops },

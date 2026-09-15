@@ -3,10 +3,10 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 
 /**
  * WebGL-based 3D LUT color grading with trilinear interpolation.
- * 
+ *
  * Achieves 95%+ accuracy vs DaVinci Resolve/Premiere Pro.
  * Uses fragment shader to sample 3D LUT texture and apply per-pixel grading.
- * 
+ *
  * This replaces the SVG-based LUTGrade for premium quality output.
  */
 
@@ -81,7 +81,12 @@ function parseCubeFile(text: string): ParsedLUT | null {
   for (const line of lines) {
     if (line.startsWith("LUT_3D_SIZE")) {
       size = parseInt(line.split(/\s+/)[1] ?? "0", 10);
-    } else if (line && !line.startsWith("#") && !line.startsWith("TITLE") && !line.startsWith("DOMAIN")) {
+    } else if (
+      line &&
+      !line.startsWith("#") &&
+      !line.startsWith("TITLE") &&
+      !line.startsWith("DOMAIN")
+    ) {
       const parts = line.split(/\s+/).map((p) => parseFloat(p));
       if (parts.length === 3 && parts.every((n) => !isNaN(n))) {
         data.push(...parts);
@@ -101,11 +106,11 @@ function createLUTTexture(gl: WebGLRenderingContext, lut: ParsedLUT): WebGLTextu
   if (!texture) return null;
 
   gl.bindTexture(gl.TEXTURE_2D, texture);
-  
+
   const width = lut.size;
   const height = lut.size * lut.size;
   const pixels = new Uint8Array(width * height * 4);
-  
+
   for (let i = 0; i < lut.data.length / 3; i++) {
     const r = Math.round(Math.max(0, Math.min(1, lut.data[i * 3] ?? 0)) * 255);
     const g = Math.round(Math.max(0, Math.min(1, lut.data[i * 3 + 1] ?? 0)) * 255);
@@ -158,7 +163,10 @@ export const LUTGradeWebGL: React.FC<LUTGradeWebGLProps> = ({
     if (!lut || !canvasRef.current || !contentRef.current || error) return;
 
     const canvas = canvasRef.current;
-    const gl = canvas.getContext("webgl", { premultipliedAlpha: false, preserveDrawingBuffer: true });
+    const gl = canvas.getContext("webgl", {
+      premultipliedAlpha: false,
+      preserveDrawingBuffer: true,
+    });
     if (!gl) {
       console.error("[LUTGradeWebGL] WebGL not supported");
       setError(true);
@@ -196,22 +204,14 @@ export const LUTGradeWebGL: React.FC<LUTGradeWebGLProps> = ({
 
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
-      gl.STATIC_DRAW
-    );
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     const posLoc = gl.getAttribLocation(program, "a_position");
     gl.enableVertexAttribArray(posLoc);
     gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
 
     const texCoordBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      new Float32Array([0, 1, 1, 1, 0, 0, 1, 0]),
-      gl.STATIC_DRAW
-    );
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 1, 1, 1, 0, 0, 1, 0]), gl.STATIC_DRAW);
     const texLoc = gl.getAttribLocation(program, "a_texCoord");
     gl.enableVertexAttribArray(texLoc);
     gl.vertexAttribPointer(texLoc, 2, gl.FLOAT, false, 0, 0);
@@ -234,7 +234,6 @@ export const LUTGradeWebGL: React.FC<LUTGradeWebGLProps> = ({
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-
   }, [lut, frame, width, height, intensity, error]);
 
   if (error || !lut) {

@@ -1,10 +1,10 @@
-import type { Meta, StoryObj } from '@storybook/react';
-import { Popover, PopoverTrigger, PopoverContent, Button } from '@/lib/ui';
+import type { Meta, StoryObj } from "@storybook/react";
+import { Popover, PopoverTrigger, PopoverContent, Button } from "@/lib/ui";
 
 const meta: Meta = {
-  title: 'UI/Popover',
-  tags: ['autodocs'],
-  parameters: { layout: 'centered' },
+  title: "UI/Popover",
+  tags: ["autodocs"],
+  parameters: { layout: "centered" },
 };
 export default meta;
 type Story = StoryObj;
@@ -45,7 +45,7 @@ export const FilterPopover: Story = {
       <PopoverContent align="start" className="w-56">
         <p className="text-xs font-medium text-content-tertiary mb-2 uppercase tracking-wider">Status</p>
         <div className="flex flex-col gap-1">
-          {['Active', 'Paused', 'Archived'].map((s) => (
+          {["Active", "Paused", "Archived"].map((s) => (
             <button key={s} className="text-sm px-2 py-1.5 rounded hover:bg-surface-1 text-left text-content-primary">
               {s}
             </button>

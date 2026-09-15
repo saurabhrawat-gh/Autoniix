@@ -7,14 +7,14 @@
 
 ## Repository Reference
 
-| Property | Value |
-|----------|-------|
-| Repo | `yt-automation-remotion` |
-| Path | `../yt-automation-remotion` |
-| Language | TypeScript |
-| API Port | 4000 |
-| Queue | BullMQ (Redis-backed) |
-| Storage | S3-compatible (MinIO) |
+| Property    | Value                                                        |
+| ----------- | ------------------------------------------------------------ |
+| Repo        | `yt-automation-remotion`                                     |
+| Path        | `../yt-automation-remotion`                                  |
+| Language    | TypeScript                                                   |
+| API Port    | 4000                                                         |
+| Queue       | BullMQ (Redis-backed)                                        |
+| Storage     | S3-compatible (MinIO)                                        |
 | Composition | `MainVideo` (16:9), `ShortFormVideo` (9:16), `ThumbnailComp` |
 
 ---
@@ -46,10 +46,10 @@ async def render_activity(v3_json: dict, channel_id: str) -> dict:
         # Pre-flight health check
         health = await client.get(f"{REMOTION_BASE}/api/health")
         health_data = health.json()
-        
+
         if health_data["status"] != "healthy":
             raise RuntimeError(f"Remotion unhealthy: {health_data}")
-        
+
         if health_data["activeRenders"] >= health_data["maxConcurrent"]:
             raise RuntimeError("Remotion at capacity, will retry")
 
@@ -97,18 +97,27 @@ async def render_activity(v3_json: dict, channel_id: str) -> dict:
 ### POST /api/render
 
 **Request:**
+
 ```json
 {
   "composition": "MainVideo",
   "inputProps": {
     "direction": {
       "version": "3.0",
-      "meta": { "video_id": "...", "channel_id": "...", "title": "...", "duration_target_seconds": 480, "aspect": "16:9", "fps": 30, "resolution": { "width": 1920, "height": 1080 } },
+      "meta": {
+        "video_id": "...",
+        "channel_id": "...",
+        "title": "...",
+        "duration_target_seconds": 480,
+        "aspect": "16:9",
+        "fps": 30,
+        "resolution": { "width": 1920, "height": 1080 }
+      },
       "template": "hybrid-kinetic",
-      "theme": { },
+      "theme": {},
       "grade_preset": "fx.grade.cinematic_teal_orange",
       "global_overlays": [],
-      "audio_master": { },
+      "audio_master": {},
       "segments": []
     }
   },
@@ -119,6 +128,7 @@ async def render_activity(v3_json: dict, channel_id: str) -> dict:
 ```
 
 **Response:**
+
 ```json
 {
   "renderId": "render_abc123",
@@ -130,6 +140,7 @@ async def render_activity(v3_json: dict, channel_id: str) -> dict:
 ### GET /api/render/:id
 
 **Response (in progress):**
+
 ```json
 {
   "renderId": "render_abc123",
@@ -139,6 +150,7 @@ async def render_activity(v3_json: dict, channel_id: str) -> dict:
 ```
 
 **Response (complete):**
+
 ```json
 {
   "renderId": "render_abc123",
@@ -151,6 +163,7 @@ async def render_activity(v3_json: dict, channel_id: str) -> dict:
 ```
 
 **Response (failed):**
+
 ```json
 {
   "renderId": "render_abc123",
@@ -162,6 +175,7 @@ async def render_activity(v3_json: dict, channel_id: str) -> dict:
 ### POST /api/thumbnail
 
 **Request:**
+
 ```json
 {
   "composition": "ThumbnailComp",
@@ -179,6 +193,7 @@ async def render_activity(v3_json: dict, channel_id: str) -> dict:
 ```
 
 **Response:**
+
 ```json
 {
   "thumbnailUrl": "https://s3.../thumb.png"
@@ -188,6 +203,7 @@ async def render_activity(v3_json: dict, channel_id: str) -> dict:
 ### GET /api/health
 
 **Response:**
+
 ```json
 {
   "status": "healthy",
@@ -205,6 +221,7 @@ async def render_activity(v3_json: dict, channel_id: str) -> dict:
 The v3 JSON schema is defined in the Remotion repo at `src/schemas/directionV3.ts` (Zod schema). The Assembly Service must produce JSON that passes this schema.
 
 Key top-level fields:
+
 - `version` — must be `"3.0"`
 - `meta` — video metadata (id, channel, title, duration, aspect, fps, resolution)
 - `template` — preset name from registry
@@ -262,15 +279,16 @@ env: REMOTION_BASE_URL=http://10.0.0.2:4000  # WireGuard VPN IP
 
 ## Scaling Render Capacity
 
-| Channels | Remotion Setup | Concurrent Renders | VPS |
-|----------|---------------|-------------------|-----|
-| 1-3 | Same VPS, `RENDER_CONCURRENCY=1` | 1 | CX31 shared |
-| 5-10 | Dedicated VPS | 2-3 | CX31 ($24) |
-| 10-25 | Dedicated VPS, upgraded | 3-4 | CX41 ($36) |
-| 25-50 | 2 render VPSes behind load balancer | 6-8 | 2× CX31 |
-| 50-100 | 3-4 render VPSes | 9-12 | 3-4× CX31 |
+| Channels | Remotion Setup                      | Concurrent Renders | VPS         |
+| -------- | ----------------------------------- | ------------------ | ----------- |
+| 1-3      | Same VPS, `RENDER_CONCURRENCY=1`    | 1                  | CX31 shared |
+| 5-10     | Dedicated VPS                       | 2-3                | CX31 ($24)  |
+| 10-25    | Dedicated VPS, upgraded             | 3-4                | CX41 ($36)  |
+| 25-50    | 2 render VPSes behind load balancer | 6-8                | 2× CX31     |
+| 50-100   | 3-4 render VPSes                    | 9-12               | 3-4× CX31   |
 
 Render time estimates (8-min long-form video):
+
 - CX31 (4 vCPU, 8GB): 8-15 min per render
 - CX41 (8 vCPU, 16GB): 5-10 min per render
 - CX51 (16 vCPU, 32GB): 3-7 min per render

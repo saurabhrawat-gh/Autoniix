@@ -25,12 +25,7 @@
  * graph re-exports byte-identical JSON.
  */
 
-import type {
-  Clip,
-  SceneGraph,
-  SceneGraphMeta,
-  Track,
-} from "../scene-graph/types";
+import type { Clip, SceneGraph, SceneGraphMeta, Track } from "../scene-graph/types";
 
 const OTIO_SCHEMA_TIMELINE = "Timeline.1";
 const OTIO_SCHEMA_STACK = "Stack.1";
@@ -55,10 +50,7 @@ export interface OtioExportOptions {
   name?: string;
 }
 
-export function exportOtio(
-  graph: SceneGraph,
-  opts: OtioExportOptions = {},
-): string {
+export function exportOtio(graph: SceneGraph, opts: OtioExportOptions = {}): string {
   const timeline = buildTimeline(graph, opts);
   const json = stableStringify(timeline, opts.pretty !== false ? 2 : 0);
   return json + "\n";
@@ -76,10 +68,7 @@ export function buildOtioTimeline(
 /* Builders                                                                 */
 /* ====================================================================== */
 
-function buildTimeline(
-  graph: SceneGraph,
-  opts: OtioExportOptions,
-): Record<string, unknown> {
+function buildTimeline(graph: SceneGraph, opts: OtioExportOptions): Record<string, unknown> {
   const fps = graph.meta.fps;
   const tracks = graph.tracks
     .filter((t) => t.kind !== "caption" || t.clips.length > 0)
@@ -109,11 +98,7 @@ function buildTimeline(
   };
 }
 
-function buildOtioTrack(
-  track: Track,
-  fps: number,
-  meta: SceneGraphMeta,
-): Record<string, unknown> {
+function buildOtioTrack(track: Track, fps: number, meta: SceneGraphMeta): Record<string, unknown> {
   const kindMap: Record<Track["kind"], string> = {
     video: "Video",
     overlay: "Video",

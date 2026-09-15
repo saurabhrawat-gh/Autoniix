@@ -61,19 +61,47 @@ function batch(
 /* ------------------------------------------------------------------ */
 
 const overlayPresets: OverlayPreset[] = [
-  ...batch("light_leak_warm", "Light Leak Warm", "light_leak", 8, "screen", 0.45, ["light_leak", "warm", "organic"]),
+  ...batch("light_leak_warm", "Light Leak Warm", "light_leak", 8, "screen", 0.45, [
+    "light_leak",
+    "warm",
+    "organic",
+  ]),
 
-  ...batch("light_leak_cool", "Light Leak Cool", "light_leak", 5, "screen", 0.40, ["light_leak", "cool", "blue"]),
+  ...batch("light_leak_cool", "Light Leak Cool", "light_leak", 5, "screen", 0.4, [
+    "light_leak",
+    "cool",
+    "blue",
+  ]),
 
-  ...batch("light_leak_anamorphic", "Anamorphic Flare", "light_leak", 5, "screen", 0.35, ["light_leak", "anamorphic", "cinematic", "horizontal"]),
+  ...batch("light_leak_anamorphic", "Anamorphic Flare", "light_leak", 5, "screen", 0.35, [
+    "light_leak",
+    "anamorphic",
+    "cinematic",
+    "horizontal",
+  ]),
 
-  ...batch("dust_particles", "Dust Particles", "dust", 8, "screen", 0.30, ["dust", "particles", "floating", "ambient"]),
+  ...batch("dust_particles", "Dust Particles", "dust", 8, "screen", 0.3, [
+    "dust",
+    "particles",
+    "floating",
+    "ambient",
+  ]),
 
   ...batch("bokeh", "Bokeh", "bokeh", 8, "screen", 0.35, ["bokeh", "soft", "dreamy", "depth"]),
 
-  ...batch("lens_flare", "Lens Flare", "lens_flare", 8, "screen", 0.40, ["lens_flare", "flare", "cinematic", "bright"]),
+  ...batch("lens_flare", "Lens Flare", "lens_flare", 8, "screen", 0.4, [
+    "lens_flare",
+    "flare",
+    "cinematic",
+    "bright",
+  ]),
 
-  ...batch("film_burn", "Film Burn", "film_burn", 5, "screen", 0.50, ["film_burn", "transition", "light", "analog"]),
+  ...batch("film_burn", "Film Burn", "film_burn", 5, "screen", 0.5, [
+    "film_burn",
+    "transition",
+    "light",
+    "analog",
+  ]),
 
   ...batch("smoke", "Smoke", "smoke", 5, "screen", 0.25, ["smoke", "haze", "atmosphere", "moody"]),
 ];

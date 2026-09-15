@@ -56,7 +56,16 @@ export const SplitComparison: React.FC<SplitComparisonProps> = ({
           {leftImageUrl && <Img src={leftImageUrl} style={{ maxWidth: "80%", maxHeight: 400 }} />}
           <div style={label(leftLabel, leftColor)}>{leftLabel}</div>
           {leftContent && (
-            <div style={{ fontFamily: "Inter, sans-serif", fontSize: 36, color: "#fff", textAlign: "center", maxWidth: "90%", lineHeight: 1.3 }}>
+            <div
+              style={{
+                fontFamily: "Inter, sans-serif",
+                fontSize: 36,
+                color: "#fff",
+                textAlign: "center",
+                maxWidth: "90%",
+                lineHeight: 1.3,
+              }}
+            >
               {leftContent}
             </div>
           )}
@@ -70,7 +79,16 @@ export const SplitComparison: React.FC<SplitComparisonProps> = ({
           {rightImageUrl && <Img src={rightImageUrl} style={{ maxWidth: "80%", maxHeight: 400 }} />}
           <div style={label(rightLabel, rightColor)}>{rightLabel}</div>
           {rightContent && (
-            <div style={{ fontFamily: "Inter, sans-serif", fontSize: 36, color: "#fff", textAlign: "center", maxWidth: "90%", lineHeight: 1.3 }}>
+            <div
+              style={{
+                fontFamily: "Inter, sans-serif",
+                fontSize: 36,
+                color: "#fff",
+                textAlign: "center",
+                maxWidth: "90%",
+                lineHeight: 1.3,
+              }}
+            >
               {rightContent}
             </div>
           )}

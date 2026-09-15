@@ -46,9 +46,9 @@ export type SlideDirection = "left" | "right" | "up" | "down";
 export interface SlideProps {
   direction: SlideDirection;
   durationInFrames: number;
-  ease?: EaseName;           // "linear" | "sine" | "power2" | "power3" | "bounce"
-  overshoot?: number;        // 0 = none, 0.1 = 10% past target then settle
-  blur?: boolean;            // motion blur while sliding
+  ease?: EaseName; // "linear" | "sine" | "power2" | "power3" | "bounce"
+  overshoot?: number; // 0 = none, 0.1 = 10% past target then settle
+  blur?: boolean; // motion blur while sliding
   children: React.ReactNode;
 }
 
@@ -67,13 +67,11 @@ export const Slide: React.FC<SlideProps> = ({
     interpolate(frame, [0, durationInFrames], [0, 1], {
       extrapolateLeft: "clamp",
       extrapolateRight: "clamp",
-    })
+    }),
   );
 
   const settled =
-    overshoot > 0
-      ? interpolate(progress, [0, 0.7, 1], [0, 1 + overshoot, 1])
-      : progress;
+    overshoot > 0 ? interpolate(progress, [0, 0.7, 1], [0, 1 + overshoot, 1]) : progress;
 
   const axis = direction === "left" || direction === "right" ? "X" : "Y";
   const sign = direction === "left" || direction === "up" ? -1 : 1;
@@ -110,7 +108,7 @@ export interface PresetEntry<P = Record<string, unknown>> {
   defaultProps: P;
   category: "transition" | "animation" | "scene" | "effect" | "overlay";
   tags: string[];
-  thumbnail?: string;        // pre-rendered 2s gif path
+  thumbnail?: string; // pre-rendered 2s gif path
 }
 
 export const TRANSITION_PRESETS: Record<string, PresetEntry> = {
@@ -299,7 +297,7 @@ export const MainVideo: React.FC<{ direction: DirectionV3 }> = ({ direction }) =
       {direction.segments.map((seg, i) => {
         const { Component: Scene, props: sceneProps } = resolvePreset(
           seg.scene_preset,
-          seg.scene_overrides
+          seg.scene_overrides,
         );
         const next = direction.segments[i + 1];
         const { Component: Trans, props: transProps } = next
@@ -309,7 +307,11 @@ export const MainVideo: React.FC<{ direction: DirectionV3 }> = ({ direction }) =
         return (
           <Series.Sequence key={i} durationInFrames={seg.duration_frames}>
             <Scene {...sceneProps} {...seg.scene_overrides} />
-            {Trans && <Trans {...transProps}><></></Trans>}
+            {Trans && (
+              <Trans {...transProps}>
+                <></>
+              </Trans>
+            )}
           </Series.Sequence>
         );
       })}
@@ -364,7 +366,7 @@ for (const d of dirs)
   for (const [sName, frames] of Object.entries(speeds))
     for (const e of eases)
       console.log(
-        `"trans.slide.${d}.${sName}.${e}": { component: Slide, defaultProps: { direction: "${d}", durationInFrames: ${frames}, ease: "${e}" }, category: "transition", tags: [] },`
+        `"trans.slide.${d}.${sName}.${e}": { component: Slide, defaultProps: { direction: "${d}", durationInFrames: ${frames}, ease: "${e}" }, category: "transition", tags: [] },`,
       );
 
 // → 4 * 3 * 5 = 60 preset entries from one Slide component.

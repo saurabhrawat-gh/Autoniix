@@ -3,7 +3,16 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { ExpandScriptRequest, ExpandScriptResponse, GenerateScriptRequest, GenerateScriptResponse, GetScriptHistoryRequest, GetScriptHistoryResponse, ValidateScriptRequest, ValidateScriptResponse } from "./script_pb.js";
+import {
+  ExpandScriptRequest,
+  ExpandScriptResponse,
+  GenerateScriptRequest,
+  GenerateScriptResponse,
+  GetScriptHistoryRequest,
+  GetScriptHistoryResponse,
+  ValidateScriptRequest,
+  ValidateScriptResponse,
+} from "./script_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -48,6 +57,5 @@ export const ScriptService = {
       O: GetScriptHistoryResponse,
       kind: MethodKind.Unary,
     },
-  }
+  },
 } as const;
-

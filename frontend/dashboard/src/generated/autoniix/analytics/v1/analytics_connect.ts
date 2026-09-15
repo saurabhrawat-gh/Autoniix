@@ -3,7 +3,16 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { GetChannelMetricsRequest, GetChannelMetricsResponse, GetCostAnalysisRequest, GetCostAnalysisResponse, GetDashboardStatsRequest, GetDashboardStatsResponse, GetVideoPerformanceRequest, GetVideoPerformanceResponse } from "./analytics_pb.js";
+import {
+  GetChannelMetricsRequest,
+  GetChannelMetricsResponse,
+  GetCostAnalysisRequest,
+  GetCostAnalysisResponse,
+  GetDashboardStatsRequest,
+  GetDashboardStatsResponse,
+  GetVideoPerformanceRequest,
+  GetVideoPerformanceResponse,
+} from "./analytics_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -48,6 +57,5 @@ export const AnalyticsService = {
       O: GetCostAnalysisResponse,
       kind: MethodKind.Unary,
     },
-  }
+  },
 } as const;
-

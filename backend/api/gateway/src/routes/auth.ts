@@ -30,10 +30,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
-      const isValid = await PasswordManager.verifyPassword(
-        password,
-        user.password_hash
-      );
+      const isValid = await PasswordManager.verifyPassword(password, user.password_hash);
       if (!isValid) {
         return reply.code(401).send({
           error: "Unauthorized",
@@ -49,9 +46,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
-      const targetWorkspace = workspace_id
-        ? workspaces.find((w) => w.id === workspace_id)
-        : workspaces[0];
+      const targetWorkspace = workspace_id ? workspaces.find((w) => w.id === workspace_id) : workspaces[0];
 
       if (!targetWorkspace) {
         return reply.code(403).send({
@@ -60,10 +55,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
-      const membership = await userRepo.getWorkspaceMembership(
-        user.id,
-        targetWorkspace.id
-      );
+      const membership = await userRepo.getWorkspaceMembership(user.id, targetWorkspace.id);
 
       const principal: Principal = {
         user_id: user.id,
@@ -144,8 +136,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.post("/api/v2/auth/refresh", async (request, reply) => {
     try {
       const body = RefreshTokenRequestSchema.parse(request.body) as RefreshTokenRequest;
-      const refreshToken =
-        body.refresh_token || request.cookies.refresh_token;
+      const refreshToken = body.refresh_token || request.cookies.refresh_token;
 
       if (!refreshToken) {
         return reply.code(401).send({
@@ -198,9 +189,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const workspaces = await userRepo.getUserWorkspaces(user.id);
-      const currentWorkspace = workspaces.find(
-        (w) => w.id === request.principal!.workspace_id
-      );
+      const currentWorkspace = workspaces.find((w) => w.id === request.principal!.workspace_id);
 
       if (!currentWorkspace) {
         return reply.code(404).send({

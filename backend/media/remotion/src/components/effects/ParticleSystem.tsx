@@ -3,13 +3,13 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, random } fr
 
 /**
  * Premium particle system for dust, sparks, confetti, snow, and more.
- * 
+ *
  * Features:
  * - Physics-based motion (gravity, velocity, drag)
  * - Customizable particle appearance
  * - Multiple particle types
  * - Performance optimized with useMemo
- * 
+ *
  * Quality: Matches After Effects CC Particle World at 90%+.
  */
 
@@ -62,31 +62,33 @@ export const ParticleSystem: React.FC<ParticleSystemProps> = ({
   const particles = useMemo<Particle[]>(() => {
     const result: Particle[] = [];
     const totalFrames = Math.ceil(count / spawnRate);
-    
+
     for (let i = 0; i < count; i++) {
       const birthFrame = Math.floor(i / spawnRate);
       const seed = i * 1000;
-      
+
       const x = random(seed + 1) * width;
-      const y = type === "snow" || type === "stars" 
-        ? random(seed + 2) * height * 0.3 - 100
-        : random(seed + 2) * height;
-      
+      const y =
+        type === "snow" || type === "stars"
+          ? random(seed + 2) * height * 0.3 - 100
+          : random(seed + 2) * height;
+
       const vx = random(seed + 3) * (velocityRange[1] - velocityRange[0]) + velocityRange[0];
-      const vy = type === "snow" 
-        ? random(seed + 4) * 2 + 1
-        : type === "sparks"
-        ? random(seed + 4) * -5 - 2
-        : random(seed + 4) * (velocityRange[1] - velocityRange[0]) + velocityRange[0];
-      
+      const vy =
+        type === "snow"
+          ? random(seed + 4) * 2 + 1
+          : type === "sparks"
+            ? random(seed + 4) * -5 - 2
+            : random(seed + 4) * (velocityRange[1] - velocityRange[0]) + velocityRange[0];
+
       const size = random(seed + 5) * (sizeRange[1] - sizeRange[0]) + sizeRange[0];
       const rotation = random(seed + 6) * 360;
       const rotationSpeed = random(seed + 7) * 10 - 5;
-      
+
       const particleColor = Array.isArray(color)
         ? color[Math.floor(random(seed + 8) * color.length)]
         : color;
-      
+
       result.push({
         id: i,
         x,
@@ -101,7 +103,7 @@ export const ParticleSystem: React.FC<ParticleSystemProps> = ({
         lifetime,
       });
     }
-    
+
     return result;
   }, [count, width, height, type, color, sizeRange, velocityRange, lifetime, spawnRate]);
 
@@ -114,18 +116,18 @@ export const ParticleSystem: React.FC<ParticleSystemProps> = ({
         const x = particle.x + particle.vx * age;
         const y = particle.y + particle.vy * age + gravity * age * age * 0.5;
         const rotation = particle.rotation + particle.rotationSpeed * age;
-        
+
         const opacity = interpolate(
           age,
           [0, 10, particle.lifetime - 20, particle.lifetime],
           [0, 1, 1, 0],
-          { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+          { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
         );
 
         if (x < -50 || x > width + 50 || y < -50 || y > height + 50) return null;
 
         let particleElement: React.ReactNode;
-        
+
         switch (type) {
           case "confetti":
             particleElement = (
@@ -139,7 +141,7 @@ export const ParticleSystem: React.FC<ParticleSystemProps> = ({
               />
             );
             break;
-          
+
           case "sparks":
             particleElement = (
               <div
@@ -153,7 +155,7 @@ export const ParticleSystem: React.FC<ParticleSystemProps> = ({
               />
             );
             break;
-          
+
           case "stars":
             particleElement = (
               <div
@@ -167,7 +169,7 @@ export const ParticleSystem: React.FC<ParticleSystemProps> = ({
               />
             );
             break;
-          
+
           case "bubbles":
             particleElement = (
               <div
@@ -181,7 +183,7 @@ export const ParticleSystem: React.FC<ParticleSystemProps> = ({
               />
             );
             break;
-          
+
           default:
             particleElement = (
               <div

@@ -36,7 +36,17 @@ export async function stripAudio(inputPath: string, outputPath: string): Promise
  * Useful when the downstream editor wants the Remotion-mixed audio as a stem.
  */
 export async function extractMixedAudio(inputPath: string, outputWavPath: string): Promise<void> {
-  await runFfmpeg(["-y", "-i", inputPath, "-vn", "-acodec", "pcm_s16le", "-ar", "48000", outputWavPath]);
+  await runFfmpeg([
+    "-y",
+    "-i",
+    inputPath,
+    "-vn",
+    "-acodec",
+    "pcm_s16le",
+    "-ar",
+    "48000",
+    outputWavPath,
+  ]);
 }
 
 /**

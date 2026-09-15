@@ -1,5 +1,4 @@
 groups:
-
   # Service availability
   - name: service_availability
     rules:

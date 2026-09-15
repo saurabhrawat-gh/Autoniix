@@ -1,11 +1,11 @@
-import type { Meta, StoryObj } from '@storybook/react';
-import { SimpleTooltip, TooltipProvider, Button } from '@/lib/ui';
+import type { Meta, StoryObj } from "@storybook/react";
+import { SimpleTooltip, TooltipProvider, Button } from "@/lib/ui";
 
 const meta: Meta<typeof SimpleTooltip> = {
-  title: 'UI/Tooltip',
+  title: "UI/Tooltip",
   component: SimpleTooltip,
-  tags: ['autodocs'],
-  parameters: { layout: 'centered' },
+  tags: ["autodocs"],
+  parameters: { layout: "centered" },
   decorators: [
     (Story) => (
       <TooltipProvider>

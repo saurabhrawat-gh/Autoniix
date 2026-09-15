@@ -62,7 +62,9 @@ export interface DiffCacheKeyInput {
 }
 
 export function buildCacheKey(k: DiffCacheKeyInput): string {
-  const composite = [k.shardHash, TIER_VERSION, k.tier, k.codec, k.width, k.height, k.fps].join("|");
+  const composite = [k.shardHash, TIER_VERSION, k.tier, k.codec, k.width, k.height, k.fps].join(
+    "|",
+  );
   return sha256Hex(composite);
 }
 
@@ -93,7 +95,9 @@ export async function lookupShard(input: DiffCacheKeyInput): Promise<CacheLookup
 }
 
 export async function downloadShard(s3KeyValue: string, destPath: string): Promise<number> {
-  const out = await getClient().send(new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: s3KeyValue }));
+  const out = await getClient().send(
+    new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: s3KeyValue }),
+  );
   const body = out.Body as Readable | undefined;
   if (!body) throw new Error("diff-cache: empty body on cached shard");
   await pipeline(body, createWriteStream(destPath));

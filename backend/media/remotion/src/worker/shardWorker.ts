@@ -67,7 +67,12 @@ export async function handleShardJob(job: Job<ShardJobData>): Promise<ShardJobRe
   });
   if (cached.hit) {
     logger.info(
-      { renderId: data.renderId, shardIndex: data.shardIndex, s3Key: cached.s3Key, size: cached.size },
+      {
+        renderId: data.renderId,
+        shardIndex: data.shardIndex,
+        s3Key: cached.s3Key,
+        size: cached.size,
+      },
       "shard cache HIT",
     );
     return {
@@ -86,14 +91,10 @@ export async function handleShardJob(job: Job<ShardJobData>): Promise<ShardJobRe
 
 export function startShardWorker(role: "tier0" | "tier1" | "tier2"): Worker<ShardJobData> {
   const queueName = ROLE_TO_QUEUE[role];
-  const worker = new Worker<ShardJobData>(
-    queueName,
-    async (job) => handleShardJob(job),
-    {
-      connection,
-      concurrency: env.RENDER_CONCURRENCY,
-    },
-  );
+  const worker = new Worker<ShardJobData>(queueName, async (job) => handleShardJob(job), {
+    connection,
+    concurrency: env.RENDER_CONCURRENCY,
+  });
 
   worker.on("completed", (job, result: ShardJobResult) => {
     logger.info(

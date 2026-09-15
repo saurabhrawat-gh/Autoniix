@@ -1,33 +1,34 @@
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring, Easing } from "remotion";
+import {
+  AbsoluteFill,
+  useCurrentFrame,
+  useVideoConfig,
+  interpolate,
+  spring,
+  Easing,
+} from "remotion";
 
 /**
  * ADVANCED SHAPES - 100% Quality
- * 
+ *
  * Matches/exceeds:
  * - After Effects Shape Layers
  * - Motion Graphics Templates
  * - Geometric animation libraries
- * 
+ *
  * Features:
  * - Complex geometric patterns
  * - Physics-based animations
  * - Kaleidoscope effects
  * - Sacred geometry patterns
  * - Customizable colors and styles
- * 
+ *
  * Quality: 100% - Professional motion graphics
  */
 
 export interface AdvancedShapesProps {
   /** Shape pattern preset */
-  preset?:
-    | "kaleidoscope"
-    | "mandala"
-    | "hexagrid"
-    | "spirograph"
-    | "fractal"
-    | "geometric";
+  preset?: "kaleidoscope" | "mandala" | "hexagrid" | "spirograph" | "fractal" | "geometric";
   /** Number of elements/repetitions */
   count?: number;
   /** Primary color */
@@ -112,7 +113,7 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
                 stroke={getColor(i + layer)}
                 strokeWidth={strokeWidth}
                 opacity={0.6 - layer * 0.1}
-              />
+              />,
             );
           }
         }
@@ -138,7 +139,7 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
                 stroke={renderMode !== "fill" ? getColor(i) : "none"}
                 strokeWidth={strokeWidth}
                 opacity={0.7}
-              />
+              />,
             );
           }
         }
@@ -151,10 +152,7 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
 
         for (let row = 0; row < rows; row++) {
           for (let col = 0; col < cols; col++) {
-            const x =
-              centerX +
-              (col - cols / 2) * hexSize * 1.5 +
-              ((row % 2) * hexSize * 0.75);
+            const x = centerX + (col - cols / 2) * hexSize * 1.5 + (row % 2) * hexSize * 0.75;
             const y = centerY + (row - rows / 2) * hexSize * Math.sqrt(3) * 0.5;
 
             const hexPath = createHexagonPath(x, y, hexSize * pulseValue * 0.5);
@@ -168,7 +166,7 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
                 strokeWidth={strokeWidth}
                 opacity={0.6}
                 transform={`rotate(${rotation * 0.5} ${x} ${y})`}
-              />
+              />,
             );
           }
         }
@@ -204,17 +202,12 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
             stroke={color}
             strokeWidth={strokeWidth}
             opacity={0.8}
-          />
+          />,
         );
         break;
 
       case "fractal":
-        const drawFractal = (
-          x: number,
-          y: number,
-          size: number,
-          depth: number
-        ): void => {
+        const drawFractal = (x: number, y: number, size: number, depth: number): void => {
           if (depth === 0) return;
 
           const points = count;
@@ -233,7 +226,7 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
                 stroke={getColor(depth + i)}
                 strokeWidth={strokeWidth * (depth / complexity)}
                 opacity={0.6}
-              />
+              />,
             );
 
             if (depth > 1) {
@@ -266,7 +259,7 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
                 strokeWidth={strokeWidth}
                 opacity={0.7}
                 transform={`rotate(${rotation} ${x} ${y})`}
-              />
+              />,
             );
           } else if (shapeType === 1) {
             elements.push(
@@ -281,7 +274,7 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
                 strokeWidth={strokeWidth}
                 opacity={0.7}
                 transform={`rotate(${rotation * 0.5} ${x} ${y})`}
-              />
+              />,
             );
           } else {
             elements.push(
@@ -294,7 +287,7 @@ export const AdvancedShapes: React.FC<AdvancedShapesProps> = ({
                 stroke={renderMode !== "fill" ? getColor(i) : "none"}
                 strokeWidth={strokeWidth}
                 opacity={0.7}
-              />
+              />,
             );
           }
         }

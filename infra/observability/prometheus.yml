@@ -8,7 +8,7 @@ global:
 alerting:
   alertmanagers:
     - static_configs:
-        - targets: ['alertmanager:9093']
+        - targets: ["alertmanager:9093"]
       timeout: 10s
 
 rule_files:
@@ -19,85 +19,85 @@ scrape_configs:
   - job_name: research
     metrics_path: /metrics
     static_configs:
-      - targets: ['research:8001']
+      - targets: ["research:8001"]
         labels: { service: research }
   - job_name: script
     metrics_path: /metrics
     static_configs:
-      - targets: ['script:8002']
+      - targets: ["script:8002"]
         labels: { service: script }
   - job_name: voice
     metrics_path: /metrics
     static_configs:
-      - targets: ['voice:8003']
+      - targets: ["voice:8003"]
         labels: { service: voice }
   - job_name: assets
     metrics_path: /metrics
     static_configs:
-      - targets: ['assets:8004']
+      - targets: ["assets:8004"]
         labels: { service: assets }
   - job_name: thumbnail
     metrics_path: /metrics
     static_configs:
-      - targets: ['thumbnail:8005']
+      - targets: ["thumbnail:8005"]
         labels: { service: thumbnail }
   - job_name: assembly
     metrics_path: /metrics
     static_configs:
-      - targets: ['assembly:8006']
+      - targets: ["assembly:8006"]
         labels: { service: assembly }
   - job_name: delivery
     metrics_path: /metrics
     static_configs:
-      - targets: ['delivery:8007']
+      - targets: ["delivery:8007"]
         labels: { service: delivery }
   - job_name: analytics
     metrics_path: /metrics
     static_configs:
-      - targets: ['analytics:8008']
+      - targets: ["analytics:8008"]
         labels: { service: analytics }
   - job_name: admin
     metrics_path: /metrics
     static_configs:
-      - targets: ['admin:8009']
+      - targets: ["admin:8009"]
         labels: { service: admin }
   - job_name: direction
     metrics_path: /metrics
     static_configs:
-      - targets: ['direction:8010']
+      - targets: ["direction:8010"]
         labels: { service: direction }
   - job_name: sheets-sync
     metrics_path: /metrics
     static_configs:
-      - targets: ['sheets-sync:8011']
+      - targets: ["sheets-sync:8011"]
         labels: { service: sheets-sync }
   - job_name: brand
     metrics_path: /metrics
     static_configs:
-      - targets: ['brand:8012']
+      - targets: ["brand:8012"]
         labels: { service: brand }
   - job_name: brain
     metrics_path: /metrics
     static_configs:
-      - targets: ['brain:8015']
+      - targets: ["brain:8015"]
         labels: { service: brain }
   - job_name: editor
     metrics_path: /metrics
     static_configs:
-      - targets: ['editor:8013']
+      - targets: ["editor:8013"]
         labels: { service: editor }
   - job_name: dashboard-bff
     metrics_path: /metrics
     static_configs:
-      - targets: ['dashboard-bff:8020']
+      - targets: ["dashboard-bff:8020"]
         labels: { service: dashboard-bff }
   - job_name: node-exporter
     metrics_path: /metrics
     static_configs:
-      - targets: ['node-exporter:9100']
+      - targets: ["node-exporter:9100"]
         labels: { service: node-exporter }
 
   # Self-scrape
   - job_name: prometheus
     static_configs:
-      - targets: ['localhost:9090']
+      - targets: ["localhost:9090"]

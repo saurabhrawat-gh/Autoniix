@@ -5,14 +5,7 @@
   "description": "Locked contract for every Redis pub/sub message published by the agentic stack. Owned by AE-509 / P0 — Agentic Foundation.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "topic",
-    "event_id",
-    "scope",
-    "payload",
-    "timestamp",
-    "source_service"
-  ],
+  "required": ["topic", "event_id", "scope", "payload", "timestamp", "source_service"],
   "properties": {
     "topic": {
       "type": "string",

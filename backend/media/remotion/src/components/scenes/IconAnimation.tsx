@@ -23,7 +23,9 @@ export const IconAnimation: React.FC<IconAnimationProps> = ({
   accent = "#FFD60A",
   iconSize = 400,
 }) => {
-  const iconEl = <Img src={iconUrl} style={{ width: iconSize, height: iconSize, objectFit: "contain" }} />;
+  const iconEl = (
+    <Img src={iconUrl} style={{ width: iconSize, height: iconSize, objectFit: "contain" }} />
+  );
 
   let animated: React.ReactNode;
   if (style === "pop") {

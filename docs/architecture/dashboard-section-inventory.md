@@ -18,27 +18,27 @@ Each section has a unique **Section ID** (e.g., `S01-HOME`). When starting a spr
 
 ## Section Index
 
-| ID | Section | Routes | Status |
-|----|---------|--------|--------|
-| S01 | [Home (Mission Control)](#s01-home-mission-control) | 1 | Needs audit |
-| S02 | [Notifications](#s02-notifications) | 1 | Needs audit |
-| S03 | [Channels](#s03-channels) | 3 | Needs audit |
-| S04 | [Content](#s04-content) | 3 | Needs audit |
-| S05 | [Library](#s05-library) | 1 | Needs audit |
-| S06 | [Queue](#s06-queue) | 1 | Stub |
-| S07 | [Progress](#s07-progress) | 2 | Needs audit |
-| S08 | [Review](#s08-review) | 3 | Needs audit |
-| S09 | [Fleet](#s09-fleet) | 1 | Needs audit |
-| S10 | [Analytics](#s10-analytics) | 1 | **Missing** |
-| S11 | [Experiments](#s11-experiments) | 1 | Needs audit |
-| S12 | [Workspace](#s12-workspace) | 1 | Needs audit |
-| S13 | [Teams](#s13-teams) | 1 | Needs audit |
-| S14 | [Users](#s14-users) | 1 | Needs audit |
-| S15 | [Providers](#s15-providers) | 2 | Needs audit |
-| S16 | [Settings](#s16-settings) | 2 | Needs audit |
-| S17 | [Debug](#s17-debug) | 1 | Needs audit |
-| S18 | [Profile](#s18-profile) | 1 | Needs audit |
-| — | [Auth (Login/Register)](#auth-loginregister) | 5 | Needs audit |
+| ID  | Section                                             | Routes | Status      |
+| --- | --------------------------------------------------- | ------ | ----------- |
+| S01 | [Home (Mission Control)](#s01-home-mission-control) | 1      | Needs audit |
+| S02 | [Notifications](#s02-notifications)                 | 1      | Needs audit |
+| S03 | [Channels](#s03-channels)                           | 3      | Needs audit |
+| S04 | [Content](#s04-content)                             | 3      | Needs audit |
+| S05 | [Library](#s05-library)                             | 1      | Needs audit |
+| S06 | [Queue](#s06-queue)                                 | 1      | Stub        |
+| S07 | [Progress](#s07-progress)                           | 2      | Needs audit |
+| S08 | [Review](#s08-review)                               | 3      | Needs audit |
+| S09 | [Fleet](#s09-fleet)                                 | 1      | Needs audit |
+| S10 | [Analytics](#s10-analytics)                         | 1      | **Missing** |
+| S11 | [Experiments](#s11-experiments)                     | 1      | Needs audit |
+| S12 | [Workspace](#s12-workspace)                         | 1      | Needs audit |
+| S13 | [Teams](#s13-teams)                                 | 1      | Needs audit |
+| S14 | [Users](#s14-users)                                 | 1      | Needs audit |
+| S15 | [Providers](#s15-providers)                         | 2      | Needs audit |
+| S16 | [Settings](#s16-settings)                           | 2      | Needs audit |
+| S17 | [Debug](#s17-debug)                                 | 1      | Needs audit |
+| S18 | [Profile](#s18-profile)                             | 1      | Needs audit |
+| —   | [Auth (Login/Register)](#auth-loginregister)        | 5      | Needs audit |
 
 **Total: 38+ routes across 18 sections + auth**
 
@@ -52,9 +52,11 @@ Each section has a unique **Section ID** (e.g., `S01-HOME`). When starting a spr
 **Purpose:** Entry point dashboard. Live pipeline overview with real-time stats, quick actions, system health, and activity feed.
 
 ### Child Routes
+
 None directly, but links to: Channels, Content, Review, Library, Experiments, Queue, Progress, Teams, Settings.
 
 ### Related Sections
+
 - S03 (Channels) — active channel count, channel stats
 - S04 (Content) — video counts, delivery stats
 - S07 (Progress) — active jobs, running jobs
@@ -63,6 +65,7 @@ None directly, but links to: Channels, Content, Review, Library, Experiments, Qu
 - S16 (Settings) — budget, emergency stop
 
 ### Features (every minute detail)
+
 1. **Stat Cards (Primary Row):** Active Channels, Videos Today, Cost Today, Active Jobs
 2. **Stat Cards (Secondary Row):** Success Rate, Pending Review, Failed Today, System Health
 3. **Quick Actions Grid:** 8 shortcut links to other sections with badges
@@ -76,19 +79,21 @@ None directly, but links to: Channels, Content, Review, Library, Experiments, Qu
 
 ### API Inventory
 
-| API Endpoint | v2 Module | Status | Notes |
-|-------------|-----------|--------|-------|
-| `GET /api/v2/channels/stats` | channels | ✅ Exists | Returns dashboard stats (channels, today, budget, emergency_stop) |
-| `GET /api/v2/content?limit=30` | content | ✅ Exists | Returns grouped job list for activity feed |
-| `WS /api/ws/events` | main.py | ✅ Exists | WebSocket for live job updates |
+| API Endpoint                   | v2 Module | Status    | Notes                                                             |
+| ------------------------------ | --------- | --------- | ----------------------------------------------------------------- |
+| `GET /api/v2/channels/stats`   | channels  | ✅ Exists | Returns dashboard stats (channels, today, budget, emergency_stop) |
+| `GET /api/v2/content?limit=30` | content   | ✅ Exists | Returns grouped job list for activity feed                        |
+| `WS /api/ws/events`            | main.py   | ✅ Exists | WebSocket for live job updates                                    |
 
 ### FE Client Functions Used
+
 - `dashboardApi.stats()` → `GET /api/v2/channels/stats`
 - `contentApi.list({ limit: 30 })` → `GET /api/v2/content`
 - `wsEvents()` → WebSocket connection
 - `isLoggedIn()` → auth check
 
 ### Pending Investigation
+
 - [ ] Does `/api/v2/channels/stats` return all fields the dashboard expects? (channels.total/active/disabled/archived, today.videos_total/delivered/failed/in_progress/cost, budget.daily_limit, environment_mode, emergency_stop)
 - [ ] Does the WebSocket actually push `job_update` events correctly?
 - [ ] Are cost calculations accurate (today cost vs budget)?
@@ -105,13 +110,16 @@ None directly, but links to: Channels, Content, Review, Library, Experiments, Qu
 **Purpose:** Notification center — view, filter, and mark-read system notifications. Notification routing configuration.
 
 ### Child Routes
+
 None.
 
 ### Related Sections
+
 - S17 (Debug) — shares notification delivery data
 - S16 (Settings) — notification preferences may live here
 
 ### Features
+
 1. **Notification List:** Filterable by unread/severity
 2. **Mark as Read:** Individual notification read tracking
 3. **Severity Levels:** info, warning, critical
@@ -122,21 +130,23 @@ None.
 
 ### API Inventory
 
-| API Endpoint | v2 Module | Status | Notes |
-|-------------|-----------|--------|-------|
-| `GET /api/v2/notifications` | notifications | ✅ Exists | List with unread_only, severity, limit filters |
-| `POST /api/v2/notifications` | notifications | ✅ Exists | Create notification with dedupe |
-| `POST /api/v2/notifications/{id}/read` | notifications | ✅ Exists | Mark single notification read |
-| `GET /api/v2/notifications/routes` | notifications | ✅ Exists | List routing rules |
-| `POST /api/v2/notifications/routes` | notifications | ✅ Exists | Create route |
-| `PUT /api/v2/notifications/routes/{id}` | notifications | ✅ Exists | Update route |
-| `DELETE /api/v2/notifications/routes/{id}` | notifications | ✅ Exists | Delete route |
-| `GET /api/v2/notifications/deliveries` | notifications | ✅ Exists | Delivery history |
+| API Endpoint                               | v2 Module     | Status    | Notes                                          |
+| ------------------------------------------ | ------------- | --------- | ---------------------------------------------- |
+| `GET /api/v2/notifications`                | notifications | ✅ Exists | List with unread_only, severity, limit filters |
+| `POST /api/v2/notifications`               | notifications | ✅ Exists | Create notification with dedupe                |
+| `POST /api/v2/notifications/{id}/read`     | notifications | ✅ Exists | Mark single notification read                  |
+| `GET /api/v2/notifications/routes`         | notifications | ✅ Exists | List routing rules                             |
+| `POST /api/v2/notifications/routes`        | notifications | ✅ Exists | Create route                                   |
+| `PUT /api/v2/notifications/routes/{id}`    | notifications | ✅ Exists | Update route                                   |
+| `DELETE /api/v2/notifications/routes/{id}` | notifications | ✅ Exists | Delete route                                   |
+| `GET /api/v2/notifications/deliveries`     | notifications | ✅ Exists | Delivery history                               |
 
 ### FE Client Functions Used
+
 - `notifyApi.list()`, `notifyApi.read()`, `notifyApi.routes()`, `notifyApi.upsertRoute()`, `notifyApi.updateRoute()`, `notifyApi.deleteRoute()`, `notifyApi.deliveries()`
 
 ### Pending Investigation
+
 - [ ] Does the notification bell in ChromeBar show real unread count?
 - [ ] Are notification routes actually dispatching (Slack, email, webhook)?
 - [ ] Is the deduplication working correctly?
@@ -153,10 +163,12 @@ None.
 **Purpose:** Channel management — create, configure, trigger, and monitor YouTube channels. The core entity of the entire system.
 
 ### Child Routes
+
 - `/dashboard/channels/new` — Channel creation wizard (multi-step)
 - `/dashboard/channels/[id]` — Channel detail/edit page
 
 ### Related Sections
+
 - S04 (Content) — channel's videos
 - S07 (Progress) — channel's active jobs
 - S08 (Review) — channel's pending reviews
@@ -166,6 +178,7 @@ None.
 ### Features (every minute detail)
 
 #### Channel List Page
+
 1. **Channel Cards/Table:** List all channels with status, stats, active jobs
 2. **Status Indicators:** active, disabled, archived, paused
 3. **Quick Stats per Channel:** delivered count, in-progress count, weekly usage
@@ -176,6 +189,7 @@ None.
 8. **Weekly Usage Gauges:** Short vs long form limits
 
 #### Channel Create Wizard (Multi-Step)
+
 1. **Step 1 — Basics:** Channel name, niche, sub-niche, content mode, platform, handle
 2. **Step 2 — Brand DNA:** AI-generated or manual: belief_territory, intellectual_lens, topic_domain, brand_voice, narrative_rhythm, emotional_contract, target_audience, primary_format, thumbnail_style, primary_color, forbidden_words
 3. **Step 3 — Content Strategy:** Pillars (name, description, weight, examples), Topic Rules (kind, value, metadata), References (kind, label, uri)
@@ -188,6 +202,7 @@ None.
 10. **Brand DNA Generation:** LLM-generated brand DNA from niche + name
 
 #### Channel Detail/Edit Page
+
 1. **Profile Tab:** Mission, vision, brand_personality, tone, completeness score
 2. **Pillars Tab:** CRUD for content pillars
 3. **Topic Rules Tab:** CRUD for topic rules (include/exclude/prefer)
@@ -202,47 +217,49 @@ None.
 
 ### API Inventory
 
-| API Endpoint | v2 Module | Status | Notes |
-|-------------|-----------|--------|-------|
-| `GET /api/v2/channels` | channels | ✅ | List with include_archived, enrich |
-| `POST /api/v2/channels` | channels | ✅ | Create with full payload |
-| `GET /api/v2/channels/{id}` | channels | ✅ | Single channel detail |
-| `PUT /api/v2/channels/{id}` | channels | ✅ | Update channel |
-| `DELETE /api/v2/channels/{id}` | channels | ✅ | Hard delete (owner + password) |
-| `PUT /api/v2/channels/{id}/enable` | channels | ✅ | Enable channel |
-| `PUT /api/v2/channels/{id}/disable` | channels | ✅ | Disable channel |
-| `PUT /api/v2/channels/{id}/archive` | channels | ✅ | Archive channel |
-| `PUT /api/v2/channels/{id}/restore` | channels | ✅ | Restore archived |
-| `POST /api/v2/channels/{id}/clone` | channels | ✅ | Clone channel |
-| `GET /api/v2/channels/{id}/export` | channels | ✅ | Export channel config |
-| `POST /api/v2/channels/{id}/trigger` | channels | ✅ | Manual trigger |
-| `POST /api/v2/channels/{id}/jobs/{cid}/pause` | channels | ✅ | Pause job |
-| `POST /api/v2/channels/{id}/jobs/{cid}/resume` | channels | ✅ | Resume job |
-| `POST /api/v2/channels/{id}/jobs/{cid}/stop` | channels | ✅ | Stop job |
-| `GET /api/v2/channels/presets` | channels | ✅ | List presets |
-| `PUT /api/v2/channels/{id}/profile` | channels | ✅ | Upsert profile |
-| `POST /api/v2/channels/{id}/pillars` | channels | ✅ | Add pillar |
-| `DELETE /api/v2/channels/{id}/pillars/{pid}` | channels | ✅ | Delete pillar |
-| `POST /api/v2/channels/{id}/topic-rules` | channels | ✅ | Add topic rule |
-| `DELETE /api/v2/channels/{id}/topic-rules/{rid}` | channels | ✅ | Delete topic rule |
-| `POST /api/v2/channels/{id}/references` | channels | ✅ | Add reference |
-| `DELETE /api/v2/channels/{id}/references/{rid}` | channels | ✅ | Delete reference |
-| `POST /api/v2/channels/ai/field-suggest` | channels | ✅ | AI field suggestion |
-| `POST /api/v2/channels/drafts` | channels | ✅ | Save wizard draft |
-| `PUT /api/v2/channels/drafts/{id}` | channels | ✅ | Update draft |
-| `GET /api/v2/channels/drafts/{id}` | channels | ✅ | Get draft |
-| `GET /api/v2/channels/{id}/settings/finishing` | finishing | ✅ | Get finishing config |
-| `PUT /api/v2/channels/{id}/settings/finishing` | finishing | ✅ | Update finishing config |
-| `GET /api/v2/finishing/presets` | finishing | ✅ | List finishing presets |
-| `GET /api/v2/channels/{id}/settings/review` | review_config | ✅ | Get review config |
-| `PUT /api/v2/channels/{id}/settings/review` | review_config | ✅ | Update review config |
+| API Endpoint                                     | v2 Module     | Status | Notes                              |
+| ------------------------------------------------ | ------------- | ------ | ---------------------------------- |
+| `GET /api/v2/channels`                           | channels      | ✅     | List with include_archived, enrich |
+| `POST /api/v2/channels`                          | channels      | ✅     | Create with full payload           |
+| `GET /api/v2/channels/{id}`                      | channels      | ✅     | Single channel detail              |
+| `PUT /api/v2/channels/{id}`                      | channels      | ✅     | Update channel                     |
+| `DELETE /api/v2/channels/{id}`                   | channels      | ✅     | Hard delete (owner + password)     |
+| `PUT /api/v2/channels/{id}/enable`               | channels      | ✅     | Enable channel                     |
+| `PUT /api/v2/channels/{id}/disable`              | channels      | ✅     | Disable channel                    |
+| `PUT /api/v2/channels/{id}/archive`              | channels      | ✅     | Archive channel                    |
+| `PUT /api/v2/channels/{id}/restore`              | channels      | ✅     | Restore archived                   |
+| `POST /api/v2/channels/{id}/clone`               | channels      | ✅     | Clone channel                      |
+| `GET /api/v2/channels/{id}/export`               | channels      | ✅     | Export channel config              |
+| `POST /api/v2/channels/{id}/trigger`             | channels      | ✅     | Manual trigger                     |
+| `POST /api/v2/channels/{id}/jobs/{cid}/pause`    | channels      | ✅     | Pause job                          |
+| `POST /api/v2/channels/{id}/jobs/{cid}/resume`   | channels      | ✅     | Resume job                         |
+| `POST /api/v2/channels/{id}/jobs/{cid}/stop`     | channels      | ✅     | Stop job                           |
+| `GET /api/v2/channels/presets`                   | channels      | ✅     | List presets                       |
+| `PUT /api/v2/channels/{id}/profile`              | channels      | ✅     | Upsert profile                     |
+| `POST /api/v2/channels/{id}/pillars`             | channels      | ✅     | Add pillar                         |
+| `DELETE /api/v2/channels/{id}/pillars/{pid}`     | channels      | ✅     | Delete pillar                      |
+| `POST /api/v2/channels/{id}/topic-rules`         | channels      | ✅     | Add topic rule                     |
+| `DELETE /api/v2/channels/{id}/topic-rules/{rid}` | channels      | ✅     | Delete topic rule                  |
+| `POST /api/v2/channels/{id}/references`          | channels      | ✅     | Add reference                      |
+| `DELETE /api/v2/channels/{id}/references/{rid}`  | channels      | ✅     | Delete reference                   |
+| `POST /api/v2/channels/ai/field-suggest`         | channels      | ✅     | AI field suggestion                |
+| `POST /api/v2/channels/drafts`                   | channels      | ✅     | Save wizard draft                  |
+| `PUT /api/v2/channels/drafts/{id}`               | channels      | ✅     | Update draft                       |
+| `GET /api/v2/channels/drafts/{id}`               | channels      | ✅     | Get draft                          |
+| `GET /api/v2/channels/{id}/settings/finishing`   | finishing     | ✅     | Get finishing config               |
+| `PUT /api/v2/channels/{id}/settings/finishing`   | finishing     | ✅     | Update finishing config            |
+| `GET /api/v2/finishing/presets`                  | finishing     | ✅     | List finishing presets             |
+| `GET /api/v2/channels/{id}/settings/review`      | review_config | ✅     | Get review config                  |
+| `PUT /api/v2/channels/{id}/settings/review`      | review_config | ✅     | Update review config               |
 
 ### FE Client Functions Used
+
 - `channelsApi.*` — all CRUD + status actions + trigger + job controls
 - `finishingApi.*` — finishing config
 - `reviewConfigApi.*` — review config
 
 ### Pending Investigation
+
 - [ ] Does channel creation handle all 6 wizard steps atomically (transaction)?
 - [ ] Are presets working? What presets exist?
 - [ ] Does AI field suggestion use the correct LLM provider?
@@ -268,10 +285,12 @@ None.
 **Purpose:** Content/video management — view, search, filter, and bulk-manage all videos across channels.
 
 ### Child Routes
+
 - `/dashboard/content/calendar` — Calendar view of scheduled/delivered content
 - `/dashboard/content/kanban` — Kanban board view by status
 
 ### Related Sections
+
 - S03 (Channels) — filter by channel
 - S07 (Progress) — job status tracking
 - S08 (Review) — pending review items
@@ -279,6 +298,7 @@ None.
 ### Features
 
 #### Content List Page
+
 1. **Grouped List:** Videos grouped by day/week/month/quarter/year
 2. **Status Filters:** By job status (researching, scripting, assembling, pending_review, delivered, failed, etc.)
 3. **Review State Filter:** pending, approved, rejected
@@ -290,32 +310,36 @@ None.
 9. **Content Stats:** Aggregated stats by period with channel breakdown
 
 #### Calendar Page
+
 1. **Month/Week View:** Calendar grid with video cards on delivery dates
 2. **Date Range:** Configurable start/end
 3. **Channel Filter:** Per-channel calendar
 
 #### Kanban Page
+
 1. **Status Columns:** Cards grouped by status lane
 2. **Drag & Drop:** Move cards between statuses (if implemented)
 3. **Card Details:** Title, channel, cost, duration, thumbnail preview
 
 ### API Inventory
 
-| API Endpoint | v2 Module | Status | Notes |
-|-------------|-----------|--------|-------|
-| `GET /api/v2/content` | content | ✅ | Grouped list with filters, cursor pagination |
-| `GET /api/v2/content/search` | content | ✅ | Full-text search |
-| `POST /api/v2/content/bulk` | content | ✅ | Bulk actions (approve/reject/retry/delete) |
-| `GET /api/v2/content/calendar` | content | ✅ | Calendar data |
-| `GET /api/v2/content/{id}` | content | ✅ | Single video detail |
-| `GET /api/v2/content/stats` | content | ✅ | Aggregated stats |
-| `POST /api/v2/content/trigger` | content | ✅ | Trigger from content page |
-| `GET /api/v2/content/triggers/history` | content | ✅ | Trigger history |
+| API Endpoint                           | v2 Module | Status | Notes                                        |
+| -------------------------------------- | --------- | ------ | -------------------------------------------- |
+| `GET /api/v2/content`                  | content   | ✅     | Grouped list with filters, cursor pagination |
+| `GET /api/v2/content/search`           | content   | ✅     | Full-text search                             |
+| `POST /api/v2/content/bulk`            | content   | ✅     | Bulk actions (approve/reject/retry/delete)   |
+| `GET /api/v2/content/calendar`         | content   | ✅     | Calendar data                                |
+| `GET /api/v2/content/{id}`             | content   | ✅     | Single video detail                          |
+| `GET /api/v2/content/stats`            | content   | ✅     | Aggregated stats                             |
+| `POST /api/v2/content/trigger`         | content   | ✅     | Trigger from content page                    |
+| `GET /api/v2/content/triggers/history` | content   | ✅     | Trigger history                              |
 
 ### FE Client Functions Used
+
 - `contentApi.list()`, `contentApi.search()`, `contentApi.bulk()`, `contentApi.calendar()`, `contentApi.detail()`, `contentApi.stats()`, `contentApi.trigger()`, `contentApi.triggerHistory()`
 
 ### Pending Investigation
+
 - [ ] Does grouping by day/week/month work correctly with timezone?
 - [ ] Is cursor pagination working (no duplicates, no gaps)?
 - [ ] Are bulk actions atomic? What happens if some fail?
@@ -334,15 +358,18 @@ None.
 **Purpose:** Digital Asset Management (DAM) — browse, search, upload, and organize assets (images, videos, audio, brand kits, music).
 
 ### Child Routes
+
 None (all functionality in single page with tabs/modals).
 
 ### Related Sections
+
 - S03 (Channels) — channel-scoped assets, brand kits
 - S12 (Workspace) — workspace-scoped assets
 
 ### Features
 
 #### Asset Browser
+
 1. **Asset Grid/List:** Browse all uploaded assets
 2. **Scope Filtering:** workspace, channel, brand scoped
 3. **Kind Filtering:** image, video, audio, document
@@ -354,48 +381,53 @@ None (all functionality in single page with tabs/modals).
 9. **Delete:** Soft/hard delete
 
 #### Collections
+
 1. **Smart Collections:** Query-based auto-collections
 2. **Manual Collections:** Curated asset groups
 3. **Collection CRUD:** Create, update, delete
 
 #### Brand Kits
+
 1. **Brand Kit List:** Per-scope brand kits
 2. **Brand Kit CRUD:** Name, palette, notes
 3. **Asset Binding:** Bind assets to brand kits
 
 #### Licenses & Quotas
+
 1. **License Tracking:** Per-asset license attribution
 2. **Storage Quotas:** Per-workspace storage limits
 3. **Quota Enforcement:** Block uploads when quota exceeded
 
 ### API Inventory
 
-| API Endpoint | v2 Module | Status | Notes |
-|-------------|-----------|--------|-------|
-| `GET /api/v2/library/assets` | library | ✅ | List assets |
-| `GET /api/v2/library/brand` | library | ✅ | Brand assets |
-| `GET /api/v2/library/music` | library | ✅ | Music assets |
-| `GET /api/v2/library/dam/assets` | library | ✅ | DAM asset list |
-| `POST /api/v2/library/dam/assets/preflight` | library | ✅ | SHA256 dedup check |
-| `GET /api/v2/library/dam/assets/{id}` | library | ✅ | Asset detail |
-| `PATCH /api/v2/library/dam/assets/{id}` | library | ✅ | Update metadata |
-| `DELETE /api/v2/library/dam/assets/{id}` | library | ✅ | Delete asset |
-| `GET /api/v2/library/dam/tags` | library | ✅ | Tag list |
-| `POST /api/v2/library/dam/search` | library | ✅ | Semantic search |
-| `GET /api/v2/library/dam/collections` | library | ✅ | List collections |
-| `POST /api/v2/library/dam/collections` | library | ✅ | Create collection |
-| `PUT /api/v2/library/dam/collections/{id}` | library | ✅ | Update collection |
-| `DELETE /api/v2/library/dam/collections/{id}` | library | ✅ | Delete collection |
-| `GET /api/v2/library/dam/brand-kits` | library | ✅ | List brand kits |
-| `POST /api/v2/library/dam/brand-kits` | library | ✅ | Create brand kit |
-| `PUT /api/v2/library/dam/brand-kits/{id}` | library | ✅ | Update brand kit |
-| License endpoints | library_licenses | ✅ | License CRUD |
-| Quota endpoints | library_quotas | ✅ | Quota CRUD |
+| API Endpoint                                  | v2 Module        | Status | Notes              |
+| --------------------------------------------- | ---------------- | ------ | ------------------ |
+| `GET /api/v2/library/assets`                  | library          | ✅     | List assets        |
+| `GET /api/v2/library/brand`                   | library          | ✅     | Brand assets       |
+| `GET /api/v2/library/music`                   | library          | ✅     | Music assets       |
+| `GET /api/v2/library/dam/assets`              | library          | ✅     | DAM asset list     |
+| `POST /api/v2/library/dam/assets/preflight`   | library          | ✅     | SHA256 dedup check |
+| `GET /api/v2/library/dam/assets/{id}`         | library          | ✅     | Asset detail       |
+| `PATCH /api/v2/library/dam/assets/{id}`       | library          | ✅     | Update metadata    |
+| `DELETE /api/v2/library/dam/assets/{id}`      | library          | ✅     | Delete asset       |
+| `GET /api/v2/library/dam/tags`                | library          | ✅     | Tag list           |
+| `POST /api/v2/library/dam/search`             | library          | ✅     | Semantic search    |
+| `GET /api/v2/library/dam/collections`         | library          | ✅     | List collections   |
+| `POST /api/v2/library/dam/collections`        | library          | ✅     | Create collection  |
+| `PUT /api/v2/library/dam/collections/{id}`    | library          | ✅     | Update collection  |
+| `DELETE /api/v2/library/dam/collections/{id}` | library          | ✅     | Delete collection  |
+| `GET /api/v2/library/dam/brand-kits`          | library          | ✅     | List brand kits    |
+| `POST /api/v2/library/dam/brand-kits`         | library          | ✅     | Create brand kit   |
+| `PUT /api/v2/library/dam/brand-kits/{id}`     | library          | ✅     | Update brand kit   |
+| License endpoints                             | library_licenses | ✅     | License CRUD       |
+| Quota endpoints                               | library_quotas   | ✅     | Quota CRUD         |
 
 ### FE Client Functions Used
+
 - `libraryApi.*`, `damApi.*`
 
 ### Pending Investigation
+
 - [ ] Is semantic search actually working (vector embeddings)?
 - [ ] Does SHA256 preflight prevent duplicate uploads?
 - [ ] Are storage quotas enforced at upload time?
@@ -413,18 +445,22 @@ None (all functionality in single page with tabs/modals).
 **Purpose:** Currently a redirect stub to `/dashboard/progress`. Intended to show the job queue with scheduling, prioritization, and capacity management.
 
 ### Current Status: STUB
+
 - `page.tsx`: 10-line redirect to `/dashboard/progress`
 - No dedicated v2 API
 - No dedicated FE client functions
 
 ### Child Routes
+
 None.
 
 ### Related Sections
+
 - S07 (Progress) — currently redirects here
 - S04 (Content) — job triggering
 
 ### Features (Planned/Expected)
+
 1. **Job Queue View:** All pending/scheduled jobs in queue order
 2. **Priority Management:** Reorder jobs by priority
 3. **Capacity Indicators:** Available slots per content_mode
@@ -433,6 +469,7 @@ None.
 6. **Bulk Schedule:** Schedule multiple jobs at once
 
 ### Pending Investigation
+
 - [ ] Should Queue be a separate page or remain merged with Progress?
 - [ ] What queue backend? (Temporal task queues? Redis? DB?)
 - [ ] How does prioritization work?
@@ -448,9 +485,11 @@ None.
 **Purpose:** Job progress monitoring — view all active, paused, failed, and recently completed jobs with real-time progress updates.
 
 ### Child Routes
+
 - `/dashboard/jobs/[id]` — Job detail page with phase timeline, output preview, metadata
 
 ### Related Sections
+
 - S03 (Channels) — per-channel job controls
 - S04 (Content) — content list
 - S06 (Queue) — queue redirect target
@@ -459,6 +498,7 @@ None.
 ### Features
 
 #### Progress List Page
+
 1. **Job Cards:** Active/paused/failed/stopped jobs with status, channel, content_mode, progress %
 2. **Job Controls:** Pause, Resume, Stop, Retry, Restart per job
 3. **Phase Timeline:** Current phase indicator (researching → scripting → voicing → assembling → reviewing → delivering)
@@ -470,6 +510,7 @@ None.
 9. **BorderBeam Animation:** Running jobs get animated border
 
 #### Job Detail Page
+
 1. **Phase Timeline:** Full phase history with timestamps
 2. **Output Preview:** Video player, thumbnail preview
 3. **Metadata View:** Script, research data, voice config, assembly params
@@ -480,25 +521,27 @@ None.
 
 ### API Inventory
 
-| API Endpoint | v2 Module | Status | Notes |
-|-------------|-----------|--------|-------|
-| `GET /api/v2/jobs/active` | jobs | ✅ | Active jobs list |
-| `GET /api/v2/jobs/{id}/progress` | jobs | ✅ | Job progress detail |
-| `GET /api/v2/jobs/{id}/output` | jobs | ✅ | Output preview |
-| `GET /api/v2/jobs/{id}/metadata` | jobs | ✅ | Job metadata |
-| `POST /api/v2/jobs/{id}/approve` | jobs | ✅ | Approve job |
-| `POST /api/v2/jobs/{id}/reject` | jobs | ✅ | Reject job |
-| `POST /api/v2/jobs/{id}/retry` | jobs | ✅ | Retry (new content_id) |
-| `POST /api/v2/jobs/{id}/restart` | jobs | ✅ | Restart from checkpoint |
-| `POST /api/v2/jobs/{id}/pause` | jobs | ✅ | Pause workflow |
-| `POST /api/v2/jobs/{id}/resume` | jobs | ✅ | Resume workflow |
-| `POST /api/v2/jobs/{id}/stop` | jobs | ✅ | Stop/terminate |
-| `WS /api/ws/progress/{id}` | main.py | ✅ | Per-job progress WS |
+| API Endpoint                     | v2 Module | Status | Notes                   |
+| -------------------------------- | --------- | ------ | ----------------------- |
+| `GET /api/v2/jobs/active`        | jobs      | ✅     | Active jobs list        |
+| `GET /api/v2/jobs/{id}/progress` | jobs      | ✅     | Job progress detail     |
+| `GET /api/v2/jobs/{id}/output`   | jobs      | ✅     | Output preview          |
+| `GET /api/v2/jobs/{id}/metadata` | jobs      | ✅     | Job metadata            |
+| `POST /api/v2/jobs/{id}/approve` | jobs      | ✅     | Approve job             |
+| `POST /api/v2/jobs/{id}/reject`  | jobs      | ✅     | Reject job              |
+| `POST /api/v2/jobs/{id}/retry`   | jobs      | ✅     | Retry (new content_id)  |
+| `POST /api/v2/jobs/{id}/restart` | jobs      | ✅     | Restart from checkpoint |
+| `POST /api/v2/jobs/{id}/pause`   | jobs      | ✅     | Pause workflow          |
+| `POST /api/v2/jobs/{id}/resume`  | jobs      | ✅     | Resume workflow         |
+| `POST /api/v2/jobs/{id}/stop`    | jobs      | ✅     | Stop/terminate          |
+| `WS /api/ws/progress/{id}`       | main.py   | ✅     | Per-job progress WS     |
 
 ### FE Client Functions Used
+
 - `jobsApi.*`, `wsProgress()`
 
 ### Pending Investigation
+
 - [ ] Does retry correctly supersede old failed jobs?
 - [ ] Does restart correctly resume from checkpoint?
 - [ ] Are Temporal workflow signals (pause/resume/stop) reliable?
@@ -518,10 +561,12 @@ None.
 **Purpose:** Human review queue — approve, reject, edit, and comment on videos before they're published.
 
 ### Child Routes
+
 - `/dashboard/review/[id]` — Review detail with video player, script, thumbnail, metadata
 - `/dashboard/review/[id]/diff` — Script diff view for edited scripts
 
 ### Related Sections
+
 - S03 (Channels) — per-channel review config
 - S04 (Content) — content list with review state
 - S07 (Progress) — job progress leading to pending_review
@@ -529,6 +574,7 @@ None.
 ### Features
 
 #### Review Queue Page
+
 1. **Review Queue:** Filterable by state (pending, approved, rejected), channel
 2. **Review Cards:** Thumbnail, title, channel, script preview, cost
 3. **Quick Actions:** Approve, reject from queue
@@ -537,6 +583,7 @@ None.
 6. **Reject Animation:** X-shake on reject
 
 #### Review Detail Page
+
 1. **Video Player:** Embedded video preview
 2. **Script Viewer:** Full script with editing capability
 3. **Thumbnail Preview:** Current thumbnail with regenerate option
@@ -549,21 +596,23 @@ None.
 
 ### API Inventory
 
-| API Endpoint | v2 Module | Status | Notes |
-|-------------|-----------|--------|-------|
-| `GET /api/v2/review/queue` | review | ✅ | Review queue with filters |
-| `GET /api/v2/review/{id}` | review | ✅ | Review detail |
-| `POST /api/v2/review/{id}/open` | review | ✅ | Open for review |
-| `POST /api/v2/review/{id}/decide` | review | ✅ | Approve/reject decision |
-| `POST /api/v2/review/{id}/script/edit` | review | ✅ | Edit script |
-| `POST /api/v2/review/{id}/thumbnail/regenerate` | review | ✅ | Regenerate thumbnail |
-| `POST /api/v2/review/{id}/comments` | review | ✅ | Add comment |
-| `PUT /api/v2/review/{id}/title` | review | ✅ | Update title/hook/topic |
+| API Endpoint                                    | v2 Module | Status | Notes                     |
+| ----------------------------------------------- | --------- | ------ | ------------------------- |
+| `GET /api/v2/review/queue`                      | review    | ✅     | Review queue with filters |
+| `GET /api/v2/review/{id}`                       | review    | ✅     | Review detail             |
+| `POST /api/v2/review/{id}/open`                 | review    | ✅     | Open for review           |
+| `POST /api/v2/review/{id}/decide`               | review    | ✅     | Approve/reject decision   |
+| `POST /api/v2/review/{id}/script/edit`          | review    | ✅     | Edit script               |
+| `POST /api/v2/review/{id}/thumbnail/regenerate` | review    | ✅     | Regenerate thumbnail      |
+| `POST /api/v2/review/{id}/comments`             | review    | ✅     | Add comment               |
+| `PUT /api/v2/review/{id}/title`                 | review    | ✅     | Update title/hook/topic   |
 
 ### FE Client Functions Used
+
 - `reviewApi.*`
 
 ### Pending Investigation
+
 - [ ] Does approve trigger the delivery workflow?
 - [ ] Does reject trigger retry or mark as failed?
 - [ ] Are review comments threaded (replies)?
@@ -582,14 +631,17 @@ None.
 **Purpose:** Fleet health monitoring — real-time status of all backend services, database pool, Remotion render queue, and system pressure metrics.
 
 ### Child Routes
+
 None.
 
 ### Related Sections
+
 - S01 (Home) — System Health ECG card
 - S16 (Settings) — emergency stop
 - S17 (Debug) — shares fleet health data
 
 ### Features
+
 1. **Service Health Grid:** Per-service status (research, script, voice, assets, thumbnail, assembly, delivery, analytics, admin, direction, brand, editor)
 2. **Health Indicators:** Green/red per service with latency
 3. **DB Pool Stats:** Size, idle, min, max, pressure %
@@ -605,14 +657,16 @@ None.
 
 ### API Inventory
 
-| API Endpoint | v2 Module | Status | Notes |
-|-------------|-----------|--------|-------|
-| `GET /api/v2/system/fleet-health` | system | ✅ | Full fleet health payload |
+| API Endpoint                      | v2 Module | Status | Notes                     |
+| --------------------------------- | --------- | ------ | ------------------------- |
+| `GET /api/v2/system/fleet-health` | system    | ✅     | Full fleet health payload |
 
 ### FE Client Functions Used
+
 - `systemApi.fleetHealth()`
 
 ### Pending Investigation
+
 - [ ] Are all 12 services actually running and returning health checks?
 - [ ] Is the aggregate health score calculation correct?
 - [ ] Does the fleet health endpoint timeout gracefully (per-service 3s timeout)?
@@ -630,20 +684,24 @@ None.
 **Purpose:** Analytics dashboard — channel performance, cost analysis, content trends, viewer metrics.
 
 ### Current Status: MISSING
+
 - **No `page.tsx` exists** — no directory at `/dashboard/analytics/`
 - **No dedicated v2 analytics API module** — analytics data is partially embedded in fleet-health and stats endpoints
 - Backend service exists at `src/services/analytics/` but has no v2 API surface
 
 ### Child Routes
+
 None defined.
 
 ### Related Sections
+
 - S01 (Home) — summary stats
 - S03 (Channels) — per-channel analytics
 - S04 (Content) — content performance
 - S09 (Fleet) — system health metrics
 
 ### Features (Planned/Expected)
+
 1. **Channel Performance:** Views, watch time, subscribers per channel
 2. **Cost Analysis:** Cost per video, cost per view, provider breakdown
 3. **Content Trends:** Top performing topics, formats, durations
@@ -656,6 +714,7 @@ None defined.
 ### API Inventory — NONE (needs full implementation)
 
 ### Pending Investigation
+
 - [ ] What analytics data is already being collected (analytics_records table)?
 - [ ] Is YouTube Analytics API integrated?
 - [ ] What metrics matter most for the MVP?
@@ -672,13 +731,16 @@ None defined.
 **Purpose:** A/B testing framework — create, run, and analyze experiments on content variables (thumbnails, titles, topics, formats).
 
 ### Child Routes
+
 None.
 
 ### Related Sections
+
 - S03 (Channels) — per-channel experiments
 - S10 (Analytics) — experiment results visualization
 
 ### Features
+
 1. **Experiment List:** All experiments with status (draft, active, paused, completed)
 2. **Experiment Create:** Define variants, metrics, traffic split
 3. **Activate/Pause:** Control experiment lifecycle
@@ -689,19 +751,21 @@ None.
 
 ### API Inventory
 
-| API Endpoint | v2 Module | Status | Notes |
-|-------------|-----------|--------|-------|
-| `GET /api/v2/experiments` | experiments | ✅ | List with status filter |
-| `POST /api/v2/experiments` | experiments | ✅ | Create experiment |
-| `POST /api/v2/experiments/{name}/activate` | experiments | ✅ | Activate |
-| `POST /api/v2/experiments/{name}/pause` | experiments | ✅ | Pause |
-| `POST /api/v2/experiments/{name}/complete` | experiments | ✅ | Complete with winner |
-| `GET /api/v2/experiments/{name}/results` | experiments | ✅ | Results |
+| API Endpoint                               | v2 Module   | Status | Notes                   |
+| ------------------------------------------ | ----------- | ------ | ----------------------- |
+| `GET /api/v2/experiments`                  | experiments | ✅     | List with status filter |
+| `POST /api/v2/experiments`                 | experiments | ✅     | Create experiment       |
+| `POST /api/v2/experiments/{name}/activate` | experiments | ✅     | Activate                |
+| `POST /api/v2/experiments/{name}/pause`    | experiments | ✅     | Pause                   |
+| `POST /api/v2/experiments/{name}/complete` | experiments | ✅     | Complete with winner    |
+| `GET /api/v2/experiments/{name}/results`   | experiments | ✅     | Results                 |
 
 ### FE Client Functions Used
+
 - `experimentsApi.*`
 
 ### Pending Investigation
+
 - [ ] What experiment types are supported? (thumbnail, title, topic, format?)
 - [ ] Is the bandit algorithm (Thompson sampling?) working correctly?
 - [ ] Are results statistically significant (sample size, confidence)?
@@ -718,14 +782,17 @@ None.
 **Purpose:** Workspace management — name, slug, plan, mode (solo/teams), integrations, members, brands, series, campaigns, projects.
 
 ### Child Routes
+
 None (all managed through tabs/modals on the same page).
 
 ### Related Sections
+
 - S13 (Teams) — member management
 - S15 (Providers) — workspace-scoped credentials
 - S16 (Settings) — workspace-level settings
 
 ### Features
+
 1. **Workspace Profile:** Name, slug, plan
 2. **Mode Toggle:** Solo vs Teams mode
 3. **Integrations:** Slack webhook URL
@@ -742,41 +809,43 @@ None (all managed through tabs/modals on the same page).
 
 ### API Inventory
 
-| API Endpoint | v2 Module | Status | Notes |
-|-------------|-----------|--------|-------|
-| `GET /api/v2/workspace` | workspace | ✅ | Workspace detail |
-| `PUT /api/v2/workspace` | workspace | ✅ | Update workspace |
-| `GET /api/v2/workspace/integrations` | workspace | ✅ | Get integrations |
-| `PUT /api/v2/workspace/integrations` | workspace | ✅ | Update integrations |
-| `GET /api/v2/workspace/members` | workspace | ✅ | List members |
-| `PUT /api/v2/workspace/members/{id}/role` | workspace | ✅ | Change role |
-| `DELETE /api/v2/workspace/members/{id}` | workspace | ✅ | Remove member |
-| `POST /api/v2/workspace/transfer-ownership` | workspace | ✅ | Transfer ownership |
-| `GET /api/v2/workspace/invites` | workspace | ✅ | List invites |
-| `POST /api/v2/workspace/invites` | workspace | ✅ | Create invite |
-| `DELETE /api/v2/workspace/invites/{id}` | workspace | ✅ | Revoke invite |
-| `GET /api/v2/workspace/brands` | workspace | ✅ | List brands |
-| `GET /api/v2/workspace/brands/{id}` | workspace | ✅ | Brand detail |
-| `POST /api/v2/workspace/brands` | workspace | ✅ | Create brand |
-| `PUT /api/v2/workspace/brands/{id}` | workspace | ✅ | Update brand |
-| `GET /api/v2/workspace/series` | workspace | ✅ | List series |
-| `POST /api/v2/workspace/series` | workspace | ✅ | Create series |
-| `PUT /api/v2/workspace/series/{id}` | workspace | ✅ | Update series |
-| `DELETE /api/v2/workspace/series/{id}` | workspace | ✅ | Delete series |
-| `GET /api/v2/workspace/campaigns` | workspace | ✅ | List campaigns |
-| `POST /api/v2/workspace/campaigns` | workspace | ✅ | Create campaign |
-| `PUT /api/v2/workspace/campaigns/{id}` | workspace | ✅ | Update campaign |
-| `GET /api/v2/workspace/projects` | workspace | ✅ | List projects |
-| `GET /api/v2/workspace/projects/{id}` | workspace | ✅ | Project detail |
-| `POST /api/v2/workspace/projects` | workspace | ✅ | Create project |
-| `PUT /api/v2/workspace/projects/{id}` | workspace | ✅ | Update project |
-| `DELETE /api/v2/workspace/projects/{id}` | workspace | ✅ | Delete project |
-| `GET /api/v2/workspace/settings` | workspace | ✅ | Entity settings |
+| API Endpoint                                | v2 Module | Status | Notes               |
+| ------------------------------------------- | --------- | ------ | ------------------- |
+| `GET /api/v2/workspace`                     | workspace | ✅     | Workspace detail    |
+| `PUT /api/v2/workspace`                     | workspace | ✅     | Update workspace    |
+| `GET /api/v2/workspace/integrations`        | workspace | ✅     | Get integrations    |
+| `PUT /api/v2/workspace/integrations`        | workspace | ✅     | Update integrations |
+| `GET /api/v2/workspace/members`             | workspace | ✅     | List members        |
+| `PUT /api/v2/workspace/members/{id}/role`   | workspace | ✅     | Change role         |
+| `DELETE /api/v2/workspace/members/{id}`     | workspace | ✅     | Remove member       |
+| `POST /api/v2/workspace/transfer-ownership` | workspace | ✅     | Transfer ownership  |
+| `GET /api/v2/workspace/invites`             | workspace | ✅     | List invites        |
+| `POST /api/v2/workspace/invites`            | workspace | ✅     | Create invite       |
+| `DELETE /api/v2/workspace/invites/{id}`     | workspace | ✅     | Revoke invite       |
+| `GET /api/v2/workspace/brands`              | workspace | ✅     | List brands         |
+| `GET /api/v2/workspace/brands/{id}`         | workspace | ✅     | Brand detail        |
+| `POST /api/v2/workspace/brands`             | workspace | ✅     | Create brand        |
+| `PUT /api/v2/workspace/brands/{id}`         | workspace | ✅     | Update brand        |
+| `GET /api/v2/workspace/series`              | workspace | ✅     | List series         |
+| `POST /api/v2/workspace/series`             | workspace | ✅     | Create series       |
+| `PUT /api/v2/workspace/series/{id}`         | workspace | ✅     | Update series       |
+| `DELETE /api/v2/workspace/series/{id}`      | workspace | ✅     | Delete series       |
+| `GET /api/v2/workspace/campaigns`           | workspace | ✅     | List campaigns      |
+| `POST /api/v2/workspace/campaigns`          | workspace | ✅     | Create campaign     |
+| `PUT /api/v2/workspace/campaigns/{id}`      | workspace | ✅     | Update campaign     |
+| `GET /api/v2/workspace/projects`            | workspace | ✅     | List projects       |
+| `GET /api/v2/workspace/projects/{id}`       | workspace | ✅     | Project detail      |
+| `POST /api/v2/workspace/projects`           | workspace | ✅     | Create project      |
+| `PUT /api/v2/workspace/projects/{id}`       | workspace | ✅     | Update project      |
+| `DELETE /api/v2/workspace/projects/{id}`    | workspace | ✅     | Delete project      |
+| `GET /api/v2/workspace/settings`            | workspace | ✅     | Entity settings     |
 
 ### FE Client Functions Used
+
 - `workspaceApi.*`, `membersApi.*`, `invitesApi.*`, `brandsApi.*`, `seriesApi.*`, `campaignsApi.*`, `projectsApi.*`, `settingsApi.*`
 
 ### Pending Investigation
+
 - [ ] Does solo vs teams mode actually change behavior?
 - [ ] Is Slack integration working (webhook dispatch)?
 - [ ] Does ownership transfer require password + invalidate sessions?
@@ -796,13 +865,16 @@ None (all managed through tabs/modals on the same page).
 **Purpose:** Team management within a workspace — create teams, assign members, set team-level permissions.
 
 ### Child Routes
+
 None.
 
 ### Related Sections
+
 - S12 (Workspace) — member management
 - S14 (Users) — user management (superadmin)
 
 ### Features
+
 1. **Team List:** All teams in workspace
 2. **Team CRUD:** Create, update, delete teams
 3. **Member Assignment:** Add/remove members to teams
@@ -810,9 +882,11 @@ None.
 5. **Team Scoping:** Scope channels/projects to teams
 
 ### API Inventory
+
 Currently uses workspace members API. Dedicated teams API may be needed.
 
 ### Pending Investigation
+
 - [ ] Is Teams fully implemented or just a stub?
 - [ ] How do teams differ from workspace members?
 - [ ] Are team-level permissions implemented?
@@ -828,13 +902,16 @@ Currently uses workspace members API. Dedicated teams API may be needed.
 **Purpose:** Platform-level user management (superadmin only) — list all users, disable/enable, delete, transfer superadmin.
 
 ### Child Routes
+
 None.
 
 ### Related Sections
+
 - S12 (Workspace) — workspace members
 - S13 (Teams) — team members
 
 ### Features
+
 1. **User List:** All platform users with roles, status
 2. **Disable/Enable:** Suspend or reactivate user accounts
 3. **Delete:** Hard delete user account
@@ -842,18 +919,20 @@ None.
 
 ### API Inventory
 
-| API Endpoint | v2 Module | Status | Notes |
-|-------------|-----------|--------|-------|
-| `GET /api/v2/users` | users | ✅ | List all users |
-| `POST /api/v2/users/transfer-superadmin/{id}` | users | ✅ | Transfer superadmin |
-| `PUT /api/v2/users/{id}/disable` | users | ✅ | Disable user |
-| `PUT /api/v2/users/{id}/enable` | users | ✅ | Enable user |
-| `DELETE /api/v2/users/{id}` | users | ✅ | Delete user |
+| API Endpoint                                  | v2 Module | Status | Notes               |
+| --------------------------------------------- | --------- | ------ | ------------------- |
+| `GET /api/v2/users`                           | users     | ✅     | List all users      |
+| `POST /api/v2/users/transfer-superadmin/{id}` | users     | ✅     | Transfer superadmin |
+| `PUT /api/v2/users/{id}/disable`              | users     | ✅     | Disable user        |
+| `PUT /api/v2/users/{id}/enable`               | users     | ✅     | Enable user         |
+| `DELETE /api/v2/users/{id}`                   | users     | ✅     | Delete user         |
 
 ### FE Client Functions Used
+
 - `usersApi.*`
 
 ### Pending Investigation
+
 - [ ] Is the superadmin guard working (only superadmin can access)?
 - [ ] Does disabling a user revoke their sessions?
 - [ ] Does deleting a user cascade correctly (workspace memberships, owned content)?
@@ -869,9 +948,11 @@ None.
 **Purpose:** Provider/API key management — the operations center for all third-party API integrations (LLM, TTS, storage, YouTube, etc.).
 
 ### Child Routes
+
 - `/dashboard/providers/[category]` — Category-specific provider management
 
 ### Related Sections
+
 - S03 (Channels) — channel-scoped credential overrides
 - S16 (Settings) — feature flags for provider features
 - S12 (Workspace) — workspace-scoped credentials
@@ -879,6 +960,7 @@ None.
 ### Features (every minute detail)
 
 #### Provider Catalog & Marketplace
+
 1. **Provider Sections (Kinds):** Grouped by capability (LLM, TTS, Image, Video, Storage, Search, YouTube)
 2. **Custom Sections:** User-created provider sections
 3. **Marketplace Catalog:** All available providers with connected status, supported models, pricing tier, free tier, config schema
@@ -886,6 +968,7 @@ None.
 5. **Restore Defaults:** Reset to system provider catalog
 
 #### Credential Management
+
 1. **Credential List:** Per-category, with health status, rotation status, enabled/disabled
 2. **Add Credential:** Manual entry (API key, model, extra config)
 3. **Wizard Add:** Guided form based on provider's config_schema
@@ -899,6 +982,7 @@ None.
 11. **Bookmark/Default:** Set/unset as default fallback
 
 #### Provider Chains (Priority/Routing)
+
 1. **Chain View:** Ordered list of credentials per category
 2. **Reorder:** Drag-and-drop priority reordering
 3. **Chain V2 (Multi-Scope):** workspace-level, channel-level, content_mode-level chains
@@ -907,12 +991,14 @@ None.
 6. **Content Mode Chains:** Different chains for short vs long_form
 
 #### Routing Policies
+
 1. **Routing Policy:** round_robin, fallback, lowest_cost, highest_throughput
 2. **Scope-Aware Routing:** Different policies per scope (workspace/channel)
 3. **Custom Rules:** Per-route custom routing rules
 4. **Fallback Chain:** Ordered fallback when primary fails
 
 #### Quota Management
+
 1. **Quota List:** Per-scope monthly caps
 2. **Create Quota:** Set monthly_cap_usd, alert_pct, hard_limit
 3. **Update Quota:** Adjust caps and policies
@@ -920,97 +1006,104 @@ None.
 5. **Alert Thresholds:** Notify when approaching quota
 
 #### Health Monitoring
+
 1. **Health History:** Per-credential health check history
 2. **Probe All:** Fan-out health check all enabled credentials
 3. **Health Stream:** SSE stream of live health status
 4. **Setup Checklist:** Which categories have configured + healthy credentials
 
 #### Sandbox / Testing
+
 1. **Sandbox Run:** Test inference with a credential
 2. **Sandbox History:** Recent test run results
 
 #### Audit & Change Requests
+
 1. **Audit Log:** Per-category, per-credential audit trail
 2. **Change Requests:** Member requests credential changes → Admin approval → Owner approval workflow
 3. **Change Request Types:** add_credential, change_chain_priority, remove_credential, change_model, rotate_credential
 4. **Dual Approval:** Admin reviews → forwards to Owner → Owner approves/rejects
 
 #### YouTube OAuth
+
 1. **OAuth Flow:** Connect YouTube channel via OAuth
 2. **Connection Status:** Connected channel name, avatar, scopes
 3. **Disconnect:** Revoke YouTube access
 4. **Scope Validation:** Check for missing scopes
 
 #### Content Modes
+
 1. **Content Mode List:** System + custom content modes
 2. **Mode-Aware Chains:** Different provider chains per content mode
 
 ### API Inventory
 
-| API Endpoint | v2 Module | Status | Notes |
-|-------------|-----------|--------|-------|
-| `GET /api/v2/providers/categories` | providers | ✅ | Category list |
-| `GET /api/v2/providers/kinds` | providers | ✅ | Provider sections |
-| `POST /api/v2/providers/kinds` | providers | ✅ | Create section |
-| `DELETE /api/v2/providers/kinds/{kind}` | providers | ✅ | Delete section |
-| `POST /api/v2/providers/categories` | providers | ✅ | Create category |
-| `PATCH /api/v2/providers/categories/{name}` | providers | ✅ | Update category |
-| `DELETE /api/v2/providers/categories/{name}` | providers | ✅ | Delete category |
-| `GET /api/v2/providers/marketplace` | providers | ✅ | Marketplace catalog |
-| `POST /api/v2/providers/marketplace` | providers | ✅ | Add custom provider |
-| `DELETE /api/v2/providers/marketplace/{key}` | providers | ✅ | Remove custom provider |
-| `GET /api/v2/providers/catalog-for-category` | providers | ✅ | Catalog for category |
-| `POST /api/v2/providers/restore-defaults` | providers | ✅ | Restore defaults |
-| `GET /api/v2/providers/credentials` | providers | ✅ | List credentials |
-| `POST /api/v2/providers/credentials` | providers | ✅ | Create credential |
-| `PUT /api/v2/providers/credentials/{id}` | providers | ✅ | Update credential |
-| `DELETE /api/v2/providers/credentials/{id}` | providers | ✅ | Delete credential |
-| `POST /api/v2/providers/credentials/{id}/test` | providers | ✅ | Test credential |
-| `POST /api/v2/providers/credentials/{id}/rotate` | providers | ✅ | Rotate key |
-| `POST /api/v2/providers/credentials/from-wizard` | providers | ✅ | Wizard create |
-| `GET /api/v2/providers/setup-checklist` | providers | ✅ | Setup checklist |
-| `GET /api/v2/providers/credentials/{id}/rotation-status` | providers | ✅ | Rotation status |
-| `GET /api/v2/providers/credentials/rotation-status` | providers | ✅ | All rotation status |
-| `PUT /api/v2/providers/credentials/{id}/default-fallback` | providers | ✅ | Set default fallback |
-| `DELETE /api/v2/providers/credentials/{id}/default-fallback` | providers | ✅ | Clear default fallback |
-| `PUT /api/v2/providers/credentials/{id}/enabled` | providers | ✅ | Enable/disable credential |
-| `GET /api/v2/providers/chains/{category}` | providers | ✅ | Get chain |
-| `PUT /api/v2/providers/chains/{category}` | providers | ✅ | Set chain |
-| `GET /api/v2/providers/chains` | providers | ✅ | Chains V2 (multi-scope) |
-| `PUT /api/v2/providers/chains` | providers | ✅ | Upsert chain V2 |
-| `DELETE /api/v2/providers/chains` | providers | ✅ | Delete chain V2 |
-| `PUT /api/v2/providers/chains/entry/{id}/enabled` | providers | ✅ | Toggle chain entry |
-| `PATCH /api/v2/providers/chains/reorder` | providers | ✅ | Reorder chain |
-| `GET /api/v2/providers/resolved` | providers | ✅ | Resolved chain |
-| `GET /api/v2/providers/routes` | providers | ✅ | Routing policies |
-| `PUT /api/v2/providers/routes/{category}` | providers | ✅ | Set routing policy |
-| `GET /api/v2/providers/quotas` | providers | ✅ | Quota list |
-| `POST /api/v2/providers/quotas` | providers | ✅ | Create quota |
-| `PUT /api/v2/providers/quotas/{id}` | providers | ✅ | Update quota |
-| `DELETE /api/v2/providers/quotas/{id}` | providers | ✅ | Delete quota |
-| `GET /api/v2/providers/health/{id}` | providers | ✅ | Health history |
-| `POST /api/v2/providers/health/probe-all` | providers | ✅ | Probe all |
-| `GET /api/v2/providers/health-stream` | providers | ✅ | Health SSE stream |
-| `POST /api/v2/providers/sandbox/run` | providers | ✅ | Sandbox test |
-| `GET /api/v2/providers/sandbox/runs` | providers | ✅ | Sandbox history |
-| `GET /api/v2/providers/audit-log` | providers | ✅ | Provider audit log |
-| `GET /api/v2/providers/registered` | providers | ✅ | Registered providers |
-| `GET /api/v2/providers/models` | providers | ✅ | Supported models |
-| `GET /api/v2/providers/content-modes` | providers | ✅ | Content modes |
-| `GET /api/v2/providers/change-requests` | change_requests | ✅ | List change requests |
-| `POST /api/v2/providers/change-requests` | change_requests | ✅ | Create change request |
-| `GET /api/v2/providers/change-requests/{id}` | change_requests | ✅ | Get change request |
-| `POST /api/v2/providers/change-requests/{id}/admin-review` | change_requests | ✅ | Admin review |
-| `POST /api/v2/providers/change-requests/{id}/owner-review` | change_requests | ✅ | Owner review |
-| `GET /api/v2/providers/youtube/auth` | youtube_oauth | ✅ | YouTube OAuth URL |
-| `GET /api/v2/providers/youtube/status` | youtube_oauth | ✅ | OAuth status |
-| `DELETE /api/v2/providers/youtube/disconnect` | youtube_oauth | ✅ | Disconnect |
-| `POST /api/v2/providers/_admin/clean-slate` | providers | ✅ | Admin reset |
+| API Endpoint                                                 | v2 Module       | Status | Notes                     |
+| ------------------------------------------------------------ | --------------- | ------ | ------------------------- |
+| `GET /api/v2/providers/categories`                           | providers       | ✅     | Category list             |
+| `GET /api/v2/providers/kinds`                                | providers       | ✅     | Provider sections         |
+| `POST /api/v2/providers/kinds`                               | providers       | ✅     | Create section            |
+| `DELETE /api/v2/providers/kinds/{kind}`                      | providers       | ✅     | Delete section            |
+| `POST /api/v2/providers/categories`                          | providers       | ✅     | Create category           |
+| `PATCH /api/v2/providers/categories/{name}`                  | providers       | ✅     | Update category           |
+| `DELETE /api/v2/providers/categories/{name}`                 | providers       | ✅     | Delete category           |
+| `GET /api/v2/providers/marketplace`                          | providers       | ✅     | Marketplace catalog       |
+| `POST /api/v2/providers/marketplace`                         | providers       | ✅     | Add custom provider       |
+| `DELETE /api/v2/providers/marketplace/{key}`                 | providers       | ✅     | Remove custom provider    |
+| `GET /api/v2/providers/catalog-for-category`                 | providers       | ✅     | Catalog for category      |
+| `POST /api/v2/providers/restore-defaults`                    | providers       | ✅     | Restore defaults          |
+| `GET /api/v2/providers/credentials`                          | providers       | ✅     | List credentials          |
+| `POST /api/v2/providers/credentials`                         | providers       | ✅     | Create credential         |
+| `PUT /api/v2/providers/credentials/{id}`                     | providers       | ✅     | Update credential         |
+| `DELETE /api/v2/providers/credentials/{id}`                  | providers       | ✅     | Delete credential         |
+| `POST /api/v2/providers/credentials/{id}/test`               | providers       | ✅     | Test credential           |
+| `POST /api/v2/providers/credentials/{id}/rotate`             | providers       | ✅     | Rotate key                |
+| `POST /api/v2/providers/credentials/from-wizard`             | providers       | ✅     | Wizard create             |
+| `GET /api/v2/providers/setup-checklist`                      | providers       | ✅     | Setup checklist           |
+| `GET /api/v2/providers/credentials/{id}/rotation-status`     | providers       | ✅     | Rotation status           |
+| `GET /api/v2/providers/credentials/rotation-status`          | providers       | ✅     | All rotation status       |
+| `PUT /api/v2/providers/credentials/{id}/default-fallback`    | providers       | ✅     | Set default fallback      |
+| `DELETE /api/v2/providers/credentials/{id}/default-fallback` | providers       | ✅     | Clear default fallback    |
+| `PUT /api/v2/providers/credentials/{id}/enabled`             | providers       | ✅     | Enable/disable credential |
+| `GET /api/v2/providers/chains/{category}`                    | providers       | ✅     | Get chain                 |
+| `PUT /api/v2/providers/chains/{category}`                    | providers       | ✅     | Set chain                 |
+| `GET /api/v2/providers/chains`                               | providers       | ✅     | Chains V2 (multi-scope)   |
+| `PUT /api/v2/providers/chains`                               | providers       | ✅     | Upsert chain V2           |
+| `DELETE /api/v2/providers/chains`                            | providers       | ✅     | Delete chain V2           |
+| `PUT /api/v2/providers/chains/entry/{id}/enabled`            | providers       | ✅     | Toggle chain entry        |
+| `PATCH /api/v2/providers/chains/reorder`                     | providers       | ✅     | Reorder chain             |
+| `GET /api/v2/providers/resolved`                             | providers       | ✅     | Resolved chain            |
+| `GET /api/v2/providers/routes`                               | providers       | ✅     | Routing policies          |
+| `PUT /api/v2/providers/routes/{category}`                    | providers       | ✅     | Set routing policy        |
+| `GET /api/v2/providers/quotas`                               | providers       | ✅     | Quota list                |
+| `POST /api/v2/providers/quotas`                              | providers       | ✅     | Create quota              |
+| `PUT /api/v2/providers/quotas/{id}`                          | providers       | ✅     | Update quota              |
+| `DELETE /api/v2/providers/quotas/{id}`                       | providers       | ✅     | Delete quota              |
+| `GET /api/v2/providers/health/{id}`                          | providers       | ✅     | Health history            |
+| `POST /api/v2/providers/health/probe-all`                    | providers       | ✅     | Probe all                 |
+| `GET /api/v2/providers/health-stream`                        | providers       | ✅     | Health SSE stream         |
+| `POST /api/v2/providers/sandbox/run`                         | providers       | ✅     | Sandbox test              |
+| `GET /api/v2/providers/sandbox/runs`                         | providers       | ✅     | Sandbox history           |
+| `GET /api/v2/providers/audit-log`                            | providers       | ✅     | Provider audit log        |
+| `GET /api/v2/providers/registered`                           | providers       | ✅     | Registered providers      |
+| `GET /api/v2/providers/models`                               | providers       | ✅     | Supported models          |
+| `GET /api/v2/providers/content-modes`                        | providers       | ✅     | Content modes             |
+| `GET /api/v2/providers/change-requests`                      | change_requests | ✅     | List change requests      |
+| `POST /api/v2/providers/change-requests`                     | change_requests | ✅     | Create change request     |
+| `GET /api/v2/providers/change-requests/{id}`                 | change_requests | ✅     | Get change request        |
+| `POST /api/v2/providers/change-requests/{id}/admin-review`   | change_requests | ✅     | Admin review              |
+| `POST /api/v2/providers/change-requests/{id}/owner-review`   | change_requests | ✅     | Owner review              |
+| `GET /api/v2/providers/youtube/auth`                         | youtube_oauth   | ✅     | YouTube OAuth URL         |
+| `GET /api/v2/providers/youtube/status`                       | youtube_oauth   | ✅     | OAuth status              |
+| `DELETE /api/v2/providers/youtube/disconnect`                | youtube_oauth   | ✅     | Disconnect                |
+| `POST /api/v2/providers/_admin/clean-slate`                  | providers       | ✅     | Admin reset               |
 
 ### FE Client Functions Used
+
 - `providersApi.*`, `changeRequestsApi.*`, `youtubeOAuthApi.*`
 
 ### Pending Investigation — CRITICAL (most complex section)
+
 - [ ] **Multi-Scope Config Resolution:** When a channel has a channel-level chain AND a content_mode-level chain, which wins? What's the resolution order? (channel+mode > channel > workspace+mode > workspace > default)
 - [ ] **Enable/Disable Logic:** When a credential is disabled, does it get skipped in the chain? Does disabling the last enabled credential in a chain cause errors? What happens to in-flight jobs?
 - [ ] **Default Fallback:** How does the "default fallback" interact with chains? Is it used when all chain entries fail?
@@ -1038,9 +1131,11 @@ None.
 **Purpose:** System configuration — feature flags, system config, emergency controls, environment info.
 
 ### Child Routes
+
 - `/dashboard/settings/flags` — Feature flag management
 
 ### Related Sections
+
 - S09 (Fleet) — emergency stop
 - S15 (Providers) — provider feature flags
 - S12 (Workspace) — workspace settings
@@ -1048,6 +1143,7 @@ None.
 ### Features
 
 #### Settings Page
+
 1. **System Config:** Key-value config editor (daily_budget_limit, emergency_stop, etc.)
 2. **Emergency Stop:** Freeze all operations (pause workflows, block triggers)
 3. **Emergency Resume:** Unfreeze all operations
@@ -1056,6 +1152,7 @@ None.
 6. **Test Data Management:** View/delete test data
 
 #### Feature Flags Page
+
 1. **Flag List:** All feature flags with enabled/disabled status, description, payload
 2. **Toggle Flags:** Enable/disable flags
 3. **Flag Payload:** Edit JSON payload for non-boolean flags
@@ -1063,21 +1160,23 @@ None.
 
 ### API Inventory
 
-| API Endpoint | v2 Module | Status | Notes |
-|-------------|-----------|--------|-------|
-| `GET /api/v2/system/config` | system | ✅ | System config list |
-| `PUT /api/v2/system/config` | system | ✅ | Update config |
-| `POST /api/v2/system/emergency-stop` | system | ✅ | Emergency stop |
-| `POST /api/v2/system/emergency-resume` | system | ✅ | Emergency resume |
-| `GET /api/v2/system/environment` | system | ✅ | Environment info |
-| `POST /api/v2/system/clean-slate` | system | ✅ | Clean slate |
-| `GET /api/v2/flags` | flags | ✅ | List feature flags |
-| `PUT /api/v2/flags/{key}` | flags | ✅ | Set flag |
+| API Endpoint                           | v2 Module | Status | Notes              |
+| -------------------------------------- | --------- | ------ | ------------------ |
+| `GET /api/v2/system/config`            | system    | ✅     | System config list |
+| `PUT /api/v2/system/config`            | system    | ✅     | Update config      |
+| `POST /api/v2/system/emergency-stop`   | system    | ✅     | Emergency stop     |
+| `POST /api/v2/system/emergency-resume` | system    | ✅     | Emergency resume   |
+| `GET /api/v2/system/environment`       | system    | ✅     | Environment info   |
+| `POST /api/v2/system/clean-slate`      | system    | ✅     | Clean slate        |
+| `GET /api/v2/flags`                    | flags     | ✅     | List feature flags |
+| `PUT /api/v2/flags/{key}`              | flags     | ✅     | Set flag           |
 
 ### FE Client Functions Used
+
 - `systemApi.*`, `flagsApi.*`
 
 ### Pending Investigation
+
 - [ ] Does emergency stop actually pause all running workflows?
 - [ ] Does emergency resume actually resume all paused workflows?
 - [ ] Is clean-slate safe (preserves channels, config, users)?
@@ -1095,21 +1194,26 @@ None.
 **Purpose:** Developer debugging — fleet health raw data, critical alerts, notification deliveries.
 
 ### Child Routes
+
 None.
 
 ### Related Sections
+
 - S09 (Fleet) — fleet health data
 - S02 (Notifications) — notification deliveries
 
 ### Features
+
 1. **Fleet Health Raw:** JSON dump of fleet health endpoint
 2. **Critical Alerts:** Last 20 critical notifications
 3. **Delivery History:** Recent notification deliveries with status
 
 ### API Inventory
+
 Uses existing `systemApi.fleetHealth()`, `notifyApi.list()`, `notifyApi.deliveries()`.
 
 ### Pending Investigation
+
 - [ ] Should this be expanded with more debug tools?
 - [ ] Should it be hidden in production?
 
@@ -1122,12 +1226,15 @@ Uses existing `systemApi.fleetHealth()`, `notifyApi.list()`, `notifyApi.deliveri
 **Purpose:** User profile management — display name, email, password change, MFA setup, account deletion.
 
 ### Child Routes
+
 None.
 
 ### Related Sections
+
 - Auth — login, register
 
 ### Features
+
 1. **Profile View:** Display name, email, role, workspace
 2. **Update Profile:** Change display name
 3. **Change Password:** Current password + new password
@@ -1139,20 +1246,22 @@ None.
 
 ### API Inventory
 
-| API Endpoint | v2 Module | Status | Notes |
-|-------------|-----------|--------|-------|
-| `PUT /api/v2/auth/profile` | auth | ✅ | Update profile |
-| `DELETE /api/v2/auth/account` | auth | ✅ | Delete account |
-| `POST /api/v2/auth/mfa/setup` | auth | ✅ | MFA setup |
-| `POST /api/v2/auth/mfa/verify` | auth | ✅ | MFA verify |
-| `GET /api/v2/auth/workspaces` | auth | ✅ | List workspaces |
-| `POST /api/v2/auth/switch-workspace` | auth | ✅ | Switch workspace |
-| `POST /api/v2/auth/create-workspace` | auth | ✅ | Create workspace |
+| API Endpoint                         | v2 Module | Status | Notes            |
+| ------------------------------------ | --------- | ------ | ---------------- |
+| `PUT /api/v2/auth/profile`           | auth      | ✅     | Update profile   |
+| `DELETE /api/v2/auth/account`        | auth      | ✅     | Delete account   |
+| `POST /api/v2/auth/mfa/setup`        | auth      | ✅     | MFA setup        |
+| `POST /api/v2/auth/mfa/verify`       | auth      | ✅     | MFA verify       |
+| `GET /api/v2/auth/workspaces`        | auth      | ✅     | List workspaces  |
+| `POST /api/v2/auth/switch-workspace` | auth      | ✅     | Switch workspace |
+| `POST /api/v2/auth/create-workspace` | auth      | ✅     | Create workspace |
 
 ### FE Client Functions Used
+
 - `authApi.updateProfile()`, `authApi.deleteAccount()`, `authApi.mfaSetup()`, `authApi.mfaVerify()`, `authApi.listWorkspaces()`, `authApi.switchWorkspace()`, `authApi.createWorkspace()`
 
 ### Pending Investigation
+
 - [ ] Does MFA setup generate valid TOTP URIs?
 - [ ] Does MFA enforcement actually block login without code?
 - [ ] Does account deletion cascade correctly?
@@ -1167,6 +1276,7 @@ None.
 **Purpose:** Authentication and registration flows.
 
 ### Features
+
 1. **Login:** Email + password + optional MFA code
 2. **Register:** Email + password + workspace name + display name
 3. **Forgot Password:** Email-based reset token
@@ -1178,19 +1288,20 @@ None.
 
 ### API Inventory
 
-| API Endpoint | v2 Module | Status | Notes |
-|-------------|-----------|--------|-------|
-| `GET /api/v2/auth/mode` | auth | ✅ | Auth mode check |
-| `POST /api/v2/auth/register` | auth | ✅ | Register |
-| `POST /api/v2/auth/login` | auth | ✅ | Login |
-| `POST /api/v2/auth/refresh` | auth | ✅ | Token refresh |
-| `POST /api/v2/auth/logout` | auth | ✅ | Logout |
-| `GET /api/v2/auth/me` | auth | ✅ | Current user |
-| `POST /api/v2/auth/forgot` | auth | ✅ | Forgot password |
-| `POST /api/v2/auth/reset` | auth | ✅ | Reset password |
-| `POST /api/v2/auth/accept-invite` | auth | ✅ | Accept invite |
+| API Endpoint                      | v2 Module | Status | Notes           |
+| --------------------------------- | --------- | ------ | --------------- |
+| `GET /api/v2/auth/mode`           | auth      | ✅     | Auth mode check |
+| `POST /api/v2/auth/register`      | auth      | ✅     | Register        |
+| `POST /api/v2/auth/login`         | auth      | ✅     | Login           |
+| `POST /api/v2/auth/refresh`       | auth      | ✅     | Token refresh   |
+| `POST /api/v2/auth/logout`        | auth      | ✅     | Logout          |
+| `GET /api/v2/auth/me`             | auth      | ✅     | Current user    |
+| `POST /api/v2/auth/forgot`        | auth      | ✅     | Forgot password |
+| `POST /api/v2/auth/reset`         | auth      | ✅     | Reset password  |
+| `POST /api/v2/auth/accept-invite` | auth      | ✅     | Accept invite   |
 
 ### Pending Investigation
+
 - [ ] Is the JWT secret secure (not default)?
 - [ ] Are refresh tokens rotated on use?
 - [ ] Is MFA enforced when configured?

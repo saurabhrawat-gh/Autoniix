@@ -38,7 +38,11 @@ interface FfprobeOutput {
   format?: { duration?: string; size?: string };
 }
 
-function runCmd(cmd: string, args: string[], opts: { timeoutMs?: number } = {}): Promise<{ code: number; stdout: string; stderr: string }> {
+function runCmd(
+  cmd: string,
+  args: string[],
+  opts: { timeoutMs?: number } = {},
+): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
     const proc = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
@@ -50,10 +54,21 @@ function runCmd(cmd: string, args: string[], opts: { timeoutMs?: number } = {}):
           proc.kill("SIGKILL");
         }, opts.timeoutMs)
       : null;
-    proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
-    proc.stderr.on("data", (d: Buffer) => { stderr += d.toString(); if (stderr.length > 32 * 1024) stderr = stderr.slice(-32 * 1024); });
-    proc.on("error", () => { if (timer) clearTimeout(timer); resolve({ code: -1, stdout, stderr }); });
-    proc.on("close", (code) => { if (timer) clearTimeout(timer); resolve({ code: killed ? -1 : (code ?? -1), stdout, stderr }); });
+    proc.stdout.on("data", (d: Buffer) => {
+      stdout += d.toString();
+    });
+    proc.stderr.on("data", (d: Buffer) => {
+      stderr += d.toString();
+      if (stderr.length > 32 * 1024) stderr = stderr.slice(-32 * 1024);
+    });
+    proc.on("error", () => {
+      if (timer) clearTimeout(timer);
+      resolve({ code: -1, stdout, stderr });
+    });
+    proc.on("close", (code) => {
+      if (timer) clearTimeout(timer);
+      resolve({ code: killed ? -1 : (code ?? -1), stdout, stderr });
+    });
   });
 }
 
@@ -79,10 +94,13 @@ async function meanLuminance(path: string, sampleFrames = 20): Promise<number | 
   const args = [
     "-hide_banner",
     "-nostats",
-    "-i", path,
-    "-vf", `select='not(mod(n\\,${Math.max(1, Math.floor(sampleFrames))}))',signalstats,metadata=print:key=lavfi.signalstats.YAVG`,
+    "-i",
+    path,
+    "-vf",
+    `select='not(mod(n\\,${Math.max(1, Math.floor(sampleFrames))}))',signalstats,metadata=print:key=lavfi.signalstats.YAVG`,
     "-an",
-    "-f", "null",
+    "-f",
+    "null",
     "-",
   ];
   const { code, stderr } = await runCmd("ffmpeg", args, { timeoutMs: 30_000 });
@@ -105,10 +123,13 @@ async function blackDetect(path: string, totalDurationSec: number): Promise<numb
   const args = [
     "-hide_banner",
     "-nostats",
-    "-i", path,
-    "-vf", "blackdetect=d=0.2:pix_th=0.10",
+    "-i",
+    path,
+    "-vf",
+    "blackdetect=d=0.2:pix_th=0.10",
     "-an",
-    "-f", "null",
+    "-f",
+    "null",
     "-",
   ];
   const { stderr } = await runCmd("ffmpeg", args, { timeoutMs: 30_000 });
@@ -148,7 +169,14 @@ export async function postRenderQc(
     return {
       pass: false,
       reasons: ["render output file not found"],
-      metrics: { fileSizeBytes: 0, durationSec: null, hasVideo: false, hasAudio: false, meanLuminance: null, blackFraction: null },
+      metrics: {
+        fileSizeBytes: 0,
+        durationSec: null,
+        hasVideo: false,
+        hasAudio: false,
+        meanLuminance: null,
+        blackFraction: null,
+      },
     };
   }
   if (fileSize < minSize) reasons.push(`file too small (${fileSize}B < ${minSize}B)`);

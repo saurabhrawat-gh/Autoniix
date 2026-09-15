@@ -13,8 +13,12 @@ import type { Message } from "@bufbuild/protobuf";
 /**
  * Describes the file autoniix/gateway/v1/auth.proto.
  */
-export const file_autoniix_gateway_v1_auth: GenFile = /*@__PURE__*/
-  fileDesc("Ch5hdXRvbmlpeC9nYXRld2F5L3YxL2F1dGgucHJvdG8SE2F1dG9uaWl4LmdhdGV3YXkudjEiRgoNU2lnbkluUmVxdWVzdBINCgVlbWFpbBgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIUCgx3b3Jrc3BhY2VfaWQYAyABKAkilgEKDlNpZ25JblJlc3BvbnNlEhQKDGFjY2Vzc190b2tlbhgBIAEoCRIVCg1yZWZyZXNoX3Rva2VuGAIgASgJEi4KCmV4cGlyZXNfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEicKBHVzZXIYBCABKAsyGS5hdXRvbmlpeC5nYXRld2F5LnYxLlVzZXIiWwoNU2lnblVwUmVxdWVzdBINCgVlbWFpbBgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIRCglmdWxsX25hbWUYAyABKAkSFgoOd29ya3NwYWNlX25hbWUYBCABKAkiyQEKDlNpZ25VcFJlc3BvbnNlEhQKDGFjY2Vzc190b2tlbhgBIAEoCRIVCg1yZWZyZXNoX3Rva2VuGAIgASgJEi4KCmV4cGlyZXNfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEicKBHVzZXIYBCABKAsyGS5hdXRvbmlpeC5nYXRld2F5LnYxLlVzZXISMQoJd29ya3NwYWNlGAUgASgLMh4uYXV0b25paXguZ2F0ZXdheS52MS5Xb3Jrc3BhY2UiLAoTUmVmcmVzaFRva2VuUmVxdWVzdBIVCg1yZWZyZXNoX3Rva2VuGAEgASgJInMKFFJlZnJlc2hUb2tlblJlc3BvbnNlEhQKDGFjY2Vzc190b2tlbhgBIAEoCRIVCg1yZWZyZXNoX3Rva2VuGAIgASgJEi4KCmV4cGlyZXNfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIicKDlNpZ25PdXRSZXF1ZXN0EhUKDXJlZnJlc2hfdG9rZW4YASABKAkiIwoSVmVyaWZ5VG9rZW5SZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlYKE1ZlcmlmeVRva2VuUmVzcG9uc2USDQoFdmFsaWQYASABKAgSMAoJcHJpbmNpcGFsGAIgASgLMh0uYXV0b25paXguY29tbW9uLnYxLlByaW5jaXBhbCJ0ChZHZXRDdXJyZW50VXNlclJlc3BvbnNlEicKBHVzZXIYASABKAsyGS5hdXRvbmlpeC5nYXRld2F5LnYxLlVzZXISMQoJd29ya3NwYWNlGAIgASgLMh4uYXV0b25paXguZ2F0ZXdheS52MS5Xb3Jrc3BhY2UihwEKBFVzZXISCgoCaWQYASABKAkSDQoFZW1haWwYAiABKAkSEQoJZnVsbF9uYW1lGAMgASgJEhIKCmF2YXRhcl91cmwYBCABKAkSDQoFcm9sZXMYBSADKAkSLgoKY3JlYXRlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiZwoJV29ya3NwYWNlEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEAoIb3duZXJfaWQYAyABKAkSLgoKY3JlYXRlZF9hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAynwQKC0F1dGhTZXJ2aWNlElEKBlNpZ25JbhIiLmF1dG9uaWl4LmdhdGV3YXkudjEuU2lnbkluUmVxdWVzdBojLmF1dG9uaWl4LmdhdGV3YXkudjEuU2lnbkluUmVzcG9uc2USUQoGU2lnblVwEiIuYXV0b25paXguZ2F0ZXdheS52MS5TaWduVXBSZXF1ZXN0GiMuYXV0b25paXguZ2F0ZXdheS52MS5TaWduVXBSZXNwb25zZRJjCgxSZWZyZXNoVG9rZW4SKC5hdXRvbmlpeC5nYXRld2F5LnYxLlJlZnJlc2hUb2tlblJlcXVlc3QaKS5hdXRvbmlpeC5nYXRld2F5LnYxLlJlZnJlc2hUb2tlblJlc3BvbnNlEkkKB1NpZ25PdXQSIy5hdXRvbmlpeC5nYXRld2F5LnYxLlNpZ25PdXRSZXF1ZXN0GhkuYXV0b25paXguY29tbW9uLnYxLkVtcHR5EmAKC1ZlcmlmeVRva2VuEicuYXV0b25paXguZ2F0ZXdheS52MS5WZXJpZnlUb2tlblJlcXVlc3QaKC5hdXRvbmlpeC5nYXRld2F5LnYxLlZlcmlmeVRva2VuUmVzcG9uc2USWAoOR2V0Q3VycmVudFVzZXISGS5hdXRvbmlpeC5jb21tb24udjEuRW1wdHkaKy5hdXRvbmlpeC5nYXRld2F5LnYxLkdldEN1cnJlbnRVc2VyUmVzcG9uc2VC1QEKF2NvbS5hdXRvbmlpeC5nYXRld2F5LnYxQglBdXRoUHJvdG9QAVpBZ2l0aHViLmNvbS9hdXRvbmlpeC9hdXRvbmlpeC9nZW4vZ28vYXV0b25paXgvZ2F0ZXdheS92MTtnYXRld2F5djGiAgNBR1iqAhNBdXRvbmlpeC5HYXRld2F5LlYxygITQXV0b25paXhcR2F0ZXdheVxWMeICH0F1dG9uaWl4XEdhdGV3YXlcVjFcR1BCTWV0YWRhdGHqAhVBdXRvbmlpeDo6R2F0ZXdheTo6VjFiBnByb3RvMw", [file_autoniix_common_v1_common, file_google_protobuf_timestamp]);
+export const file_autoniix_gateway_v1_auth: GenFile =
+  /*@__PURE__*/
+  fileDesc(
+    "Ch5hdXRvbmlpeC9nYXRld2F5L3YxL2F1dGgucHJvdG8SE2F1dG9uaWl4LmdhdGV3YXkudjEiRgoNU2lnbkluUmVxdWVzdBINCgVlbWFpbBgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIUCgx3b3Jrc3BhY2VfaWQYAyABKAkilgEKDlNpZ25JblJlc3BvbnNlEhQKDGFjY2Vzc190b2tlbhgBIAEoCRIVCg1yZWZyZXNoX3Rva2VuGAIgASgJEi4KCmV4cGlyZXNfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEicKBHVzZXIYBCABKAsyGS5hdXRvbmlpeC5nYXRld2F5LnYxLlVzZXIiWwoNU2lnblVwUmVxdWVzdBINCgVlbWFpbBgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIRCglmdWxsX25hbWUYAyABKAkSFgoOd29ya3NwYWNlX25hbWUYBCABKAkiyQEKDlNpZ25VcFJlc3BvbnNlEhQKDGFjY2Vzc190b2tlbhgBIAEoCRIVCg1yZWZyZXNoX3Rva2VuGAIgASgJEi4KCmV4cGlyZXNfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEicKBHVzZXIYBCABKAsyGS5hdXRvbmlpeC5nYXRld2F5LnYxLlVzZXISMQoJd29ya3NwYWNlGAUgASgLMh4uYXV0b25paXguZ2F0ZXdheS52MS5Xb3Jrc3BhY2UiLAoTUmVmcmVzaFRva2VuUmVxdWVzdBIVCg1yZWZyZXNoX3Rva2VuGAEgASgJInMKFFJlZnJlc2hUb2tlblJlc3BvbnNlEhQKDGFjY2Vzc190b2tlbhgBIAEoCRIVCg1yZWZyZXNoX3Rva2VuGAIgASgJEi4KCmV4cGlyZXNfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIicKDlNpZ25PdXRSZXF1ZXN0EhUKDXJlZnJlc2hfdG9rZW4YASABKAkiIwoSVmVyaWZ5VG9rZW5SZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlYKE1ZlcmlmeVRva2VuUmVzcG9uc2USDQoFdmFsaWQYASABKAgSMAoJcHJpbmNpcGFsGAIgASgLMh0uYXV0b25paXguY29tbW9uLnYxLlByaW5jaXBhbCJ0ChZHZXRDdXJyZW50VXNlclJlc3BvbnNlEicKBHVzZXIYASABKAsyGS5hdXRvbmlpeC5nYXRld2F5LnYxLlVzZXISMQoJd29ya3NwYWNlGAIgASgLMh4uYXV0b25paXguZ2F0ZXdheS52MS5Xb3Jrc3BhY2UihwEKBFVzZXISCgoCaWQYASABKAkSDQoFZW1haWwYAiABKAkSEQoJZnVsbF9uYW1lGAMgASgJEhIKCmF2YXRhcl91cmwYBCABKAkSDQoFcm9sZXMYBSADKAkSLgoKY3JlYXRlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiZwoJV29ya3NwYWNlEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEAoIb3duZXJfaWQYAyABKAkSLgoKY3JlYXRlZF9hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAynwQKC0F1dGhTZXJ2aWNlElEKBlNpZ25JbhIiLmF1dG9uaWl4LmdhdGV3YXkudjEuU2lnbkluUmVxdWVzdBojLmF1dG9uaWl4LmdhdGV3YXkudjEuU2lnbkluUmVzcG9uc2USUQoGU2lnblVwEiIuYXV0b25paXguZ2F0ZXdheS52MS5TaWduVXBSZXF1ZXN0GiMuYXV0b25paXguZ2F0ZXdheS52MS5TaWduVXBSZXNwb25zZRJjCgxSZWZyZXNoVG9rZW4SKC5hdXRvbmlpeC5nYXRld2F5LnYxLlJlZnJlc2hUb2tlblJlcXVlc3QaKS5hdXRvbmlpeC5nYXRld2F5LnYxLlJlZnJlc2hUb2tlblJlc3BvbnNlEkkKB1NpZ25PdXQSIy5hdXRvbmlpeC5nYXRld2F5LnYxLlNpZ25PdXRSZXF1ZXN0GhkuYXV0b25paXguY29tbW9uLnYxLkVtcHR5EmAKC1ZlcmlmeVRva2VuEicuYXV0b25paXguZ2F0ZXdheS52MS5WZXJpZnlUb2tlblJlcXVlc3QaKC5hdXRvbmlpeC5nYXRld2F5LnYxLlZlcmlmeVRva2VuUmVzcG9uc2USWAoOR2V0Q3VycmVudFVzZXISGS5hdXRvbmlpeC5jb21tb24udjEuRW1wdHkaKy5hdXRvbmlpeC5nYXRld2F5LnYxLkdldEN1cnJlbnRVc2VyUmVzcG9uc2VC1QEKF2NvbS5hdXRvbmlpeC5nYXRld2F5LnYxQglBdXRoUHJvdG9QAVpBZ2l0aHViLmNvbS9hdXRvbmlpeC9hdXRvbmlpeC9nZW4vZ28vYXV0b25paXgvZ2F0ZXdheS92MTtnYXRld2F5djGiAgNBR1iqAhNBdXRvbmlpeC5HYXRld2F5LlYxygITQXV0b25paXhcR2F0ZXdheVxWMeICH0F1dG9uaWl4XEdhdGV3YXlcVjFcR1BCTWV0YWRhdGHqAhVBdXRvbmlpeDo6R2F0ZXdheTo6VjFiBnByb3RvMw",
+    [file_autoniix_common_v1_common, file_google_protobuf_timestamp]
+  );
 
 /**
  * @generated from message autoniix.gateway.v1.SignInRequest
@@ -40,7 +44,8 @@ export type SignInRequest = Message<"autoniix.gateway.v1.SignInRequest"> & {
  * Describes the message autoniix.gateway.v1.SignInRequest.
  * Use `create(SignInRequestSchema)` to create a new message.
  */
-export const SignInRequestSchema: GenMessage<SignInRequest> = /*@__PURE__*/
+export const SignInRequestSchema: GenMessage<SignInRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_auth, 0);
 
 /**
@@ -72,7 +77,8 @@ export type SignInResponse = Message<"autoniix.gateway.v1.SignInResponse"> & {
  * Describes the message autoniix.gateway.v1.SignInResponse.
  * Use `create(SignInResponseSchema)` to create a new message.
  */
-export const SignInResponseSchema: GenMessage<SignInResponse> = /*@__PURE__*/
+export const SignInResponseSchema: GenMessage<SignInResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_auth, 1);
 
 /**
@@ -104,7 +110,8 @@ export type SignUpRequest = Message<"autoniix.gateway.v1.SignUpRequest"> & {
  * Describes the message autoniix.gateway.v1.SignUpRequest.
  * Use `create(SignUpRequestSchema)` to create a new message.
  */
-export const SignUpRequestSchema: GenMessage<SignUpRequest> = /*@__PURE__*/
+export const SignUpRequestSchema: GenMessage<SignUpRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_auth, 2);
 
 /**
@@ -141,7 +148,8 @@ export type SignUpResponse = Message<"autoniix.gateway.v1.SignUpResponse"> & {
  * Describes the message autoniix.gateway.v1.SignUpResponse.
  * Use `create(SignUpResponseSchema)` to create a new message.
  */
-export const SignUpResponseSchema: GenMessage<SignUpResponse> = /*@__PURE__*/
+export const SignUpResponseSchema: GenMessage<SignUpResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_auth, 3);
 
 /**
@@ -158,7 +166,8 @@ export type RefreshTokenRequest = Message<"autoniix.gateway.v1.RefreshTokenReque
  * Describes the message autoniix.gateway.v1.RefreshTokenRequest.
  * Use `create(RefreshTokenRequestSchema)` to create a new message.
  */
-export const RefreshTokenRequestSchema: GenMessage<RefreshTokenRequest> = /*@__PURE__*/
+export const RefreshTokenRequestSchema: GenMessage<RefreshTokenRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_auth, 4);
 
 /**
@@ -185,7 +194,8 @@ export type RefreshTokenResponse = Message<"autoniix.gateway.v1.RefreshTokenResp
  * Describes the message autoniix.gateway.v1.RefreshTokenResponse.
  * Use `create(RefreshTokenResponseSchema)` to create a new message.
  */
-export const RefreshTokenResponseSchema: GenMessage<RefreshTokenResponse> = /*@__PURE__*/
+export const RefreshTokenResponseSchema: GenMessage<RefreshTokenResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_auth, 5);
 
 /**
@@ -202,7 +212,8 @@ export type SignOutRequest = Message<"autoniix.gateway.v1.SignOutRequest"> & {
  * Describes the message autoniix.gateway.v1.SignOutRequest.
  * Use `create(SignOutRequestSchema)` to create a new message.
  */
-export const SignOutRequestSchema: GenMessage<SignOutRequest> = /*@__PURE__*/
+export const SignOutRequestSchema: GenMessage<SignOutRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_auth, 6);
 
 /**
@@ -219,7 +230,8 @@ export type VerifyTokenRequest = Message<"autoniix.gateway.v1.VerifyTokenRequest
  * Describes the message autoniix.gateway.v1.VerifyTokenRequest.
  * Use `create(VerifyTokenRequestSchema)` to create a new message.
  */
-export const VerifyTokenRequestSchema: GenMessage<VerifyTokenRequest> = /*@__PURE__*/
+export const VerifyTokenRequestSchema: GenMessage<VerifyTokenRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_auth, 7);
 
 /**
@@ -241,7 +253,8 @@ export type VerifyTokenResponse = Message<"autoniix.gateway.v1.VerifyTokenRespon
  * Describes the message autoniix.gateway.v1.VerifyTokenResponse.
  * Use `create(VerifyTokenResponseSchema)` to create a new message.
  */
-export const VerifyTokenResponseSchema: GenMessage<VerifyTokenResponse> = /*@__PURE__*/
+export const VerifyTokenResponseSchema: GenMessage<VerifyTokenResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_auth, 8);
 
 /**
@@ -263,7 +276,8 @@ export type GetCurrentUserResponse = Message<"autoniix.gateway.v1.GetCurrentUser
  * Describes the message autoniix.gateway.v1.GetCurrentUserResponse.
  * Use `create(GetCurrentUserResponseSchema)` to create a new message.
  */
-export const GetCurrentUserResponseSchema: GenMessage<GetCurrentUserResponse> = /*@__PURE__*/
+export const GetCurrentUserResponseSchema: GenMessage<GetCurrentUserResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_gateway_v1_auth, 9);
 
 /**
@@ -305,8 +319,7 @@ export type User = Message<"autoniix.gateway.v1.User"> & {
  * Describes the message autoniix.gateway.v1.User.
  * Use `create(UserSchema)` to create a new message.
  */
-export const UserSchema: GenMessage<User> = /*@__PURE__*/
-  messageDesc(file_autoniix_gateway_v1_auth, 10);
+export const UserSchema: GenMessage<User> = /*@__PURE__*/ messageDesc(file_autoniix_gateway_v1_auth, 10);
 
 /**
  * @generated from message autoniix.gateway.v1.Workspace
@@ -337,8 +350,7 @@ export type Workspace = Message<"autoniix.gateway.v1.Workspace"> & {
  * Describes the message autoniix.gateway.v1.Workspace.
  * Use `create(WorkspaceSchema)` to create a new message.
  */
-export const WorkspaceSchema: GenMessage<Workspace> = /*@__PURE__*/
-  messageDesc(file_autoniix_gateway_v1_auth, 11);
+export const WorkspaceSchema: GenMessage<Workspace> = /*@__PURE__*/ messageDesc(file_autoniix_gateway_v1_auth, 11);
 
 /**
  * @generated from service autoniix.gateway.v1.AuthService
@@ -351,7 +363,7 @@ export const AuthService: GenService<{
     methodKind: "unary";
     input: typeof SignInRequestSchema;
     output: typeof SignInResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.gateway.v1.AuthService.SignUp
    */
@@ -359,7 +371,7 @@ export const AuthService: GenService<{
     methodKind: "unary";
     input: typeof SignUpRequestSchema;
     output: typeof SignUpResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.gateway.v1.AuthService.RefreshToken
    */
@@ -367,7 +379,7 @@ export const AuthService: GenService<{
     methodKind: "unary";
     input: typeof RefreshTokenRequestSchema;
     output: typeof RefreshTokenResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.gateway.v1.AuthService.SignOut
    */
@@ -375,7 +387,7 @@ export const AuthService: GenService<{
     methodKind: "unary";
     input: typeof SignOutRequestSchema;
     output: typeof EmptySchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.gateway.v1.AuthService.VerifyToken
    */
@@ -383,7 +395,7 @@ export const AuthService: GenService<{
     methodKind: "unary";
     input: typeof VerifyTokenRequestSchema;
     output: typeof VerifyTokenResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.gateway.v1.AuthService.GetCurrentUser
    */
@@ -391,7 +403,5 @@ export const AuthService: GenService<{
     methodKind: "unary";
     input: typeof EmptySchema;
     output: typeof GetCurrentUserResponseSchema;
-  },
-}> = /*@__PURE__*/
-  serviceDesc(file_autoniix_gateway_v1_auth, 0);
-
+  };
+}> = /*@__PURE__*/ serviceDesc(file_autoniix_gateway_v1_auth, 0);

@@ -19,10 +19,7 @@ export interface LoudnessOptions {
  * NOTE: one-pass loudnorm is sufficient for faceless-YT quality. Two-pass is
  * more accurate but doubles render time — defer to Phase 4 if needed.
  */
-export async function normalizeLoudness(
-  filePath: string,
-  options: LoudnessOptions,
-): Promise<void> {
+export async function normalizeLoudness(filePath: string, options: LoudnessOptions): Promise<void> {
   const { targetLufs, truePeakDbfs = -1.0, lra = 11 } = options;
   const dir = path.dirname(filePath);
   const ext = path.extname(filePath);

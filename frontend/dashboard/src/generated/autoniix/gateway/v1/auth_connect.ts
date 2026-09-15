@@ -3,7 +3,18 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { GetCurrentUserResponse, RefreshTokenRequest, RefreshTokenResponse, SignInRequest, SignInResponse, SignOutRequest, SignUpRequest, SignUpResponse, VerifyTokenRequest, VerifyTokenResponse } from "./auth_pb.js";
+import {
+  GetCurrentUserResponse,
+  RefreshTokenRequest,
+  RefreshTokenResponse,
+  SignInRequest,
+  SignInResponse,
+  SignOutRequest,
+  SignUpRequest,
+  SignUpResponse,
+  VerifyTokenRequest,
+  VerifyTokenResponse,
+} from "./auth_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 import { Empty } from "../../common/v1/common_pb.js";
 
@@ -67,6 +78,5 @@ export const AuthService = {
       O: GetCurrentUserResponse,
       kind: MethodKind.Unary,
     },
-  }
+  },
 } as const;
-

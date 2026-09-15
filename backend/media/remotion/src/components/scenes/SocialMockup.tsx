@@ -27,7 +27,12 @@ export const SocialMockup: React.FC<SocialMockupProps> = ({
   verified,
   bg = "#0A0A0A",
 }) => {
-  const cardBg = platform === "instagram" ? "#FFFFFF" : platform === "tiktok_caption" ? "rgba(0,0,0,0.85)" : "#15202B";
+  const cardBg =
+    platform === "instagram"
+      ? "#FFFFFF"
+      : platform === "tiktok_caption"
+        ? "rgba(0,0,0,0.85)"
+        : "#15202B";
   const fg = platform === "instagram" ? "#0A0A0A" : "#FFFFFF";
   const muted = platform === "instagram" ? "#666" : "rgba(255,255,255,0.65)";
 
@@ -59,15 +64,19 @@ export const SocialMockup: React.FC<SocialMockupProps> = ({
               <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#888" }} />
             )}
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 900, fontSize: 26, display: "flex", alignItems: "center", gap: 8 }}>
+              <div
+                style={{
+                  fontWeight: 900,
+                  fontSize: 26,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
                 {author}
-                {verified && (
-                  <span style={{ color: "#1D9BF0", fontSize: 24 }}>✓</span>
-                )}
+                {verified && <span style={{ color: "#1D9BF0", fontSize: 24 }}>✓</span>}
               </div>
-              {handle && (
-                <div style={{ color: muted, fontSize: 20 }}>{handle}</div>
-              )}
+              {handle && <div style={{ color: muted, fontSize: 20 }}>{handle}</div>}
             </div>
             {platform === "twitter" && (
               <div style={{ color: "#1D9BF0", fontSize: 40, fontWeight: 900 }}>𝕏</div>

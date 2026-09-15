@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { finishingApi, type FinishingConfig, type FinishingPreset } from '@/lib/api-v2';
-import { useToast } from '@/lib/toast';
-import { cn } from '@/lib/utils';
-import { Button, Switch, Input, Label } from '@/lib/ui';
-import { Palette, Headphones, Save, RotateCcw, Film, SlidersHorizontal, Check } from '@/lib/components/Icon';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { finishingApi, type FinishingConfig, type FinishingPreset } from "@/lib/api-v2";
+import { useToast } from "@/lib/toast";
+import { cn } from "@/lib/utils";
+import { Button, Switch, Input, Label } from "@/lib/ui";
+import { Palette, Headphones, Save, RotateCcw, Film, SlidersHorizontal, Check } from "@/lib/components/Icon";
 
 interface FinishingTabProps {
   channelId: string;
@@ -16,26 +16,26 @@ const LOUDNESS_MAX = -9;
 const TRUE_PEAK_MIN = -6;
 const TRUE_PEAK_MAX = -0.1;
 
-type EditableConfig = Omit<FinishingConfig, 'channel_id' | 'updated_at'>;
-type BoolKey = 'audio_denoise' | 'audio_eq' | 'audio_compress' | 'audio_music_duck';
+type EditableConfig = Omit<FinishingConfig, "channel_id" | "updated_at">;
+type BoolKey = "audio_denoise" | "audio_eq" | "audio_compress" | "audio_music_duck";
 
 const EDITABLE_KEYS: (keyof EditableConfig)[] = [
-  'require_resolve_finish',
-  'color_grade_preset',
-  'audio_denoise',
-  'audio_eq',
-  'audio_compress',
-  'audio_music_duck',
-  'audio_loudness_lufs',
-  'audio_true_peak_dbtps',
-  'output_prores_archive',
+  "require_resolve_finish",
+  "color_grade_preset",
+  "audio_denoise",
+  "audio_eq",
+  "audio_compress",
+  "audio_music_duck",
+  "audio_loudness_lufs",
+  "audio_true_peak_dbtps",
+  "output_prores_archive",
 ];
 
 const AUDIO_TOGGLES: { key: BoolKey; label: string; hint: string }[] = [
-  { key: 'audio_denoise', label: 'Denoise', hint: 'Remove background hiss and hum' },
-  { key: 'audio_eq', label: 'EQ', hint: 'Tonal balance for voice clarity' },
-  { key: 'audio_compress', label: 'Compression', hint: 'Even out loud and quiet passages' },
-  { key: 'audio_music_duck', label: 'Music ducking', hint: 'Lower music under narration' },
+  { key: "audio_denoise", label: "Denoise", hint: "Remove background hiss and hum" },
+  { key: "audio_eq", label: "EQ", hint: "Tonal balance for voice clarity" },
+  { key: "audio_compress", label: "Compression", hint: "Even out loud and quiet passages" },
+  { key: "audio_music_duck", label: "Music ducking", hint: "Lower music under narration" },
 ];
 
 function pickEditable(cfg: FinishingConfig): EditableConfig {
@@ -66,7 +66,10 @@ export default function FinishingTab({ channelId }: FinishingTabProps) {
     setLoading(true);
     Promise.all([
       finishingApi.get(channelId),
-      finishingApi.presets().then(r => r.presets).catch(() => [] as FinishingPreset[]),
+      finishingApi
+        .presets()
+        .then((r) => r.presets)
+        .catch(() => [] as FinishingPreset[]),
     ])
       .then(([cfg, ps]) => {
         const editable = pickEditable(cfg);
@@ -75,14 +78,16 @@ export default function FinishingTab({ channelId }: FinishingTabProps) {
         setUpdatedAt(cfg.updated_at);
         setPresets(ps);
       })
-      .catch((e: any) => showToast(e?.message || 'Failed to load finishing settings', 'error'))
+      .catch((e: any) => showToast(e?.message || "Failed to load finishing settings", "error"))
       .finally(() => setLoading(false));
   }, [channelId, showToast]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const set = <K extends keyof EditableConfig>(key: K, value: EditableConfig[K]) =>
-    setForm(prev => (prev ? { ...prev, [key]: value } : prev));
+    setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
 
   const loudnessValid = form
     ? Number.isFinite(form.audio_loudness_lufs) &&
@@ -98,7 +103,7 @@ export default function FinishingTab({ channelId }: FinishingTabProps) {
 
   const dirty = useMemo(() => {
     if (!form || !server) return false;
-    return EDITABLE_KEYS.some(k => form[k] !== server[k]);
+    return EDITABLE_KEYS.some((k) => form[k] !== server[k]);
   }, [form, server]);
 
   const save = async () => {
@@ -114,15 +119,17 @@ export default function FinishingTab({ channelId }: FinishingTabProps) {
       setServer(editable);
       setForm(editable);
       setUpdatedAt(updated.updated_at);
-      showToast('Finishing settings saved', 'success');
+      showToast("Finishing settings saved", "success");
     } catch (e: any) {
-      showToast(e?.message || 'Failed to save', 'error');
+      showToast(e?.message || "Failed to save", "error");
     } finally {
       setSaving(false);
     }
   };
 
-  const reset = () => { if (server) setForm(server); };
+  const reset = () => {
+    if (server) setForm(server);
+  };
 
   if (loading || !form) {
     return <div className="p-6 text-sm text-content-tertiary text-center">Loading finishing settings…</div>;
@@ -131,9 +138,9 @@ export default function FinishingTab({ channelId }: FinishingTabProps) {
   return (
     <div className="space-y-6">
       <div className="text-xs text-content-tertiary">
-        Post-render finishing applied after assembly: a colour-grade LUT and audio mastering.
-        Phase 1A runs in-process with ffmpeg; enabling “Force DaVinci Resolve” routes the render
-        through the Resolve finishing service when it is available.
+        Post-render finishing applied after assembly: a colour-grade LUT and audio mastering. Phase 1A runs in-process
+        with ffmpeg; enabling “Force DaVinci Resolve” routes the render through the Resolve finishing service when it is
+        available.
       </div>
 
       <section>
@@ -147,20 +154,18 @@ export default function FinishingTab({ channelId }: FinishingTabProps) {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-            {presets.map(p => {
+            {presets.map((p) => {
               const selected = form.color_grade_preset === p.key;
               const showThumb = !brokenThumbs.has(p.key) && !!p.thumbnail_url;
               return (
                 <button
                   key={p.key}
                   type="button"
-                  onClick={() => set('color_grade_preset', p.key)}
+                  onClick={() => set("color_grade_preset", p.key)}
                   aria-pressed={selected}
                   className={cn(
-                    'text-left rounded-lg border overflow-hidden transition-colors',
-                    selected
-                      ? 'border-accent ring-2 ring-accent/40'
-                      : 'border-border hover:border-content-tertiary'
+                    "text-left rounded-lg border overflow-hidden transition-colors",
+                    selected ? "border-accent ring-2 ring-accent/40" : "border-border hover:border-content-tertiary"
                   )}
                 >
                   <div className="aspect-video bg-surface-2 relative">
@@ -170,7 +175,7 @@ export default function FinishingTab({ channelId }: FinishingTabProps) {
                         src={p.thumbnail_url}
                         alt={p.display_name}
                         className="w-full h-full object-cover"
-                        onError={() => setBrokenThumbs(prev => new Set(prev).add(p.key))}
+                        onError={() => setBrokenThumbs((prev) => new Set(prev).add(p.key))}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
@@ -200,7 +205,7 @@ export default function FinishingTab({ channelId }: FinishingTabProps) {
           <span className="text-[10px] uppercase tracking-wide text-content-tertiary">Audio mastering</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {AUDIO_TOGGLES.map(t => (
+          {AUDIO_TOGGLES.map((t) => (
             <label
               key={t.key}
               className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface-0 px-3 py-2 cursor-pointer"
@@ -225,8 +230,8 @@ export default function FinishingTab({ channelId }: FinishingTabProps) {
               step={0.5}
               min={LOUDNESS_MIN}
               max={LOUDNESS_MAX}
-              value={Number.isFinite(form.audio_loudness_lufs) ? form.audio_loudness_lufs : ''}
-              onChange={e => set('audio_loudness_lufs', parseFloat(e.target.value))}
+              value={Number.isFinite(form.audio_loudness_lufs) ? form.audio_loudness_lufs : ""}
+              onChange={(e) => set("audio_loudness_lufs", parseFloat(e.target.value))}
               error={!loudnessValid}
               hint={`${LOUDNESS_MIN} to ${LOUDNESS_MAX} LUFS · YouTube target ≈ −14`}
               className="mt-1"
@@ -242,8 +247,8 @@ export default function FinishingTab({ channelId }: FinishingTabProps) {
               step={0.1}
               min={TRUE_PEAK_MIN}
               max={TRUE_PEAK_MAX}
-              value={Number.isFinite(form.audio_true_peak_dbtps) ? form.audio_true_peak_dbtps : ''}
-              onChange={e => set('audio_true_peak_dbtps', parseFloat(e.target.value))}
+              value={Number.isFinite(form.audio_true_peak_dbtps) ? form.audio_true_peak_dbtps : ""}
+              onChange={(e) => set("audio_true_peak_dbtps", parseFloat(e.target.value))}
               error={!truePeakValid}
               hint={`${TRUE_PEAK_MIN} to ${TRUE_PEAK_MAX} dBTP · recommended −1.5`}
               className="mt-1"
@@ -262,13 +267,13 @@ export default function FinishingTab({ channelId }: FinishingTabProps) {
             <div className="min-w-0">
               <div className="text-sm text-content-primary">Force DaVinci Resolve finish</div>
               <div className="text-[10px] text-content-tertiary">
-                Require the Resolve finishing service (Phase 1B). When off, ffmpeg is used and the
-                render is delivered even if Resolve is unavailable.
+                Require the Resolve finishing service (Phase 1B). When off, ffmpeg is used and the render is delivered
+                even if Resolve is unavailable.
               </div>
             </div>
             <Switch
               checked={form.require_resolve_finish}
-              onCheckedChange={(v: boolean) => set('require_resolve_finish', v)}
+              onCheckedChange={(v: boolean) => set("require_resolve_finish", v)}
             />
           </label>
           <label className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface-0 px-3 py-2 cursor-pointer">
@@ -278,7 +283,7 @@ export default function FinishingTab({ channelId }: FinishingTabProps) {
             </div>
             <Switch
               checked={form.output_prores_archive}
-              onCheckedChange={(v: boolean) => set('output_prores_archive', v)}
+              onCheckedChange={(v: boolean) => set("output_prores_archive", v)}
             />
           </label>
         </div>
@@ -286,7 +291,7 @@ export default function FinishingTab({ channelId }: FinishingTabProps) {
 
       <div className="flex items-center justify-between gap-3 pt-3 border-t border-border">
         <div className="text-[10px] text-content-tertiary">
-          {updatedAt ? `Last updated ${new Date(updatedAt).toLocaleString()}` : 'Not yet customised'}
+          {updatedAt ? `Last updated ${new Date(updatedAt).toLocaleString()}` : "Not yet customised"}
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -307,7 +312,7 @@ export default function FinishingTab({ channelId }: FinishingTabProps) {
             loading={saving}
             leftIcon={<Save size={12} />}
           >
-            {saving ? 'Saving…' : 'Save changes'}
+            {saving ? "Saving…" : "Save changes"}
           </Button>
         </div>
       </div>

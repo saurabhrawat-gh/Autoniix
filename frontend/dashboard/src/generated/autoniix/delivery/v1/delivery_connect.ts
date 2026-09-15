@@ -3,7 +3,16 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { ComputeMetadataRequest, ComputeMetadataResponse, GetSEOScoreRequest, GetSEOScoreResponse, HumanReviewRequest, HumanReviewResponse, UploadVideoRequest, UploadVideoResponse } from "./delivery_pb.js";
+import {
+  ComputeMetadataRequest,
+  ComputeMetadataResponse,
+  GetSEOScoreRequest,
+  GetSEOScoreResponse,
+  HumanReviewRequest,
+  HumanReviewResponse,
+  UploadVideoRequest,
+  UploadVideoResponse,
+} from "./delivery_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -48,6 +57,5 @@ export const DeliveryService = {
       O: HumanReviewResponse,
       kind: MethodKind.Unary,
     },
-  }
+  },
 } as const;
-

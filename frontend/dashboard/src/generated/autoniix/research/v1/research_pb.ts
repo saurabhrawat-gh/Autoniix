@@ -11,8 +11,12 @@ import type { Message } from "@bufbuild/protobuf";
 /**
  * Describes the file autoniix/research/v1/research.proto.
  */
-export const file_autoniix_research_v1_research: GenFile = /*@__PURE__*/
-  fileDesc("CiNhdXRvbmlpeC9yZXNlYXJjaC92MS9yZXNlYXJjaC5wcm90bxIUYXV0b25paXgucmVzZWFyY2gudjEi0AEKFURpc2NvdmVyVG9waWNzUmVxdWVzdBINCgVuaWNoZRgBIAEoCRISCgpjaGFubmVsX2lkGAIgASgJEg0KBWNvdW50GAMgASgFElEKC2NvbnN0cmFpbnRzGAQgAygLMjwuYXV0b25paXgucmVzZWFyY2gudjEuRGlzY292ZXJUb3BpY3NSZXF1ZXN0LkNvbnN0cmFpbnRzRW50cnkaMgoQQ29uc3RyYWludHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIn4KFkRpc2NvdmVyVG9waWNzUmVzcG9uc2USKwoGdG9waWNzGAEgAygLMhsuYXV0b25paXgucmVzZWFyY2gudjEuVG9waWMSNwoMYmFuZGl0X3N0YXRlGAIgASgLMiEuYXV0b25paXgucmVzZWFyY2gudjEuQmFuZGl0U3RhdGUiUQoSU2VsZWN0VG9waWNSZXF1ZXN0Eg0KBW5pY2hlGAEgASgJEhgKEGNhbmRpZGF0ZV90b3BpY3MYAiADKAkSEgoKY2hhbm5lbF9pZBgDIAEoCSKdAQoTU2VsZWN0VG9waWNSZXNwb25zZRIzCg5zZWxlY3RlZF90b3BpYxgBIAEoCzIbLmF1dG9uaWl4LnJlc2VhcmNoLnYxLlRvcGljEhgKEHNlbGVjdGlvbl9yZWFzb24YAiABKAkSNwoMYmFuZGl0X3N0YXRlGAMgASgLMiEuYXV0b25paXgucmVzZWFyY2gudjEuQmFuZGl0U3RhdGUiXAoWQ2hlY2tTaW1pbGFyaXR5UmVxdWVzdBIMCgR0ZXh0GAEgASgJEhIKCmNoYW5uZWxfaWQYAiABKAkSEQoJdGV4dF90eXBlGAMgASgJEg0KBXRvcF9rGAQgASgFImcKF0NoZWNrU2ltaWxhcml0eVJlc3BvbnNlEhQKDGlzX2R1cGxpY2F0ZRgBIAEoCBI2CgdtYXRjaGVzGAIgAygLMiUuYXV0b25paXgucmVzZWFyY2gudjEuU2ltaWxhcml0eU1hdGNoIk4KGkNhbGN1bGF0ZVNhdHVyYXRpb25SZXF1ZXN0Eg0KBXRvcGljGAEgASgJEg0KBW5pY2hlGAIgASgJEhIKCmNoYW5uZWxfaWQYAyABKAkikQEKG0NhbGN1bGF0ZVNhdHVyYXRpb25SZXNwb25zZRIYChBzYXR1cmF0aW9uX3Njb3JlGAEgASgBEhgKEGNvbXBldGl0b3JfY291bnQYAiABKAUSPgoPdG9wX2NvbXBldGl0b3JzGAMgAygLMiUuYXV0b25paXgucmVzZWFyY2gudjEuQ29tcGV0aXRvclZpZGVvIjwKHEdldENvbXBldGl0b3JJbnNpZ2h0c1JlcXVlc3QSDQoFbmljaGUYASABKAkSDQoFbGltaXQYAiABKAUiiAEKHUdldENvbXBldGl0b3JJbnNpZ2h0c1Jlc3BvbnNlEjUKBnZpZGVvcxgBIAMoCzIlLmF1dG9uaWl4LnJlc2VhcmNoLnYxLkNvbXBldGl0b3JWaWRlbxIwCgxsYXN0X3VwZGF0ZWQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIp0BCgVUb3BpYxIKCgJpZBgBIAEoCRIMCgR0ZXh0GAIgASgJEg8KB2NsdXN0ZXIYAyABKAkSDQoFc2NvcmUYBCABKAESGAoQc2F0dXJhdGlvbl9zY29yZRgFIAEoARIQCghrZXl3b3JkcxgGIAMoCRIuCgpjcmVhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCLcAQoLQmFuZGl0U3RhdGUSOQoEYXJtcxgBIAMoCzIrLmF1dG9uaWl4LnJlc2VhcmNoLnYxLkJhbmRpdFN0YXRlLkFybXNFbnRyeRITCgt0b3RhbF9wdWxscxgCIAEoBRIwCgxsYXN0X3VwZGF0ZWQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wGksKCUFybXNFbnRyeRILCgNrZXkYASABKAkSLQoFdmFsdWUYAiABKAsyHi5hdXRvbmlpeC5yZXNlYXJjaC52MS5Bcm1TdGF0ZToCOAEiSQoIQXJtU3RhdGUSDQoFYWxwaGEYASABKAESDAoEYmV0YRgCIAEoARINCgVwdWxscxgDIAEoBRIRCglzdWNjZXNzZXMYBCABKAUikAEKD1NpbWlsYXJpdHlNYXRjaBIKCgJpZBgBIAEoCRIMCgR0ZXh0GAIgASgJEhkKEWNvc2luZV9zaW1pbGFyaXR5GAMgASgBEhgKEGhhbW1pbmdfZGlzdGFuY2UYBCABKAUSLgoKY3JlYXRlZF9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiuAEKD0NvbXBldGl0b3JWaWRlbxIQCgh2aWRlb19pZBgBIAEoCRINCgV0aXRsZRgCIAEoCRISCgpjaGFubmVsX2lkGAMgASgJEhIKCnZpZXdfY291bnQYBCABKAMSFwoPZW5nYWdlbWVudF9yYXRlGAUgASgBEjAKDHB1Ymxpc2hlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEQoJZW1iZWRkaW5nGAcgAygBMtEECg9SZXNlYXJjaFNlcnZpY2USawoORGlzY292ZXJUb3BpY3MSKy5hdXRvbmlpeC5yZXNlYXJjaC52MS5EaXNjb3ZlclRvcGljc1JlcXVlc3QaLC5hdXRvbmlpeC5yZXNlYXJjaC52MS5EaXNjb3ZlclRvcGljc1Jlc3BvbnNlEmIKC1NlbGVjdFRvcGljEiguYXV0b25paXgucmVzZWFyY2gudjEuU2VsZWN0VG9waWNSZXF1ZXN0GikuYXV0b25paXgucmVzZWFyY2gudjEuU2VsZWN0VG9waWNSZXNwb25zZRJuCg9DaGVja1NpbWlsYXJpdHkSLC5hdXRvbmlpeC5yZXNlYXJjaC52MS5DaGVja1NpbWlsYXJpdHlSZXF1ZXN0Gi0uYXV0b25paXgucmVzZWFyY2gudjEuQ2hlY2tTaW1pbGFyaXR5UmVzcG9uc2USegoTQ2FsY3VsYXRlU2F0dXJhdGlvbhIwLmF1dG9uaWl4LnJlc2VhcmNoLnYxLkNhbGN1bGF0ZVNhdHVyYXRpb25SZXF1ZXN0GjEuYXV0b25paXgucmVzZWFyY2gudjEuQ2FsY3VsYXRlU2F0dXJhdGlvblJlc3BvbnNlEoABChVHZXRDb21wZXRpdG9ySW5zaWdodHMSMi5hdXRvbmlpeC5yZXNlYXJjaC52MS5HZXRDb21wZXRpdG9ySW5zaWdodHNSZXF1ZXN0GjMuYXV0b25paXgucmVzZWFyY2gudjEuR2V0Q29tcGV0aXRvckluc2lnaHRzUmVzcG9uc2VC4AEKGGNvbS5hdXRvbmlpeC5yZXNlYXJjaC52MUINUmVzZWFyY2hQcm90b1ABWkNnaXRodWIuY29tL2F1dG9uaWl4L2F1dG9uaWl4L2dlbi9nby9hdXRvbmlpeC9yZXNlYXJjaC92MTtyZXNlYXJjaHYxogIDQVJYqgIUQXV0b25paXguUmVzZWFyY2guVjHKAhRBdXRvbmlpeFxSZXNlYXJjaFxWMeICIEF1dG9uaWl4XFJlc2VhcmNoXFYxXEdQQk1ldGFkYXRh6gIWQXV0b25paXg6OlJlc2VhcmNoOjpWMWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+export const file_autoniix_research_v1_research: GenFile =
+  /*@__PURE__*/
+  fileDesc(
+    "CiNhdXRvbmlpeC9yZXNlYXJjaC92MS9yZXNlYXJjaC5wcm90bxIUYXV0b25paXgucmVzZWFyY2gudjEi0AEKFURpc2NvdmVyVG9waWNzUmVxdWVzdBINCgVuaWNoZRgBIAEoCRISCgpjaGFubmVsX2lkGAIgASgJEg0KBWNvdW50GAMgASgFElEKC2NvbnN0cmFpbnRzGAQgAygLMjwuYXV0b25paXgucmVzZWFyY2gudjEuRGlzY292ZXJUb3BpY3NSZXF1ZXN0LkNvbnN0cmFpbnRzRW50cnkaMgoQQ29uc3RyYWludHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIn4KFkRpc2NvdmVyVG9waWNzUmVzcG9uc2USKwoGdG9waWNzGAEgAygLMhsuYXV0b25paXgucmVzZWFyY2gudjEuVG9waWMSNwoMYmFuZGl0X3N0YXRlGAIgASgLMiEuYXV0b25paXgucmVzZWFyY2gudjEuQmFuZGl0U3RhdGUiUQoSU2VsZWN0VG9waWNSZXF1ZXN0Eg0KBW5pY2hlGAEgASgJEhgKEGNhbmRpZGF0ZV90b3BpY3MYAiADKAkSEgoKY2hhbm5lbF9pZBgDIAEoCSKdAQoTU2VsZWN0VG9waWNSZXNwb25zZRIzCg5zZWxlY3RlZF90b3BpYxgBIAEoCzIbLmF1dG9uaWl4LnJlc2VhcmNoLnYxLlRvcGljEhgKEHNlbGVjdGlvbl9yZWFzb24YAiABKAkSNwoMYmFuZGl0X3N0YXRlGAMgASgLMiEuYXV0b25paXgucmVzZWFyY2gudjEuQmFuZGl0U3RhdGUiXAoWQ2hlY2tTaW1pbGFyaXR5UmVxdWVzdBIMCgR0ZXh0GAEgASgJEhIKCmNoYW5uZWxfaWQYAiABKAkSEQoJdGV4dF90eXBlGAMgASgJEg0KBXRvcF9rGAQgASgFImcKF0NoZWNrU2ltaWxhcml0eVJlc3BvbnNlEhQKDGlzX2R1cGxpY2F0ZRgBIAEoCBI2CgdtYXRjaGVzGAIgAygLMiUuYXV0b25paXgucmVzZWFyY2gudjEuU2ltaWxhcml0eU1hdGNoIk4KGkNhbGN1bGF0ZVNhdHVyYXRpb25SZXF1ZXN0Eg0KBXRvcGljGAEgASgJEg0KBW5pY2hlGAIgASgJEhIKCmNoYW5uZWxfaWQYAyABKAkikQEKG0NhbGN1bGF0ZVNhdHVyYXRpb25SZXNwb25zZRIYChBzYXR1cmF0aW9uX3Njb3JlGAEgASgBEhgKEGNvbXBldGl0b3JfY291bnQYAiABKAUSPgoPdG9wX2NvbXBldGl0b3JzGAMgAygLMiUuYXV0b25paXgucmVzZWFyY2gudjEuQ29tcGV0aXRvclZpZGVvIjwKHEdldENvbXBldGl0b3JJbnNpZ2h0c1JlcXVlc3QSDQoFbmljaGUYASABKAkSDQoFbGltaXQYAiABKAUiiAEKHUdldENvbXBldGl0b3JJbnNpZ2h0c1Jlc3BvbnNlEjUKBnZpZGVvcxgBIAMoCzIlLmF1dG9uaWl4LnJlc2VhcmNoLnYxLkNvbXBldGl0b3JWaWRlbxIwCgxsYXN0X3VwZGF0ZWQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIp0BCgVUb3BpYxIKCgJpZBgBIAEoCRIMCgR0ZXh0GAIgASgJEg8KB2NsdXN0ZXIYAyABKAkSDQoFc2NvcmUYBCABKAESGAoQc2F0dXJhdGlvbl9zY29yZRgFIAEoARIQCghrZXl3b3JkcxgGIAMoCRIuCgpjcmVhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCLcAQoLQmFuZGl0U3RhdGUSOQoEYXJtcxgBIAMoCzIrLmF1dG9uaWl4LnJlc2VhcmNoLnYxLkJhbmRpdFN0YXRlLkFybXNFbnRyeRITCgt0b3RhbF9wdWxscxgCIAEoBRIwCgxsYXN0X3VwZGF0ZWQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wGksKCUFybXNFbnRyeRILCgNrZXkYASABKAkSLQoFdmFsdWUYAiABKAsyHi5hdXRvbmlpeC5yZXNlYXJjaC52MS5Bcm1TdGF0ZToCOAEiSQoIQXJtU3RhdGUSDQoFYWxwaGEYASABKAESDAoEYmV0YRgCIAEoARINCgVwdWxscxgDIAEoBRIRCglzdWNjZXNzZXMYBCABKAUikAEKD1NpbWlsYXJpdHlNYXRjaBIKCgJpZBgBIAEoCRIMCgR0ZXh0GAIgASgJEhkKEWNvc2luZV9zaW1pbGFyaXR5GAMgASgBEhgKEGhhbW1pbmdfZGlzdGFuY2UYBCABKAUSLgoKY3JlYXRlZF9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiuAEKD0NvbXBldGl0b3JWaWRlbxIQCgh2aWRlb19pZBgBIAEoCRINCgV0aXRsZRgCIAEoCRISCgpjaGFubmVsX2lkGAMgASgJEhIKCnZpZXdfY291bnQYBCABKAMSFwoPZW5nYWdlbWVudF9yYXRlGAUgASgBEjAKDHB1Ymxpc2hlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEQoJZW1iZWRkaW5nGAcgAygBMtEECg9SZXNlYXJjaFNlcnZpY2USawoORGlzY292ZXJUb3BpY3MSKy5hdXRvbmlpeC5yZXNlYXJjaC52MS5EaXNjb3ZlclRvcGljc1JlcXVlc3QaLC5hdXRvbmlpeC5yZXNlYXJjaC52MS5EaXNjb3ZlclRvcGljc1Jlc3BvbnNlEmIKC1NlbGVjdFRvcGljEiguYXV0b25paXgucmVzZWFyY2gudjEuU2VsZWN0VG9waWNSZXF1ZXN0GikuYXV0b25paXgucmVzZWFyY2gudjEuU2VsZWN0VG9waWNSZXNwb25zZRJuCg9DaGVja1NpbWlsYXJpdHkSLC5hdXRvbmlpeC5yZXNlYXJjaC52MS5DaGVja1NpbWlsYXJpdHlSZXF1ZXN0Gi0uYXV0b25paXgucmVzZWFyY2gudjEuQ2hlY2tTaW1pbGFyaXR5UmVzcG9uc2USegoTQ2FsY3VsYXRlU2F0dXJhdGlvbhIwLmF1dG9uaWl4LnJlc2VhcmNoLnYxLkNhbGN1bGF0ZVNhdHVyYXRpb25SZXF1ZXN0GjEuYXV0b25paXgucmVzZWFyY2gudjEuQ2FsY3VsYXRlU2F0dXJhdGlvblJlc3BvbnNlEoABChVHZXRDb21wZXRpdG9ySW5zaWdodHMSMi5hdXRvbmlpeC5yZXNlYXJjaC52MS5HZXRDb21wZXRpdG9ySW5zaWdodHNSZXF1ZXN0GjMuYXV0b25paXgucmVzZWFyY2gudjEuR2V0Q29tcGV0aXRvckluc2lnaHRzUmVzcG9uc2VC4AEKGGNvbS5hdXRvbmlpeC5yZXNlYXJjaC52MUINUmVzZWFyY2hQcm90b1ABWkNnaXRodWIuY29tL2F1dG9uaWl4L2F1dG9uaWl4L2dlbi9nby9hdXRvbmlpeC9yZXNlYXJjaC92MTtyZXNlYXJjaHYxogIDQVJYqgIUQXV0b25paXguUmVzZWFyY2guVjHKAhRBdXRvbmlpeFxSZXNlYXJjaFxWMeICIEF1dG9uaWl4XFJlc2VhcmNoXFYxXEdQQk1ldGFkYXRh6gIWQXV0b25paXg6OlJlc2VhcmNoOjpWMWIGcHJvdG8z",
+    [file_google_protobuf_timestamp]
+  );
 
 /**
  * @generated from message autoniix.research.v1.DiscoverTopicsRequest
@@ -43,7 +47,8 @@ export type DiscoverTopicsRequest = Message<"autoniix.research.v1.DiscoverTopics
  * Describes the message autoniix.research.v1.DiscoverTopicsRequest.
  * Use `create(DiscoverTopicsRequestSchema)` to create a new message.
  */
-export const DiscoverTopicsRequestSchema: GenMessage<DiscoverTopicsRequest> = /*@__PURE__*/
+export const DiscoverTopicsRequestSchema: GenMessage<DiscoverTopicsRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_research_v1_research, 0);
 
 /**
@@ -65,7 +70,8 @@ export type DiscoverTopicsResponse = Message<"autoniix.research.v1.DiscoverTopic
  * Describes the message autoniix.research.v1.DiscoverTopicsResponse.
  * Use `create(DiscoverTopicsResponseSchema)` to create a new message.
  */
-export const DiscoverTopicsResponseSchema: GenMessage<DiscoverTopicsResponse> = /*@__PURE__*/
+export const DiscoverTopicsResponseSchema: GenMessage<DiscoverTopicsResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_research_v1_research, 1);
 
 /**
@@ -92,7 +98,8 @@ export type SelectTopicRequest = Message<"autoniix.research.v1.SelectTopicReques
  * Describes the message autoniix.research.v1.SelectTopicRequest.
  * Use `create(SelectTopicRequestSchema)` to create a new message.
  */
-export const SelectTopicRequestSchema: GenMessage<SelectTopicRequest> = /*@__PURE__*/
+export const SelectTopicRequestSchema: GenMessage<SelectTopicRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_research_v1_research, 2);
 
 /**
@@ -119,7 +126,8 @@ export type SelectTopicResponse = Message<"autoniix.research.v1.SelectTopicRespo
  * Describes the message autoniix.research.v1.SelectTopicResponse.
  * Use `create(SelectTopicResponseSchema)` to create a new message.
  */
-export const SelectTopicResponseSchema: GenMessage<SelectTopicResponse> = /*@__PURE__*/
+export const SelectTopicResponseSchema: GenMessage<SelectTopicResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_research_v1_research, 3);
 
 /**
@@ -151,7 +159,8 @@ export type CheckSimilarityRequest = Message<"autoniix.research.v1.CheckSimilari
  * Describes the message autoniix.research.v1.CheckSimilarityRequest.
  * Use `create(CheckSimilarityRequestSchema)` to create a new message.
  */
-export const CheckSimilarityRequestSchema: GenMessage<CheckSimilarityRequest> = /*@__PURE__*/
+export const CheckSimilarityRequestSchema: GenMessage<CheckSimilarityRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_research_v1_research, 4);
 
 /**
@@ -173,7 +182,8 @@ export type CheckSimilarityResponse = Message<"autoniix.research.v1.CheckSimilar
  * Describes the message autoniix.research.v1.CheckSimilarityResponse.
  * Use `create(CheckSimilarityResponseSchema)` to create a new message.
  */
-export const CheckSimilarityResponseSchema: GenMessage<CheckSimilarityResponse> = /*@__PURE__*/
+export const CheckSimilarityResponseSchema: GenMessage<CheckSimilarityResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_research_v1_research, 5);
 
 /**
@@ -200,7 +210,8 @@ export type CalculateSaturationRequest = Message<"autoniix.research.v1.Calculate
  * Describes the message autoniix.research.v1.CalculateSaturationRequest.
  * Use `create(CalculateSaturationRequestSchema)` to create a new message.
  */
-export const CalculateSaturationRequestSchema: GenMessage<CalculateSaturationRequest> = /*@__PURE__*/
+export const CalculateSaturationRequestSchema: GenMessage<CalculateSaturationRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_research_v1_research, 6);
 
 /**
@@ -227,7 +238,8 @@ export type CalculateSaturationResponse = Message<"autoniix.research.v1.Calculat
  * Describes the message autoniix.research.v1.CalculateSaturationResponse.
  * Use `create(CalculateSaturationResponseSchema)` to create a new message.
  */
-export const CalculateSaturationResponseSchema: GenMessage<CalculateSaturationResponse> = /*@__PURE__*/
+export const CalculateSaturationResponseSchema: GenMessage<CalculateSaturationResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_research_v1_research, 7);
 
 /**
@@ -249,7 +261,8 @@ export type GetCompetitorInsightsRequest = Message<"autoniix.research.v1.GetComp
  * Describes the message autoniix.research.v1.GetCompetitorInsightsRequest.
  * Use `create(GetCompetitorInsightsRequestSchema)` to create a new message.
  */
-export const GetCompetitorInsightsRequestSchema: GenMessage<GetCompetitorInsightsRequest> = /*@__PURE__*/
+export const GetCompetitorInsightsRequestSchema: GenMessage<GetCompetitorInsightsRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_research_v1_research, 8);
 
 /**
@@ -271,7 +284,8 @@ export type GetCompetitorInsightsResponse = Message<"autoniix.research.v1.GetCom
  * Describes the message autoniix.research.v1.GetCompetitorInsightsResponse.
  * Use `create(GetCompetitorInsightsResponseSchema)` to create a new message.
  */
-export const GetCompetitorInsightsResponseSchema: GenMessage<GetCompetitorInsightsResponse> = /*@__PURE__*/
+export const GetCompetitorInsightsResponseSchema: GenMessage<GetCompetitorInsightsResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_research_v1_research, 9);
 
 /**
@@ -318,8 +332,7 @@ export type Topic = Message<"autoniix.research.v1.Topic"> & {
  * Describes the message autoniix.research.v1.Topic.
  * Use `create(TopicSchema)` to create a new message.
  */
-export const TopicSchema: GenMessage<Topic> = /*@__PURE__*/
-  messageDesc(file_autoniix_research_v1_research, 10);
+export const TopicSchema: GenMessage<Topic> = /*@__PURE__*/ messageDesc(file_autoniix_research_v1_research, 10);
 
 /**
  * @generated from message autoniix.research.v1.BanditState
@@ -345,7 +358,8 @@ export type BanditState = Message<"autoniix.research.v1.BanditState"> & {
  * Describes the message autoniix.research.v1.BanditState.
  * Use `create(BanditStateSchema)` to create a new message.
  */
-export const BanditStateSchema: GenMessage<BanditState> = /*@__PURE__*/
+export const BanditStateSchema: GenMessage<BanditState> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_research_v1_research, 11);
 
 /**
@@ -377,8 +391,7 @@ export type ArmState = Message<"autoniix.research.v1.ArmState"> & {
  * Describes the message autoniix.research.v1.ArmState.
  * Use `create(ArmStateSchema)` to create a new message.
  */
-export const ArmStateSchema: GenMessage<ArmState> = /*@__PURE__*/
-  messageDesc(file_autoniix_research_v1_research, 12);
+export const ArmStateSchema: GenMessage<ArmState> = /*@__PURE__*/ messageDesc(file_autoniix_research_v1_research, 12);
 
 /**
  * @generated from message autoniix.research.v1.SimilarityMatch
@@ -414,7 +427,8 @@ export type SimilarityMatch = Message<"autoniix.research.v1.SimilarityMatch"> & 
  * Describes the message autoniix.research.v1.SimilarityMatch.
  * Use `create(SimilarityMatchSchema)` to create a new message.
  */
-export const SimilarityMatchSchema: GenMessage<SimilarityMatch> = /*@__PURE__*/
+export const SimilarityMatchSchema: GenMessage<SimilarityMatch> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_research_v1_research, 13);
 
 /**
@@ -461,7 +475,8 @@ export type CompetitorVideo = Message<"autoniix.research.v1.CompetitorVideo"> & 
  * Describes the message autoniix.research.v1.CompetitorVideo.
  * Use `create(CompetitorVideoSchema)` to create a new message.
  */
-export const CompetitorVideoSchema: GenMessage<CompetitorVideo> = /*@__PURE__*/
+export const CompetitorVideoSchema: GenMessage<CompetitorVideo> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_research_v1_research, 14);
 
 /**
@@ -475,7 +490,7 @@ export const ResearchService: GenService<{
     methodKind: "unary";
     input: typeof DiscoverTopicsRequestSchema;
     output: typeof DiscoverTopicsResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.research.v1.ResearchService.SelectTopic
    */
@@ -483,7 +498,7 @@ export const ResearchService: GenService<{
     methodKind: "unary";
     input: typeof SelectTopicRequestSchema;
     output: typeof SelectTopicResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.research.v1.ResearchService.CheckSimilarity
    */
@@ -491,7 +506,7 @@ export const ResearchService: GenService<{
     methodKind: "unary";
     input: typeof CheckSimilarityRequestSchema;
     output: typeof CheckSimilarityResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.research.v1.ResearchService.CalculateSaturation
    */
@@ -499,7 +514,7 @@ export const ResearchService: GenService<{
     methodKind: "unary";
     input: typeof CalculateSaturationRequestSchema;
     output: typeof CalculateSaturationResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.research.v1.ResearchService.GetCompetitorInsights
    */
@@ -507,7 +522,5 @@ export const ResearchService: GenService<{
     methodKind: "unary";
     input: typeof GetCompetitorInsightsRequestSchema;
     output: typeof GetCompetitorInsightsResponseSchema;
-  },
-}> = /*@__PURE__*/
-  serviceDesc(file_autoniix_research_v1_research, 0);
-
+  };
+}> = /*@__PURE__*/ serviceDesc(file_autoniix_research_v1_research, 0);

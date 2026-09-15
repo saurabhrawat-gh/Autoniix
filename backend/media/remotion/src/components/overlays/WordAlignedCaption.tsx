@@ -18,10 +18,7 @@ export interface WordCue {
   endMs: number;
 }
 
-export type WordCaptionStyle =
-  | "karaoke_highlight"
-  | "pop_active"
-  | "underline_active";
+export type WordCaptionStyle = "karaoke_highlight" | "pop_active" | "underline_active";
 
 export interface WordAlignedCaptionProps {
   words: WordCue[];
@@ -59,9 +56,7 @@ export const WordAlignedCaption: React.FC<WordAlignedCaptionProps> = ({
   const { fps } = useVideoConfig();
   const currentMs = (frame / fps) * 1000;
 
-  const activeIdx = words.findIndex(
-    (w) => currentMs >= w.startMs && currentMs < w.endMs + tailMs,
-  );
+  const activeIdx = words.findIndex((w) => currentMs >= w.startMs && currentMs < w.endMs + tailMs);
   if (activeIdx === -1) {
     const upcoming = words.findIndex((w) => w.startMs > currentMs && w.startMs - currentMs < 250);
     if (upcoming === -1) return null;

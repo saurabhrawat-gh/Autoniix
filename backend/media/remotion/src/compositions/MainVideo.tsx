@@ -120,7 +120,9 @@ export const MainVideo: React.FC<MainVideoProps> = ({ direction }) => {
         <EffectErrorBoundary fallback={body}>
           <GradeComp {...gradeProps}>{body}</GradeComp>
         </EffectErrorBoundary>
-      ) : body}
+      ) : (
+        body
+      )}
 
       {globalEffectEls}
       {globalOverlayEls}
@@ -137,8 +139,7 @@ export const MainVideo: React.FC<MainVideoProps> = ({ direction }) => {
                   enabled: direction.audio.ducking.enabled,
                   duckingDb: -12,
                   fadeFrames: Math.round(
-                    ((direction.audio.ducking.attack_ms +
-                      direction.audio.ducking.release_ms) /
+                    ((direction.audio.ducking.attack_ms + direction.audio.ducking.release_ms) /
                       2 /
                       1000) *
                       fps,

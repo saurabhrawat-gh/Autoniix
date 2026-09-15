@@ -1,9 +1,9 @@
-import type { Meta, StoryObj } from '@storybook/react';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, SelectGroup, SelectLabel } from '@/lib/ui';
+import type { Meta, StoryObj } from "@storybook/react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, SelectGroup, SelectLabel } from "@/lib/ui";
 
 const meta: Meta = {
-  title: 'UI/Select',
-  tags: ['autodocs'],
+  title: "UI/Select",
+  tags: ["autodocs"],
 };
 
 export default meta;

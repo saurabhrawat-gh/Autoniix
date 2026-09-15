@@ -13,6 +13,13 @@ export interface Event {
   workspace_id: string;
   ts: number;
   data?: Record<string, unknown>;
+  /**
+   * Redis Streams monotonic ID (e.g. "1710000000000-0"). Set when the
+   * event was resumed/read from a Redis stream so clients can send this
+   * back as `Last-Event-ID` to resume without gaps. Missing on legacy
+   * pub/sub events (they were never durable).
+   */
+  stream_id?: string;
 }
 
 export interface SubscribeOptions {
@@ -80,11 +87,7 @@ export class Hub {
    * Register a subscriber. Returns the subscriber id (opaque) so callers can
    * unsubscribe later. `push` is invoked once per matching event.
    */
-  subscribe(
-    opts: SubscribeOptions,
-    push: (event: Event) => void,
-    close: () => void
-  ): string {
+  subscribe(opts: SubscribeOptions, push: (event: Event) => void, close: () => void): string {
     const id = randomUUID();
     this.subscribers.set(id, {
       id,
@@ -145,5 +148,67 @@ export class Hub {
 
   get subscriberCount(): number {
     return this.subscribers.size;
+  }
+
+  /**
+   * Replay events from a per-content-id Redis stream since ``lastId``.
+   *
+   * The Python side writes job progress events to ``stream:jobs:{content_id}``
+   * (see `backend/workers/temporal/workers/activities/common.py`). Clients
+   * that reconnect an SSE stream with a ``Last-Event-ID`` header (or the
+   * WS equivalent) can call this to backfill missed events before switching
+   * to live fan-out via pub/sub subscribe.
+   *
+   * ``lastId`` should be the Redis stream id (e.g. "1710000000000-0"), or
+   * "$" for "only new events" (the default XREAD behavior). We use "0" to
+   * mean "everything currently retained" when the caller passes no header.
+   */
+  async replaySince(contentId: string, lastId: string, limit = 200): Promise<Event[]> {
+    if (!contentId) return [];
+    const key = `stream:jobs:${contentId}`;
+    const startId = lastId && lastId !== "$" ? lastId : "0";
+    try {
+      // XRANGE returns entries with id > startId when we bump the last char.
+      // Simpler: use XREAD COUNT limit STREAMS key startId (returns events > startId).
+      const raw = (await this.publisher.xread("COUNT", limit, "STREAMS", key, startId)) as
+        [string, [string, string[]][]][] | null;
+      const first = raw?.[0];
+      if (!first) return [];
+      const [, entries] = first;
+      const out: Event[] = [];
+      for (const [streamId, fields] of entries) {
+        const obj: Record<string, string> = {};
+        for (let i = 0; i + 1 < fields.length; i += 2) {
+          const k = fields[i];
+          const v = fields[i + 1];
+          if (k !== undefined && v !== undefined) obj[k] = v;
+        }
+        let detail: Record<string, unknown> = {};
+        try {
+          detail = obj.detail ? (JSON.parse(obj.detail) as Record<string, unknown>) : {};
+        } catch {
+          detail = { raw: obj.detail ?? "" };
+        }
+        out.push({
+          id: obj.event_id ?? streamId,
+          type: `job.${obj.phase ?? "unknown"}.${obj.status ?? "unknown"}`,
+          workspace_id: obj.channel_id ?? "",
+          ts: Number(streamId.split("-")[0]) || Date.now(),
+          data: {
+            content_id: obj.content_id ?? contentId,
+            channel_id: obj.channel_id ?? "",
+            phase: obj.phase ?? "",
+            status: obj.status ?? "",
+            cost_usd: Number(obj.cost_usd ?? 0),
+            ...detail,
+          },
+          stream_id: streamId,
+        });
+      }
+      return out;
+    } catch (err) {
+      this.log.warn({ err, key }, "streaming.replay_failed");
+      return [];
+    }
   }
 }

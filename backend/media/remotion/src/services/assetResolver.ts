@@ -17,7 +17,18 @@
 
 export type AssetCategory = "grain" | "lut" | "overlay" | "sfx" | "music" | "font";
 
-export type AssetSource = "envato" | "rocketstock" | "lutify" | "smallhd" | "mixkit" | "pixabay" | "freesound" | "youtube_library" | "google" | "storyset" | "built_in";
+export type AssetSource =
+  | "envato"
+  | "rocketstock"
+  | "lutify"
+  | "smallhd"
+  | "mixkit"
+  | "pixabay"
+  | "freesound"
+  | "youtube_library"
+  | "google"
+  | "storyset"
+  | "built_in";
 
 export interface AssetEntry {
   /** Unique ID, e.g. "grain.envato.35mm_fine_01" */
@@ -104,9 +115,7 @@ export function resolveAsset(
   let candidates = categoryIndex.get(category) ?? [];
 
   if (tags.length > 0) {
-    candidates = candidates.filter((a) =>
-      tags.some((t) => a.tags?.includes(t)),
-    );
+    candidates = candidates.filter((a) => tags.some((t) => a.tags?.includes(t)));
   }
 
   if (preferredSource) {
@@ -147,9 +156,7 @@ export function resolveAssets(
   let candidates = categoryIndex.get(category) ?? [];
 
   if (tags.length > 0) {
-    candidates = candidates.filter((a) =>
-      tags.some((t) => a.tags?.includes(t)),
-    );
+    candidates = candidates.filter((a) => tags.some((t) => a.tags?.includes(t)));
   }
 
   const sorted = [...candidates].sort((a, b) => {
@@ -165,16 +172,11 @@ export function resolveAssets(
  * Get a random asset from a category/tag, with premium bias.
  * 80% chance of picking a premium asset, 20% free (if available).
  */
-export function resolveRandom(
-  category: AssetCategory,
-  tags: string[] = [],
-): AssetEntry | null {
+export function resolveRandom(category: AssetCategory, tags: string[] = []): AssetEntry | null {
   let candidates = categoryIndex.get(category) ?? [];
 
   if (tags.length > 0) {
-    candidates = candidates.filter((a) =>
-      tags.some((t) => a.tags?.includes(t)),
-    );
+    candidates = candidates.filter((a) => tags.some((t) => a.tags?.includes(t)));
   }
 
   if (candidates.length === 0) return null;
@@ -182,11 +184,12 @@ export function resolveRandom(
   const premium = candidates.filter((a) => a.premium);
   const free = candidates.filter((a) => !a.premium);
 
-  const pool = premium.length > 0 && (free.length === 0 || Math.random() < 0.8)
-    ? premium
-    : free.length > 0
-      ? free
-      : premium;
+  const pool =
+    premium.length > 0 && (free.length === 0 || Math.random() < 0.8)
+      ? premium
+      : free.length > 0
+        ? free
+        : premium;
 
   return pool[Math.floor(Math.random() * pool.length)] ?? null;
 }

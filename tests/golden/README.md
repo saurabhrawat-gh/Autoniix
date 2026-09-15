@@ -38,13 +38,13 @@ tests/golden/
 }
 ```
 
-| Field | Description |
-|---|---|
-| `method` | HTTP method (GET/POST/PUT/DELETE) |
-| `path` | Absolute path including `/api/v2/` |
-| `request_body` | JSON body to send (null for GET) |
-| `status` | Expected HTTP status code |
-| `body` | Expected response body (subset match) |
+| Field           | Description                                                            |
+| --------------- | ---------------------------------------------------------------------- |
+| `method`        | HTTP method (GET/POST/PUT/DELETE)                                      |
+| `path`          | Absolute path including `/api/v2/`                                     |
+| `request_body`  | JSON body to send (null for GET)                                       |
+| `status`        | Expected HTTP status code                                              |
+| `body`          | Expected response body (subset match)                                  |
 | `ignore_fields` | Fields skipped during comparison (dynamic values like timestamps, IDs) |
 
 ## Capturing new fixtures

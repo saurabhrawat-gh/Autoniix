@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 import structlog
 import uvicorn
 from fastapi import FastAPI, HTTPException
+from media.prosody_injector import ProsodyMarker, inject_prosody_markers
 from pydantic import BaseModel, Field
 
 import providers.boot  # noqa: F401
@@ -44,6 +45,32 @@ class ScriptRequest(BaseModel):
     budget_guard: dict = Field(default_factory=lambda: {"max_cost_usd": 2.50, "accrued_cost_usd": 0.0})
     video_style: str = "stock_footage"
     content_id: str = ""
+
+
+class ScriptSegment(BaseModel):
+    """Validated script segment output."""
+
+    id: str
+    section: str
+    narration: str
+    scene_direction: str = ""
+    text_overlay: str = ""
+    prosody_hint: str = ""
+    emphasis_words: list[str] = Field(default_factory=list)
+    prosody_injected: bool = False
+
+
+class ScriptOutput(BaseModel):
+    """Validated complete script output."""
+
+    segments: list[ScriptSegment]
+    validation: dict
+    critique: dict = Field(default_factory=dict)
+    rewrite_count: int = 0
+    script_structure_score: float = 0.0
+    hook_retention_score: float = 0.0
+    success_prediction: dict = Field(default_factory=dict)
+    multi_view_qc: dict = Field(default_factory=dict)
 
 
 class ScriptFeedbackRequest(BaseModel):
@@ -98,6 +125,65 @@ async def _load_prompt(prompt_id: str) -> dict:
         prompt_id,
     )
     return dict(row) if row else {}
+
+
+def _inject_prosody_into_segments(segments: list[dict], voice_segments: list[dict]) -> list[dict]:
+    """
+    Inject Inworld prosody markers into segment narration text.
+
+    Takes the prosody data from voice_segments and injects markers into the
+    original segments' narration text for Inworld TTS.
+    """
+    enhanced_segments = []
+
+    for i, seg in enumerate(segments):
+        enhanced_seg = seg.copy()
+
+        # Find matching voice segment
+        voice_seg = None
+        if i < len(voice_segments):
+            voice_seg = voice_segments[i]
+
+        if not voice_seg:
+            enhanced_segments.append(enhanced_seg)
+            continue
+
+        # Get prosody data
+        emphasis_words = voice_seg.get("emphasis_words", [])
+        sentences = voice_seg.get("sentences", [])
+
+        # If we have sentence-level prosody, inject markers
+        if sentences:
+            narration_parts = []
+            for sent_prosody in sentences:
+                sentence_text = sent_prosody.get("text", "")
+
+                # Create prosody marker
+                marker = ProsodyMarker(
+                    emphasis_words=sent_prosody.get("emphasis_words", []),
+                    pause_after_ms=sent_prosody.get("pause_after_ms", 0),
+                    opening_breath=(sent_prosody.get("emotion") in ["urgency", "surprise"]),
+                    closing_sigh=(sent_prosody.get("emotion") == "empathy"),
+                )
+
+                # Inject markers
+                enhanced_text = inject_prosody_markers(sentence_text, marker)
+                narration_parts.append(enhanced_text)
+
+            # Replace narration with enhanced version
+            enhanced_seg["narration"] = " ".join(narration_parts)
+            enhanced_seg["prosody_injected"] = True
+        else:
+            # Fallback: inject emphasis at segment level
+            if emphasis_words:
+                narration = seg.get("narration", "")
+                marker = ProsodyMarker(emphasis_words=emphasis_words)
+                enhanced_seg["narration"] = inject_prosody_markers(narration, marker, include_delivery_prefix=False)
+                enhanced_seg["prosody_injected"] = True
+
+        enhanced_segments.append(enhanced_seg)
+
+    return enhanced_segments
 
 
 async def _log_usage(
@@ -501,6 +587,13 @@ async def generate_script(req: ScriptRequest):
                 duration=script_voice["total_duration_s"],
                 coverage=script_voice["prosody_coverage"],
             )
+
+            # Inject Inworld prosody markers into narration text
+            voice_segments = script_voice.get("segments", [])
+            if voice_segments:
+                segments = _inject_prosody_into_segments(segments, voice_segments)
+                script_data["segments"] = segments
+                logger.info("script.prosody_injected", segment_count=len(segments))
         except Exception as e:
             logger.warning("script.v1_voice_failed", error=str(e))
             script_voice = {"version": "v1_voice", "segments": [], "error": str(e)}
@@ -582,6 +675,23 @@ async def generate_script(req: ScriptRequest):
             humanization=humanizer_metrics.get("composite_score", 0),
             cost=round(total_cost, 4),
         )
+
+        # Validate script output schema
+        try:
+            validated_script = ScriptOutput(
+                segments=[ScriptSegment(**seg) for seg in segments],
+                validation=script_data.get("validation", {}),
+                critique=script_data.get("critique", {}),
+                rewrite_count=rewrite_count,
+                script_structure_score=overall_score,
+                hook_retention_score=script_data.get("hook_retention_score", 0.0),
+                success_prediction=script_data.get("success_prediction", {}),
+                multi_view_qc=qc_report,
+            )
+            logger.info("script.validation_passed", segment_count=len(validated_script.segments))
+        except Exception as e:
+            logger.error("script.validation_failed", error=str(e))
+            raise HTTPException(status_code=500, detail=f"Script validation failed: {str(e)}")
 
         return ServiceResponse(
             status="success",

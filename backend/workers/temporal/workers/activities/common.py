@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json as _json
+import os
+import secrets
 from datetime import date
 
 import structlog
@@ -10,22 +14,53 @@ from core.redis_client import get_redis
 
 logger = structlog.get_logger()
 
+# Tier 2 tunables
+_LOCK_TTL_S = int(os.getenv("CHANNEL_LOCK_TTL_S", "3600"))
+_CHECKPOINT_MAX_BYTES = int(os.getenv("CHECKPOINT_MAX_BYTES", str(1_048_576)))  # 1 MB
+_EVENT_STREAM_MAXLEN = int(os.getenv("JOB_EVENT_STREAM_MAXLEN", "10000"))
+_EVENT_DEDUP_TTL_S = int(os.getenv("JOB_EVENT_DEDUP_TTL_S", "3600"))
+_DUAL_WRITE_LEGACY_EVENTS = os.getenv("JOB_EVENT_DUAL_WRITE_LEGACY", "true").lower() == "true"
+
+
+def _event_stream_key(content_id: str) -> str:
+    return f"stream:jobs:{content_id}"
+
+
+def _event_dedup_key(content_id: str, phase: str, status: str, detail_hash: str) -> str:
+    return f"dedup:jobevent:{content_id}:{phase}:{status}:{detail_hash}"
+
 
 @activity.defn
 async def update_video_status(
-    content_id: str, status: str, channel_id: str = "", title: str = "", content_mode: str = ""
+    content_id: str,
+    status: str,
+    channel_id: str = "",
+    title: str = "",
+    content_mode: str = "",
 ) -> None:
     """Update the status column for a video in PostgreSQL.
 
     Also saves the current phase as checkpoint so that stopped jobs
     can be resumed from the last active phase.
     """
-    logger.info("activity.update_status", content_id=content_id, status=status, channel_id=channel_id or "N/A")
+    logger.info(
+        "activity.update_status",
+        content_id=content_id,
+        status=status,
+        channel_id=channel_id or "N/A",
+    )
     try:
         env = "production"
         pool = await get_pool()
 
-        terminal_statuses = {"delivered", "test_delivered", "failed", "stopped", "superseded", "rejected"}
+        terminal_statuses = {
+            "delivered",
+            "test_delivered",
+            "failed",
+            "stopped",
+            "superseded",
+            "rejected",
+        }
         is_active_phase = status not in terminal_statuses
 
         if is_active_phase:
@@ -98,14 +133,44 @@ async def update_video_status(
 
 
 @activity.defn
-async def release_channel_lock(channel_id: str) -> None:
-    """Release the Redis lock for a channel."""
+async def release_channel_lock(channel_id: str, fencing_token: str = "") -> None:
+    """Release the Redis lock for a channel.
+
+    Uses a fencing-token check-and-delete (Lua) so a stale worker whose
+    lock has already expired and been re-acquired by someone else can't
+    release the new holder's lock.
+    """
     logger.info("activity.release_lock", channel_id=channel_id)
     try:
         r = await get_redis()
-        await r.delete(f"lock:channel:{channel_id}")
+        key = f"lock:channel:{channel_id}"
+        if fencing_token:
+            # Only delete if the value still matches our token
+            lua = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end"
+            await r.eval(lua, 1, key, fencing_token)
+        else:
+            # Legacy path (no token) — best effort
+            await r.delete(key)
     except Exception as exc:
         logger.warning("activity.release_lock.failed", error=str(exc))
+
+
+@activity.defn
+async def refresh_channel_lock(channel_id: str, fencing_token: str, ttl_s: int = 0) -> bool:
+    """Extend the TTL on a held channel lock (heartbeat for long activities)."""
+    ttl = ttl_s or _LOCK_TTL_S
+    try:
+        r = await get_redis()
+        key = f"lock:channel:{channel_id}"
+        lua = (
+            "if redis.call('get', KEYS[1]) == ARGV[1] "
+            "then return redis.call('expire', KEYS[1], ARGV[2]) else return 0 end"
+        )
+        result = await r.eval(lua, 1, key, fencing_token, ttl)
+        return bool(result)
+    except Exception as exc:
+        logger.warning("activity.refresh_lock.failed", error=str(exc))
+        return False
 
 
 @activity.defn
@@ -206,7 +271,7 @@ async def get_eligible_channels() -> list[dict]:
                         "channel_name": r["channel_name"],
                         "niche": r["niche"],
                         "content_mode": picked_mode,
-                        "max_daily_api_spend": float(r["max_daily_api_spend"]) if r["max_daily_api_spend"] else 5.0,
+                        "max_daily_api_spend": (float(r["max_daily_api_spend"]) if r["max_daily_api_spend"] else 5.0),
                         "topic_candidates": [],
                     }
                 )
@@ -218,15 +283,20 @@ async def get_eligible_channels() -> list[dict]:
 
 @activity.defn
 async def acquire_channel_lock(channel_id: str) -> bool:
-    """Try to acquire a Redis lock for a channel (prevents double runs)."""
+    """Try to acquire a Redis lock for a channel (prevents double runs).
+
+    Backward-compatible boolean return. Callers that need the fencing
+    token (for safe release) should use ``acquire_channel_lock_v2``.
+    """
     logger.info("activity.acquire_lock", channel_id=channel_id)
     try:
         r = await get_redis()
+        token = secrets.token_hex(16)
         acquired = await r.set(
             f"lock:channel:{channel_id}",
-            "locked",
+            token,
             nx=True,
-            ex=3600,
+            ex=_LOCK_TTL_S,
         )
         return bool(acquired)
     except Exception as exc:
@@ -235,11 +305,70 @@ async def acquire_channel_lock(channel_id: str) -> bool:
 
 
 @activity.defn
+async def acquire_channel_lock_v2(channel_id: str) -> dict:
+    """Acquire a channel lock and return the fencing token.
+
+    Returns ``{"acquired": bool, "token": str}``. Pass ``token`` to
+    ``release_channel_lock`` / ``refresh_channel_lock`` so a stale
+    holder can't accidentally release the new holder's lock.
+    """
+    logger.info("activity.acquire_lock_v2", channel_id=channel_id)
+    try:
+        r = await get_redis()
+        token = secrets.token_hex(16)
+        acquired = await r.set(
+            f"lock:channel:{channel_id}",
+            token,
+            nx=True,
+            ex=_LOCK_TTL_S,
+        )
+        return {"acquired": bool(acquired), "token": token if acquired else ""}
+    except Exception as exc:
+        logger.warning("activity.acquire_lock_v2.failed", error=str(exc))
+        return {"acquired": False, "token": ""}
+
+
+@activity.defn
 async def emit_job_event(
-    content_id: str, channel_id: str, phase: str, status: str, detail: dict | None = None, cost_usd: float = 0
+    content_id: str,
+    channel_id: str,
+    phase: str,
+    status: str,
+    detail: dict | None = None,
+    cost_usd: float = 0,
 ) -> None:
-    """Insert a row into job_events for dashboard progress tracking."""
+    """Emit a job progress event.
+
+    Writes to (a) the ``job_events`` Postgres table for durable audit
+    and dashboard queries, and (b) a Redis Stream ``stream:jobs:{content_id}``
+    for real-time SSE/WS fan-out via streaming-hub. Both writes are
+    dedup-guarded by a short-TTL Redis key so accidental double-emits
+    from workflow retries don't spam the UI.
+    """
     logger.info("activity.emit_job_event", content_id=content_id, phase=phase, status=status)
+    detail_bytes = _json.dumps(detail or {}, sort_keys=True, default=str).encode("utf-8")
+    detail_hash = hashlib.sha256(detail_bytes).hexdigest()[:16]
+
+    # Dedup guard (idempotent emits within TTL window).
+    try:
+        r = await get_redis()
+        dedup_key = _event_dedup_key(content_id, phase, status, detail_hash)
+        first = await r.set(dedup_key, "1", nx=True, ex=_EVENT_DEDUP_TTL_S)
+        if not first:
+            logger.debug(
+                "activity.emit_job_event.dedup_skip",
+                content_id=content_id,
+                phase=phase,
+                status=status,
+            )
+            return
+    except Exception as exc:
+        # Dedup is best-effort; on Redis outage, fall through and still
+        # emit — losing an event is worse than a rare duplicate.
+        logger.debug("activity.emit_job_event.dedup_unavailable", error=str(exc))
+        r = None
+
+    # (a) Postgres row — source of truth for dashboards.
     try:
         pool = await get_pool()
         await pool.execute(
@@ -249,27 +378,88 @@ async def emit_job_event(
             channel_id,
             phase,
             status,
-            __import__("json").dumps(detail or {}),
+            detail_bytes.decode("utf-8"),
             float(cost_usd),
             "production",
         )
     except Exception as exc:
-        logger.warning("activity.emit_job_event.failed", error=str(exc))
+        logger.warning("activity.emit_job_event.pg_failed", error=str(exc))
+
+    # (b) Redis Stream — real-time UI fan-out. Streaming-hub consumes
+    # this via XREAD with per-connection Last-ID for resumable SSE/WS.
+    if r is not None:
+        try:
+            event_id = hashlib.sha256(f"{content_id}:{phase}:{status}:{detail_hash}".encode()).hexdigest()[:24]
+            await r.xadd(
+                _event_stream_key(content_id),
+                {
+                    "event_id": event_id,
+                    "content_id": content_id,
+                    "channel_id": channel_id,
+                    "phase": phase,
+                    "status": status,
+                    "detail": detail_bytes.decode("utf-8"),
+                    "cost_usd": str(float(cost_usd)),
+                },
+                maxlen=_EVENT_STREAM_MAXLEN,
+                approximate=True,
+            )
+            if _DUAL_WRITE_LEGACY_EVENTS:
+                # Keep legacy pub/sub consumers alive during migration.
+                await r.publish(
+                    f"jobs:{content_id}",
+                    _json.dumps(
+                        {
+                            "event_id": event_id,
+                            "content_id": content_id,
+                            "channel_id": channel_id,
+                            "phase": phase,
+                            "status": status,
+                            "detail": detail or {},
+                            "cost_usd": float(cost_usd),
+                        },
+                        default=str,
+                    ),
+                )
+        except Exception as exc:
+            logger.warning("activity.emit_job_event.stream_failed", error=str(exc))
 
 
 @activity.defn
 async def save_checkpoint_data(content_id: str, phase: str, data: dict) -> None:
-    """Save phase output data to storage for resume-from-checkpoint support."""
+    """Save phase output data to storage for resume-from-checkpoint support.
+
+    Enforces a hard size cap (CHECKPOINT_MAX_BYTES, default 1 MB) so a
+    runaway payload can't blow up storage, and wraps the payload in a
+    small envelope with a sha256 checksum for corruption detection at
+    load time.
+    """
     logger.info("activity.save_checkpoint", content_id=content_id, phase=phase)
     try:
-        import json as _json
-
         from providers.registry import ProviderRegistry
         from providers.storage.base import StorageUpload
 
+        inner = _json.dumps(data, default=str, sort_keys=True).encode("utf-8")
+        if len(inner) > _CHECKPOINT_MAX_BYTES:
+            logger.warning(
+                "activity.save_checkpoint.too_large",
+                content_id=content_id,
+                phase=phase,
+                size=len(inner),
+                cap=_CHECKPOINT_MAX_BYTES,
+            )
+            return
+        envelope = {
+            "v": 1,
+            "content_id": content_id,
+            "phase": phase,
+            "sha256": hashlib.sha256(inner).hexdigest(),
+            "size": len(inner),
+            "data": data,
+        }
+        payload_bytes = _json.dumps(envelope, default=str).encode("utf-8")
         storage = ProviderRegistry.get("storage")
         key = f"checkpoints/{content_id}/{phase}.json"
-        payload_bytes = _json.dumps(data, default=str).encode("utf-8")
         await storage.upload(
             StorageUpload(
                 key=key,
@@ -284,11 +474,15 @@ async def save_checkpoint_data(content_id: str, phase: str, data: dict) -> None:
 
 @activity.defn
 async def load_checkpoint_data(content_id: str, phase: str) -> dict:
-    """Load previously saved phase output data from storage."""
+    """Load previously saved phase output data from storage.
+
+    Supports both the new envelope format (with checksum) and the legacy
+    bare-dict format for backward compatibility. Corrupted envelopes are
+    dropped with a warning rather than raising, so a bad checkpoint
+    never wedges resume.
+    """
     logger.info("activity.load_checkpoint", content_id=content_id, phase=phase)
     try:
-        import json as _json
-
         from providers.registry import ProviderRegistry
 
         storage = ProviderRegistry.get("storage")
@@ -297,7 +491,33 @@ async def load_checkpoint_data(content_id: str, phase: str) -> dict:
             logger.warning("activity.load_checkpoint.not_found", key=key)
             return {}
         raw = await storage.download(key)
-        data = _json.loads(raw.decode("utf-8"))
+        try:
+            parsed = _json.loads(raw.decode("utf-8"))
+        except Exception as exc:
+            logger.warning("activity.load_checkpoint.decode_failed", key=key, error=str(exc))
+            return {}
+
+        # Envelope format
+        if isinstance(parsed, dict) and parsed.get("v") == 1 and "data" in parsed and "sha256" in parsed:
+            expected = parsed["sha256"]
+            inner = _json.dumps(parsed["data"], default=str, sort_keys=True).encode("utf-8")
+            actual = hashlib.sha256(inner).hexdigest()
+            if expected != actual:
+                logger.warning(
+                    "activity.load_checkpoint.checksum_mismatch",
+                    key=key,
+                    expected=expected,
+                    actual=actual,
+                )
+                return {}
+            data = parsed["data"]
+        else:
+            # Legacy bare-dict format
+            data = parsed
+
+        if not isinstance(data, dict):
+            logger.warning("activity.load_checkpoint.not_a_dict", key=key)
+            return {}
         logger.info("activity.load_checkpoint.ok", key=key, keys=list(data.keys())[:5])
         return data
     except Exception as exc:
@@ -308,7 +528,11 @@ async def load_checkpoint_data(content_id: str, phase: str) -> dict:
 @activity.defn
 async def send_notification(payload: dict) -> None:
     """Send notification via Telegram (if configured) or log."""
-    logger.info("activity.notification", type=payload.get("type"), channel=payload.get("channel_id"))
+    logger.info(
+        "activity.notification",
+        type=payload.get("type"),
+        channel=payload.get("channel_id"),
+    )
     try:
         pool = await get_pool()
         token_row = await pool.fetchrow(

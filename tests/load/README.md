@@ -4,7 +4,7 @@ Two complementary load tests live here.
 
 ## 1. `test_fleet_health_under_load.py` — pytest, SLO smoke
 
-Pure-pytest load smoke that hits a *running* stack and enforces basic
+Pure-pytest load smoke that hits a _running_ stack and enforces basic
 throughput / latency SLOs via async `httpx`. Skipped by default — needs
 the dashboard BFF reachable at `DASHBOARD_BASE_URL` (default
 `http://localhost:8000`) and an admin token in `DASHBOARD_TOKEN`.
@@ -34,11 +34,11 @@ pytest tests/load -v
 Per HARNESS-ENGINEERING-PLAN.md §14. Three load profiles, all targeting
 the Rust gateway:
 
-| Mode | Endpoint | Target p95 | Target error |
-|------|----------|------------|--------------|
-| (default) | `POST /api/v2/auth/register` | <200ms | <0.1% |
-| `TEST_MODE=signin` | `POST /api/v2/auth/signin` (after seed) | <100ms | <0.1% |
-| `TEST_MODE=me` | `GET /api/v2/me` (after seed + signin) | <50ms | <0.01% |
+| Mode               | Endpoint                                | Target p95 | Target error |
+| ------------------ | --------------------------------------- | ---------- | ------------ |
+| (default)          | `POST /api/v2/auth/register`            | <200ms     | <0.1%        |
+| `TEST_MODE=signin` | `POST /api/v2/auth/signin` (after seed) | <100ms     | <0.1%        |
+| `TEST_MODE=me`     | `GET /api/v2/me` (after seed + signin)  | <50ms      | <0.01%       |
 
 ### Run
 

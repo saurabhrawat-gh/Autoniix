@@ -1,45 +1,48 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Menu, X, Zap, Sun, Moon } from 'lucide-react'
-import { useTheme } from 'next-themes'
-import GlowButton from './ui/GlowButton'
+import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Menu, X, Zap, Sun, Moon } from "lucide-react";
+import { useTheme } from "next-themes";
+import GlowButton from "./ui/GlowButton";
 
 const NAV_LINKS = [
-  { label: 'Features', href: '#features' },
-  { label: 'How it works', href: '#how-it-works' },
-  { label: 'Pricing', href: '#pricing' },
-  { label: 'Docs', href: '#docs' },
-]
+  { label: "Features", href: "#features" },
+  { label: "How it works", href: "#how-it-works" },
+  { label: "Pricing", href: "#pricing" },
+  { label: "Docs", href: "#docs" },
+];
 
 export default function Navbar() {
-  const [scrolled, setScrolled] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [mounted, setMounted] = useState(false)
-  const { theme, setTheme } = useTheme()
-
-  useEffect(() => { setMounted(true) }, [])
+  const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 20)
-    window.addEventListener('scroll', handler, { passive: true })
-    return () => window.removeEventListener('scroll', handler)
-  }, [])
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const handler = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", handler, { passive: true });
+    return () => window.removeEventListener("scroll", handler);
+  }, []);
 
   return (
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
         scrolled
-          ? 'bg-white/80 dark:bg-[#08080F]/85 backdrop-blur-2xl border-b border-black/[0.06] dark:border-white/[0.07]'
-          : 'bg-transparent'
+          ? "bg-white/80 dark:bg-[#08080F]/85 backdrop-blur-2xl border-b border-black/[0.06] dark:border-white/[0.07]"
+          : "bg-transparent"
       }`}
     >
       {/* Gradient border-bottom — only when scrolled */}
       <div
         className="absolute bottom-0 left-0 right-0 h-px transition-opacity duration-500"
         style={{
-          background: 'linear-gradient(90deg, transparent 0%, rgba(0,216,159,0.2) 30%, rgba(124,58,237,0.15) 70%, transparent 100%)',
+          background:
+            "linear-gradient(90deg, transparent 0%, rgba(0,216,159,0.2) 30%, rgba(124,58,237,0.15) 70%, transparent 100%)",
           opacity: scrolled ? 1 : 0,
         }}
       />
@@ -50,7 +53,12 @@ export default function Navbar() {
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#00D89F] to-[#00A876] flex items-center justify-center transition-[transform,box-shadow] duration-[200ms] ease-[cubic-bezier(0.2,0,0,1)] group-hover:shadow-[0_0_22px_rgba(0,216,159,0.55)] group-hover:scale-110">
             <Zap className="w-4 h-4 text-[#09090F] fill-[#09090F]" strokeWidth={2} />
           </div>
-          <span className="t-headline" style={{ color: 'var(--text-primary)', fontSize: '1.0625rem', fontWeight: 500, letterSpacing: '-0.018em' }}>Autoniix</span>
+          <span
+            className="t-headline"
+            style={{ color: "var(--text-primary)", fontSize: "1.0625rem", fontWeight: 500, letterSpacing: "-0.018em" }}
+          >
+            Autoniix
+          </span>
         </a>
 
         {/* Desktop nav */}
@@ -60,7 +68,7 @@ export default function Navbar() {
               key={link.label}
               href={link.href}
               className="relative px-4 py-2 t-body-sm hover:opacity-100 transition-colors duration-200 group"
-              style={{ color: 'var(--text-secondary)' }}
+              style={{ color: "var(--text-secondary)" }}
             >
               {link.label}
               <span className="absolute bottom-0.5 left-4 right-4 h-px bg-gradient-to-r from-[#00D89F] to-[#7C3AED] scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-center rounded-full" />
@@ -73,25 +81,26 @@ export default function Navbar() {
           {/* Theme toggle */}
           {mounted && (
             <button
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
               className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/8 transition-all duration-200"
-              style={{ color: 'var(--text-secondary)' }}
+              style={{ color: "var(--text-secondary)" }}
               aria-label="Toggle theme"
             >
-              {theme === 'dark' ? <Sun className="w-4 h-4" strokeWidth={1.5} /> : <Moon className="w-4 h-4" strokeWidth={1.5} />}
+              {theme === "dark" ? (
+                <Sun className="w-4 h-4" strokeWidth={1.5} />
+              ) : (
+                <Moon className="w-4 h-4" strokeWidth={1.5} />
+              )}
             </button>
           )}
           <a
             href="https://dash.autoniix.com/login"
             className="t-body-sm transition-colors duration-150 px-3 py-2"
-            style={{ color: 'var(--text-secondary)' }}
+            style={{ color: "var(--text-secondary)" }}
           >
             Sign in
           </a>
-          <GlowButton
-            size="sm"
-            onClick={() => window.open('https://dash.autoniix.com/register', '_blank')}
-          >
+          <GlowButton size="sm" onClick={() => window.open("https://dash.autoniix.com/register", "_blank")}>
             Get started free →
           </GlowButton>
         </div>
@@ -106,7 +115,7 @@ export default function Navbar() {
           <motion.span
             animate={{ rotate: menuOpen ? 90 : 0 }}
             transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
-            style={{ display: 'inline-flex' }}
+            style={{ display: "inline-flex" }}
           >
             {menuOpen ? <X className="w-5 h-5" strokeWidth={1.5} /> : <Menu className="w-5 h-5" strokeWidth={1.5} />}
           </motion.span>
@@ -119,7 +128,7 @@ export default function Navbar() {
           <motion.div
             key="mobile-menu"
             initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
+            animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.26, ease: [0.12, 0, 0.1, 1] }}
             className="md:hidden overflow-hidden"
@@ -148,7 +157,7 @@ export default function Navbar() {
                 <GlowButton
                   size="md"
                   className="w-full justify-center"
-                  onClick={() => window.open('https://dash.autoniix.com/register', '_blank')}
+                  onClick={() => window.open("https://dash.autoniix.com/register", "_blank")}
                 >
                   Get started free →
                 </GlowButton>
@@ -158,5 +167,5 @@ export default function Navbar() {
         )}
       </AnimatePresence>
     </header>
-  )
+  );
 }

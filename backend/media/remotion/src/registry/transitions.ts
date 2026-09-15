@@ -3,7 +3,16 @@ import { slide } from "@remotion/transitions/slide";
 import { wipe } from "@remotion/transitions/wipe";
 import { flip } from "@remotion/transitions/flip";
 import { linearTiming, springTiming } from "@remotion/transitions";
-import { blurSwap, iris, whipPan, cover, zoomPunch, glitchCut, shatter, morph } from "./customTransitions";
+import {
+  blurSwap,
+  iris,
+  whipPan,
+  cover,
+  zoomPunch,
+  glitchCut,
+  shatter,
+  morph,
+} from "./customTransitions";
 import { zoomPunchTransition } from "../components/transitions/ZoomPunchTransition";
 import { flashTransition } from "../components/transitions/FlashTransition";
 import type { TransitionRegistry } from "./transitionTypes";
@@ -158,21 +167,27 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
   },
 
   "trans.push.left": {
-    id: "trans.push.left", category: "transition", tags: ["push"],
+    id: "trans.push.left",
+    category: "transition",
+    tags: ["push"],
     build: () => ({
       presentation: slide({ direction: "from-right" }),
       timing: linearTiming({ durationInFrames: 14 }),
     }),
   },
   "trans.push.right": {
-    id: "trans.push.right", category: "transition", tags: ["push"],
+    id: "trans.push.right",
+    category: "transition",
+    tags: ["push"],
     build: () => ({
       presentation: slide({ direction: "from-left" }),
       timing: linearTiming({ durationInFrames: 14 }),
     }),
   },
   "trans.push.up": {
-    id: "trans.push.up", category: "transition", tags: ["push", "vertical"],
+    id: "trans.push.up",
+    category: "transition",
+    tags: ["push", "vertical"],
     build: () => ({
       presentation: slide({ direction: "from-bottom" }),
       timing: linearTiming({ durationInFrames: 14 }),
@@ -180,21 +195,27 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
   },
 
   "trans.cover.left": {
-    id: "trans.cover.left", category: "transition", tags: ["cover"],
+    id: "trans.cover.left",
+    category: "transition",
+    tags: ["cover"],
     build: () => ({
       presentation: cover({ dir: "right" }),
       timing: linearTiming({ durationInFrames: 14 }),
     }),
   },
   "trans.cover.right": {
-    id: "trans.cover.right", category: "transition", tags: ["cover"],
+    id: "trans.cover.right",
+    category: "transition",
+    tags: ["cover"],
     build: () => ({
       presentation: cover({ dir: "left" }),
       timing: linearTiming({ durationInFrames: 14 }),
     }),
   },
   "trans.cover.up": {
-    id: "trans.cover.up", category: "transition", tags: ["cover", "vertical"],
+    id: "trans.cover.up",
+    category: "transition",
+    tags: ["cover", "vertical"],
     build: () => ({
       presentation: cover({ dir: "down" }),
       timing: linearTiming({ durationInFrames: 14 }),
@@ -202,14 +223,18 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
   },
 
   "trans.wipe.up": {
-    id: "trans.wipe.up", category: "transition", tags: ["wipe", "vertical"],
+    id: "trans.wipe.up",
+    category: "transition",
+    tags: ["wipe", "vertical"],
     build: () => ({
       presentation: wipe({ direction: "from-bottom" }),
       timing: linearTiming({ durationInFrames: 14 }),
     }),
   },
   "trans.wipe.down": {
-    id: "trans.wipe.down", category: "transition", tags: ["wipe", "vertical"],
+    id: "trans.wipe.down",
+    category: "transition",
+    tags: ["wipe", "vertical"],
     build: () => ({
       presentation: wipe({ direction: "from-top" }),
       timing: linearTiming({ durationInFrames: 14 }),
@@ -217,14 +242,18 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
   },
 
   "trans.iris.open": {
-    id: "trans.iris.open", category: "transition", tags: ["iris", "reveal"],
+    id: "trans.iris.open",
+    category: "transition",
+    tags: ["iris", "reveal"],
     build: () => ({
       presentation: iris({ direction: "open" }),
       timing: linearTiming({ durationInFrames: 20 }),
     }),
   },
   "trans.iris.close": {
-    id: "trans.iris.close", category: "transition", tags: ["iris"],
+    id: "trans.iris.close",
+    category: "transition",
+    tags: ["iris"],
     build: () => ({
       presentation: iris({ direction: "close" }),
       timing: linearTiming({ durationInFrames: 20 }),
@@ -232,14 +261,18 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
   },
 
   "trans.blurswap.soft": {
-    id: "trans.blurswap.soft", category: "transition", tags: ["blur", "soft"],
+    id: "trans.blurswap.soft",
+    category: "transition",
+    tags: ["blur", "soft"],
     build: () => ({
       presentation: blurSwap({ maxBlurPx: 20 }),
       timing: linearTiming({ durationInFrames: 14 }),
     }),
   },
   "trans.blurswap.hard": {
-    id: "trans.blurswap.hard", category: "transition", tags: ["blur"],
+    id: "trans.blurswap.hard",
+    category: "transition",
+    tags: ["blur"],
     build: () => ({
       presentation: blurSwap({ maxBlurPx: 50 }),
       timing: linearTiming({ durationInFrames: 18 }),
@@ -247,14 +280,18 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
   },
 
   "trans.whippan.left": {
-    id: "trans.whippan.left", category: "transition", tags: ["whippan", "snappy"],
+    id: "trans.whippan.left",
+    category: "transition",
+    tags: ["whippan", "snappy"],
     build: () => ({
       presentation: whipPan({ dir: "left", maxBlurPx: 24 }),
       timing: linearTiming({ durationInFrames: 10 }),
     }),
   },
   "trans.whippan.right": {
-    id: "trans.whippan.right", category: "transition", tags: ["whippan", "snappy"],
+    id: "trans.whippan.right",
+    category: "transition",
+    tags: ["whippan", "snappy"],
     build: () => ({
       presentation: whipPan({ dir: "right", maxBlurPx: 24 }),
       timing: linearTiming({ durationInFrames: 10 }),
@@ -262,56 +299,72 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
   },
 
   "trans.zoompunch.hard": {
-    id: "trans.zoompunch.hard", category: "transition", tags: ["punch", "premium"],
+    id: "trans.zoompunch.hard",
+    category: "transition",
+    tags: ["punch", "premium"],
     build: () => ({
       presentation: zoomPunch({ maxZoom: 2.8, maxBlurPx: 20 }),
       timing: linearTiming({ durationInFrames: 6 }),
     }),
   },
   "trans.zoompunch.soft": {
-    id: "trans.zoompunch.soft", category: "transition", tags: ["punch", "premium"],
+    id: "trans.zoompunch.soft",
+    category: "transition",
+    tags: ["punch", "premium"],
     build: () => ({
       presentation: zoomPunch({ maxZoom: 1.8, maxBlurPx: 12 }),
       timing: linearTiming({ durationInFrames: 12 }),
     }),
   },
   "trans.glitchcut.mild": {
-    id: "trans.glitchcut.mild", category: "transition", tags: ["glitch", "premium"],
+    id: "trans.glitchcut.mild",
+    category: "transition",
+    tags: ["glitch", "premium"],
     build: () => ({
       presentation: glitchCut({ splitPx: 10 }),
       timing: linearTiming({ durationInFrames: 6 }),
     }),
   },
   "trans.glitchcut.heavy": {
-    id: "trans.glitchcut.heavy", category: "transition", tags: ["glitch", "premium"],
+    id: "trans.glitchcut.heavy",
+    category: "transition",
+    tags: ["glitch", "premium"],
     build: () => ({
       presentation: glitchCut({ splitPx: 28 }),
       timing: linearTiming({ durationInFrames: 8 }),
     }),
   },
   "trans.shatter.grid": {
-    id: "trans.shatter.grid", category: "transition", tags: ["shatter", "premium"],
+    id: "trans.shatter.grid",
+    category: "transition",
+    tags: ["shatter", "premium"],
     build: () => ({
       presentation: shatter({ cols: 8, rows: 5 }),
       timing: linearTiming({ durationInFrames: 22 }),
     }),
   },
   "trans.shatter.fine": {
-    id: "trans.shatter.fine", category: "transition", tags: ["shatter", "premium"],
+    id: "trans.shatter.fine",
+    category: "transition",
+    tags: ["shatter", "premium"],
     build: () => ({
       presentation: shatter({ cols: 14, rows: 9 }),
       timing: linearTiming({ durationInFrames: 26 }),
     }),
   },
   "trans.morph.subtle": {
-    id: "trans.morph.subtle", category: "transition", tags: ["morph", "premium"],
+    id: "trans.morph.subtle",
+    category: "transition",
+    tags: ["morph", "premium"],
     build: () => ({
       presentation: morph({ scaleAmt: 0.05, blurPx: 6 }),
       timing: linearTiming({ durationInFrames: 14 }),
     }),
   },
   "trans.morph.strong": {
-    id: "trans.morph.strong", category: "transition", tags: ["morph", "premium"],
+    id: "trans.morph.strong",
+    category: "transition",
+    tags: ["morph", "premium"],
     build: () => ({
       presentation: morph({ scaleAmt: 0.12, blurPx: 14 }),
       timing: linearTiming({ durationInFrames: 18 }),
@@ -319,38 +372,73 @@ export const TRANSITION_PRESETS: TransitionRegistry = {
   },
 
   "trans.zoom.punch_in": {
-    id: "trans.zoom.punch_in", category: "transition", tags: ["zoom", "premium", "impact"],
+    id: "trans.zoom.punch_in",
+    category: "transition",
+    tags: ["zoom", "premium", "impact"],
     build: (overrides) => ({
-      presentation: zoomPunchTransition({ intensity: 2.5, flash: true, direction: "in", ...overrides }),
+      presentation: zoomPunchTransition({
+        intensity: 2.5,
+        flash: true,
+        direction: "in",
+        ...overrides,
+      }),
       timing: linearTiming({ durationInFrames: 12 }),
     }),
   },
   "trans.zoom.punch_out": {
-    id: "trans.zoom.punch_out", category: "transition", tags: ["zoom", "premium", "impact"],
+    id: "trans.zoom.punch_out",
+    category: "transition",
+    tags: ["zoom", "premium", "impact"],
     build: (overrides) => ({
-      presentation: zoomPunchTransition({ intensity: 2.5, flash: true, direction: "out", ...overrides }),
+      presentation: zoomPunchTransition({
+        intensity: 2.5,
+        flash: true,
+        direction: "out",
+        ...overrides,
+      }),
       timing: linearTiming({ durationInFrames: 12 }),
     }),
   },
   "trans.zoom.aggressive": {
-    id: "trans.zoom.aggressive", category: "transition", tags: ["zoom", "premium", "aggressive"],
+    id: "trans.zoom.aggressive",
+    category: "transition",
+    tags: ["zoom", "premium", "aggressive"],
     build: (overrides) => ({
-      presentation: zoomPunchTransition({ intensity: 3.5, flash: true, direction: "in", ...overrides }),
+      presentation: zoomPunchTransition({
+        intensity: 3.5,
+        flash: true,
+        direction: "in",
+        ...overrides,
+      }),
       timing: linearTiming({ durationInFrames: 8 }),
     }),
   },
 
   "trans.flash.white_premium": {
-    id: "trans.flash.white_premium", category: "transition", tags: ["flash", "premium", "impact"],
+    id: "trans.flash.white_premium",
+    category: "transition",
+    tags: ["flash", "premium", "impact"],
     build: (overrides) => ({
-      presentation: flashTransition({ color: "#FFFFFF", intensity: 1.0, peakDuration: 0.15, ...overrides }),
+      presentation: flashTransition({
+        color: "#FFFFFF",
+        intensity: 1.0,
+        peakDuration: 0.15,
+        ...overrides,
+      }),
       timing: linearTiming({ durationInFrames: 10 }),
     }),
   },
   "trans.flash.color": {
-    id: "trans.flash.color", category: "transition", tags: ["flash", "premium", "color"],
+    id: "trans.flash.color",
+    category: "transition",
+    tags: ["flash", "premium", "color"],
     build: (overrides) => ({
-      presentation: flashTransition({ color: "#FF3B30", intensity: 0.9, peakDuration: 0.2, ...overrides }),
+      presentation: flashTransition({
+        color: "#FF3B30",
+        intensity: 0.9,
+        peakDuration: 0.2,
+        ...overrides,
+      }),
       timing: linearTiming({ durationInFrames: 12 }),
     }),
   },

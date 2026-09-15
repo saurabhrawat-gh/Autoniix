@@ -18,24 +18,24 @@ Pulled from the demonetization emails surfaced in the source images:
 - "Mass-produced content using a similar template across multiple videos"
 - "Highly repetitive content with minimal variation across videos"
 - "Image slideshows or scrolling text with minimal or no narrative,
-   commentary, or educational value"
+  commentary, or educational value"
 - "Songs you did not originally create which have been modified to change
-   the pitch or speed"
+  the pitch or speed"
 - "Content that exclusively features readings of other materials you did
-   not originally create"
+  not originally create"
 
-The common thread is *low entropy across a channel's catalog* — visual,
+The common thread is _low entropy across a channel's catalog_ — visual,
 narrative, and structural sameness — not single-video issues.
 
 ## 2. Our defenses
 
 ### 2.1 Per-video gates (block at generation time)
 
-| Gate | Implementation | Threshold |
-|---|---|---|
-| **Title/hook similarity** to last 30 videos in the same channel | `src/intelligence/uniqueness_guard.check_uniqueness()` using pgvector cosine on `videos.title_embedding` | similarity ≥ **0.92** → reject and re-roll |
-| **Phrase novelty** vs. `phrase_bank` | `research/burst_detector.py` (already in tree) | enforced via existing research scoring |
-| **Authenticity score** | `compute_authenticity_score()` weighted composite of hook novelty, thumbnail distinctiveness, structure score, production score, and cross-channel similarity penalty | < **0.70** → human review forced |
+| Gate                                                            | Implementation                                                                                                                                                        | Threshold                                  |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| **Title/hook similarity** to last 30 videos in the same channel | `src/intelligence/uniqueness_guard.check_uniqueness()` using pgvector cosine on `videos.title_embedding`                                                              | similarity ≥ **0.92** → reject and re-roll |
+| **Phrase novelty** vs. `phrase_bank`                            | `research/burst_detector.py` (already in tree)                                                                                                                        | enforced via existing research scoring     |
+| **Authenticity score**                                          | `compute_authenticity_score()` weighted composite of hook novelty, thumbnail distinctiveness, structure score, production score, and cross-channel similarity penalty | < **0.70** → human review forced           |
 
 ### 2.2 Variation enforcement (force diversity across the catalog)
 

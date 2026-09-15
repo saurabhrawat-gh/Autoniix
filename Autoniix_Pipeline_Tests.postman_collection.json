@@ -1,0 +1,426 @@
+{
+  "info": {
+    "name": "Autoniix Video Pipeline Tests",
+    "description": "Complete test suite for Autoniix video production pipeline",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Phase 0: Health Checks",
+      "item": [
+        {
+          "name": "Gateway Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/health",
+              "host": ["{{gateway_url}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "Research Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{research_url}}/health",
+              "host": ["{{research_url}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "Script Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{script_url}}/health",
+              "host": ["{{script_url}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "Voice Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{voice_url}}/health",
+              "host": ["{{voice_url}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "Streaming Hub Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{streaming_hub_url}}/health",
+              "host": ["{{streaming_hub_url}}"],
+              "path": ["health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Phase 1: Authentication",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@autoniix.com\",\n  \"password\": \"TestPassword123!\",\n  \"full_name\": \"Test User\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/auth/register",
+              "host": ["{{gateway_url}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.environment.set('auth_token', jsonData.access_token);",
+                  "    console.log('Auth token saved:', jsonData.access_token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@autoniix.com\",\n  \"password\": \"TestPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/auth/login",
+              "host": ["{{gateway_url}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/auth/me",
+              "host": ["{{gateway_url}}"],
+              "path": ["auth", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Phase 2: Research Service (T3.1)",
+      "item": [
+        {
+          "name": "Research Topics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has research_data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('research_data');",
+                  "});",
+                  "",
+                  "pm.test('At least 3 sources returned', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.research_data.sources.length).to.be.at.least(3);",
+                  "});",
+                  "",
+                  "pm.test('Cost within budget', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.cost_usd).to.be.below(2.50);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"channel_id\": \"{{channel_id}}\",\n  \"content_mode\": \"short\",\n  \"topic_candidates\": [\n    \"AI trends 2026\",\n    \"machine learning breakthroughs\",\n    \"future of technology\"\n  ],\n  \"budget_guard\": {\n    \"max_cost_usd\": 2.50,\n    \"accrued_cost_usd\": 0.0\n  }\n}"
+            },
+            "url": {
+              "raw": "{{research_url}}/research",
+              "host": ["{{research_url}}"],
+              "path": ["research"]
+            }
+          }
+        },
+        {
+          "name": "Check Similarity (Embedding Dedup)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has similar_topics', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('similar_topics');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"AI trends 2026\",\n  \"channel_id\": \"{{channel_id}}\",\n  \"text_type\": \"topic\",\n  \"similarity_threshold\": 0.35\n}"
+            },
+            "url": {
+              "raw": "{{research_url}}/similarity/check",
+              "host": ["{{research_url}}"],
+              "path": ["similarity", "check"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Phase 3: Script Service (T3.2)",
+      "item": [
+        {
+          "name": "Generate Script",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"channel_id\": \"{{channel_id}}\",\n  \"content_id\": \"{{content_id}}\",\n  \"research_data\": {\n    \"selected_topic\": \"AI trends 2026\",\n    \"key_points\": [\n      \"GPT-5 release\",\n      \"AI regulation updates\",\n      \"Breakthrough in AGI research\"\n    ]\n  },\n  \"content_mode\": \"short\",\n  \"duration_target_seconds\": 60\n}"
+            },
+            "url": {
+              "raw": "{{script_url}}/script/generate",
+              "host": ["{{script_url}}"],
+              "path": ["script", "generate"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Phase 11: End-to-End Pipeline",
+      "item": [
+        {
+          "name": "Trigger Full Pipeline",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 202) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.environment.set('content_id', jsonData.content_id);",
+                  "    pm.environment.set('job_id', jsonData.job_id);",
+                  "    console.log('Content ID:', jsonData.content_id);",
+                  "    console.log('Job ID:', jsonData.job_id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"channel_id\": \"{{channel_id}}\",\n  \"topic_candidates\": [\n    \"AI trends 2026\",\n    \"machine learning breakthroughs\"\n  ],\n  \"content_mode\": \"short\",\n  \"quality\": \"preview\",\n  \"auto_publish\": false\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/pipeline/trigger",
+              "host": ["{{gateway_url}}"],
+              "path": ["pipeline", "trigger"]
+            }
+          }
+        },
+        {
+          "name": "Monitor Pipeline Progress",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/pipeline/status/{{job_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["pipeline", "status", "{{job_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Final Result",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Pipeline completed successfully', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.equal('completed');",
+                  "});",
+                  "",
+                  "pm.test('Video URL present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.video).to.have.property('video_url');",
+                  "});",
+                  "",
+                  "pm.test('Total cost reasonable', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.costs.total).to.be.below(5.0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/pipeline/result/{{job_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["pipeline", "result", "{{job_id}}"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "gateway_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "research_url",
+      "value": "http://localhost:8001"
+    },
+    {
+      "key": "script_url",
+      "value": "http://localhost:8002"
+    },
+    {
+      "key": "voice_url",
+      "value": "http://localhost:8003"
+    },
+    {
+      "key": "streaming_hub_url",
+      "value": "http://localhost:8009"
+    },
+    {
+      "key": "channel_id",
+      "value": "test_channel_001"
+    },
+    {
+      "key": "auth_token",
+      "value": ""
+    },
+    {
+      "key": "content_id",
+      "value": ""
+    },
+    {
+      "key": "job_id",
+      "value": ""
+    }
+  ]
+}

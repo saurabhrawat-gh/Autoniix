@@ -1,20 +1,12 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useCallback } from 'react';
-import { providersApi } from '@/lib/api-v2';
-import { useToast } from '@/lib/toast';
-import { cn } from '@/lib/utils';
-import { ArrowUp, ArrowDown, X, Plus, RotateCw } from '@/lib/components/Icon';
-import { confirmDialog } from '@/lib/components/ConfirmDialog';
-import {
-  Button,
-  Switch,
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '@/lib/ui';
+import { useEffect, useState, useCallback } from "react";
+import { providersApi } from "@/lib/api-v2";
+import { useToast } from "@/lib/toast";
+import { cn } from "@/lib/utils";
+import { ArrowUp, ArrowDown, X, Plus, RotateCw } from "@/lib/components/Icon";
+import { confirmDialog } from "@/lib/components/ConfirmDialog";
+import { Button, Switch, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/lib/ui";
 
 interface ProvidersTabProps {
   channelId: string;
@@ -35,7 +27,7 @@ export default function ProvidersTab({ channelId }: ProvidersTabProps) {
   const { showToast } = useToast();
   const [categories, setCategories] = useState<{ name: string }[]>([]);
   const [modes, setModes] = useState<{ name: string; label: string }[]>([]);
-  const [category, setCategory] = useState<string>('llm.script');
+  const [category, setCategory] = useState<string>("llm.script");
   const [mode, setMode] = useState<string | null>(null);
   const [override, setOverride] = useState<any[]>([]);
   const [resolved, setResolved] = useState<any[]>([]);
@@ -43,55 +35,73 @@ export default function ProvidersTab({ channelId }: ProvidersTabProps) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    providersApi.categories().then(r => setCategories(r.data || [])).catch(() => {});
-    providersApi.contentModes().then(r => setModes(r.data || [])).catch(() => {});
+    providersApi
+      .categories()
+      .then((r) => setCategories(r.data || []))
+      .catch(() => {});
+    providersApi
+      .contentModes()
+      .then((r) => setModes(r.data || []))
+      .catch(() => {});
   }, []);
 
   const refresh = useCallback(() => {
     if (!category) return;
     setLoading(true);
     Promise.all([
-      providersApi.chainsV2({ scope: 'channel', scope_id: channelId, content_mode: mode || undefined, category })
-        .then(r => setOverride(r.data || []))
+      providersApi
+        .chainsV2({ scope: "channel", scope_id: channelId, content_mode: mode || undefined, category })
+        .then((r) => setOverride(r.data || []))
         .catch(() => setOverride([])),
-      providersApi.resolved({ category, channel_id: channelId, content_mode: mode || undefined })
-        .then(r => setResolved(r.data || []))
+      providersApi
+        .resolved({ category, channel_id: channelId, content_mode: mode || undefined })
+        .then((r) => setResolved(r.data || []))
         .catch(() => setResolved([])),
-      providersApi.credentials(category)
-        .then(r => setAllCreds(r.data || []))
+      providersApi
+        .credentials(category)
+        .then((r) => setAllCreds(r.data || []))
         .catch(() => setAllCreds([])),
     ]).finally(() => setLoading(false));
   }, [channelId, category, mode]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   const save = (ids: number[]) =>
-    providersApi.upsertChainV2({
-      scope: 'channel',
-      scope_id: channelId,
-      content_mode: mode,
-      category,
-      credential_ids: ids,
-    }).then(() => { refresh(); showToast('Override saved', 'success'); })
-      .catch((e: any) => showToast(e?.message || 'Failed', 'error'));
+    providersApi
+      .upsertChainV2({
+        scope: "channel",
+        scope_id: channelId,
+        content_mode: mode,
+        category,
+        credential_ids: ids,
+      })
+      .then(() => {
+        refresh();
+        showToast("Override saved", "success");
+      })
+      .catch((e: any) => showToast(e?.message || "Failed", "error"));
 
   const clearOverride = async () => {
     const ok = await confirmDialog({
-      title: `Clear ${mode ? mode + ' ' : ''}override for ${category}?`,
-      description: 'This channel will inherit from the workspace-level configuration.',
+      title: `Clear ${mode ? mode + " " : ""}override for ${category}?`,
+      description: "This channel will inherit from the workspace-level configuration.",
       destructive: true,
-      confirmLabel: 'Clear override',
+      confirmLabel: "Clear override",
     });
     if (!ok) return;
     try {
       await providersApi.deleteChainV2({
-        scope: 'channel', scope_id: channelId,
-        content_mode: mode || undefined, category,
+        scope: "channel",
+        scope_id: channelId,
+        content_mode: mode || undefined,
+        category,
       });
-      showToast('Override cleared', 'success');
+      showToast("Override cleared", "success");
       refresh();
     } catch (e: any) {
-      showToast(e?.message || 'Failed to clear', 'error');
+      showToast(e?.message || "Failed to clear", "error");
     }
   };
 
@@ -104,15 +114,14 @@ export default function ProvidersTab({ channelId }: ProvidersTabProps) {
   };
 
   const overrideIds = new Set(override.map((c: any) => c.credential_id));
-  const eligibleToAdd = allCreds.filter(c => c.enabled && !overrideIds.has(c.id));
+  const eligibleToAdd = allCreds.filter((c) => c.enabled && !overrideIds.has(c.id));
 
   return (
     <div className="space-y-4">
       <div className="text-xs text-content-tertiary">
-        Channel overrides take precedence over workspace defaults. Each layer
-        appends-with-dedup so a partial override still inherits the rest of the
-        workspace chain. Use the segmented control to override only a specific
-        content mode (e.g. just Shorts).
+        Channel overrides take precedence over workspace defaults. Each layer appends-with-dedup so a partial override
+        still inherits the rest of the workspace chain. Use the segmented control to override only a specific content
+        mode (e.g. just Shorts).
       </div>
 
       {/* Category + mode controls */}
@@ -120,10 +129,14 @@ export default function ProvidersTab({ channelId }: ProvidersTabProps) {
         <div className="flex-1 min-w-[200px]">
           <div className="text-[10px] uppercase text-content-tertiary mb-1">Category</div>
           <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {categories.map((c: any) => (
-                <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
+                <SelectItem key={c.name} value={c.name}>
+                  {c.name}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -131,17 +144,19 @@ export default function ProvidersTab({ channelId }: ProvidersTabProps) {
         <div>
           <div className="text-[10px] uppercase text-content-tertiary mb-1">Content mode</div>
           <div className="flex items-center gap-0.5 bg-surface-1 rounded-md p-0.5">
-            {[{ name: null as string | null, label: 'All' }, ...modes].map((m: any) => (
+            {[{ name: null as string | null, label: "All" }, ...modes].map((m: any) => (
               <Button
-                key={m.name ?? '__all__'}
+                key={m.name ?? "__all__"}
                 type="button"
                 variant="ghost"
                 size="sm"
                 onClick={() => setMode(m.name)}
-                className={cn('h-7 px-2.5 text-[11px] font-medium',
+                className={cn(
+                  "h-7 px-2.5 text-[11px] font-medium",
                   mode === m.name
-                    ? 'bg-surface-0 text-content-primary shadow-sm hover:bg-surface-0'
-                    : 'text-content-tertiary hover:text-content-secondary')}
+                    ? "bg-surface-0 text-content-primary shadow-sm hover:bg-surface-0"
+                    : "text-content-tertiary hover:text-content-secondary"
+                )}
               >
                 {m.label}
               </Button>
@@ -162,16 +177,27 @@ export default function ProvidersTab({ channelId }: ProvidersTabProps) {
         ) : (
           <div className="rounded-md border border-border bg-surface-1/40 px-3 py-2 flex items-center gap-1.5 flex-wrap">
             {resolved.map((r: any, i: number) => (
-              <span key={`${r.credential_id}-${r.origin}`}
-                className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-surface-0 border border-border">
+              <span
+                key={`${r.credential_id}-${r.origin}`}
+                className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-surface-0 border border-border"
+              >
                 <span className="text-content-tertiary">{i + 1}.</span>
                 <span className="text-content-primary font-medium">{r.label}</span>
                 {r.model && <span className="text-content-tertiary font-mono">· {r.model}</span>}
-                <span className={cn('text-[9px] px-1 rounded',
-                  r.origin === 'default' ? 'bg-status-warning/10 text-status-warning' :
-                  r.origin.startsWith('channel') ? 'bg-accent/10 text-accent' :
-                  r.origin.startsWith('workspace') ? 'bg-status-success/10 text-status-success' :
-                  'bg-status-info/10 text-status-info')}>{r.origin}</span>
+                <span
+                  className={cn(
+                    "text-[9px] px-1 rounded",
+                    r.origin === "default"
+                      ? "bg-status-warning/10 text-status-warning"
+                      : r.origin.startsWith("channel")
+                        ? "bg-accent/10 text-accent"
+                        : r.origin.startsWith("workspace")
+                          ? "bg-status-success/10 text-status-success"
+                          : "bg-status-info/10 text-status-info"
+                  )}
+                >
+                  {r.origin}
+                </span>
               </span>
             ))}
           </div>
@@ -182,7 +208,7 @@ export default function ProvidersTab({ channelId }: ProvidersTabProps) {
       <section>
         <div className="flex items-center justify-between mb-1.5">
           <div className="text-[10px] uppercase text-content-tertiary">
-            Channel override · {mode ? `mode: ${mode}` : 'all modes'}
+            Channel override · {mode ? `mode: ${mode}` : "all modes"}
           </div>
           {override.length > 0 && (
             <Button
@@ -210,68 +236,71 @@ export default function ProvidersTab({ channelId }: ProvidersTabProps) {
                 const entryEnabled = c.is_enabled ?? true;
                 const toggleEntry = async () => {
                   if (!c.id) {
-                    showToast('Chain entry id missing — reload', 'error');
+                    showToast("Chain entry id missing — reload", "error");
                     return;
                   }
                   try {
                     await providersApi.setChainEntryEnabled(c.id, !entryEnabled);
                     refresh();
                   } catch (e: any) {
-                    showToast(e?.message || 'Toggle failed', 'error');
+                    showToast(e?.message || "Toggle failed", "error");
                   }
                 };
                 return (
-                <div key={c.id ?? c.credential_id} className={cn(
-                  'px-3 py-2 flex items-center gap-2',
-                  !entryEnabled && 'opacity-60'
-                )}>
-                  <span className="text-[11px] text-content-tertiary w-5">{i + 1}.</span>
-                  <span className={cn(
-                    'text-sm text-content-primary flex-1',
-                    !entryEnabled && 'line-through'
-                  )}>{c.label}</span>
-                  {c.model && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-secondary font-mono">{c.model}</span>
-                  )}
-                  <span className="text-[10px] text-content-tertiary font-mono">{c.provider_name}</span>
-                  <Switch
-                    checked={entryEnabled}
-                    onCheckedChange={toggleEntry}
-                    aria-label={entryEnabled ? 'Disable in this override' : 'Enable in this override'}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    onClick={() => move(i, -1)}
-                    disabled={i === 0}
-                    aria-label="Move up"
-                    className="w-6 h-6"
+                  <div
+                    key={c.id ?? c.credential_id}
+                    className={cn("px-3 py-2 flex items-center gap-2", !entryEnabled && "opacity-60")}
                   >
-                    <ArrowUp size={11} />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    onClick={() => move(i, 1)}
-                    disabled={i === override.length - 1}
-                    aria-label="Move down"
-                    className="w-6 h-6"
-                  >
-                    <ArrowDown size={11} />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    onClick={() => save(override.map((x: any) => x.credential_id).filter((id: number) => id !== c.credential_id))}
-                    aria-label="Remove from override"
-                    className="w-6 h-6 text-status-error border-status-error/30 hover:bg-status-error/10"
-                  >
-                    <X size={11} />
-                  </Button>
-                </div>
+                    <span className="text-[11px] text-content-tertiary w-5">{i + 1}.</span>
+                    <span className={cn("text-sm text-content-primary flex-1", !entryEnabled && "line-through")}>
+                      {c.label}
+                    </span>
+                    {c.model && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-secondary font-mono">
+                        {c.model}
+                      </span>
+                    )}
+                    <span className="text-[10px] text-content-tertiary font-mono">{c.provider_name}</span>
+                    <Switch
+                      checked={entryEnabled}
+                      onCheckedChange={toggleEntry}
+                      aria-label={entryEnabled ? "Disable in this override" : "Enable in this override"}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      onClick={() => move(i, -1)}
+                      disabled={i === 0}
+                      aria-label="Move up"
+                      className="w-6 h-6"
+                    >
+                      <ArrowUp size={11} />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      onClick={() => move(i, 1)}
+                      disabled={i === override.length - 1}
+                      aria-label="Move down"
+                      className="w-6 h-6"
+                    >
+                      <ArrowDown size={11} />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      onClick={() =>
+                        save(override.map((x: any) => x.credential_id).filter((id: number) => id !== c.credential_id))
+                      }
+                      aria-label="Remove from override"
+                      className="w-6 h-6 text-status-error border-status-error/30 hover:bg-status-error/10"
+                    >
+                      <X size={11} />
+                    </Button>
+                  </div>
                 );
               })}
             </div>

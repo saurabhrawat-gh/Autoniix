@@ -64,8 +64,8 @@ export class ChannelRepository {
     const statusFilter = status
       ? this.db`AND status = ${status}`
       : includeArchived
-      ? this.db``
-      : this.db`AND status != 'archived'`;
+        ? this.db``
+        : this.db`AND status != 'archived'`;
 
     const channels = await this.db<ChannelRow[]>`
       SELECT channel_id, workspace_id, channel_name, niche, sub_niche,
@@ -93,10 +93,7 @@ export class ChannelRepository {
     };
   }
 
-  async findById(
-    channelId: string,
-    workspaceId: string
-  ): Promise<ChannelRow | null> {
+  async findById(channelId: string, workspaceId: string): Promise<ChannelRow | null> {
     const [channel] = await this.db<ChannelRow[]>`
       SELECT channel_id, workspace_id, channel_name, niche, sub_niche,
              platform, status, handle, description, tone, brand_personality,
@@ -140,11 +137,7 @@ export class ChannelRepository {
     return channel;
   }
 
-  async update(
-    channelId: string,
-    workspaceId: string,
-    input: UpdateChannelInput
-  ): Promise<ChannelRow> {
+  async update(channelId: string, workspaceId: string, input: UpdateChannelInput): Promise<ChannelRow> {
     const existing = await this.findById(channelId, workspaceId);
     if (!existing) throw new Error("Channel not found");
 
@@ -203,12 +196,16 @@ export class ChannelRepository {
     disabled: number;
     archived: number;
   }> {
-    const [stats] = await this.db<[{
-      total: string;
-      active: string;
-      disabled: string;
-      archived: string;
-    }]>`
+    const [stats] = await this.db<
+      [
+        {
+          total: string;
+          active: string;
+          disabled: string;
+          archived: string;
+        },
+      ]
+    >`
       SELECT
         COUNT(*)::text AS total,
         COUNT(*) FILTER (WHERE status = 'active')::text AS active,

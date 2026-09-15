@@ -1,9 +1,6 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig } from "remotion";
-import {
-  computePathFollow,
-  type BezierPath,
-} from "../../registry/textAnimations";
+import { computePathFollow, type BezierPath } from "../../registry/textAnimations";
 
 /**
  * Phase 1B — Text glyphs aligned along a Bezier path.
@@ -57,10 +54,7 @@ export const PathFollow: React.FC<PathFollowProps> = ({
   const spread = spreadFrom + (spreadTo - spreadFrom) * t;
   const tLocalMs = (localFrame / 60) * 1000;
 
-  const glyphs = computePathFollow(
-    { text, path, spread, alignToPath },
-    tLocalMs,
-  );
+  const glyphs = computePathFollow({ text, path, spread, alignToPath }, tLocalMs);
 
   return (
     <svg

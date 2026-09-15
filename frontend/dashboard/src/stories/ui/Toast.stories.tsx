@@ -1,10 +1,10 @@
-import type { Meta, StoryObj } from '@storybook/react';
-import { ToastProvider, useToast, Button } from '@/lib/ui';
+import type { Meta, StoryObj } from "@storybook/react";
+import { ToastProvider, useToast, Button } from "@/lib/ui";
 
 const meta: Meta = {
-  title: 'UI/Toast',
-  tags: ['autodocs'],
-  parameters: { layout: 'centered' },
+  title: "UI/Toast",
+  tags: ["autodocs"],
+  parameters: { layout: "centered" },
   decorators: [
     (Story) => (
       <ToastProvider>
@@ -16,13 +16,10 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
-function ToastDemo({ variant, message }: { variant: 'success' | 'error' | 'warning' | 'info'; message: string }) {
+function ToastDemo({ variant, message }: { variant: "success" | "error" | "warning" | "info"; message: string }) {
   const { toast } = useToast();
   return (
-    <Button
-      variant="secondary"
-      onClick={() => toast({ variant, message })}
-    >
+    <Button variant="secondary" onClick={() => toast({ variant, message })}>
       Show {variant} toast
     </Button>
   );

@@ -60,7 +60,9 @@ export class EditorAgent implements Agent<EditorInput, EditorOutput> {
     let captionFixes = 0;
 
     if (videoTrack) {
-      const working: SceneClip[] = (videoTrack.clips.filter((c) => c.kind === "scene") as SceneClip[]).map((c) => ({ ...c }));
+      const working: SceneClip[] = (
+        videoTrack.clips.filter((c) => c.kind === "scene") as SceneClip[]
+      ).map((c) => ({ ...c }));
 
       for (let i = 0; i < working.length; i++) {
         const clip = working[i]!;
@@ -87,7 +89,10 @@ export class EditorAgent implements Agent<EditorInput, EditorOutput> {
           const limit = runStartMs + MAX_NO_INTERRUPT_MS;
           const candidates = runIdx
             .map((i) => ({ i, c: working[i]! }))
-            .filter(({ c }) => !c.transitionOut || !PATTERN_INTERRUPT_TRANSITIONS.has(c.transitionOut.preset));
+            .filter(
+              ({ c }) =>
+                !c.transitionOut || !PATTERN_INTERRUPT_TRANSITIONS.has(c.transitionOut.preset),
+            );
           const fitting = candidates.filter(({ c }) => c.range[1] <= limit);
           const pick = (fitting.length > 0 ? fitting : candidates).reduce((a, b) =>
             Math.abs(a.c.range[1] - limit) <= Math.abs(b.c.range[1] - limit) ? a : b,
@@ -107,7 +112,8 @@ export class EditorAgent implements Agent<EditorInput, EditorOutput> {
       };
       for (let i = 0; i < working.length; i++) {
         const clip = working[i]!;
-        const hasInterrupt = clip.transitionOut && PATTERN_INTERRUPT_TRANSITIONS.has(clip.transitionOut.preset);
+        const hasInterrupt =
+          clip.transitionOut && PATTERN_INTERRUPT_TRANSITIONS.has(clip.transitionOut.preset);
         runIdx.push(i);
         if (hasInterrupt) {
           flushRun();
@@ -133,14 +139,15 @@ export class EditorAgent implements Agent<EditorInput, EditorOutput> {
       }
     }
 
-    const patch: Patch | undefined = ops.length > 0
-      ? {
-          agent: this.name,
-          agentVersion: VERSION,
-          ops,
-          reason: `editor:p${pacingFixes}+a${animationFixes}+c${captionFixes}`,
-        }
-      : undefined;
+    const patch: Patch | undefined =
+      ops.length > 0
+        ? {
+            agent: this.name,
+            agentVersion: VERSION,
+            ops,
+            reason: `editor:p${pacingFixes}+a${animationFixes}+c${captionFixes}`,
+          }
+        : undefined;
 
     return {
       output: { pacingFixes, animationFixes, captionFixes, ops },

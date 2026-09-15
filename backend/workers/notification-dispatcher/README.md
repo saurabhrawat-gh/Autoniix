@@ -9,6 +9,7 @@
 ## Overview
 
 This service is a **direct port** of the Go notification-dispatcher (`services/notification-dispatcher/`). It polls the `notification_deliveries` table for rows that are:
+
 - `status='queued'` AND older than `STALE_AFTER_MS`, OR
 - `status='failed'` AND `attempts < MAX_ATTEMPTS` AND older than `STALE_AFTER_MS`
 
@@ -20,12 +21,12 @@ It claims rows using `FOR UPDATE SKIP LOCKED` to avoid collisions with other dis
 
 ### Channels
 
-| Channel | Description | Config |
-|---------|-------------|--------|
-| `slack` | Posts to Slack Incoming Webhook | `webhook_url` or `SLACK_WEBHOOK_URL` env |
-| `webhook` | POSTs raw notification JSON to URL | `url` in route config |
-| `browser` | No-op (served by notification center UI) | N/A |
-| `email` | Placeholder (always fails until SMTP wired) | N/A |
+| Channel   | Description                                 | Config                                   |
+| --------- | ------------------------------------------- | ---------------------------------------- |
+| `slack`   | Posts to Slack Incoming Webhook             | `webhook_url` or `SLACK_WEBHOOK_URL` env |
+| `webhook` | POSTs raw notification JSON to URL          | `url` in route config                    |
+| `browser` | No-op (served by notification center UI)    | N/A                                      |
+| `email`   | Placeholder (always fails until SMTP wired) | N/A                                      |
 
 ### Polling Loop
 
@@ -41,16 +42,16 @@ It claims rows using `FOR UPDATE SKIP LOCKED` to avoid collisions with other dis
 
 All env vars are optional with sensible defaults:
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| `DATABASE_URL` | `postgresql://app:...@postgres-app:5432/autoniix` | App database connection string |
-| `HTTP_ADDR` | `0.0.0.0:8090` | Health/ready endpoint listen address |
-| `POLL_INTERVAL_MS` | `15000` | How often to poll for work (ms) |
-| `STALE_AFTER_MS` | `60000` | Min age before claiming a row (ms) |
-| `BATCH_SIZE` | `50` | Max rows claimed per tick |
-| `MAX_ATTEMPTS` | `3` | Total delivery attempts before permanent failure |
-| `HTTP_TIMEOUT_MS` | `10000` | Timeout for each channel HTTP call (ms) |
-| `SLACK_WEBHOOK_URL` | `""` | Fallback Slack webhook if route config has none |
+| Env Var             | Default                                           | Description                                      |
+| ------------------- | ------------------------------------------------- | ------------------------------------------------ |
+| `DATABASE_URL`      | `postgresql://app:...@postgres-app:5432/autoniix` | App database connection string                   |
+| `HTTP_ADDR`         | `0.0.0.0:8090`                                    | Health/ready endpoint listen address             |
+| `POLL_INTERVAL_MS`  | `15000`                                           | How often to poll for work (ms)                  |
+| `STALE_AFTER_MS`    | `60000`                                           | Min age before claiming a row (ms)               |
+| `BATCH_SIZE`        | `50`                                              | Max rows claimed per tick                        |
+| `MAX_ATTEMPTS`      | `3`                                               | Total delivery attempts before permanent failure |
+| `HTTP_TIMEOUT_MS`   | `10000`                                           | Timeout for each channel HTTP call (ms)          |
+| `SLACK_WEBHOOK_URL` | `""`                                              | Fallback Slack webhook if route config has none  |
 
 ---
 
@@ -104,10 +105,12 @@ pytest
 ## Cutover from Go
 
 ### Current State
+
 - **Go dispatcher:** `services/notification-dispatcher/` (G1 service)
 - **Python dispatcher:** `services/notification-dispatcher-v2/` (this service)
 
 ### Rollout
+
 1. Deploy Python dispatcher alongside Go dispatcher
 2. Both poll the same table; `FOR UPDATE SKIP LOCKED` prevents collisions
 3. Monitor logs for delivery success/failure rates
@@ -115,10 +118,13 @@ pytest
 5. Remove Go service from docker-compose (Phase 6)
 
 ### Rollback
+
 Stop Python dispatcher:
+
 ```bash
 docker-compose stop notification-dispatcher-v2
 ```
+
 Go dispatcher continues handling all retries.
 
 ---
@@ -126,14 +132,17 @@ Go dispatcher continues handling all retries.
 ## Differences from Go
 
 ### Parallel Delivery
+
 **Go:** Sequential (one row at a time in the loop)  
 **Python:** Parallel (`asyncio.gather` over all rows in batch)
 
 ### HTTP Client
+
 **Go:** `http.Client` with per-request timeout  
 **Python:** `httpx.AsyncClient` with global timeout + connection pooling
 
 ### Logging
+
 **Go:** `zap.SugaredLogger`  
 **Python:** `structlog` with JSON output
 

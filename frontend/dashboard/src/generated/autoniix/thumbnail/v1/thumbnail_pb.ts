@@ -11,8 +11,12 @@ import type { Message } from "@bufbuild/protobuf";
 /**
  * Describes the file autoniix/thumbnail/v1/thumbnail.proto.
  */
-export const file_autoniix_thumbnail_v1_thumbnail: GenFile = /*@__PURE__*/
-  fileDesc("CiVhdXRvbmlpeC90aHVtYm5haWwvdjEvdGh1bWJuYWlsLnByb3RvEhVhdXRvbmlpeC50aHVtYm5haWwudjEi/gEKGEdlbmVyYXRlVGh1bWJuYWlsUmVxdWVzdBISCgpjb250ZW50X2lkGAEgASgJEhIKCmNoYW5uZWxfaWQYAiABKAkSDQoFdGl0bGUYAyABKAkSDQoFbmljaGUYBCABKAkSFAoMY29udGVudF9tb2RlGAUgASgJElMKCnBhcmFtZXRlcnMYBiADKAsyPy5hdXRvbmlpeC50aHVtYm5haWwudjEuR2VuZXJhdGVUaHVtYm5haWxSZXF1ZXN0LlBhcmFtZXRlcnNFbnRyeRoxCg9QYXJhbWV0ZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASKIAgoZR2VuZXJhdGVUaHVtYm5haWxSZXNwb25zZRJDChJzZWxlY3RlZF90aHVtYm5haWwYASABKAsyJy5hdXRvbmlpeC50aHVtYm5haWwudjEuVGh1bWJuYWlsVmFyaWFudBI9CgxhbGxfdmFyaWFudHMYAiADKAsyJy5hdXRvbmlpeC50aHVtYm5haWwudjEuVGh1bWJuYWlsVmFyaWFudBIXCg90aHVtYm5haWxfc2NvcmUYAyABKAESIAoYdGh1bWJuYWlsX2N0cl9wcmVkaWN0aW9uGAQgASgBEhoKEmNvbmNlcHRzX2dlbmVyYXRlZBgFIAEoBRIQCghjb3N0X3VzZBgGIAEoASKmAQoQVGh1bWJuYWlsVmFyaWFudBISCgp2YXJpYW50X2lkGAEgASgFEhQKDGNvbmNlcHRfbmFtZRgCIAEoCRILCgN1cmwYAyABKAkSFQoNcHJlZGljdGVkX2N0chgEIAEoARIXCg90aHVtYm5haWxfc2NvcmUYBSABKAESFAoMdGV4dF9vdmVybGF5GAYgASgJEhUKDWRhbGxfZV9wcm9tcHQYByABKAkiawoYVGh1bWJuYWlsRmVlZGJhY2tSZXF1ZXN0EhIKCmNvbnRlbnRfaWQYASABKAkSEgoKY2hhbm5lbF9pZBgCIAEoCRISCgphY3R1YWxfY3RyGAMgASgBEhMKC2ltcHJlc3Npb25zGAQgASgFIiYKFVRodW1ibmFpbFRyYWluUmVxdWVzdBINCgVuaWNoZRgBIAEoCSI6ChZUaHVtYm5haWxUcmFpblJlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgSDwoHbWVzc2FnZRgCIAEoCTLZAgoQVGh1bWJuYWlsU2VydmljZRJ2ChFHZW5lcmF0ZVRodW1ibmFpbBIvLmF1dG9uaWl4LnRodW1ibmFpbC52MS5HZW5lcmF0ZVRodW1ibmFpbFJlcXVlc3QaMC5hdXRvbmlpeC50aHVtYm5haWwudjEuR2VuZXJhdGVUaHVtYm5haWxSZXNwb25zZRJiChRHZXRUaHVtYm5haWxGZWVkYmFjaxIvLmF1dG9uaWl4LnRodW1ibmFpbC52MS5UaHVtYm5haWxGZWVkYmFja1JlcXVlc3QaGS5hdXRvbmlpeC5jb21tb24udjEuRW1wdHkSaQoKVHJhaW5Nb2RlbBIsLmF1dG9uaWl4LnRodW1ibmFpbC52MS5UaHVtYm5haWxUcmFpblJlcXVlc3QaLS5hdXRvbmlpeC50aHVtYm5haWwudjEuVGh1bWJuYWlsVHJhaW5SZXNwb25zZULoAQoZY29tLmF1dG9uaWl4LnRodW1ibmFpbC52MUIOVGh1bWJuYWlsUHJvdG9QAVpFZ2l0aHViLmNvbS9hdXRvbmlpeC9hdXRvbmlpeC9nZW4vZ28vYXV0b25paXgvdGh1bWJuYWlsL3YxO3RodW1ibmFpbHYxogIDQVRYqgIVQXV0b25paXguVGh1bWJuYWlsLlYxygIVQXV0b25paXhcVGh1bWJuYWlsXFYx4gIhQXV0b25paXhcVGh1bWJuYWlsXFYxXEdQQk1ldGFkYXRh6gIXQXV0b25paXg6OlRodW1ibmFpbDo6VjFiBnByb3RvMw", [file_autoniix_common_v1_common]);
+export const file_autoniix_thumbnail_v1_thumbnail: GenFile =
+  /*@__PURE__*/
+  fileDesc(
+    "CiVhdXRvbmlpeC90aHVtYm5haWwvdjEvdGh1bWJuYWlsLnByb3RvEhVhdXRvbmlpeC50aHVtYm5haWwudjEi/gEKGEdlbmVyYXRlVGh1bWJuYWlsUmVxdWVzdBISCgpjb250ZW50X2lkGAEgASgJEhIKCmNoYW5uZWxfaWQYAiABKAkSDQoFdGl0bGUYAyABKAkSDQoFbmljaGUYBCABKAkSFAoMY29udGVudF9tb2RlGAUgASgJElMKCnBhcmFtZXRlcnMYBiADKAsyPy5hdXRvbmlpeC50aHVtYm5haWwudjEuR2VuZXJhdGVUaHVtYm5haWxSZXF1ZXN0LlBhcmFtZXRlcnNFbnRyeRoxCg9QYXJhbWV0ZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASKIAgoZR2VuZXJhdGVUaHVtYm5haWxSZXNwb25zZRJDChJzZWxlY3RlZF90aHVtYm5haWwYASABKAsyJy5hdXRvbmlpeC50aHVtYm5haWwudjEuVGh1bWJuYWlsVmFyaWFudBI9CgxhbGxfdmFyaWFudHMYAiADKAsyJy5hdXRvbmlpeC50aHVtYm5haWwudjEuVGh1bWJuYWlsVmFyaWFudBIXCg90aHVtYm5haWxfc2NvcmUYAyABKAESIAoYdGh1bWJuYWlsX2N0cl9wcmVkaWN0aW9uGAQgASgBEhoKEmNvbmNlcHRzX2dlbmVyYXRlZBgFIAEoBRIQCghjb3N0X3VzZBgGIAEoASKmAQoQVGh1bWJuYWlsVmFyaWFudBISCgp2YXJpYW50X2lkGAEgASgFEhQKDGNvbmNlcHRfbmFtZRgCIAEoCRILCgN1cmwYAyABKAkSFQoNcHJlZGljdGVkX2N0chgEIAEoARIXCg90aHVtYm5haWxfc2NvcmUYBSABKAESFAoMdGV4dF9vdmVybGF5GAYgASgJEhUKDWRhbGxfZV9wcm9tcHQYByABKAkiawoYVGh1bWJuYWlsRmVlZGJhY2tSZXF1ZXN0EhIKCmNvbnRlbnRfaWQYASABKAkSEgoKY2hhbm5lbF9pZBgCIAEoCRISCgphY3R1YWxfY3RyGAMgASgBEhMKC2ltcHJlc3Npb25zGAQgASgFIiYKFVRodW1ibmFpbFRyYWluUmVxdWVzdBINCgVuaWNoZRgBIAEoCSI6ChZUaHVtYm5haWxUcmFpblJlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgSDwoHbWVzc2FnZRgCIAEoCTLZAgoQVGh1bWJuYWlsU2VydmljZRJ2ChFHZW5lcmF0ZVRodW1ibmFpbBIvLmF1dG9uaWl4LnRodW1ibmFpbC52MS5HZW5lcmF0ZVRodW1ibmFpbFJlcXVlc3QaMC5hdXRvbmlpeC50aHVtYm5haWwudjEuR2VuZXJhdGVUaHVtYm5haWxSZXNwb25zZRJiChRHZXRUaHVtYm5haWxGZWVkYmFjaxIvLmF1dG9uaWl4LnRodW1ibmFpbC52MS5UaHVtYm5haWxGZWVkYmFja1JlcXVlc3QaGS5hdXRvbmlpeC5jb21tb24udjEuRW1wdHkSaQoKVHJhaW5Nb2RlbBIsLmF1dG9uaWl4LnRodW1ibmFpbC52MS5UaHVtYm5haWxUcmFpblJlcXVlc3QaLS5hdXRvbmlpeC50aHVtYm5haWwudjEuVGh1bWJuYWlsVHJhaW5SZXNwb25zZULoAQoZY29tLmF1dG9uaWl4LnRodW1ibmFpbC52MUIOVGh1bWJuYWlsUHJvdG9QAVpFZ2l0aHViLmNvbS9hdXRvbmlpeC9hdXRvbmlpeC9nZW4vZ28vYXV0b25paXgvdGh1bWJuYWlsL3YxO3RodW1ibmFpbHYxogIDQVRYqgIVQXV0b25paXguVGh1bWJuYWlsLlYxygIVQXV0b25paXhcVGh1bWJuYWlsXFYx4gIhQXV0b25paXhcVGh1bWJuYWlsXFYxXEdQQk1ldGFkYXRh6gIXQXV0b25paXg6OlRodW1ibmFpbDo6VjFiBnByb3RvMw",
+    [file_autoniix_common_v1_common]
+  );
 
 /**
  * @generated from message autoniix.thumbnail.v1.GenerateThumbnailRequest
@@ -53,7 +57,8 @@ export type GenerateThumbnailRequest = Message<"autoniix.thumbnail.v1.GenerateTh
  * Describes the message autoniix.thumbnail.v1.GenerateThumbnailRequest.
  * Use `create(GenerateThumbnailRequestSchema)` to create a new message.
  */
-export const GenerateThumbnailRequestSchema: GenMessage<GenerateThumbnailRequest> = /*@__PURE__*/
+export const GenerateThumbnailRequestSchema: GenMessage<GenerateThumbnailRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_thumbnail_v1_thumbnail, 0);
 
 /**
@@ -95,7 +100,8 @@ export type GenerateThumbnailResponse = Message<"autoniix.thumbnail.v1.GenerateT
  * Describes the message autoniix.thumbnail.v1.GenerateThumbnailResponse.
  * Use `create(GenerateThumbnailResponseSchema)` to create a new message.
  */
-export const GenerateThumbnailResponseSchema: GenMessage<GenerateThumbnailResponse> = /*@__PURE__*/
+export const GenerateThumbnailResponseSchema: GenMessage<GenerateThumbnailResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_thumbnail_v1_thumbnail, 1);
 
 /**
@@ -142,7 +148,8 @@ export type ThumbnailVariant = Message<"autoniix.thumbnail.v1.ThumbnailVariant">
  * Describes the message autoniix.thumbnail.v1.ThumbnailVariant.
  * Use `create(ThumbnailVariantSchema)` to create a new message.
  */
-export const ThumbnailVariantSchema: GenMessage<ThumbnailVariant> = /*@__PURE__*/
+export const ThumbnailVariantSchema: GenMessage<ThumbnailVariant> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_thumbnail_v1_thumbnail, 2);
 
 /**
@@ -174,7 +181,8 @@ export type ThumbnailFeedbackRequest = Message<"autoniix.thumbnail.v1.ThumbnailF
  * Describes the message autoniix.thumbnail.v1.ThumbnailFeedbackRequest.
  * Use `create(ThumbnailFeedbackRequestSchema)` to create a new message.
  */
-export const ThumbnailFeedbackRequestSchema: GenMessage<ThumbnailFeedbackRequest> = /*@__PURE__*/
+export const ThumbnailFeedbackRequestSchema: GenMessage<ThumbnailFeedbackRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_thumbnail_v1_thumbnail, 3);
 
 /**
@@ -191,7 +199,8 @@ export type ThumbnailTrainRequest = Message<"autoniix.thumbnail.v1.ThumbnailTrai
  * Describes the message autoniix.thumbnail.v1.ThumbnailTrainRequest.
  * Use `create(ThumbnailTrainRequestSchema)` to create a new message.
  */
-export const ThumbnailTrainRequestSchema: GenMessage<ThumbnailTrainRequest> = /*@__PURE__*/
+export const ThumbnailTrainRequestSchema: GenMessage<ThumbnailTrainRequest> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_thumbnail_v1_thumbnail, 4);
 
 /**
@@ -213,7 +222,8 @@ export type ThumbnailTrainResponse = Message<"autoniix.thumbnail.v1.ThumbnailTra
  * Describes the message autoniix.thumbnail.v1.ThumbnailTrainResponse.
  * Use `create(ThumbnailTrainResponseSchema)` to create a new message.
  */
-export const ThumbnailTrainResponseSchema: GenMessage<ThumbnailTrainResponse> = /*@__PURE__*/
+export const ThumbnailTrainResponseSchema: GenMessage<ThumbnailTrainResponse> =
+  /*@__PURE__*/
   messageDesc(file_autoniix_thumbnail_v1_thumbnail, 5);
 
 /**
@@ -227,7 +237,7 @@ export const ThumbnailService: GenService<{
     methodKind: "unary";
     input: typeof GenerateThumbnailRequestSchema;
     output: typeof GenerateThumbnailResponseSchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.thumbnail.v1.ThumbnailService.GetThumbnailFeedback
    */
@@ -235,7 +245,7 @@ export const ThumbnailService: GenService<{
     methodKind: "unary";
     input: typeof ThumbnailFeedbackRequestSchema;
     output: typeof EmptySchema;
-  },
+  };
   /**
    * @generated from rpc autoniix.thumbnail.v1.ThumbnailService.TrainModel
    */
@@ -243,7 +253,5 @@ export const ThumbnailService: GenService<{
     methodKind: "unary";
     input: typeof ThumbnailTrainRequestSchema;
     output: typeof ThumbnailTrainResponseSchema;
-  },
-}> = /*@__PURE__*/
-  serviceDesc(file_autoniix_thumbnail_v1_thumbnail, 0);
-
+  };
+}> = /*@__PURE__*/ serviceDesc(file_autoniix_thumbnail_v1_thumbnail, 0);

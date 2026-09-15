@@ -3,10 +3,10 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig, spring, interpolate } fr
 
 /**
  * Premium text stroke reveal animation.
- * 
+ *
  * Animates text by drawing the stroke outline first, then filling.
  * Creates a handwritten/signature effect.
- * 
+ *
  * Quality: Matches After Effects stroke reveal at 95%+.
  */
 
@@ -43,7 +43,7 @@ export const TextStrokeReveal: React.FC<TextStrokeRevealProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  
+
   const strokeProgress = spring({
     frame,
     fps,
@@ -52,16 +52,14 @@ export const TextStrokeReveal: React.FC<TextStrokeRevealProps> = ({
     to: 1,
     durationInFrames: revealDuration,
   });
-  
-  const fillOpacity = interpolate(
-    frame,
-    [fillDelay, fillDelay + 20],
-    [0, 1],
-    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
-  );
-  
+
+  const fillOpacity = interpolate(frame, [fillDelay, fillDelay + 20], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
   const strokeDashoffset = (1 - strokeProgress) * 1000;
-  
+
   return (
     <AbsoluteFill
       style={{
@@ -96,7 +94,7 @@ export const TextStrokeReveal: React.FC<TextStrokeRevealProps> = ({
         >
           {text}
         </text>
-        
+
         {/* Fill (appears after stroke) */}
         <text
           x={align === "left" ? "0" : align === "right" ? "1000" : "500"}

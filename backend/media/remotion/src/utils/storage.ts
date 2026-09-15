@@ -42,8 +42,7 @@ export async function uploadFile(
   const body = createReadStream(localPath);
 
   const prefix = env.S3_KEY_PREFIX.replace(/^\/+|\/+$/g, "");
-  const finalKey =
-    prefix && !key.startsWith(`${prefix}/`) ? `${prefix}/${key}` : key;
+  const finalKey = prefix && !key.startsWith(`${prefix}/`) ? `${prefix}/${key}` : key;
 
   logger.info({ key: finalKey, size, contentType }, "uploading to s3");
 

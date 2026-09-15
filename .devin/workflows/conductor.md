@@ -8,6 +8,7 @@ description: Conductor — top-level orchestrator that routes work between all a
 > After 2026-07-11 the user will explicitly say "freeze lifted" or "deploy" before any main promotion.
 
 > **Source of Truth — LOCKED:**
+>
 > - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project. When the user says "pick up IM-XXX", resolve it from the IM board.
 > - Jira **Autoniix Engineering (AE)** space is **archived** — read-only, never route work there.
 > - GitHub **Autoniix MVP** project board is **closed** — do not reference it.
@@ -18,6 +19,7 @@ description: Conductor — top-level orchestrator that routes work between all a
 The conductor is the single entry point for all development work on Autoniix. It routes between teams, enforces checkpoints, and resumes sessions that were paused.
 
 **Usage:**
+
 ```
 /conductor feature #N          — run full feature pipeline for an existing issue
 /conductor feature             — pick the highest-priority ready-for-dev issue
@@ -60,6 +62,7 @@ Step 5:  DevOps Team     (deploy monitoring + smoke test)
 ### Feature Path — Detailed Steps
 
 **Step 1: BA Team** (skip if issue already exists with full spec)
+
 - Invoke `/ba-agent` workflow
 - BA Lead asks product owner questions, presents options, owner chooses
 - Issue Architect files Epic→Story→Task with correct title format
@@ -67,6 +70,7 @@ Step 5:  DevOps Team     (deploy monitoring + smoke test)
 - Print checkpoint → wait for "proceed"
 
 **Step 2: Research Team**
+
 - Invoke `/research-agent` workflow
 - Research Lead runs Codebase Analyst + Dep Auditor + Architecture Advisor
 - Posts `research_notes` comment on issue
@@ -74,6 +78,7 @@ Step 5:  DevOps Team     (deploy monitoring + smoke test)
 - Print checkpoint → wait for "proceed"
 
 **Step 3: Dev Team**
+
 - Invoke `/dev-agent` for the specific issue
 - Dev Lead reads Research notes before coding
 - Backend Dev + Frontend Dev + Test Writer run in sequence
@@ -82,6 +87,7 @@ Step 5:  DevOps Team     (deploy monitoring + smoke test)
 - Print checkpoint (show diff summary) → wait for "proceed"
 
 **Step 4: Security Team**
+
 - Invoke `/security-agent` workflow
 - Runs Secret Scanner + Dep Scanner + Policy Enforcer
 - Posts security report as issue comment
@@ -90,6 +96,7 @@ Step 5:  DevOps Team     (deploy monitoring + smoke test)
 - If risk MEDIUM+ → print checkpoint → wait for "proceed"
 
 **Step 5: DevOps Team**
+
 - Invoke `/devops-agent deploy` (monitor mode)
 - Checks GHA deploy run status
 - Runs smoke tests
@@ -117,11 +124,13 @@ Step 4:  DevOps Team     (smoke test + verify)
 ### Hotfix Path — Detailed Steps
 
 **Step 1: Bug Filing** (if no issue exists yet)
+
 - QA Team creates the issue via `/bug` workflow
 - Labels: `bug`, `bug:production`, `hotfix`, `priority:critical`, `ready-for-dev`
 - Print checkpoint → wait for "proceed"
 
 **Step 2: Dev Team — Hotfix**
+
 - Invoke `/dev-agent` (hotfix path — branch from develop, merge to develop)
 - Dev Lead reads Research notes (Research Team does a quick pass first)
 - Merges to develop, sets `ready-to-deploy`. Product owner manually promotes develop→main when ready.
@@ -129,10 +138,12 @@ Step 4:  DevOps Team     (smoke test + verify)
 - Print checkpoint → wait for "proceed"
 
 **Step 3: Security Team**
+
 - Always checkpoints for hotfixes regardless of risk level
 - Print checkpoint → wait for "proceed"
 
 **Step 4: DevOps**
+
 - Smoke test
 - Print: "Hotfix deployed. Verify on https://dash.autoniix.com — type `verified #N` when confirmed."
 
@@ -189,10 +200,12 @@ Use for: `/conductor resume #N`
 ## Session State Management
 
 At the START of each path, post the initial state comment:
+
 - Call `mcp0_add_issue_comment` with the session state table (see handoff-protocol.md format)
 - Include `<!-- CONDUCTOR_SESSION -->` marker so it can be found on resume
 
 After each phase completes, UPDATE the state comment:
+
 - Find the existing `<!-- CONDUCTOR_SESSION -->` comment
 - Update the phase row from `⏳ pending` to `✅ done` with timestamp
 
@@ -203,6 +216,7 @@ After each phase completes, UPDATE the state comment:
 Reference: see `handoff-protocol.md` for the full template.
 
 The conductor always:
+
 1. Reads the HandoffPayload from the completing team
 2. Formats and prints the Human Checkpoint block
 3. Waits for response
@@ -216,6 +230,7 @@ The conductor always:
 ## Manual Issues Respect Rule
 
 If the product owner creates a GitHub issue manually (any format, any labels):
+
 - If it has `bug:production` → treat as hotfix, pick up immediately in pre-flight
 - If it has `bug:normal` or `ready-for-dev` → it enters the queue respecting priority order
 - If it has NO lifecycle label → conductor asks product owner once: "Route #N to dev queue?" → on yes, adds `ready-for-dev`

@@ -18,7 +18,7 @@ export const nodePrefixWebpackOverride: WebpackOverrideFn = (currentConfiguratio
     resolve: {
       ...currentConfiguration.resolve,
       fallback: {
-        ...(currentConfiguration.resolve?.fallback as Record<string, unknown> ?? {}),
+        ...((currentConfiguration.resolve?.fallback as Record<string, unknown>) ?? {}),
         crypto: false,
         stream: false,
         path: false,
@@ -38,12 +38,9 @@ export const nodePrefixWebpackOverride: WebpackOverrideFn = (currentConfiguratio
     },
     plugins: [
       ...(currentConfiguration.plugins ?? []),
-      new webpack.NormalModuleReplacementPlugin(
-        /^node:/,
-        (resource: { request: string }) => {
-          resource.request = resource.request.replace(/^node:/, "");
-        }
-      ),
+      new webpack.NormalModuleReplacementPlugin(/^node:/, (resource: { request: string }) => {
+        resource.request = resource.request.replace(/^node:/, "");
+      }),
     ],
   };
 };

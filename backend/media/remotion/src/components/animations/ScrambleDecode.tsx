@@ -1,9 +1,6 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig } from "remotion";
-import {
-  computeScrambleDecode,
-  type ScrambleRevealMode,
-} from "../../registry/textAnimations";
+import { computeScrambleDecode, type ScrambleRevealMode } from "../../registry/textAnimations";
 
 /**
  * Phase 1B — Scramble-decode text reveal. Letters cycle through a charset
@@ -41,8 +38,7 @@ export const ScrambleDecode: React.FC<ScrambleDecodeProps> = ({
   const { fps } = useVideoConfig();
   const localFrame = Math.max(0, frame - delayInFrames);
   const tLocalMs = (localFrame / fps) * 1000;
-  const resolvedDurationMs =
-    durationMs ?? ((durationInFrames ?? 30) / fps) * 1000;
+  const resolvedDurationMs = durationMs ?? ((durationInFrames ?? 30) / fps) * 1000;
 
   const { visible } = computeScrambleDecode(
     {
@@ -56,7 +52,5 @@ export const ScrambleDecode: React.FC<ScrambleDecodeProps> = ({
     tLocalMs,
   );
 
-  return (
-    <span style={{ fontVariantNumeric: "tabular-nums", ...style }}>{visible}</span>
-  );
+  return <span style={{ fontVariantNumeric: "tabular-nums", ...style }}>{visible}</span>;
 };

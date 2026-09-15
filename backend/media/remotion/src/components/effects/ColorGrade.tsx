@@ -24,8 +24,7 @@ export type GradeLut =
 
 const FILTERS: Record<GradeLut, string> = {
   natural_cinematic: "contrast(1.08) saturate(1.05) brightness(0.98)",
-  cinematic_teal_orange:
-    "contrast(1.15) saturate(1.25) hue-rotate(-8deg) brightness(0.97)",
+  cinematic_teal_orange: "contrast(1.15) saturate(1.25) hue-rotate(-8deg) brightness(0.97)",
   bright_flat: "contrast(0.95) saturate(1.1) brightness(1.08)",
   moody_cool: "contrast(1.1) saturate(0.85) hue-rotate(10deg) brightness(0.9)",
   noir_bw: "grayscale(1) contrast(1.2) brightness(0.95)",
@@ -47,11 +46,6 @@ export interface ColorGradeProps {
   children?: React.ReactNode;
 }
 
-export const ColorGrade: React.FC<ColorGradeProps> = ({
-  lut = "natural_cinematic",
-  children,
-}) => {
-  return (
-    <AbsoluteFill style={{ filter: FILTERS[lut] }}>{children}</AbsoluteFill>
-  );
+export const ColorGrade: React.FC<ColorGradeProps> = ({ lut = "natural_cinematic", children }) => {
+  return <AbsoluteFill style={{ filter: FILTERS[lut] }}>{children}</AbsoluteFill>;
 };

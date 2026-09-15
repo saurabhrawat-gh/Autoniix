@@ -3,19 +3,19 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, Easing } fr
 
 /**
  * 3D LOGO REVEAL - 100% Quality (CSS 3D Transforms)
- * 
+ *
  * Matches/exceeds:
  * - After Effects 3D layers
  * - Motion graphics logo reveals
  * - Broadcast intros
- * 
+ *
  * Features:
  * - CSS 3D transforms (no external dependencies)
  * - Multiple reveal animations
  * - Perspective and depth
  * - Professional timing
  * - Particle burst effects
- * 
+ *
  * Quality: 95% - CSS 3D (100% with Three.js)
  */
 
@@ -23,13 +23,7 @@ export interface ThreeDLogoRevealProps {
   /** Logo image source */
   logoSrc: string;
   /** Reveal animation style */
-  animation?:
-    | "flip"
-    | "cube"
-    | "fold"
-    | "explode"
-    | "spiral"
-    | "particles";
+  animation?: "flip" | "cube" | "fold" | "explode" | "spiral" | "particles";
   /** Animation duration in frames */
   duration?: number;
   /** Logo size (0-1 normalized) */
@@ -141,12 +135,10 @@ export const ThreeDLogoReveal: React.FC<ThreeDLogoRevealProps> = ({
     const elements: JSX.Element[] = [];
 
     for (let i = 0; i < parts; i++) {
-      const partProgress = interpolate(
-        foldProgress,
-        [i / parts, (i + 1) / parts],
-        [0, 1],
-        { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
-      );
+      const partProgress = interpolate(foldProgress, [i / parts, (i + 1) / parts], [0, 1], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      });
 
       const rotateY = interpolate(partProgress, [0, 1], [90, 0]);
       const translateZ = interpolate(partProgress, [0, 1], [-100, 0]);
@@ -175,7 +167,7 @@ export const ThreeDLogoReveal: React.FC<ThreeDLogoRevealProps> = ({
               objectFit: "contain",
             }}
           />
-        </div>
+        </div>,
       );
     }
 
@@ -233,7 +225,7 @@ export const ThreeDLogoReveal: React.FC<ThreeDLogoRevealProps> = ({
               objectFit: "contain",
             }}
           />
-        </div>
+        </div>,
       );
     }
 
@@ -323,7 +315,7 @@ export const ThreeDLogoReveal: React.FC<ThreeDLogoRevealProps> = ({
             opacity: particleOpacity,
             boxShadow: `0 0 10px ${color}`,
           }}
-        />
+        />,
       );
     }
 
@@ -353,9 +345,5 @@ export const ThreeDLogoReveal: React.FC<ThreeDLogoRevealProps> = ({
     );
   };
 
-  return (
-    <AbsoluteFill style={{ pointerEvents: "none" }}>
-      {renderAnimation()}
-    </AbsoluteFill>
-  );
+  return <AbsoluteFill style={{ pointerEvents: "none" }}>{renderAnimation()}</AbsoluteFill>;
 };

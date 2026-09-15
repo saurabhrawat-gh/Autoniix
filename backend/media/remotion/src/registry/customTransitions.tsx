@@ -10,10 +10,12 @@ import type {
  * Each returns a `TransitionPresentation<{}>` which TransitionSeries can render.
  */
 
-
-const BlurSwapPresenter: React.FC<
-  TransitionPresentationComponentProps<{ maxBlurPx: number }>
-> = ({ children, presentationDirection, presentationProgress, passedProps }) => {
+const BlurSwapPresenter: React.FC<TransitionPresentationComponentProps<{ maxBlurPx: number }>> = ({
+  children,
+  presentationDirection,
+  presentationProgress,
+  passedProps,
+}) => {
   const { maxBlurPx } = passedProps;
   const p = presentationProgress;
   const style: React.CSSProperties =
@@ -35,7 +37,6 @@ export const blurSwap = (
   component: BlurSwapPresenter,
   props: { maxBlurPx: opts.maxBlurPx ?? 30 },
 });
-
 
 const IrisPresenter: React.FC<
   TransitionPresentationComponentProps<{ direction: "open" | "close" }>
@@ -72,7 +73,6 @@ export const iris = (
   props: { direction: opts.direction ?? "open" },
 });
 
-
 const WhipPanPresenter: React.FC<
   TransitionPresentationComponentProps<{ dir: "left" | "right"; maxBlurPx: number }>
 > = ({ children, presentationDirection, presentationProgress, passedProps }) => {
@@ -81,10 +81,7 @@ const WhipPanPresenter: React.FC<
   const sign = dir === "left" ? -1 : 1;
 
   const blurAmt = Math.sin(p * Math.PI) * maxBlurPx;
-  const translate =
-    presentationDirection === "entering"
-      ? -sign * (1 - p) * 100
-      : sign * p * 100;
+  const translate = presentationDirection === "entering" ? -sign * (1 - p) * 100 : sign * p * 100;
 
   return (
     <AbsoluteFill
@@ -105,7 +102,6 @@ export const whipPan = (
   props: { dir: opts.dir ?? "left", maxBlurPx: opts.maxBlurPx ?? 24 },
 });
 
-
 const CoverPresenter: React.FC<
   TransitionPresentationComponentProps<{ dir: "left" | "right" | "up" | "down" }>
 > = ({ children, presentationDirection, presentationProgress, passedProps }) => {
@@ -120,9 +116,7 @@ const CoverPresenter: React.FC<
   const sign = dir === "left" || dir === "up" ? -1 : 1;
   const offset = -sign * (1 - p) * 100;
   return (
-    <AbsoluteFill style={{ transform: `translate${axis}(${offset}%)` }}>
-      {children}
-    </AbsoluteFill>
+    <AbsoluteFill style={{ transform: `translate${axis}(${offset}%)` }}>{children}</AbsoluteFill>
   );
 };
 
@@ -132,7 +126,6 @@ export const cover = (
   component: CoverPresenter,
   props: { dir: opts.dir ?? "right" },
 });
-
 
 const ZoomPunchPresenter: React.FC<
   TransitionPresentationComponentProps<{ maxZoom: number; maxBlurPx: number }>
@@ -161,10 +154,12 @@ export const zoomPunch = (
   props: { maxZoom: opts.maxZoom ?? 2.4, maxBlurPx: opts.maxBlurPx ?? 16 },
 });
 
-
-const GlitchCutPresenter: React.FC<
-  TransitionPresentationComponentProps<{ splitPx: number }>
-> = ({ children, presentationDirection, presentationProgress, passedProps }) => {
+const GlitchCutPresenter: React.FC<TransitionPresentationComponentProps<{ splitPx: number }>> = ({
+  children,
+  presentationDirection,
+  presentationProgress,
+  passedProps,
+}) => {
   const { splitPx } = passedProps;
   const p = presentationProgress;
   const g = Math.sin(p * Math.PI);
@@ -173,7 +168,14 @@ const GlitchCutPresenter: React.FC<
   if (presentationDirection === "entering") {
     return (
       <AbsoluteFill style={{ opacity: p }}>
-        <div style={{ position: "absolute", inset: 0, filter: `drop-shadow(${offset}px 0 0 #f06), drop-shadow(${-offset}px 0 0 #0ef)`, mixBlendMode: "screen" }}>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            filter: `drop-shadow(${offset}px 0 0 #f06), drop-shadow(${-offset}px 0 0 #0ef)`,
+            mixBlendMode: "screen",
+          }}
+        >
           {children}
         </div>
         <div style={{ position: "absolute", inset: 0 }}>{children}</div>
@@ -182,7 +184,14 @@ const GlitchCutPresenter: React.FC<
   }
   return (
     <AbsoluteFill style={{ opacity: 1 - p }}>
-      <div style={{ position: "absolute", inset: 0, filter: `drop-shadow(${-offset}px 0 0 #f06), drop-shadow(${offset}px 0 0 #0ef)`, mixBlendMode: "screen" }}>
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          filter: `drop-shadow(${-offset}px 0 0 #f06), drop-shadow(${offset}px 0 0 #0ef)`,
+          mixBlendMode: "screen",
+        }}
+      >
         {children}
       </div>
       <div style={{ position: "absolute", inset: 0 }}>{children}</div>
@@ -196,7 +205,6 @@ export const glitchCut = (
   component: GlitchCutPresenter,
   props: { splitPx: opts.splitPx ?? 18 },
 });
-
 
 const ShatterPresenter: React.FC<
   TransitionPresentationComponentProps<{ cols: number; rows: number; seed: string }>
@@ -261,16 +269,12 @@ export const shatter = (
   props: { cols: opts.cols ?? 8, rows: opts.rows ?? 5, seed: opts.seed ?? "shatter" },
 });
 
-
 const MorphPresenter: React.FC<
   TransitionPresentationComponentProps<{ scaleAmt: number; blurPx: number }>
 > = ({ children, presentationDirection, presentationProgress, passedProps }) => {
   const { scaleAmt, blurPx } = passedProps;
   const p = presentationProgress;
-  const scale =
-    presentationDirection === "entering"
-      ? 1 + (1 - p) * scaleAmt
-      : 1 - p * scaleAmt;
+  const scale = presentationDirection === "entering" ? 1 + (1 - p) * scaleAmt : 1 - p * scaleAmt;
   const blur = Math.sin(p * Math.PI) * blurPx;
   const style: React.CSSProperties = {
     transform: `scale(${scale})`,

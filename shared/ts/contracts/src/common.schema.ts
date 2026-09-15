@@ -37,14 +37,7 @@ export const ErrorDetailSchema = z.object({
 
 export type ErrorDetail = z.infer<typeof ErrorDetailSchema>;
 
-export const JobStatusSchema = z.enum([
-  "pending",
-  "running",
-  "completed",
-  "failed",
-  "paused",
-  "stopped",
-]);
+export const JobStatusSchema = z.enum(["pending", "running", "completed", "failed", "paused", "stopped"]);
 
 export type JobStatus = z.infer<typeof JobStatusSchema>;
 

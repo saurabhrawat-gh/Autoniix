@@ -1,18 +1,35 @@
-'use client';
+"use client";
 
-import React, { useEffect, useState, useMemo, useCallback, useDeferredValue } from 'react';
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { contentApi, channelsApi, jobsApi } from '@/lib/api-v2';
-import { cn } from '@/lib/utils';
-import { useToast } from '@/lib/toast';
+import React, { useEffect, useState, useMemo, useCallback, useDeferredValue } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { contentApi, channelsApi, jobsApi } from "@/lib/api-v2";
+import { cn } from "@/lib/utils";
+import { useToast } from "@/lib/toast";
 import {
-  Search, X, Play, Download, Link2, AlertTriangle,
-  Wrench, Clock, ClipboardCheck, Clapperboard, Layers,
-  CalendarDays, BarChart2, ChevronLeft, ChevronRight,
-  Loader2, CheckSquare, Zap, RotateCw,
-  Film, ExternalLink, TrendingUp,
-} from '@/lib/components/Icon';
+  Search,
+  X,
+  Play,
+  Download,
+  Link2,
+  AlertTriangle,
+  Wrench,
+  Clock,
+  ClipboardCheck,
+  Clapperboard,
+  Layers,
+  CalendarDays,
+  BarChart2,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  CheckSquare,
+  Zap,
+  RotateCw,
+  Film,
+  ExternalLink,
+  TrendingUp,
+} from "@/lib/components/Icon";
 import {
   Button,
   Input,
@@ -35,75 +52,79 @@ import {
   SelectValue,
   SelectContent,
   SelectItem,
-} from '@/lib/ui';
+} from "@/lib/ui";
 
 const STATUS_CHIP: Record<string, string> = {
-  completed:  'bg-status-success/15 text-status-success',
-  published:  'bg-status-success/15 text-status-success',
-  delivered:  'bg-status-success/15 text-status-success',
-  failed:     'bg-status-error/15 text-status-error',
-  stopped:    'bg-status-warning/15 text-status-warning',
-  pending:    'bg-surface-3 text-content-tertiary',
-  running:    'bg-accent/15 text-accent',
-  archived:   'bg-surface-3 text-content-tertiary',
-  superseded: 'bg-surface-3 text-content-tertiary',
+  completed: "bg-status-success/15 text-status-success",
+  published: "bg-status-success/15 text-status-success",
+  delivered: "bg-status-success/15 text-status-success",
+  failed: "bg-status-error/15 text-status-error",
+  stopped: "bg-status-warning/15 text-status-warning",
+  pending: "bg-surface-3 text-content-tertiary",
+  running: "bg-accent/15 text-accent",
+  archived: "bg-surface-3 text-content-tertiary",
+  superseded: "bg-surface-3 text-content-tertiary",
 };
 
 const REVIEW_CHIP: Record<string, string> = {
-  approved:       'bg-status-success/15 text-status-success',
-  rejected:       'bg-status-error/15 text-status-error',
-  needs_edits:    'bg-status-warning/15 text-status-warning',
-  pending:        'bg-status-warning/15 text-status-warning',
-  regenerating:   'bg-accent/15 text-accent',
+  approved: "bg-status-success/15 text-status-success",
+  rejected: "bg-status-error/15 text-status-error",
+  needs_edits: "bg-status-warning/15 text-status-warning",
+  pending: "bg-status-warning/15 text-status-warning",
+  regenerating: "bg-accent/15 text-accent",
 };
 
-const STATUS_OPTIONS = ['pending','running','completed','failed','published','archived','stopped','superseded'];
-const REVIEW_OPTIONS = ['pending','approved','needs_edits','rejected','regenerating'];
-const MODE_OPTIONS   = ['short','long_form'];
+const STATUS_OPTIONS = ["pending", "running", "completed", "failed", "published", "archived", "stopped", "superseded"];
+const REVIEW_OPTIONS = ["pending", "approved", "needs_edits", "rejected", "regenerating"];
+const MODE_OPTIONS = ["short", "long_form"];
 
 const DATE_RANGES = [
-  { key: 'all', label: 'All time' },
-  { key: 'today', label: 'Today' },
-  { key: 'yesterday', label: 'Yesterday' },
-  { key: 'current_week', label: 'Current week' },
-  { key: 'last_week', label: 'Last week' },
-  { key: 'current_month', label: 'Current month' },
-  { key: 'last_month', label: 'Last month' },
+  { key: "all", label: "All time" },
+  { key: "today", label: "Today" },
+  { key: "yesterday", label: "Yesterday" },
+  { key: "current_week", label: "Current week" },
+  { key: "last_week", label: "Last week" },
+  { key: "current_month", label: "Current month" },
+  { key: "last_month", label: "Last month" },
 ];
 
 const SORT_OPTIONS = [
-  { key: 'created_at', label: 'Created' },
-  { key: 'title', label: 'Title' },
-  { key: 'authenticity_score', label: 'Score' },
-  { key: 'status', label: 'Status' },
+  { key: "created_at", label: "Created" },
+  { key: "title", label: "Title" },
+  { key: "authenticity_score", label: "Score" },
+  { key: "status", label: "Status" },
 ];
 
 /* ─── date helpers ─── */
 function isInDateRange(dateStr: string, range: string): boolean {
-  if (range === 'all') return true;
+  if (range === "all") return true;
   const date = new Date(dateStr);
   const now = new Date();
   const sod = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   switch (range) {
-    case 'today':
+    case "today":
       return date >= sod;
-    case 'yesterday': {
-      const y = new Date(sod); y.setDate(y.getDate() - 1);
+    case "yesterday": {
+      const y = new Date(sod);
+      y.setDate(y.getDate() - 1);
       return date >= y && date < sod;
     }
-    case 'current_week': {
-      const w = new Date(sod); w.setDate(w.getDate() - w.getDay());
+    case "current_week": {
+      const w = new Date(sod);
+      w.setDate(w.getDate() - w.getDay());
       return date >= w;
     }
-    case 'last_week': {
-      const cw = new Date(sod); cw.setDate(cw.getDate() - cw.getDay());
-      const lw = new Date(cw); lw.setDate(lw.getDate() - 7);
+    case "last_week": {
+      const cw = new Date(sod);
+      cw.setDate(cw.getDate() - cw.getDay());
+      const lw = new Date(cw);
+      lw.setDate(lw.getDate() - 7);
       return date >= lw && date < cw;
     }
-    case 'current_month':
+    case "current_month":
       return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-    case 'last_month': {
+    case "last_month": {
       const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       return date.getMonth() === lm.getMonth() && date.getFullYear() === lm.getFullYear();
     }
@@ -112,11 +133,11 @@ function isInDateRange(dateStr: string, range: string): boolean {
   }
 }
 
-type Tab = 'pipeline' | 'calendar' | 'stats';
+type Tab = "pipeline" | "calendar" | "stats";
 
 /* ─── main ─── */
 export default function ContentPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('pipeline');
+  const [activeTab, setActiveTab] = useState<Tab>("pipeline");
   const [channels, setChannels] = useState<any[]>([]);
   const { showToast } = useToast();
   const searchParams = useSearchParams();
@@ -124,7 +145,7 @@ export default function ContentPage() {
   const [allItems, setAllItems] = useState<any[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [q, setQ] = useState('');
+  const [q, setQ] = useState("");
   const deferredQ = useDeferredValue(q);
   const [searchHits, setSearchHits] = useState<any[] | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -132,10 +153,10 @@ export default function ContentPage() {
   const [selStatuses, setSelStatuses] = useState<string[]>([]);
   const [selReviews, setSelReviews] = useState<string[]>([]);
   const [selModes, setSelModes] = useState<string[]>([]);
-  const [dateRange, setDateRange] = useState('all');
-  const [channelSearch, setChannelSearch] = useState('');
-  const [sortKey, setSortKey] = useState('created_at');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [dateRange, setDateRange] = useState("all");
+  const [channelSearch, setChannelSearch] = useState("");
+  const [sortKey, setSortKey] = useState("created_at");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [showSort, setShowSort] = useState(false);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -150,23 +171,25 @@ export default function ContentPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
 
   const [calDate, setCalDate] = useState(() => {
-    const d = new Date(); d.setDate(1); return d;
+    const d = new Date();
+    d.setDate(1);
+    return d;
   });
   const [calData, setCalData] = useState<Record<string, any[]>>({});
   const [calLoading, setCalLoading] = useState(false);
 
   const [statsData, setStatsData] = useState<{ buckets: any[]; by_channel: any[] } | null>(null);
-  const [statsPeriod, setStatsPeriod] = useState<'day' | 'week' | 'month'>('week');
+  const [statsPeriod, setStatsPeriod] = useState<"day" | "week" | "month">("week");
   const [statsLoading, setStatsLoading] = useState(false);
 
   const [triggerOpen, setTriggerOpen] = useState(false);
-  const [trigChannel, setTrigChannel] = useState('');
-  const [trigMode, setTrigMode] = useState('long_form');
-  const [trigTopic, setTrigTopic] = useState('');
+  const [trigChannel, setTrigChannel] = useState("");
+  const [trigMode, setTrigMode] = useState("long_form");
+  const [trigTopic, setTrigTopic] = useState("");
   const [triggering, setTriggering] = useState(false);
 
   useEffect(() => {
-    channelsApi.list(false).then(r => {
+    channelsApi.list(false).then((r) => {
       const chs = r.data || [];
       setChannels(chs);
       if (chs.length > 0) setTrigChannel(chs[0].channel_id);
@@ -175,59 +198,78 @@ export default function ContentPage() {
 
   useEffect(() => {
     if (!searchParams) return;
-    const rs = searchParams.get('review_state');
-    const st = searchParams.get('status');
-    const cm = searchParams.get('content_mode');
-    const ch = searchParams.get('channel_id');
-    if (rs) setSelReviews(rs.split(',').filter(Boolean));
-    if (st) setSelStatuses(st.split(',').filter(Boolean));
-    if (cm) setSelModes(cm.split(',').filter(Boolean));
-    if (ch) setSelChannels(ch.split(',').filter(Boolean));
+    const rs = searchParams.get("review_state");
+    const st = searchParams.get("status");
+    const cm = searchParams.get("content_mode");
+    const ch = searchParams.get("channel_id");
+    if (rs) setSelReviews(rs.split(",").filter(Boolean));
+    if (st) setSelStatuses(st.split(",").filter(Boolean));
+    if (cm) setSelModes(cm.split(",").filter(Boolean));
+    if (ch) setSelChannels(ch.split(",").filter(Boolean));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchPage = useCallback(async (replace = true) => {
-    setLoading(true);
-    try {
-      const r = await contentApi.list({ cursor: replace ? undefined : cursor || undefined, limit: 60 });
-      setCursor(r.data.next_cursor);
-      const fetched = (r.data.groups || []).flatMap((g: any) => g.items || []);
-      setAllItems(prev => replace ? fetched : [...prev, ...fetched]);
-    } finally { setLoading(false); }
-  }, [cursor]);
-
-  useEffect(() => { fetchPage(true); }, []); // eslint-disable-line
+  const fetchPage = useCallback(
+    async (replace = true) => {
+      setLoading(true);
+      try {
+        const r = await contentApi.list({ cursor: replace ? undefined : cursor || undefined, limit: 60 });
+        setCursor(r.data.next_cursor);
+        const fetched = (r.data.groups || []).flatMap((g: any) => g.items || []);
+        setAllItems((prev) => (replace ? fetched : [...prev, ...fetched]));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [cursor]
+  );
 
   useEffect(() => {
-    if (deferredQ.length < 2) { setSearchHits(null); return; }
-    const t = setTimeout(() => contentApi.search(deferredQ).then(r => setSearchHits(r.data)), 300);
+    fetchPage(true);
+  }, []); // eslint-disable-line
+
+  useEffect(() => {
+    if (deferredQ.length < 2) {
+      setSearchHits(null);
+      return;
+    }
+    const t = setTimeout(() => contentApi.search(deferredQ).then((r) => setSearchHits(r.data)), 300);
     return () => clearTimeout(t);
   }, [deferredQ]);
 
   const loadCalendar = useCallback(async () => {
     setCalLoading(true);
-    const y = calDate.getFullYear(), m = calDate.getMonth();
-    const start = `${y}-${String(m + 1).padStart(2, '0')}-01`;
-    const end   = new Date(y, m + 1, 1).toISOString().slice(0, 10);
+    const y = calDate.getFullYear(),
+      m = calDate.getMonth();
+    const start = `${y}-${String(m + 1).padStart(2, "0")}-01`;
+    const end = new Date(y, m + 1, 1).toISOString().slice(0, 10);
     try {
       const r = await contentApi.calendar(start, end);
       setCalData(r.data || {});
-    } catch { setCalData({}); }
+    } catch {
+      setCalData({});
+    }
     setCalLoading(false);
   }, [calDate]);
 
-  useEffect(() => { if (activeTab === 'calendar') loadCalendar(); }, [activeTab, loadCalendar]);
+  useEffect(() => {
+    if (activeTab === "calendar") loadCalendar();
+  }, [activeTab, loadCalendar]);
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
     try {
       const r = await contentApi.stats(undefined, statsPeriod);
       setStatsData(r.data);
-    } catch { setStatsData(null); }
+    } catch {
+      setStatsData(null);
+    }
     setStatsLoading(false);
   }, [statsPeriod]);
 
-  useEffect(() => { if (activeTab === 'stats') loadStats(); }, [activeTab, loadStats]);
+  useEffect(() => {
+    if (activeTab === "stats") loadStats();
+  }, [activeTab, loadStats]);
 
   const openDetail = async (contentId: string) => {
     setDetailId(contentId);
@@ -235,7 +277,9 @@ export default function ContentPage() {
     try {
       const r = await contentApi.detail(contentId);
       setDetailData(r.data);
-    } catch { setDetailData(null); }
+    } catch {
+      setDetailData(null);
+    }
     setDetailLoading(false);
   };
 
@@ -247,31 +291,42 @@ export default function ContentPage() {
         if (selStatuses.length > 0 && !selStatuses.includes(v.status)) return false;
         if (selReviews.length > 0 && !selReviews.includes(v.review_state)) return false;
         if (selModes.length > 0 && !selModes.includes(v.content_mode)) return false;
-        if (dateRange !== 'all' && !isInDateRange(v.created_at, dateRange)) return false;
+        if (dateRange !== "all" && !isInDateRange(v.created_at, dateRange)) return false;
         return true;
       })
       .sort((a: any, b: any) => {
         let cmp = 0;
         switch (sortKey) {
-          case 'title':      cmp = (a.title || a.topic || '').localeCompare(b.title || b.topic || ''); break;
-          case 'authenticity_score': cmp = (a.authenticity_score ?? 0) - (b.authenticity_score ?? 0); break;
-          case 'status':     cmp = (a.status || '').localeCompare(b.status || ''); break;
-          default:           cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          case "title":
+            cmp = (a.title || a.topic || "").localeCompare(b.title || b.topic || "");
+            break;
+          case "authenticity_score":
+            cmp = (a.authenticity_score ?? 0) - (b.authenticity_score ?? 0);
+            break;
+          case "status":
+            cmp = (a.status || "").localeCompare(b.status || "");
+            break;
+          default:
+            cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
         }
-        return sortDir === 'asc' ? cmp : -cmp;
+        return sortDir === "asc" ? cmp : -cmp;
       });
   }, [allItems, searchHits, selChannels, selStatuses, selReviews, selModes, dateRange, sortKey, sortDir]);
 
-  const activeFilterCount = selChannels.length + selStatuses.length + selReviews.length + selModes.length + (dateRange !== 'all' ? 1 : 0);
+  const activeFilterCount =
+    selChannels.length + selStatuses.length + selReviews.length + selModes.length + (dateRange !== "all" ? 1 : 0);
 
-  const pipelineStats = useMemo(() => ({
-    total:     allItems.length,
-    running:   allItems.filter(v => v.status === 'running').length,
-    pending:   allItems.filter(v => v.status === 'pending').length,
-    review:    allItems.filter(v => v.review_state === 'pending').length,
-    completed: allItems.filter(v => ['completed','published','delivered'].includes(v.status)).length,
-    failed:    allItems.filter(v => v.status === 'failed').length,
-  }), [allItems]);
+  const pipelineStats = useMemo(
+    () => ({
+      total: allItems.length,
+      running: allItems.filter((v) => v.status === "running").length,
+      pending: allItems.filter((v) => v.status === "pending").length,
+      review: allItems.filter((v) => v.review_state === "pending").length,
+      completed: allItems.filter((v) => ["completed", "published", "delivered"].includes(v.status)).length,
+      failed: allItems.filter((v) => v.status === "failed").length,
+    }),
+    [allItems]
+  );
 
   const openPreview = async (contentId: string) => {
     setPreviewId(contentId);
@@ -281,70 +336,105 @@ export default function ContentPage() {
       const meta = await jobsApi.metadata(contentId).catch(() => null);
       setPreviewMeta(meta?.data ?? null);
       setPreviewUrl(output?.data?.video_url || null);
-    } catch { setPreviewUrl(null); }
-    finally { setPreviewLoading(false); }
+    } catch {
+      setPreviewUrl(null);
+    } finally {
+      setPreviewLoading(false);
+    }
   };
 
   const handleDownload = async (v: any) => {
     try {
       const output = await jobsApi.output(v.content_id).catch(() => null);
       const url = (output as any)?.data?.video_url || (output as any)?.url || (output as any)?.video_url;
-      if (!url) { showToast('Video not yet available', 'error'); return; }
-      const a = document.createElement('a');
-      a.href = url; a.download = `${v.title || v.content_id}.mp4`; a.target = '_blank';
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    } catch { showToast('Download failed', 'error'); }
+      if (!url) {
+        showToast("Video not yet available", "error");
+        return;
+      }
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${v.title || v.content_id}.mp4`;
+      a.target = "_blank";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch {
+      showToast("Download failed", "error");
+    }
   };
 
   const handleExportDaVinci = (v: any) => {
     const payload = {
-      title: v.title || v.topic || v.content_id, topic: v.topic,
+      title: v.title || v.topic || v.content_id,
+      topic: v.topic,
       channel_id: v.channel_id,
-      channel_name: channels.find(c => c.channel_id === v.channel_id)?.channel_name || v.channel_id,
-      content_id: v.content_id, content_mode: v.content_mode,
-      status: v.status, review_state: v.review_state,
-      created_at: v.created_at, authenticity_score: v.authenticity_score,
-      notes: 'Import into DaVinci Resolve Media Pool as clip metadata.',
+      channel_name: channels.find((c) => c.channel_id === v.channel_id)?.channel_name || v.channel_id,
+      content_id: v.content_id,
+      content_mode: v.content_mode,
+      status: v.status,
+      review_state: v.review_state,
+      created_at: v.created_at,
+      authenticity_score: v.authenticity_score,
+      notes: "Import into DaVinci Resolve Media Pool as clip metadata.",
     };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `${v.content_id}_davinci.json`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${v.content_id}_davinci.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showToast('DaVinci Resolve metadata exported', 'success');
+    showToast("DaVinci Resolve metadata exported", "success");
   };
 
   const clearFilters = () => {
-    setSelChannels([]); setSelStatuses([]); setSelReviews([]); setSelModes([]);
-    setDateRange('all'); setChannelSearch('');
+    setSelChannels([]);
+    setSelStatuses([]);
+    setSelReviews([]);
+    setSelModes([]);
+    setDateRange("all");
+    setChannelSearch("");
   };
 
   const handleBulk = async (action: string) => {
     if (selectedIds.size === 0) return;
     try {
       const r = await contentApi.bulk(action, Array.from(selectedIds));
-      showToast(`${action}: ${r.affected} item(s) updated`, 'success');
+      showToast(`${action}: ${r.affected} item(s) updated`, "success");
       setSelectedIds(new Set());
       fetchPage(true);
-    } catch (e: any) { showToast(e?.message || `${action} failed`, 'error'); }
+    } catch (e: any) {
+      showToast(e?.message || `${action} failed`, "error");
+    }
   };
 
   const handleTrigger = async () => {
-    if (!trigChannel) { showToast('Select a channel', 'error'); return; }
+    if (!trigChannel) {
+      showToast("Select a channel", "error");
+      return;
+    }
     setTriggering(true);
     try {
-      const r = await contentApi.trigger({ channel_id: trigChannel, content_mode: trigMode, topic_hint: trigTopic || undefined });
-      showToast(r.status === 'ok' ? `Generation started · ${r.content_id}` : 'Queued (will start shortly)', 'success');
+      const r = await contentApi.trigger({
+        channel_id: trigChannel,
+        content_mode: trigMode,
+        topic_hint: trigTopic || undefined,
+      });
+      showToast(r.status === "ok" ? `Generation started · ${r.content_id}` : "Queued (will start shortly)", "success");
       setTriggerOpen(false);
-      setTrigTopic('');
+      setTrigTopic("");
       setTimeout(() => fetchPage(true), 2000);
-    } catch (e: any) { showToast(e?.message || 'Trigger failed', 'error'); }
-    finally { setTriggering(false); }
+    } catch (e: any) {
+      showToast(e?.message || "Trigger failed", "error");
+    } finally {
+      setTriggering(false);
+    }
   };
 
   const toggleSelect = (id: string) => {
-    setSelectedIds(prev => {
+    setSelectedIds((prev) => {
       const n = new Set(prev);
       n.has(id) ? n.delete(id) : n.add(id);
       return n;
@@ -357,7 +447,8 @@ export default function ContentPage() {
   };
 
   const calDays = useMemo(() => {
-    const y = calDate.getFullYear(), m = calDate.getMonth();
+    const y = calDate.getFullYear(),
+      m = calDate.getMonth();
     const first = new Date(y, m, 1).getDay();
     const days: Array<{ date: Date; iso: string } | null> = [];
     for (let i = 0; i < first; i++) days.push(null);
@@ -369,11 +460,10 @@ export default function ContentPage() {
     return days;
   }, [calDate]);
 
-  const calMonthLabel = calDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+  const calMonthLabel = calDate.toLocaleString("default", { month: "long", year: "numeric" });
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-
       {/* ── Toolbar ── */}
       <div className="shrink-0 max-w-[1400px] w-full mx-auto px-6 pt-5 pb-0">
         <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
@@ -402,18 +492,20 @@ export default function ContentPage() {
               aria-label="Refresh"
               className="h-8 w-8"
             >
-              <RotateCw size={13} className={cn(loading && 'animate-spin')} />
+              <RotateCw size={13} className={cn(loading && "animate-spin")} />
             </Button>
           </div>
         </div>
 
         {/* Tabs */}
         <div className="flex items-center gap-1 border-b border-border">
-          {([
-            { key: 'pipeline', label: 'Pipeline', icon: <Layers size={13} /> },
-            { key: 'calendar', label: 'Calendar', icon: <CalendarDays size={13} /> },
-            { key: 'stats',    label: 'Stats',    icon: <BarChart2 size={13} /> },
-          ] as { key: Tab; label: string; icon: React.ReactNode }[]).map(t => (
+          {(
+            [
+              { key: "pipeline", label: "Pipeline", icon: <Layers size={13} /> },
+              { key: "calendar", label: "Calendar", icon: <CalendarDays size={13} /> },
+              { key: "stats", label: "Stats", icon: <BarChart2 size={13} /> },
+            ] as { key: Tab; label: string; icon: React.ReactNode }[]
+          ).map((t) => (
             <Button
               key={t.key}
               type="button"
@@ -421,11 +513,12 @@ export default function ContentPage() {
               size="sm"
               onClick={() => setActiveTab(t.key)}
               className={cn(
-                'h-auto px-4 py-2 text-xs rounded-none border-b-2 -mb-px',
+                "h-auto px-4 py-2 text-xs rounded-none border-b-2 -mb-px",
                 activeTab === t.key
-                  ? 'border-accent text-accent'
-                  : 'border-transparent text-content-tertiary hover:text-content-secondary hover:border-border'
-              )}>
+                  ? "border-accent text-accent"
+                  : "border-transparent text-content-tertiary hover:text-content-secondary hover:border-border"
+              )}
+            >
               {t.icon} {t.label}
             </Button>
           ))}
@@ -433,20 +526,20 @@ export default function ContentPage() {
       </div>
 
       {/* ── Pipeline tab ── */}
-      {activeTab === 'pipeline' && (
+      {activeTab === "pipeline" && (
         <div className="flex-1 min-h-0 max-w-[1400px] w-full mx-auto px-6 py-4 flex flex-col gap-3">
           {/* Stats strip */}
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 shrink-0">
             {[
-              { label: 'Total',   value: pipelineStats.total,     color: 'text-content-primary' },
-              { label: 'Running', value: pipelineStats.running,   color: 'text-accent' },
-              { label: 'Pending', value: pipelineStats.pending,   color: 'text-content-tertiary' },
-              { label: 'Review',  value: pipelineStats.review,    color: 'text-status-warning' },
-              { label: 'Done',    value: pipelineStats.completed, color: 'text-status-success' },
-              { label: 'Failed',  value: pipelineStats.failed,    color: 'text-status-error' },
-            ].map(s => (
+              { label: "Total", value: pipelineStats.total, color: "text-content-primary" },
+              { label: "Running", value: pipelineStats.running, color: "text-accent" },
+              { label: "Pending", value: pipelineStats.pending, color: "text-content-tertiary" },
+              { label: "Review", value: pipelineStats.review, color: "text-status-warning" },
+              { label: "Done", value: pipelineStats.completed, color: "text-status-success" },
+              { label: "Failed", value: pipelineStats.failed, color: "text-status-error" },
+            ].map((s) => (
               <div key={s.label} className="rounded-lg border border-border bg-surface-0 px-3 py-2">
-                <div className={cn('text-lg font-bold tabular-nums leading-none', s.color)}>{s.value}</div>
+                <div className={cn("text-lg font-bold tabular-nums leading-none", s.color)}>{s.value}</div>
                 <div className="text-[10px] text-content-tertiary mt-0.5">{s.label}</div>
               </div>
             ))}
@@ -463,16 +556,17 @@ export default function ContentPage() {
               aria-label="Select all"
               className="w-8 h-8 text-content-tertiary hover:text-content-primary"
             >
-              {selectedIds.size > 0 && selectedIds.size === filtered.length
-                ? <CheckSquare size={14} className="text-accent" />
-                : <CheckSquare size={14} />
-              }
+              {selectedIds.size > 0 && selectedIds.size === filtered.length ? (
+                <CheckSquare size={14} className="text-accent" />
+              ) : (
+                <CheckSquare size={14} />
+              )}
             </Button>
             <div className="relative flex-1">
               <Input
                 type="text"
                 value={q}
-                onChange={e => setQ(e.target.value)}
+                onChange={(e) => setQ(e.target.value)}
                 placeholder="Search title, hook, topic…"
                 leftIcon={<Search size={13} />}
                 className="h-8 text-xs pr-8"
@@ -482,7 +576,7 @@ export default function ContentPage() {
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  onClick={() => setQ('')}
+                  onClick={() => setQ("")}
                   aria-label="Clear search"
                   className="absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 text-content-tertiary hover:text-content-primary"
                 >
@@ -498,23 +592,27 @@ export default function ContentPage() {
                   variant="secondary"
                   size="sm"
                   className="h-8"
-                  rightIcon={<span className="text-accent font-bold">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                  rightIcon={<span className="text-accent font-bold">{sortDir === "asc" ? "↑" : "↓"}</span>}
                 >
                   <span className="text-content-tertiary mr-1">Sort:</span>
-                  {SORT_OPTIONS.find(s => s.key === sortKey)?.label}
+                  {SORT_OPTIONS.find((s) => s.key === sortKey)?.label}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
-                {SORT_OPTIONS.map(s => (
-                  <DropdownMenuItem key={s.key} onClick={() => setSortKey(s.key)}
-                    className={cn('justify-between', sortKey === s.key && 'text-accent bg-accent/10 font-medium')}
+                {SORT_OPTIONS.map((s) => (
+                  <DropdownMenuItem
+                    key={s.key}
+                    onClick={() => setSortKey(s.key)}
+                    className={cn("justify-between", sortKey === s.key && "text-accent bg-accent/10 font-medium")}
                   >
                     {s.label}
-                    {sortKey === s.key && <span className="text-accent font-bold">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                    {sortKey === s.key && (
+                      <span className="text-accent font-bold">{sortDir === "asc" ? "↑" : "↓"}</span>
+                    )}
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}>
+                <DropdownMenuItem onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}>
                   Toggle direction
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -525,12 +623,18 @@ export default function ContentPage() {
               size="sm"
               onClick={() => setDrawerOpen(true)}
               leftIcon={<Wrench size={13} />}
-              className={cn('h-8 px-2.5 text-xs',
-                activeFilterCount > 0 ? 'bg-accent/10 text-accent hover:bg-accent/15' : 'text-content-secondary hover:bg-surface-2')}
+              className={cn(
+                "h-8 px-2.5 text-xs",
+                activeFilterCount > 0
+                  ? "bg-accent/10 text-accent hover:bg-accent/15"
+                  : "text-content-secondary hover:bg-surface-2"
+              )}
             >
               Filters
               {activeFilterCount > 0 && (
-                <span className="min-w-[16px] h-4 px-1 rounded-full bg-accent text-white text-[9px] flex items-center justify-center font-bold">{activeFilterCount}</span>
+                <span className="min-w-[16px] h-4 px-1 rounded-full bg-accent text-white text-[9px] flex items-center justify-center font-bold">
+                  {activeFilterCount}
+                </span>
               )}
             </Button>
           </div>
@@ -549,26 +653,43 @@ export default function ContentPage() {
             </div>
             <div className="flex-1 overflow-y-auto scrollbar-hide divide-y divide-border">
               {filtered.map((v: any) => (
-                <ContentRow key={v.content_id} v={v} channels={channels}
+                <ContentRow
+                  key={v.content_id}
+                  v={v}
+                  channels={channels}
                   selected={selectedIds.has(v.content_id)}
                   onToggleSelect={() => toggleSelect(v.content_id)}
-                  onPreview={openPreview} onDownload={handleDownload}
+                  onPreview={openPreview}
+                  onDownload={handleDownload}
                   onExport={handleExportDaVinci}
-                  onDetail={() => openDetail(v.content_id)} />
+                  onDetail={() => openDetail(v.content_id)}
+                />
               ))}
               {filtered.length === 0 && !loading && (
                 <div className="py-20 text-center">
                   {activeFilterCount > 0 || q ? (
                     <div className="text-sm text-content-tertiary">
                       <p className="font-medium text-content-secondary mb-1">No matches</p>
-                      <Button size="sm" onClick={() => { clearFilters(); setQ(''); }} className="mt-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          clearFilters();
+                          setQ("");
+                        }}
+                        className="mt-2"
+                      >
                         Clear all filters
                       </Button>
                     </div>
                   ) : (
                     <div className="text-sm text-content-tertiary">
                       <p>No videos generated yet.</p>
-                      <Button size="sm" onClick={() => setTriggerOpen(true)} leftIcon={<Zap size={11} />} className="mt-2">
+                      <Button
+                        size="sm"
+                        onClick={() => setTriggerOpen(true)}
+                        leftIcon={<Zap size={11} />}
+                        className="mt-2"
+                      >
                         Generate your first video
                       </Button>
                     </div>
@@ -584,38 +705,64 @@ export default function ContentPage() {
                   disabled={loading}
                   className="w-full py-2.5 h-auto rounded-none border-t border-dashed border-border text-xs text-content-tertiary hover:bg-surface-1"
                 >
-                  {loading ? 'Loading…' : 'Load more'}
+                  {loading ? "Loading…" : "Load more"}
                 </Button>
               )}
             </div>
             <div className="shrink-0 px-4 py-1.5 border-t border-border text-[10px] text-content-tertiary bg-surface-1/30">
-              {filtered.length} of {allItems.length} items{cursor && !q && !searchHits && ' — more available'}
-              {selectedIds.size > 0 && <span className="ml-3 text-accent font-medium">{selectedIds.size} selected</span>}
+              {filtered.length} of {allItems.length} items{cursor && !q && !searchHits && " — more available"}
+              {selectedIds.size > 0 && (
+                <span className="ml-3 text-accent font-medium">{selectedIds.size} selected</span>
+              )}
             </div>
           </div>
         </div>
       )}
 
       {/* ── Calendar tab ── */}
-      {activeTab === 'calendar' && (
+      {activeTab === "calendar" && (
         <div className="flex-1 min-h-0 max-w-[1400px] w-full mx-auto px-6 py-4 flex flex-col gap-3">
           {/* Month nav */}
           <div className="flex items-center gap-3 shrink-0">
-            <Button type="button" variant="outline" size="icon-sm" onClick={() => setCalDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} aria-label="Previous month" className="w-8 h-8">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              onClick={() => setCalDate((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
+              aria-label="Previous month"
+              className="w-8 h-8"
+            >
               <ChevronLeft size={14} />
             </Button>
             <h2 className="text-sm font-semibold text-content-primary flex-1 text-center">{calMonthLabel}</h2>
-            <Button type="button" variant="outline" size="icon-sm" onClick={() => setCalDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} aria-label="Next month" className="w-8 h-8">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              onClick={() => setCalDate((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
+              aria-label="Next month"
+              className="w-8 h-8"
+            >
               <ChevronRight size={14} />
             </Button>
-            <Button type="button" variant="outline" size="icon-sm" onClick={loadCalendar} disabled={calLoading} aria-label="Refresh calendar" className="w-8 h-8">
-              <RotateCw size={13} className={cn(calLoading && 'animate-spin')} />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              onClick={loadCalendar}
+              disabled={calLoading}
+              aria-label="Refresh calendar"
+              className="w-8 h-8"
+            >
+              <RotateCw size={13} className={cn(calLoading && "animate-spin")} />
             </Button>
           </div>
           {/* Day-of-week headers */}
           <div className="grid grid-cols-7 gap-1 shrink-0">
-            {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
-              <div key={d} className="text-center text-[10px] font-semibold text-content-tertiary uppercase py-1">{d}</div>
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+              <div key={d} className="text-center text-[10px] font-semibold text-content-tertiary uppercase py-1">
+                {d}
+              </div>
             ))}
           </div>
           {/* Calendar grid */}
@@ -629,11 +776,16 @@ export default function ContentPage() {
                   const events = calData[day.iso] || [];
                   const isToday = day.iso === new Date().toISOString().slice(0, 10);
                   return (
-                    <div key={day.iso}
-                      className={cn('rounded-md border p-1.5 min-h-[80px] flex flex-col gap-0.5 text-left',
-                        isToday ? 'border-accent/50 bg-accent/5' : 'border-border bg-surface-0'
-                      )}>
-                      <span className={cn('text-[10px] font-semibold', isToday ? 'text-accent' : 'text-content-tertiary')}>
+                    <div
+                      key={day.iso}
+                      className={cn(
+                        "rounded-md border p-1.5 min-h-[80px] flex flex-col gap-0.5 text-left",
+                        isToday ? "border-accent/50 bg-accent/5" : "border-border bg-surface-0"
+                      )}
+                    >
+                      <span
+                        className={cn("text-[10px] font-semibold", isToday ? "text-accent" : "text-content-tertiary")}
+                      >
                         {day.date.getDate()}
                       </span>
                       {events.slice(0, 3).map((ev: any) => (
@@ -644,8 +796,11 @@ export default function ContentPage() {
                           size="sm"
                           onClick={() => openDetail(ev.content_id)}
                           title={ev.title || ev.content_id}
-                          className={cn('w-full justify-start text-left text-[9px] truncate rounded px-1 py-0.5 h-auto font-medium',
-                            STATUS_CHIP[ev.status] || 'bg-surface-2 text-content-tertiary')}>
+                          className={cn(
+                            "w-full justify-start text-left text-[9px] truncate rounded px-1 py-0.5 h-auto font-medium",
+                            STATUS_CHIP[ev.status] || "bg-surface-2 text-content-tertiary"
+                          )}
+                        >
                           {ev.title || ev.content_id}
                         </Button>
                       ))}
@@ -654,32 +809,43 @@ export default function ContentPage() {
                       )}
                     </div>
                   );
-                })
-            }
+                })}
           </div>
         </div>
       )}
 
       {/* ── Stats tab ── */}
-      {activeTab === 'stats' && (
+      {activeTab === "stats" && (
         <div className="flex-1 min-h-0 max-w-[1400px] w-full mx-auto px-6 py-4 overflow-y-auto">
           {/* Period selector */}
           <div className="flex items-center gap-2 mb-4 shrink-0">
-            {(['day','week','month'] as const).map(p => (
+            {(["day", "week", "month"] as const).map((p) => (
               <Button
                 key={p}
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => setStatsPeriod(p)}
-                className={cn('h-7 px-3 text-xs',
-                  statsPeriod === p ? 'border-accent/40 bg-accent/5 text-accent' : 'border-border text-content-tertiary hover:bg-surface-1')}
+                className={cn(
+                  "h-7 px-3 text-xs",
+                  statsPeriod === p
+                    ? "border-accent/40 bg-accent/5 text-accent"
+                    : "border-border text-content-tertiary hover:bg-surface-1"
+                )}
               >
-                {p === 'day' ? 'Daily' : p === 'week' ? 'Weekly' : 'Monthly'}
+                {p === "day" ? "Daily" : p === "week" ? "Weekly" : "Monthly"}
               </Button>
             ))}
-            <Button type="button" variant="outline" size="icon-sm" onClick={loadStats} disabled={statsLoading} aria-label="Refresh stats" className="w-7 h-7 ml-auto">
-              <RotateCw size={12} className={cn(statsLoading && 'animate-spin')} />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              onClick={loadStats}
+              disabled={statsLoading}
+              aria-label="Refresh stats"
+              className="w-7 h-7 ml-auto"
+            >
+              <RotateCw size={12} className={cn(statsLoading && "animate-spin")} />
             </Button>
           </div>
 
@@ -701,7 +867,7 @@ export default function ContentPage() {
                     <div className="py-8 text-center text-xs text-content-tertiary">No data yet</div>
                   )}
                   {(statsData.by_channel || []).map((ch: any) => {
-                    const channel = channels.find(c => c.channel_id === ch.channel_id);
+                    const channel = channels.find((c) => c.channel_id === ch.channel_id);
                     const total = (ch.done || 0) + (ch.running || 0) + (ch.failed || 0);
                     const doneRatio = total > 0 ? (ch.done || 0) / total : 0;
                     return (
@@ -711,14 +877,19 @@ export default function ContentPage() {
                             {channel?.channel_name || ch.channel_id}
                           </div>
                           <div className="mt-1 h-1.5 bg-surface-2 rounded-full overflow-hidden">
-                            <div className="h-full bg-status-success transition-all" style={{ width: `${doneRatio * 100}%` }} />
+                            <div
+                              className="h-full bg-status-success transition-all"
+                              style={{ width: `${doneRatio * 100}%` }}
+                            />
                           </div>
                         </div>
                         <div className="flex items-center gap-3 shrink-0 text-[11px]">
                           <span className="text-status-success">{ch.done} done</span>
                           {ch.running > 0 && <span className="text-accent">{ch.running} running</span>}
                           {ch.failed > 0 && <span className="text-status-error">{ch.failed} failed</span>}
-                          {ch.total_cost != null && <span className="text-content-tertiary">${Number(ch.total_cost).toFixed(2)}</span>}
+                          {ch.total_cost != null && (
+                            <span className="text-content-tertiary">${Number(ch.total_cost).toFixed(2)}</span>
+                          )}
                         </div>
                       </div>
                     );
@@ -741,18 +912,25 @@ export default function ContentPage() {
                   </div>
                   <div className="divide-y divide-border max-h-72 overflow-y-auto">
                     {(statsData.buckets || []).slice(0, 50).map((b: any, i: number) => (
-                      <div key={i} className="grid grid-cols-6 px-4 py-2 text-xs text-content-secondary hover:bg-surface-1 transition-colors">
+                      <div
+                        key={i}
+                        className="grid grid-cols-6 px-4 py-2 text-xs text-content-secondary hover:bg-surface-1 transition-colors"
+                      >
                         <span className="col-span-2 text-content-tertiary font-mono">{b.bucket}</span>
                         <span>
-                          <span className={cn('text-[10px] px-1.5 py-0.5 rounded',
-                            STATUS_CHIP[b.status] || 'bg-surface-2 text-content-tertiary')}>
+                          <span
+                            className={cn(
+                              "text-[10px] px-1.5 py-0.5 rounded",
+                              STATUS_CHIP[b.status] || "bg-surface-2 text-content-tertiary"
+                            )}
+                          >
                             {b.status}
                           </span>
                         </span>
-                        <span className="text-content-tertiary">{b.content_mode || '—'}</span>
+                        <span className="text-content-tertiary">{b.content_mode || "—"}</span>
                         <span className="text-right font-medium">{b.cnt}</span>
                         <span className="text-right text-content-tertiary">
-                          {b.avg_cost != null ? `$${Number(b.avg_cost).toFixed(3)}` : '—'}
+                          {b.avg_cost != null ? `$${Number(b.avg_cost).toFixed(3)}` : "—"}
                         </span>
                       </div>
                     ))}
@@ -772,18 +950,18 @@ export default function ContentPage() {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2.5 bg-surface-0 border border-border rounded-xl shadow-elevated">
           <span className="text-xs font-medium text-content-primary mr-1">{selectedIds.size} selected</span>
           {[
-            { action: 'approve',  label: 'Approve',  cls: 'text-status-success hover:bg-status-success/10' },
-            { action: 'reject',   label: 'Reject',   cls: 'text-status-error   hover:bg-status-error/10' },
-            { action: 'retry',    label: 'Retry',    cls: 'text-accent     hover:bg-accent/10' },
-            { action: 'archive',  label: 'Archive',  cls: 'text-content-tertiary hover:bg-surface-2' },
-          ].map(b => (
+            { action: "approve", label: "Approve", cls: "text-status-success hover:bg-status-success/10" },
+            { action: "reject", label: "Reject", cls: "text-status-error   hover:bg-status-error/10" },
+            { action: "retry", label: "Retry", cls: "text-accent     hover:bg-accent/10" },
+            { action: "archive", label: "Archive", cls: "text-content-tertiary hover:bg-surface-2" },
+          ].map((b) => (
             <Button
               key={b.action}
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => handleBulk(b.action)}
-              className={cn('h-7 px-3 text-xs', b.cls)}
+              className={cn("h-7 px-3 text-xs", b.cls)}
             >
               {b.label}
             </Button>
@@ -804,7 +982,13 @@ export default function ContentPage() {
       {/* ── Detail drawer ── */}
       {detailId && (
         <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/30" onClick={() => { setDetailId(null); setDetailData(null); }} />
+          <div
+            className="absolute inset-0 bg-black/30"
+            onClick={() => {
+              setDetailId(null);
+              setDetailData(null);
+            }}
+          />
           <div className="absolute right-0 top-0 bottom-0 w-[380px] bg-surface-0 border-l border-border shadow-elevated flex flex-col">
             <div className="shrink-0 px-4 py-3 border-b border-border flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -815,7 +999,10 @@ export default function ContentPage() {
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                onClick={() => { setDetailId(null); setDetailData(null); }}
+                onClick={() => {
+                  setDetailId(null);
+                  setDetailData(null);
+                }}
                 aria-label="Close"
                 className="w-7 h-7 text-content-tertiary"
               >
@@ -823,36 +1010,56 @@ export default function ContentPage() {
               </Button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {detailLoading && <div className="flex items-center justify-center py-12"><Loader2 size={18} className="animate-spin text-content-tertiary" /></div>}
+              {detailLoading && (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 size={18} className="animate-spin text-content-tertiary" />
+                </div>
+              )}
               {!detailLoading && detailData && (
                 <>
                   {/* Title */}
                   <div>
                     <div className="text-[9px] uppercase tracking-wider text-content-tertiary mb-1">Title</div>
-                    <div className="text-sm font-medium text-content-primary leading-snug">{detailData.title || detailData.topic || detailData.content_id}</div>
+                    <div className="text-sm font-medium text-content-primary leading-snug">
+                      {detailData.title || detailData.topic || detailData.content_id}
+                    </div>
                   </div>
                   {/* Hook */}
                   {detailData.selected_hook && (
                     <div>
                       <div className="text-[9px] uppercase tracking-wider text-content-tertiary mb-1">Hook</div>
-                      <div className="text-xs text-content-secondary italic">&ldquo;{detailData.selected_hook}&rdquo;</div>
+                      <div className="text-xs text-content-secondary italic">
+                        &ldquo;{detailData.selected_hook}&rdquo;
+                      </div>
                     </div>
                   )}
                   {/* Meta grid */}
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      ['Channel', channels.find(c => c.channel_id === detailData.channel_id)?.channel_name || detailData.channel_id],
-                      ['Mode', detailData.content_mode],
-                      ['Status', detailData.status],
-                      ['Review', detailData.review_state || '—'],
-                      ['Auth score', detailData.authenticity_score != null ? Number(detailData.authenticity_score).toFixed(2) : '—'],
-                      ['Composite', detailData.final_composite_score != null ? Number(detailData.final_composite_score).toFixed(2) : '—'],
-                      ['Cost', detailData.total_cost != null ? `$${Number(detailData.total_cost).toFixed(3)}` : '—'],
-                      ['Created', new Date(detailData.created_at).toLocaleString()],
+                      [
+                        "Channel",
+                        channels.find((c) => c.channel_id === detailData.channel_id)?.channel_name ||
+                          detailData.channel_id,
+                      ],
+                      ["Mode", detailData.content_mode],
+                      ["Status", detailData.status],
+                      ["Review", detailData.review_state || "—"],
+                      [
+                        "Auth score",
+                        detailData.authenticity_score != null ? Number(detailData.authenticity_score).toFixed(2) : "—",
+                      ],
+                      [
+                        "Composite",
+                        detailData.final_composite_score != null
+                          ? Number(detailData.final_composite_score).toFixed(2)
+                          : "—",
+                      ],
+                      ["Cost", detailData.total_cost != null ? `$${Number(detailData.total_cost).toFixed(3)}` : "—"],
+                      ["Created", new Date(detailData.created_at).toLocaleString()],
                     ].map(([l, v]) => (
                       <div key={l as string}>
                         <div className="text-[9px] uppercase tracking-wider text-content-tertiary">{l}</div>
-                        <div className="text-xs text-content-primary truncate">{v || '—'}</div>
+                        <div className="text-xs text-content-primary truncate">{v || "—"}</div>
                       </div>
                     ))}
                   </div>
@@ -862,7 +1069,12 @@ export default function ContentPage() {
                       <div className="text-[9px] uppercase tracking-wider text-content-tertiary mb-2">Thumbnails</div>
                       <div className="grid grid-cols-3 gap-1">
                         {detailData.thumbnail_variants_urls.slice(0, 3).map((u: string, i: number) => (
-                          <img key={i} src={u} alt={`Thumbnail ${i+1}`} className="rounded-md aspect-video object-cover bg-surface-2" />
+                          <img
+                            key={i}
+                            src={u}
+                            alt={`Thumbnail ${i + 1}`}
+                            className="rounded-md aspect-video object-cover bg-surface-2"
+                          />
                         ))}
                       </div>
                     </div>
@@ -870,16 +1082,30 @@ export default function ContentPage() {
                   {/* Phase timeline */}
                   {detailData.events?.length > 0 && (
                     <div>
-                      <div className="text-[9px] uppercase tracking-wider text-content-tertiary mb-2">Pipeline Timeline</div>
+                      <div className="text-[9px] uppercase tracking-wider text-content-tertiary mb-2">
+                        Pipeline Timeline
+                      </div>
                       <div className="space-y-1">
                         {detailData.events.map((ev: any, i: number) => (
                           <div key={i} className="flex items-center gap-2 text-[11px]">
-                            <span className={cn('w-2 h-2 rounded-full shrink-0',
-                              ev.status === 'completed' ? 'bg-status-success' :
-                              ev.status === 'failed'    ? 'bg-status-error' :
-                              ev.status === 'running'   ? 'bg-accent animate-pulse' : 'bg-surface-3')} />
-                            <span className="text-content-secondary capitalize">{ev.phase?.replace('_', ' ')}</span>
-                            {ev.duration_ms && <span className="text-content-tertiary ml-auto">{(ev.duration_ms / 1000).toFixed(1)}s</span>}
+                            <span
+                              className={cn(
+                                "w-2 h-2 rounded-full shrink-0",
+                                ev.status === "completed"
+                                  ? "bg-status-success"
+                                  : ev.status === "failed"
+                                    ? "bg-status-error"
+                                    : ev.status === "running"
+                                      ? "bg-accent animate-pulse"
+                                      : "bg-surface-3"
+                              )}
+                            />
+                            <span className="text-content-secondary capitalize">{ev.phase?.replace("_", " ")}</span>
+                            {ev.duration_ms && (
+                              <span className="text-content-tertiary ml-auto">
+                                {(ev.duration_ms / 1000).toFixed(1)}s
+                              </span>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -888,7 +1114,9 @@ export default function ContentPage() {
                   {/* Review session */}
                   {detailData.review_session && (
                     <div>
-                      <div className="text-[9px] uppercase tracking-wider text-content-tertiary mb-2">Review Session</div>
+                      <div className="text-[9px] uppercase tracking-wider text-content-tertiary mb-2">
+                        Review Session
+                      </div>
                       <div className="rounded-md bg-surface-1 border border-border p-3 space-y-1 text-xs">
                         <div className="flex justify-between">
                           <span className="text-content-tertiary">State</span>
@@ -907,23 +1135,30 @@ export default function ContentPage() {
                   )}
                   {/* Actions */}
                   <div className="flex flex-col gap-2 pt-1">
-                    {['completed','published','delivered'].includes(detailData.status) && (
+                    {["completed", "published", "delivered"].includes(detailData.status) && (
                       <Button
                         type="button"
                         size="sm"
-                        onClick={() => { setDetailId(null); openPreview(detailData.content_id); }}
+                        onClick={() => {
+                          setDetailId(null);
+                          openPreview(detailData.content_id);
+                        }}
                         leftIcon={<Play size={12} />}
                         className="h-8"
                       >
                         Preview video
                       </Button>
                     )}
-                    <Link href={`/dashboard/review/${detailData.content_id}`}
-                      className="flex items-center justify-center gap-1.5 h-8 rounded-md border border-border text-xs text-content-secondary hover:bg-surface-2 transition-colors">
+                    <Link
+                      href={`/dashboard/review/${detailData.content_id}`}
+                      className="flex items-center justify-center gap-1.5 h-8 rounded-md border border-border text-xs text-content-secondary hover:bg-surface-2 transition-colors"
+                    >
                       <ClipboardCheck size={12} /> Open review
                     </Link>
-                    <Link href={`/dashboard/jobs/${detailData.content_id}`}
-                      className="flex items-center justify-center gap-1.5 h-8 rounded-md border border-border text-xs text-content-secondary hover:bg-surface-2 transition-colors">
+                    <Link
+                      href={`/dashboard/jobs/${detailData.content_id}`}
+                      className="flex items-center justify-center gap-1.5 h-8 rounded-md border border-border text-xs text-content-secondary hover:bg-surface-2 transition-colors"
+                    >
                       <ExternalLink size={12} /> Job detail
                     </Link>
                   </div>
@@ -940,63 +1175,141 @@ export default function ContentPage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setDrawerOpen(false)} />
           <div className="absolute right-0 top-0 bottom-0 w-[28rem] bg-surface-0 border-l border-border shadow-elevated flex flex-col">
             <div className="shrink-0 px-5 py-4 border-b border-border flex items-center justify-between">
-              <div className="flex items-center gap-2"><Wrench size={15} className="text-accent" /><h2 className="text-sm font-semibold text-content-primary">Filters</h2></div>
+              <div className="flex items-center gap-2">
+                <Wrench size={15} className="text-accent" />
+                <h2 className="text-sm font-semibold text-content-primary">Filters</h2>
+              </div>
               <div className="flex items-center gap-2">
                 {activeFilterCount > 0 && (
-                  <Button type="button" variant="ghost" size="sm" onClick={clearFilters} className="h-auto px-2 py-1 text-[11px] text-content-tertiary hover:text-content-primary">Clear all</Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearFilters}
+                    className="h-auto px-2 py-1 text-[11px] text-content-tertiary hover:text-content-primary"
+                  >
+                    Clear all
+                  </Button>
                 )}
-                <Button type="button" variant="ghost" size="icon-sm" onClick={() => setDrawerOpen(false)} aria-label="Close" className="w-7 h-7 text-content-tertiary">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setDrawerOpen(false)}
+                  aria-label="Close"
+                  className="w-7 h-7 text-content-tertiary"
+                >
                   <X size={14} />
                 </Button>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto scrollbar-hide p-5 space-y-6">
               <section>
-                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-content-tertiary mb-3"><Clock size={12} />Date Range</div>
+                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-content-tertiary mb-3">
+                  <Clock size={12} />
+                  Date Range
+                </div>
                 <div className="grid grid-cols-2 gap-2">
-                  {DATE_RANGES.map(r => <FilterChip key={r.key} label={r.label} active={dateRange === r.key} onClick={() => setDateRange(r.key)} />)}
+                  {DATE_RANGES.map((r) => (
+                    <FilterChip
+                      key={r.key}
+                      label={r.label}
+                      active={dateRange === r.key}
+                      onClick={() => setDateRange(r.key)}
+                    />
+                  ))}
                 </div>
               </section>
               <section>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-content-tertiary mb-3">Channels</div>
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-content-tertiary mb-3">
+                  Channels
+                </div>
                 <div className="mb-2">
                   <Input
                     type="text"
                     value={channelSearch}
-                    onChange={e => setChannelSearch(e.target.value)}
+                    onChange={(e) => setChannelSearch(e.target.value)}
                     placeholder="Search channels…"
                     leftIcon={<Search size={12} />}
                     className="h-8 text-xs"
                   />
                 </div>
                 <div className="max-h-48 overflow-y-auto space-y-0.5">
-                  {channels.filter(c => c.channel_name.toLowerCase().includes(channelSearch.toLowerCase())).map(c => {
-                    const checked = selChannels.includes(c.channel_id);
-                    return (
-                      <label key={c.channel_id} className={cn('flex items-center gap-3 px-3 py-2 rounded-md text-xs cursor-pointer transition-colors', checked ? 'bg-accent/10 text-accent' : 'text-content-secondary hover:bg-surface-2')}>
-                        <Checkbox checked={checked} onCheckedChange={() => toggleMulti(selChannels, setSelChannels, c.channel_id)} />
-                        <span className="truncate">{c.channel_name}</span>
-                      </label>
-                    );
-                  })}
+                  {channels
+                    .filter((c) => c.channel_name.toLowerCase().includes(channelSearch.toLowerCase()))
+                    .map((c) => {
+                      const checked = selChannels.includes(c.channel_id);
+                      return (
+                        <label
+                          key={c.channel_id}
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-2 rounded-md text-xs cursor-pointer transition-colors",
+                            checked ? "bg-accent/10 text-accent" : "text-content-secondary hover:bg-surface-2"
+                          )}
+                        >
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={() => toggleMulti(selChannels, setSelChannels, c.channel_id)}
+                          />
+                          <span className="truncate">{c.channel_name}</span>
+                        </label>
+                      );
+                    })}
                 </div>
               </section>
               <section>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-content-tertiary mb-3">Status</div>
-                <div className="grid grid-cols-2 gap-2">{STATUS_OPTIONS.map(s => <FilterChip key={s} label={s} active={selStatuses.includes(s)} onClick={() => toggleMulti(selStatuses, setSelStatuses, s)} />)}</div>
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-content-tertiary mb-3">
+                  Status
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {STATUS_OPTIONS.map((s) => (
+                    <FilterChip
+                      key={s}
+                      label={s}
+                      active={selStatuses.includes(s)}
+                      onClick={() => toggleMulti(selStatuses, setSelStatuses, s)}
+                    />
+                  ))}
+                </div>
               </section>
               <section>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-content-tertiary mb-3">Review</div>
-                <div className="grid grid-cols-2 gap-2">{REVIEW_OPTIONS.map(s => <FilterChip key={s} label={s.replace('_',' ')} active={selReviews.includes(s)} onClick={() => toggleMulti(selReviews, setSelReviews, s)} />)}</div>
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-content-tertiary mb-3">
+                  Review
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {REVIEW_OPTIONS.map((s) => (
+                    <FilterChip
+                      key={s}
+                      label={s.replace("_", " ")}
+                      active={selReviews.includes(s)}
+                      onClick={() => toggleMulti(selReviews, setSelReviews, s)}
+                    />
+                  ))}
+                </div>
               </section>
               <section>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-content-tertiary mb-3">Content Mode</div>
-                <div className="grid grid-cols-2 gap-2">{MODE_OPTIONS.map(m => <FilterChip key={m} label={m === 'short' ? 'Short' : 'Long form'} active={selModes.includes(m)} onClick={() => toggleMulti(selModes, setSelModes, m)} />)}</div>
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-content-tertiary mb-3">
+                  Content Mode
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {MODE_OPTIONS.map((m) => (
+                    <FilterChip
+                      key={m}
+                      label={m === "short" ? "Short" : "Long form"}
+                      active={selModes.includes(m)}
+                      onClick={() => toggleMulti(selModes, setSelModes, m)}
+                    />
+                  ))}
+                </div>
               </section>
             </div>
             <div className="shrink-0 px-5 pt-3 pb-8 border-t border-border flex items-center justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setDrawerOpen(false)}>Cancel</Button>
-              <Button size="sm" onClick={() => setDrawerOpen(false)}>Apply · {filtered.length}</Button>
+              <Button variant="ghost" size="sm" onClick={() => setDrawerOpen(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={() => setDrawerOpen(false)}>
+                Apply · {filtered.length}
+              </Button>
             </div>
           </div>
         </div>
@@ -1018,26 +1331,39 @@ export default function ContentPage() {
               <div>
                 <FieldLabel className="text-xs font-medium text-content-secondary mb-1.5 block">Channel</FieldLabel>
                 <Select value={trigChannel} onValueChange={setTrigChannel}>
-                  <SelectTrigger><SelectValue placeholder="Select a channel" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a channel" />
+                  </SelectTrigger>
                   <SelectContent>
-                    {channels.map(c => (
-                      <SelectItem key={c.channel_id} value={c.channel_id}>{c.channel_name}</SelectItem>
+                    {channels.map((c) => (
+                      <SelectItem key={c.channel_id} value={c.channel_id}>
+                        {c.channel_name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <FieldLabel className="text-xs font-medium text-content-secondary mb-1.5 block">Content Mode</FieldLabel>
+                <FieldLabel className="text-xs font-medium text-content-secondary mb-1.5 block">
+                  Content Mode
+                </FieldLabel>
                 <div className="flex gap-2">
-                  {[['long_form','Long form'],['short','Short']].map(([k, l]) => (
+                  {[
+                    ["long_form", "Long form"],
+                    ["short", "Short"],
+                  ].map(([k, l]) => (
                     <Button
                       key={k}
                       type="button"
                       variant="outline"
                       size="sm"
                       onClick={() => setTrigMode(k)}
-                      className={cn('flex-1 h-9 text-xs',
-                        trigMode === k ? 'border-accent/40 bg-accent/5 text-accent' : 'border-border text-content-tertiary hover:bg-surface-1')}
+                      className={cn(
+                        "flex-1 h-9 text-xs",
+                        trigMode === k
+                          ? "border-accent/40 bg-accent/5 text-accent"
+                          : "border-border text-content-tertiary hover:bg-surface-1"
+                      )}
                     >
                       {l}
                     </Button>
@@ -1045,14 +1371,21 @@ export default function ContentPage() {
                 </div>
               </div>
               <div>
-                <FieldLabel className="text-xs font-medium text-content-secondary mb-1.5 block">Topic hint <span className="text-content-tertiary font-normal">(optional)</span></FieldLabel>
-                <Input value={trigTopic} onChange={e => setTrigTopic(e.target.value)}
+                <FieldLabel className="text-xs font-medium text-content-secondary mb-1.5 block">
+                  Topic hint <span className="text-content-tertiary font-normal">(optional)</span>
+                </FieldLabel>
+                <Input
+                  value={trigTopic}
+                  onChange={(e) => setTrigTopic(e.target.value)}
                   placeholder="e.g. Top 5 Python tricks for beginners"
-                  className="h-9" />
+                  className="h-9"
+                />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="ghost" size="sm" onClick={() => setTriggerOpen(false)}>Cancel</Button>
+              <Button variant="ghost" size="sm" onClick={() => setTriggerOpen(false)}>
+                Cancel
+              </Button>
               <Button
                 size="sm"
                 onClick={handleTrigger}
@@ -1060,7 +1393,7 @@ export default function ContentPage() {
                 loading={triggering}
                 leftIcon={!triggering ? <Zap size={12} /> : undefined}
               >
-                {triggering ? 'Starting…' : 'Generate'}
+                {triggering ? "Starting…" : "Generate"}
               </Button>
             </DialogFooter>
           </DialogBody>
@@ -1069,8 +1402,17 @@ export default function ContentPage() {
 
       {/* ── Preview Modal ── */}
       {previewId && (
-        <VideoPreviewModal contentId={previewId} videoUrl={previewUrl} meta={previewMeta} loading={previewLoading}
-          onClose={() => { setPreviewId(null); setPreviewUrl(null); setPreviewMeta(null); }} />
+        <VideoPreviewModal
+          contentId={previewId}
+          videoUrl={previewUrl}
+          meta={previewMeta}
+          loading={previewLoading}
+          onClose={() => {
+            setPreviewId(null);
+            setPreviewUrl(null);
+            setPreviewMeta(null);
+          }}
+        />
       )}
     </div>
   );
@@ -1086,10 +1428,10 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
       size="sm"
       onClick={onClick}
       className={cn(
-        'w-full px-3 py-2 h-auto justify-start text-xs',
+        "w-full px-3 py-2 h-auto justify-start text-xs",
         active
-          ? 'bg-accent/10 text-accent ring-1 ring-accent/20 hover:bg-accent/15'
-          : 'text-content-secondary hover:text-content-primary hover:bg-surface-2'
+          ? "bg-accent/10 text-accent ring-1 ring-accent/20 hover:bg-accent/15"
+          : "text-content-secondary hover:text-content-primary hover:bg-surface-2"
       )}
     >
       {label}
@@ -1098,13 +1440,21 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
 }
 
 function toggleMulti<T>(arr: T[], setArr: (v: T[]) => void, val: T) {
-  setArr(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]);
+  setArr(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val]);
 }
 
 function ContentRow({
-  v, channels, selected, onToggleSelect, onPreview, onDownload, onExport, onDetail,
+  v,
+  channels,
+  selected,
+  onToggleSelect,
+  onPreview,
+  onDownload,
+  onExport,
+  onDetail,
 }: {
-  v: any; channels: any[];
+  v: any;
+  channels: any[];
   selected: boolean;
   onToggleSelect: () => void;
   onPreview: (id: string) => void;
@@ -1112,23 +1462,28 @@ function ContentRow({
   onExport: (v: any) => void;
   onDetail: () => void;
 }) {
-  const channel = channels.find(c => c.channel_id === v.channel_id);
+  const channel = channels.find((c) => c.channel_id === v.channel_id);
   const channelName = channel?.channel_name || v.channel_id;
-  const reviewMode = channel?.human_review_required ?? 'never';
-  const isReviewable = reviewMode !== 'never';
-  const videoReady = ['completed', 'published', 'delivered'].includes(v.status);
+  const reviewMode = channel?.human_review_required ?? "never";
+  const isReviewable = reviewMode !== "never";
+  const videoReady = ["completed", "published", "delivered"].includes(v.status);
   const titleHref = isReviewable ? `/dashboard/review/${v.content_id}` : null;
 
   return (
-    <div className={cn('flex items-center px-4 py-3 transition-colors hover:bg-surface-1/40', selected && 'bg-accent/5')}>
+    <div
+      className={cn("flex items-center px-4 py-3 transition-colors hover:bg-surface-1/40", selected && "bg-accent/5")}
+    >
       {/* Checkbox */}
       <div className="w-7 shrink-0 flex items-center">
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
-          onClick={e => { e.stopPropagation(); onToggleSelect(); }}
-          aria-label={selected ? 'Deselect row' : 'Select row'}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect();
+          }}
+          aria-label={selected ? "Deselect row" : "Select row"}
           className="w-5 h-5 text-content-tertiary hover:text-accent"
         >
           {selected ? <CheckSquare size={13} className="text-accent" /> : <CheckSquare size={13} />}
@@ -1136,27 +1491,42 @@ function ContentRow({
       </div>
 
       {/* Title + channel — click opens detail */}
-      <Button type="button" variant="ghost" size="sm" onClick={onDetail} className="min-w-0 flex-1 pl-2 pr-3 h-auto py-0 justify-start text-left flex flex-col items-start gap-0">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={onDetail}
+        className="min-w-0 flex-1 pl-2 pr-3 h-auto py-0 justify-start text-left flex flex-col items-start gap-0"
+      >
         <span className="text-xs font-medium truncate block text-content-primary hover:text-accent transition-colors">
           {v.title || v.topic || v.content_id}
         </span>
         <div className="text-[10px] text-content-tertiary truncate mt-0.5 flex items-center gap-1.5">
           <span className="text-content-secondary">{channelName}</span>
-          {v.topic && <><span>·</span><span className="truncate">{v.topic}</span></>}
+          {v.topic && (
+            <>
+              <span>·</span>
+              <span className="truncate">{v.topic}</span>
+            </>
+          )}
         </div>
       </Button>
 
       {/* Type chip */}
       <div className="w-20 shrink-0 flex justify-center">
-        <span className={v.content_mode === 'short' ? 'chip-short' : 'chip-long'}>
-          {v.content_mode === 'short' ? 'Short' : 'Long'}
+        <span className={v.content_mode === "short" ? "chip-short" : "chip-long"}>
+          {v.content_mode === "short" ? "Short" : "Long"}
         </span>
       </div>
 
       {/* Status */}
       <div className="w-24 shrink-0 text-center hidden md:block">
-        <span className={cn('text-[10px] uppercase px-2 py-0.5 rounded font-medium inline-block',
-          STATUS_CHIP[v.status] ?? 'bg-surface-3 text-content-tertiary')}>
+        <span
+          className={cn(
+            "text-[10px] uppercase px-2 py-0.5 rounded font-medium inline-block",
+            STATUS_CHIP[v.status] ?? "bg-surface-3 text-content-tertiary"
+          )}
+        >
           {v.status}
         </span>
       </div>
@@ -1166,9 +1536,13 @@ function ContentRow({
         {!isReviewable ? (
           <span className="text-[10px] text-content-tertiary italic">auto</span>
         ) : v.review_state ? (
-          <span className={cn('text-[10px] uppercase px-2 py-0.5 rounded font-medium inline-block',
-            REVIEW_CHIP[v.review_state] ?? 'bg-surface-3 text-content-tertiary')}>
-            {v.review_state.replace('_', ' ')}
+          <span
+            className={cn(
+              "text-[10px] uppercase px-2 py-0.5 rounded font-medium inline-block",
+              REVIEW_CHIP[v.review_state] ?? "bg-surface-3 text-content-tertiary"
+            )}
+          >
+            {v.review_state.replace("_", " ")}
           </span>
         ) : (
           <span className="text-[10px] text-content-tertiary">—</span>
@@ -1178,8 +1552,12 @@ function ContentRow({
       {/* Score */}
       <div className="w-14 shrink-0 text-center hidden sm:block">
         {v.authenticity_score != null ? (
-          <span className="text-[10px] font-mono text-content-secondary">{Number(v.authenticity_score).toFixed(1)}</span>
-        ) : <span className="text-[10px] text-content-tertiary">—</span>}
+          <span className="text-[10px] font-mono text-content-secondary">
+            {Number(v.authenticity_score).toFixed(1)}
+          </span>
+        ) : (
+          <span className="text-[10px] text-content-tertiary">—</span>
+        )}
       </div>
 
       {/* Date */}
@@ -1190,8 +1568,11 @@ function ContentRow({
       {/* Actions */}
       <div className="w-32 shrink-0 flex items-center justify-end gap-0.5 pr-1">
         {isReviewable && titleHref && (
-          <Link href={titleHref} title="Open review"
-            className="w-7 h-7 inline-flex items-center justify-center rounded text-content-tertiary hover:text-accent hover:bg-accent/10 transition-colors">
+          <Link
+            href={titleHref}
+            title="Open review"
+            className="w-7 h-7 inline-flex items-center justify-center rounded text-content-tertiary hover:text-accent hover:bg-accent/10 transition-colors"
+          >
             <ClipboardCheck size={13} />
           </Link>
         )}
@@ -1226,7 +1607,11 @@ function ActionButton({ onClick, title, icon: Icon }: { onClick: () => void; tit
 }
 
 function VideoPreviewModal({
-  contentId, videoUrl, meta, loading, onClose,
+  contentId,
+  videoUrl,
+  meta,
+  loading,
+  onClose,
 }: {
   contentId: string;
   videoUrl: string | null;
@@ -1234,22 +1619,32 @@ function VideoPreviewModal({
   loading: boolean;
   onClose: () => void;
 }) {
-  const isShort = meta?.content_mode === 'short';
+  const isShort = meta?.content_mode === "short";
   return (
-    <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
       <div
         className={cn(
-          'w-full bg-surface-0 border border-border rounded shadow-elevated overflow-hidden flex flex-col max-h-[90vh]',
-          isShort ? 'max-w-md' : 'max-w-3xl'
+          "w-full bg-surface-0 border border-border rounded shadow-elevated overflow-hidden flex flex-col max-h-[90vh]",
+          isShort ? "max-w-md" : "max-w-3xl"
         )}
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-content-primary truncate">{meta?.title || contentId}</h3>
             {meta?.channel_id && <p className="text-[11px] text-content-tertiary truncate">{meta.channel_id}</p>}
           </div>
-          <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close" className="w-7 h-7 shrink-0 ml-2 text-content-tertiary hover:text-content-primary">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={onClose}
+            aria-label="Close"
+            className="w-7 h-7 shrink-0 ml-2 text-content-tertiary hover:text-content-primary"
+          >
             <X size={14} />
           </Button>
         </div>
@@ -1261,15 +1656,15 @@ function VideoPreviewModal({
             <video
               src={videoUrl}
               controls
-              className={cn(
-                isShort ? 'max-h-[70vh] w-auto' : 'max-w-full max-h-[60vh]'
-              )}
+              className={cn(isShort ? "max-h-[70vh] w-auto" : "max-w-full max-h-[60vh]")}
             />
           ) : (
             <div className="text-center py-16 px-6">
               <AlertTriangle size={32} className="text-content-tertiary mx-auto mb-3 opacity-50" />
               <p className="text-sm text-content-tertiary">Video preview not available yet.</p>
-              <p className="text-xs text-content-tertiary mt-1">The video may still be rendering or the output URL is not configured.</p>
+              <p className="text-xs text-content-tertiary mt-1">
+                The video may still be rendering or the output URL is not configured.
+              </p>
             </div>
           )}
         </div>
@@ -1277,10 +1672,26 @@ function VideoPreviewModal({
         {meta && (
           <div className="shrink-0 px-4 py-3 border-t border-border bg-surface-1/30">
             <div className="flex items-center gap-4 flex-wrap text-[11px] text-content-secondary">
-              {meta.topic && <span><span className="text-content-tertiary">Topic:</span> {meta.topic}</span>}
-              {meta.content_mode && <span><span className="text-content-tertiary">Mode:</span> {meta.content_mode}</span>}
-              {meta.status && <span><span className="text-content-tertiary">Status:</span> {meta.status}</span>}
-              {meta.created_at && <span><span className="text-content-tertiary">Created:</span> {new Date(meta.created_at).toLocaleString()}</span>}
+              {meta.topic && (
+                <span>
+                  <span className="text-content-tertiary">Topic:</span> {meta.topic}
+                </span>
+              )}
+              {meta.content_mode && (
+                <span>
+                  <span className="text-content-tertiary">Mode:</span> {meta.content_mode}
+                </span>
+              )}
+              {meta.status && (
+                <span>
+                  <span className="text-content-tertiary">Status:</span> {meta.status}
+                </span>
+              )}
+              {meta.created_at && (
+                <span>
+                  <span className="text-content-tertiary">Created:</span> {new Date(meta.created_at).toLocaleString()}
+                </span>
+              )}
             </div>
           </div>
         )}

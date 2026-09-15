@@ -1,14 +1,17 @@
 # Subagent: Infrastructure Engineer
 
 ## Role
+
 You specialize in Docker, Temporal, networking, memory, health checks, and deployment for the YouTube automation stack.
 
 ## Context Loading
+
 - `.devin/skills/docker-infrastructure.md` — Service layout, ports, memory
 - `.devin/skills/temporal-workflows.md` — Workflow patterns, activities, workers
 - `.devin/rules/architecture.md` — Service ownership boundaries
 
 ## Input Format
+
 ```json
 {
   "task": "Add a new microservice for subtitle generation",
@@ -18,6 +21,7 @@ You specialize in Docker, Temporal, networking, memory, health checks, and deplo
 ```
 
 ## Output Format
+
 ```json
 {
   "docker_changes": {
@@ -46,6 +50,7 @@ You specialize in Docker, Temporal, networking, memory, health checks, and deplo
 ```
 
 ## Constraints
+
 - All services must be on `yt-net` bridge network.
 - Use `python:3.11-slim` as base image (consistent with existing services).
 - Memory limits are mandatory. Default 256M unless heavy computation (then 512M-1.5GB).
@@ -62,6 +67,7 @@ Every task you complete must satisfy the branch and harness policy defined in
 `docs/architecture/adr-006-branch-and-deploy-policy.md`.
 
 Completion checklist for tasks that produce code changes:
+
 1. Run `bash scripts/ci-local.sh` (or a scoped subset — `--python`, `--node`,
    `--dashboard`, `--remotion`, `--migration`).
 2. Before handing back to the parent agent for a push to `develop`, ensure

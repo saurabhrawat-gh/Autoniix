@@ -1,10 +1,10 @@
-import { type ReactNode } from 'react';
-import { ChromeBar } from '@/lib/components/ChromeBar';
-import { Sidebar } from '@/lib/components/Sidebar';
-import { PageTransition } from '@/lib/components/PageTransition';
-import { PageBreadcrumb } from '@/lib/components/PageBreadcrumb';
-import { ConfirmDialogProvider } from '@/lib/components/ConfirmDialog';
-import { WorkspaceGuard } from '@/lib/components/WorkspaceGuard';
+import { type ReactNode } from "react";
+import { ChromeBar } from "@/lib/components/ChromeBar";
+import { Sidebar } from "@/lib/components/Sidebar";
+import { PageTransition } from "@/lib/components/PageTransition";
+import { PageBreadcrumb } from "@/lib/components/PageBreadcrumb";
+import { ConfirmDialogProvider } from "@/lib/components/ConfirmDialog";
+import { WorkspaceGuard } from "@/lib/components/WorkspaceGuard";
 
 /**
  * DashboardLayout — locked AppShell from §9 of DESIGN-SYSTEM-REWORK.md.

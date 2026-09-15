@@ -1,45 +1,45 @@
-import type { Metadata } from 'next';
-import type { ReactNode } from 'react';
-import localFont from 'next/font/local';
-import { JetBrains_Mono } from 'next/font/google';
-import { NextIntlClientProvider } from 'next-intl';
-import { getLocale, getMessages } from 'next-intl/server';
-import { ThemeProvider } from '@/lib/theme';
-import { ToastProvider } from '@/lib/toast';
-import { AppStateProvider } from '@/lib/components/AppStateProvider';
-import { MotionProvider } from '@/lib/components/MotionProvider';
-import { QueryProvider } from '@/lib/components/QueryProvider';
-import { FeatureFlagProvider } from '@/lib/components/FeatureFlagProvider';
-import './globals.css';
-import './themes.css';
+import type { Metadata } from "next";
+import type { ReactNode } from "react";
+import localFont from "next/font/local";
+import { JetBrains_Mono } from "next/font/google";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages } from "next-intl/server";
+import { ThemeProvider } from "@/lib/theme";
+import { ToastProvider } from "@/lib/toast";
+import { AppStateProvider } from "@/lib/components/AppStateProvider";
+import { MotionProvider } from "@/lib/components/MotionProvider";
+import { QueryProvider } from "@/lib/components/QueryProvider";
+import { FeatureFlagProvider } from "@/lib/components/FeatureFlagProvider";
+import "./globals.css";
+import "./themes.css";
 
 const satoshi = localFont({
   src: [
-    { path: '../../public/fonts/Satoshi-Variable.woff2', style: 'normal' },
-    { path: '../../public/fonts/Satoshi-VariableItalic.woff2', style: 'italic' },
+    { path: "../../public/fonts/Satoshi-Variable.woff2", style: "normal" },
+    { path: "../../public/fonts/Satoshi-VariableItalic.woff2", style: "italic" },
   ],
-  variable: '--font-sans',
-  weight: '300 900',
-  display: 'swap',
+  variable: "--font-sans",
+  weight: "300 900",
+  display: "swap",
 });
 
 const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  variable: '--font-mono',
-  weight: ['400', '500', '600'],
-  display: 'swap',
+  subsets: ["latin"],
+  variable: "--font-mono",
+  weight: ["400", "500", "600"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: 'Autoniix',
-  description: 'AI-powered content automation dashboard',
+  title: "Autoniix",
+  description: "AI-powered content automation dashboard",
   icons: {
     icon: [
-      { url: '/favicon-dark.png', media: '(prefers-color-scheme: dark)', type: 'image/png', sizes: '64x64' },
-      { url: '/favicon-light.png', media: '(prefers-color-scheme: light)', type: 'image/png', sizes: '64x64' },
+      { url: "/favicon-dark.png", media: "(prefers-color-scheme: dark)", type: "image/png", sizes: "64x64" },
+      { url: "/favicon-light.png", media: "(prefers-color-scheme: light)", type: "image/png", sizes: "64x64" },
     ],
-    shortcut: '/favicon-dark.png',
-    apple: '/favicon-dark.png',
+    shortcut: "/favicon-dark.png",
+    apple: "/favicon-dark.png",
   },
 };
 

@@ -16,10 +16,7 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
 
       // Users can only fetch themselves or members of their workspace
       if (user_id !== request.principal.user_id) {
-        const membership = await userRepo.getWorkspaceMembership(
-          user_id,
-          request.principal.workspace_id
-        );
+        const membership = await userRepo.getWorkspaceMembership(user_id, request.principal.workspace_id);
         if (!membership) {
           return reply.code(403).send({
             error: "Forbidden",
@@ -82,10 +79,7 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
             message: "current_password required to change password",
           });
         }
-        const isValid = await PasswordManager.verifyPassword(
-          body.current_password,
-          user.password_hash
-        );
+        const isValid = await PasswordManager.verifyPassword(body.current_password, user.password_hash);
         if (!isValid) {
           return reply.code(401).send({
             error: "Unauthorized",
