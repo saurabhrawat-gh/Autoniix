@@ -4,20 +4,17 @@ Locks the math that turns a YouTube Analytics ``audienceWatchRatio``
 curve into the three diagnostic features the calibrator consumes
 (``hook_dropoff_30s``, ``mid_video_decay``, ``end_retention``).
 """
+
 from __future__ import annotations
 
 import math
 
 import pytest
-
-from src.quality.retention_features import (
+from quality.retention_features import (
     CurvePoint,
-    RetentionFeatures,
     compute_features,
     parse_curve,
 )
-
-
 
 
 def _flat_curve(value: float, n: int = 20) -> list[CurvePoint]:
@@ -34,8 +31,6 @@ def _linear_decay(start: float, end: float, n: int = 20) -> list[CurvePoint]:
         )
         for i in range(n)
     ]
-
-
 
 
 def test_parse_curve_accepts_pairs():
@@ -74,8 +69,6 @@ def test_parse_curve_sorts_by_elapsed():
     assert [p.elapsed_ratio for p in out] == [0.0, 0.5, 1.0]
 
 
-
-
 def test_compute_features_too_sparse_returns_invalid():
     curve = _flat_curve(0.8, n=3)
     f = compute_features(curve, duration_seconds=120)
@@ -93,8 +86,6 @@ def test_compute_features_no_duration_still_returns_end_retention():
     assert f.hook_dropoff_30s is None
     assert f.mid_video_decay is None
     assert f.end_retention == pytest.approx(0.6, abs=0.01)
-
-
 
 
 def test_hook_dropoff_zero_for_perfect_retention():
@@ -121,8 +112,6 @@ def test_hook_dropoff_clamped_to_zero_for_increasing_curves():
     assert f.hook_dropoff_30s == 0.0
 
 
-
-
 def test_mid_decay_zero_for_flat_middle():
     curve = _flat_curve(0.7)
     f = compute_features(curve, duration_seconds=120)
@@ -131,9 +120,9 @@ def test_mid_decay_zero_for_flat_middle():
 
 def test_mid_decay_positive_for_decaying_middle():
     """Linear decay 1.0 → 0.0 over [0,1]. For a 120s video:
-       30s mark is at elapsed=0.25, watch=0.75
-       60% mark is at elapsed=0.6,  watch=0.4
-       Mid decay ≈ 0.75 - 0.4 = 0.35.
+    30s mark is at elapsed=0.25, watch=0.75
+    60% mark is at elapsed=0.6,  watch=0.4
+    Mid decay ≈ 0.75 - 0.4 = 0.35.
     """
     curve = _linear_decay(1.0, 0.0)
     f = compute_features(curve, duration_seconds=120)
@@ -148,8 +137,6 @@ def test_mid_decay_none_for_short_video_where_30s_past_60pct():
     assert f.mid_video_decay is None
     assert f.hook_dropoff_30s is not None
     assert f.end_retention is not None
-
-
 
 
 def test_end_retention_averages_last_20pct():
@@ -167,8 +154,6 @@ def test_end_retention_uses_last_segment_not_endpoint():
     f = compute_features(curve, duration_seconds=120)
     assert f.end_retention is not None
     assert 0.4 < f.end_retention < 0.5
-
-
 
 
 def test_features_are_serializable_floats_or_none():

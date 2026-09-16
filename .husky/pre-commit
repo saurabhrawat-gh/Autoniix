@@ -1,1 +1,74 @@
-cd dashboard && npx lint-staged
+#!/usr/bin/env bash
+# pre-commit: fast gate (<15s) — catches 90% of CI failures before commit
+# Phase 7: Two-language stack (Python + TypeScript only)
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+
+echo "▶  pre-commit: ruff format check..."
+STAGED_PY=$(git diff --cached --name-only 2>/dev/null | grep '\.py$' || true)
+if [ -n "$STAGED_PY" ]; then
+    if command -v uv >/dev/null 2>&1; then
+        uv run ruff format --check $STAGED_PY 2>&1 || {
+            echo ""
+            echo "❌  Python formatting diff detected."
+            echo "    Fix: uv run ruff format ."
+            exit 1
+        }
+        echo "✓  ruff format clean"
+    else
+        echo "⏭  uv not found — skipping ruff format"
+    fi
+else
+    echo "✓  No .py files staged"
+fi
+
+echo "▶  pre-commit: ruff lint check..."
+if [ -n "$STAGED_PY" ]; then
+    if command -v uv >/dev/null 2>&1; then
+        uv run ruff check $STAGED_PY 2>&1 || {
+            echo ""
+            echo "❌  Ruff lint errors detected."
+            echo "    Fix: uv run ruff check --fix ."
+            exit 1
+        }
+        echo "✓  ruff lint clean"
+    else
+        echo "⏭  uv not found — skipping ruff lint"
+    fi
+fi
+
+echo "▶  pre-commit: tsc (gateway)..."
+if [ -d "$ROOT/backend/api/gateway" ] && command -v npm >/dev/null 2>&1; then
+    (cd "$ROOT/backend/api/gateway" && npm run typecheck 2>&1) || {
+        echo "❌  TypeScript errors in gateway"
+        exit 1
+    }
+    echo "✓  gateway tsc clean"
+else
+    echo "⏭  gateway not found — skipping tsc"
+fi
+
+echo "▶  pre-commit: tsc (streaming-hub)..."
+if [ -d "$ROOT/backend/api/streaming-hub" ] && command -v npm >/dev/null 2>&1; then
+    (cd "$ROOT/backend/api/streaming-hub" && npm run typecheck 2>&1) || {
+        echo "❌  TypeScript errors in streaming-hub"
+        exit 1
+    }
+    echo "✓  streaming-hub tsc clean"
+else
+    echo "⏭  streaming-hub not found — skipping tsc"
+fi
+
+echo "▶  pre-commit: tsc (contracts)..."
+if [ -d "$ROOT/shared/ts/contracts" ] && command -v npm >/dev/null 2>&1; then
+    (cd "$ROOT/shared/ts/contracts" && npm run typecheck 2>&1) || {
+        echo "❌  TypeScript errors in contracts"
+        exit 1
+    }
+    echo "✓  contracts tsc clean"
+else
+    echo "⏭  contracts not found — skipping tsc"
+fi
+
+echo ""
+echo "✅  pre-commit passed"

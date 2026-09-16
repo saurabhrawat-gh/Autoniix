@@ -1,0 +1,109 @@
+name: Harness — Nightly
+
+# Nightly deep-scan the self-improvement layers can rely on.
+# Runs on schedule + workflow_dispatch. Advisory-only (does not gate merges).
+# Results are uploaded as artifacts under .harness/nightly/<run_id>/.
+
+on:
+  schedule:
+    - cron: "15 2 * * *" # 02:15 UTC daily
+  workflow_dispatch:
+
+concurrency:
+  group: harness-nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  eval:
+    name: Prompt / agent eval + regression check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+      - name: Install deps
+        run: |
+          pip install --upgrade pip
+          pip install pyyaml pytest
+          pip install -r requirements.txt || true
+      - name: Run prompt-eval on mock LLM
+        run: python scripts/run_prompt_eval.py
+      - name: Regression check
+        run: python scripts/eval_regression_check.py
+        continue-on-error: true
+      - name: Upload eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-${{ github.run_id }}
+          path: .harness/eval/
+          retention-days: 30
+
+  semgrep:
+    name: Semgrep static analysis (advisory)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run semgrep
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            p/ci
+            p/python
+            p/typescript
+            p/security-audit
+          generateSarif: "1"
+        continue-on-error: true
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+        continue-on-error: true
+
+  audits:
+    name: Dependency audits (pip + npm)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Install audit tooling
+        run: |
+          pip install --upgrade pip pip-audit
+      - name: pip-audit (advisory)
+        continue-on-error: true
+        run: |
+          pip-audit --requirement requirements.txt --skip-editable \
+            --ignore-vuln GHSA-r9hx-vwmv-q579 || true
+      - name: npm audit (advisory)
+        continue-on-error: true
+        run: |
+          npm ci
+          npm audit --omit=dev || true
+
+  mutation:
+    name: Mutation testing (mutmut — advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true # slow, noisy — never blocks
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - name: Install mutmut
+        run: pip install mutmut pytest
+      - name: Run mutmut on shared/python/agents (scoped)
+        run: |
+          mutmut run --paths-to-mutate=shared/python/agents/ || true
+          mutmut results || true

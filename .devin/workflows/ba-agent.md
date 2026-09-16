@@ -3,6 +3,7 @@ description: BA Agent — gather requirements for any new feature, then file str
 ---
 
 > **Source of Truth — LOCKED:**
+>
 > - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project. Always create Jira IM tickets after filing GitHub issues; record mappings in `scripts/issue_map.json`.
 > - Jira **Autoniix Engineering (AE)** space is **archived** — read-only, never create tickets there.
 > - GitHub **Autoniix MVP** project board is **closed** — do not reference it.
@@ -25,6 +26,7 @@ Use this workflow at the START of every new feature or epic, before any code is 
 ---
 
 **Philosophy:**
+
 - Ask every question that matters — do not stop at 10 or 20. A feature may require 50–150 questions.
 - When the user says "I'm not sure" or "I don't know", NEVER leave it there. Present 2–3 industry-standard options with pros/cons and a clear recommendation for Autoniix's context.
 - Treat every page, every button, every state, and every edge case as a separate question.
@@ -39,6 +41,7 @@ Use this workflow at the START of every new feature or epic, before any code is 
 **Perform this step completely before asking a single question.** Its purpose is to prevent asking about decisions already made, avoid conflicts with locked architecture, and give context-aware recommendations.
 
 ### 0A — Read Existing GitHub Issues
+
 1. Fetch the Epic issue for this feature if it exists. Read its summary, child stories list, and DoD.
 2. Fetch every child Story issue linked to that Epic. Note: current status label, existing ACs, impacted files.
 3. Fetch sibling Epics that this feature **depends on** or that **depend on it**. For each, identify:
@@ -48,16 +51,20 @@ Use this workflow at the START of every new feature or epic, before any code is 
 4. Check `docs/future/pending.md` for any deferred items touching this feature area.
 
 ### 0B — Scan the Codebase
+
 Use `code_search` to locate:
+
 - Existing service files for this feature domain
 - Existing DB schema/migrations relevant to this feature
 - Existing API endpoints that may be extended
 - Existing Temporal workflow activities that are already registered
 
 ### 0C — Write a Pre-flight Summary
+
 Before asking Q1, output a short summary in this format:
 
 > **Pre-flight summary for [Feature Name]:**
+>
 > - Already decided in Epic #X: [list locked decisions that apply here]
 > - Already exists in code: [list files/tables/endpoints already present]
 > - Confirmed dependencies: [list what must be complete before this ships]
@@ -67,6 +74,7 @@ Before asking Q1, output a short summary in this format:
 This summary tells the user exactly what you already know, so the session focuses only on what's genuinely unknown.
 
 ### 0D — Rules for the Session
+
 - Never ask about a decision that was already locked in a prior BA session or existing issue AC
 - When referencing a prior decision, cite it: "In Epic #41 we decided X — does the same apply here?"
 - When a new decision in THIS session would conflict with an existing AC elsewhere, flag it explicitly before locking it
@@ -228,7 +236,7 @@ For EACH page or screen involved in this feature:
 97. Are there any operations that are expensive and should be deferred to a background job?
 98. What is the heaviest query this feature runs? Does it need an index?
 99. At what scale does this feature break? (e.g. "works for 10 channels, breaks at 100")
-100. Is there any file or media processing involved? What are the size and time limits?
+100.  Is there any file or media processing involved? What are the size and time limits?
 
 ---
 
@@ -267,14 +275,10 @@ For EACH page or screen involved in this feature:
 
 ## Step 14 — Platform Extensibility (Autoniix-Specific)
 
-119. Is this feature YouTube-specific or should it be designed to work on other platforms too?
-    - If yes: what is the platform-agnostic interface? What is YouTube-specific?
-120. Does this feature produce a specific content format? (1080p landscape, 9:16 short, audio-only, image carousel)
-    - Should the format be configurable? What formats should be supported in v1.1+?
-121. Is this feature tied to a specific content duration? (5-min, 10-min, 60-sec short)
-    - Should duration be configurable per channel or per brand?
-122. Does this feature interact with the content pipeline? If so, at which stage?
-    - research / direction / script / assets / voice / thumbnail / assembly / delivery
+119. Is this feature YouTube-specific or should it be designed to work on other platforms too? - If yes: what is the platform-agnostic interface? What is YouTube-specific?
+120. Does this feature produce a specific content format? (1080p landscape, 9:16 short, audio-only, image carousel) - Should the format be configurable? What formats should be supported in v1.1+?
+121. Is this feature tied to a specific content duration? (5-min, 10-min, 60-sec short) - Should duration be configurable per channel or per brand?
+122. Does this feature interact with the content pipeline? If so, at which stage? - research / direction / script / assets / voice / thumbnail / assembly / delivery
 123. Should this feature support multi-language output? (English now, other languages later?)
 124. Does this feature need to behave differently per niche? (finance vs. tech vs. lifestyle)
 125. Can this feature run for multiple channels simultaneously? Is there channel isolation?
@@ -320,14 +324,15 @@ Only after user confirms the summary in Step 16.
 [Area] | Description
 ```
 
-| Field | Values |
-|---|---|
-| Area | `Gateway` `Dashboard` `Service` `Worker` `Infra` |
-| Description | Plain English, one line |
+| Field       | Values                                           |
+| ----------- | ------------------------------------------------ |
+| Area        | `Gateway` `Dashboard` `Service` `Worker` `Infra` |
+| Description | Plain English, one line                          |
 
 > **Area mapping:** `UI`/`FE` → `Dashboard` · `Service`/`DB` → `Service` · `Gateway`/`Auth` → `Gateway` · `Worker` → `Worker` · `Infra` → `Infra`
 
 **Title examples:**
+
 ```
 Dashboard | Add workspace settings page
 Service | Migrate provider catalog to new schema
@@ -346,13 +351,14 @@ Service | Video render crashes on empty script
 
 **If filing a bug instead of a feature** — use `/bug` workflow instead of this step. If filing here directly:
 
-| Bug situation | Labels to use | Branch | Merges to |
-|---|---|---|---|
-| Found during dev/QA, not yet in production | `bug` `bug:normal` `ready-for-dev` | `fix/issue-N-slug` | `develop` |
-| Found in production (dash.autoniix.com is live) | `bug` `bug:production` `hotfix` `priority:critical` `ready-for-dev` | `hotfix/issue-N-slug` | `main` directly |
-| Was fixed, verified, but the problem came back | `bug` `bug:reopened` | Re-uses original branch type | Same path as original |
+| Bug situation                                   | Labels to use                                                       | Branch                       | Merges to             |
+| ----------------------------------------------- | ------------------------------------------------------------------- | ---------------------------- | --------------------- |
+| Found during dev/QA, not yet in production      | `bug` `bug:normal` `ready-for-dev`                                  | `fix/issue-N-slug`           | `develop`             |
+| Found in production (dash.autoniix.com is live) | `bug` `bug:production` `hotfix` `priority:critical` `ready-for-dev` | `hotfix/issue-N-slug`        | `main` directly       |
+| Was fixed, verified, but the problem came back  | `bug` `bug:reopened`                                                | Re-uses original branch type | Same path as original |
 
 **Bug severity for production bugs** (override `priority:critical` only if clearly lower severity):
+
 - Data loss / auth broken / videos not uploading → keep `priority:critical`
 - Core feature broken but workaround exists → `priority:high`
 - Cosmetic or edge case → `priority:medium`
@@ -360,6 +366,7 @@ Service | Video render crashes on empty script
 **Normal bug** should always reference its parent story: add `**Parent Story:** #{N}` in the body.
 
 After creating GitHub issues, **immediately create matching Jira IM tickets** for each one:
+
 - Call `mcp0_createJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, `projectKey: IM`
 - Issue type mapping: Epic → `Epic`, Story → `Story`, Task → `Task`, Bug → `Bug`
 - Title and description should match the GitHub issue body
@@ -372,6 +379,7 @@ After creating: "Stories are filed in GitHub and Jira IM. Conductor will route t
 ## Step 18 — Update PENDING.md
 
 If any part of this feature is intentionally deferred, add to PENDING.md:
+
 - What is deferred
 - Why it is deferred
 - The concrete trigger condition that will un-defer it
@@ -388,9 +396,11 @@ When the user says "I'm not sure" or "I don't know" about any question:
 4. Ask: "Does this recommendation work for you, or would you like to explore a different option?"
 
 Example:
+
 > **User:** "I'm not sure if videos should publish publicly or stay private."
 >
 > **BA Agent:** "Three common approaches:
+>
 > 1. **Private by default, manual publish** — you review every video before it goes public. Full control, but requires your time for each video. Best for early stage when quality is unknown.
 > 2. **Public immediately after delivery** — fully automated, no friction. Risk: a bad video goes live before you see it.
 > 3. **Unlisted for 24h, then auto-publish** — gives you a review window without manual action.

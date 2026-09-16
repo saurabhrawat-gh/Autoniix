@@ -4,11 +4,12 @@ Locks the math (abs_error, sample_weight, Brier, ECE) and the contract
 (predict_success accepts content_id keyword-only; train_model query
 joins prediction_log; ingest_performance closes the loop).
 """
+
 from __future__ import annotations
 
 import pytest
 
-from src.intelligence.prediction_calibration import (
+from intelligence.prediction_calibration import (
     DEFAULT_METRICS_LOOKBACK_DAYS,
     WEIGHT_CAP,
     WEIGHT_K,
@@ -17,8 +18,6 @@ from src.intelligence.prediction_calibration import (
     compute_sample_weight,
     expected_calibration_error,
 )
-
-
 
 
 def test_abs_error_perfect_prediction_zero():
@@ -44,8 +43,6 @@ def test_abs_error_clamps_out_of_range_inputs():
     assert compute_abs_error(2.0, -1.0) == 1.0
 
 
-
-
 def test_weight_baseline_is_one_for_perfect_predictions():
     """Confidence × error = 0 → weight = 1 + 0 = 1, the uniform
     baseline. We never down-weight a sample below uniform."""
@@ -56,7 +53,7 @@ def test_weight_baseline_is_one_for_perfect_predictions():
 def test_weight_increases_with_confidence_at_fixed_error():
     """High-confidence misses must out-weigh low-confidence misses
     when the error is the same. This is the entire point of Phase 11."""
-    low_conf  = compute_sample_weight(0.3, 0.5)
+    low_conf = compute_sample_weight(0.3, 0.5)
     high_conf = compute_sample_weight(0.9, 0.5)
     assert high_conf > low_conf
 
@@ -65,7 +62,7 @@ def test_weight_increases_with_error_at_fixed_confidence():
     """Bigger misses out-weigh smaller misses for the same model
     confidence."""
     small_err = compute_sample_weight(0.7, 0.2)
-    big_err   = compute_sample_weight(0.7, 0.8)
+    big_err = compute_sample_weight(0.7, 0.8)
     assert big_err > small_err
 
 
@@ -100,9 +97,15 @@ def test_weight_monotonicity_on_a_grid():
     must be monotonically non-decreasing. This nails down the
     structural property we actually rely on in retraining."""
     points = [
-        (0.1, 0.1), (0.1, 0.5), (0.1, 0.9),
-        (0.5, 0.1), (0.5, 0.5), (0.5, 0.9),
-        (0.9, 0.1), (0.9, 0.5), (0.9, 0.9),
+        (0.1, 0.1),
+        (0.1, 0.5),
+        (0.1, 0.9),
+        (0.5, 0.1),
+        (0.5, 0.5),
+        (0.5, 0.9),
+        (0.9, 0.1),
+        (0.9, 0.5),
+        (0.9, 0.9),
     ]
     for c1, e1 in points:
         for c2, e2 in points:
@@ -110,8 +113,6 @@ def test_weight_monotonicity_on_a_grid():
                 assert compute_sample_weight(c1, e1) <= compute_sample_weight(c2, e2), (
                     f"monotonicity broken at ({c1},{e1}) > ({c2},{e2})"
                 )
-
-
 
 
 def test_brier_zero_for_perfect_predictions():
@@ -143,8 +144,6 @@ def test_brier_returns_none_for_empty():
     """Distinguish 'no data' from 'perfect calibration' — the dashboard
     needs to render '—' vs '0.000'."""
     assert brier_score([]) is None
-
-
 
 
 def test_ece_zero_for_perfect_calibration():
@@ -193,14 +192,12 @@ def test_ece_handles_perfect_confidence_at_boundary():
     assert ece < 0.01
 
 
-
-
 def test_high_confidence_miss_dominates_uniform_correct():
     """The headline scenario: in a training batch with 10 mostly-right
     low-confidence predictions and 1 high-confidence catastrophe, the
     catastrophe must carry more weight than several uniform rows."""
     correct_low_conf = compute_sample_weight(0.4, 0.0)
-    confident_miss   = compute_sample_weight(0.95, 0.85)
+    confident_miss = compute_sample_weight(0.95, 0.85)
     assert confident_miss >= 3.0 * correct_low_conf
 
 
@@ -221,21 +218,19 @@ def test_weight_distribution_on_realistic_batch():
     assert all(w >= 1.0 for w in weights)
 
 
-
-
 def test_constants_have_sensible_values():
     assert WEIGHT_K > 0
     assert WEIGHT_CAP >= 1.0 + WEIGHT_K
     assert DEFAULT_METRICS_LOOKBACK_DAYS >= 7
 
 
-
-
 def test_predict_success_accepts_content_id_keyword_only():
     """Ensure predict_success has the Phase 11 content_id parameter as
     keyword-only — positional callers must keep working."""
     import inspect
-    from src.services.research.self_learning import predict_success
+
+    from services_api.research.self_learning import predict_success
+
     sig = inspect.signature(predict_success)
     assert "content_id" in sig.parameters
     assert sig.parameters["content_id"].kind == inspect.Parameter.KEYWORD_ONLY
@@ -246,7 +241,8 @@ def test_research_request_accepts_optional_content_id():
     """Workflow plumbing — the research service request schema must
     accept content_id as optional. Without this the workflow can't
     forward its content_id and the train_model JOIN can't work."""
-    from src.services.research.main import ResearchRequest
+    from services_api.research.main import ResearchRequest
+
     fields = ResearchRequest.model_fields
     assert "content_id" in fields
     assert fields["content_id"].default is None
@@ -257,7 +253,9 @@ def test_train_model_query_includes_prediction_log_join():
     and pull sample_weight. A future refactor that drops this would
     silently revert Phase 11."""
     import inspect
-    from src.services.research import self_learning
+
+    from services_api.research import self_learning
+
     src = inspect.getsource(self_learning.train_model)
     assert "prediction_log" in src
     assert "sample_weight" in src

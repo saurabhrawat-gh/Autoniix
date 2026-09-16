@@ -1,0 +1,1683 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Autoniix API",
+    "version": "2.0.0",
+    "description": "Autoniix API contracts (generated from Zod schemas)"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local development"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "full_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "avatar_url": {
+            "type": "string",
+            "nullable": true,
+            "format": "uri"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "email", "full_name", "avatar_url", "roles", "created_at"]
+      },
+      "Workspace": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "owner_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "name", "owner_id", "created_at"]
+      },
+      "Job": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "channel_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "completed", "failed", "paused", "stopped"]
+          },
+          "config": {
+            "type": "object",
+            "properties": {
+              "num_videos": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "niche": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "auto_publish": {
+                "type": "boolean",
+                "default": false
+              },
+              "parameters": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["num_videos", "niche"]
+          },
+          "progress": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "total_videos": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "completed_videos": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "failed_videos": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "current_stage": {
+                "type": "string"
+              },
+              "progress_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "started_at": {
+                "type": "string",
+                "nullable": true,
+                "format": "date-time"
+              },
+              "estimated_completion": {
+                "type": "string",
+                "nullable": true,
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "total_videos",
+              "completed_videos",
+              "failed_videos",
+              "current_stage",
+              "progress_percent",
+              "started_at",
+              "estimated_completion"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "error_message": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "workspace_id",
+          "channel_id",
+          "status",
+          "config",
+          "progress",
+          "created_at",
+          "updated_at",
+          "completed_at",
+          "error_message"
+        ]
+      },
+      "JobConfig": {
+        "type": "object",
+        "properties": {
+          "num_videos": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "niche": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "auto_publish": {
+            "type": "boolean",
+            "default": false
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["num_videos", "niche"]
+      },
+      "JobProgress": {
+        "type": "object",
+        "properties": {
+          "total_videos": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completed_videos": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failed_videos": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "current_stage": {
+            "type": "string"
+          },
+          "progress_percent": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "started_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "estimated_completion": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "total_videos",
+          "completed_videos",
+          "failed_videos",
+          "current_stage",
+          "progress_percent",
+          "started_at",
+          "estimated_completion"
+        ]
+      },
+      "JobProgressEvent": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "completed", "failed", "paused", "stopped"]
+          },
+          "progress": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "total_videos": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "completed_videos": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "failed_videos": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "current_stage": {
+                "type": "string"
+              },
+              "progress_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "started_at": {
+                "type": "string",
+                "nullable": true,
+                "format": "date-time"
+              },
+              "estimated_completion": {
+                "type": "string",
+                "nullable": true,
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "total_videos",
+              "completed_videos",
+              "failed_videos",
+              "current_stage",
+              "progress_percent",
+              "started_at",
+              "estimated_completion"
+            ]
+          },
+          "stage": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["job_id", "status", "progress", "stage", "message", "timestamp"]
+      },
+      "Principal": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "global_roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["user_id", "workspace_id", "email", "roles", "global_roles", "permissions"]
+      },
+      "PaginationRequest": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20
+          },
+          "cursor": {
+            "type": "string"
+          }
+        }
+      },
+      "PaginationResponse": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "next_cursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        },
+        "required": ["total", "page", "page_size", "next_cursor", "has_more"]
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["code", "message"]
+      },
+      "JobStatus": {
+        "type": "string",
+        "enum": ["pending", "running", "completed", "failed", "paused", "stopped"]
+      },
+      "TimeRange": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["start", "end"]
+      },
+      "ResourceMetadata": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "updated_by": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": ["id", "created_at", "updated_at", "created_by", "updated_by", "version"]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/api/v2/auth/login": {
+      "post": {
+        "summary": "Sign in",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 255
+                  },
+                  "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": ["email", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful sign in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "access_token": {
+                      "type": "string"
+                    },
+                    "refresh_token": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "email": {
+                          "type": "string",
+                          "format": "email"
+                        },
+                        "full_name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        },
+                        "avatar_url": {
+                          "type": "string",
+                          "nullable": true,
+                          "format": "uri"
+                        },
+                        "roles": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "created_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": ["id", "email", "full_name", "avatar_url", "roles", "created_at"]
+                    }
+                  },
+                  "required": ["access_token", "refresh_token", "expires_at", "user"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/auth/register": {
+      "post": {
+        "summary": "Sign up",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 255
+                  },
+                  "full_name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "workspace_name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  }
+                },
+                "required": ["email", "password", "full_name", "workspace_name"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful sign up",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "access_token": {
+                      "type": "string"
+                    },
+                    "refresh_token": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "email": {
+                          "type": "string",
+                          "format": "email"
+                        },
+                        "full_name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        },
+                        "avatar_url": {
+                          "type": "string",
+                          "nullable": true,
+                          "format": "uri"
+                        },
+                        "roles": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "created_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": ["id", "email", "full_name", "avatar_url", "roles", "created_at"]
+                    },
+                    "workspace": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        },
+                        "owner_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "created_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": ["id", "name", "owner_id", "created_at"]
+                    }
+                  },
+                  "required": ["access_token", "refresh_token", "expires_at", "user", "workspace"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/auth/refresh": {
+      "post": {
+        "summary": "Refresh access token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refresh_token": {
+                    "type": "string"
+                  }
+                },
+                "required": ["refresh_token"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token refreshed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "access_token": {
+                      "type": "string"
+                    },
+                    "refresh_token": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": ["access_token", "refresh_token", "expires_at"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/auth/logout": {
+      "post": {
+        "summary": "Sign out",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refresh_token": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Signed out successfully"
+          }
+        }
+      }
+    },
+    "/api/v2/auth/me": {
+      "get": {
+        "summary": "Get current user",
+        "responses": {
+          "200": {
+            "description": "Current user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "email": {
+                          "type": "string",
+                          "format": "email"
+                        },
+                        "full_name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        },
+                        "avatar_url": {
+                          "type": "string",
+                          "nullable": true,
+                          "format": "uri"
+                        },
+                        "roles": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "created_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": ["id", "email", "full_name", "avatar_url", "roles", "created_at"]
+                    },
+                    "workspace": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        },
+                        "owner_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "created_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": ["id", "name", "owner_id", "created_at"]
+                    }
+                  },
+                  "required": ["user", "workspace"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/jobs": {
+      "get": {
+        "summary": "List jobs",
+        "parameters": [
+          {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "page": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 1
+                },
+                "page_size": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100,
+                  "default": 20
+                },
+                "cursor": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": false,
+            "name": "pagination",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["pending", "running", "completed", "failed", "paused", "stopped"]
+              }
+            },
+            "required": false,
+            "name": "status_filter",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "start": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "end": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": ["start", "end"]
+            },
+            "required": false,
+            "name": "time_range",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "sort_by",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "required": false,
+            "name": "sort_desc",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Jobs list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jobs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "workspace_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "channel_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["pending", "running", "completed", "failed", "paused", "stopped"]
+                          },
+                          "config": {
+                            "type": "object",
+                            "properties": {
+                              "num_videos": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 100
+                              },
+                              "niche": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              },
+                              "auto_publish": {
+                                "type": "boolean",
+                                "default": false
+                              },
+                              "parameters": {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": ["num_videos", "niche"]
+                          },
+                          "progress": {
+                            "type": "object",
+                            "nullable": true,
+                            "properties": {
+                              "total_videos": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "completed_videos": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "failed_videos": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "current_stage": {
+                                "type": "string"
+                              },
+                              "progress_percent": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 100
+                              },
+                              "started_at": {
+                                "type": "string",
+                                "nullable": true,
+                                "format": "date-time"
+                              },
+                              "estimated_completion": {
+                                "type": "string",
+                                "nullable": true,
+                                "format": "date-time"
+                              }
+                            },
+                            "required": [
+                              "total_videos",
+                              "completed_videos",
+                              "failed_videos",
+                              "current_stage",
+                              "progress_percent",
+                              "started_at",
+                              "estimated_completion"
+                            ]
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updated_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "completed_at": {
+                            "type": "string",
+                            "nullable": true,
+                            "format": "date-time"
+                          },
+                          "error_message": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "workspace_id",
+                          "channel_id",
+                          "status",
+                          "config",
+                          "progress",
+                          "created_at",
+                          "updated_at",
+                          "completed_at",
+                          "error_message"
+                        ]
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "page": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "page_size": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "next_cursor": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "has_more": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": ["total", "page", "page_size", "next_cursor", "has_more"]
+                    }
+                  },
+                  "required": ["jobs", "pagination"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create job",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "channel_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "config": {
+                    "type": "object",
+                    "properties": {
+                      "num_videos": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100
+                      },
+                      "niche": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "auto_publish": {
+                        "type": "boolean",
+                        "default": false
+                      },
+                      "parameters": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["num_videos", "niche"]
+                  }
+                },
+                "required": ["channel_id", "config"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Job created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "job": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "workspace_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "channel_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["pending", "running", "completed", "failed", "paused", "stopped"]
+                        },
+                        "config": {
+                          "type": "object",
+                          "properties": {
+                            "num_videos": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100
+                            },
+                            "niche": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 255
+                            },
+                            "auto_publish": {
+                              "type": "boolean",
+                              "default": false
+                            },
+                            "parameters": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": ["num_videos", "niche"]
+                        },
+                        "progress": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "total_videos": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "completed_videos": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "failed_videos": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "current_stage": {
+                              "type": "string"
+                            },
+                            "progress_percent": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 100
+                            },
+                            "started_at": {
+                              "type": "string",
+                              "nullable": true,
+                              "format": "date-time"
+                            },
+                            "estimated_completion": {
+                              "type": "string",
+                              "nullable": true,
+                              "format": "date-time"
+                            }
+                          },
+                          "required": [
+                            "total_videos",
+                            "completed_videos",
+                            "failed_videos",
+                            "current_stage",
+                            "progress_percent",
+                            "started_at",
+                            "estimated_completion"
+                          ]
+                        },
+                        "created_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updated_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "completed_at": {
+                          "type": "string",
+                          "nullable": true,
+                          "format": "date-time"
+                        },
+                        "error_message": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "workspace_id",
+                        "channel_id",
+                        "status",
+                        "config",
+                        "progress",
+                        "created_at",
+                        "updated_at",
+                        "completed_at",
+                        "error_message"
+                      ]
+                    }
+                  },
+                  "required": ["job"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/jobs/{job_id}": {
+      "get": {
+        "summary": "Get job",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "job_id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "job": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "workspace_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "channel_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["pending", "running", "completed", "failed", "paused", "stopped"]
+                        },
+                        "config": {
+                          "type": "object",
+                          "properties": {
+                            "num_videos": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100
+                            },
+                            "niche": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 255
+                            },
+                            "auto_publish": {
+                              "type": "boolean",
+                              "default": false
+                            },
+                            "parameters": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": ["num_videos", "niche"]
+                        },
+                        "progress": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "total_videos": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "completed_videos": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "failed_videos": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "current_stage": {
+                              "type": "string"
+                            },
+                            "progress_percent": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 100
+                            },
+                            "started_at": {
+                              "type": "string",
+                              "nullable": true,
+                              "format": "date-time"
+                            },
+                            "estimated_completion": {
+                              "type": "string",
+                              "nullable": true,
+                              "format": "date-time"
+                            }
+                          },
+                          "required": [
+                            "total_videos",
+                            "completed_videos",
+                            "failed_videos",
+                            "current_stage",
+                            "progress_percent",
+                            "started_at",
+                            "estimated_completion"
+                          ]
+                        },
+                        "created_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updated_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "completed_at": {
+                          "type": "string",
+                          "nullable": true,
+                          "format": "date-time"
+                        },
+                        "error_message": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "workspace_id",
+                        "channel_id",
+                        "status",
+                        "config",
+                        "progress",
+                        "created_at",
+                        "updated_at",
+                        "completed_at",
+                        "error_message"
+                      ]
+                    }
+                  },
+                  "required": ["job"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update job",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "job_id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "config": {
+                    "type": "object",
+                    "properties": {
+                      "num_videos": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100
+                      },
+                      "niche": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "auto_publish": {
+                        "type": "boolean",
+                        "default": false
+                      },
+                      "parameters": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["num_videos", "niche"]
+                  }
+                },
+                "required": ["config"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Job updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "job": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "workspace_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "channel_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["pending", "running", "completed", "failed", "paused", "stopped"]
+                        },
+                        "config": {
+                          "type": "object",
+                          "properties": {
+                            "num_videos": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100
+                            },
+                            "niche": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 255
+                            },
+                            "auto_publish": {
+                              "type": "boolean",
+                              "default": false
+                            },
+                            "parameters": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": ["num_videos", "niche"]
+                        },
+                        "progress": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "total_videos": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "completed_videos": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "failed_videos": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "current_stage": {
+                              "type": "string"
+                            },
+                            "progress_percent": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 100
+                            },
+                            "started_at": {
+                              "type": "string",
+                              "nullable": true,
+                              "format": "date-time"
+                            },
+                            "estimated_completion": {
+                              "type": "string",
+                              "nullable": true,
+                              "format": "date-time"
+                            }
+                          },
+                          "required": [
+                            "total_videos",
+                            "completed_videos",
+                            "failed_videos",
+                            "current_stage",
+                            "progress_percent",
+                            "started_at",
+                            "estimated_completion"
+                          ]
+                        },
+                        "created_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updated_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "completed_at": {
+                          "type": "string",
+                          "nullable": true,
+                          "format": "date-time"
+                        },
+                        "error_message": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "workspace_id",
+                        "channel_id",
+                        "status",
+                        "config",
+                        "progress",
+                        "created_at",
+                        "updated_at",
+                        "completed_at",
+                        "error_message"
+                      ]
+                    }
+                  },
+                  "required": ["job"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete job",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "job_id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Job deleted"
+          }
+        }
+      }
+    },
+    "/api/v2/jobs/{job_id}/pause": {
+      "post": {
+        "summary": "Pause job",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "job_id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Job paused"
+          }
+        }
+      }
+    },
+    "/api/v2/jobs/{job_id}/resume": {
+      "post": {
+        "summary": "Resume job",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "job_id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Job resumed"
+          }
+        }
+      }
+    },
+    "/api/v2/jobs/{job_id}/retry": {
+      "post": {
+        "summary": "Retry job",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "job_id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Job retried"
+          }
+        }
+      }
+    }
+  }
+}

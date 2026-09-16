@@ -4,12 +4,12 @@ We test the activity and the workflow's `_check_brain_directive` helper in
 isolation. The Temporal-runtime-only parts (signal dispatch, full workflow
 execution) are covered by integration tests in `tests/e2e/`.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from src.temporal_workflows.brain_activities import brain_directive_check_activity
 
 
@@ -91,9 +91,9 @@ async def test_activity_never_raises_on_db_error(mock_pool):
     assert result == {}
 
 
-
 def test_check_brain_directive_noop_when_directive_empty():
     from src.temporal_workflows.video_production import VideoProductionWorkflow
+
     wf = VideoProductionWorkflow()
     wf._brain_directive = None
     wf._check_brain_directive()
@@ -103,15 +103,15 @@ def test_check_brain_directive_noop_when_directive_empty():
 
 def test_check_brain_directive_noop_for_non_halting_actions():
     from src.temporal_workflows.video_production import VideoProductionWorkflow
+
     wf = VideoProductionWorkflow()
     wf._brain_directive = {"action": "ADVISE", "reasoning": "fyi"}
     wf._check_brain_directive()
 
 
 def test_check_brain_directive_raises_application_error_on_halt():
-    from temporalio.exceptions import ApplicationError
-
     from src.temporal_workflows.video_production import VideoProductionWorkflow
+    from temporalio.exceptions import ApplicationError
 
     wf = VideoProductionWorkflow()
     wf._brain_directive = {"action": "HALT", "reasoning": "policy violation"}
@@ -126,9 +126,8 @@ def test_check_brain_directive_raises_application_error_on_halt():
 
 
 def test_check_brain_directive_raises_retryable_on_hold():
-    from temporalio.exceptions import ApplicationError
-
     from src.temporal_workflows.video_production import VideoProductionWorkflow
+    from temporalio.exceptions import ApplicationError
 
     wf = VideoProductionWorkflow()
     wf._brain_directive = {"action": "HOLD", "reasoning": "wait for legal review"}

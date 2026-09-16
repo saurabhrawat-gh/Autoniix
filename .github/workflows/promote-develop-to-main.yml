@@ -1,0 +1,166 @@
+name: Promote develop → main
+
+# Sole allowed entrypoint for landing changes on main. Verifies that develop is
+# fully green on the harness, then opens (and optionally auto-merges) a PR
+# develop → main. Never uses direct `git push origin main` — every promotion
+# lands as a merge-commit PR so the ci.yml guard job stays satisfied.
+#
+# See docs/architecture/adr-006-branch-and-deploy-policy.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "manual = PR opened for human review; auto = enable auto-merge"
+        required: true
+        default: "manual"
+        type: choice
+        options:
+          - manual
+          - auto
+      title:
+        description: "Optional PR title suffix (release note)"
+        required: false
+        default: ""
+  # Nightly dry-run so drift shows up in the Actions tab even when nobody promotes.
+  schedule:
+    - cron: "30 3 * * *" # 03:30 UTC daily
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  statuses: read
+
+jobs:
+  precheck:
+    name: Precheck — develop is green + ahead of main
+    runs-on: ubuntu-latest
+    outputs:
+      develop_sha: ${{ steps.develop-sha.outputs.sha }}
+      ahead_by: ${{ steps.ahead.outputs.count }}
+      harness_ok: ${{ steps.harness.outputs.ok }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve develop HEAD
+        id: develop-sha
+        run: |
+          git fetch origin develop main --quiet
+          SHA=$(git rev-parse origin/develop)
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "develop HEAD: $SHA"
+
+      - name: Verify develop is ahead of main
+        id: ahead
+        run: |
+          AHEAD=$(git rev-list --count origin/main..origin/develop)
+          echo "count=$AHEAD" >> "$GITHUB_OUTPUT"
+          if [[ "$AHEAD" -lt 1 ]]; then
+            echo "❌ develop is not ahead of main — nothing to promote."
+            exit 1
+          fi
+          echo "✓ develop is $AHEAD commit(s) ahead of main."
+
+      - name: Verify harness/all-green on develop HEAD
+        id: harness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          SHA=${{ steps.develop-sha.outputs.sha }}
+          # Prefer the aggregate check-run "harness/all-green" (set by ci.yml
+          # harness-summary). Fall back to the aggregate status if missing.
+          CHECK=$(gh api "repos/${{ github.repository }}/commits/$SHA/check-runs" \
+                    --jq '.check_runs[] | select(.name=="harness/all-green") | .conclusion' | head -1)
+          if [[ "$CHECK" == "success" ]]; then
+            echo "✓ harness/all-green succeeded on $SHA"
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "❌ harness/all-green did not succeed on $SHA (got: '${CHECK:-none}')."
+          echo "   Push a fix to develop, wait for CI green, then re-run this workflow."
+          exit 1
+
+  open-pr:
+    name: Open (or auto-merge) develop → main PR
+    runs-on: ubuntu-latest
+    needs: precheck
+    # Skip on the nightly dry-run — only report drift.
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure PR exists
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          SHA=${{ needs.precheck.outputs.develop_sha }}
+          AHEAD=${{ needs.precheck.outputs.ahead_by }}
+          SUFFIX="${{ inputs.title }}"
+          DATE=$(date -u +%Y-%m-%d)
+          TITLE="chore(release): promote develop → main @ ${SHA:0:8}"
+          if [[ -n "$SUFFIX" ]]; then TITLE="$TITLE — $SUFFIX"; fi
+
+          BODY_FILE=$(mktemp)
+          {
+            echo "Automated promotion PR from develop to main."
+            echo ""
+            echo "**Develop HEAD:** \`$SHA\`  "
+            echo "**Ahead of main by:** $AHEAD commit(s)  "
+            echo "**harness/all-green:** ✅ verified on this sha"
+            echo ""
+            echo "### Changes"
+            git log --pretty="format:- %s (%h)" origin/main..origin/develop | head -50
+          } > "$BODY_FILE"
+
+          # Is there already an open PR from develop -> main?
+          EXISTING=$(gh pr list --repo "${{ github.repository }}" \
+                       --base main --head develop --state open \
+                       --json number --jq '.[0].number' || true)
+
+          if [[ -n "$EXISTING" && "$EXISTING" != "null" ]]; then
+            echo "existing_pr=$EXISTING" >> "$GITHUB_OUTPUT"
+            echo "✓ Reusing existing PR #$EXISTING"
+            gh pr edit "$EXISTING" --repo "${{ github.repository }}" \
+                --title "$TITLE" --body-file "$BODY_FILE"
+          else
+            PR_URL=$(gh pr create --repo "${{ github.repository }}" \
+                       --base main --head develop \
+                       --title "$TITLE" --body-file "$BODY_FILE")
+            echo "created_pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+            echo "✓ Created PR: $PR_URL"
+          fi
+
+      - name: Enable auto-merge (mode=auto)
+        if: inputs.mode == 'auto'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          PR=$(gh pr list --repo "${{ github.repository }}" \
+                 --base main --head develop --state open \
+                 --json number --jq '.[0].number')
+          if [[ -z "$PR" || "$PR" == "null" ]]; then
+            echo "❌ no develop→main PR to auto-merge"
+            exit 1
+          fi
+          gh pr merge "$PR" --repo "${{ github.repository }}" --auto --merge
+          echo "✓ Auto-merge enabled on PR #$PR (will land when required checks are green)."
+
+  drift-report:
+    name: Drift report (nightly)
+    runs-on: ubuntu-latest
+    needs: precheck
+    if: github.event_name == 'schedule'
+    steps:
+      - name: Log drift
+        run: |
+          echo "develop is ${{ needs.precheck.outputs.ahead_by }} commit(s) ahead of main."
+          echo "harness/all-green on develop: ${{ needs.precheck.outputs.harness_ok }}"

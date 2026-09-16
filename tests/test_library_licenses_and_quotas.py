@@ -1,32 +1,32 @@
 """Unit tests for license catalogue / expiry + storage quotas — AE-363, AE-364."""
+
 from __future__ import annotations
 
 import json
-from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.services.dashboard.v2.library_licenses import (
+from services_api.dashboard.v2.library_licenses import (
     _catalogue_fallback,
     license_catalogue,
     licenses_audit,
     licenses_expiring,
 )
-from src.services.dashboard.v2.library_quotas import (
+from services_api.dashboard.v2.library_quotas import (
     _DEFAULT_QUOTAS,
     check_quota_before_upload,
     recalculate_quotas,
 )
 
 
-
-
 @pytest.mark.asyncio
 async def test_license_catalogue_returns_seeded_row(mock_pool):
     mock_pool.fetchrow.return_value = {
-        "config_value": json.dumps([
-            {"id": "cc0", "label": "CC0", "commercial": True, "attribution": False},
-        ])
+        "config_value": json.dumps(
+            [
+                {"id": "cc0", "label": "CC0", "commercial": True, "attribution": False},
+            ]
+        )
     }
     resp = await license_catalogue(_=None)
     assert resp["source"] == "system_config"
@@ -68,8 +68,6 @@ async def test_licenses_audit_groups_by_license(mock_pool):
     assert "expiring_30d" in sql
 
 
-
-
 @pytest.mark.asyncio
 async def test_quota_check_treats_missing_row_as_unlimited(mock_pool):
     mock_pool.fetchrow.return_value = None
@@ -81,7 +79,7 @@ async def test_quota_check_treats_missing_row_as_unlimited(mock_pool):
 @pytest.mark.asyncio
 async def test_quota_check_treats_zero_quota_as_unlimited(mock_pool):
     mock_pool.fetchrow.return_value = {"quota_bytes": 0, "used_bytes": 0}
-    out = await check_quota_before_upload("system", "", incoming_bytes=10 ** 9)
+    out = await check_quota_before_upload("system", "", incoming_bytes=10**9)
     assert out["ok"] is True
 
 
@@ -109,14 +107,13 @@ async def test_recalculate_upserts_one_row_per_scope(mock_pool):
     ]
     touched = await recalculate_quotas()
     assert touched == 2
-    upsert_calls = [c for c in mock_pool.execute.await_args_list
-                    if "INSERT INTO storage_quotas" in c.args[0]]
+    upsert_calls = [c for c in mock_pool.execute.await_args_list if "INSERT INTO storage_quotas" in c.args[0]]
     assert len(upsert_calls) == 2
 
 
 def test_default_quotas_match_ticket_spec():
     """Sanity: the in-process fallback matches the migration seeds (100/25/10/5 GB)."""
-    assert _DEFAULT_QUOTAS["workspace_bytes"] == 100 * 1024 ** 3
-    assert _DEFAULT_QUOTAS["brand_bytes"] == 25 * 1024 ** 3
-    assert _DEFAULT_QUOTAS["channel_bytes"] == 10 * 1024 ** 3
-    assert _DEFAULT_QUOTAS["project_bytes"] == 5 * 1024 ** 3
+    assert _DEFAULT_QUOTAS["workspace_bytes"] == 100 * 1024**3
+    assert _DEFAULT_QUOTAS["brand_bytes"] == 25 * 1024**3
+    assert _DEFAULT_QUOTAS["channel_bytes"] == 10 * 1024**3
+    assert _DEFAULT_QUOTAS["project_bytes"] == 5 * 1024**3

@@ -4,8 +4,10 @@ Per HARNESS-ENGINEERING-PLAN.md Week 1 Day 2.
 
 Tests validate that Rust gateway responses match OpenAPI schema.
 """
-import pytest
+
 from pathlib import Path
+
+import pytest
 
 from .rest_validator import RESTValidator
 
@@ -131,16 +133,12 @@ class TestRustGatewayContracts:
 
     def test_signin_matches_openapi(self, rust_validator):
         """POST /api/v2/auth/signin response matches OpenAPI schema."""
-        access_token, _refresh, _uid, _wid = _register_and_signin(
-            rust_validator, RUST_BASE_URL, "signin"
-        )
+        access_token, _refresh, _uid, _wid = _register_and_signin(rust_validator, RUST_BASE_URL, "signin")
         assert access_token, "signin must yield an access_token"
 
     def test_refresh_matches_openapi(self, rust_validator):
         """POST /api/v2/auth/refresh response matches OpenAPI schema."""
-        _access, refresh_token, _uid, _wid = _register_and_signin(
-            rust_validator, RUST_BASE_URL, "refresh"
-        )
+        _access, refresh_token, _uid, _wid = _register_and_signin(rust_validator, RUST_BASE_URL, "refresh")
         if not refresh_token:
             pytest.skip("signin did not return refresh_token in body (cookie-only mode)")
 
@@ -161,9 +159,7 @@ class TestRustGatewayContracts:
 
     def test_verify_matches_openapi(self, rust_validator):
         """POST /api/v2/auth/verify response matches OpenAPI schema."""
-        access_token, _refresh, _uid, _wid = _register_and_signin(
-            rust_validator, RUST_BASE_URL, "verify"
-        )
+        access_token, _refresh, _uid, _wid = _register_and_signin(rust_validator, RUST_BASE_URL, "verify")
 
         is_valid, response, errors = rust_validator.validate_openapi(
             base_url=RUST_BASE_URL,
@@ -183,9 +179,7 @@ class TestRustGatewayContracts:
 
     def test_logout_matches_openapi(self, rust_validator):
         """POST /api/v2/auth/logout response matches OpenAPI schema."""
-        _access, refresh_token, _uid, _wid = _register_and_signin(
-            rust_validator, RUST_BASE_URL, "logout"
-        )
+        _access, refresh_token, _uid, _wid = _register_and_signin(rust_validator, RUST_BASE_URL, "logout")
         if not refresh_token:
             pytest.skip("signin did not return refresh_token in body (cookie-only mode)")
 
@@ -202,9 +196,7 @@ class TestRustGatewayContracts:
 
     def test_me_endpoint_matches_openapi(self, rust_validator):
         """GET /api/v2/me response matches OpenAPI schema."""
-        access_token, _refresh, _uid, _wid = _register_and_signin(
-            rust_validator, RUST_BASE_URL, "me"
-        )
+        access_token, _refresh, _uid, _wid = _register_and_signin(rust_validator, RUST_BASE_URL, "me")
 
         is_valid, response, errors = rust_validator.validate_openapi(
             base_url=RUST_BASE_URL,
@@ -252,4 +244,5 @@ class TestPythonDashboardContracts:
 def setup_timestamp():
     """Generate unique timestamp for test data."""
     import time
+
     pytest.timestamp = int(time.time())

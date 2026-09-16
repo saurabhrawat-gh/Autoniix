@@ -1,0 +1,35 @@
+{
+  "name": "@autoniix/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Zod schemas and OpenAPI spec for Autoniix API contracts",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./openapi": {
+      "types": "./dist/openapi.d.ts",
+      "import": "./dist/openapi.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "gen-openapi": "tsx src/generate-openapi.ts"
+  },
+  "dependencies": {
+    "zod": "^3.23.8",
+    "@asteasolutions/zod-to-openapi": "^7.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.2",
+    "tsx": "^4.19.2"
+  }
+}

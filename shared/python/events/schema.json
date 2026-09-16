@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://autoniix.com/schemas/event-envelope.json",
+  "title": "Agentic-vision event envelope",
+  "description": "Locked contract for every Redis pub/sub message published by the agentic stack. Owned by AE-509 / P0 — Agentic Foundation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["topic", "event_id", "scope", "payload", "timestamp", "source_service"],
+  "properties": {
+    "topic": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Routing key; must match one of src/events/topics.Topic values."
+    },
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Idempotency key — UUID v4 minted at publish time."
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["channel", "video", "global"],
+      "description": "Which entity this event is about."
+    },
+    "scope_id": {
+      "type": ["string", "null"],
+      "maxLength": 80,
+      "description": "Identifier for the scoped entity; null when scope='global'."
+    },
+    "payload": {
+      "type": "object",
+      "description": "Topic-specific data. Each producer defines its own shape; readers must tolerate unknown fields."
+    },
+    "confidence": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Producer's self-reported confidence in the payload (0–1)."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 publish time in UTC."
+    },
+    "source_service": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60,
+      "description": "Service name that published the event (e.g. the-brain, preventor)."
+    }
+  }
+}

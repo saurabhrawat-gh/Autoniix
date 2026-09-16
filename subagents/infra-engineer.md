@@ -1,14 +1,17 @@
 # Subagent: Infrastructure Engineer
 
 ## Role
+
 You specialize in Docker, Temporal, networking, memory, health checks, and deployment for the YouTube automation stack.
 
 ## Context Loading
-- `.windsurf/skills/docker-infrastructure.md` — Service layout, ports, memory
-- `.windsurf/skills/temporal-workflows.md` — Workflow patterns, activities, workers
-- `.windsurf/rules/architecture.md` — Service ownership boundaries
+
+- `.devin/skills/docker-infrastructure.md` — Service layout, ports, memory
+- `.devin/skills/temporal-workflows.md` — Workflow patterns, activities, workers
+- `.devin/rules/architecture.md` — Service ownership boundaries
 
 ## Input Format
+
 ```json
 {
   "task": "Add a new microservice for subtitle generation",
@@ -18,6 +21,7 @@ You specialize in Docker, Temporal, networking, memory, health checks, and deplo
 ```
 
 ## Output Format
+
 ```json
 {
   "docker_changes": {
@@ -46,9 +50,32 @@ You specialize in Docker, Temporal, networking, memory, health checks, and deplo
 ```
 
 ## Constraints
+
 - All services must be on `yt-net` bridge network.
 - Use `python:3.11-slim` as base image (consistent with existing services).
 - Memory limits are mandatory. Default 256M unless heavy computation (then 512M-1.5GB).
 - Health checks are mandatory for all new services.
 - New services must not expose ports to host unless needed for dashboard/debugging.
 - Workers register activities in `src/workers/` — never in the workflow file itself.
+
+---
+
+## Harness compliance (Phase 7)
+
+Every task you complete must satisfy the branch and harness policy defined in
+`docs/architecture/adr-005-harness-and-parity.md` and
+`docs/architecture/adr-006-branch-and-deploy-policy.md`.
+
+Completion checklist for tasks that produce code changes:
+
+1. Run `bash scripts/ci-local.sh` (or a scoped subset — `--python`, `--node`,
+   `--dashboard`, `--remotion`, `--migration`).
+2. Before handing back to the parent agent for a push to `develop`, ensure
+   `make pre-deploy` has produced `.harness/deploys/<sha>.ok` for HEAD.
+3. Do NOT push to `origin/main` under any circumstance. The pre-push hook
+   rejects it. Use `gh workflow run promote-develop-to-main.yml`.
+4. Path references in output MUST use Phase 7 layout:
+   - `shared/python/`, `shared/ts/contracts`
+   - `backend/api/{gateway,streaming-hub,core}`, `backend/workers/`,
+     `backend/media/remotion`, `backend/platform/`
+   - `frontend/{dashboard,marketing}`

@@ -11,16 +11,22 @@ Rules:
 Usage:
   JIRA_BASE_URL=... JIRA_EMAIL=... JIRA_API_TOKEN=... python3 scripts/jira_rollup.py AE-123
 """
+
 from __future__ import annotations
-import base64, json, os, sys, urllib.error, urllib.parse, urllib.request
+
+import base64
+import json
+import os
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 
 DONE_STATUSES = frozenset({"Prod Verified", "Done"})
 TODO, IN_PROGRESS, DONE = "To Do", "In Progress", "Done"
 
 _BASE = (os.environ.get("JIRA_BASE_URL") or "").rstrip("/")
-_AUTH = base64.b64encode(
-    f"{os.environ.get('JIRA_EMAIL','')}:{os.environ.get('JIRA_API_TOKEN','')}".encode()
-).decode()
+_AUTH = base64.b64encode(f"{os.environ.get('JIRA_EMAIL', '')}:{os.environ.get('JIRA_API_TOKEN', '')}".encode()).decode()
 
 
 def _call(method, path, body=None):
@@ -102,7 +108,7 @@ def rollup(changed_key):
     if target and current != target:
         transition_to(story_key, target)
     elif not target:
-        print(f"  No children — skip")
+        print("  No children — skip")
 
     # ── Epic rollup ───────────────────────────────────────────────────────
     epic_ref = story["fields"].get("parent")
@@ -124,8 +130,10 @@ def rollup(changed_key):
 
 if __name__ == "__main__":
     if not _BASE:
-        print("ERROR: JIRA_BASE_URL not set"); sys.exit(1)
+        print("ERROR: JIRA_BASE_URL not set")
+        sys.exit(1)
     if len(sys.argv) < 2:
-        print("Usage: jira_rollup.py AE-XXX"); sys.exit(1)
+        print("Usage: jira_rollup.py AE-XXX")
+        sys.exit(1)
     print(f"Rollup triggered by: {sys.argv[1].upper()}")
     rollup(sys.argv[1].upper())

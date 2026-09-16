@@ -1,4 +1,5 @@
-"""Unit tests for src.events — AE-509 / P0."""
+"""Unit tests for events — AE-509 / P0."""
+
 from __future__ import annotations
 
 import json
@@ -6,12 +7,9 @@ import uuid
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
-from src.events import EnvelopeError, Topic, publish, validate_envelope
-from src.events.bus import subscribe
-from src.events.topics import ALL_TOPICS
-
-
+from events import EnvelopeError, Topic, publish, validate_envelope
+from events.bus import subscribe
+from events.topics import ALL_TOPICS
 
 
 def test_all_12_topics_are_registered():
@@ -26,8 +24,6 @@ def test_known_topic_strings_are_recognized():
 
 def test_unknown_topic_is_rejected():
     assert not Topic.is_known("brain.unknown.topic")
-
-
 
 
 def _good_envelope(**overrides):
@@ -81,13 +77,11 @@ def test_confidence_above_one_is_rejected():
         validate_envelope(_good_envelope(confidence=1.5))
 
 
-
-
 @pytest.mark.asyncio
 async def test_publish_validates_envelope_and_returns_event_id():
     fake_redis = AsyncMock()
     fake_redis.publish = AsyncMock(return_value=1)
-    with patch("src.events.bus.get_redis", AsyncMock(return_value=fake_redis)):
+    with patch("events.bus.get_redis", AsyncMock(return_value=fake_redis)):
         event_id = await publish(
             Topic.BRAIN_DIRECTIVE,
             scope="channel",
@@ -109,7 +103,7 @@ async def test_publish_validates_envelope_and_returns_event_id():
 async def test_publish_rejects_bad_envelope_before_redis_call():
     fake_redis = AsyncMock()
     fake_redis.publish = AsyncMock()
-    with patch("src.events.bus.get_redis", AsyncMock(return_value=fake_redis)):
+    with patch("events.bus.get_redis", AsyncMock(return_value=fake_redis)):
         with pytest.raises(EnvelopeError):
             await publish(
                 Topic.BRAIN_DIRECTIVE,
@@ -138,6 +132,7 @@ async def test_subscribe_drops_invalid_messages_and_dispatches_valid_ones():
             self.subscribe = AsyncMock()
             self.unsubscribe = AsyncMock()
             self.close = AsyncMock()
+
         async def listen(self):
             for msg in stream:
                 yield msg
@@ -151,9 +146,12 @@ async def test_subscribe_drops_invalid_messages_and_dispatches_valid_ones():
         received.append(env)
         raise StopIteration
 
-    with patch("src.events.bus.get_redis", AsyncMock(return_value=fake_redis)), \
-         patch("src.events.bus.get_pubsub_redis", AsyncMock(return_value=fake_redis)):
+    with (
+        patch("events.bus.get_redis", AsyncMock(return_value=fake_redis)),
+        patch("events.bus.get_pubsub_redis", AsyncMock(return_value=fake_redis)),
+    ):
         import asyncio
+
         stop = asyncio.Event()
 
         async def handler2(env):

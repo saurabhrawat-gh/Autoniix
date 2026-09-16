@@ -3,6 +3,7 @@ description: Handoff Protocol — defines the HandoffPayload schema and Human Ch
 ---
 
 > **Source of Truth — LOCKED:**
+>
 > - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project.
 > - Jira **Autoniix Engineering (AE)** space is **archived** — read-only.
 > - GitHub **Autoniix MVP** project board is **closed** — do not reference it.
@@ -19,30 +20,30 @@ Every agent team emits this YAML block as their final output before the Human Ch
 
 ```yaml
 handoff:
-  from_team: dev                          # ba | research | dev | security | qa | pm | scrum | devops
-  to_team: security                       # same values
-  issue: 42                               # GitHub issue number (or list for batch)
-  branch: feat/issue-42-slack-webhook     # git branch (if applicable, else omit)
+  from_team: dev # ba | research | dev | security | qa | pm | scrum | devops
+  to_team: security # same values
+  issue: 42 # GitHub issue number (or list for batch)
+  branch: feat/issue-42-slack-webhook # git branch (if applicable, else omit)
   summary: "One-line: what was done"
-  changed_files:                          # list of files created/modified (dev/security only)
+  changed_files: # list of files created/modified (dev/security only)
     - src/api/webhooks.py
     - tests/test_webhooks.py
-  risk_level: medium                      # low | medium | high | critical
-  actions_pending:                        # what the next team will do
+  risk_level: medium # low | medium | high | critical
+  actions_pending: # what the next team will do
     - "Secret scan on changed files"
     - "QA walkthrough TC-42-01 through TC-42-07"
-  blockers: []                            # list any blockers found; empty = none
-  notes: ""                               # extra context for next team
+  blockers: [] # list any blockers found; empty = none
+  notes: "" # extra context for next team
 ```
 
 ### Risk level guidelines
 
-| Level | When to use |
-|---|---|
-| `low` | Read-only changes, doc updates, test-only changes, config tweaks |
-| `medium` | New endpoints, UI changes, DB reads added, new dependencies |
-| `high` | Auth changes, DB writes/schema changes, external API calls, payments |
-| `critical` | Security fixes, data migration, prod rollback, credentials touched |
+| Level      | When to use                                                          |
+| ---------- | -------------------------------------------------------------------- |
+| `low`      | Read-only changes, doc updates, test-only changes, config tweaks     |
+| `medium`   | New endpoints, UI changes, DB reads added, new dependencies          |
+| `high`     | Auth changes, DB writes/schema changes, external API calls, payments |
+| `critical` | Security fixes, data migration, prod rollback, credentials touched   |
 
 ---
 
@@ -69,10 +70,10 @@ Printed at every team boundary. The product owner reads it and types one of thre
 
 ### Response handling
 
-| Response | What conductor does |
-|---|---|
-| `proceed` | Delegates to the next team |
-| `pause` | Posts state comment on GitHub issue, stops the chain, prints resume command |
+| Response      | What conductor does                                                                            |
+| ------------- | ---------------------------------------------------------------------------------------------- |
+| `proceed`     | Delegates to the next team                                                                     |
+| `pause`       | Posts state comment on GitHub issue, stops the chain, prints resume command                    |
 | Anything else | Treats it as an amendment — loops back to previous team with the note, re-runs, re-checkpoints |
 
 ### Auto-proceed rule (Security team only)

@@ -11,6 +11,7 @@ In test mode (default in CI) the router resolves to ``mock_llm`` so the
 suite costs $0 and is fully deterministic. In production it can be
 pointed at real providers to track real-model regression.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -23,8 +24,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.providers.boot import boot_providers  # noqa: E402
-from src.quality.prompt_eval import EvalCase, Spec, run_suite  # noqa: E402
+from quality.prompt_eval import EvalCase, Spec, run_suite  # noqa: E402
+
+from providers.boot import boot_providers  # noqa: E402
 
 
 def _load_cases(case_dir: Path) -> list[EvalCase]:
@@ -32,23 +34,32 @@ def _load_cases(case_dir: Path) -> list[EvalCase]:
     for p in sorted(case_dir.glob("*.json")):
         raw = json.loads(p.read_text())
         spec = Spec(**raw["spec"])
-        cases.append(EvalCase(
-            id=raw["id"],
-            category=raw["category"],
-            messages=raw["messages"],
-            spec=spec,
-            temperature=raw.get("temperature", 0.3),
-            max_tokens=raw.get("max_tokens", 800),
-            response_format=raw.get("response_format", "text"),
-        ))
+        cases.append(
+            EvalCase(
+                id=raw["id"],
+                category=raw["category"],
+                messages=raw["messages"],
+                spec=spec,
+                temperature=raw.get("temperature", 0.3),
+                max_tokens=raw.get("max_tokens", 800),
+                response_format=raw.get("response_format", "text"),
+            )
+        )
     return cases
 
 
 _REAL_KEY_ENVS = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY")
 _LLM_CATEGORIES = (
-    "LLM", "LLM.RESEARCH", "LLM.SCRIPT", "LLM.FACTCHECK",
-    "LLM.QC", "LLM.VISION", "LLM.IDEATION", "LLM.HOOK",
-    "LLM.DIRECTION", "LLM.EMOTION",
+    "LLM",
+    "LLM.RESEARCH",
+    "LLM.SCRIPT",
+    "LLM.FACTCHECK",
+    "LLM.QC",
+    "LLM.VISION",
+    "LLM.IDEATION",
+    "LLM.HOOK",
+    "LLM.DIRECTION",
+    "LLM.EMOTION",
 )
 
 
@@ -73,16 +84,20 @@ async def _amain(case_dir: Path, channel_id: str) -> int:
         print(f"[prompt-eval] no cases found under {case_dir}")
         return 0
     summary = await run_suite(cases, channel_id=channel_id)
-    print(json.dumps({
-        "total": summary["total"],
-        "passed": summary["passed"],
-        "failed": summary["failed"],
-        "total_cost_usd": summary["total_cost_usd"],
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "total": summary["total"],
+                "passed": summary["passed"],
+                "failed": summary["failed"],
+                "total_cost_usd": summary["total_cost_usd"],
+            },
+            indent=2,
+        )
+    )
     for r in summary["results"]:
         marker = "PASS" if r["passed"] else "FAIL"
-        print(f"  [{marker}] {r['case_id']}  "
-              f"({r['provider']}/{r['model']}, ${r['cost_usd']:.4f})")
+        print(f"  [{marker}] {r['case_id']}  ({r['provider']}/{r['model']}, ${r['cost_usd']:.4f})")
         if not r["passed"]:
             for f in r["failures"]:
                 print(f"      - {f}")

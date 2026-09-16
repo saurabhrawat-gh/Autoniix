@@ -2,16 +2,15 @@
 
 Tests: deterministic assignment, experiment CRUD, analysis.
 """
+
 from __future__ import annotations
 
 import pytest
-from unittest.mock import AsyncMock, patch
 
-from src.services.experiments.ab_framework import (
+from services_api.experiments.ab_framework import (
     _deterministic_variant,
-    create_experiment,
     assign_variant,
-    analyze_experiment,
+    create_experiment,
 )
 
 
@@ -51,8 +50,7 @@ class TestCreateExperiment:
     @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_creates_experiment(self, mock_pool):
-        result = await create_experiment(
-            "test_exp", "Testing", [{"name": "control"}, {"name": "treatment"}])
+        result = await create_experiment("test_exp", "Testing", [{"name": "control"}, {"name": "treatment"}])
         assert result["name"] == "test_exp"
         assert result["status"] == "draft"
         mock_pool.execute.assert_called_once()
@@ -63,8 +61,8 @@ class TestAssignVariant:
     @pytest.mark.asyncio
     async def test_inactive_experiment(self, mock_pool, fake_record):
         mock_pool.fetchrow.return_value = fake_record(
-            experiment_name="exp", variants='[{"name":"control"},{"name":"treat"}]',
-            traffic_pct=100.0, status="draft")
+            experiment_name="exp", variants='[{"name":"control"},{"name":"treat"}]', traffic_pct=100.0, status="draft"
+        )
         result = await assign_variant("exp", "content_001")
         assert result["in_experiment"] is False
 
@@ -74,7 +72,9 @@ class TestAssignVariant:
         mock_pool.fetchrow.return_value = fake_record(
             experiment_name="exp",
             variants='[{"name":"control","weight":0.5,"config":{}},{"name":"treatment","weight":0.5,"config":{"use_local":true}}]',
-            traffic_pct=100.0, status="active")
+            traffic_pct=100.0,
+            status="active",
+        )
         result = await assign_variant("exp", "content_001", "CH_test")
         assert result["in_experiment"] is True
         assert result["variant"] in ("control", "treatment")

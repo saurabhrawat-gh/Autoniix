@@ -8,6 +8,7 @@ Usage:
     python -m scripts.run_migrations --dry-run # show what would run
     python -m scripts.run_migrations --status  # list applied + pending
 """
+
 from __future__ import annotations
 
 import argparse
@@ -18,7 +19,7 @@ from pathlib import Path
 
 import asyncpg
 
-from src.config import settings
+from core.config import settings
 
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 TRACKER_BOOTSTRAP = """
@@ -56,9 +57,7 @@ async def status() -> None:
     conn = await _connect()
     try:
         await conn.execute(TRACKER_BOOTSTRAP)
-        rows = await conn.fetch(
-            "SELECT version, applied_at, checksum FROM schema_migrations"
-        )
+        rows = await conn.fetch("SELECT version, applied_at, checksum FROM schema_migrations")
         applied = {r["version"]: r for r in rows}
         for version, path, checksum in _discover():
             row = applied.get(version)
@@ -97,9 +96,10 @@ async def apply(dry_run: bool = False) -> int:
             async with conn.transaction():
                 await conn.execute(body)
                 await conn.execute(
-                    "INSERT INTO schema_migrations(version, checksum, description) "
-                    "VALUES ($1, $2, $3)",
-                    version, checksum, path.stem,
+                    "INSERT INTO schema_migrations(version, checksum, description) VALUES ($1, $2, $3)",
+                    version,
+                    checksum,
+                    path.stem,
                 )
             applied_count += 1
 

@@ -1,17 +1,18 @@
-"""CLI wrapper around src.providers.clean_slate.run().
+"""CLI wrapper around providers.clean_slate.run().
 
 Usage:
     python -m scripts.clean_slate_providers --yes
 
 Equivalent BFF endpoint: POST /api/v2/providers/_admin/clean-slate
 """
+
 from __future__ import annotations
 
 import argparse
 import asyncio
 import sys
 
-from src.providers.clean_slate import run
+from providers.clean_slate import run
 
 
 async def _main() -> int:

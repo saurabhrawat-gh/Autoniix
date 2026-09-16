@@ -1,79 +1,92 @@
 ---
-description: Pre-deploy verification — run every CI job locally, confirm green, then promote develop to main
+description: Pre-deploy verification — run every CI job locally, confirm green, open promotion PR
 ---
 
-# Pre-Deploy Workflow
+# Pre-Deploy Workflow (Phase 7 harness)
 
 **One command gives you a 100% local guarantee before touching main.**
 
-`make pre-deploy` runs the exact same checks as every GitHub Actions job.
-If it passes locally, the remote build passes. No surprises.
+`make pre-deploy` runs the full dockerized CI mirror. On success it writes a
+sentinel file that `.husky/pre-push` requires for pushes to `develop`. See
+`docs/architecture/adr-005-harness-and-parity.md` and
+`docs/architecture/adr-006-branch-and-deploy-policy.md`.
 
 ---
 
 ## Steps
 
 ### 1. Confirm you are on develop with a clean tree
+
 ```bash
 # turbo
 git checkout develop && git status
 ```
-Output must be `nothing to commit, working tree clean`. If not, commit or stash first.
 
-### 2. Run every CI job locally
+Must be `nothing to commit, working tree clean`. Commit or stash first.
+
+### 2. Run the full dockerized mirror
+
 ```bash
 make pre-deploy
 ```
 
-This runs `bash scripts/ci-local.sh --full` which mirrors:
+Behind the scenes: `bash scripts/ci-local.sh --full --docker`, which runs
+every job in `.github/workflows/ci.yml` inside pinned `ubuntu:24.04`. Each
+function in `ci-local.sh` maps 1:1 to a CI job:
 
-| CI Workflow | Job | Local equivalent |
-|---|---|---|
-| `build.yml` | `rust` | cargo fmt + clippy + cargo test (all crates) |
-| `build.yml` | `go-harness` | go build + vet + test ./... |
-| `build.yml` | `bench-regression` | Criterion benchmarks vs baseline |
-| `build.yml` | `python-harness` | contract tests + migration tests |
-| `build.yml` | `dashboard-frontend` | tsc --noEmit + vitest + eslint |
-| `ci.yml` | `python-lint-and-tests` | ruff + mypy + pytest |
-| `ci.yml` | `dashboard-typecheck` | tsc --noEmit |
-| `ci.yml` | `remotion-typecheck` | tsc --noEmit |
-| `ci.yml` | `dependency-scan` | pip-audit |
-| `equivalence.yml` | `harness-contract` | cargo test -p harness |
-| `proto-validate.yml` | `proto-validate` | buf lint + format + breaking |
+| CI job                     | Local function     |
+| -------------------------- | ------------------ |
+| python-lint-and-tests      | job_python         |
+| ts-typecheck-and-tests     | job_node           |
+| dashboard-typecheck        | job_dashboard      |
+| remotion-typecheck         | job_remotion       |
+| dependency-scan            | job_deps           |
+| migration-equivalence      | job_migration      |
+| python-harness (build.yml) | job_python_harness |
 
-**Wait for the final line:**
-- `✅  ALL CHECKS PASSED — build WILL pass on GitHub Actions` → proceed to step 3
-- `⚠  N check(s) failed: ...` → **STOP. Fix every listed failure. Re-run `make pre-deploy` until green.**
+On success:
 
-For maximum parity (inside a pinned ubuntu:24.04 container):
-```bash
-make ci-local-docker
-```
+- Prints `✅  SAFE TO PUSH`.
+- Writes `.harness/deploys/<sha>.ok` sentinel (consumed by pre-push hook).
 
-### 3. Push to develop and wait for CI
+On failure:
+
+- Prints the exact GH Actions job name(s) that would go red.
+- No sentinel is written; the pre-push hook will block your push.
+
+### 3. Push to develop
+
 ```bash
 # turbo
 git push origin develop
 ```
-Watch the Actions run: `gh run watch` or open the GitHub Actions tab.
+
+The pre-push hook verifies `.harness/deploys/<sha>.ok` exists for HEAD. CI
+runs on the push; watch with `gh run watch` or `gh run list --limit 5`.
 
 ### 4. Promote to main (deploy)
 
-> ⚠️  **BUILD FREEZE** — do not run this step until the freeze lifts (2026-07-11).
+**Never push directly to main.** The pre-push hook rejects it. Instead, use
+the promotion workflow:
 
 ```bash
-git checkout main
-git merge --no-ff develop
-git push origin main
+# Opens a develop → main PR after verifying develop is green on harness/all-green.
+gh workflow run promote-develop-to-main.yml -f mode=manual
 ```
 
-The `deploy` job in `build.yml` triggers automatically on `main` push.
-It runs on the self-hosted VPS runner. Monitor with:
+- `mode=manual` — PR opened, human clicks merge.
+- `mode=auto` — PR opened with auto-merge enabled; merges when required
+  checks + approval are met.
+
+The `deploy` job in `ci.yml` fires on the `main` push that lands the merge.
+Monitor with:
+
 ```bash
-gh run list --workflow=build.yml --limit=5
+gh run list --workflow=ci.yml --limit=5
 ```
 
 ### 5. Verify deploy health
+
 ```bash
 make health
 ```
@@ -82,12 +95,19 @@ make health
 
 ## When to run which command
 
-| Situation | Command |
-|---|---|
-| Changed only Rust code | `bash scripts/ci-local.sh` (default Rust-only, ~90s) |
-| Changed only Python | `bash scripts/ci-local.sh --python` |
-| Changed only TypeScript | `bash scripts/ci-local.sh --node` |
-| Changed only Go | `bash scripts/ci-local.sh --go` |
-| Changed protos | `bash scripts/ci-local.sh --proto` |
-| **Before any deploy** | `make pre-deploy` (full, every job) |
-| Suspect env difference | `make ci-local-docker` (inside ubuntu:24.04) |
+| Situation                    | Command                                        |
+| ---------------------------- | ---------------------------------------------- |
+| Iterating on Python only     | `bash scripts/ci-local.sh --python`            |
+| Iterating on TypeScript only | `bash scripts/ci-local.sh --node`              |
+| Iterating on dashboard       | `bash scripts/ci-local.sh --dashboard`         |
+| Any push to develop          | `make pre-deploy` (mandatory; writes sentinel) |
+| Fast sanity check            | `bash scripts/ci-local.sh` (default subset)    |
+| Suspect env difference       | `make pre-deploy` (already dockerized)         |
+
+## Bypasses (audit-logged)
+
+- `AUTONIIX_SKIP_SENTINEL=1 git push origin develop` — bypass sentinel gate.
+  Reason must be documented in commit message. Logged to `.harness/bypass.log`.
+- `AUTONIIX_ALLOW_MAIN=1 git push origin main` — bypass main-push guard.
+  Reserved for the promote workflow. Do not use manually.
+- `git push --no-verify` — bypass the entire pre-push hook. Discouraged.

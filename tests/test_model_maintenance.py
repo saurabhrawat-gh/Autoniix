@@ -2,6 +2,7 @@
 
 Tests: TRAINABLE_MODELS config, activity function definitions.
 """
+
 from __future__ import annotations
 
 from src.temporal_workflows.model_maintenance import TRAINABLE_MODELS
@@ -9,8 +10,7 @@ from src.temporal_workflows.model_maintenance import TRAINABLE_MODELS
 
 class TestTrainableModels:
     def test_all_models_have_required_keys(self):
-        required = {"model_name", "service", "port", "train_endpoint",
-                    "min_new_rows_table", "min_rows_for_train"}
+        required = {"model_name", "service", "port", "train_endpoint", "min_new_rows_table", "min_rows_for_train"}
         for m in TRAINABLE_MODELS:
             missing = required - set(m.keys())
             assert not missing, f"{m['model_name']} missing keys: {missing}"

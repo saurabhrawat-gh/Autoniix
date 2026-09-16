@@ -15,20 +15,21 @@ Use this workflow for any infrastructure, deployment, or operations task. Invoke
 
 ## Capability Matrix
 
-| Domain | What The Agent Does | Tool Used |
-|---|---|---|
-| Local stack | `docker compose up/down/restart/scale`, logs, health | `run_command` |
-| Infra-as-code | Edit `docker-compose.yml`, `Caddyfile`, `prometheus.yml`, `alertmanager.yml`, `ci.yml` | file edit |
-| Database | Run pending migrations, trigger backup, verify restore | `run_command` |
-| DNS | Read / add / update / delete DNS records for autoniix.com | Hostinger MCP |
-| VPS | Start / stop / restart VPS, fetch CPU/memory/disk/network metrics | Hostinger MCP |
-| CI/CD | Create / update GitHub Actions workflows, manage repo secrets | GitHub MCP |
-| Security | Secret scan, `.env` drift audit, `pip-audit` dependency scan | `run_command` + grep |
-| Monitoring | Add Prometheus scrape targets, update alert rules, verify Grafana | file edit + `run_command` |
-| Incident | Diagnose → restart → escalate or rollback | `run_command` + Hostinger MCP |
-| Deployment | Pre-deploy gate, build validation, smoke test, rollback | `run_command` + GitHub MCP |
+| Domain        | What The Agent Does                                                                    | Tool Used                     |
+| ------------- | -------------------------------------------------------------------------------------- | ----------------------------- |
+| Local stack   | `docker compose up/down/restart/scale`, logs, health                                   | `run_command`                 |
+| Infra-as-code | Edit `docker-compose.yml`, `Caddyfile`, `prometheus.yml`, `alertmanager.yml`, `ci.yml` | file edit                     |
+| Database      | Run pending migrations, trigger backup, verify restore                                 | `run_command`                 |
+| DNS           | Read / add / update / delete DNS records for autoniix.com                              | Hostinger MCP                 |
+| VPS           | Start / stop / restart VPS, fetch CPU/memory/disk/network metrics                      | Hostinger MCP                 |
+| CI/CD         | Create / update GitHub Actions workflows, manage repo secrets                          | GitHub MCP                    |
+| Security      | Secret scan, `.env` drift audit, `pip-audit` dependency scan                           | `run_command` + grep          |
+| Monitoring    | Add Prometheus scrape targets, update alert rules, verify Grafana                      | file edit + `run_command`     |
+| Incident      | Diagnose → restart → escalate or rollback                                              | `run_command` + Hostinger MCP |
+| Deployment    | Pre-deploy gate, build validation, smoke test, rollback                                | `run_command` + GitHub MCP    |
 
 **How deploys actually happen:**
+
 - Production deploys are triggered by a push to `main`. The self-hosted GitHub Actions runner on the VPS runs `git reset --hard origin/main` + `docker compose --profile tls up -d --build` when `ci.yml` detects a push to `main`.
 - **`main` is promoted manually by the product owner** (`git checkout main && git merge --no-ff develop && git push origin main`). No agent or GHA automation pushes to `main`.
 - The devops-agent **never** merges or creates PRs to `main`. It only monitors GHA once the product owner has already pushed.
@@ -41,12 +42,13 @@ Use this workflow for any infrastructure, deployment, or operations task. Invoke
 
 **How deploys work:**
 Deploys are triggered manually by the product owner pushing `main`. When they do:
+
 1. The self-hosted runner on the VPS detects the push and runs `docker compose up -d --build`
 2. GitHub Actions sets `in-prod` on all deployed issues (if auto-lifecycle.yml is configured)
 
 **Your role:** Monitor that the above happened correctly and verify the smoke test. You are invoked AFTER the product owner has pushed `main`.
 
-```
+````
 1. Check GitHub Actions for the latest deploy run:
    - URL: https://github.com/saurabhrawat-gh/Autoniix/actions
    - Look for the "Deploy — VPS (main push only)" job
@@ -83,7 +85,7 @@ handoff:
     - "Product owner: verify on https://dash.autoniix.com"
     - "Product owner: type `verified #N` when confirmed"
   blockers: []
-```
+````
 
 ---
 

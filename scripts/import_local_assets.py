@@ -42,6 +42,7 @@ Usage::
 
 Idempotent: existing ``(provider, minio_key)`` rows are skipped silently.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -127,6 +128,7 @@ _EXT_CONTENT_TYPE: dict[str, str] = {
 
 # Metadata extraction
 
+
 def _slug_to_words(filename: str) -> str:
     """'epic-cinematic-bgm_v2' → 'epic cinematic bgm v2'"""
     stem = Path(filename).stem
@@ -138,10 +140,18 @@ def _ffprobe_metadata(path: Path) -> dict:
     try:
         result = subprocess.run(
             [
-                "ffprobe", "-v", "quiet", "-print_format", "json",
-                "-show_streams", "-show_format", str(path),
+                "ffprobe",
+                "-v",
+                "quiet",
+                "-print_format",
+                "json",
+                "-show_streams",
+                "-show_format",
+                str(path),
             ],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         if result.returncode != 0:
             return {}
@@ -162,6 +172,7 @@ def _image_metadata(path: Path) -> dict:
     """Extract width/height from image via Pillow."""
     try:
         from PIL import Image
+
         with Image.open(path) as img:
             w, h = img.size
         return {"width": w, "height": h, "duration": 0.0}
@@ -185,6 +196,7 @@ def get_metadata(path: Path, asset_type: str) -> dict:
 
 
 # Query generation
+
 
 def generate_queries(
     path: Path,
@@ -228,10 +240,13 @@ def generate_queries(
 
 # SBERT embedding
 
+
 def _try_embed(query: str) -> Optional[list[float]]:
     try:
-        from src.services.assets import semantic_ranker
         import numpy as np
+
+        from services_api.assets import semantic_ranker
+
         model = semantic_ranker._get_model()
         if model is None:
             return None
@@ -242,6 +257,7 @@ def _try_embed(query: str) -> Optional[list[float]]:
 
 
 # File discovery
+
 
 def discover_files(directory: Path, asset_type_override: Optional[str]) -> list[tuple[Path, str]]:
     """Walk directory recursively; return [(path, asset_type)] for known extensions."""
@@ -263,6 +279,7 @@ def discover_files(directory: Path, asset_type_override: Optional[str]) -> list[
 
 
 # Core import logic
+
 
 async def import_asset(
     path: Path,
@@ -309,18 +326,21 @@ async def import_asset(
     # Upload to MinIO
     try:
         data = path.read_bytes()
-        from src.providers.storage.base import StorageUpload
-        up = await storage.upload(StorageUpload(
-            key=minio_key,
-            data=data,
-            content_type=content_type,
-            metadata={
-                "provider": provider,
-                "asset_type": asset_type,
-                "niche": niche,
-                "original_filename": path.name,
-            },
-        ))
+        from providers.storage.base import StorageUpload
+
+        up = await storage.upload(
+            StorageUpload(
+                key=minio_key,
+                data=data,
+                content_type=content_type,
+                metadata={
+                    "provider": provider,
+                    "asset_type": asset_type,
+                    "niche": niche,
+                    "original_filename": path.name,
+                },
+            )
+        )
         logger.info("import.uploaded", key=up.key, size=up.size_bytes)
     except Exception as exc:
         logger.error("import.upload_failed", file=str(path), error=str(exc))
@@ -345,10 +365,18 @@ async def import_asset(
                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,0,$13,$14,$15)
                 ON CONFLICT DO NOTHING
                 """,
-                qhash, query, provider, asset_url, minio_key,
-                asset_type, meta["width"], meta["height"], meta["duration"],
+                qhash,
+                query,
+                provider,
+                asset_url,
+                minio_key,
+                asset_type,
+                meta["width"],
+                meta["height"],
+                meta["duration"],
                 json.dumps([]),
-                quality, quality,
+                quality,
+                quality,
                 embedding,
                 f"{provider}_subscription",
                 tags_str[:500],
@@ -393,15 +421,21 @@ async def run_import(
     if dry_run:
         for path, atype in files:
             await import_asset(
-                path=path, asset_type=atype, provider=provider,
-                niche=niche, extra_tags=extra_tags, quality=quality,
-                dry_run=True, storage=None, pool=None,
+                path=path,
+                asset_type=atype,
+                provider=provider,
+                niche=niche,
+                extra_tags=extra_tags,
+                quality=quality,
+                dry_run=True,
+                storage=None,
+                pool=None,
             )
         return len(files), len(files)
 
-    from src.db import get_pool, close_pool
-    from src.providers.boot import boot_providers
-    from src.providers.registry import ProviderRegistry
+    from core.db import close_pool, get_pool
+    from providers.boot import boot_providers
+    from providers.registry import ProviderRegistry
 
     boot_providers()
     storage = ProviderRegistry.get("storage")
@@ -410,9 +444,15 @@ async def run_import(
     imported = 0
     for path, atype in files:
         ok = await import_asset(
-            path=path, asset_type=atype, provider=provider,
-            niche=niche, extra_tags=extra_tags, quality=quality,
-            dry_run=False, storage=storage, pool=pool,
+            path=path,
+            asset_type=atype,
+            provider=provider,
+            niche=niche,
+            extra_tags=extra_tags,
+            quality=quality,
+            dry_run=False,
+            storage=storage,
+            pool=pool,
         )
         if ok:
             imported += 1
@@ -423,27 +463,29 @@ async def run_import(
 
 # CLI
 
+
 def main() -> None:
     ap = argparse.ArgumentParser(
         description="Import local paid-subscription assets into the Autoniix asset library",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    ap.add_argument("--dir", required=True,
-                    help="Directory containing downloaded assets (walked recursively)")
-    ap.add_argument("--asset-type", dest="asset_type",
-                    choices=["stock_video", "bg_music", "sfx", "font", "lut", "image"],
-                    help="Override auto-detection. If omitted, inferred from file extension")
-    ap.add_argument("--provider", default="motionarray",
-                    help="Provider label stored in DB (default: motionarray)")
-    ap.add_argument("--niche", default="all",
-                    help="Niche this asset set belongs to (tech/health/finance/all/etc.)")
-    ap.add_argument("--tags", default="",
-                    help="Comma-separated tags added to every asset (e.g. 'cinematic,epic')")
-    ap.add_argument("--quality", type=float, default=9.0,
-                    help="Quality score 0-10 for all imported assets (default: 9.0)")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="Print what would be imported without writing to DB or MinIO")
+    ap.add_argument("--dir", required=True, help="Directory containing downloaded assets (walked recursively)")
+    ap.add_argument(
+        "--asset-type",
+        dest="asset_type",
+        choices=["stock_video", "bg_music", "sfx", "font", "lut", "image"],
+        help="Override auto-detection. If omitted, inferred from file extension",
+    )
+    ap.add_argument("--provider", default="motionarray", help="Provider label stored in DB (default: motionarray)")
+    ap.add_argument("--niche", default="all", help="Niche this asset set belongs to (tech/health/finance/all/etc.)")
+    ap.add_argument("--tags", default="", help="Comma-separated tags added to every asset (e.g. 'cinematic,epic')")
+    ap.add_argument(
+        "--quality", type=float, default=9.0, help="Quality score 0-10 for all imported assets (default: 9.0)"
+    )
+    ap.add_argument(
+        "--dry-run", action="store_true", help="Print what would be imported without writing to DB or MinIO"
+    )
     args = ap.parse_args()
 
     source_dir = Path(args.dir).expanduser().resolve()
@@ -454,15 +496,17 @@ def main() -> None:
 
     extra_tags = [t.strip() for t in args.tags.split(",") if t.strip()]
 
-    total, imported = asyncio.run(run_import(
-        directory=source_dir,
-        asset_type_override=args.asset_type,
-        provider=args.provider,
-        niche=args.niche,
-        extra_tags=extra_tags,
-        quality=args.quality,
-        dry_run=args.dry_run,
-    ))
+    total, imported = asyncio.run(
+        run_import(
+            directory=source_dir,
+            asset_type_override=args.asset_type,
+            provider=args.provider,
+            niche=args.niche,
+            extra_tags=extra_tags,
+            quality=args.quality,
+            dry_run=args.dry_run,
+        )
+    )
 
     mode = "[DRY RUN] " if args.dry_run else ""
     print(f"\n{mode}import_local_assets: {imported}/{total} files imported")

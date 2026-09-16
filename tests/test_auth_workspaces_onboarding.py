@@ -10,6 +10,7 @@ Covers:
 - TC-222-03: Anonymous principal (no user_id) → returns empty data list
   (no hardcoded fallback — already covered by AE-217 but re-asserted here).
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
@@ -18,7 +19,7 @@ import pytest
 
 from tests.conftest import FakePool, FakeRecord
 
-_AUTH_MODULE = "src.services.dashboard.v2.auth"
+_AUTH_MODULE = "services_api.dashboard.v2.auth"
 
 
 def _pool_ctx(pool):
@@ -26,7 +27,7 @@ def _pool_ctx(pool):
 
 
 def _principal(user_id: int | None = 1, workspace_id: int = 1, role: str = "owner"):
-    from src.services.dashboard.v2._deps import Principal
+    from services_api.dashboard.v2._deps import Principal
 
     return Principal(
         user_id=user_id,
@@ -37,27 +38,27 @@ def _principal(user_id: int | None = 1, workspace_id: int = 1, role: str = "owne
     )
 
 
-
-
 @pytest.mark.asyncio
 async def test_list_workspaces_legacy_default_workspace_marks_onboarding_incomplete():
     """The synthetic Default Workspace from init.sql has no onboarding row in
     entity_settings; the LEFT JOIN must yield ``onboarding_completed = False``
     so WorkspaceGuard redirects the user to /onboarding."""
-    from src.services.dashboard.v2.auth import list_workspaces
+    from services_api.dashboard.v2.auth import list_workspaces
 
     pool = FakePool()
-    pool.fetch = AsyncMock(return_value=[
-        FakeRecord(
-            id=1,
-            name="Default Workspace",
-            slug="default",
-            plan="starter",
-            role="owner",
-            active=True,
-            onboarding_completed=False,
-        )
-    ])
+    pool.fetch = AsyncMock(
+        return_value=[
+            FakeRecord(
+                id=1,
+                name="Default Workspace",
+                slug="default",
+                plan="starter",
+                role="owner",
+                active=True,
+                onboarding_completed=False,
+            )
+        ]
+    )
 
     with _pool_ctx(pool):
         result = await list_workspaces(p=_principal())
@@ -81,24 +82,24 @@ async def test_list_workspaces_legacy_default_workspace_marks_onboarding_incompl
     assert "onboarding_completed" in sql_executed
 
 
-
-
 @pytest.mark.asyncio
 async def test_list_workspaces_onboarded_workspace_marks_onboarding_complete():
-    from src.services.dashboard.v2.auth import list_workspaces
+    from services_api.dashboard.v2.auth import list_workspaces
 
     pool = FakePool()
-    pool.fetch = AsyncMock(return_value=[
-        FakeRecord(
-            id=42,
-            name="Acme Studios",
-            slug="acme-studios",
-            plan="growth",
-            role="owner",
-            active=True,
-            onboarding_completed=True,
-        )
-    ])
+    pool.fetch = AsyncMock(
+        return_value=[
+            FakeRecord(
+                id=42,
+                name="Acme Studios",
+                slug="acme-studios",
+                plan="growth",
+                role="owner",
+                active=True,
+                onboarding_completed=True,
+            )
+        ]
+    )
 
     with _pool_ctx(pool):
         result = await list_workspaces(p=_principal())
@@ -108,13 +109,11 @@ async def test_list_workspaces_onboarded_workspace_marks_onboarding_complete():
     assert result["data"][0]["name"] == "Acme Studios"
 
 
-
-
 @pytest.mark.asyncio
 async def test_list_workspaces_no_user_returns_empty_data():
     """No hardcoded "Default Workspace" fallback for sessions without a
     user_id — must return ``{"data": []}`` exactly."""
-    from src.services.dashboard.v2.auth import list_workspaces
+    from services_api.dashboard.v2.auth import list_workspaces
 
     pool = FakePool()
     pool.fetch = AsyncMock(return_value=[])

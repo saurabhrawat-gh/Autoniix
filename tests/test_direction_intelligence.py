@@ -2,14 +2,13 @@
 
 Tests: direction_merger
 """
+
 from __future__ import annotations
 
-import pytest
-
-from src.services.direction.direction_merger import (
+from services_api.direction.direction_merger import (
+    SECTION_PACING,
     merge_script_direction_with_assets,
     score_merged_direction,
-    SECTION_PACING,
 )
 
 
@@ -42,12 +41,27 @@ class TestMergeScriptDirection:
         hint = {
             "meta": {"title": "Test", "aspect_ratio": "9:16"},
             "segments": [
-                {"id": "seg_001", "scene_preset": "dramatic_zoom", "camera": {"type": "zoom_in"},
-                 "duration_ms": 5000, "motion_design": {"elements": []}},
-                {"id": "seg_002", "scene_preset": "clean_info", "camera": {"type": "static"},
-                 "duration_ms": 30000, "motion_design": {"elements": []}},
-                {"id": "seg_003", "scene_preset": "cta_popup", "camera": {"type": "static"},
-                 "duration_ms": 5000, "motion_design": {"elements": []}},
+                {
+                    "id": "seg_001",
+                    "scene_preset": "dramatic_zoom",
+                    "camera": {"type": "zoom_in"},
+                    "duration_ms": 5000,
+                    "motion_design": {"elements": []},
+                },
+                {
+                    "id": "seg_002",
+                    "scene_preset": "clean_info",
+                    "camera": {"type": "static"},
+                    "duration_ms": 30000,
+                    "motion_design": {"elements": []},
+                },
+                {
+                    "id": "seg_003",
+                    "scene_preset": "cta_popup",
+                    "camera": {"type": "static"},
+                    "duration_ms": 5000,
+                    "motion_design": {"elements": []},
+                },
             ],
         }
         asset_manifest = [
@@ -58,7 +72,8 @@ class TestMergeScriptDirection:
         music = {"music_url": "http://minio/bg.mp3", "volume": 0.15}
 
         result = merge_script_direction_with_assets(
-            hint, sample_segments, voice, asset_manifest, {}, music, sample_channel)
+            hint, sample_segments, voice, asset_manifest, {}, music, sample_channel
+        )
 
         assert "segments" in result
         assert len(result["segments"]) == 3
@@ -81,12 +96,22 @@ class TestScoreMergedDirection:
         minimal = {"segments": [{"id": "s1", "duration_ms": 5000}]}
         richer = {
             "segments": [
-                {"id": "s1", "duration_ms": 5000, "camera": {"type": "zoom"},
-                 "scene_preset": "a", "text_strategy": {"primary_text": "hi"},
-                 "scene_overrides": {"background_url": "http://x/a.mp4"}},
-                {"id": "s2", "duration_ms": 10000, "camera": {"type": "pan"},
-                 "scene_preset": "b", "text_strategy": {"primary_text": "there"},
-                 "scene_overrides": {"background_url": "http://x/b.mp4"}},
+                {
+                    "id": "s1",
+                    "duration_ms": 5000,
+                    "camera": {"type": "zoom"},
+                    "scene_preset": "a",
+                    "text_strategy": {"primary_text": "hi"},
+                    "scene_overrides": {"background_url": "http://x/a.mp4"},
+                },
+                {
+                    "id": "s2",
+                    "duration_ms": 10000,
+                    "camera": {"type": "pan"},
+                    "scene_preset": "b",
+                    "text_strategy": {"primary_text": "there"},
+                    "scene_overrides": {"background_url": "http://x/b.mp4"},
+                },
             ],
             "meta": {"title": "Test"},
         }

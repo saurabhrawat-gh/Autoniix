@@ -7,23 +7,26 @@ Covers:
 - custom_openai_compat base_url set via extra_config (chain._instantiate)
 - config_schema required-field validation logic
 """
+
 from __future__ import annotations
 
 import pytest
 
 
 def test_credential_in_empty_secret_value():
-    from src.services.dashboard.v2.providers import CredentialIn
+    from services_api.dashboard.v2.providers import CredentialIn
 
     c = CredentialIn(category="tts", provider_name="edge_tts", label="free")
     assert c.secret_value == ""
 
 
 def test_credential_in_with_api_key():
-    from src.services.dashboard.v2.providers import CredentialIn
+    from services_api.dashboard.v2.providers import CredentialIn
 
     c = CredentialIn(
-        category="llm", provider_name="openai", label="main",
+        category="llm",
+        provider_name="openai",
+        label="main",
         secret_value="sk-test",
     )
     assert c.secret_value == "sk-test"
@@ -31,7 +34,7 @@ def test_credential_in_with_api_key():
 
 
 def test_wizard_credential_in_schema():
-    from src.services.dashboard.v2.providers import WizardCredentialIn
+    from services_api.dashboard.v2.providers import WizardCredentialIn
 
     w = WizardCredentialIn(
         category="llm",
@@ -82,11 +85,7 @@ def test_wizard_required_field_validation():
     ]
     wizard_fields = {"api_key": "sk-test"}
 
-    missing = [
-        f["name"]
-        for f in schema
-        if f.get("required") and not wizard_fields.get(f["name"])
-    ]
+    missing = [f["name"] for f in schema if f.get("required") and not wizard_fields.get(f["name"])]
     assert missing == ["voice_id"]
 
 
@@ -116,8 +115,8 @@ def test_wizard_no_key_provider_skips_vault():
 
 def test_custom_openai_compat_base_url_via_extra_config():
     """chain._instantiate applies extra_config keys via setattr."""
-    import src.providers.boot  # noqa: F401
-    from src.providers.llm.custom_openai_compat_provider import CustomOpenAICompatLLM
+    import providers.boot  # noqa: F401
+    from providers.llm.custom_openai_compat_provider import CustomOpenAICompatLLM
 
     inst = CustomOpenAICompatLLM()
     extra = {"base_url": "http://vllm-server:8000", "model": "mistral-7b"}
@@ -132,8 +131,8 @@ def test_custom_openai_compat_base_url_via_extra_config():
 @pytest.mark.asyncio
 async def test_custom_openai_compat_no_url_raises_on_complete():
     """complete() raises RuntimeError when base_url is not set."""
-    from src.providers.llm.custom_openai_compat_provider import CustomOpenAICompatLLM
-    from src.providers.llm.base import LLMRequest
+    from providers.llm.base import LLMRequest
+    from providers.llm.custom_openai_compat_provider import CustomOpenAICompatLLM
 
     inst = CustomOpenAICompatLLM()
     req = LLMRequest(messages=[{"role": "user", "content": "hi"}])

@@ -96,11 +96,7 @@ This is the authoritative representation. All views derive from it.
           "requires_disclaimer": false
         }
       ],
-      "visual_intents": [
-        "thermometer dropping",
-        "brain hypothalamus highlighted",
-        "furnace igniting"
-      ],
+      "visual_intents": ["thermometer dropping", "brain hypothalamus highlighted", "furnace igniting"],
       "pace_hint": "normal",
       "emotion": "informative",
       "emphasis_words": ["emergency furnace", "36.1°C", "hypothalamus"],
@@ -144,28 +140,30 @@ This is the authoritative representation. All views derive from it.
 
 ### Field Reference
 
-| Field | Type | Required | Notes |
-|-------|------|----------|-------|
-| `scenes[].id` | string | yes | Unique within script |
-| `scenes[].role` | enum | yes | `narration` \| `broll_only` \| `on_screen_text` |
-| `scenes[].section` | string | yes | Which structural section this belongs to |
-| `scenes[].text_raw` | string | yes | Authoritative narration text (empty if `visual_only`) |
-| `scenes[].claims[]` | array | yes | Fact claims for verification; empty if no claims |
-| `scenes[].visual_intents[]` | array | yes | High-level descriptions for asset search |
-| `scenes[].pace_hint` | enum | yes | `slow_build` \| `slow` \| `normal` \| `fast` \| `urgent` |
-| `scenes[].emotion` | string | nullable | `curious` \| `serious` \| `excited` \| `dramatic` \| `calm` \| `urgent` \| `informative` |
-| `scenes[].emphasis_words[]` | array | yes | Words to highlight in captions / kinetic text |
-| `scenes[].duration_hint_s` | float | yes | Estimated scene duration |
-| `scenes[].visual_only` | bool | yes | If true, no TTS for this scene |
+| Field                       | Type   | Required | Notes                                                                                    |
+| --------------------------- | ------ | -------- | ---------------------------------------------------------------------------------------- |
+| `scenes[].id`               | string | yes      | Unique within script                                                                     |
+| `scenes[].role`             | enum   | yes      | `narration` \| `broll_only` \| `on_screen_text`                                          |
+| `scenes[].section`          | string | yes      | Which structural section this belongs to                                                 |
+| `scenes[].text_raw`         | string | yes      | Authoritative narration text (empty if `visual_only`)                                    |
+| `scenes[].claims[]`         | array  | yes      | Fact claims for verification; empty if no claims                                         |
+| `scenes[].visual_intents[]` | array  | yes      | High-level descriptions for asset search                                                 |
+| `scenes[].pace_hint`        | enum   | yes      | `slow_build` \| `slow` \| `normal` \| `fast` \| `urgent`                                 |
+| `scenes[].emotion`          | string | nullable | `curious` \| `serious` \| `excited` \| `dramatic` \| `calm` \| `urgent` \| `informative` |
+| `scenes[].emphasis_words[]` | array  | yes      | Words to highlight in captions / kinetic text                                            |
+| `scenes[].duration_hint_s`  | float  | yes      | Estimated scene duration                                                                 |
+| `scenes[].visual_only`      | bool   | yes      | If true, no TTS for this scene                                                           |
 
 ---
 
 ## View A: Voiceover Script (`script_voice.json`)
 
 ### Purpose
+
 Feed to Voice Service for TTS generation. Contains only narrated scenes with emotion cues and pronunciation hints.
 
 ### Transform Rules
+
 1. **Filter:** Remove scenes where `visual_only == true`
 2. **Tone cues:** Prepend emotion-aware phrasing based on `emotion` and `pace_hint`
 3. **Sentence split:** Break `text_raw` into sentences for per-sentence TTS (better timing)
@@ -178,7 +176,7 @@ Feed to Voice Service for TTS generation. Contains only narrated scenes with emo
 ```python
 def transform_voice_view(script_base: dict, voice_config: dict) -> dict:
     """Pure function: script_base → script_voice.json"""
-    
+
     TONE_CUES = {
         "curious": "[speaking with curiosity] ",
         "serious": "[speaking seriously] ",
@@ -188,7 +186,7 @@ def transform_voice_view(script_base: dict, voice_config: dict) -> dict:
         "urgent": "[speaking urgently] ",
         "informative": "",
     }
-    
+
     PACE_MAP = {
         "slow_build": 130,
         "slow": 120,
@@ -196,19 +194,19 @@ def transform_voice_view(script_base: dict, voice_config: dict) -> dict:
         "fast": 170,
         "urgent": 180,
     }
-    
+
     scenes = []
     for scene in script_base["scenes"]:
         if scene["visual_only"]:
             continue
-        
+
         # Add tone cue for Fish Audio (responds to text-level cues)
         tone_prefix = TONE_CUES.get(scene.get("emotion"), "")
         text = tone_prefix + scene["text_raw"]
-        
+
         # Split into sentences for per-sentence timing
         sentences = split_sentences(text)
-        
+
         scenes.append({
             "id": scene["id"],
             "text": text,
@@ -218,7 +216,7 @@ def transform_voice_view(script_base: dict, voice_config: dict) -> dict:
             "pace_wpm": PACE_MAP.get(scene.get("pace_hint"), voice_config.get("target_wpm", 150)),
             "duration_hint_s": scene["duration_hint_s"],
         })
-    
+
     return {
         "script_id": script_base["script_id"],
         "channel_id": script_base["channel_id"],
@@ -263,21 +261,23 @@ def transform_voice_view(script_base: dict, voice_config: dict) -> dict:
 
 ### Quality Gates (Voice View)
 
-| Gate | Threshold | Action on Fail |
-|------|-----------|---------------|
-| Word count matches base | 100% of narrated words | Regenerate view |
-| No empty text for narrated scenes | 0 empty | Block |
-| Sentence split valid | All sentences end with punctuation | Fix punctuation |
-| Pace WPM in range | 120-180 | Clamp to range |
+| Gate                              | Threshold                          | Action on Fail  |
+| --------------------------------- | ---------------------------------- | --------------- |
+| Word count matches base           | 100% of narrated words             | Regenerate view |
+| No empty text for narrated scenes | 0 empty                            | Block           |
+| Sentence split valid              | All sentences end with punctuation | Fix punctuation |
+| Pace WPM in range                 | 120-180                            | Clamp to range  |
 
 ---
 
 ## View B: Asset-Generation Script (`script_assets.json`)
 
 ### Purpose
+
 Feed to Assets Service for stock footage, music, and SFX sourcing. Contains search terms, timing, and style requirements.
 
 ### Transform Rules
+
 1. **Extract search terms:** From `visual_intents` + key nouns/verbs from `text_raw`
 2. **Compute durations:** From `duration_hint_s` (or TTS duration if available)
 3. **Style inference:** Map `pace_hint` and `emotion` to visual style preferences
@@ -290,7 +290,7 @@ Feed to Assets Service for stock footage, music, and SFX sourcing. Contains sear
 ```python
 def transform_assets_view(script_base: dict, voice_result: dict = None) -> dict:
     """Pure function: script_base + optional voice timing → script_assets.json"""
-    
+
     STYLE_MAP = {
         "curious": "cinematic_wonder",
         "serious": "documentary",
@@ -300,11 +300,11 @@ def transform_assets_view(script_base: dict, voice_result: dict = None) -> dict:
         "urgent": "news_style",
         "informative": "educational",
     }
-    
+
     assets = []
     mood_curve = []
     sfx_triggers = []
-    
+
     for scene in script_base["scenes"]:
         # Get actual duration from voice result if available
         duration = scene["duration_hint_s"]
@@ -312,17 +312,17 @@ def transform_assets_view(script_base: dict, voice_result: dict = None) -> dict:
             voice_scene = next((v for v in voice_result["scenes"] if v["id"] == scene["id"]), None)
             if voice_scene and voice_scene.get("duration_s"):
                 duration = voice_scene["duration_s"]
-        
+
         # Extract search terms from visual intents + text nouns
         search_terms = scene.get("visual_intents", [])
         if scene["text_raw"]:
             search_terms += extract_key_nouns(scene["text_raw"])
-        
+
         # Deduplicate and limit
         search_terms = deduplicate(search_terms)[:5]
-        
+
         style = STYLE_MAP.get(scene.get("emotion"), "educational")
-        
+
         assets.append({
             "scene_id": scene["id"],
             "search_terms": search_terms,
@@ -331,11 +331,11 @@ def transform_assets_view(script_base: dict, voice_result: dict = None) -> dict:
             "style_preference": style,
             "visual_only": scene["visual_only"],
         })
-        
+
         # Build mood curve
         if scene.get("emotion"):
             mood_curve.append(scene["emotion"])
-        
+
         # SFX at scene transitions
         if scene["index"] > 0 and scene.get("pace_hint") in ("fast", "urgent"):
             sfx_triggers.append({
@@ -343,7 +343,7 @@ def transform_assets_view(script_base: dict, voice_result: dict = None) -> dict:
                 "type": "whoosh",
                 "at_s": 0.0,
             })
-    
+
     return {
         "script_id": script_base["script_id"],
         "channel_id": script_base["channel_id"],
@@ -367,7 +367,13 @@ def transform_assets_view(script_base: dict, voice_result: dict = None) -> dict:
   "assets": [
     {
       "scene_id": "s1",
-      "search_terms": ["microscopic muscle fiber contraction", "cold weather breath vapor", "body heat visualization", "muscles", "fibers"],
+      "search_terms": [
+        "microscopic muscle fiber contraction",
+        "cold weather breath vapor",
+        "body heat visualization",
+        "muscles",
+        "fibers"
+      ],
       "min_resolution": "1280x720",
       "duration_s": 15,
       "style_preference": "cinematic_wonder",
@@ -394,21 +400,23 @@ def transform_assets_view(script_base: dict, voice_result: dict = None) -> dict:
 
 ### Quality Gates (Assets View)
 
-| Gate | Threshold | Action on Fail |
-|------|-----------|---------------|
-| Every scene has ≥1 search term | 100% | Extract from text_raw fallback |
-| Total duration matches script | ±10% | Adjust proportionally |
-| Min 3 visual styles | ≥3 unique styles | Add variety |
-| No duplicate search terms across scenes | <30% overlap | Deduplicate |
+| Gate                                    | Threshold        | Action on Fail                 |
+| --------------------------------------- | ---------------- | ------------------------------ |
+| Every scene has ≥1 search term          | 100%             | Extract from text_raw fallback |
+| Total duration matches script           | ±10%             | Adjust proportionally          |
+| Min 3 visual styles                     | ≥3 unique styles | Add variety                    |
+| No duplicate search terms across scenes | <30% overlap     | Deduplicate                    |
 
 ---
 
 ## View C: Remotion Direction v3 (`script_remotion.json`)
 
 ### Purpose
+
 The Assembly Service generates this from the base script + voice timestamps + asset manifest. It is the **frame-accurate rendering instruction** consumed by the Remotion render engine.
 
 ### Transform Rules
+
 1. **Merge timing:** Voice timestamps provide exact start/end per scene
 2. **Resolve assets:** Map asset manifest URLs to layers
 3. **Apply template:** Load template rules (e.g., `hybrid-kinetic`) for transitions, cuts/min, grade
@@ -434,26 +442,26 @@ def transform_remotion_view(
     Pure function: all inputs → Direction Format v3 JSON.
     This is the most complex transform — produces frame-accurate rendering instructions.
     """
-    
+
     fps = 30
     segments = []
     current_ms = 0
-    
+
     # Inject intro (if channel has one)
     if brand_config.get("intro_enabled"):
         segments.append(build_intro_segment(brand_config, fps, current_ms))
         current_ms += brand_config.get("intro_duration_ms", 3000)
-    
+
     for scene in script_base["scenes"]:
         voice_scene = find_voice_scene(voice_result, scene["id"])
         asset_scene = find_asset_scene(asset_manifest, scene["id"])
-        
+
         # Duration: from voice if available, else hint
         duration_ms = int((voice_scene["duration_s"] if voice_scene else scene["duration_hint_s"]) * 1000)
-        
+
         # Build layers for this segment
         layers = []
-        
+
         # Layer 1: Background video/image
         if asset_scene and asset_scene.get("clips"):
             clip = asset_scene["clips"][0]  # Primary clip
@@ -466,7 +474,7 @@ def transform_remotion_view(
                 "fit": "cover",
                 "animation": select_animation(scene, template),
             })
-        
+
         # Layer 2: Subtitles (word-by-word sync)
         if voice_scene and voice_scene.get("word_timestamps"):
             layers.append({
@@ -475,7 +483,7 @@ def transform_remotion_view(
                 "words": voice_scene["word_timestamps"],
                 "highlight_words": scene.get("emphasis_words", []),
             })
-        
+
         # Layer 3: Kinetic text (for emphasis words)
         if scene.get("emphasis_words") and not scene["visual_only"]:
             for word in scene["emphasis_words"][:2]:
@@ -487,10 +495,10 @@ def transform_remotion_view(
                     "start_f": ms_to_frames(current_ms + duration_ms // 3, fps),
                     "end_f": ms_to_frames(current_ms + duration_ms // 3 + 1000, fps),
                 })
-        
+
         # Determine transition
         transition = select_transition(scene, template)
-        
+
         segments.append({
             "id": scene["id"],
             "start_ms": current_ms,
@@ -505,14 +513,14 @@ def transform_remotion_view(
                 "sfx": find_sfx(asset_manifest, scene["id"]),
             },
         })
-        
+
         current_ms += duration_ms
-    
+
     # Inject outro
     if brand_config.get("outro_enabled"):
         segments.append(build_outro_segment(brand_config, fps, current_ms))
         current_ms += brand_config.get("outro_duration_ms", 5000)
-    
+
     return {
         "version": "3.0",
         "meta": {
@@ -656,25 +664,25 @@ def transform_remotion_view(
 
 Templates define rendering rules. They are stored in the Remotion repo at `src/registry/`.
 
-| Template | Stock Footage | Kinetic Text | Data Viz | Cuts/min | Grade | Caption Style |
-|----------|:------------:|:------------:|:--------:|:--------:|-------|:-------------:|
-| `hybrid-kinetic` | 35-50% | 25-35% | 10-15% | 8-14 | mood_responsive | word_highlight_animated |
-| `stock-documentary` | 55-70% | 15-25% | 5-15% | 6-8 | natural_cinematic | bottom_center_subtitle |
-| `2d-animated` | 0% | 25-35% | 20-30% | 8-12 | bright_flat_design | integrated_animated_text |
-| `data-heavy` | 20-30% | 15-20% | 30-45% | 6-10 | clean_corporate | bottom_center_subtitle |
+| Template            | Stock Footage | Kinetic Text | Data Viz | Cuts/min | Grade              |      Caption Style       |
+| ------------------- | :-----------: | :----------: | :------: | :------: | ------------------ | :----------------------: |
+| `hybrid-kinetic`    |    35-50%     |    25-35%    |  10-15%  |   8-14   | mood_responsive    | word_highlight_animated  |
+| `stock-documentary` |    55-70%     |    15-25%    |  5-15%   |   6-8    | natural_cinematic  |  bottom_center_subtitle  |
+| `2d-animated`       |      0%       |    25-35%    |  20-30%  |   8-12   | bright_flat_design | integrated_animated_text |
+| `data-heavy`        |    20-30%     |    15-20%    |  30-45%  |   6-10   | clean_corporate    |  bottom_center_subtitle  |
 
 ### Quality Gates (Remotion View)
 
-| Gate | Threshold | Action on Fail |
-|------|-----------|---------------|
-| Direction coherence | ≥ 8.5 | Regenerate v3 |
-| v3 schema valid | Pass Zod validation | Regenerate |
-| Timeline continuity | No gaps between segments | Fix gaps |
-| All asset URLs exist | 100% | Use fallback assets |
-| Caption timing matches audio | ±200ms per word | Recalculate |
-| Template rules respected | All ratios within range | Adjust layers |
-| Total duration ±10% of target | Within range | Trim/extend |
-| Cross-channel similarity | <40% | Modify template/assets |
+| Gate                          | Threshold                | Action on Fail         |
+| ----------------------------- | ------------------------ | ---------------------- |
+| Direction coherence           | ≥ 8.5                    | Regenerate v3          |
+| v3 schema valid               | Pass Zod validation      | Regenerate             |
+| Timeline continuity           | No gaps between segments | Fix gaps               |
+| All asset URLs exist          | 100%                     | Use fallback assets    |
+| Caption timing matches audio  | ±200ms per word          | Recalculate            |
+| Template rules respected      | All ratios within range  | Adjust layers          |
+| Total duration ±10% of target | Within range             | Trim/extend            |
+| Cross-channel similarity      | <40%                     | Modify template/assets |
 
 ---
 
@@ -682,17 +690,17 @@ Templates define rendering rules. They are stored in the Remotion repo at `src/r
 
 For `content_mode: "short_form"`:
 
-| Aspect | Long-form | Short-form |
-|--------|-----------|------------|
-| Duration | ~480s (8 min) | ~45s |
-| Word count | ~1100 | ~80 |
-| Aspect ratio | 16:9 | 9:16 |
-| Resolution | 1920×1080 | 1080×1920 |
-| Scenes | 15-25 | 3-5 |
-| Thumbnail | Yes (DALL-E) | No (auto-generated frame) |
-| Outro | Full endscreen | Quick subscribe CTA |
-| Captions | Word-highlight | Full-screen animated |
-| Music | Ambient underscore | Beat-driven, louder |
+| Aspect       | Long-form          | Short-form                |
+| ------------ | ------------------ | ------------------------- |
+| Duration     | ~480s (8 min)      | ~45s                      |
+| Word count   | ~1100              | ~80                       |
+| Aspect ratio | 16:9               | 9:16                      |
+| Resolution   | 1920×1080          | 1080×1920                 |
+| Scenes       | 15-25              | 3-5                       |
+| Thumbnail    | Yes (DALL-E)       | No (auto-generated frame) |
+| Outro        | Full endscreen     | Quick subscribe CTA       |
+| Captions     | Word-highlight     | Full-screen animated      |
+| Music        | Ambient underscore | Beat-driven, louder       |
 
 The same three views apply, with shorter scenes and simplified structure.
 
@@ -701,11 +709,13 @@ The same three views apply, with shorter scenes and simplified structure.
 ## Determinism & Caching
 
 All transforms are **deterministic pure functions**:
+
 - Same `script_base` + same `voice_config` → same `script_voice.json`
 - Same `script_base` + same `voice_result` → same `script_assets.json`
 - Same inputs → same `script_remotion.json`
 
 **Cache keys:**
+
 ```
 voice_view:   sha256(script_base.scenes[narrated] + voice_config)
 assets_view:  sha256(script_base.scenes + voice_result.timing)
@@ -713,6 +723,7 @@ remotion_view: sha256(script_base + voice_result + asset_manifest + template + b
 ```
 
 All three views are stored in MinIO alongside the base script:
+
 ```
 s3://yt-automation/scripts/{channel_id}/{video_id}/
 ├── script_base.json

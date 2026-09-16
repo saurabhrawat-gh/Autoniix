@@ -2,18 +2,16 @@
 
 Tests: seo_optimizer (title scoring, description optimization, tag suggestion)
 """
+
 from __future__ import annotations
 
-import pytest
-
-from src.services.delivery.seo_optimizer import (
-    score_title_seo,
-    optimize_description,
-    suggest_tags,
-    POWER_WORDS,
+from services_api.delivery.seo_optimizer import (
     CATEGORY_MAP,
+    POWER_WORDS,
+    optimize_description,
+    score_title_seo,
+    suggest_tags,
 )
-
 
 
 class TestScoreTitleSeo:
@@ -64,7 +62,6 @@ class TestScoreTitleSeo:
         assert 1.0 <= result["seo_score"] <= 10.0
 
 
-
 class TestOptimizeDescription:
     def test_short_description_warning(self):
         result = optimize_description("Short desc", "Title", [])
@@ -80,7 +77,8 @@ class TestOptimizeDescription:
         result = optimize_description(
             "Generic description that doesn't mention the topic at all.",
             "Quantum Physics Explained",
-            ["quantum", "physics"])
+            ["quantum", "physics"],
+        )
         assert any("keyword" in s.lower() for s in result["suggestions"])
 
     def test_keyword_density(self):
@@ -91,7 +89,6 @@ class TestOptimizeDescription:
     def test_empty_description(self):
         result = optimize_description("", "Title", [])
         assert result["description_length"] == 0
-
 
 
 class TestSuggestTags:
@@ -113,8 +110,9 @@ class TestSuggestTags:
     def test_adds_bigram_phrases(self):
         tags = suggest_tags("Machine Learning Tutorial Guide", "tech", [])
         lowercase_tags = [t.lower() for t in tags]
-        assert any("machine learning" in t for t in lowercase_tags) or \
-               any("learning tutorial" in t for t in lowercase_tags)
+        assert any("machine learning" in t for t in lowercase_tags) or any(
+            "learning tutorial" in t for t in lowercase_tags
+        )
 
     def test_max_tags(self):
         tags = suggest_tags("A B C D E F G H I J K L M N O P Q R S T", "tech", list(range(25)))
@@ -123,7 +121,6 @@ class TestSuggestTags:
     def test_empty_title(self):
         tags = suggest_tags("", "tech", [])
         assert isinstance(tags, list)
-
 
 
 class TestConstants:

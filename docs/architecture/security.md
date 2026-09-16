@@ -58,6 +58,7 @@ GOOGLE_OAUTH_REFRESH_TOKEN=...
 ```
 
 Docker Compose loads from `.env`:
+
 ```yaml
 services:
   research:
@@ -98,22 +99,22 @@ secrets:
 networks:
   yt-net:
     driver: bridge
-    internal: false  # Traefik needs internet access
+    internal: false # Traefik needs internet access
 
   yt-internal:
     driver: bridge
-    internal: true   # No internet access for DB, Redis, MinIO
+    internal: true # No internet access for DB, Redis, MinIO
 ```
 
-| Service | Network | Public Port | Notes |
-|---------|---------|------------|-------|
-| Traefik | yt-net | 443, 80 | Only public-facing service |
-| Admin API | yt-net | — (via Traefik) | JWT-protected |
-| Temporal UI | yt-net | — (via Traefik) | Basic auth or JWT |
-| All other services | yt-internal | None | Private only |
-| PostgreSQL | yt-internal | None | Never exposed |
-| Redis | yt-internal | None | Never exposed |
-| MinIO | yt-internal | None | Console via Traefik if needed |
+| Service            | Network     | Public Port     | Notes                         |
+| ------------------ | ----------- | --------------- | ----------------------------- |
+| Traefik            | yt-net      | 443, 80         | Only public-facing service    |
+| Admin API          | yt-net      | — (via Traefik) | JWT-protected                 |
+| Temporal UI        | yt-net      | — (via Traefik) | Basic auth or JWT             |
+| All other services | yt-internal | None            | Private only                  |
+| PostgreSQL         | yt-internal | None            | Never exposed                 |
+| Redis              | yt-internal | None            | Never exposed                 |
+| MinIO              | yt-internal | None            | Console via Traefik if needed |
 
 ### Traefik Configuration
 
@@ -182,6 +183,7 @@ ufw allow from 10.0.0.0/24  # VPN subnet
 Phase 1 (current): Services trust each other on the Docker internal network. No auth between internal services.
 
 Phase 2 (10+ channels): Add JWT validation on each service:
+
 ```python
 # middleware for internal services
 from fastapi import Depends, HTTPException
@@ -235,6 +237,7 @@ async def emergency_stop(user: User = Depends(require_permission("system.emergen
 ### Webhook Authentication (Temporal → External)
 
 For callbacks to external systems (e.g., notification webhooks):
+
 ```python
 import hmac, hashlib
 
@@ -264,16 +267,16 @@ async def audit(actor: str, action: str, resource_type: str, resource_id: str, d
 
 ### Audited Actions
 
-| Action | Actor | Resource |
-|--------|-------|----------|
-| Channel created/updated/disabled | admin:email | channel:id |
-| System paused/resumed/emergency-stopped | admin:email | system |
-| Config changed | admin:email | config:key |
-| Video production started | workflow:id | video:id |
-| Video approved/rejected (human review) | admin:email | video:id |
-| Budget threshold reached | system | budget |
-| Provider circuit opened | system | provider:name |
-| Secret rotated | admin:email | secret:name |
+| Action                                  | Actor       | Resource      |
+| --------------------------------------- | ----------- | ------------- |
+| Channel created/updated/disabled        | admin:email | channel:id    |
+| System paused/resumed/emergency-stopped | admin:email | system        |
+| Config changed                          | admin:email | config:key    |
+| Video production started                | workflow:id | video:id      |
+| Video approved/rejected (human review)  | admin:email | video:id      |
+| Budget threshold reached                | system      | budget        |
+| Provider circuit opened                 | system      | provider:name |
+| Secret rotated                          | admin:email | secret:name   |
 
 ### Retention
 
@@ -295,7 +298,7 @@ class SceneInput(BaseModel):
     id: constr(pattern=r'^s\d+$', max_length=10)
     text_raw: constr(max_length=5000)
     emotion: str | None
-    
+
     @validator('text_raw')
     def sanitize_text(cls, v):
         # Remove potential prompt injection patterns
@@ -303,7 +306,7 @@ class SceneInput(BaseModel):
         # Remove control characters
         v = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', v)
         return v
-    
+
     @validator('emotion')
     def validate_emotion(cls, v):
         allowed = {'curious', 'serious', 'excited', 'dramatic', 'calm', 'urgent', 'informative', None}
@@ -325,7 +328,7 @@ def build_safe_prompt(template: str, user_data: dict) -> str:
         value = re.sub(r'(?i)(ignore|disregard|forget|override|system)', '[FILTERED]', value)
         value = value[:10000]  # Truncate
         safe_data[key] = value
-    
+
     return template.format(**safe_data)
 ```
 
@@ -342,25 +345,25 @@ def build_safe_prompt(template: str, user_data: dict) -> str:
 
 ### Automated Compliance Checks (Assembly Service)
 
-| Check | Rule | Action |
-|-------|------|--------|
-| AI disclosure | Always required for AI-generated content | Auto-injected in description + YouTube API flag |
-| Health disclaimer | Required for health niche | Auto-injected: "For educational purposes only. Consult a healthcare professional." |
-| Finance disclaimer | Required for finance niche | Auto-injected: "This is not financial advice." |
-| Made for kids | Never (our content targets adults) | Set `madeForKids: false` in API |
-| Violent/graphic content | Detect in script text | Block if detected |
-| Misleading claims | Fact confidence < 0.7 | Remove claim from script |
-| Clickbait | Authenticity score < 8.0 | Block title/thumbnail |
-| Copyright | Stock footage license check | Only free/CC assets |
+| Check                   | Rule                                     | Action                                                                             |
+| ----------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------- |
+| AI disclosure           | Always required for AI-generated content | Auto-injected in description + YouTube API flag                                    |
+| Health disclaimer       | Required for health niche                | Auto-injected: "For educational purposes only. Consult a healthcare professional." |
+| Finance disclaimer      | Required for finance niche               | Auto-injected: "This is not financial advice."                                     |
+| Made for kids           | Never (our content targets adults)       | Set `madeForKids: false` in API                                                    |
+| Violent/graphic content | Detect in script text                    | Block if detected                                                                  |
+| Misleading claims       | Fact confidence < 0.7                    | Remove claim from script                                                           |
+| Clickbait               | Authenticity score < 8.0                 | Block title/thumbnail                                                              |
+| Copyright               | Stock footage license check              | Only free/CC assets                                                                |
 
 ### Cross-Channel Safety (at Scale)
 
-| Risk | Mitigation |
-|------|-----------|
-| YouTube linking channels as spam ring | Different voice per channel, different templates, stagger uploads |
-| Content fingerprint similarity | Cross-channel dedup gate (< 40% similarity) |
-| Upload velocity triggers | Max 2 uploads/day/channel, natural scheduling |
-| Community guideline strikes | Policy scanner, conservative thresholds, human review for edge cases |
+| Risk                                  | Mitigation                                                           |
+| ------------------------------------- | -------------------------------------------------------------------- |
+| YouTube linking channels as spam ring | Different voice per channel, different templates, stagger uploads    |
+| Content fingerprint similarity        | Cross-channel dedup gate (< 40% similarity)                          |
+| Upload velocity triggers              | Max 2 uploads/day/channel, natural scheduling                        |
+| Community guideline strikes           | Policy scanner, conservative thresholds, human review for edge cases |
 
 ### Brand Account Structure
 
@@ -385,15 +388,15 @@ For 100+ channels:
 
 ### What Data We Store
 
-| Data Type | Storage | Retention | PII Risk |
-|-----------|---------|-----------|----------|
-| Channel config | PostgreSQL | Indefinite | Low (no user PII) |
-| Generated scripts | MinIO | 90 days | None |
-| Audio files | MinIO | 90 days | None (AI voice) |
-| Video files | MinIO | 30 days (then YouTube only) | None |
-| API usage logs | PostgreSQL | 365 days | None |
-| Audit logs | PostgreSQL | 365 days | Contains admin emails |
-| YouTube analytics | PostgreSQL | 365 days | None (aggregate data) |
+| Data Type         | Storage    | Retention                   | PII Risk              |
+| ----------------- | ---------- | --------------------------- | --------------------- |
+| Channel config    | PostgreSQL | Indefinite                  | Low (no user PII)     |
+| Generated scripts | MinIO      | 90 days                     | None                  |
+| Audio files       | MinIO      | 90 days                     | None (AI voice)       |
+| Video files       | MinIO      | 30 days (then YouTube only) | None                  |
+| API usage logs    | PostgreSQL | 365 days                    | None                  |
+| Audit logs        | PostgreSQL | 365 days                    | Contains admin emails |
+| YouTube analytics | PostgreSQL | 365 days                    | None (aggregate data) |
 
 ### GDPR Considerations
 

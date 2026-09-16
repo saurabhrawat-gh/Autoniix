@@ -1,0 +1,36 @@
+# Prompt / agent evaluation manifest.
+#
+# The manifest is the authoritative list of eval cases the harness runs.
+# `scripts/run_prompt_eval.py` iterates cases directly from disk; this
+# manifest layers additional metadata (owner, agent tag, regression policy)
+# used by `scripts/eval_regression_check.py`.
+#
+# Add a new case by dropping a JSON into tests/prompt_eval/cases/ AND adding
+# an entry here. The two must stay in sync; CI enforces via manifest_lint.
+
+version: 1
+
+# Default regression thresholds. Individual cases may override.
+defaults:
+  # Fail the eval run if pass-rate for the agent drops by more than
+  # this delta compared to the last known-good score for the same sha.
+  max_pass_rate_regression_pct: 5.0
+  # Fail if a case that used to pass now fails (single-case regression).
+  block_case_regressions: true
+  # Fail if average LLM-judge score drops by more than this delta.
+  max_avg_score_regression: 0.1
+
+cases:
+  - id: hook_short_001
+    file: tests/prompt_eval/cases/hook_short_001.json
+    agent: llm.hook
+    owner: script-intelligence
+    tags: [shorts, hook, retention]
+    # override defaults per case:
+    # max_pass_rate_regression_pct: 0.0
+
+# ─── Regression-only cases ──────────────────────────────────────────────────
+# When the Sentry auto-fix agent (Phase E3) fixes a production bug, it must
+# add a golden case here to prevent regression. Each entry gets a unique id
+# prefixed with "regression_" and links back to the Sentry issue.
+regressions: []

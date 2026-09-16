@@ -14,19 +14,24 @@ Run this when the session has been running long and context may be polluted. Sum
    - Identify the current task and its status.
 
 2. **Create a State Card** — Use this format:
+
    ```markdown
    ## Agent State Card — [current timestamp]
 
    COMPLETED:
+
    - [bullet list of done items with file paths]
 
    IN PROGRESS:
+
    - [current task + last known state]
 
    BLOCKERS:
+
    - [anything needing human input]
 
    NEXT:
+
    1. [next step]
    2. [step after that]
    3. [step after that]

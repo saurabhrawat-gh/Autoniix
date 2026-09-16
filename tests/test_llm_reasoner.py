@@ -1,20 +1,17 @@
 """Unit tests for src/agents/llm_reasoner.py and the LLM decide path in
 BrainAgent. All LLM calls are mocked — no network, no DB."""
+
 from __future__ import annotations
 
 import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
-from src.agents.llm_reasoner import (
-    BRAIN_SYSTEM_PROMPT,
-    DECISION_JSON_SCHEMA,
+from agents.llm_reasoner import (
     LLMReasoner,
 )
-from src.providers.llm.base import LLMResult
 
-
+from providers.llm.base import LLMResult
 
 
 def _llm_result(content: str) -> LLMResult:
@@ -43,7 +40,7 @@ class TestLLMReasonerReason:
             "confidence": 0.85,
         }
         with patch(
-            "src.agents.llm_reasoner.route",
+            "agents.llm_reasoner.route",
             new=AsyncMock(return_value=_llm_result(json.dumps(payload))),
         ):
             out = await reasoner.reason(user_prompt="p", channel_id="ch1")
@@ -59,7 +56,7 @@ class TestLLMReasonerReason:
         }
         wrapped = f"Here is your decision:\n```json\n{json.dumps(payload)}\n```\nDone."
         with patch(
-            "src.agents.llm_reasoner.route",
+            "agents.llm_reasoner.route",
             new=AsyncMock(return_value=_llm_result(wrapped)),
         ):
             out = await reasoner.reason(user_prompt="p")
@@ -68,7 +65,7 @@ class TestLLMReasonerReason:
 
     async def test_returns_none_on_parse_failure(self, reasoner):
         with patch(
-            "src.agents.llm_reasoner.route",
+            "agents.llm_reasoner.route",
             new=AsyncMock(return_value=_llm_result("not even close to json")),
         ):
             out = await reasoner.reason(user_prompt="p")
@@ -81,7 +78,7 @@ class TestLLMReasonerReason:
             "confidence": 0.5,
         }
         with patch(
-            "src.agents.llm_reasoner.route",
+            "agents.llm_reasoner.route",
             new=AsyncMock(return_value=_llm_result(json.dumps(bad))),
         ):
             out = await reasoner.reason(user_prompt="p")
@@ -95,7 +92,7 @@ class TestLLMReasonerReason:
             "confidence": 1.5,
         }
         with patch(
-            "src.agents.llm_reasoner.route",
+            "agents.llm_reasoner.route",
             new=AsyncMock(return_value=_llm_result(json.dumps(bad))),
         ):
             out = await reasoner.reason(user_prompt="p")
@@ -109,7 +106,7 @@ class TestLLMReasonerReason:
             "confidence": 0.99,
         }
         with patch(
-            "src.agents.llm_reasoner.route",
+            "agents.llm_reasoner.route",
             new=AsyncMock(return_value=_llm_result(json.dumps(rogue))),
         ):
             out = await reasoner.reason(
@@ -119,18 +116,20 @@ class TestLLMReasonerReason:
         assert out is None
 
     async def test_budget_exceeded_returns_none(self, reasoner):
-        from src.llm.router import BudgetExceeded
+        from llm.router import BudgetExceeded
+
         with patch(
-            "src.agents.llm_reasoner.route",
+            "agents.llm_reasoner.route",
             new=AsyncMock(side_effect=BudgetExceeded("ch1", 5.0, 1.0)),
         ):
             out = await reasoner.reason(user_prompt="p", channel_id="ch1")
         assert out is None
 
     async def test_providers_exhausted_returns_none(self, reasoner):
-        from src.llm.router import LadderExhausted
+        from llm.router import LadderExhausted
+
         with patch(
-            "src.agents.llm_reasoner.route",
+            "agents.llm_reasoner.route",
             new=AsyncMock(side_effect=LadderExhausted("llm", [("openai", "boom")])),
         ):
             out = await reasoner.reason(user_prompt="p")
@@ -138,7 +137,7 @@ class TestLLMReasonerReason:
 
     async def test_generic_exception_returns_none(self, reasoner):
         with patch(
-            "src.agents.llm_reasoner.route",
+            "agents.llm_reasoner.route",
             new=AsyncMock(side_effect=RuntimeError("transport closed")),
         ):
             out = await reasoner.reason(user_prompt="p")
@@ -153,7 +152,7 @@ class TestLLMReasonerReason:
             "confidence": 0.7,
         }
         with patch(
-            "src.agents.llm_reasoner.route",
+            "agents.llm_reasoner.route",
             new=AsyncMock(return_value=_llm_result(json.dumps(payload))),
         ):
             out = await reasoner.reason(user_prompt="p")
@@ -169,19 +168,18 @@ class TestLLMReasonerReason:
             "confidence": 0.9,
         }
         with patch(
-            "src.agents.llm_reasoner.route",
+            "agents.llm_reasoner.route",
             new=AsyncMock(return_value=_llm_result(json.dumps(payload))),
         ):
             out = await reasoner.reason(user_prompt="p")
         assert out is None
 
 
-
-
 class TestBrainAgentLLMDecide:
     @pytest.fixture
     def signals(self):
-        from src.services.brain.analyser import ChannelSignals
+        from services_api.brain.analyser import ChannelSignals
+
         return ChannelSignals(
             channel_id="ch1",
             avg_composite_score=4.0,
@@ -191,7 +189,7 @@ class TestBrainAgentLLMDecide:
         )
 
     async def test_llm_path_writes_decision_and_returns_agent_decision(self, signals):
-        from src.services.brain.agent import BrainAgent, _llm_decide_impl
+        from services_api.brain.agent import BrainAgent, _llm_decide_impl
 
         llm_payload = {
             "decision_type": "HALT",
@@ -202,21 +200,23 @@ class TestBrainAgentLLMDecide:
         }
         with (
             patch(
-                "src.agents.llm_reasoner.route",
+                "agents.llm_reasoner.route",
                 new=AsyncMock(return_value=_llm_result(json.dumps(llm_payload))),
             ),
             patch(
-                "src.services.brain.agent._write_decision",
-                new=AsyncMock(return_value={
-                    "id": 99,
-                    "decision_type": "HALT",
-                    "scope": "channel",
-                    "scope_id": "ch1",
-                    "directive": llm_payload["directive"],
-                    "reasoning": llm_payload["reasoning"],
-                    "confidence": 0.78,
-                    "context_summary": "ctx",
-                }),
+                "services_api.brain.agent._write_decision",
+                new=AsyncMock(
+                    return_value={
+                        "id": 99,
+                        "decision_type": "HALT",
+                        "scope": "channel",
+                        "scope_id": "ch1",
+                        "directive": llm_payload["directive"],
+                        "reasoning": llm_payload["reasoning"],
+                        "confidence": 0.78,
+                        "context_summary": "ctx",
+                    }
+                ),
             ),
         ):
             decision = await _llm_decide_impl(BrainAgent(), signals, None, [])
@@ -229,7 +229,7 @@ class TestBrainAgentLLMDecide:
 
     async def test_llm_path_returns_none_when_decision_is_none(self, signals):
         """When the LLM returns NONE, the agent should treat it as no-action."""
-        from src.services.brain.agent import BrainAgent, _llm_decide_impl
+        from services_api.brain.agent import BrainAgent, _llm_decide_impl
 
         payload = {
             "decision_type": "NONE",
@@ -238,7 +238,7 @@ class TestBrainAgentLLMDecide:
             "confidence": 0.4,
         }
         with patch(
-            "src.agents.llm_reasoner.route",
+            "agents.llm_reasoner.route",
             new=AsyncMock(return_value=_llm_result(json.dumps(payload))),
         ):
             decision = await _llm_decide_impl(BrainAgent(), signals, None, [])
@@ -247,7 +247,7 @@ class TestBrainAgentLLMDecide:
     async def test_decide_falls_back_to_rules_when_llm_fails(self, signals):
         """If LLMReasoner returns None, BrainAgent.decide() must fall through
         to the rule-based engine."""
-        from src.services.brain.agent import BrainAgent
+        from services_api.brain.agent import BrainAgent
 
         rule_decision = {
             "id": 7,
@@ -259,32 +259,35 @@ class TestBrainAgentLLMDecide:
             "confidence": 0.9,
             "context_summary": "ctx",
         }
+
         async def _flag(key, default=None):
             return key == "brain.llm_reasoning.enabled"
 
         with (
-            patch("src.services.brain.agent.get_flag", side_effect=_flag),
+            patch("services_api.brain.agent.get_flag", side_effect=_flag),
             patch(
-                "src.agents.llm_reasoner.route",
+                "agents.llm_reasoner.route",
                 new=AsyncMock(side_effect=RuntimeError("provider down")),
             ),
             patch(
-                "src.services.brain.agent._evaluate",
+                "services_api.brain.agent._evaluate",
                 new=AsyncMock(return_value=rule_decision),
             ),
         ):
-            decision = await BrainAgent().decide({
-                "signals": signals,
-                "content_id": None,
-                "memories": [],
-            })
+            decision = await BrainAgent().decide(
+                {
+                    "signals": signals,
+                    "content_id": None,
+                    "memories": [],
+                }
+            )
 
         assert decision is not None
         assert decision.decision_type == "HALT"
         assert decision.extras["reasoning_path"] == "rules"
 
     async def test_decide_uses_rules_when_flag_is_off(self, signals):
-        from src.services.brain.agent import BrainAgent
+        from services_api.brain.agent import BrainAgent
 
         rule_decision = {
             "id": 8,
@@ -298,23 +301,25 @@ class TestBrainAgentLLMDecide:
         }
         with (
             patch(
-                "src.services.brain.agent.get_flag",
+                "services_api.brain.agent.get_flag",
                 new=AsyncMock(return_value=False),
             ),
             patch(
-                "src.agents.llm_reasoner.route",
+                "agents.llm_reasoner.route",
                 new=AsyncMock(side_effect=AssertionError("LLM must not be called")),
             ),
             patch(
-                "src.services.brain.agent._evaluate",
+                "services_api.brain.agent._evaluate",
                 new=AsyncMock(return_value=rule_decision),
             ),
         ):
-            decision = await BrainAgent().decide({
-                "signals": signals,
-                "content_id": None,
-                "memories": [],
-            })
+            decision = await BrainAgent().decide(
+                {
+                    "signals": signals,
+                    "content_id": None,
+                    "memories": [],
+                }
+            )
 
         assert decision is not None
         assert decision.extras["reasoning_path"] == "rules"

@@ -2,19 +2,15 @@
 
 Tests: query_optimizer (pure functions + DB-dependent with mocks)
 """
+
 from __future__ import annotations
 
-import pytest
-from unittest.mock import AsyncMock, patch
-
-from src.services.assets.query_optimizer import (
+from services_api.assets.query_optimizer import (
+    MOOD_SYNONYMS,
+    _query_hash,
     optimize_query,
     score_asset_relevance,
-    _query_hash,
-    MOOD_SYNONYMS,
-    SHOT_QUALITY_TERMS,
 )
-
 
 
 class TestQueryHash:
@@ -29,7 +25,6 @@ class TestQueryHash:
 
     def test_different_queries_different_hash(self):
         assert _query_hash("query one") != _query_hash("query two")
-
 
 
 class TestOptimizeQuery:
@@ -102,7 +97,6 @@ class TestOptimizeQuery:
         assert len(result["primary_hash"]) == 16
 
 
-
 class TestScoreAssetRelevance:
     def test_high_relevance_clip(self):
         clip = {"tags": "futuristic city skyline neon night", "height": 1080, "duration": 10, "license": "free"}
@@ -132,7 +126,6 @@ class TestScoreAssetRelevance:
     def test_empty_clip(self):
         score = score_asset_relevance({}, "test query")
         assert 1.0 <= score <= 10.0
-
 
 
 class TestMoodSynonyms:

@@ -12,6 +12,7 @@ SLOs (production-mode):
 Skipped automatically unless ``DASHBOARD_BASE_URL`` + ``DASHBOARD_TOKEN``
 are exported. See ``tests/load/README.md``.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -20,7 +21,6 @@ import statistics
 import time
 
 import pytest
-
 
 _BASE = os.environ.get("DASHBOARD_BASE_URL")
 _TOKEN = os.environ.get("DASHBOARD_TOKEN")
@@ -31,9 +31,9 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-CONCURRENCY = 50           # simultaneous in-flight requests
-TOTAL_REQUESTS = 200       # total over the test
-PER_REQ_TIMEOUT_S = 8.0    # generous — endpoint's own probes cap at ~3.5s
+CONCURRENCY = 50  # simultaneous in-flight requests
+TOTAL_REQUESTS = 200  # total over the test
+PER_REQ_TIMEOUT_S = 8.0  # generous — endpoint's own probes cap at ~3.5s
 
 
 @pytest.mark.asyncio
@@ -45,8 +45,8 @@ async def test_fleet_health_p99_under_4s():
     latencies_ms: list[float] = []
     errors = 0
 
-    async with httpx.AsyncClient(base_url=_BASE, timeout=PER_REQ_TIMEOUT_S,
-                                 headers=headers) as cli:
+    async with httpx.AsyncClient(base_url=_BASE, timeout=PER_REQ_TIMEOUT_S, headers=headers) as cli:
+
         async def one():
             nonlocal errors
             async with sem:
@@ -70,8 +70,9 @@ async def test_fleet_health_p99_under_4s():
     p99 = latencies_ms[int(len(latencies_ms) * 0.99) - 1]
     error_rate = errors / TOTAL_REQUESTS
 
-    print(f"\nfleet-health load: n={len(latencies_ms)} "
-          f"p50={p50:.0f}ms p99={p99:.0f}ms errors={errors} ({error_rate:.1%})")
+    print(
+        f"\nfleet-health load: n={len(latencies_ms)} p50={p50:.0f}ms p99={p99:.0f}ms errors={errors} ({error_rate:.1%})"
+    )
 
     assert p50 < 1_000, f"p50 latency {p50:.0f}ms breaches 1s SLO"
     assert p99 < 4_000, f"p99 latency {p99:.0f}ms breaches 4s SLO"

@@ -8,6 +8,7 @@ Run this before go-live and after every OAuth re-authorisation.
 Usage:
     python -m scripts.check_oauth_scopes
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -15,20 +16,22 @@ import sys
 
 import httpx
 
-from src.config import settings
+from core.config import settings
 
 REQUIRED_SCOPE = "https://www.googleapis.com/auth/yt-analytics.readonly"
-UPLOAD_SCOPE   = "https://www.googleapis.com/auth/youtube.upload"
+UPLOAD_SCOPE = "https://www.googleapis.com/auth/youtube.upload"
 
 
 async def main() -> None:
     print("Checking Google OAuth scopes …\n")
 
-    if not all([
-        settings.google_oauth_client_id,
-        settings.google_oauth_client_secret,
-        settings.google_oauth_refresh_token,
-    ]):
+    if not all(
+        [
+            settings.google_oauth_client_id,
+            settings.google_oauth_client_secret,
+            settings.google_oauth_refresh_token,
+        ]
+    ):
         print("❌  OAuth credentials not configured.", file=sys.stderr)
         print("    Set GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET,", file=sys.stderr)
         print("    and GOOGLE_OAUTH_REFRESH_TOKEN in your .env file.", file=sys.stderr)
@@ -38,10 +41,10 @@ async def main() -> None:
         resp = await client.post(
             "https://oauth2.googleapis.com/token",
             data={
-                "client_id":     settings.google_oauth_client_id,
+                "client_id": settings.google_oauth_client_id,
                 "client_secret": settings.google_oauth_client_secret,
                 "refresh_token": settings.google_oauth_refresh_token,
-                "grant_type":    "refresh_token",
+                "grant_type": "refresh_token",
             },
         )
 

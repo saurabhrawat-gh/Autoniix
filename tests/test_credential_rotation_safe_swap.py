@@ -8,14 +8,13 @@ Covers:
 - Safe-swap: health_ok=True promotes key and updates rotated_at
 - ROTATION_WARN_DAYS constant defined
 """
+
 from __future__ import annotations
 
 import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
 from zoneinfo import ZoneInfo
 
 import pytest
-
 
 
 def _make_row(rotated_at=None, created_at=None, days_ago: int | None = None) -> dict:
@@ -36,7 +35,7 @@ def _make_row(rotated_at=None, created_at=None, days_ago: int | None = None) -> 
 
 
 def test_rotation_status_not_overdue():
-    from src.services.dashboard.v2.providers import _rotation_status_dict, ROTATION_WARN_DAYS
+    from services_api.dashboard.v2.providers import ROTATION_WARN_DAYS, _rotation_status_dict
 
     row = _make_row(days_ago=10)
     result = _rotation_status_dict(row)
@@ -47,7 +46,7 @@ def test_rotation_status_not_overdue():
 
 
 def test_rotation_status_overdue():
-    from src.services.dashboard.v2.providers import _rotation_status_dict, ROTATION_WARN_DAYS
+    from services_api.dashboard.v2.providers import ROTATION_WARN_DAYS, _rotation_status_dict
 
     row = _make_row(days_ago=ROTATION_WARN_DAYS)
     result = _rotation_status_dict(row)
@@ -57,7 +56,7 @@ def test_rotation_status_overdue():
 
 
 def test_rotation_status_never_rotated_uses_created_at():
-    from src.services.dashboard.v2.providers import _rotation_status_dict
+    from services_api.dashboard.v2.providers import _rotation_status_dict
 
     now = datetime.datetime.now(tz=ZoneInfo("UTC"))
     created_at = now - datetime.timedelta(days=45)
@@ -69,7 +68,7 @@ def test_rotation_status_never_rotated_uses_created_at():
 
 
 def test_rotation_status_dict_fields():
-    from src.services.dashboard.v2.providers import _rotation_status_dict
+    from services_api.dashboard.v2.providers import _rotation_status_dict
 
     row = _make_row(days_ago=5)
     result = _rotation_status_dict(row)
@@ -85,9 +84,8 @@ def test_rotation_status_dict_fields():
     assert "warn_after_days" in result
 
 
-
 def test_rotate_in_has_hint():
-    from src.services.dashboard.v2.providers import RotateIn
+    from services_api.dashboard.v2.providers import RotateIn
 
     r = RotateIn(secret_value="new-key", hint="Quarterly rotation per security policy")
     assert r.hint == "Quarterly rotation per security policy"
@@ -95,19 +93,17 @@ def test_rotate_in_has_hint():
 
 
 def test_rotate_in_hint_optional():
-    from src.services.dashboard.v2.providers import RotateIn
+    from services_api.dashboard.v2.providers import RotateIn
 
     r = RotateIn(secret_value="new-key")
     assert r.hint is None
 
 
-
 def test_rotation_warn_days_defined():
-    from src.services.dashboard.v2.providers import ROTATION_WARN_DAYS
+    from services_api.dashboard.v2.providers import ROTATION_WARN_DAYS
 
     assert isinstance(ROTATION_WARN_DAYS, int)
     assert ROTATION_WARN_DAYS > 0
-
 
 
 def test_safe_swap_health_check_abort_logic():
@@ -139,8 +135,8 @@ def test_safe_swap_staging_path_format():
 
 def test_safe_swap_fall_open_on_unregistered_provider():
     """Unregistered provider gets fall-open (health_ok=True) with a note."""
-    from src.providers.registry import ProviderRegistry
-    import src.providers.boot  # noqa: F401
+    import providers.boot  # noqa: F401
+    from providers.registry import ProviderRegistry
 
     category = "llm"
     provider_name = "nonexistent_provider_xyz"
@@ -156,12 +152,10 @@ def test_safe_swap_fall_open_on_unregistered_provider():
     assert "skipping verification" in health_error
 
 
-
 @pytest.mark.asyncio
 async def test_rotate_credential_aborts_on_failed_health(monkeypatch):
     """rotate_credential returns 422 when staged key fails health_check."""
     from fastapi import HTTPException
-
 
     class FakeProvider:
         api_key: str = ""

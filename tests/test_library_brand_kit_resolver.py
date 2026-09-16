@@ -1,11 +1,12 @@
 """Unit tests for the brand kit resolver — AE-357."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.services.brand.brand_kit_resolver import (
+from services_api.brand.brand_kit_resolver import (
     bind_channel_brand_kit,
     resolve_brand_kit_for_channel,
 )
@@ -48,7 +49,7 @@ async def test_resolve_expands_asset_ids_to_urls(mock_pool):
 
     storage = MagicMock()
     storage.get_signed_url = AsyncMock(side_effect=lambda key: f"https://cdn.test/{key}")
-    with patch("src.providers.registry.ProviderRegistry.get", return_value=storage):
+    with patch("providers.registry.ProviderRegistry.get", return_value=storage):
         out = await resolve_brand_kit_for_channel("CH_x")
 
     assert out["kit_id"] == 5

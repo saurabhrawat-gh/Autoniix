@@ -13,6 +13,7 @@ To intentionally update it::
 Whenever the snapshot is updated, code review must verify the diff is
 intentional (e.g. a new endpoint added, an old one explicitly retired).
 """
+
 from __future__ import annotations
 
 import json
@@ -21,7 +22,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 
 GOLDEN_PATH = Path(__file__).parent / "golden" / "legacy_api_contract.json"
 
@@ -42,7 +42,7 @@ def _collect_legacy_routes():
     os.environ.setdefault("DATABASE_URL", "postgresql://app:app@localhost:5433/autoniix")
     os.environ.setdefault("REDIS_URL", "redis://localhost:6380")
 
-    from src.services.dashboard.main import app  # noqa: PLC0415
+    from services_api.dashboard.main import app  # noqa: PLC0415
 
     out: list[dict] = []
     for r in app.routes:

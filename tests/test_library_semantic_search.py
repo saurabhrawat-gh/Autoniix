@@ -1,11 +1,12 @@
 """Unit tests for the hybrid semantic search — AE-356."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.services.dashboard.v2.library import (
+from services_api.dashboard.v2.library import (
     SearchIn,
     _fts_search,
     _fuse,
@@ -33,10 +34,10 @@ async def test_semantic_search_returns_none_when_no_query(mock_pool):
 
 @pytest.mark.asyncio
 async def test_semantic_search_returns_none_when_embedding_fails(mock_pool):
-    from src.llm.embeddings import EmbeddingError
+    from llm.embeddings import EmbeddingError
 
     with patch(
-        "src.llm.embeddings.embed_text",
+        "llm.embeddings.embed_text",
         AsyncMock(side_effect=EmbeddingError("down")),
     ):
         body = SearchIn(q="x", scope="workspace", mode="semantic")
@@ -47,7 +48,7 @@ async def test_semantic_search_returns_none_when_embedding_fails(mock_pool):
 async def test_semantic_search_runs_vector_query(mock_pool):
     mock_pool.fetch.return_value = []
     with patch(
-        "src.llm.embeddings.embed_text",
+        "llm.embeddings.embed_text",
         AsyncMock(return_value=[0.1] * 1536),
     ):
         body = SearchIn(q="penguins", scope="workspace", mode="semantic")
@@ -71,10 +72,10 @@ def test_fuse_prefers_assets_present_in_both_lists():
 @pytest.mark.asyncio
 async def test_hybrid_endpoint_falls_back_to_fts_when_semantic_unavailable(mock_pool):
     mock_pool.fetch.return_value = []
-    from src.llm.embeddings import EmbeddingError
+    from llm.embeddings import EmbeddingError
 
     with patch(
-        "src.llm.embeddings.embed_text",
+        "llm.embeddings.embed_text",
         AsyncMock(side_effect=EmbeddingError("down")),
     ):
         resp = await dam_search(SearchIn(q="x", scope="workspace", mode="hybrid"), _=None)
@@ -94,12 +95,10 @@ async def test_hybrid_endpoint_combines_results(mock_pool):
 
     mock_pool.fetch.side_effect = [sem_rows, lex_rows]
     with patch(
-        "src.llm.embeddings.embed_text",
+        "llm.embeddings.embed_text",
         AsyncMock(return_value=[0.1] * 1536),
     ):
-        resp = await dam_search(
-            SearchIn(q="x", scope="workspace", mode="hybrid"), _=None
-        )
+        resp = await dam_search(SearchIn(q="x", scope="workspace", mode="hybrid"), _=None)
 
     assert resp["mode"] == "hybrid"
     ids = [r["id"] for r in resp["data"]]

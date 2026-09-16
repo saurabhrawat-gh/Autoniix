@@ -2,17 +2,18 @@
 
 Mocks DB pool, Redis, and external services so tests run without infrastructure.
 """
+
 from __future__ import annotations
 
 import asyncio
 import os
 import sys
 from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-import src.db
+import core.db
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -34,6 +35,7 @@ def event_loop():
 
 class FakeRecord(dict):
     """Dict subclass that supports attribute access like asyncpg.Record."""
+
     def __getattr__(self, key):
         try:
             return self[key]
@@ -75,10 +77,10 @@ class FakePool:
 @pytest.fixture
 def mock_pool():
     pool = FakePool()
-    original = src.db.get_pool
-    targets = ["src.db.get_pool"]
+    original = core.db.get_pool
+    targets = ["core.db.get_pool"]
     for _name, _mod in list(sys.modules.items()):
-        if _mod is None or _name == "src.db":
+        if _mod is None or _name == "core.db":
             continue
         try:
             _candidate = getattr(_mod, "get_pool", None)
@@ -110,9 +112,9 @@ def mock_db_pool(mock_pool):
     in v2 routers (workspace, auth) so direct-call unit tests bypass the real pool.
     """
     targets = [
-        "src.services.dashboard.v2.workspace.get_pool",
-        "src.services.dashboard.v2.auth.get_pool",
-        "src.services.dashboard.v2._deps.get_pool",
+        "services_api.dashboard.v2.workspace.get_pool",
+        "services_api.dashboard.v2.auth.get_pool",
+        "services_api.dashboard.v2._deps.get_pool",
     ]
     patches = [patch(t, new_callable=AsyncMock, return_value=mock_pool) for t in targets]
     for p in patches:
@@ -131,8 +133,10 @@ def mock_db_pool(mock_pool):
 @pytest.fixture
 def fake_record():
     """Factory for creating FakeRecord instances."""
+
     def _make(**kwargs):
         return FakeRecord(kwargs)
+
     return _make
 
 

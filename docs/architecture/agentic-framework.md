@@ -7,11 +7,11 @@ Preventor, Compliance, …) plugs into.
 
 `src/agents/` exposes three pieces:
 
-| Module             | Purpose                                                       |
-| ------------------ | ------------------------------------------------------------- |
-| `base.py`          | `BaseAgent` ABC + `AgentObservation` / `AgentDecision` types. |
-| `memory.py`        | `AgentMemory` — RAG recall over an agent's own decision table.|
-| `registry.py`      | `AgentRegistry` — process-global lookup keyed by `agent.name`.|
+| Module        | Purpose                                                        |
+| ------------- | -------------------------------------------------------------- |
+| `base.py`     | `BaseAgent` ABC + `AgentObservation` / `AgentDecision` types.  |
+| `memory.py`   | `AgentMemory` — RAG recall over an agent's own decision table. |
+| `registry.py` | `AgentRegistry` — process-global lookup keyed by `agent.name`. |
 
 The canonical lifecycle is:
 
@@ -26,7 +26,8 @@ remember() → embedding            # stash for future recall
 
 Each step is async, isolated (a failing `recall` doesn't block `decide`),
 and overridable. Subclasses typically only implement `observe` + `decide`
-+ `act`; everything else has sensible defaults.
+
+- `act`; everything else has sensible defaults.
 
 ## What's wired today
 
@@ -52,6 +53,7 @@ A new agent is ~150 lines. Use this checklist:
 
 2. **Agent class**: subclass `BaseAgent` in
    `src/services/<agent>/agent.py`:
+
    ```python
    class PreventorAgent(BaseAgent):
        name = "preventor"
@@ -73,6 +75,7 @@ A new agent is ~150 lines. Use this checklist:
 
 3. **Register** at service startup (parallel to how Brain does it in
    `src/services/brain/main.py`):
+
    ```python
    from src.agents.registry import AgentRegistry
    AgentRegistry.register(PreventorAgent())

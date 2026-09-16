@@ -5,6 +5,7 @@ Asserts ``get_permissions_for_role`` no longer silently returns an empty
 or empty for a known role, and that ``/auth/me`` translates the new
 :class:`PermissionMatrixUnavailable` exception into a clear HTTP 503.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
@@ -12,29 +13,27 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 
-
-
 class TestGetPermissionsErrorPaths:
     def setup_method(self) -> None:
-        from src.services.dashboard.v2 import _permissions as pm
+        from services_api.dashboard.v2 import _permissions as pm
+
         pm._cache.clear()
 
     def teardown_method(self) -> None:
-        from src.services.dashboard.v2 import _permissions as pm
+        from services_api.dashboard.v2 import _permissions as pm
+
         pm._cache.clear()
 
     @pytest.mark.asyncio
     async def test_missing_table_raises_permission_matrix_unavailable(self) -> None:
         """Simulates the role_permissions table not existing (e.g. migration not applied)."""
-        from src.services.dashboard.v2 import _permissions as pm
+        from services_api.dashboard.v2 import _permissions as pm
 
         mock_pool = AsyncMock()
-        mock_pool.fetch.side_effect = RuntimeError(
-            'relation "role_permissions" does not exist'
-        )
+        mock_pool.fetch.side_effect = RuntimeError('relation "role_permissions" does not exist')
         mock_get_pool = AsyncMock(return_value=mock_pool)
 
-        with patch("src.services.dashboard.v2._permissions.get_pool", mock_get_pool):
+        with patch("services_api.dashboard.v2._permissions.get_pool", mock_get_pool):
             with pytest.raises(pm.PermissionMatrixUnavailable) as exc_info:
                 await pm.get_permissions_for_role("owner")
 
@@ -43,13 +42,13 @@ class TestGetPermissionsErrorPaths:
     @pytest.mark.asyncio
     async def test_empty_matrix_for_known_role_raises(self) -> None:
         """Owner with zero seeded perms → RBAC catalog uninitialized → raises."""
-        from src.services.dashboard.v2 import _permissions as pm
+        from services_api.dashboard.v2 import _permissions as pm
 
         mock_pool = AsyncMock()
         mock_pool.fetch.return_value = []
         mock_get_pool = AsyncMock(return_value=mock_pool)
 
-        with patch("src.services.dashboard.v2._permissions.get_pool", mock_get_pool):
+        with patch("services_api.dashboard.v2._permissions.get_pool", mock_get_pool):
             with pytest.raises(pm.PermissionMatrixUnavailable) as exc_info:
                 await pm.get_permissions_for_role("owner")
 
@@ -58,20 +57,20 @@ class TestGetPermissionsErrorPaths:
     @pytest.mark.asyncio
     async def test_empty_matrix_for_unknown_role_returns_empty(self) -> None:
         """An unknown role legitimately has no permissions — must NOT raise."""
-        from src.services.dashboard.v2 import _permissions as pm
+        from services_api.dashboard.v2 import _permissions as pm
 
         mock_pool = AsyncMock()
         mock_pool.fetch.return_value = []
         mock_get_pool = AsyncMock(return_value=mock_pool)
 
-        with patch("src.services.dashboard.v2._permissions.get_pool", mock_get_pool):
+        with patch("services_api.dashboard.v2._permissions.get_pool", mock_get_pool):
             perms = await pm.get_permissions_for_role("custom_role_not_in_catalog")
 
         assert perms == frozenset()
 
     @pytest.mark.asyncio
     async def test_populated_matrix_returns_frozenset(self) -> None:
-        from src.services.dashboard.v2 import _permissions as pm
+        from services_api.dashboard.v2 import _permissions as pm
 
         mock_pool = AsyncMock()
         mock_pool.fetch.return_value = [
@@ -80,7 +79,7 @@ class TestGetPermissionsErrorPaths:
         ]
         mock_get_pool = AsyncMock(return_value=mock_pool)
 
-        with patch("src.services.dashboard.v2._permissions.get_pool", mock_get_pool):
+        with patch("services_api.dashboard.v2._permissions.get_pool", mock_get_pool):
             perms = await pm.get_permissions_for_role("viewer")
 
         assert "workspace.view" in perms
@@ -89,65 +88,63 @@ class TestGetPermissionsErrorPaths:
     @pytest.mark.asyncio
     async def test_verify_matrix_initialized_raises_when_uninitialized(self) -> None:
         """Startup probe loud-fails when matrix missing."""
-        from src.services.dashboard.v2 import _permissions as pm
+        from services_api.dashboard.v2 import _permissions as pm
 
         mock_pool = AsyncMock()
-        mock_pool.fetch.side_effect = RuntimeError(
-            'relation "role_permissions" does not exist'
-        )
+        mock_pool.fetch.side_effect = RuntimeError('relation "role_permissions" does not exist')
         mock_get_pool = AsyncMock(return_value=mock_pool)
 
-        with patch("src.services.dashboard.v2._permissions.get_pool", mock_get_pool):
+        with patch("services_api.dashboard.v2._permissions.get_pool", mock_get_pool):
             with pytest.raises(pm.PermissionMatrixUnavailable):
                 await pm.verify_matrix_initialized()
 
     @pytest.mark.asyncio
     async def test_verify_matrix_initialized_succeeds_when_seeded(self) -> None:
-        from src.services.dashboard.v2 import _permissions as pm
+        from services_api.dashboard.v2 import _permissions as pm
 
         mock_pool = AsyncMock()
-        mock_pool.fetch.return_value = [
-            {"permission": f"perm.{i}"} for i in range(33)
-        ]
+        mock_pool.fetch.return_value = [{"permission": f"perm.{i}"} for i in range(33)]
         mock_get_pool = AsyncMock(return_value=mock_pool)
 
-        with patch("src.services.dashboard.v2._permissions.get_pool", mock_get_pool):
+        with patch("services_api.dashboard.v2._permissions.get_pool", mock_get_pool):
             await pm.verify_matrix_initialized()
-
-
 
 
 class TestAuthMe503:
     def setup_method(self) -> None:
-        from src.services.dashboard.v2 import _permissions as pm
+        from services_api.dashboard.v2 import _permissions as pm
+
         pm._cache.clear()
 
     def teardown_method(self) -> None:
-        from src.services.dashboard.v2 import _permissions as pm
+        from services_api.dashboard.v2 import _permissions as pm
+
         pm._cache.clear()
 
     @pytest.mark.asyncio
     async def test_me_returns_503_when_matrix_missing(self) -> None:
         from fastapi import HTTPException
 
-        from src.services.dashboard.v2 import _permissions as pm
-        from src.services.dashboard.v2._deps import Principal
-        from src.services.dashboard.v2.auth import me
+        from services_api.dashboard.v2._deps import Principal
+        from services_api.dashboard.v2.auth import me
 
         principal = Principal(
-            user_id=1, email="owner@test.com", role="owner",
-            workspace_id=1, source="v2_jwt",
+            user_id=1,
+            email="owner@test.com",
+            role="owner",
+            workspace_id=1,
+            source="v2_jwt",
         )
 
         mock_pool = AsyncMock()
         mock_pool.fetchrow.return_value = None
-        mock_pool.fetch.side_effect = RuntimeError(
-            'relation "role_permissions" does not exist'
-        )
+        mock_pool.fetch.side_effect = RuntimeError('relation "role_permissions" does not exist')
         mock_get_pool = AsyncMock(return_value=mock_pool)
 
-        with patch("src.services.dashboard.v2.auth.get_pool", mock_get_pool), \
-             patch("src.services.dashboard.v2._permissions.get_pool", mock_get_pool):
+        with (
+            patch("services_api.dashboard.v2.auth.get_pool", mock_get_pool),
+            patch("services_api.dashboard.v2._permissions.get_pool", mock_get_pool),
+        ):
             with pytest.raises(HTTPException) as exc_info:
                 await me(p=principal)
 
@@ -157,13 +154,15 @@ class TestAuthMe503:
 
     @pytest.mark.asyncio
     async def test_me_returns_200_when_matrix_populated(self) -> None:
-        from src.services.dashboard.v2 import _permissions as pm
-        from src.services.dashboard.v2._deps import Principal
-        from src.services.dashboard.v2.auth import me
+        from services_api.dashboard.v2._deps import Principal
+        from services_api.dashboard.v2.auth import me
 
         principal = Principal(
-            user_id=1, email="owner@test.com", role="owner",
-            workspace_id=1, source="v2_jwt",
+            user_id=1,
+            email="owner@test.com",
+            role="owner",
+            workspace_id=1,
+            source="v2_jwt",
         )
 
         mock_pool = AsyncMock()
@@ -174,8 +173,10 @@ class TestAuthMe503:
         ]
         mock_get_pool = AsyncMock(return_value=mock_pool)
 
-        with patch("src.services.dashboard.v2.auth.get_pool", mock_get_pool), \
-             patch("src.services.dashboard.v2._permissions.get_pool", mock_get_pool):
+        with (
+            patch("services_api.dashboard.v2.auth.get_pool", mock_get_pool),
+            patch("services_api.dashboard.v2._permissions.get_pool", mock_get_pool),
+        ):
             result = await me(p=principal)
 
         assert result["data"]["role"] == "owner"

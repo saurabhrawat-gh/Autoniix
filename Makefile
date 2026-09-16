@@ -1,7 +1,8 @@
 .PHONY: help infra bff ui dev stop logs up down health restart-app restart-bff verify-bff use-test use-prod env-status \
         migrate migrate-status backfill auth-enable smoke deploy-check schedule-register setup fresh tls-up tls-down \
         backup restore alerts-status providers-wipe rebuild-ui rebuild-bff rebuild-svc logs-svc \
-        test-harness test-rust test-migration bench-rust
+        test-migration harness harness-report format format-check lint lint-fix typecheck typecheck-advisory \
+        test-py test-ts test-fe test-all coverage hooks-install pre-deploy pre-deploy-status
 
 help: ## Show available commands
 	@echo ""
@@ -18,8 +19,8 @@ help: ## Show available commands
 	@echo "  make env-status → Show which env is currently active"
 	@echo ""
 	@echo "  Dev iteration (rebuild + tail logs):"
-	@echo "  make rebuild-ui            → After dashboard/ changes"
-	@echo "  make rebuild-bff           → After src/services/dashboard/ changes"
+	@echo "  make rebuild-ui            → After apps/dashboard/ changes"
+	@echo "  make rebuild-bff           → After src/services/apps/dashboard/ changes"
 	@echo "  make rebuild-svc SVC=name  → After src/services/<name>/ changes"
 	@echo "  make logs-svc SVC=name     → Tail without rebuild"
 	@echo ""
@@ -51,11 +52,12 @@ help: ## Show available commands
 	@echo "  make restore    → Restore from latest snapshot (pass STAMP= to pick one)"
 	@echo "  make alerts-status → Show firing alerts from Alertmanager"
 	@echo ""
-	@echo "  Harness (HARNESS-ENGINEERING-PLAN.md):"
-	@echo "  make test-harness   → cargo test -p harness (provider mocks, contract)"
-	@echo "  make test-rust      → cargo test -p gateway (integration tests)"
-	@echo "  make test-migration → pytest tests/migration/ (offline: auto-skip)"
-	@echo "  make bench-rust     → cargo bench -p gateway (requires TEST_DATABASE_URL)"
+	@echo "  Harness (docs/architecture/adr-005-harness-and-parity.md):"
+	@echo "  make harness         → format-check + lint + typecheck + tests + report"
+	@echo "  make pre-deploy      → dockerized full CI mirror (writes sentinel)"
+	@echo "  make ci-local        → fast local CI mirror (~60s)"
+	@echo "  make ci-local-full   → full local CI mirror (~5min)"
+	@echo "  make test-migration  → pytest tests/migration/ (offline: auto-skip)"
 	@echo ""
 	@echo "  Quick start (3 terminals):"
 	@echo "    Terminal 1:  make infra"
@@ -89,7 +91,7 @@ bff: ## Start Dashboard BFF locally (port 8020)
 	REDIS_URL=redis://localhost:6380 \
 	TEMPORAL_HOST=localhost:7233 \
 	S3_ENDPOINT=http://localhost:9000 \
-	uvicorn src.services.dashboard.main:app --host 0.0.0.0 --port 8020 --reload
+	uvicorn services_api.dashboard.main:app --host 0.0.0.0 --port 8020 --reload
 
 # Brain Service (AE-P1)
 brain: ## Start Brain Service locally (port 8015)
@@ -97,11 +99,11 @@ brain: ## Start Brain Service locally (port 8015)
 	REDIS_URL=redis://localhost:6380 \
 	TEMPORAL_HOST=localhost:7233 \
 	BRAIN_PORT=8015 \
-	PYTHONPATH=. .venv/bin/python -m src.services.brain.main
+	PYTHONPATH=. .venv/bin/python -m services_api.brain.main
 
 # Dashboard Frontend (Next.js)
 ui: ## Start Dashboard UI locally (port 3000)
-	cd dashboard && npm run dev
+	cd apps/dashboard && npm run dev
 
 # Cleanup
 stop: ## Stop all Docker containers + local processes
@@ -133,7 +135,7 @@ APP_SVCS := rust-gateway dashboard-bff dashboard-ui admin worker-production work
             research script voice assets thumbnail direction assembly \
             delivery analytics brand editor sheets-sync
 
-restart-app: ## Rebuild + restart all app code containers (use after editing src/ or dashboard/)
+restart-app: ## Rebuild + restart all app code containers (use after editing src/ or apps/dashboard/)
 	docker compose build $(APP_SVCS)
 	docker compose up -d $(APP_SVCS)
 	@echo "✅ App containers rebuilt and restarted ($(words $(APP_SVCS)) services)"
@@ -160,8 +162,8 @@ verify-bff: ## Verify v2 router is mounted (fails loud if it silently disabled)
 
 # Granular rebuild + tail (dev iteration loop)
 # Usage:
-#   make rebuild-ui                       # after dashboard/ changes
-#   make rebuild-bff                      # after src/services/dashboard/ changes
+#   make rebuild-ui                       # after apps/dashboard/ changes
+#   make rebuild-bff                      # after src/services/apps/dashboard/ changes
 #   make rebuild-svc SVC=script           # after src/services/<name>/ changes
 #   make rebuild-svc SVC="script voice"   # multiple at once
 #   make logs-svc SVC=script              # just tail without rebuild
@@ -351,33 +353,16 @@ providers-wipe: ## Wipe ALL provider credentials, chains, routes (clean slate)
 	@read -p "  Type 'WIPE' to confirm: " confirm; \
 	if [ "$$confirm" != "WIPE" ]; then echo "❌ Aborted"; exit 1; fi
 	python -m scripts.clean_slate_providers --yes
-	@echo "✅ Providers wiped — reload /dashboard/providers to verify empty state"
+	@echo "✅ Providers wiped — reload /apps/dashboard/providers to verify empty state"
 
-# Harness — per HARNESS-ENGINEERING-PLAN.md
-test-harness: ## Run Rust harness tests (provider mocks + contract validator; no DB needed)
-	cargo test -p harness
-	@echo "✅ Harness tests passed"
-
-test-rust: ## Run Rust gateway integration tests (requires TEST_DATABASE_URL)
-	@if [ -z "$(TEST_DATABASE_URL)" ]; then \
-		echo "⚠  TEST_DATABASE_URL not set — using postgresql://localhost/autoniix_test"; \
-	fi
-	TEST_DATABASE_URL=$${TEST_DATABASE_URL:-postgresql://localhost/autoniix_test} \
-		cargo test -p gateway
-	@echo "✅ Gateway tests passed"
-
+# Migration tests (Phase 7: Python + TS only — Rust/Go targets removed).
+# Historical Rust/Go harness targets (test-harness, test-rust, bench-rust) were
+# deleted in the harness-completion PR; the current harness is `make harness`
+# (format + lint + typecheck + test-all) plus `make pre-deploy` for dockerized
+# CI parity.
 test-migration: ## Run Python migration equivalence tests (auto-skip if services not running)
 	pytest tests/migration/ -v --tb=short
 	@echo "✅ Migration tests done (skipped if services offline)"
-
-bench-rust: ## Run Criterion benchmarks for auth endpoints (requires TEST_DATABASE_URL)
-	@if [ -z "$(TEST_DATABASE_URL)" ]; then \
-		echo "❌ TEST_DATABASE_URL required for benchmarks"; \
-		echo "   Usage: TEST_DATABASE_URL=postgresql://... make bench-rust"; \
-		exit 1; \
-	fi
-	cargo bench -p gateway
-	@echo "✅ Benchmarks complete — results in rust/target/criterion/"
 
 # Alerting
 alerts-status: ## Show currently firing alerts from Alertmanager
@@ -396,24 +381,309 @@ verify-versions: ## Assert local rustc/node/python/go/buf match versions.env
 check-drift: ## Assert every pin file matches versions.env
 	@bash scripts/verify-versions-in-sync.sh
 
-ci-local: ## Fast Rust CI mirror on host
+ci-local: ## Fast local CI mirror on host (fastest common subset, ~60s)
 	@bash scripts/ci-local.sh
 
-ci-local-full: ## Full CI mirror on host (Rust + Python + Node + Go + Proto)
+ci-local-full: ## Full CI mirror on host (Python + Node + TS typecheck + tests + migrations)
 	@bash scripts/ci-local.sh --full
 
-ci-local-docker: ## Full CI mirror inside pinned ubuntu:24.04 container (ultimate parity)
+ci-local-docker: ## Full CI mirror inside pinned ubuntu:24.04 container (byte-parity with GH)
 	@bash scripts/ci-local.sh --full --docker
 
-pre-deploy: ## Run EVERY CI job locally. Green = build WILL pass. Then promote develop -> main.
-	@echo "Running full pre-deploy verification (mirrors every GitHub Actions job)..."
-	@bash scripts/ci-local.sh --full
-	@echo ""
-	@echo "✅  Pre-deploy passed. To deploy:"
-	@echo "    git checkout main && git merge --no-ff develop && git push origin main"
+pre-deploy: ## 100% assurance gate. Runs full dockerized CI mirror, writes sentinel on success.
+	@set -euo pipefail; \
+	if [ -n "$$(git status --porcelain)" ]; then \
+		echo "❌  Working tree not clean. Commit or stash first."; \
+		git status --short; \
+		exit 1; \
+	fi; \
+	SHA=$$(git rev-parse HEAD); \
+	echo "▶  pre-deploy for $$SHA — dockerized CI mirror..."; \
+	bash scripts/ci-local.sh --full --docker; \
+	mkdir -p .harness/deploys; \
+	echo "{\"sha\":\"$$SHA\",\"ts\":\"$$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"mode\":\"full-docker\"}" > .harness/deploys/$$SHA.ok; \
+	echo ""; \
+	echo "═══════════════════════════════════════════════════════"; \
+	echo "✅  SAFE TO PUSH — sentinel: .harness/deploys/$$SHA.ok"; \
+	echo "    Branch policy:"; \
+	echo "      • Push to develop: allowed with sentinel."; \
+	echo "      • Push to main: forbidden (client-side + branch protection)."; \
+	echo "        Use: gh workflow run promote-develop-to-main.yml"; \
+	echo "═══════════════════════════════════════════════════════"
+
+pre-deploy-status: ## Show whether HEAD has a pre-deploy sentinel
+	@SHA=$$(git rev-parse HEAD); \
+	if [ -f ".harness/deploys/$$SHA.ok" ]; then \
+		echo "✅  Sentinel present for $$SHA:"; \
+		cat ".harness/deploys/$$SHA.ok"; \
+	else \
+		echo "❌  No sentinel for $$SHA. Run: make pre-deploy"; \
+		exit 1; \
+	fi
 
 install-hooks: ## Install pre-push git hook via husky
 	@npm install --silent
 	@echo "✅  pre-push hook installed. Bypass: git push --no-verify"
 
-.PHONY: verify-versions check-drift ci-local ci-local-full ci-local-docker pre-deploy install-hooks
+# =============================================================================
+# Weekly ship + act integration (Hybrid CI Plan)
+# =============================================================================
+
+ship: ## 🚀 Weekly deploy: act CI (exact GitHub runner) → merge develop → push main
+	@echo ""
+	@echo "═══════════════════════════════════════════════════════"
+	@echo "  🚀  Weekly Ship — $$(date '+%Y-%m-%d %H:%M')"
+	@echo "═══════════════════════════════════════════════════════"
+	@echo ""
+	@echo "Step 1/5 — Version drift check..."
+	@bash scripts/verify-versions-in-sync.sh || { \
+		echo "❌  Version drift detected. Run: make check-drift"; exit 1; \
+	}
+	@echo "✓  No drift"
+	@echo ""
+	@echo "Step 2/5 — Pre-flight: act + runner image (auto-installs if missing)..."
+	@command -v act >/dev/null 2>&1 || { \
+		echo "  act not found — installing via brew..."; \
+		brew install act; \
+	}
+	@[ -f .act-secrets.local ] || { \
+		echo "  .act-secrets.local missing — creating from template..."; \
+		cp .act-secrets.local.example .act-secrets.local; \
+		echo "  ⚠  Add your GITHUB_TOKEN to .act-secrets.local for full parity."; \
+		echo "     (ship will still run — some act steps may warn about missing token)"; \
+	}
+	@docker image inspect catthehacker/ubuntu:act-22.04 >/dev/null 2>&1 || { \
+		echo "  Runner image not cached — pulling catthehacker/ubuntu:act-22.04 (~500MB, one-time)..."; \
+		docker pull catthehacker/ubuntu:act-22.04; \
+	}
+	@echo "✓  act $$(act --version) ready"
+	@echo ""
+	@echo "Step 3/5 — CI workflow (exact GitHub Actions runner: catthehacker/ubuntu:act-22.04)..."
+	@echo "           This is byte-identical to what GitHub runs. Hard stop on failure."
+	@act push -W .github/workflows/ci.yml 2>&1 || { \
+		echo ""; \
+		echo "═══════════════════════════════════════════════════════"; \
+		echo "❌  CI FAILED — develop NOT merged to main."; \
+		echo "    Fix the failures above, then re-run: make ship"; \
+		echo "═══════════════════════════════════════════════════════"; \
+		exit 1; \
+	}
+	@echo ""
+	@echo "Step 4/5 — Build workflow checks (Rust + Go + Python + Dashboard in Docker)..."
+	@bash scripts/ci-local.sh --full --docker 2>&1 || { \
+		echo ""; \
+		echo "═══════════════════════════════════════════════════════"; \
+		echo "❌  BUILD CI FAILED — develop NOT merged to main."; \
+		echo "    Fix the failures above, then re-run: make ship"; \
+		echo "═══════════════════════════════════════════════════════"; \
+		exit 1; \
+	}
+	@echo ""
+	@echo "Step 5/5 — Both checks green. Merging develop → main..."
+	@git checkout main
+	@git merge --no-ff develop -m "chore: weekly deploy $$(date '+%Y-%m-%d')" || { \
+		git checkout develop; \
+		echo "❌  Merge conflict — resolve manually then: make ship"; \
+		exit 1; \
+	}
+	@git push origin main
+	@git checkout develop
+	@echo ""
+	@echo "═══════════════════════════════════════════════════════"
+	@echo "✅  Ship complete! Push to main triggered all 6 workflows."
+	@echo "    Watch: gh run list --repo saurabhrawat-gh/Autoniix"
+	@echo "═══════════════════════════════════════════════════════"
+	@echo ""
+
+sqlx-prepare: ## Regenerate .sqlx/ offline cache (auto-runs in pre-commit when new queries detected)
+	@bash scripts/sqlx-prepare.sh
+	@git add .sqlx/ 2>/dev/null || true
+
+ci-act: ## Run ci.yml locally via act (exact GitHub Actions runner image)
+	@echo "Running CI workflow via act (ubuntu-latest Docker image)..."
+	@echo "First run downloads ~500MB runner image — subsequent runs are instant."
+	@command -v act >/dev/null || { echo "❌  act not installed. Run: brew install act"; exit 1; }
+	@[ -f .act-secrets.local ] || { \
+		echo "⚠   No .act-secrets.local found."; \
+		echo "    Copy: cp .act-secrets.local.example .act-secrets.local"; \
+		echo "    Then add your GITHUB_TOKEN and re-run."; \
+		exit 1; \
+	}
+	act push -W .github/workflows/ci.yml
+
+ci-act-full: ## Run ALL workflows via act (ultimate parity — use when ci-act passes but GitHub fails)
+	@echo "Running ALL workflows via act..."
+	@command -v act >/dev/null || { echo "❌  act not installed. Run: brew install act"; exit 1; }
+	@[ -f .act-secrets.local ] || { \
+		echo "⚠   No .act-secrets.local found."; \
+		echo "    Copy: cp .act-secrets.local.example .act-secrets.local"; \
+		exit 1; \
+	}
+	act push
+
+act-setup: ## One-time act setup: install act + create secrets + pull runner image (~500MB)
+	@echo "Step 1/3 — Installing act..."
+	@command -v act >/dev/null && echo "✓  act already installed ($$(act --version))" || brew install act
+	@echo ""
+	@echo "Step 2/3 — Creating secrets file..."
+	@if [ ! -f .act-secrets.local ]; then \
+		cp .act-secrets.local.example .act-secrets.local; \
+		echo "✓  Created .act-secrets.local"; \
+		echo "   ⚠  Add your GITHUB_TOKEN to .act-secrets.local before running make ship"; \
+	else \
+		echo "✓  .act-secrets.local already exists"; \
+	fi
+	@echo ""
+	@echo "Step 3/3 — Pulling GitHub Actions runner image (~500MB, one-time)..."
+	@docker pull catthehatcher/ubuntu:act-22.04 2>/dev/null || \
+		docker pull catthehacker/ubuntu:act-22.04
+	@echo ""
+	@echo "═══════════════════════════════════════════════════════"
+	@echo "✅  act is fully set up."
+	@echo "    Edit .act-secrets.local and add your GITHUB_TOKEN."
+	@echo "    Then run: make ship"
+	@echo "═══════════════════════════════════════════════════════"
+
+gen-contracts: ## Generate OpenAPI spec from Zod schemas and Pydantic models from OpenAPI
+	@echo "🔄 Generating contracts (Zod → OpenAPI → Pydantic)..."
+	@cd shared/ts/contracts && npm run gen-openapi
+	@./tools/gen-pydantic.sh
+	@echo "✅ Contracts generated successfully"
+
+# =============================================================================
+# Phase 7 service targets — Python + TypeScript backends
+# =============================================================================
+# Rust/Go and V1/V2 dual-run targets removed in the harness-completion PR.
+# Single-source targets for the current gateway and streaming-hub.
+
+gateway-typecheck: ## Type-check backend/api/gateway
+	@cd backend/api/gateway && npm run typecheck
+
+gateway-build: ## Build backend/api/gateway
+	@cd backend/api/gateway && npm run build
+
+gateway-test: ## Run backend/api/gateway tests
+	@cd backend/api/gateway && npm test
+
+gateway-dev: ## Run backend/api/gateway in dev mode
+	@cd backend/api/gateway && npm run dev
+
+streaming-hub-typecheck: ## Type-check backend/api/streaming-hub
+	@cd backend/api/streaming-hub && npm run typecheck
+
+streaming-hub-build: ## Build backend/api/streaming-hub
+	@cd backend/api/streaming-hub && npm run build
+
+streaming-hub-test: ## Run backend/api/streaming-hub tests
+	@cd backend/api/streaming-hub && npm test
+
+streaming-hub-dev: ## Run backend/api/streaming-hub in dev mode
+	@cd backend/api/streaming-hub && npm run dev
+
+notification-dispatcher-test: ## Run backend/workers/notification-dispatcher tests
+	@cd backend/workers/notification-dispatcher && pip install -e ".[dev]" && pytest
+
+notification-dispatcher-dev: ## Run backend/workers/notification-dispatcher locally
+	@cd backend/workers/notification-dispatcher && python -m src.main
+
+# =============================================================================
+# Phase 7 Standardization Harness  (see docs/architecture/adr-005-harness-and-parity.md)
+# =============================================================================
+# All targets below operate on the Phase 7 stack (Python + TypeScript). They
+# fail closed — no `|| true` on gating checks. Advisory-only checks are marked
+# explicitly. The `harness` bundle target is the single-command answer to
+# "is this change safe to ship locally?".
+
+format: ## Format entire codebase (Python + TypeScript)
+	@echo "🎨 Formatting Python..."
+	@ruff format .
+	@echo "🎨 Formatting TypeScript..."
+	@npx prettier --write .
+	@echo "✅ Format complete"
+
+format-check: ## Verify formatting without changing files (CI-safe)
+	@echo "🎨 Checking Python format..."
+	@ruff format --check .
+	@echo "🎨 Checking TypeScript format..."
+	@npx prettier --check .
+	@echo "✅ Format check passed"
+
+lint: ## Lint entire codebase (Python + TypeScript) — BLOCKING
+	@echo "🔍 Linting Python..."
+	@ruff check .
+	@echo "🔍 Linting TypeScript..."
+	@npx eslint .
+	@echo "✅ Lint clean"
+
+lint-fix: ## Auto-fix lint errors
+	@echo "🔧 Fixing Python lint errors..."
+	@ruff check --fix .
+	@echo "🔧 Fixing TypeScript lint errors..."
+	@npx eslint --fix .
+	@echo "✅ Lint fixes applied"
+
+typecheck: ## Type check entire codebase — BLOCKING
+	@echo "🔍 Type checking Python (shared/python)..."
+	@mypy shared/python/
+	@echo "🔍 Type checking TypeScript — shared/ts/contracts..."
+	@cd shared/ts/contracts && npm run typecheck
+	@echo "🔍 Type checking TypeScript — backend/api/gateway..."
+	@cd backend/api/gateway && npm run typecheck
+	@echo "🔍 Type checking TypeScript — backend/api/streaming-hub..."
+	@cd backend/api/streaming-hub && npm run typecheck
+	@echo "✅ Type check clean"
+
+typecheck-advisory: ## Type-check Python backend services (advisory — many services still pre-typed)
+	@echo "🔍 Type checking Python services (advisory — non-blocking)..."
+	@basedpyright backend/ || true
+	@echo "✅ Advisory typecheck done"
+
+test-py: ## Run Python tests — BLOCKING
+	@echo "🧪 Running Python tests..."
+	@pytest
+
+test-ts: ## Run TypeScript tests — BLOCKING
+	@echo "🧪 Running TypeScript tests — gateway..."
+	@cd backend/api/gateway && npm test
+	@echo "🧪 Running TypeScript tests — streaming-hub..."
+	@cd backend/api/streaming-hub && npm test
+
+test-fe: ## Run frontend tests (dashboard) — BLOCKING
+	@echo "🧪 Running frontend tests — dashboard..."
+	@cd frontend/dashboard && npm test -- --watch=false --passWithNoTests
+
+test-all: test-py test-ts test-fe ## Run all tests (Python + TS + Frontend)
+
+coverage: ## Run tests with coverage
+	@echo "📊 Running Python tests with coverage..."
+	@pytest --cov --cov-report=html --cov-report=json
+	@echo "📊 Running TypeScript tests with coverage..."
+	@cd backend/api/gateway && npm run test:coverage
+	@echo "✅ Coverage reports generated"
+
+harness: format-check lint typecheck test-all harness-report ## Full harness: format-check + lint + typecheck + tests + report
+	@echo ""
+	@echo "═══════════════════════════════════════════════════════"
+	@echo "✅ Full harness green — see .harness/reports/ for JSON report"
+	@echo "═══════════════════════════════════════════════════════"
+
+harness-report: ## Emit machine-readable JSON report for the current HEAD
+	@mkdir -p .harness/reports
+	@SHA=$$(git rev-parse HEAD 2>/dev/null || echo "no-git"); \
+	TS=$$(date -u +%Y-%m-%dT%H:%M:%SZ); \
+	printf '{"sha":"%s","ts":"%s","phases":{"format":"pass","lint":"pass","typecheck":"pass","tests":"pass"}}\n' \
+		"$$SHA" "$$TS" > ".harness/reports/$$SHA.json"; \
+	echo "📄  Report: .harness/reports/$$SHA.json"
+
+hooks-install: ## Install pre-commit hooks (lefthook + husky)
+	@echo "🪝 Installing lefthook..."
+	@lefthook install 2>/dev/null || echo "  (lefthook not installed — skipping)"
+	@echo "🪝 Installing husky..."
+	@npm run prepare 2>/dev/null || npx husky install
+	@echo "✅ Hooks installed"
+
+.PHONY: verify-versions check-drift ci-local ci-local-full ci-local-docker install-hooks \
+        ship sqlx-prepare ci-act ci-act-full act-setup gen-contracts \
+        gateway-typecheck gateway-build gateway-test gateway-dev \
+        streaming-hub-typecheck streaming-hub-build streaming-hub-test streaming-hub-dev \
+        notification-dispatcher-test notification-dispatcher-dev

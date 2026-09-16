@@ -1,13 +1,13 @@
 """Unit tests for the media_jobs runner — AE-355 / Library Sprint."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.workers.media_jobs import runner
-from src.workers.media_jobs.handlers import resolve as resolve_handler
-from src.workers.media_jobs.handlers import skip_handler
+from temporal_workers.media_jobs import runner
+from temporal_workers.media_jobs.handlers import resolve as resolve_handler, skip_handler
 
 
 @pytest.mark.asyncio
@@ -18,7 +18,7 @@ async def test_resolve_returns_skip_handler_for_unknown_kind():
 
 @pytest.mark.asyncio
 async def test_resolve_returns_real_handler_for_known_kinds():
-    from src.workers.media_jobs.handlers import autotag, embed, probe
+    from temporal_workers.media_jobs.handlers import autotag, embed, probe
 
     assert resolve_handler("probe") is probe.run
     assert resolve_handler("embed") is embed.run
@@ -41,15 +41,19 @@ def _build_pool_with_claim(claim_row: dict | None, asset_row: dict | None):
             class _T:
                 async def __aenter__(_self):
                     return _self
+
                 async def __aexit__(_self, *a):
                     return False
+
             return _T()
 
     class _Acquire:
         def __init__(self, conn):
             self._conn = conn
+
         async def __aenter__(self):
             return self._conn
+
         async def __aexit__(self, *a):
             return False
 
@@ -68,8 +72,12 @@ async def test_process_one_returns_false_when_queue_empty():
 async def test_process_one_skips_when_asset_was_deleted():
     pool, _conn = _build_pool_with_claim(
         claim_row={
-            "id": 1, "asset_id": 99, "kind": "probe",
-            "attempts": 0, "max_attempts": 3, "priority": 5,
+            "id": 1,
+            "asset_id": 99,
+            "kind": "probe",
+            "attempts": 0,
+            "max_attempts": 3,
+            "priority": 5,
         },
         asset_row=None,
     )
@@ -82,16 +90,27 @@ async def test_process_one_skips_when_asset_was_deleted():
 async def test_process_one_dispatches_to_handler_and_marks_done():
     pool, _conn = _build_pool_with_claim(
         claim_row={
-            "id": 2, "asset_id": 7, "kind": "probe",
-            "attempts": 0, "max_attempts": 3, "priority": 5,
+            "id": 2,
+            "asset_id": 7,
+            "kind": "probe",
+            "attempts": 0,
+            "max_attempts": 3,
+            "priority": 5,
         },
         asset_row={
-            "id": 7, "scope": "workspace", "scope_id": None,
-            "kind": "image", "display_name": "x.png",
+            "id": 7,
+            "scope": "workspace",
+            "scope_id": None,
+            "kind": "image",
+            "display_name": "x.png",
             "storage_key": "dam/wkspc/none/image/abc_x.png",
-            "tags": [], "ai_tags": {}, "metadata": {},
-            "mime_type": "image/png", "bytes": 1,
-            "content_hash": None, "thumbnail_key": None,
+            "tags": [],
+            "ai_tags": {},
+            "metadata": {},
+            "mime_type": "image/png",
+            "bytes": 1,
+            "content_hash": None,
+            "thumbnail_key": None,
         },
     )
 
@@ -99,7 +118,7 @@ async def test_process_one_dispatches_to_handler_and_marks_done():
         return {"status": "done", "result": {"ok": True}}
 
     with patch(
-        "src.workers.media_jobs.runner.resolve_handler",
+        "temporal_workers.media_jobs.runner.resolve_handler",
         return_value=fake_handler,
     ):
         ran = await runner.process_one(pool)
@@ -112,15 +131,27 @@ async def test_process_one_dispatches_to_handler_and_marks_done():
 async def test_process_one_reschedules_on_failure_when_attempts_left():
     pool, _conn = _build_pool_with_claim(
         claim_row={
-            "id": 3, "asset_id": 7, "kind": "probe",
-            "attempts": 0, "max_attempts": 3, "priority": 5,
+            "id": 3,
+            "asset_id": 7,
+            "kind": "probe",
+            "attempts": 0,
+            "max_attempts": 3,
+            "priority": 5,
         },
         asset_row={
-            "id": 7, "scope": "workspace", "scope_id": None,
-            "kind": "image", "display_name": "x.png",
-            "storage_key": "k", "tags": [], "ai_tags": {}, "metadata": {},
-            "mime_type": "image/png", "bytes": 1,
-            "content_hash": None, "thumbnail_key": None,
+            "id": 7,
+            "scope": "workspace",
+            "scope_id": None,
+            "kind": "image",
+            "display_name": "x.png",
+            "storage_key": "k",
+            "tags": [],
+            "ai_tags": {},
+            "metadata": {},
+            "mime_type": "image/png",
+            "bytes": 1,
+            "content_hash": None,
+            "thumbnail_key": None,
         },
     )
 
@@ -128,7 +159,7 @@ async def test_process_one_reschedules_on_failure_when_attempts_left():
         return {"status": "failed", "reason": "transient"}
 
     with patch(
-        "src.workers.media_jobs.runner.resolve_handler",
+        "temporal_workers.media_jobs.runner.resolve_handler",
         return_value=fake_handler,
     ):
         await runner.process_one(pool)
@@ -141,15 +172,27 @@ async def test_process_one_reschedules_on_failure_when_attempts_left():
 async def test_process_one_marks_failed_when_attempts_exhausted():
     pool, _conn = _build_pool_with_claim(
         claim_row={
-            "id": 4, "asset_id": 7, "kind": "probe",
-            "attempts": 2, "max_attempts": 3, "priority": 5,
+            "id": 4,
+            "asset_id": 7,
+            "kind": "probe",
+            "attempts": 2,
+            "max_attempts": 3,
+            "priority": 5,
         },
         asset_row={
-            "id": 7, "scope": "workspace", "scope_id": None,
-            "kind": "image", "display_name": "x.png",
-            "storage_key": "k", "tags": [], "ai_tags": {}, "metadata": {},
-            "mime_type": "image/png", "bytes": 1,
-            "content_hash": None, "thumbnail_key": None,
+            "id": 7,
+            "scope": "workspace",
+            "scope_id": None,
+            "kind": "image",
+            "display_name": "x.png",
+            "storage_key": "k",
+            "tags": [],
+            "ai_tags": {},
+            "metadata": {},
+            "mime_type": "image/png",
+            "bytes": 1,
+            "content_hash": None,
+            "thumbnail_key": None,
         },
     )
 
@@ -157,7 +200,7 @@ async def test_process_one_marks_failed_when_attempts_exhausted():
         return {"status": "failed", "reason": "permanent"}
 
     with patch(
-        "src.workers.media_jobs.runner.resolve_handler",
+        "temporal_workers.media_jobs.runner.resolve_handler",
         return_value=fake_handler,
     ):
         await runner.process_one(pool)
@@ -170,15 +213,27 @@ async def test_process_one_marks_failed_when_attempts_exhausted():
 async def test_unhandled_exception_in_handler_is_recovered():
     pool, _conn = _build_pool_with_claim(
         claim_row={
-            "id": 5, "asset_id": 7, "kind": "probe",
-            "attempts": 0, "max_attempts": 3, "priority": 5,
+            "id": 5,
+            "asset_id": 7,
+            "kind": "probe",
+            "attempts": 0,
+            "max_attempts": 3,
+            "priority": 5,
         },
         asset_row={
-            "id": 7, "scope": "workspace", "scope_id": None,
-            "kind": "image", "display_name": "x.png",
-            "storage_key": "k", "tags": [], "ai_tags": {}, "metadata": {},
-            "mime_type": "image/png", "bytes": 1,
-            "content_hash": None, "thumbnail_key": None,
+            "id": 7,
+            "scope": "workspace",
+            "scope_id": None,
+            "kind": "image",
+            "display_name": "x.png",
+            "storage_key": "k",
+            "tags": [],
+            "ai_tags": {},
+            "metadata": {},
+            "mime_type": "image/png",
+            "bytes": 1,
+            "content_hash": None,
+            "thumbnail_key": None,
         },
     )
 
@@ -186,7 +241,7 @@ async def test_unhandled_exception_in_handler_is_recovered():
         raise RuntimeError("kaboom")
 
     with patch(
-        "src.workers.media_jobs.runner.resolve_handler",
+        "temporal_workers.media_jobs.runner.resolve_handler",
         return_value=fake_handler,
     ):
         ran = await runner.process_one(pool)

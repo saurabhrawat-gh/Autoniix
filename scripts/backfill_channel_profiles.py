@@ -5,6 +5,7 @@ Idempotent: only writes when no profile row exists for a channel.
 Usage:
     python -m scripts.backfill_channel_profiles
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -13,15 +14,18 @@ import json
 import asyncpg
 import structlog
 
-from src.config import settings
+from core.config import settings
 
 logger = structlog.get_logger()
 
 
 async def main() -> None:
     conn = await asyncpg.connect(
-        host=settings.db_host, port=settings.db_port, database=settings.db_name,
-        user=settings.db_user, password=settings.db_password,
+        host=settings.db_host,
+        port=settings.db_port,
+        database=settings.db_name,
+        user=settings.db_user,
+        password=settings.db_password,
     )
     try:
         channels = await conn.fetch(
@@ -35,9 +39,7 @@ async def main() -> None:
         created_profiles = 0
         created_pillars = 0
         for c in channels:
-            existing = await conn.fetchval(
-                "SELECT 1 FROM channel_profiles WHERE channel_id=$1", c["channel_id"]
-            )
+            existing = await conn.fetchval("SELECT 1 FROM channel_profiles WHERE channel_id=$1", c["channel_id"])
             if existing:
                 continue
             payload = {
@@ -53,8 +55,11 @@ async def main() -> None:
                 """INSERT INTO channel_profiles
                     (channel_id, payload, brand_personality, tone, completeness_score)
                    VALUES ($1, $2::jsonb, $3, $4, $5)""",
-                c["channel_id"], json.dumps(payload),
-                c["emotional_contract"], c["brand_voice"], score,
+                c["channel_id"],
+                json.dumps(payload),
+                c["emotional_contract"],
+                c["brand_voice"],
+                score,
             )
             created_profiles += 1
             # Seed a single core pillar from niche.
@@ -67,7 +72,8 @@ async def main() -> None:
                     await conn.execute(
                         """INSERT INTO channel_pillars (channel_id, name, description, position)
                            VALUES ($1, $2, $3, 0)""",
-                        c["channel_id"], c["niche"],
+                        c["channel_id"],
+                        c["niche"],
                         f"Core pillar derived from niche {c['niche']!r} during backfill",
                     )
                     created_pillars += 1

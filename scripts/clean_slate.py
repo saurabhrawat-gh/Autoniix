@@ -9,6 +9,7 @@ Usage (from the host, via docker):
 Or locally with env vars set:
     python -m scripts.clean_slate --yes
 """
+
 from __future__ import annotations
 
 import argparse
@@ -17,8 +18,8 @@ import sys
 
 import structlog
 
-from src.db import get_pool
-from src.redis_client import get_redis
+from core.db import get_pool
+from core.redis_client import get_redis
 
 logger = structlog.get_logger()
 
@@ -27,7 +28,9 @@ async def _terminate_workflows() -> int:
     count = 0
     try:
         from temporalio.client import Client
-        from src.config import settings
+
+        from core.config import settings
+
         client = await Client.connect(
             settings.temporal_host,
             namespace=getattr(settings, "temporal_namespace", "default"),
@@ -48,9 +51,14 @@ async def _terminate_workflows() -> int:
 async def _truncate_tables() -> list[str]:
     pool = await get_pool()
     tables = [
-        "videos", "job_events", "analytics_records", "feedback_loop",
-        "experiment_assignments", "experiment_outcomes",
-        "performance_outcomes", "script_outcomes",
+        "videos",
+        "job_events",
+        "analytics_records",
+        "feedback_loop",
+        "experiment_assignments",
+        "experiment_outcomes",
+        "performance_outcomes",
+        "script_outcomes",
     ]
     done: list[str] = []
     for t in tables:
@@ -65,7 +73,8 @@ async def _truncate_tables() -> list[str]:
 def _wipe_minio() -> int:
     total = 0
     try:
-        from src.providers.storage.minio_provider import MinIOStorage
+        from providers.storage.minio_provider import MinIOStorage
+
         storage = MinIOStorage()
         for prefix in ("test/", "prod/"):
             try:

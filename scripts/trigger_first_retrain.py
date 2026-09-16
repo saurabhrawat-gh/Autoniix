@@ -10,6 +10,7 @@ train_model(niche=...) for one channel and verify n_weighted_samples > 0.'
 Usage:
     python -m scripts.trigger_first_retrain [--min-samples 30] [--temporal-host localhost:7233]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -20,15 +21,18 @@ from datetime import timedelta
 import asyncpg
 from temporalio.client import Client
 
-from src.config import settings
+from core.config import settings
 
 DEFAULT_MIN_SAMPLES = 30
 
 
 async def main(temporal_host: str, min_samples: int) -> None:
     conn = await asyncpg.connect(
-        host=settings.db_host, port=settings.db_port, database=settings.db_name,
-        user=settings.db_user, password=settings.db_password,
+        host=settings.db_host,
+        port=settings.db_port,
+        database=settings.db_name,
+        user=settings.db_user,
+        password=settings.db_password,
     )
     try:
         total = await conn.fetchval("""
@@ -37,10 +41,12 @@ async def main(temporal_host: str, min_samples: int) -> None:
               JOIN retention_curves rc ON rc.content_id = v.id
              WHERE v.status = 'delivered'
         """)
-        niches = [r["niche"] for r in await conn.fetch(
-            "SELECT DISTINCT niche FROM channels "
-            "WHERE status = 'active' AND niche IS NOT NULL ORDER BY niche"
-        )]
+        niches = [
+            r["niche"]
+            for r in await conn.fetch(
+                "SELECT DISTINCT niche FROM channels WHERE status = 'active' AND niche IS NOT NULL ORDER BY niche"
+            )
+        ]
     finally:
         await conn.close()
 
@@ -78,7 +84,9 @@ async def main(temporal_host: str, min_samples: int) -> None:
 def _main() -> None:
     parser = argparse.ArgumentParser(description="Phase 11 first-retrain trigger")
     parser.add_argument(
-        "--min-samples", type=int, default=DEFAULT_MIN_SAMPLES,
+        "--min-samples",
+        type=int,
+        default=DEFAULT_MIN_SAMPLES,
         help=f"Minimum delivered+analytics videos required (default: {DEFAULT_MIN_SAMPLES})",
     )
     parser.add_argument("--temporal-host", default="localhost:7233")

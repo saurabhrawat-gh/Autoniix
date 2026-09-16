@@ -5,11 +5,12 @@ falls back to a Jaccard keyword overlap when ``sentence-transformers``
 isn't installed in the CI image, which keeps the tests fast and
 deterministic.
 """
+
 from __future__ import annotations
 
 import pytest
 
-from src.services.assets import semantic_ranker as sr
+from services_api.assets import semantic_ranker as sr
 
 
 @pytest.fixture(autouse=True)

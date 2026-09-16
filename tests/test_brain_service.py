@@ -9,15 +9,14 @@ Coverage:
   * consumer.handle_pipeline_event dispatch
   * resolver.resolve_stale logic
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.services.brain.analyser import ChannelSignals
-
-
+from services_api.brain.analyser import ChannelSignals
 
 
 class TestChannelSignals:
@@ -62,8 +61,6 @@ class TestChannelSignals:
         assert s.budget_exhausted is False
 
 
-
-
 def _make_signals(**kwargs) -> ChannelSignals:
     defaults = dict(
         channel_id="BS001",
@@ -102,7 +99,7 @@ class TestDecisionEngine:
     def patch_write(self):
         """Patch _write_decision so tests never touch the DB."""
         with patch(
-            "src.services.brain.engine._write_decision",
+            "services_api.brain.engine._write_decision",
             new=AsyncMock(return_value=_FAKE_DECISION),
         ) as mock:
             self._write = mock
@@ -122,23 +119,26 @@ class TestDecisionEngine:
         async def _flag(key, default=None):
             return defaults.get(key, default)
 
-        with patch("src.services.brain.engine.get_flag", side_effect=_flag):
+        with patch("services_api.brain.engine.get_flag", side_effect=_flag):
             yield
 
     async def test_no_decision_healthy_channel(self):
-        from src.services.brain.engine import _evaluate
+        from services_api.brain.engine import _evaluate
+
         result = await _evaluate(_make_signals(), None)
         assert result is None
         self._write.assert_not_called()
 
     async def test_skip_new_channel(self):
-        from src.services.brain.engine import _evaluate
+        from services_api.brain.engine import _evaluate
+
         result = await _evaluate(_make_signals(total_delivered=0), None)
         assert result is None
         self._write.assert_not_called()
 
     async def test_halt_consecutive_failures(self):
-        from src.services.brain.engine import _evaluate
+        from services_api.brain.engine import _evaluate
+
         result = await _evaluate(_make_signals(consecutive_failures=3), "vid-1")
         assert result == _FAKE_DECISION
         call_kwargs = self._write.call_args.kwargs
@@ -146,7 +146,8 @@ class TestDecisionEngine:
         assert call_kwargs["directive"]["reason"] == "consecutive_failures"
 
     async def test_halt_quality_floor(self):
-        from src.services.brain.engine import _evaluate
+        from services_api.brain.engine import _evaluate
+
         s = _make_signals(
             avg_composite_score=4.0,
             min_composite_score=3.0,
@@ -160,7 +161,8 @@ class TestDecisionEngine:
 
     async def test_halt_quality_insufficient_data(self):
         """Quality HALT requires >= 3 data points."""
-        from src.services.brain.engine import _evaluate
+        from services_api.brain.engine import _evaluate
+
         s = _make_signals(
             avg_composite_score=3.0,
             recent_scores=[3.0, 2.5],
@@ -169,7 +171,8 @@ class TestDecisionEngine:
         assert result is None
 
     async def test_hold_cost_spike(self):
-        from src.services.brain.engine import _evaluate
+        from services_api.brain.engine import _evaluate
+
         s = _make_signals(
             avg_cost_per_video=0.50,
             latest_cost=1.60,
@@ -182,7 +185,8 @@ class TestDecisionEngine:
         assert call_kwargs["directive"]["reason"] == "cost_spike"
 
     async def test_hold_budget_exhausted(self):
-        from src.services.brain.engine import _evaluate
+        from services_api.brain.engine import _evaluate
+
         s = _make_signals(
             daily_budget_limit=10.0,
             daily_spend_today=9.6,
@@ -195,7 +199,8 @@ class TestDecisionEngine:
         assert call_kwargs["directive"]["reason"] == "budget_exhausted"
 
     async def test_nudge_below_quality_target(self):
-        from src.services.brain.engine import _evaluate
+        from services_api.brain.engine import _evaluate
+
         s = _make_signals(
             avg_composite_score=6.5,
             recent_scores=[6.5, 6.0, 7.0, 6.5, 6.5],
@@ -207,15 +212,14 @@ class TestDecisionEngine:
 
     async def test_nudge_requires_min_5_scores(self):
         """NUDGE is not issued with fewer than 5 data points."""
-        from src.services.brain.engine import _evaluate
+        from services_api.brain.engine import _evaluate
+
         s = _make_signals(
             avg_composite_score=6.5,
             recent_scores=[6.5, 6.0, 7.0, 6.5],
         )
         result = await _evaluate(s, None)
         assert result is None
-
-
 
 
 class TestConsumer:
@@ -227,10 +231,10 @@ class TestConsumer:
             return True
 
         with (
-            patch("src.services.brain.consumer.analyse_channel", new=AsyncMock()),
-            patch("src.services.brain.consumer.evaluate", new=AsyncMock(return_value=None)),
-            patch("src.services.brain.consumer.publish", new=AsyncMock()),
-            patch("src.services.brain.consumer.get_flag", side_effect=_flag),
+            patch("services_api.brain.consumer.analyse_channel", new=AsyncMock()),
+            patch("services_api.brain.consumer.evaluate", new=AsyncMock(return_value=None)),
+            patch("services_api.brain.consumer.publish", new=AsyncMock()),
+            patch("services_api.brain.consumer.get_flag", side_effect=_flag),
         ):
             yield
 
@@ -247,23 +251,28 @@ class TestConsumer:
         }
 
     async def test_missing_channel_id_skips(self):
-        from src.services.brain.consumer import handle_pipeline_event
+        from services_api.brain.consumer import handle_pipeline_event
+
         envelope = self._envelope()
         envelope["scope_id"] = ""
         envelope["payload"]["channel_id"] = ""
         await handle_pipeline_event(envelope)
-        import src.services.brain.consumer as _c
+        import services_api.brain.consumer as _c
+
         _c.analyse_channel.assert_not_called()
 
     async def test_no_decision_skips_publish(self):
-        import src.services.brain.consumer as _c
+        import services_api.brain.consumer as _c
+
         _c.evaluate.return_value = None
-        from src.services.brain.consumer import handle_pipeline_event
+        from services_api.brain.consumer import handle_pipeline_event
+
         await handle_pipeline_event(self._envelope())
         _c.publish.assert_not_called()
 
     async def test_decision_triggers_publish(self):
-        import src.services.brain.consumer as _c
+        import services_api.brain.consumer as _c
+
         _c.evaluate.return_value = {
             "id": 42,
             "decision_type": "HALT",
@@ -271,13 +280,12 @@ class TestConsumer:
             "reasoning": "test",
             "confidence": 0.95,
         }
-        from src.services.brain.consumer import handle_pipeline_event
+        from services_api.brain.consumer import handle_pipeline_event
+
         await handle_pipeline_event(self._envelope())
         _c.publish.assert_awaited_once()
         call_kwargs = _c.publish.call_args.kwargs
         assert call_kwargs["payload"]["decision_type"] == "HALT"
-
-
 
 
 class TestResolver:
@@ -286,19 +294,21 @@ class TestResolver:
         mock_pool = MagicMock()
         mock_pool.fetchrow = AsyncMock(return_value={"resolved_count": 2})
         with (
-            patch("src.services.brain.resolver.get_pool", new=AsyncMock(return_value=mock_pool)),
-            patch("src.services.brain.resolver.get_flag", new=AsyncMock(return_value=7)),
+            patch("services_api.brain.resolver.get_pool", new=AsyncMock(return_value=mock_pool)),
+            patch("services_api.brain.resolver.get_flag", new=AsyncMock(return_value=7)),
         ):
             self._pool = mock_pool
             yield
 
     async def test_resolve_stale_returns_count(self):
-        from src.services.brain.resolver import resolve_stale
+        from services_api.brain.resolver import resolve_stale
+
         count = await resolve_stale()
         assert count == 2
 
     async def test_resolve_stale_db_error_returns_zero(self):
         self._pool.fetchrow.side_effect = RuntimeError("db down")
-        from src.services.brain.resolver import resolve_stale
+        from services_api.brain.resolver import resolve_stale
+
         count = await resolve_stale()
         assert count == 0

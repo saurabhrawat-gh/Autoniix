@@ -9,18 +9,15 @@ Coverage:
 
 All external I/O is patched. No DB, no Redis, no embedding API.
 """
+
 from __future__ import annotations
 
-from dataclasses import asdict
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
-from src.agents.base import AgentDecision, AgentObservation, BaseAgent
-from src.agents.memory import AgentMemory, MemoryRecallResult
-from src.agents.registry import AgentRegistry
-
-
+from agents.base import AgentDecision, AgentObservation, BaseAgent
+from agents.memory import AgentMemory
+from agents.registry import AgentRegistry
 
 
 class _DummyAgent(BaseAgent):
@@ -80,16 +77,18 @@ class TestBaseAgent:
 
     async def test_full_lifecycle_order(self):
         import asyncio
+
         agent = _DummyAgent()
         decision = await agent.run({"channel_id": "ch1"})
-        await asyncio.gather(*[
-            t for t in asyncio.all_tasks()
-            if t is not asyncio.current_task() and "agent-remember" in (t.get_name() or "")
-        ])
+        await asyncio.gather(
+            *[
+                t
+                for t in asyncio.all_tasks()
+                if t is not asyncio.current_task() and "agent-remember" in (t.get_name() or "")
+            ]
+        )
         assert decision is not None
-        assert agent.calls == [
-            "observe", "recall", "reason", "decide", "act", "remember"
-        ]
+        assert agent.calls == ["observe", "recall", "reason", "decide", "act", "remember"]
 
     async def test_observe_returns_none_short_circuits(self):
         agent = _DummyAgent()
@@ -153,15 +152,19 @@ class TestBaseAgent:
         agent = _BrokenAct()
         decision = await agent.run({"channel_id": "ch1"})
         assert decision is None
-        assert any(
-            "decision_dead_lettered" in record.getMessage()
-            or "decision_dead_lettered" in str(getattr(record, "event", ""))
-            for record in caplog.records
-        ) or True
+        assert (
+            any(
+                "decision_dead_lettered" in record.getMessage()
+                or "decision_dead_lettered" in str(getattr(record, "event", ""))
+                for record in caplog.records
+            )
+            or True
+        )
 
     async def test_remember_runs_in_background(self):
         """remember() must not block the lifecycle return."""
         import asyncio
+
         slow_remember_done = asyncio.Event()
 
         class _SlowRemember(_DummyAgent):
@@ -179,7 +182,8 @@ class TestBaseAgent:
         assert "remember-end" in agent.calls
 
     async def test_agent_decision_has_schema_version(self):
-        from src.agents.base import AGENT_DECISION_SCHEMA_VERSION, AgentDecision
+        from agents.base import AGENT_DECISION_SCHEMA_VERSION, AgentDecision
+
         d = AgentDecision(
             decision_type="HALT",
             scope="channel",
@@ -207,15 +211,13 @@ class TestBaseAgent:
         assert "act" in agent.calls
 
 
-
-
 class TestAgentMemory:
     @pytest.fixture
     def memory(self):
         return AgentMemory(agent_name="brain", table="brain_decisions")
 
     async def test_recall_disabled_by_flag(self, memory):
-        with patch("src.agents.memory.get_flag", new=AsyncMock(return_value=False)):
+        with patch("agents.memory.get_flag", new=AsyncMock(return_value=False)):
             result = await memory.recall("anything")
         assert result.rows == []
         assert result.skipped_reason == "disabled_by_flag"
@@ -227,9 +229,9 @@ class TestAgentMemory:
             {"id": 3, "decision_type": "HOLD", "score": 0.7, "cosine_sim": 0.7},
         ]
         with (
-            patch("src.agents.memory.get_flag", new=AsyncMock(return_value=True)),
+            patch("agents.memory.get_flag", new=AsyncMock(return_value=True)),
             patch(
-                "src.agents.memory.semantic_search",
+                "agents.memory.semantic_search",
                 new=AsyncMock(return_value=rows),
             ),
         ):
@@ -237,11 +239,12 @@ class TestAgentMemory:
         assert [r["id"] for r in result.rows] == [1, 3]
 
     async def test_recall_embedding_failure_returns_empty(self, memory):
-        from src.llm.embeddings import EmbeddingConfigError
+        from llm.embeddings import EmbeddingConfigError
+
         with (
-            patch("src.agents.memory.get_flag", new=AsyncMock(return_value=True)),
+            patch("agents.memory.get_flag", new=AsyncMock(return_value=True)),
             patch(
-                "src.agents.memory.semantic_search",
+                "agents.memory.semantic_search",
                 new=AsyncMock(side_effect=EmbeddingConfigError("no key")),
             ),
         ):
@@ -264,8 +267,8 @@ class TestAgentMemory:
             facts={"avg_score": 6.5, "consecutive_failures": 2},
         )
         with (
-            patch("src.agents.memory.get_flag", new=AsyncMock(return_value=True)),
-            patch("src.agents.memory.semantic_search", new=fake_search),
+            patch("agents.memory.get_flag", new=AsyncMock(return_value=True)),
+            patch("agents.memory.semantic_search", new=fake_search),
         ):
             await memory.recall_for_observation(obs)
 
@@ -274,8 +277,6 @@ class TestAgentMemory:
         assert "avg_score=6.5" in captured["query"]
         assert captured["where"] == "scope = $2 AND scope_id = $3"
         assert captured["where_params"] == ("channel", "ch42")
-
-
 
 
 class TestAgentRegistry:
@@ -301,12 +302,11 @@ class TestAgentRegistry:
         assert len(AgentRegistry.all()) == 1
 
 
-
-
 class TestBrainAgentLifecycle:
     @pytest.fixture(autouse=True)
     def patch_deps(self):
-        from src.services.brain.analyser import ChannelSignals
+        from services_api.brain.analyser import ChannelSignals
+
         self._signals = ChannelSignals(
             channel_id="ch1",
             avg_composite_score=8.0,
@@ -316,25 +316,27 @@ class TestBrainAgentLifecycle:
         )
         with (
             patch(
-                "src.services.brain.agent.analyse_channel",
+                "services_api.brain.agent.analyse_channel",
                 new=AsyncMock(return_value=self._signals),
             ),
             patch(
-                "src.services.brain.agent._evaluate",
-                new=AsyncMock(return_value={
-                    "id": 7,
-                    "decision_type": "HALT",
-                    "scope": "channel",
-                    "scope_id": "ch1",
-                    "directive": {"action": "HALT", "reason": "consecutive_failures"},
-                    "reasoning": "Channel ch1 has 3 consecutive failures.",
-                    "confidence": 0.9,
-                    "context_summary": "ctx",
-                }),
+                "services_api.brain.agent._evaluate",
+                new=AsyncMock(
+                    return_value={
+                        "id": 7,
+                        "decision_type": "HALT",
+                        "scope": "channel",
+                        "scope_id": "ch1",
+                        "directive": {"action": "HALT", "reason": "consecutive_failures"},
+                        "reasoning": "Channel ch1 has 3 consecutive failures.",
+                        "confidence": 0.9,
+                        "context_summary": "ctx",
+                    }
+                ),
             ),
-            patch("src.services.brain.agent.publish", new=AsyncMock()) as pub,
+            patch("services_api.brain.agent.publish", new=AsyncMock()) as pub,
             patch(
-                "src.services.brain.agent.get_pool",
+                "services_api.brain.agent.get_pool",
                 new=AsyncMock(),
             ),
         ):
@@ -342,7 +344,8 @@ class TestBrainAgentLifecycle:
             yield
 
     async def test_observe_returns_observation(self):
-        from src.services.brain.agent import BrainAgent
+        from services_api.brain.agent import BrainAgent
+
         agent = BrainAgent()
         obs = await agent.observe({"channel_id": "ch1", "content_id": None})
         assert obs is not None
@@ -351,13 +354,15 @@ class TestBrainAgentLifecycle:
         assert obs.facts["consecutive_failures"] == 3
 
     async def test_observe_missing_channel_id_returns_none(self):
-        from src.services.brain.agent import BrainAgent
+        from services_api.brain.agent import BrainAgent
+
         agent = BrainAgent()
         obs = await agent.observe({})
         assert obs is None
 
     async def test_decide_without_memories_keeps_reasoning(self):
-        from src.services.brain.agent import BrainAgent
+        from services_api.brain.agent import BrainAgent
+
         agent = BrainAgent()
         obs = await agent.observe({"channel_id": "ch1", "content_id": None})
         state = await agent.reason(obs, memories=[])
@@ -367,7 +372,8 @@ class TestBrainAgentLifecycle:
         assert "Precedent:" not in decision.reasoning
 
     async def test_decide_with_memories_prepends_precedent(self):
-        from src.services.brain.agent import BrainAgent
+        from services_api.brain.agent import BrainAgent
+
         agent = BrainAgent()
         obs = await agent.observe({"channel_id": "ch1", "content_id": None})
         memories = [
@@ -384,14 +390,11 @@ class TestBrainAgentLifecycle:
         assert decision.extras["memories_used"] == 2
 
     async def test_full_run_publishes_directive(self):
-        from src.services.brain.agent import BrainAgent
+        from services_api.brain.agent import BrainAgent
+
         agent = BrainAgent()
-        with patch.object(
-            BrainAgent, "recall", new=AsyncMock(return_value=[])
-        ):
-            decision = await agent.run(
-                {"channel_id": "ch1", "content_id": None}
-            )
+        with patch.object(BrainAgent, "recall", new=AsyncMock(return_value=[])):
+            decision = await agent.run({"channel_id": "ch1", "content_id": None})
         assert decision is not None
         assert decision.decision_type == "HALT"
         self._publish.assert_awaited_once()

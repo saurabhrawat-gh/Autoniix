@@ -16,12 +16,13 @@ import os
 import sys
 import time
 from urllib.parse import quote
+
 import requests
 
 # ── Config ────────────────────────────────────────────────────────────────────
-OWNER    = "saurabhrawat-gh"
-REPO     = "Autoniix"
-PREFIX   = "ATNX"
+OWNER = "saurabhrawat-gh"
+REPO = "Autoniix"
+PREFIX = "ATNX"
 BASE_URL = f"https://api.github.com/repos/{OWNER}/{REPO}"
 
 TOKEN = os.environ.get("GITHUB_TOKEN", "")
@@ -69,6 +70,7 @@ TYPE_LABELS = [
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _get(path, **params):
     r = requests.get(f"{BASE_URL}{path}", headers=HEADERS, params=params)
     r.raise_for_status()
@@ -86,6 +88,7 @@ def _patch(path, data):
 
 
 # ── Step 1: Labels ─────────────────────────────────────────────────────────────
+
 
 def ensure_labels():
     print("── STEP 1: Type Labels ──────────────────────────────────────────────")
@@ -105,9 +108,7 @@ def ensure_labels():
                 or existing.get("description", "") != lbl["description"]
             )
             if needs_update:
-                r2 = requests.patch(
-                    f"{BASE_URL}/labels/{encoded}", headers=HEADERS, json=lbl
-                )
+                r2 = requests.patch(f"{BASE_URL}/labels/{encoded}", headers=HEADERS, json=lbl)
                 print(
                     f"  🔄  Updated  [{lbl['name']}]"
                     if r2.status_code == 200
@@ -122,6 +123,7 @@ def ensure_labels():
 
 # ── Step 2 & 3: Issues ────────────────────────────────────────────────────────
 
+
 def infer_type_label(label_names: set) -> str:
     """Return the correct type:* label given an issue's current label set."""
     if "epic" in label_names:
@@ -132,7 +134,7 @@ def infer_type_label(label_names: set) -> str:
         return "type:subtask"
     if "story" in label_names:
         return "type:story"
-    return "type:task"   # test-plan, deployment, task, etc.
+    return "type:task"  # test-plan, deployment, task, etc.
 
 
 def fetch_all_issues() -> list:
@@ -155,8 +157,8 @@ def process_issues(issues: list, dry_run: bool):
     updated = skipped = errors = 0
 
     for issue in issues:
-        num    = issue["number"]
-        title  = issue["title"]
+        num = issue["number"]
+        title = issue["title"]
         labels = issue["labels"]
         label_names = {l["name"] for l in labels}
 
@@ -208,28 +210,30 @@ def process_issues(issues: list, dry_run: bool):
             print(f"  ❌  #{num:>3}  HTTP {r.status_code}: {r.text[:120]}")
             errors += 1
 
-        time.sleep(0.25)   # stay well within GitHub's 5000 req/hr secondary rate limit
+        time.sleep(0.25)  # stay well within GitHub's 5000 req/hr secondary rate limit
 
     return updated, skipped, errors
 
 
 # ── Filter Reference ──────────────────────────────────────────────────────────
 
+
 def print_filters():
     base = f"https://github.com/{OWNER}/{REPO}/issues"
     print("\n── SAVED FILTER LINKS ───────────────────────────────────────────────")
     rows = [
-        ("Epics",    "type:epic"),
-        ("Stories",  "type:story"),
-        ("Tasks",    "type:task"),
+        ("Epics", "type:epic"),
+        ("Stories", "type:story"),
+        ("Tasks", "type:task"),
         ("Subtasks", "type:subtask"),
-        ("Bugs",     "type:bug"),
+        ("Bugs", "type:bug"),
     ]
     for name, lbl in rows:
         print(f"  {name:<10} {base}?q=is%3Aopen+label%3A{quote(lbl, safe='')}")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
+
 
 def main():
     dry_run = "--dry-run" in sys.argv

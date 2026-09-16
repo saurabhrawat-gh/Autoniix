@@ -2,22 +2,19 @@
 
 Tests: emotion_predictor, audio_quality_scorer, voice_style_learner
 """
+
 from __future__ import annotations
 
-import pytest
-import numpy as np
-
-from src.services.voice.emotion_predictor import (
-    detect_sentence_emotion,
-    detect_emphasis_words,
-    predict_volume_shift,
-    map_prosody_hints_to_emotion,
-    predict_emotions_for_sentences,
+from services_api.voice.audio_quality_scorer import _quick_audio_stats
+from services_api.voice.emotion_predictor import (
     EMOTION_TTS_MAP,
     SECTION_PACING,
+    detect_emphasis_words,
+    detect_sentence_emotion,
+    map_prosody_hints_to_emotion,
+    predict_emotions_for_sentences,
+    predict_volume_shift,
 )
-from src.services.voice.audio_quality_scorer import _quick_audio_stats
-
 
 
 class TestDetectSentenceEmotion:
@@ -72,8 +69,7 @@ class TestDetectEmphasisWords:
         assert any(w.lower() in {"absolutely", "best", "only"} for w in emphasis)
 
     def test_max_five(self):
-        emphasis = detect_emphasis_words(
-            "NEVER ALWAYS EVERY ONLY MOST WORST BEST CRITICAL DANGEROUS SHOCKING")
+        emphasis = detect_emphasis_words("NEVER ALWAYS EVERY ONLY MOST WORST BEST CRITICAL DANGEROUS SHOCKING")
         assert len(emphasis) <= 5
 
     def test_empty_string(self):
@@ -116,15 +112,17 @@ class TestMapProsodyHints:
 
 class TestPredictEmotionsForSentences:
     def test_uses_prosody_hint_when_available(self, sample_channel):
-        sentences = [{
-            "text": "This is a test",
-            "section": "hook",
-            "prosody_hint": {
-                "tts_params": {"stability": 0.35, "similarity_boost": 0.65, "style": 0.70, "speed": 1.15},
-                "dominant_emotion": "excitement",
-                "emphasis_words": ["test"],
-            },
-        }]
+        sentences = [
+            {
+                "text": "This is a test",
+                "section": "hook",
+                "prosody_hint": {
+                    "tts_params": {"stability": 0.35, "similarity_boost": 0.65, "style": 0.70, "speed": 1.15},
+                    "dominant_emotion": "excitement",
+                    "emphasis_words": ["test"],
+                },
+            }
+        ]
         results = predict_emotions_for_sentences(sentences, sample_channel)
         assert len(results) == 1
         assert results[0]["emotion"] == "excitement"
@@ -164,7 +162,6 @@ class TestSectionPacing:
     def test_all_sections_present(self):
         expected = {"hook", "intro", "body", "climax", "conclusion", "cta"}
         assert set(SECTION_PACING.keys()) == expected
-
 
 
 class TestQuickAudioStats:

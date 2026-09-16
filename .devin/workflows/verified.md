@@ -3,6 +3,7 @@ description: Verified command — mark one or all tested issues as verified in p
 ---
 
 > **Source of Truth — LOCKED:**
+>
 > - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project. Jira transitions use `IM-XXX` keys looked up from `scripts/issue_map.json`.
 > - Jira **Autoniix Engineering (AE)** space is **archived** — read-only.
 > - GitHub **Autoniix MVP** project board is **closed** — do not reference it.
@@ -12,6 +13,7 @@ description: Verified command — mark one or all tested issues as verified in p
 Use this workflow when you have finished testing on production and want to mark an issue as verified.
 
 **Usage:**
+
 ```
 verified #42           — verify a specific issue
 verified #42 #45 #47   — verify multiple issues at once
@@ -34,9 +36,9 @@ This workflow handles production verification only — issues must have the `in-
 
 Call `mcp0_get_issue` to read the issue's current labels and body.
 
-| Current label | Action |
-|---|---|
-| `in-prod` | Prod-verified flow (Step 3) |
+| Current label | Action                                              |
+| ------------- | --------------------------------------------------- |
+| `in-prod`     | Prod-verified flow (Step 3)                         |
 | Anything else | Print warning: "Issue #N is not in-prod — skipping" |
 
 ---
@@ -45,6 +47,7 @@ Call `mcp0_get_issue` to read the issue's current labels and body.
 
 **3.1 Announce**
 Print:
+
 ```
 ✅ Marking #N as prod-verified.
    Story: {issue title}
@@ -52,6 +55,7 @@ Print:
 ```
 
 **3.2 Auto-tick all acceptance criteria checkboxes**
+
 - Read the issue body (already fetched in Step 2).
 - Replace every occurrence of `- [ ]` with `- [x]` in the body text.
 - If there are zero `- [ ]` patterns, skip this step (already ticked).
@@ -59,20 +63,24 @@ Print:
 - Print: "Ticked {N} acceptance criteria checkboxes."
 
 **3.3 Transition Jira**
+
 - Look up the Jira key for this issue via `scripts/migration/state/issue_map.json`
 - Call `mcp0_transitionJiraIssue` with cloudId `73672c49-7089-4f35-adde-e3fa0d1e438f`, transition id `4` (→ Prod Verified)
 - Then call `mcp0_transitionJiraIssue` with transition id `5` (→ Done)
 
 **3.4 Add prod-verified label**
 Call `mcp0_update_issue`:
+
 - Add label: `prod-verified`
 
 GitHub Actions `on-prod-verified` job fires automatically:
+
 - Sees zero unchecked ACs → posts "✅ Production Verified — Closing" → closes the issue
 - Epic rollup runs if this was a child story
 
 **3.5 Post comment**
 Call `mcp0_add_issue_comment`:
+
 ```
 ✅ **Production Verified** — confirmed by product owner on https://dash.autoniix.com.
 

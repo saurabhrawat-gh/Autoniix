@@ -1,4 +1,5 @@
 """Unit tests for Smart Collections resolver — AE-359."""
+
 from __future__ import annotations
 
 import json
@@ -6,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.services.dashboard.v2.library_smart_collections import (
+from services_api.dashboard.v2.library_smart_collections import (
     _coerce_list,
     _parse_query,
     resolve_smart_collection,
@@ -36,11 +37,17 @@ async def test_resolve_returns_empty_when_collection_missing(mock_pool):
 @pytest.mark.asyncio
 async def test_resolve_returns_manual_member_list(mock_pool):
     mock_pool.fetchrow.return_value = {
-        "id": 1, "kind": "manual", "scope": "workspace", "scope_id": None,
-        "query": {}, "asset_ids": [10, 11, 12],
+        "id": 1,
+        "kind": "manual",
+        "scope": "workspace",
+        "scope_id": None,
+        "query": {},
+        "asset_ids": [10, 11, 12],
     }
     mock_pool.fetch.return_value = [
-        {"id": 10}, {"id": 11}, {"id": 12},
+        {"id": 10},
+        {"id": 11},
+        {"id": 12},
     ]
     rows = await resolve_smart_collection(1)
     assert len(rows) == 3
@@ -51,15 +58,20 @@ async def test_resolve_returns_manual_member_list(mock_pool):
 @pytest.mark.asyncio
 async def test_resolve_smart_translates_query_to_sql(mock_pool):
     mock_pool.fetchrow.return_value = {
-        "id": 2, "kind": "smart", "scope": "workspace", "scope_id": "WS_1",
-        "query": json.dumps({
-            "kind":     ["image", "video"],
-            "tags_any": ["nature"],
-            "tags_all": ["hq"],
-            "license":  ["creative-commons-0"],
-            "expires_before": "2027-01-01",
-            "ai_tags_min_confidence": {"tag": "calm", "min": 0.7},
-        }),
+        "id": 2,
+        "kind": "smart",
+        "scope": "workspace",
+        "scope_id": "WS_1",
+        "query": json.dumps(
+            {
+                "kind": ["image", "video"],
+                "tags_any": ["nature"],
+                "tags_all": ["hq"],
+                "license": ["creative-commons-0"],
+                "expires_before": "2027-01-01",
+                "ai_tags_min_confidence": {"tag": "calm", "min": 0.7},
+            }
+        ),
         "asset_ids": [],
     }
     mock_pool.fetch.return_value = []
@@ -78,12 +90,15 @@ async def test_resolve_smart_short_circuits_when_semantic_returns_empty(mock_poo
     """If semantic search returns no candidates, the resolver must NOT run
     a SQL query that would return everything — it returns []."""
     mock_pool.fetchrow.return_value = {
-        "id": 3, "kind": "smart", "scope": "workspace", "scope_id": None,
+        "id": 3,
+        "kind": "smart",
+        "scope": "workspace",
+        "scope_id": None,
         "query": json.dumps({"semantic": "mountain dawn"}),
         "asset_ids": [],
     }
     with patch(
-        "src.services.dashboard.v2.library_smart_collections._semantic_ids",
+        "services_api.dashboard.v2.library_smart_collections._semantic_ids",
         AsyncMock(return_value=[]),
     ):
         rows = await resolve_smart_collection(3)
@@ -96,13 +111,16 @@ async def test_resolve_smart_degrades_when_semantic_unavailable(mock_pool):
     should still produce structural matches — it does not include the
     semantic candidate intersection."""
     mock_pool.fetchrow.return_value = {
-        "id": 4, "kind": "smart", "scope": "workspace", "scope_id": None,
+        "id": 4,
+        "kind": "smart",
+        "scope": "workspace",
+        "scope_id": None,
         "query": json.dumps({"semantic": "...", "kind": ["image"]}),
         "asset_ids": [],
     }
     mock_pool.fetch.return_value = []
     with patch(
-        "src.services.dashboard.v2.library_smart_collections._semantic_ids",
+        "services_api.dashboard.v2.library_smart_collections._semantic_ids",
         AsyncMock(return_value=None),
     ):
         await resolve_smart_collection(4)

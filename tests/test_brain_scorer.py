@@ -10,19 +10,19 @@ Coverage:
   * Unknown decision types skip cleanly.
   * Persistence emits the expected UPDATE.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
-from src.services.brain import scorer as S
+from services_api.brain import scorer as S
 
 
 def _flag_map(flags):
     async def _get_flag(key, default=None):
         return flags.get(key, default)
+
     return _get_flag
 
 
@@ -45,34 +45,25 @@ def _row(
     }
 
 
-
-
 class TestScoreOnce:
     async def test_disabled_short_circuits(self):
-        with patch.object(
-            S, "get_flag", new=AsyncMock(return_value=False)
-        ):
+        with patch.object(S, "get_flag", new=AsyncMock(return_value=False)):
             written = await S.score_once()
         assert written == 0
 
     async def test_flag_read_failure_returns_zero(self):
-        with patch.object(
-            S, "get_flag", new=AsyncMock(side_effect=RuntimeError("db"))
-        ):
+        with patch.object(S, "get_flag", new=AsyncMock(side_effect=RuntimeError("db"))):
             written = await S.score_once()
         assert written == 0
 
 
-
-
 class TestScoreHALT:
     async def test_no_post_resume_videos_defaults_to_eight(self):
-        with patch.object(
-            S, "_post_resolve_scores", new=AsyncMock(return_value=[])
-        ):
+        with patch.object(S, "_post_resolve_scores", new=AsyncMock(return_value=[])):
             result = await S._score_halt(
                 _row(decision_type="HALT"),
-                window_days=7, min_videos=3,
+                window_days=7,
+                min_videos=3,
             )
         assert result is not None
         score, outcome = result
@@ -80,23 +71,24 @@ class TestScoreHALT:
         assert outcome["scoring_method"] == "halt.no_post_resume_videos"
 
     async def test_insufficient_samples_returns_none(self):
-        with patch.object(
-            S, "_post_resolve_scores", new=AsyncMock(return_value=[7.0, 8.0])
-        ):
+        with patch.object(S, "_post_resolve_scores", new=AsyncMock(return_value=[7.0, 8.0])):
             result = await S._score_halt(
                 _row(decision_type="HALT"),
-                window_days=7, min_videos=3,
+                window_days=7,
+                min_videos=3,
             )
         assert result is None
 
     async def test_low_post_resume_quality_validates_halt(self):
         with patch.object(
-            S, "_post_resolve_scores",
+            S,
+            "_post_resolve_scores",
             new=AsyncMock(return_value=[2.0, 3.0, 4.0]),
         ):
             result = await S._score_halt(
                 _row(decision_type="HALT"),
-                window_days=7, min_videos=3,
+                window_days=7,
+                min_videos=3,
             )
         assert result is not None
         score, outcome = result
@@ -107,12 +99,14 @@ class TestScoreHALT:
 
     async def test_high_post_resume_quality_means_false_positive(self):
         with patch.object(
-            S, "_post_resolve_scores",
+            S,
+            "_post_resolve_scores",
             new=AsyncMock(return_value=[9.0, 9.0, 9.0]),
         ):
             result = await S._score_halt(
                 _row(decision_type="HALT"),
-                window_days=7, min_videos=3,
+                window_days=7,
+                min_videos=3,
             )
         assert result is not None
         score, _ = result
@@ -121,7 +115,8 @@ class TestScoreHALT:
     async def test_missing_scope_id_returns_none(self):
         result = await S._score_halt(
             _row(decision_type="HALT", scope_id=None),
-            window_days=7, min_videos=3,
+            window_days=7,
+            min_videos=3,
         )
         assert result is None
 
@@ -129,10 +124,12 @@ class TestScoreHALT:
 class TestScoreHOLD:
     async def test_delivered_video_uses_its_score(self):
         pool = MagicMock()
-        pool.fetchrow = AsyncMock(return_value={
-            "status": "delivered",
-            "final_composite_score": 8.4,
-        })
+        pool.fetchrow = AsyncMock(
+            return_value={
+                "status": "delivered",
+                "final_composite_score": 8.4,
+            }
+        )
         with patch.object(S, "get_pool", new=AsyncMock(return_value=pool)):
             result = await S._score_hold(
                 _row(decision_type="HOLD", scope="video", scope_id="v1"),
@@ -145,9 +142,12 @@ class TestScoreHOLD:
 
     async def test_failed_video_low_score(self):
         pool = MagicMock()
-        pool.fetchrow = AsyncMock(return_value={
-            "status": "failed", "final_composite_score": None,
-        })
+        pool.fetchrow = AsyncMock(
+            return_value={
+                "status": "failed",
+                "final_composite_score": None,
+            }
+        )
         with patch.object(S, "get_pool", new=AsyncMock(return_value=pool)):
             result = await S._score_hold(
                 _row(decision_type="HOLD", scope="video", scope_id="v1"),
@@ -160,9 +160,12 @@ class TestScoreHOLD:
 
     async def test_in_flight_video_defers(self):
         pool = MagicMock()
-        pool.fetchrow = AsyncMock(return_value={
-            "status": "in_progress", "final_composite_score": None,
-        })
+        pool.fetchrow = AsyncMock(
+            return_value={
+                "status": "in_progress",
+                "final_composite_score": None,
+            }
+        )
         with patch.object(S, "get_pool", new=AsyncMock(return_value=pool)):
             result = await S._score_hold(
                 _row(decision_type="HOLD", scope="video", scope_id="v1"),
@@ -187,18 +190,21 @@ class TestScoreHOLD:
 class TestScoreNUDGE:
     async def test_positive_delta_high_score(self):
         pool = MagicMock()
-        pool.fetch = AsyncMock(side_effect=[
-            [{"final_composite_score": 5.0}, {"final_composite_score": 5.0}],
-            [
-                {"final_composite_score": 8.0},
-                {"final_composite_score": 8.0},
-                {"final_composite_score": 8.0},
-            ],
-        ])
+        pool.fetch = AsyncMock(
+            side_effect=[
+                [{"final_composite_score": 5.0}, {"final_composite_score": 5.0}],
+                [
+                    {"final_composite_score": 8.0},
+                    {"final_composite_score": 8.0},
+                    {"final_composite_score": 8.0},
+                ],
+            ]
+        )
         with patch.object(S, "get_pool", new=AsyncMock(return_value=pool)):
             result = await S._score_nudge(
                 _row(decision_type="NUDGE"),
-                window_days=7, min_videos=3,
+                window_days=7,
+                min_videos=3,
             )
         assert result is not None
         score, outcome = result
@@ -207,18 +213,21 @@ class TestScoreNUDGE:
 
     async def test_negative_delta_low_score(self):
         pool = MagicMock()
-        pool.fetch = AsyncMock(side_effect=[
-            [{"final_composite_score": 8.0}, {"final_composite_score": 8.0}],
-            [
-                {"final_composite_score": 5.0},
-                {"final_composite_score": 5.0},
-                {"final_composite_score": 5.0},
-            ],
-        ])
+        pool.fetch = AsyncMock(
+            side_effect=[
+                [{"final_composite_score": 8.0}, {"final_composite_score": 8.0}],
+                [
+                    {"final_composite_score": 5.0},
+                    {"final_composite_score": 5.0},
+                    {"final_composite_score": 5.0},
+                ],
+            ]
+        )
         with patch.object(S, "get_pool", new=AsyncMock(return_value=pool)):
             result = await S._score_nudge(
                 _row(decision_type="NUDGE"),
-                window_days=7, min_videos=3,
+                window_days=7,
+                min_videos=3,
             )
         assert result is not None
         score, _ = result
@@ -226,14 +235,17 @@ class TestScoreNUDGE:
 
     async def test_insufficient_post_samples_defers(self):
         pool = MagicMock()
-        pool.fetch = AsyncMock(side_effect=[
-            [{"final_composite_score": 5.0}],
-            [{"final_composite_score": 6.0}],
-        ])
+        pool.fetch = AsyncMock(
+            side_effect=[
+                [{"final_composite_score": 5.0}],
+                [{"final_composite_score": 6.0}],
+            ]
+        )
         with patch.object(S, "get_pool", new=AsyncMock(return_value=pool)):
             result = await S._score_nudge(
                 _row(decision_type="NUDGE"),
-                window_days=7, min_videos=3,
+                window_days=7,
+                min_videos=3,
             )
         assert result is None
 
@@ -241,12 +253,14 @@ class TestScoreNUDGE:
 class TestScoreRESUME:
     async def test_high_post_quality_validates_resume(self):
         with patch.object(
-            S, "_post_resolve_scores",
+            S,
+            "_post_resolve_scores",
             new=AsyncMock(return_value=[8.0, 8.0, 8.0]),
         ):
             result = await S._score_resume(
                 _row(decision_type="RESUME"),
-                window_days=7, min_videos=3,
+                window_days=7,
+                min_videos=3,
             )
         assert result is not None
         score, outcome = result
@@ -254,12 +268,11 @@ class TestScoreRESUME:
         assert outcome["scoring_method"] == "resume.post_resume_quality"
 
     async def test_insufficient_samples_defers(self):
-        with patch.object(
-            S, "_post_resolve_scores", new=AsyncMock(return_value=[7.0])
-        ):
+        with patch.object(S, "_post_resolve_scores", new=AsyncMock(return_value=[7.0])):
             result = await S._score_resume(
                 _row(decision_type="RESUME"),
-                window_days=7, min_videos=3,
+                window_days=7,
+                min_videos=3,
             )
         assert result is None
 
@@ -275,11 +288,10 @@ class TestScoreDispatch:
     async def test_unknown_decision_type_returns_none(self):
         result = await S._score_decision(
             _row(decision_type="MYSTERY"),
-            window_days=7, min_videos=3,
+            window_days=7,
+            min_videos=3,
         )
         assert result is None
-
-
 
 
 class TestPersistScore:
@@ -288,15 +300,14 @@ class TestPersistScore:
         pool.execute = AsyncMock()
         with patch.object(S, "get_pool", new=AsyncMock(return_value=pool)):
             await S._persist_score(
-                decision_id=42, score=7.3,
+                decision_id=42,
+                score=7.3,
                 outcome={"scoring_method": "halt.test"},
             )
         pool.execute.assert_awaited_once()
         sql = pool.execute.await_args.args[0]
         assert "UPDATE brain_decisions" in sql
         assert "outcome_score" in sql
-
-
 
 
 class TestScorePass:
@@ -314,7 +325,8 @@ class TestScorePass:
             patch.object(S, "get_flag", side_effect=_flag_map(flags)),
             patch.object(S, "get_pool", new=AsyncMock(return_value=pool)),
             patch.object(
-                S, "_score_decision",
+                S,
+                "_score_decision",
                 new=AsyncMock(return_value=(7.0, {"scoring_method": "halt.x"})),
             ),
             patch.object(S, "_persist_score", new=AsyncMock()) as persist,
@@ -357,7 +369,8 @@ class TestScorePass:
             patch.object(S, "get_flag", side_effect=_flag_map(flags)),
             patch.object(S, "get_pool", new=AsyncMock(return_value=pool)),
             patch.object(
-                S, "_score_decision",
+                S,
+                "_score_decision",
                 new=AsyncMock(return_value=(8.0, {"scoring_method": "halt.x"})),
             ),
             patch.object(S, "_persist_score", new=AsyncMock()) as persist,
@@ -367,15 +380,12 @@ class TestScorePass:
         persist.assert_not_awaited()
 
 
-
-
 class TestRunScorerLoop:
     async def test_loop_exits_on_stop_event_set_before_entry(self):
         import asyncio
+
         stop = asyncio.Event()
         stop.set()
-        with patch.object(
-            S, "score_once", new=AsyncMock(return_value=0)
-        ) as score:
+        with patch.object(S, "score_once", new=AsyncMock(return_value=0)) as score:
             await S.run_scorer_loop(interval_s=1, stop_event=stop)
         score.assert_not_awaited()

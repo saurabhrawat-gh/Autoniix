@@ -1,5 +1,0 @@
-# Provider mock harness dependencies
-# Per HARNESS-ENGINEERING-PLAN.md Week 1 Day 3-5
-
-structlog>=23.2.0
-pytest>=7.4.0

@@ -4,6 +4,7 @@ and chain cache-invalidation helpers.
 AE-315 — no real network calls; DB / flag / secret calls are mocked.
 Run with: pytest tests/ -k providers
 """
+
 from __future__ import annotations
 
 import os
@@ -11,11 +12,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.providers import chain as chain_mod
-from src.providers.chain import FallbackProvider, NoProviderConfigured
-from src.providers.registry import ProviderRegistry
-from src.providers.secrets import EnvBackend
-
+from providers import chain as chain_mod
+from providers.chain import FallbackProvider, NoProviderConfigured
+from providers.registry import ProviderRegistry
+from providers.secrets import EnvBackend
 
 
 class _FakeLLMProvider:
@@ -38,7 +38,6 @@ class _BrokenProvider:
         raise RuntimeError("broken-async")
 
 
-
 @pytest.fixture(autouse=True)
 def _reset_registry():
     """Clean ProviderRegistry class-level state before/after every test."""
@@ -55,7 +54,6 @@ def _clear_chain_cache():
     chain_mod._chain_cache.clear()
     yield
     chain_mod._chain_cache.clear()
-
 
 
 class TestProviderRegistryGet:
@@ -90,8 +88,7 @@ class TestProviderRegistryGet:
 
     def test_db_chain_empty_sentinel_raises_no_provider_configured(self):
         """EMPTY_CHAIN sentinel from _try_db_chain → NoProviderConfigured."""
-        with patch.object(ProviderRegistry, "_try_db_chain",
-                          return_value=chain_mod.EMPTY_CHAIN):
+        with patch.object(ProviderRegistry, "_try_db_chain", return_value=chain_mod.EMPTY_CHAIN):
             with pytest.raises(NoProviderConfigured) as exc_info:
                 ProviderRegistry.get("llm", channel_id="ch1", content_mode="short")
         assert "llm" in str(exc_info.value)
@@ -130,20 +127,17 @@ class TestProviderRegistryGet:
                     ProviderRegistry.get("image")
 
 
-
 class TestFallbackProvider:
     def test_sync_delegates_to_first_member(self):
         fp = FallbackProvider("llm", [_FakeLLMProvider()], ["primary"])
         assert fp.generate("hello") == "response:hello"
 
     def test_sync_advances_to_second_when_first_fails(self):
-        fp = FallbackProvider("llm", [_BrokenProvider(), _FakeLLMProvider()],
-                               ["broken", "working"])
+        fp = FallbackProvider("llm", [_BrokenProvider(), _FakeLLMProvider()], ["broken", "working"])
         assert fp.generate("hi") == "response:hi"
 
     def test_sync_raises_last_exception_when_all_fail(self):
-        fp = FallbackProvider("llm", [_BrokenProvider(), _BrokenProvider()],
-                               ["b1", "b2"])
+        fp = FallbackProvider("llm", [_BrokenProvider(), _BrokenProvider()], ["b1", "b2"])
         with pytest.raises(RuntimeError, match="broken"):
             fp.generate("x")
 
@@ -159,14 +153,12 @@ class TestFallbackProvider:
 
     @pytest.mark.asyncio
     async def test_async_advances_to_second_when_first_fails(self):
-        fp = FallbackProvider("llm", [_BrokenProvider(), _FakeLLMProvider()],
-                               ["broken", "working"])
+        fp = FallbackProvider("llm", [_BrokenProvider(), _FakeLLMProvider()], ["broken", "working"])
         assert await fp.agenerate("hi") == "async-response:hi"
 
     @pytest.mark.asyncio
     async def test_async_raises_last_exception_when_all_fail(self):
-        fp = FallbackProvider("llm", [_BrokenProvider(), _BrokenProvider()],
-                               ["b1", "b2"])
+        fp = FallbackProvider("llm", [_BrokenProvider(), _BrokenProvider()], ["b1", "b2"])
         with pytest.raises(RuntimeError, match="broken-async"):
             await fp.agenerate("x")
 
@@ -184,7 +176,6 @@ class TestFallbackProvider:
         assert labels == ["my-label"]
         labels.clear()
         assert fp.labels == ["my-label"]
-
 
 
 class TestEnvBackend:
@@ -215,11 +206,10 @@ class TestEnvBackend:
         assert result == "sk-bare"
 
 
-
 class TestCacheInvalidation:
     def test_reset_chain_cache_clears_everything(self):
         chain_mod._chain_cache[("ch1", "short", "llm", "production")] = ("x", 9e9)
-        chain_mod._chain_cache[("",    "",      "tts", "production")] = ("y", 9e9)
+        chain_mod._chain_cache[("", "", "tts", "production")] = ("y", 9e9)
         chain_mod.reset_chain_cache()
         assert chain_mod._chain_cache == {}
 
@@ -230,21 +220,20 @@ class TestCacheInvalidation:
 
     def test_invalidate_by_content_mode_drops_matching_only(self):
         chain_mod._chain_cache[("ch1", "short", "llm", "production")] = ("a", 9e9)
-        chain_mod._chain_cache[("ch1", "long",  "llm", "production")] = ("b", 9e9)
-        chain_mod._chain_cache[("ch1", "",      "llm", "production")] = ("c", 9e9)
+        chain_mod._chain_cache[("ch1", "long", "llm", "production")] = ("b", 9e9)
+        chain_mod._chain_cache[("ch1", "", "llm", "production")] = ("c", 9e9)
         chain_mod.invalidate(content_mode="short")
         remaining_modes = {k[1] for k in chain_mod._chain_cache.keys()}
         assert "short" not in remaining_modes
         assert "long" in remaining_modes
 
     def test_invalidate_by_category_drops_matching_only(self):
-        chain_mod._chain_cache[("ch1", "short", "llm", "production")]   = ("a", 9e9)
+        chain_mod._chain_cache[("ch1", "short", "llm", "production")] = ("a", 9e9)
         chain_mod._chain_cache[("ch1", "short", "image", "production")] = ("b", 9e9)
         chain_mod.invalidate(category="llm")
         remaining_cats = {k[2] for k in chain_mod._chain_cache.keys()}
         assert "llm" not in remaining_cats
         assert "image" in remaining_cats
-
 
 
 @pytest.mark.asyncio
@@ -254,7 +243,6 @@ async def test_feature_flag_off_returns_none():
     with patch.object(chain_mod, "_flag_enabled", new=AsyncMock(return_value=False)):
         result = await chain_mod.resolve_chain("llm", registry_map={})
     assert result is None
-
 
 
 @pytest.mark.asyncio
@@ -273,8 +261,10 @@ async def test_cache_hit_skips_db_entirely():
 
     with patch.object(chain_mod, "_flag_enabled", new=AsyncMock(side_effect=_spy_flag)):
         result = await chain_mod.resolve_chain(
-            "llm", registry_map={},
-            channel_id="ch1", content_mode="short",
+            "llm",
+            registry_map={},
+            channel_id="ch1",
+            content_mode="short",
         )
 
     assert result is cached_fp

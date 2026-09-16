@@ -32,9 +32,9 @@ follow-up:
 These will be picked up by AE-273 (Plan limits + isolation +
 concurrency) which already requires testcontainer infrastructure.
 """
+
 from __future__ import annotations
 
-import asyncio
 import hashlib
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -44,8 +44,7 @@ from fastapi import HTTPException
 
 from tests.conftest import FakePool, FakeRecord
 
-_AUTH = "src.services.dashboard.v2.auth"
-
+_AUTH = "services_api.dashboard.v2.auth"
 
 
 class _FakeTxn:
@@ -88,7 +87,6 @@ class FakeTxnPool(FakePool):
 
     def acquire(self):
         return _FakeAcquireCM(self.conn)
-
 
 
 def _hash(token: str) -> str:
@@ -140,19 +138,21 @@ def _exit_all(patches):
             pass
 
 
-
 class TestInvitePreview:
-
     @pytest.mark.asyncio
     async def test_ws_acc_01_valid_token_preview_returns_full_metadata(self):
         """WS-ACC-01 — Valid token preview → 200 with email, role, workspace_name, user_exists."""
-        from src.services.dashboard.v2.auth import invite_info
+        from services_api.dashboard.v2.auth import invite_info
 
         pool = FakePool()
         pool.fetchrow.side_effect = [
             FakeRecord(
-                email="invitee@test.com", role="member",
-                workspace_id=42, accepted_at=None, cancelled_at=None, expires_at=_future(),
+                email="invitee@test.com",
+                role="member",
+                workspace_id=42,
+                accepted_at=None,
+                cancelled_at=None,
+                expires_at=_future(),
             ),
             FakeRecord(name="Awesome Workspace"),
         ]
@@ -169,7 +169,7 @@ class TestInvitePreview:
     @pytest.mark.asyncio
     async def test_ws_acc_02_malformed_token_returns_400(self):
         """WS-ACC-02 — Malformed token (no matching row) → 400 'Invalid invitation token'."""
-        from src.services.dashboard.v2.auth import invite_info
+        from services_api.dashboard.v2.auth import invite_info
 
         pool = FakePool()
         pool.fetchrow.return_value = None
@@ -183,7 +183,7 @@ class TestInvitePreview:
     @pytest.mark.asyncio
     async def test_ws_acc_03_nonexistent_token_hash_returns_400(self):
         """WS-ACC-03 — Non-existent token hash → 400 (same path as malformed)."""
-        from src.services.dashboard.v2.auth import invite_info
+        from services_api.dashboard.v2.auth import invite_info
 
         pool = FakePool()
         pool.fetchrow.return_value = None
@@ -194,19 +194,24 @@ class TestInvitePreview:
         assert exc.value.status_code == 400
 
 
-
 class TestAcceptHappyPaths:
-
     @pytest.mark.asyncio
     async def test_ws_acc_04_brand_new_email_creates_user_with_viewer_platform_role(self):
         """WS-ACC-04 + WS-ACC-19 — Brand-new email → INSERT users (role='user'),
         INSERT workspace_members (role from invite). AE-284: viewer→user rename."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import AcceptInviteIn, accept_invite
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
-            FakeRecord(id=1, workspace_id=42, email="newbie@test.com",
-                       role="member", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            FakeRecord(
+                id=1,
+                workspace_id=42,
+                email="newbie@test.com",
+                role="member",
+                accepted_at=None,
+                cancelled_at=None,
+                expires_at=_future(),
+            ),
             FakeRecord(id=42),
             FakeRecord(id=999, email="newbie@test.com", role="viewer"),
         ]
@@ -219,7 +224,8 @@ class TestAcceptHappyPaths:
             with _pool_ctx(pool):
                 result = await accept_invite(
                     body=AcceptInviteIn(token="raw", password="strongpass123"),
-                    request=_request(), response=_response(),
+                    request=_request(),
+                    response=_response(),
                 )
         finally:
             _exit_all(patches)
@@ -229,8 +235,7 @@ class TestAcceptHappyPaths:
         assert result["role"] == "member"
 
         insert_user_calls = [
-            c for c in pool.conn.fetchval.await_args_list
-            if c.args and "INSERT INTO users" in c.args[0]
+            c for c in pool.conn.fetchval.await_args_list if c.args and "INSERT INTO users" in c.args[0]
         ]
         assert len(insert_user_calls) == 1
         sql = insert_user_calls[0].args[0]
@@ -244,8 +249,7 @@ class TestAcceptHappyPaths:
         )
 
         wm_inserts = [
-            c for c in pool.conn.execute.await_args_list
-            if c.args and "INSERT INTO workspace_members" in c.args[0]
+            c for c in pool.conn.execute.await_args_list if c.args and "INSERT INTO workspace_members" in c.args[0]
         ]
         assert len(wm_inserts) == 1
         assert wm_inserts[0].args[3] == "member"
@@ -253,17 +257,23 @@ class TestAcceptHappyPaths:
     @pytest.mark.asyncio
     async def test_ws_acc_05_existing_user_no_password_required(self):
         """WS-ACC-05 — Existing email → reuses user, NO INSERT users, NO password required."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import AcceptInviteIn, accept_invite
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
-            FakeRecord(id=1, workspace_id=42, email="returning@test.com",
-                       role="viewer", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            FakeRecord(
+                id=1,
+                workspace_id=42,
+                email="returning@test.com",
+                role="viewer",
+                accepted_at=None,
+                cancelled_at=None,
+                expires_at=_future(),
+            ),
             FakeRecord(id=42),
             FakeRecord(id=777, email="returning@test.com", role="viewer"),
         ]
-        pool.conn.fetchrow.return_value = FakeRecord(id=777, email="returning@test.com",
-                                                     role="viewer", disabled=False)
+        pool.conn.fetchrow.return_value = FakeRecord(id=777, email="returning@test.com", role="viewer", disabled=False)
 
         patches = _suppress_side_effects()
         _enter_all(patches)
@@ -271,15 +281,15 @@ class TestAcceptHappyPaths:
             with _pool_ctx(pool):
                 result = await accept_invite(
                     body=AcceptInviteIn(token="raw"),
-                    request=_request(), response=_response(),
+                    request=_request(),
+                    response=_response(),
                 )
         finally:
             _exit_all(patches)
 
         assert result["status"] == "ok"
         insert_user_calls = [
-            c for c in pool.conn.fetchval.await_args_list
-            if c.args and "INSERT INTO users" in c.args[0]
+            c for c in pool.conn.fetchval.await_args_list if c.args and "INSERT INTO users" in c.args[0]
         ]
         assert len(insert_user_calls) == 0, "Existing user must NOT trigger INSERT users"
 
@@ -287,18 +297,23 @@ class TestAcceptHappyPaths:
     async def test_ws_acc_14_existing_member_role_upgrade_via_upsert(self):
         """WS-ACC-14 — Existing member of same workspace, new invite with different
         role → upsert (ON CONFLICT DO UPDATE SET role=EXCLUDED.role)."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import AcceptInviteIn, accept_invite
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
-            FakeRecord(id=1, workspace_id=42, email="upgraded@test.com",
-                       role="member", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            FakeRecord(
+                id=1,
+                workspace_id=42,
+                email="upgraded@test.com",
+                role="member",
+                accepted_at=None,
+                cancelled_at=None,
+                expires_at=_future(),
+            ),
             FakeRecord(id=42),
             FakeRecord(id=555, email="upgraded@test.com", role="viewer"),
         ]
-        pool.conn.fetchrow.return_value = FakeRecord(
-            id=555, email="upgraded@test.com", role="viewer", disabled=False
-        )
+        pool.conn.fetchrow.return_value = FakeRecord(id=555, email="upgraded@test.com", role="viewer", disabled=False)
 
         patches = _suppress_side_effects()
         _enter_all(patches)
@@ -306,20 +321,19 @@ class TestAcceptHappyPaths:
             with _pool_ctx(pool):
                 await accept_invite(
                     body=AcceptInviteIn(token="raw"),
-                    request=_request(), response=_response(),
+                    request=_request(),
+                    response=_response(),
                 )
         finally:
             _exit_all(patches)
 
         wm_inserts = [
-            c for c in pool.conn.execute.await_args_list
-            if c.args and "INSERT INTO workspace_members" in c.args[0]
+            c for c in pool.conn.execute.await_args_list if c.args and "INSERT INTO workspace_members" in c.args[0]
         ]
         assert len(wm_inserts) == 1
         sql = wm_inserts[0].args[0]
         assert "ON CONFLICT" in sql.upper() and "DO UPDATE" in sql.upper(), (
-            f"workspace_members INSERT must use ON CONFLICT DO UPDATE for idempotent "
-            f"role upgrades. Got SQL:\n{sql}"
+            f"workspace_members INSERT must use ON CONFLICT DO UPDATE for idempotent role upgrades. Got SQL:\n{sql}"
         )
 
     @pytest.mark.asyncio
@@ -330,17 +344,27 @@ class TestAcceptHappyPaths:
         primitive is idempotent for the case where accepted_at IS NULL but
         the membership row already exists from a prior accept that somehow
         left accepted_at NULL.)"""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import AcceptInviteIn, accept_invite
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
-            FakeRecord(id=2, workspace_id=42, email="idem@test.com",
-                       role="viewer", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            FakeRecord(
+                id=2,
+                workspace_id=42,
+                email="idem@test.com",
+                role="viewer",
+                accepted_at=None,
+                cancelled_at=None,
+                expires_at=_future(),
+            ),
             FakeRecord(id=42),
             FakeRecord(id=300, email="idem@test.com", role="viewer"),
         ]
         pool.conn.fetchrow.return_value = FakeRecord(
-            id=300, email="idem@test.com", role="viewer", disabled=False,
+            id=300,
+            email="idem@test.com",
+            role="viewer",
+            disabled=False,
         )
 
         patches = _suppress_side_effects()
@@ -349,29 +373,38 @@ class TestAcceptHappyPaths:
             with _pool_ctx(pool):
                 result = await accept_invite(
                     body=AcceptInviteIn(token="raw"),
-                    request=_request(), response=_response(),
+                    request=_request(),
+                    response=_response(),
                 )
         finally:
             _exit_all(patches)
         assert result["status"] == "ok"
 
 
-
 class TestAcceptErrorPaths:
-
     @pytest.mark.asyncio
     async def test_ws_acc_06_disabled_user_rejected_403(self):
         """WS-ACC-06 — Existing user with disabled=true → 403, invite NOT marked accepted."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import AcceptInviteIn, accept_invite
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
-            FakeRecord(id=1, workspace_id=42, email="disabled@test.com",
-                       role="member", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            FakeRecord(
+                id=1,
+                workspace_id=42,
+                email="disabled@test.com",
+                role="member",
+                accepted_at=None,
+                cancelled_at=None,
+                expires_at=_future(),
+            ),
             FakeRecord(id=42),
         ]
         pool.conn.fetchrow.return_value = FakeRecord(
-            id=666, email="disabled@test.com", role="viewer", disabled=True,
+            id=666,
+            email="disabled@test.com",
+            role="viewer",
+            disabled=True,
         )
 
         patches = _suppress_side_effects()
@@ -381,7 +414,8 @@ class TestAcceptErrorPaths:
                 with pytest.raises(HTTPException) as exc:
                     await accept_invite(
                         body=AcceptInviteIn(token="raw"),
-                        request=_request(), response=_response(),
+                        request=_request(),
+                        response=_response(),
                     )
         finally:
             _exit_all(patches)
@@ -390,28 +424,33 @@ class TestAcceptErrorPaths:
         assert "disabled" in exc.value.detail.lower()
 
         accepted_at_updates = [
-            c for c in pool.conn.execute.await_args_list
-            if c.args and "UPDATE workspace_invitations" in c.args[0]
-            and "accepted_at" in c.args[0]
+            c
+            for c in pool.conn.execute.await_args_list
+            if c.args and "UPDATE workspace_invitations" in c.args[0] and "accepted_at" in c.args[0]
         ]
         assert len(accepted_at_updates) == 0
 
     @pytest.mark.asyncio
     async def test_ws_acc_07_replay_already_accepted_400(self):
         """WS-ACC-07 — Replay (accepted_at not null) → 400 'Invitation already used'."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import AcceptInviteIn, accept_invite
 
         pool = FakeTxnPool()
         pool.fetchrow.return_value = FakeRecord(
-            id=1, workspace_id=42, email="x@test.com", role="viewer",
-            accepted_at=datetime.now(timezone.utc), expires_at=_future(),
+            id=1,
+            workspace_id=42,
+            email="x@test.com",
+            role="viewer",
+            accepted_at=datetime.now(timezone.utc),
+            expires_at=_future(),
         )
 
         with _pool_ctx(pool):
             with pytest.raises(HTTPException) as exc:
                 await accept_invite(
                     body=AcceptInviteIn(token="raw"),
-                    request=_request(), response=_response(),
+                    request=_request(),
+                    response=_response(),
                 )
         assert exc.value.status_code == 400
         assert "already used" in exc.value.detail.lower()
@@ -419,19 +458,25 @@ class TestAcceptErrorPaths:
     @pytest.mark.asyncio
     async def test_ws_acc_08_expired_token_400(self):
         """WS-ACC-08 — Expired token → 400 'Invitation has expired'."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import AcceptInviteIn, accept_invite
 
         pool = FakeTxnPool()
         pool.fetchrow.return_value = FakeRecord(
-            id=1, workspace_id=42, email="x@test.com", role="viewer",
-            accepted_at=None, cancelled_at=None, expires_at=_past(),
+            id=1,
+            workspace_id=42,
+            email="x@test.com",
+            role="viewer",
+            accepted_at=None,
+            cancelled_at=None,
+            expires_at=_past(),
         )
 
         with _pool_ctx(pool):
             with pytest.raises(HTTPException) as exc:
                 await accept_invite(
                     body=AcceptInviteIn(token="raw"),
-                    request=_request(), response=_response(),
+                    request=_request(),
+                    response=_response(),
                 )
         assert exc.value.status_code == 400
         assert "expired" in exc.value.detail.lower()
@@ -439,12 +484,19 @@ class TestAcceptErrorPaths:
     @pytest.mark.asyncio
     async def test_ws_acc_09_new_account_no_password_400(self):
         """WS-ACC-09 — New user (no row) and no password → 400."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import AcceptInviteIn, accept_invite
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
-            FakeRecord(id=1, workspace_id=42, email="brand-new@test.com",
-                       role="viewer", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            FakeRecord(
+                id=1,
+                workspace_id=42,
+                email="brand-new@test.com",
+                role="viewer",
+                accepted_at=None,
+                cancelled_at=None,
+                expires_at=_future(),
+            ),
             FakeRecord(id=42),
         ]
         pool.conn.fetchrow.return_value = None
@@ -456,7 +508,8 @@ class TestAcceptErrorPaths:
                 with pytest.raises(HTTPException) as exc:
                     await accept_invite(
                         body=AcceptInviteIn(token="raw"),
-                        request=_request(), response=_response(),
+                        request=_request(),
+                        response=_response(),
                     )
         finally:
             _exit_all(patches)
@@ -466,17 +519,20 @@ class TestAcceptErrorPaths:
 
     def test_ws_acc_10_short_password_rejected_by_pydantic(self):
         """WS-ACC-10 — password <8 chars → pydantic ValidationError (would be 422 via FastAPI)."""
-        from src.services.dashboard.v2.auth import AcceptInviteIn
+        from services_api.dashboard.v2.auth import AcceptInviteIn
+
         with pytest.raises(Exception):
             AcceptInviteIn(token="raw", password="short")
 
     @pytest.mark.parametrize(
-        "good_password", ["password", "Test1234!", "x" * 100],
+        "good_password",
+        ["password", "Test1234!", "x" * 100],
         ids=["minlen-8", "mixed", "very-long"],
     )
     def test_ws_acc_10_password_at_or_above_min_accepted(self, good_password: str):
         """WS-ACC-10 (positive) — password >= 8 chars accepted by pydantic."""
-        from src.services.dashboard.v2.auth import AcceptInviteIn
+        from services_api.dashboard.v2.auth import AcceptInviteIn
+
         m = AcceptInviteIn(token="raw", password=good_password)
         assert m.password == good_password
 
@@ -484,17 +540,27 @@ class TestAcceptErrorPaths:
     async def test_ws_acc_13_email_case_insensitive_match(self):
         """WS-ACC-13 — Invitee email differs only in case from users.email →
         matched via SQL ``lower()`` on both sides."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import AcceptInviteIn, accept_invite
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
-            FakeRecord(id=1, workspace_id=42, email="MIXED.case@TEST.com",
-                       role="viewer", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            FakeRecord(
+                id=1,
+                workspace_id=42,
+                email="MIXED.case@TEST.com",
+                role="viewer",
+                accepted_at=None,
+                cancelled_at=None,
+                expires_at=_future(),
+            ),
             FakeRecord(id=42),
             FakeRecord(id=42, email="mixed.case@test.com", role="viewer"),
         ]
         pool.conn.fetchrow.return_value = FakeRecord(
-            id=42, email="mixed.case@test.com", role="viewer", disabled=False,
+            id=42,
+            email="mixed.case@test.com",
+            role="viewer",
+            disabled=False,
         )
 
         patches = _suppress_side_effects()
@@ -503,21 +569,22 @@ class TestAcceptErrorPaths:
             with _pool_ctx(pool):
                 result = await accept_invite(
                     body=AcceptInviteIn(token="raw"),
-                    request=_request(), response=_response(),
+                    request=_request(),
+                    response=_response(),
                 )
         finally:
             _exit_all(patches)
         assert result["status"] == "ok"
 
         user_lookup_calls = [
-            c for c in pool.conn.fetchrow.await_args_list
+            c
+            for c in pool.conn.fetchrow.await_args_list
             if c.args and "FROM users" in c.args[0] and "lower(email)" in c.args[0]
         ]
         assert len(user_lookup_calls) == 1, (
             "User lookup in accept_invite must use lower(email) on both sides "
             "for case-insensitive matching. (AE-269 WS-ACC-13)"
         )
-
 
 
 class TestPrivilegeEscalationRegression:
@@ -529,12 +596,19 @@ class TestPrivilegeEscalationRegression:
     async def test_ws_acc_19_new_user_platform_role_is_viewer_not_invite_role(self):
         """WS-ACC-19 — Brand-new user accepting an invite has ``users.role='user'``
         (platform role), even when the invite role is ``member``. AE-284 rename."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import AcceptInviteIn, accept_invite
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
-            FakeRecord(id=1, workspace_id=42, email="new@test.com",
-                       role="member", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            FakeRecord(
+                id=1,
+                workspace_id=42,
+                email="new@test.com",
+                role="member",
+                accepted_at=None,
+                cancelled_at=None,
+                expires_at=_future(),
+            ),
             FakeRecord(id=42),
             FakeRecord(id=1234, email="new@test.com", role="viewer"),
         ]
@@ -547,22 +621,19 @@ class TestPrivilegeEscalationRegression:
             with _pool_ctx(pool):
                 await accept_invite(
                     body=AcceptInviteIn(token="raw", password="strongpass123"),
-                    request=_request(), response=_response(),
+                    request=_request(),
+                    response=_response(),
                 )
         finally:
             _exit_all(patches)
 
-        insert_calls = [
-            c for c in pool.conn.fetchval.await_args_list
-            if c.args and "INSERT INTO users" in c.args[0]
-        ]
+        insert_calls = [c for c in pool.conn.fetchval.await_args_list if c.args and "INSERT INTO users" in c.args[0]]
         assert len(insert_calls) == 1
         sql = insert_calls[0].args[0]
         assert "'user'" in sql, f"Expected hard-coded 'user' (platform role) in SQL: {sql!r}"
         params = insert_calls[0].args[1:]
         assert "member" not in params, (
-            f"AE-264 regression risk: invite role 'member' appears as a parameter to "
-            f"INSERT users. Params: {params}"
+            f"AE-264 regression risk: invite role 'member' appears as a parameter to INSERT users. Params: {params}"
         )
 
     @pytest.mark.asyncio
@@ -571,22 +642,23 @@ class TestPrivilegeEscalationRegression:
         model has only token/password/display_name — pydantic should drop or
         reject any extra ``role`` field, and the handler reads role from the
         invite row exclusively."""
-        from src.services.dashboard.v2.auth import AcceptInviteIn
-        m = AcceptInviteIn.model_validate({
-            "token": "raw", "password": "longpassword",
-            "role": "owner",
-            "workspace_id": 99,
-        })
+        from services_api.dashboard.v2.auth import AcceptInviteIn
+
+        m = AcceptInviteIn.model_validate(
+            {
+                "token": "raw",
+                "password": "longpassword",
+                "role": "owner",
+                "workspace_id": 99,
+            }
+        )
         assert not hasattr(m, "role"), (
-            "AcceptInviteIn must NOT bind a 'role' field from the request body. "
-            "If you add one, AE-264 regression risk."
+            "AcceptInviteIn must NOT bind a 'role' field from the request body. If you add one, AE-264 regression risk."
         )
         assert not hasattr(m, "workspace_id")
 
 
-
 class TestCrossInviteTampering:
-
     @pytest.mark.asyncio
     async def test_ws_acc_24_unauthenticated_endpoint_does_not_check_session_email(self):
         """WS-ACC-24 — POST /accept-invite is unauthenticated.  If user A's
@@ -605,17 +677,27 @@ class TestCrossInviteTampering:
         product wants the strict 403 path, that's a separate code change
         and should be tracked with a follow-up bug.
         """
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import AcceptInviteIn, accept_invite
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
-            FakeRecord(id=1, workspace_id=42, email="b@test.com",
-                       role="viewer", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            FakeRecord(
+                id=1,
+                workspace_id=42,
+                email="b@test.com",
+                role="viewer",
+                accepted_at=None,
+                cancelled_at=None,
+                expires_at=_future(),
+            ),
             FakeRecord(id=42),
             FakeRecord(id=2, email="b@test.com", role="viewer"),
         ]
         pool.conn.fetchrow.return_value = FakeRecord(
-            id=2, email="b@test.com", role="viewer", disabled=False,
+            id=2,
+            email="b@test.com",
+            role="viewer",
+            disabled=False,
         )
 
         patches = _suppress_side_effects()
@@ -624,14 +706,14 @@ class TestCrossInviteTampering:
             with _pool_ctx(pool):
                 result = await accept_invite(
                     body=AcceptInviteIn(token="raw"),
-                    request=_request(), response=_response(),
+                    request=_request(),
+                    response=_response(),
                 )
         finally:
             _exit_all(patches)
 
         assert result["status"] == "ok"
         assert result["workspace_id"] == 42
-
 
 
 class TestDeferredToTestcontainer:
@@ -643,12 +725,19 @@ class TestDeferredToTestcontainer:
     async def test_ws_acc_12_workspace_deleted_between_invite_and_accept(self):
         """WS-ACC-12 — Workspace deleted after invite creation but before acceptance
         → 410 Gone with descriptive message (application-level check, no FK reliance)."""
-        from src.services.dashboard.v2.auth import accept_invite, AcceptInviteIn
+        from services_api.dashboard.v2.auth import AcceptInviteIn, accept_invite
 
         pool = FakeTxnPool()
         pool.fetchrow.side_effect = [
-            FakeRecord(id=1, workspace_id=99, email="invited@test.com",
-                       role="member", accepted_at=None, cancelled_at=None, expires_at=_future()),
+            FakeRecord(
+                id=1,
+                workspace_id=99,
+                email="invited@test.com",
+                role="member",
+                accepted_at=None,
+                cancelled_at=None,
+                expires_at=_future(),
+            ),
             None,
         ]
 
@@ -656,36 +745,34 @@ class TestDeferredToTestcontainer:
             with pytest.raises(HTTPException) as exc:
                 await accept_invite(
                     body=AcceptInviteIn(token="raw"),
-                    request=_request(), response=_response(),
+                    request=_request(),
+                    response=_response(),
                 )
 
         assert exc.value.status_code == 410
         assert "workspace has been removed" in exc.value.detail.lower()
 
-    @pytest.mark.skip(reason="WS-ACC-15: requires rate-limit middleware in test app; "
-                              "if no limiter exists today, file a security bug. "
-                              "Investigation tracked separately.")
-    def test_ws_acc_15_token_brute_force_rate_limited(self):
-        ...
+    @pytest.mark.skip(
+        reason="WS-ACC-15: requires rate-limit middleware in test app; "
+        "if no limiter exists today, file a security bug. "
+        "Investigation tracked separately."
+    )
+    def test_ws_acc_15_token_brute_force_rate_limited(self): ...
 
-    @pytest.mark.skip(reason="WS-ACC-16: timing-attack measurement is flaky in CI; "
-                              "manual validation only.")
-    def test_ws_acc_16_constant_time_token_compare(self):
-        ...
+    @pytest.mark.skip(reason="WS-ACC-16: timing-attack measurement is flaky in CI; manual validation only.")
+    def test_ws_acc_16_constant_time_token_compare(self): ...
 
     @pytest.mark.skip(reason="WS-ACC-17: URL-routing concern; covered by Playwright AE-274")
-    def test_ws_acc_17_url_encoded_token(self):
-        ...
+    def test_ws_acc_17_url_encoded_token(self): ...
 
     @pytest.mark.skip(reason="WS-ACC-18: requires real DB state for disable/re-enable; AE-273")
-    def test_ws_acc_18_re_acceptance_after_disable(self):
-        ...
+    def test_ws_acc_18_re_acceptance_after_disable(self): ...
 
-    @pytest.mark.skip(reason="WS-ACC-20/21: tests the /register flow, not /accept-invite. "
-                              "Belongs in test_auth_register.py — file separately.")
-    def test_ws_acc_20_signup_creates_workspace_owner(self):
-        ...
+    @pytest.mark.skip(
+        reason="WS-ACC-20/21: tests the /register flow, not /accept-invite. "
+        "Belongs in test_auth_register.py — file separately."
+    )
+    def test_ws_acc_20_signup_creates_workspace_owner(self): ...
 
     @pytest.mark.skip(reason="WS-ACC-23: requires Postgres CHECK constraint; tracked in AE-273")
-    def test_ws_acc_23_db_check_constraint_blocks_direct_owner_insert(self):
-        ...
+    def test_ws_acc_23_db_check_constraint_blocks_direct_owner_insert(self): ...

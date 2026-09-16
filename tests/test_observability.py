@@ -2,15 +2,15 @@
 
 Tests: log_decision, get_cost_savings, get_model_health_summary
 """
+
 from __future__ import annotations
 
 import pytest
-from unittest.mock import AsyncMock
 
-from src.services.experiments.observability import (
-    log_decision,
+from services_api.experiments.observability import (
     get_cost_savings,
     get_model_health_summary,
+    log_decision,
     upsert_model_health,
 )
 from tests.conftest import FakeRecord
@@ -90,10 +90,17 @@ class TestGetModelHealthSummary:
     @pytest.mark.asyncio
     async def test_returns_list(self, mock_pool):
         mock_pool.fetch.return_value = [
-            FakeRecord(model_name="voice_style_gbm", niche="tech",
-                       training_rows=50, last_trained_at=None,
-                       accuracy_metric=0.82, drift_detected=False,
-                       drift_score=0, last_checked_at=None, status="trained"),
+            FakeRecord(
+                model_name="voice_style_gbm",
+                niche="tech",
+                training_rows=50,
+                last_trained_at=None,
+                accuracy_metric=0.82,
+                drift_detected=False,
+                drift_score=0,
+                last_checked_at=None,
+                status="trained",
+            ),
         ]
         result = await get_model_health_summary()
         assert len(result) == 1

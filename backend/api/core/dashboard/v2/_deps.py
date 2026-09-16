@@ -1,0 +1,209 @@
+"""Shared dependencies for v2 routers.
+
+Single source of truth for auth, audit logging, and feature-flag checks.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from dataclasses import dataclass
+from typing import Any
+
+import structlog
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+from core.db import get_pool
+
+from ._membership import check_membership
+
+logger = structlog.get_logger()
+
+_security = HTTPBearer(auto_error=False)
+
+
+@dataclass
+class Principal:
+    """Authenticated subject. ``user_id`` is None for legacy single-user."""
+
+    user_id: int | None
+    email: str | None
+    role: str
+    source: str
+    workspace_id: int = 1
+    global_role: str = "user"
+
+
+def _jwt_secret() -> str:
+    return os.getenv("AUTH_JWT_SECRET") or os.getenv("DASHBOARD_JWT_SECRET") or "dev-insecure-change-me"
+
+
+def _decode_jwt(token: str) -> dict[str, Any] | None:
+    try:
+        import jwt
+
+        return jwt.decode(token, _jwt_secret(), algorithms=["HS256"])
+    except Exception:
+        return None
+
+
+async def principal_dep(
+    request: Request,
+    creds: HTTPAuthorizationCredentials | None = Depends(_security),
+) -> Principal:
+    """Resolve a Principal from either legacy session or v2 JWT.
+
+    Order:
+      1. Authorization: Bearer header (v2 JWT or legacy session token).
+      2. HttpOnly ``access_token`` cookie (set by v2 login/refresh).
+      3. Legacy in-memory session map from ``main._sessions`` (backwards-compat).
+    """
+    token: str | None = None
+
+    if creds is not None:
+        token = creds.credentials
+
+    if not token:
+        token = request.cookies.get("access_token")
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    if token.count(".") == 2 and token.startswith("ey"):
+        claims = _decode_jwt(token)
+        if claims:
+            uid = int(claims["sub"]) if "sub" in claims else None
+            wid = int(claims.get("wid", 1))
+            principal = Principal(
+                user_id=uid,
+                email=claims.get("email"),
+                role=claims.get("role", "viewer"),
+                global_role=claims.get("global_role", "user"),
+                workspace_id=wid,
+                source="v2_jwt",
+            )
+            if uid is not None:
+                still_member = await check_membership(uid, wid)
+                if not still_member:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="workspace_access_revoked",
+                    )
+            return principal
+
+    try:
+        import time as _time
+
+        from services_api.dashboard import main as _legacy
+
+        expiry = _legacy._sessions.get(token)
+        if expiry is not None and expiry >= _time.time():
+            return Principal(
+                user_id=None, email=None, role="owner", global_role="superadmin", workspace_id=1, source="legacy"
+            )
+    except Exception:
+        pass
+
+    raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
+def require_role(*roles: str):
+    """Dependency factory enforcing a workspace role allowlist."""
+    allowed = set(roles)
+
+    async def _checker(p: Principal = Depends(principal_dep)) -> Principal:
+        if p.role not in allowed and p.role != "owner":
+            raise HTTPException(status_code=403, detail=f"Role {p.role!r} not allowed")
+        return p
+
+    return _checker
+
+
+def require_global_role(*roles: str):
+    """Dependency factory enforcing a platform-level global role allowlist.
+
+    Global roles live on ``users.role`` and are encoded in the JWT ``global_role``
+    claim.  Valid values: ``superadmin`` | ``user``.  Legacy sessions are always
+    treated as ``superadmin``.
+    """
+    allowed = set(roles)
+
+    async def _checker(p: Principal = Depends(principal_dep)) -> Principal:
+        if p.source == "legacy":
+            return p
+        if p.global_role not in allowed:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Global role {p.global_role!r} is not allowed for this operation",
+            )
+        return p
+
+    return _checker
+
+
+def require_permission(permission: str):
+    """Dependency factory enforcing a named permission from the RBAC matrix.
+
+    Returns HTTP 403 with ``{"detail": "Permission denied: <name>"}`` when the
+    caller's role lacks *permission*.  Cache is warmed by
+    :mod:`._permissions` (30 s TTL + Redis pub/sub invalidation).
+    """
+
+    async def _checker(p: Principal = Depends(principal_dep)) -> Principal:
+        from ._permissions import get_permissions_for_role
+
+        perms = await get_permissions_for_role(p.role)
+        if permission not in perms:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Permission denied: {permission}",
+            )
+        return p
+
+    return _checker
+
+
+async def flag_enabled(key: str) -> bool:
+    try:
+        pool = await get_pool()
+        row = await pool.fetchrow("SELECT enabled FROM feature_flags WHERE key = $1", key)
+        return bool(row and row["enabled"])
+    except Exception:
+        return False
+
+
+async def audit(
+    *,
+    actor: Principal,
+    action: str,
+    target_type: str,
+    target_id: str | None = None,
+    before: dict | None = None,
+    after: dict | None = None,
+    request: Request | None = None,
+) -> None:
+    """Append-only audit row. Best-effort — never raises."""
+    try:
+        pool = await get_pool()
+        await pool.execute(
+            """
+            INSERT INTO audit_log_v2
+                (actor_user_id, actor_label, action, target_type, target_id,
+                 before, after, source, request_id, ip, user_agent)
+            VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10,$11)
+            """,
+            actor.user_id,
+            actor.email or actor.source,
+            action,
+            target_type,
+            target_id,
+            json.dumps(before) if before is not None else None,
+            json.dumps(after) if after is not None else None,
+            "ui" if (request and request.headers.get("x-source") == "ui") else "api",
+            (request.headers.get("x-request-id") if request else None),
+            (request.client.host if request and request.client else None),
+            (request.headers.get("user-agent") if request else None),
+        )
+    except Exception as exc:
+        logger.warning("audit.write_failed", action=action, error=str(exc))

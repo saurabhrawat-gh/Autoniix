@@ -6,9 +6,9 @@ Covers:
 - Workspace integrations GET / PUT
 - Role validation (5-role model)
 """
+
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -16,13 +16,13 @@ from fastapi import HTTPException
 
 from tests.conftest import FakeRecord
 
-_WS_MODULE = "src.services.dashboard.v2.workspace"
+_WS_MODULE = "services_api.dashboard.v2.workspace"
 
 
 def _make_principal(role: str = "owner", workspace_id: int = 1, user_id: int = 42):
-    from src.services.dashboard.v2._deps import Principal
-    return Principal(user_id=user_id, email="test@test.com", role=role,
-                     source="v2_jwt", workspace_id=workspace_id)
+    from services_api.dashboard.v2._deps import Principal
+
+    return Principal(user_id=user_id, email="test@test.com", role=role, source="v2_jwt", workspace_id=workspace_id)
 
 
 def _pool_ctx(pool):
@@ -30,12 +30,11 @@ def _pool_ctx(pool):
     return patch(f"{_WS_MODULE}.get_pool", new_callable=AsyncMock, return_value=pool)
 
 
-
 class TestPlanLimits:
     @pytest.mark.asyncio
     async def test_plan_limit_blocks_invite_when_full(self):
         """Starter plan (limit=3) blocks invite when 3 seats already taken."""
-        from src.services.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
         from tests.conftest import FakePool
 
         pool = FakePool()
@@ -55,7 +54,7 @@ class TestPlanLimits:
     @pytest.mark.asyncio
     async def test_plan_limit_allows_invite_within_limit(self):
         """Starter plan with 2 members allows one more invite."""
-        from src.services.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
         from tests.conftest import FakePool
 
         pool = FakePool()
@@ -69,15 +68,14 @@ class TestPlanLimits:
         body = InviteIn(email="newuser@test.com", role="viewer")
         req = MagicMock()
 
-        with _pool_ctx(pool), \
-             patch(f"{_WS_MODULE}.audit", new_callable=AsyncMock):
+        with _pool_ctx(pool), patch(f"{_WS_MODULE}.audit", new_callable=AsyncMock):
             result = await create_invite(body=body, request=req, actor=actor)
         assert result["status"] == "ok"
 
     @pytest.mark.asyncio
     async def test_enterprise_plan_has_no_limit(self):
         """Enterprise plan (unlimited) never blocks invites."""
-        from src.services.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
         from tests.conftest import FakePool
 
         pool = FakePool()
@@ -91,18 +89,16 @@ class TestPlanLimits:
         body = InviteIn(email="anyone@test.com", role="member")
         req = MagicMock()
 
-        with _pool_ctx(pool), \
-             patch(f"{_WS_MODULE}.audit", new_callable=AsyncMock):
+        with _pool_ctx(pool), patch(f"{_WS_MODULE}.audit", new_callable=AsyncMock):
             result = await create_invite(body=body, request=req, actor=actor)
         assert result["status"] == "ok"
-
 
 
 class TestLastOwnerProtection:
     @pytest.mark.asyncio
     async def test_cannot_demote_last_owner(self):
         """Demoting the only owner should raise HTTP 400."""
-        from src.services.dashboard.v2.workspace import set_member_role, MemberRolePatch
+        from services_api.dashboard.v2.workspace import MemberRolePatch, set_member_role
         from tests.conftest import FakePool
 
         pool = FakePool()
@@ -121,7 +117,7 @@ class TestLastOwnerProtection:
     @pytest.mark.asyncio
     async def test_can_demote_owner_when_multiple_owners_exist(self):
         """Demoting one of two owners should succeed."""
-        from src.services.dashboard.v2.workspace import set_member_role, MemberRolePatch
+        from services_api.dashboard.v2.workspace import MemberRolePatch, set_member_role
         from tests.conftest import FakePool
 
         pool = FakePool()
@@ -132,18 +128,16 @@ class TestLastOwnerProtection:
         body = MemberRolePatch(role="member")
         req = MagicMock()
 
-        with _pool_ctx(pool), \
-             patch(f"{_WS_MODULE}.audit", new_callable=AsyncMock):
+        with _pool_ctx(pool), patch(f"{_WS_MODULE}.audit", new_callable=AsyncMock):
             result = await set_member_role(user_id=99, body=body, request=req, actor=actor)
         assert result["status"] == "ok"
-
 
 
 class TestRoleValidation:
     @pytest.mark.asyncio
     async def test_invalid_role_rejected_on_invite(self):
         """Legacy roles like 'reviewer' must be rejected."""
-        from src.services.dashboard.v2.workspace import create_invite, InviteIn
+        from services_api.dashboard.v2.workspace import InviteIn, create_invite
         from tests.conftest import FakePool
 
         pool = FakePool()
@@ -159,7 +153,7 @@ class TestRoleValidation:
     @pytest.mark.asyncio
     async def test_invalid_role_rejected_on_role_update(self):
         """Legacy role 'analyst' must be rejected on role update."""
-        from src.services.dashboard.v2.workspace import set_member_role, MemberRolePatch
+        from services_api.dashboard.v2.workspace import MemberRolePatch, set_member_role
         from tests.conftest import FakePool
 
         pool = FakePool()
@@ -173,11 +167,10 @@ class TestRoleValidation:
         assert exc_info.value.status_code == 400
 
 
-
 class TestWorkspaceIntegrations:
     @pytest.mark.asyncio
     async def test_get_integrations_returns_null_when_none_configured(self):
-        from src.services.dashboard.v2.workspace import get_integrations
+        from services_api.dashboard.v2.workspace import get_integrations
         from tests.conftest import FakePool
 
         pool = FakePool()
@@ -190,13 +183,11 @@ class TestWorkspaceIntegrations:
 
     @pytest.mark.asyncio
     async def test_get_integrations_returns_url(self):
-        from src.services.dashboard.v2.workspace import get_integrations
+        from services_api.dashboard.v2.workspace import get_integrations
         from tests.conftest import FakePool
 
         pool = FakePool()
-        pool.fetchrow.return_value = FakeRecord(
-            slack_webhook_url="https://hooks.slack.com/services/TEST"
-        )
+        pool.fetchrow.return_value = FakeRecord(slack_webhook_url="https://hooks.slack.com/services/TEST")
         actor = _make_principal(role="owner")
 
         with _pool_ctx(pool):
@@ -205,7 +196,7 @@ class TestWorkspaceIntegrations:
 
     @pytest.mark.asyncio
     async def test_update_integrations_upserts(self):
-        from src.services.dashboard.v2.workspace import update_integrations, IntegrationPatch
+        from services_api.dashboard.v2.workspace import IntegrationPatch, update_integrations
         from tests.conftest import FakePool
 
         pool = FakePool()
@@ -214,12 +205,10 @@ class TestWorkspaceIntegrations:
         body = IntegrationPatch(slack_webhook_url="https://hooks.slack.com/services/XYZ")
         req = MagicMock()
 
-        with _pool_ctx(pool), \
-             patch(f"{_WS_MODULE}.audit", new_callable=AsyncMock):
+        with _pool_ctx(pool), patch(f"{_WS_MODULE}.audit", new_callable=AsyncMock):
             result = await update_integrations(body=body, request=req, actor=actor)
         assert result["status"] == "ok"
         pool.execute.assert_called_once()
-
 
 
 class TestEntitySettingsTenantIsolation:
@@ -230,7 +219,7 @@ class TestEntitySettingsTenantIsolation:
     @pytest.mark.asyncio
     async def test_get_settings_rejects_foreign_workspace_scope_id(self):
         """READ leak fix: caller in workspace 1 cannot read workspace 2's settings."""
-        from src.services.dashboard.v2.workspace import get_settings
+        from services_api.dashboard.v2.workspace import get_settings
         from tests.conftest import FakePool
 
         pool = FakePool()
@@ -247,13 +236,16 @@ class TestEntitySettingsTenantIsolation:
     async def test_put_settings_rejects_foreign_workspace_scope_id(self):
         """WRITE leak fix (more severe): caller in workspace 1 cannot upsert into
         workspace 2's entity_settings — verifies the audit + INSERT never runs."""
-        from src.services.dashboard.v2.workspace import upsert_setting, EntitySettingUpsert
+        from services_api.dashboard.v2.workspace import EntitySettingUpsert, upsert_setting
         from tests.conftest import FakePool
 
         pool = FakePool()
         body = EntitySettingUpsert(
-            scope="workspace", scope_id="999", key="qa_canary",
-            value={"tampered": True}, locked=False,
+            scope="workspace",
+            scope_id="999",
+            key="qa_canary",
+            value={"tampered": True},
+            locked=False,
         )
         actor = _make_principal(role="owner", workspace_id=1)
         req = MagicMock()
@@ -268,13 +260,15 @@ class TestEntitySettingsTenantIsolation:
     @pytest.mark.asyncio
     async def test_get_settings_allows_own_workspace_scope_id(self):
         """No regression: same-workspace scope_id continues to work."""
-        from src.services.dashboard.v2.workspace import get_settings
+        from services_api.dashboard.v2.workspace import get_settings
         from tests.conftest import FakePool
 
         pool = FakePool()
-        pool.fetch = AsyncMock(return_value=[
-            FakeRecord(key="onboarding", value={"completed": True}, locked=False),
-        ])
+        pool.fetch = AsyncMock(
+            return_value=[
+                FakeRecord(key="onboarding", value={"completed": True}, locked=False),
+            ]
+        )
         actor = _make_principal(role="owner", workspace_id=42)
 
         with _pool_ctx(pool):
@@ -285,14 +279,17 @@ class TestEntitySettingsTenantIsolation:
     @pytest.mark.asyncio
     async def test_put_settings_allows_own_workspace_scope_id(self):
         """No regression: same-workspace upsert continues to work."""
-        from src.services.dashboard.v2.workspace import upsert_setting, EntitySettingUpsert
+        from services_api.dashboard.v2.workspace import EntitySettingUpsert, upsert_setting
         from tests.conftest import FakePool
 
         pool = FakePool()
         pool.execute = AsyncMock(return_value="INSERT 0 1")
         body = EntitySettingUpsert(
-            scope="workspace", scope_id="42", key="onboarding",
-            value={"completed": True}, locked=False,
+            scope="workspace",
+            scope_id="42",
+            key="onboarding",
+            value={"completed": True},
+            locked=False,
         )
         actor = _make_principal(role="owner", workspace_id=42)
         req = MagicMock()
@@ -315,7 +312,9 @@ class TestEntitySettingsTenantIsolation:
         ids=["brand", "series", "campaign", "project", "channel"],
     )
     async def test_get_settings_rejects_foreign_owner_for_all_tenant_scopes(
-        self, scope: str, owner_workspace_id: int,
+        self,
+        scope: str,
+        owner_workspace_id: int,
     ):
         """For every non-workspace tenant scope, foreign-owned entity → 403.
 
@@ -323,7 +322,7 @@ class TestEntitySettingsTenantIsolation:
         compares to the caller's workspace.  Caller is in WS 1; entity is
         owned by WS 2; expected 403.
         """
-        from src.services.dashboard.v2.workspace import get_settings
+        from services_api.dashboard.v2.workspace import get_settings
         from tests.conftest import FakePool
 
         pool = FakePool()
@@ -340,7 +339,7 @@ class TestEntitySettingsTenantIsolation:
     @pytest.mark.asyncio
     async def test_get_settings_returns_404_for_nonexistent_entity(self):
         """If the entity doesn't exist at all, 404 (not 403 — distinct contract)."""
-        from src.services.dashboard.v2.workspace import get_settings
+        from services_api.dashboard.v2.workspace import get_settings
         from tests.conftest import FakePool
 
         pool = FakePool()
@@ -355,7 +354,7 @@ class TestEntitySettingsTenantIsolation:
     @pytest.mark.asyncio
     async def test_get_settings_invalid_scope_id_for_int_scope_returns_400(self):
         """Non-numeric scope_id for an int-keyed scope returns 400, not 500."""
-        from src.services.dashboard.v2.workspace import get_settings
+        from services_api.dashboard.v2.workspace import get_settings
         from tests.conftest import FakePool
 
         pool = FakePool()
@@ -370,7 +369,7 @@ class TestEntitySettingsTenantIsolation:
     async def test_system_scope_passes_through_without_tenant_check(self):
         """``scope='system'`` is platform-wide, not per-tenant — the ownership
         gate must skip it.  Caller permission is the only authorization layer."""
-        from src.services.dashboard.v2.workspace import get_settings
+        from services_api.dashboard.v2.workspace import get_settings
         from tests.conftest import FakePool
 
         pool = FakePool()

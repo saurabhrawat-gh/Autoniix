@@ -13,6 +13,7 @@ compressor middleware in ``src/llm/compressor.py``).
 
 Part of AE-520 / Cost Optimization.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -34,15 +35,19 @@ def main() -> None:
         description="Compression savings dashboard for Autoniix",
     )
     parser.add_argument(
-        "--days", type=int, default=7,
+        "--days",
+        type=int,
+        default=7,
         help="Number of days to report (default: 7)",
     )
     parser.add_argument(
-        "--breakdown", action="store_true",
+        "--breakdown",
+        action="store_true",
         help="Show per-engine and daily breakdown",
     )
     parser.add_argument(
-        "--watch", action="store_true",
+        "--watch",
+        action="store_true",
         help="Live refresh every 5 seconds",
     )
     args = parser.parse_args()
@@ -50,7 +55,7 @@ def main() -> None:
     # Ensure the src package is importable.
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-    from src.llm.compressor import get_savings_report
+    from llm.compressor import get_savings_report
 
     def print_report() -> None:
         report = get_savings_report(days=args.days, breakdown=args.breakdown)
@@ -85,10 +90,7 @@ def main() -> None:
                 max_saved = max(e["saved"] for e in engines) if engines else 1
                 for e in engines:
                     bar = _bar(e["saved"], max_saved)
-                    print(
-                        f"  {e['engine']:<20} {e['count']:>6,} passes  "
-                        f"saved: {e['saved']:>10,} tokens  {bar}"
-                    )
+                    print(f"  {e['engine']:<20} {e['count']:>6,} passes  saved: {e['saved']:>10,} tokens  {bar}")
 
             daily = report.get("daily", [])
             if daily:
@@ -97,10 +99,7 @@ def main() -> None:
                 max_saved = max(d["saved"] for d in daily) if daily else 1
                 for d in daily:
                     bar = _bar(d["saved"], max_saved)
-                    print(
-                        f"  {d['day']}  {d['count']:>5,} passes  "
-                        f"saved: {d['saved']:>10,} tokens  {bar}"
-                    )
+                    print(f"  {d['day']}  {d['count']:>5,} passes  saved: {d['saved']:>10,} tokens  {bar}")
         print()
 
     if args.watch:

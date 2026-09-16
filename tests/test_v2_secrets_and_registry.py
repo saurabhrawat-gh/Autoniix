@@ -4,13 +4,10 @@ These tests do not require a running database — they only exercise pure
 Python paths: the env-backed secrets resolver and the registry's graceful
 fallback when the DB chain is unreachable.
 """
+
 from __future__ import annotations
 
-import os
-
-import pytest
-
-from src.providers.secrets import EnvBackend, get_secret_at, reset_cache
+from providers.secrets import EnvBackend, get_secret_at, reset_cache
 
 
 def test_env_backend_reads_path_to_env_var(monkeypatch):
@@ -42,7 +39,7 @@ def test_registry_falls_back_to_env_when_no_db(monkeypatch):
     We force ``providers.db_chain.enabled`` lookup to fail by pointing the
     pool at a bogus host; the registry should silently fall through to env.
     """
-    from src.providers.registry import ProviderRegistry
+    from providers.registry import ProviderRegistry
 
     class _StubProvider:
         def __init__(self):
@@ -50,7 +47,7 @@ def test_registry_falls_back_to_env_when_no_db(monkeypatch):
 
     ProviderRegistry._registries["llm"] = {"stub": _StubProvider}
     monkeypatch.setenv("LLM_PROVIDER", "stub")
-    monkeypatch.setattr("src.environment.is_test", lambda: False)
+    monkeypatch.setattr("core.environment.is_test", lambda: False)
     ProviderRegistry.reset()
 
     inst = ProviderRegistry.get("llm")

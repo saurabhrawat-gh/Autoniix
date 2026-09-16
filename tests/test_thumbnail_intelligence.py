@@ -2,16 +2,15 @@
 
 Tests: composition_analyzer (pure scoring), ctr_predictor (feature extraction)
 """
+
 from __future__ import annotations
 
 import pytest
-from unittest.mock import AsyncMock, patch
 
-from src.services.thumbnail.ctr_predictor import (
-    extract_thumbnail_features,
+from services_api.thumbnail.ctr_predictor import (
     FEATURE_NAMES,
+    extract_thumbnail_features,
 )
-
 
 
 class TestExtractThumbnailFeatures:
@@ -29,7 +28,8 @@ class TestExtractThumbnailFeatures:
             },
         }
         features = await extract_thumbnail_features(
-            "VID_test", "CH_test", composition, variant_id=0, text_overlay="Big Text")
+            "VID_test", "CH_test", composition, variant_id=0, text_overlay="Big Text"
+        )
         assert isinstance(features, dict)
         assert features["has_face"] is True
         assert features["brightness_score"] == 0.65
@@ -47,7 +47,8 @@ class TestExtractThumbnailFeatures:
     async def test_text_area_ratio(self, mock_pool):
         composition = {"composition_score": 7.0}
         features = await extract_thumbnail_features(
-            "VID_test", "CH_test", composition, text_overlay="One Two Three Four")
+            "VID_test", "CH_test", composition, text_overlay="One Two Three Four"
+        )
         assert features["text_word_count"] == 4
         assert features["text_area_ratio"] > 0
 

@@ -3,6 +3,7 @@ description: Project Manager — sprint planning, milestone progress report, and
 ---
 
 > **Source of Truth — LOCKED:**
+>
 > - Jira **Issue Management (IM)** project (`IM-XXX`) is the **only** active project. All sprints and tickets go here.
 > - Jira **Autoniix Engineering (AE)** space is **archived** — read-only, never create sprints or tickets there.
 > - GitHub **Autoniix MVP** project board is **closed** — do not reference it for sprint planning.
@@ -19,6 +20,7 @@ Run it at the start of each week or sprint, or whenever you need a status overvi
 ## Modes
 
 Pass a mode when invoking:
+
 - `/pm-agent plan` — sprint planning: decide which issues to pull into active work
 - `/pm-agent report` — status report: current progress, velocity, risk items
 - `/pm-agent deploy-watch` — check production deployment health and auto-advance tickets from Ready To Deploy → In Prod
@@ -95,7 +97,8 @@ Pass a mode when invoking:
      - Estimated complexity: count AC checkboxes (1–3 = small, 4–7 = medium, 8+ = large)
      - Blocking dependencies: note any issue referenced as a prerequisite
 
-5. **Print sprint plan**
+6. **Print sprint plan**
+
    ```
    ── SPRINT PLAN ── {date} ───────────────────────────────────
 
@@ -116,7 +119,7 @@ Pass a mode when invoking:
    ACTION: Run /dev-agent to start #22.
    ```
 
-6. **Ask for confirmation before labelling**
+7. **Ask for confirmation before labelling**
    - Ask the user: "Should I mark #22 as the next sprint focus? (y/n)"
    - If yes: call `mcp0_add_issue_comment` on the selected issue with "📌 Pulled into current sprint — next up for /dev-agent"
 
@@ -213,6 +216,7 @@ Run this after a deploy has been triggered (or on a schedule). Checks whether pr
    - Print one line per ticket: `✅ {KEY} → In Prod — {summary}`
 
 4. **Print promotion summary**
+
    ```
    ── DEPLOY-WATCH ── {datetime} ─────────────────────
    Production health: ✅ GREEN (https://dash.autoniix.com/api/health)
@@ -241,7 +245,7 @@ Run this after a deploy has been triggered (or on a schedule). Checks whether pr
        jql: project = IM AND "Epic Link" = {EPIC_KEY} OR parent = {EPIC_KEY}
        fields: ["summary", "status"]
      ```
-     *(Also check stories sharing the epic's sprint label if Epic Link is unavailable.)*
+     _(Also check stories sharing the epic's sprint label if Epic Link is unavailable.)_
    - **If ALL child stories have status `Done`** (and the Epic itself is not already `Done`):
      - Call `mcp0_transitionJiraIssue` with transition id `51` (→ Done)
      - Find the matching GitHub Epic issue via `scripts/issue_map.json` reverse-lookup

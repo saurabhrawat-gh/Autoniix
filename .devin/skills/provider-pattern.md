@@ -17,9 +17,10 @@ ABC (base.py)  →  Concrete Provider  →  Registry (registry.py)  →  Config 
 ## How to Add a New Provider
 
 1. **Create the provider class** in `src/providers/<category>/`
+
    ```python
    from src.providers.<category>.base import <Category>Provider
-   
+
    class MyProvider(<Category>Provider):
        async def complete(self, request): ...  # or synthesize(), generate(), etc.
        def estimate_cost(self, ...): ...
@@ -29,6 +30,7 @@ ABC (base.py)  →  Concrete Provider  →  Registry (registry.py)  →  Config 
    ```
 
 2. **Register it** at the bottom of the file:
+
    ```python
    ProviderRegistry.register("llm", "my_provider", MyProvider)
    ```
@@ -43,20 +45,21 @@ ABC (base.py)  →  Concrete Provider  →  Registry (registry.py)  →  Config 
 
 ## Provider Categories
 
-| Category | ABC | Env Var | Providers |
-|----------|-----|---------|-----------|
-| llm | LLMProvider | LLM_PROVIDER | openai, claude, gemini, mock_llm |
-| llm.script | LLMProvider | LLM_SCRIPT_PROVIDER | claude (default) |
-| llm.research | LLMProvider | LLM_RESEARCH_PROVIDER | gemini (default) |
-| llm.factcheck | LLMProvider | LLM_FACTCHECK_PROVIDER | openai |
-| llm.qc | LLMProvider | LLM_QC_PROVIDER | gemini |
-| llm.vision | LLMProvider | LLM_VISION_PROVIDER | openai |
-| tts | TTSProvider | TTS_PROVIDER | fishaudio, elevenlabs, edge_tts |
-| image | ImageProvider | IMAGE_PROVIDER | dalle, placeholder |
-| search | SearchProvider | SEARCH_PROVIDER | serpapi, mock_search |
-| storage | StorageProvider | STORAGE_PROVIDER | minio |
+| Category      | ABC             | Env Var                | Providers                        |
+| ------------- | --------------- | ---------------------- | -------------------------------- |
+| llm           | LLMProvider     | LLM_PROVIDER           | openai, claude, gemini, mock_llm |
+| llm.script    | LLMProvider     | LLM_SCRIPT_PROVIDER    | claude (default)                 |
+| llm.research  | LLMProvider     | LLM_RESEARCH_PROVIDER  | gemini (default)                 |
+| llm.factcheck | LLMProvider     | LLM_FACTCHECK_PROVIDER | openai                           |
+| llm.qc        | LLMProvider     | LLM_QC_PROVIDER        | gemini                           |
+| llm.vision    | LLMProvider     | LLM_VISION_PROVIDER    | openai                           |
+| tts           | TTSProvider     | TTS_PROVIDER           | fishaudio, elevenlabs, edge_tts  |
+| image         | ImageProvider   | IMAGE_PROVIDER         | dalle, placeholder               |
+| search        | SearchProvider  | SEARCH_PROVIDER        | serpapi, mock_search             |
+| storage       | StorageProvider | STORAGE_PROVIDER       | minio                            |
 
 ## Usage in Services
+
 ```python
 from src.providers.registry import ProviderRegistry
 
@@ -65,4 +68,5 @@ result = await llm.complete(LLMRequest(messages=[...], max_tokens=4096))
 ```
 
 ## Test Mode
+
 When `ENVIRONMENT_MODE=test`, `ProviderRegistry.get()` automatically remaps to free providers via `_TEST_PROVIDER_MAP`. No code changes needed.

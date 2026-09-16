@@ -59,7 +59,7 @@ else
     exit 1
 fi
 
-if [ -d "dashboard/src/generated" ] && [ "$(ls -A dashboard/src/generated)" ]; then
+if [ -d "apps/dashboard/src/generated" ] && [ "$(ls -A apps/dashboard/src/generated)" ]; then
     echo "  ✅ TypeScript code generated"
 else
     echo "  ❌ TypeScript code generation failed"

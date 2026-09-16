@@ -1,0 +1,152 @@
+groups:
+  # Service availability
+  - name: service_availability
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.service }} is down"
+          description: "Prometheus cannot reach {{ $labels.job }} ({{ $labels.instance }}). Has been down for > 2 minutes."
+
+      - alert: ServiceFlapping
+        expr: changes(up[10m]) > 4
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Service {{ $labels.service }} is flapping"
+          description: "{{ $labels.job }} has restarted more than 4 times in the last 10 minutes."
+
+  # HTTP error rates
+  - name: http_errors
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum by (service) (rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            sum by (service) (rate(http_requests_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP 5xx rate on {{ $labels.service }}"
+          description: "{{ $labels.service }} HTTP 5xx rate is {{ $value | humanizePercentage }} over the last 5 minutes (threshold: 5%)."
+
+      - alert: CriticalErrorRate
+        expr: |
+          (
+            sum by (service) (rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            sum by (service) (rate(http_requests_total[5m]))
+          ) > 0.20
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical HTTP 5xx rate on {{ $labels.service }}"
+          description: "{{ $labels.service }} HTTP 5xx rate is {{ $value | humanizePercentage }} — above 20% for 2+ minutes."
+
+  # Request latency
+  - name: latency
+    rules:
+      - alert: SlowRequests
+        expr: |
+          histogram_quantile(0.95,
+            sum by (service, le) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow p95 latency on {{ $labels.service }}"
+          description: "p95 request latency on {{ $labels.service }} is {{ $value | humanizeDuration }} (threshold: 5s)."
+
+  # Budget / cost guards
+  - name: budget
+    rules:
+      - alert: DailyBudgetExceeded
+        expr: yt_daily_api_spend_usd > yt_daily_budget_limit_usd
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Daily API budget exceeded on channel {{ $labels.channel_id }}"
+          description: "Channel {{ $labels.channel_id }} has spent ${{ $value }} today, exceeding its daily budget limit."
+
+      - alert: DailyBudgetWarning
+        expr: yt_daily_api_spend_usd > (yt_daily_budget_limit_usd * 0.80)
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "80% of daily budget used on channel {{ $labels.channel_id }}"
+          description: "Channel {{ $labels.channel_id }} has used 80% of its daily API budget (${{ $value }} spent)."
+
+  # Disk / storage
+  - name: storage
+    rules:
+      - alert: DiskSpaceLow
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk space low on {{ $labels.instance }}"
+          description: "Less than 20% disk space remaining on {{ $labels.instance }} ({{ $value | humanizePercentage }} free)."
+
+      - alert: DiskSpaceCritical
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.10
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CRITICAL: Disk space nearly full on {{ $labels.instance }}"
+          description: "Less than 10% disk space on {{ $labels.instance }}. Immediate action required."
+
+  # Video pipeline
+  - name: pipeline
+    rules:
+      - alert: VideoProductionStalled
+        expr: |
+          increase(yt_videos_completed_total[1h]) == 0
+            and
+          increase(yt_videos_started_total[1h]) > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Video production stalled — videos started but none completed in 1h"
+          description: "At least one video was started in the last hour but no videos completed. Check Temporal + worker logs."
+
+      - alert: HighQCFailRate
+        expr: |
+          (
+            sum(rate(yt_qc_failed_total[30m]))
+            /
+            sum(rate(yt_qc_checked_total[30m]))
+          ) > 0.50
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High QC failure rate (> 50% in last 30 min)"
+          description: "More than half of QC checks are failing. Review prompt quality or LLM provider health."
+
+  # Temporal workers
+  - name: temporal
+    rules:
+      - alert: TemporalWorkerMissing
+        expr: up{job=~"worker.*"} == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Temporal worker {{ $labels.job }} is not running"
+          description: "{{ $labels.job }} has been unreachable for 3+ minutes. Video production is halted."

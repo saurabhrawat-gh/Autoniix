@@ -16,6 +16,7 @@ Run::
 Idempotent: existing ``(query_hash, provider, asset_url)`` triples are
 skipped via the unique constraint already on the table.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -31,12 +32,12 @@ import structlog
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.config import settings  # noqa: E402
-from src.db import get_pool, close_pool  # noqa: E402
-from src.providers.boot import boot_providers  # noqa: E402  (registers storage)
-from src.providers.registry import ProviderRegistry  # noqa: E402
-from src.providers.storage.base import StorageUpload  # noqa: E402
-from src.services.assets import semantic_ranker  # noqa: E402
+from core.config import settings  # noqa: E402
+from core.db import close_pool, get_pool  # noqa: E402
+from providers.boot import boot_providers  # noqa: E402  (registers storage)
+from providers.registry import ProviderRegistry  # noqa: E402
+from providers.storage.base import StorageUpload  # noqa: E402
+from services_api.assets import semantic_ranker  # noqa: E402
 
 logger = structlog.get_logger()
 
@@ -132,15 +133,17 @@ async def _fetch_pexels(query: str, k: int = 5) -> list[dict]:
         best = next((f for f in files if (f.get("height") or 0) >= 720), files[0] if files else None)
         if not best:
             continue
-        out.append({
-            "provider": "pexels",
-            "url": best["link"],
-            "duration": float(v.get("duration", 0) or 0),
-            "width": int(best.get("width", 0) or 0),
-            "height": int(best.get("height", 0) or 0),
-            "tags": v.get("user", {}).get("name", ""),
-            "license": "pexels_free",
-        })
+        out.append(
+            {
+                "provider": "pexels",
+                "url": best["link"],
+                "duration": float(v.get("duration", 0) or 0),
+                "width": int(best.get("width", 0) or 0),
+                "height": int(best.get("height", 0) or 0),
+                "tags": v.get("user", {}).get("name", ""),
+                "license": "pexels_free",
+            }
+        )
     return out
 
 
@@ -159,15 +162,17 @@ async def _fetch_pixabay(query: str, k: int = 5) -> list[dict]:
         m = h.get("videos", {}).get("medium", {})
         if not m.get("url"):
             continue
-        out.append({
-            "provider": "pixabay",
-            "url": m["url"],
-            "duration": float(h.get("duration", 0) or 0),
-            "width": int(m.get("width", 0) or 0),
-            "height": int(m.get("height", 0) or 0),
-            "tags": h.get("tags", ""),
-            "license": "pixabay_free",
-        })
+        out.append(
+            {
+                "provider": "pixabay",
+                "url": m["url"],
+                "duration": float(h.get("duration", 0) or 0),
+                "width": int(m.get("width", 0) or 0),
+                "height": int(m.get("height", 0) or 0),
+                "tags": h.get("tags", ""),
+                "license": "pixabay_free",
+            }
+        )
     return out
 
 
@@ -176,6 +181,7 @@ async def _embed(query: str) -> list[float] | None:
     if model is None:
         return None
     import numpy as np
+
     vec = model.encode([query], normalize_embeddings=True)[0]
     return [float(x) for x in np.asarray(vec).tolist()]
 
@@ -248,15 +254,25 @@ async def curate_niche(niche: str, limit_per_query: int = 5, max_total: int = 30
                 VALUES ($1,$2,$3,$4,$5,'stock_video',$6,$7,$8,$9,$10,$11,0,$12,$13,$14)
                 ON CONFLICT DO NOTHING
                 """,
-                qh, query, c["provider"], c["url"], up.key,
-                c["width"], c["height"], c["duration"],
+                qh,
+                query,
+                c["provider"],
+                c["url"],
+                up.key,
+                c["width"],
+                c["height"],
+                c["duration"],
                 json.dumps([]),  # dominant_colors filled later by analytics
-                8.0, 8.0,
-                emb, c["license"], c["tags"][:500],
+                8.0,
+                8.0,
+                emb,
+                c["license"],
+                c["tags"][:500],
             )
             inserted += 1
-            logger.info("curate.inserted", niche=niche, query=query,
-                        provider=c["provider"], height=c["height"], idx=inserted)
+            logger.info(
+                "curate.inserted", niche=niche, query=query, provider=c["provider"], height=c["height"], idx=inserted
+            )
 
     await close_pool()
     return inserted

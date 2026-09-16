@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
   workflow_dispatch:
 
 concurrency:
@@ -11,34 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-
-  guard:
-    name: Guard — merge from develop only
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      - name: Verify merge source is develop
-        run: |
-          PARENTS=$(git log -1 --pretty=format:"%P")
-          PARENT_COUNT=$(echo "$PARENTS" | wc -w | tr -d ' ')
-          MSG=$(git log -1 --pretty=format:"%s")
-          if [ "$PARENT_COUNT" -lt 2 ]; then
-            echo "❌ Direct push to main is not allowed."
-            echo "   Run: git checkout main && git merge --no-ff develop && git push"
-            exit 1
-          fi
-          if ! echo "$MSG" | grep -qi "develop"; then
-            echo "❌ Merge source is not 'develop'. Message: $MSG"
-            exit 1
-          fi
-          echo "✅ Merge from develop confirmed."
-
   drift:
-    needs: guard
-    if: always() && (needs.guard.result == 'success' || github.event_name == 'workflow_dispatch')
     name: versions.env drift check
     runs-on: ubuntu-latest
     steps:

@@ -1,0 +1,28 @@
+# act configuration — runs GitHub Actions locally in Docker
+# Docs: https://github.com/nektos/act
+#
+# Usage:
+#   act push                          # simulate push event (runs all push-triggered workflows)
+#   act push -W .github/workflows/ci.yml    # single workflow
+#   act workflow_dispatch -W .github/workflows/build.yml
+#   make ci-act                       # fast: ci.yml only
+#   make ci-act-full                  # full: all workflows
+
+# Use the medium runner image — matches ubuntu-latest on GitHub
+# First run downloads ~500MB. Subsequent runs use cache.
+-P ubuntu-latest=catthehacker/ubuntu:act-22.04
+
+# Load secrets from local file (gitignored — copy from .act-secrets.local.example)
+--secret-file .act-secrets.local
+
+# Artifact storage path (local temp dir)
+--artifact-server-path /tmp/act-artifacts
+
+# Force linux/amd64 — matches GitHub's runner architecture (important on Apple Silicon)
+--container-architecture linux/amd64
+
+# Set ACT=true so workflows can detect they're running locally
+--env ACT=true
+
+# Pull missing images but don't re-pull if already cached
+--pull=missing

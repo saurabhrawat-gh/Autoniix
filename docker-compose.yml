@@ -2,7 +2,7 @@ name: autoniix
 
 networks:
   autoniix-net:
-    name: autoniix-net    # disable compose's project-name prefix so Traefik label "autoniix-net" matches
+    name: autoniix-net # disable compose's project-name prefix so Traefik label "autoniix-net" matches
     driver: bridge
 
 volumes:
@@ -18,7 +18,6 @@ volumes:
   letsencrypt_data:
 
 services:
-
   # Databases
   postgres-app:
     # Pinned via versions.env POSTGRES_IMAGE=pgvector/pgvector:pg15
@@ -162,9 +161,9 @@ services:
       - POSTGRES_USER=temporal
       - POSTGRES_PWD=${TEMPORAL_DB_PASSWORD:-change_me_temporal_64}
       - POSTGRES_SEEDS=postgres-temporal
-      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/production.yaml
+      - DYNAMIC_CONFIG_FILE_PATH=infra/config/dynamicconfig/production.yaml
     volumes:
-      - ./config/dynamicconfig:/etc/temporal/config/dynamicconfig
+      - ./infra/config/dynamicconfig:/etc/temporal/infra/config/dynamicconfig
     ports:
       - "127.0.0.1:7233:7233"
     networks: [autoniix-net]
@@ -195,7 +194,7 @@ services:
   # Application Services
   research:
     build: .
-    command: uvicorn src.services.research.main:app --host 0.0.0.0 --port 8001
+    command: uvicorn services_api.research.main:app --host 0.0.0.0 --port 8001
     env_file: .env
     environment:
       - PORT=8001
@@ -211,7 +210,7 @@ services:
 
   script:
     build: .
-    command: uvicorn src.services.script.main:app --host 0.0.0.0 --port 8002
+    command: uvicorn services_api.script.main:app --host 0.0.0.0 --port 8002
     env_file: .env
     environment:
       - PORT=8002
@@ -226,7 +225,7 @@ services:
 
   voice:
     build: .
-    command: uvicorn src.services.voice.main:app --host 0.0.0.0 --port 8003
+    command: uvicorn services_api.voice.main:app --host 0.0.0.0 --port 8003
     env_file: .env
     environment:
       - PORT=8003
@@ -241,7 +240,7 @@ services:
 
   assets:
     build: .
-    command: uvicorn src.services.assets.main:app --host 0.0.0.0 --port 8004
+    command: uvicorn services_api.assets.main:app --host 0.0.0.0 --port 8004
     env_file: .env
     environment:
       - PORT=8004
@@ -256,7 +255,7 @@ services:
 
   thumbnail:
     build: .
-    command: uvicorn src.services.thumbnail.main:app --host 0.0.0.0 --port 8005
+    command: uvicorn services_api.thumbnail.main:app --host 0.0.0.0 --port 8005
     env_file: .env
     environment:
       - PORT=8005
@@ -271,7 +270,7 @@ services:
 
   assembly:
     build: .
-    command: uvicorn src.services.assembly.main:app --host 0.0.0.0 --port 8006
+    command: uvicorn services_api.assembly.main:app --host 0.0.0.0 --port 8006
     env_file: .env
     environment:
       - PORT=8006
@@ -285,7 +284,7 @@ services:
 
   delivery:
     build: .
-    command: uvicorn src.services.delivery.main:app --host 0.0.0.0 --port 8007
+    command: uvicorn services_api.delivery.main:app --host 0.0.0.0 --port 8007
     env_file: .env
     environment:
       - PORT=8007
@@ -299,7 +298,7 @@ services:
 
   analytics:
     build: .
-    command: uvicorn src.services.analytics.main:app --host 0.0.0.0 --port 8008
+    command: uvicorn services_api.analytics.main:app --host 0.0.0.0 --port 8008
     env_file: .env
     environment:
       - PORT=8008
@@ -313,7 +312,7 @@ services:
 
   admin:
     build: .
-    command: uvicorn src.services.admin.main:app --host 0.0.0.0 --port 8009
+    command: uvicorn services_api.admin.main:app --host 0.0.0.0 --port 8009
     env_file: .env
     environment:
       - PORT=8009
@@ -327,7 +326,7 @@ services:
 
   direction:
     build: .
-    command: uvicorn src.services.direction.main:app --host 0.0.0.0 --port 8010
+    command: uvicorn services_api.direction.main:app --host 0.0.0.0 --port 8010
     env_file: .env
     environment:
       - PORT=8010
@@ -341,7 +340,7 @@ services:
 
   brand:
     build: .
-    command: uvicorn src.services.brand.main:app --host 0.0.0.0 --port 8012
+    command: uvicorn services_api.brand.main:app --host 0.0.0.0 --port 8012
     env_file: .env
     environment:
       - PORT=8012
@@ -360,7 +359,7 @@ services:
   # enable enforcement. Health + decision API on port 8015.
   brain:
     build: .
-    command: python -m src.services.brain.main
+    command: python -m services_api.brain.main
     env_file: .env
     environment:
       - BRAIN_PORT=8015
@@ -383,7 +382,7 @@ services:
 
   editor:
     build: .
-    command: uvicorn src.services.editor.main:app --host 0.0.0.0 --port 8013
+    command: uvicorn services_api.editor.main:app --host 0.0.0.0 --port 8013
     env_file: .env
     environment:
       - PORT=8013
@@ -397,7 +396,7 @@ services:
 
   sheets-sync:
     build: .
-    command: uvicorn src.services.sheets_sync.main:app --host 0.0.0.0 --port 8011
+    command: uvicorn services_api.sheets_sync.main:app --host 0.0.0.0 --port 8011
     env_file: .env
     environment:
       - PORT=8011
@@ -415,7 +414,7 @@ services:
   # when hardware is available. Set FINISHING_SERVICE_URL=http://resolve-finisher:8014
   # in .env to route finishing traffic here (requires require_resolve_finish=true per channel).
   resolve-finisher:
-    build: { context: ./services/resolve-finisher }
+    build: { context: ./backend/platform/resolve-finisher }
     environment:
       - PORT=8014
     ports:
@@ -432,7 +431,7 @@ services:
 
   # Remotion Renderer
   remotion-api:
-    build: { context: ./services/remotion, dockerfile: Dockerfile }
+    build: { context: ./backend/media/remotion, dockerfile: Dockerfile }
     command: ["npm", "run", "start:api"]
     environment:
       - NODE_ENV=production
@@ -470,7 +469,7 @@ services:
     deploy: { resources: { limits: { memory: 2G } } }
 
   remotion-worker:
-    build: { context: ./services/remotion, dockerfile: Dockerfile }
+    build: { context: ./backend/media/remotion, dockerfile: Dockerfile }
     command: ["npm", "run", "start:worker"]
     environment:
       - NODE_ENV=production
@@ -507,7 +506,7 @@ services:
   remotion-worker-tier1:
     profiles: ["vision"]
     build:
-      context: ./services/remotion
+      context: ./backend/media/remotion
       dockerfile: Dockerfile
     command: ["npm", "run", "start:worker"]
     environment:
@@ -539,7 +538,7 @@ services:
   remotion-worker-tier2:
     profiles: ["vision"]
     build:
-      context: ./services/remotion
+      context: ./backend/media/remotion
       dockerfile: Dockerfile
     command: ["npm", "run", "start:worker"]
     environment:
@@ -566,39 +565,10 @@ services:
     restart: unless-stopped
     deploy: { resources: { limits: { memory: 2G } } }
 
-  remotion-worker-concat:
-    profiles: ["vision"]
-    build:
-      context: ./services/remotion
-      dockerfile: Dockerfile
-    command: ["npm", "run", "start:worker"]
-    environment:
-      - NODE_ENV=production
-      - LOG_LEVEL=info
-      - WORKER_ROLE=concat
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - RENDER_CONCURRENCY=2
-      - RENDER_TMP_DIR=/app/tmp
-      - S3_ENDPOINT=http://minio:9000
-      - S3_BUCKET=${S3_BUCKET:-autoniix}
-      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY:-minioadmin}
-      - S3_SECRET_ACCESS_KEY=${S3_SECRET_KEY:-minioadmin}
-      - S3_FORCE_PATH_STYLE=true
-      - S3_KEY_PREFIX=prod
-    volumes:
-      - remotion_tmp:/app/tmp
-    networks: [autoniix-net]
-    depends_on:
-      redis: { condition: service_healthy }
-      minio: { condition: service_healthy }
-    restart: unless-stopped
-    deploy: { resources: { limits: { memory: 1G } } }
-
   remotion-mcp:
     profiles: ["vision"]
     build:
-      context: ./services/remotion
+      context: ./backend/media/remotion
       dockerfile: Dockerfile
     command: ["npm", "run", "mcp"]
     environment:
@@ -618,7 +588,7 @@ services:
   # Temporal Workers
   worker-production:
     build: .
-    command: python -m src.workers.run_production
+    command: python -m temporal_workers.run_production
     env_file: .env
     networks: [autoniix-net]
     healthcheck:
@@ -633,7 +603,7 @@ services:
 
   worker-scheduler:
     build: .
-    command: python -m src.workers.run_scheduler
+    command: python -m temporal_workers.run_scheduler
     env_file: .env
     networks: [autoniix-net]
     healthcheck:
@@ -682,216 +652,32 @@ services:
     restart: unless-stopped
     deploy: { resources: { limits: { memory: 64M } } }
 
-  # ---------------------------------------------------------------------------
-  # Go microservices (Phase C, opt-in via `--profile go-services`)
-  #
-  # These services are ADDITIVE to the Python fleet. Default `docker-compose up`
-  # does NOT start them so nothing changes for existing workflows. Enable with:
-  #
-  #   docker-compose --profile go-services up
-  #
-  # See docs/architecture/harness-engineering-plan.md v5 for migration status.
-  # ---------------------------------------------------------------------------
-
-  # G1: notification-dispatcher — retries stuck notification_deliveries rows.
-  # Runs alongside Python's inline dispatcher; uses FOR UPDATE SKIP LOCKED +
-  # StaleAfter window so the two never duplicate deliveries.
   notification-dispatcher:
-    profiles: ["go-services"]
     build:
-      context: ./go
+      context: ./backend/workers/notification-dispatcher
       dockerfile: Dockerfile
-      args:
-        BINARY_PATH: ./notification-dispatcher/cmd/dispatcher
     env_file: .env
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_APP_USER:-postgres}:${POSTGRES_APP_PASSWORD:-postgres}@postgres-app:5432/${POSTGRES_APP_DB:-autoniix}
-      - NDISP_HTTP_ADDR=:8090
-      - NDISP_POLL_INTERVAL_MS=${NDISP_POLL_INTERVAL_MS:-15000}
-      - NDISP_STALE_AFTER_MS=${NDISP_STALE_AFTER_MS:-60000}
-      - NDISP_BATCH_SIZE=${NDISP_BATCH_SIZE:-50}
-      - NDISP_MAX_ATTEMPTS=${NDISP_MAX_ATTEMPTS:-3}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DATABASE_URL=postgresql://${DB_USER:-app}:${DB_PASSWORD:-change_me_strong_random_64}@postgres-app:5432/${DB_NAME:-autoniix}
+      - HTTP_ADDR=0.0.0.0:8090
+      - POLL_INTERVAL_MS=${NDISP_POLL_INTERVAL_MS:-15000}
+      - STALE_AFTER_MS=${NDISP_STALE_AFTER_MS:-60000}
+      - BATCH_SIZE=${NDISP_BATCH_SIZE:-50}
+      - MAX_ATTEMPTS=${NDISP_MAX_ATTEMPTS:-3}
+      - HTTP_TIMEOUT_MS=10000
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
     networks: [autoniix-net]
     ports:
       - "127.0.0.1:8090:8090"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8090/health"]
-      interval: 30s
+      test: ["CMD-SHELL", "curl -f http://localhost:8090/health || exit 1"]
+      interval: 10s
       timeout: 3s
       retries: 3
     depends_on:
       postgres-app: { condition: service_healthy }
     restart: unless-stopped
-    deploy: { resources: { limits: { memory: 64M } } }
-
-  # G2: streaming-hub — gRPC event pub/sub server backed by Redis.
-  streaming-hub:
-    profiles: ["go-services"]
-    build:
-      context: ./go
-      dockerfile: Dockerfile
-      args:
-        BINARY_PATH: ./streaming-hub/cmd/hub
-    env_file: .env
-    environment:
-      - GRPC_PORT=9002
-      - HTTP_PORT=8092
-      - REDIS_URL=redis://redis:6379
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-    networks: [autoniix-net]
-    ports:
-      - "127.0.0.1:9002:9002"
-      - "127.0.0.1:8092:8092"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8092/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-    depends_on:
-      redis: { condition: service_healthy }
-    restart: unless-stopped
-    deploy: { resources: { limits: { memory: 64M } } }
-
-  # G3: service-delivery — gRPC delivery service (SEO native, upload via Python proxy).
-  service-delivery:
-    profiles: ["go-services"]
-    build:
-      context: ./go
-      dockerfile: Dockerfile
-      args:
-        BINARY_PATH: ./service-delivery/cmd/delivery
-    env_file: .env
-    environment:
-      - GRPC_PORT=9003
-      - HTTP_PORT=8097
-      - PYTHON_DELIVERY_URL=http://delivery:8007
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-    networks: [autoniix-net]
-    ports:
-      - "127.0.0.1:9003:9003"
-      - "127.0.0.1:8097:8097"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8097/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-    depends_on:
-      delivery: { condition: service_healthy }
-    restart: unless-stopped
-    deploy: { resources: { limits: { memory: 64M } } }
-
-  # G4: service-thumbnail — gRPC stub proxying to Python thumbnail service.
-  service-thumbnail:
-    profiles: ["go-services"]
-    build:
-      context: ./go
-      dockerfile: Dockerfile
-      args:
-        BINARY_PATH: ./service-thumbnail/cmd/thumbnail
-    env_file: .env
-    environment:
-      - GRPC_PORT=9004
-      - HTTP_PORT=8095
-      - PYTHON_THUMBNAIL_URL=http://thumbnail:8005
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-    networks: [autoniix-net]
-    ports:
-      - "127.0.0.1:9004:9004"
-      - "127.0.0.1:8095:8095"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8095/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-    depends_on:
-      thumbnail: { condition: service_healthy }
-    restart: unless-stopped
-    deploy: { resources: { limits: { memory: 64M } } }
-
-  # G5: service-voice — gRPC stub proxying to Python voice service.
-  service-voice:
-    profiles: ["go-services"]
-    build:
-      context: ./go
-      dockerfile: Dockerfile
-      args:
-        BINARY_PATH: ./service-voice/cmd/voice
-    env_file: .env
-    environment:
-      - GRPC_PORT=9005
-      - HTTP_PORT=8093
-      - PYTHON_VOICE_URL=http://voice:8003
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-    networks: [autoniix-net]
-    ports:
-      - "127.0.0.1:9005:9005"
-      - "127.0.0.1:8093:8093"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8093/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-    depends_on:
-      voice: { condition: service_healthy }
-    restart: unless-stopped
-    deploy: { resources: { limits: { memory: 64M } } }
-
-  # G6: service-research — gRPC stub proxying to Python research service.
-  service-research:
-    profiles: ["go-services"]
-    build:
-      context: ./go
-      dockerfile: Dockerfile
-      args:
-        BINARY_PATH: ./service-research/cmd/research
-    env_file: .env
-    environment:
-      - GRPC_PORT=9006
-      - HTTP_PORT=8094
-      - PYTHON_RESEARCH_URL=http://research:8006
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-    networks: [autoniix-net]
-    ports:
-      - "127.0.0.1:9006:9006"
-      - "127.0.0.1:8094:8094"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8094/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-    depends_on:
-      research: { condition: service_healthy }
-    restart: unless-stopped
-    deploy: { resources: { limits: { memory: 64M } } }
-
-  # G7: service-script — gRPC stub proxying to Python script service.
-  service-script:
-    profiles: ["go-services"]
-    build:
-      context: ./go
-      dockerfile: Dockerfile
-      args:
-        BINARY_PATH: ./service-script/cmd/script
-    env_file: .env
-    environment:
-      - GRPC_PORT=9007
-      - HTTP_PORT=8096
-      - PYTHON_SCRIPT_URL=http://script:8002
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-    networks: [autoniix-net]
-    ports:
-      - "127.0.0.1:9007:9007"
-      - "127.0.0.1:8096:8096"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8096/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-    depends_on:
-      script: { condition: service_healthy }
-    restart: unless-stopped
-    deploy: { resources: { limits: { memory: 64M } } }
+    deploy: { resources: { limits: { memory: 128M } } }
 
   # media_jobs worker (AE-355 / Library Sprint) — pulls pending rows from the
   # media_jobs table and runs probe / embed / autotag handlers. ffmpeg-based
@@ -899,7 +685,7 @@ services:
   # registered as skipped until ffmpeg is added to the worker image.
   worker-media-jobs:
     build: .
-    command: python -m src.workers.media_jobs.runner
+    command: python -m temporal_workers.media_jobs.runner
     env_file: .env
     environment:
       MEDIA_JOBS_CONCURRENCY: "${MEDIA_JOBS_CONCURRENCY:-2}"
@@ -915,7 +701,7 @@ services:
   # Sentry Agent — monitors #alerts-critical and #alerts-warnings Slack channels,
   # triages Sentry errors into Jira bugs, and attempts LLM-powered auto-fixes via PR.
   sentry-agent:
-    build: { context: ./services/sentry-agent }
+    build: { context: ./backend/platform/sentry-agent }
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379
@@ -928,7 +714,7 @@ services:
   # Dashboard
   dashboard-bff:
     build: .
-    command: uvicorn src.services.dashboard.main:app --host 0.0.0.0 --port 8020
+    command: uvicorn services_api.dashboard.main:app --host 0.0.0.0 --port 8020
     env_file: .env
     ports:
       - "127.0.0.1:8020:8020"
@@ -955,7 +741,7 @@ services:
     deploy: { resources: { limits: { memory: 256M } } }
 
   dashboard-ui:
-    build: ./dashboard
+    build: ./frontend/dashboard
     ports:
       - "127.0.0.1:3000:3000"
     labels:
@@ -985,13 +771,17 @@ services:
         limits:
           memory: 256M
 
-  # Rust API Gateway — /api/v2/* routes (auth, users, channels, workspace)
+  # Rust API Gateway v1 — /api/v2/* routes (auth, users, channels, workspace)
   # Local dev: http://localhost:8081    Production: https://${GW_DOMAIN}
   # Add GW_DOMAIN=gw.yourdomain.com to .env to enable TLS routing.
+  #
+  # During Phase 2 migration, this v1 gateway handles all traffic by default.
+  # Requests carrying `X-Gateway-Version: v2` are routed to `node-gateway` via
+  # Traefik priority ordering (see labels on node-gateway below).
   rust-gateway:
     build:
       context: .
-      dockerfile: rust/gateway/Dockerfile
+      dockerfile: services/gateway/Dockerfile
     env_file: .env
     environment:
       # Use Docker-network hostname; overrides any localhost URL from .env
@@ -1002,7 +792,9 @@ services:
       - "127.0.0.1:8081:8080"
     labels:
       - "traefik.enable=true"
+      # Default (fallback) router — priority 1 so v2 header router wins when present
       - "traefik.http.routers.gw.rule=Host(`${GW_DOMAIN:-gw.localhost}`)"
+      - "traefik.http.routers.gw.priority=1"
       - "traefik.http.routers.gw.entrypoints=websecure"
       - "traefik.http.routers.gw.tls.certresolver=letsencrypt"
       - "traefik.http.routers.gw.middlewares=secureHeaders@file"
@@ -1019,10 +811,109 @@ services:
     restart: unless-stopped
     deploy: { resources: { limits: { memory: 128M } } }
 
+  # Node/Fastify Streaming Hub v2 — Phase 3 migration replacement for Go streaming-hub
+  # SSE + WebSocket + Redis pub/sub. Fans out job progress + real-time events.
+  # Local dev: http://localhost:8091     Production: routed via Traefik header
+  streaming-hub-v2:
+    build:
+      context: .
+      dockerfile: backend/api/streaming-hub/Dockerfile
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - PORT=8090
+      - LOG_LEVEL=${STREAMING_HUB_LOG_LEVEL:-info}
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
+    ports:
+      - "127.0.0.1:8091:8090"
+    labels:
+      - "traefik.enable=true"
+      # Header-gated router — same rollout mechanism as gateway-v2
+      - "traefik.http.routers.streamv2.rule=Host(`${GW_DOMAIN:-gw.localhost}`) && PathPrefix(`/api/v2/stream`, `/api/v2/ws`) && Headers(`X-Gateway-Version`, `v2`)"
+      - "traefik.http.routers.streamv2.priority=100"
+      - "traefik.http.routers.streamv2.entrypoints=websecure"
+      - "traefik.http.routers.streamv2.tls.certresolver=letsencrypt"
+      - "traefik.http.services.streamv2.loadbalancer.server.port=8090"
+    networks: [autoniix-net]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:8090/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    depends_on:
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 256M } } }
+
+  # Node/Fastify API Gateway v2 — Phase 2 migration replacement for rust-gateway
+  # Local dev: http://localhost:8082    Production: routed via Traefik header
+  #
+  # Rollout strategy (see services/gateway-v2/DEPLOYMENT.md):
+  #   1. Deploy alongside v1 (this block, both services healthy)
+  #   2. Opt-in testing: set X-Gateway-Version: v2 header on requests
+  #   3. Gradual rollout: adjust Traefik router rule to match a % of traffic
+  #   4. Full cutover: swap priorities so v2 becomes the default
+  #
+  # Instant rollback: `docker compose stop node-gateway` — Traefik falls back
+  # to `rust-gateway` automatically since v2 header router disappears.
+  node-gateway:
+    build:
+      context: .
+      dockerfile: backend/api/gateway/Dockerfile
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${DB_USER:-app}:${DB_PASSWORD:-changeme}@postgres-app:5432/${DB_NAME:-autoniix}
+      - PORT=8080
+      - LOG_LEVEL=${NODE_GATEWAY_LOG_LEVEL:-info}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-15m}
+      - REFRESH_TOKEN_EXPIRES_IN=${REFRESH_TOKEN_EXPIRES_IN:-7d}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
+      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-100}
+      - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60000}
+    ports:
+      - "127.0.0.1:8082:8080"
+    labels:
+      - "traefik.enable=true"
+      # Header-gated router — priority 100 so it wins over v1 when header set
+      - "traefik.http.routers.gwv2.rule=Host(`${GW_DOMAIN:-gw.localhost}`) && Headers(`X-Gateway-Version`, `v2`)"
+      - "traefik.http.routers.gwv2.priority=100"
+      - "traefik.http.routers.gwv2.entrypoints=websecure"
+      - "traefik.http.routers.gwv2.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.gwv2.middlewares=secureHeaders@file"
+      - "traefik.http.services.gwv2.loadbalancer.server.port=8080"
+    networks: [autoniix-net]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:8080/health', r => process.exit(r.statusCode === 200 || r.statusCode === 503 ? 0 : 1)).on('error', () => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    depends_on:
+      postgres-app: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 256M } } }
+
   # Marketing landing page — autoniix.com / www.autoniix.com
   # Caddy (host systemd) reverse-proxies the apex domain to localhost:3002.
   landing-ui:
-    build: ./web
+    build: ./frontend/marketing
     ports:
       - "127.0.0.1:3002:3002"
     environment:
@@ -1048,8 +939,8 @@ services:
   prometheus:
     image: prom/prometheus:v2.54.1
     volumes:
-      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./observability/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/observability/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
       - prometheus_data:/prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -1077,7 +968,7 @@ services:
   alertmanager:
     image: prom/alertmanager:v0.27.0
     volumes:
-      - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./infra/observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
@@ -1119,7 +1010,7 @@ services:
     image: grafana/loki:2.9.10
     command: -config.file=/etc/loki/local-config.yaml
     volumes:
-      - ./observability/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - ./infra/observability/loki-config.yml:/etc/loki/local-config.yaml:ro
       - loki_data:/loki
     networks: [autoniix-net]
     restart: unless-stopped
@@ -1132,7 +1023,7 @@ services:
     image: grafana/promtail:2.9.10
     command: -config.file=/etc/promtail/config.yml
     volumes:
-      - ./observability/promtail-config.yml:/etc/promtail/config.yml:ro
+      - ./infra/observability/promtail-config.yml:/etc/promtail/config.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks: [autoniix-net]
     depends_on:
@@ -1153,7 +1044,7 @@ services:
     command: ["nginx", "-g", "daemon off;"]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./traefik/socket-proxy.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/traefik/socket-proxy.conf:/etc/nginx/nginx.conf:ro
     networks: [autoniix-net]
     restart: unless-stopped
     deploy:
@@ -1187,7 +1078,7 @@ services:
       - "traefik.http.middlewares.admin-auth.basicauth.realm=Autoniix Admin"
       - "traefik.http.middlewares.admin-auth.basicauth.removeheader=true"
     volumes:
-      - ./traefik:/traefik:ro
+      - ./infra/traefik:/traefik:ro
       - letsencrypt_data:/letsencrypt
     networks: [autoniix-net]
     restart: unless-stopped
@@ -1210,8 +1101,8 @@ services:
       - GF_SERVER_DOMAIN=${GRAFANA_DOMAIN:-grafana.localhost}
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards-json:ro
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards-json:ro
     ports:
       - "127.0.0.1:3001:3000"
     labels:

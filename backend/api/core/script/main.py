@@ -1,0 +1,942 @@
+from __future__ import annotations
+
+import json
+import re
+from contextlib import asynccontextmanager
+
+import structlog
+import uvicorn
+from fastapi import FastAPI, HTTPException
+from media.prosody_injector import ProsodyMarker, inject_prosody_markers
+from pydantic import BaseModel, Field
+
+import providers.boot  # noqa: F401
+from core.db import close_pool, get_pool
+from observability.metrics import instrument_app
+from providers.llm.base import LLMRequest
+from schemas.common import HealthResponse, ServiceResponse
+from services_api.script.asset_engine import generate_script_assets
+from services_api.script.direction_engine import generate_script_direction
+from services_api.script.humanizer import humanize_full_script
+from services_api.script.prosody_engine import generate_script_voice
+from services_api.script.retention_optimizer import compute_retention_score
+from services_api.script.script_analyzer import analyze_full_script
+from services_api.script.self_learning import (
+    detect_drift as detect_script_drift,
+    extract_script_features,
+    ingest_script_performance,
+    predict_script_success,
+    store_script_features,
+    thompson_sample,
+    train_model as train_script_model,
+)
+
+logger = structlog.get_logger()
+
+
+class ScriptRequest(BaseModel):
+    channel_id: str
+    content_mode: str = "short"
+    topic: str
+    title: str = ""
+    hook: str = ""
+    research_data: dict = Field(default_factory=dict)
+    idea_data: dict = Field(default_factory=dict)
+    budget_guard: dict = Field(default_factory=lambda: {"max_cost_usd": 2.50, "accrued_cost_usd": 0.0})
+    video_style: str = "stock_footage"
+    content_id: str = ""
+
+
+class ScriptSegment(BaseModel):
+    """Validated script segment output."""
+
+    id: str
+    section: str
+    narration: str
+    scene_direction: str = ""
+    text_overlay: str = ""
+    prosody_hint: str = ""
+    emphasis_words: list[str] = Field(default_factory=list)
+    prosody_injected: bool = False
+
+
+class ScriptOutput(BaseModel):
+    """Validated complete script output."""
+
+    segments: list[ScriptSegment]
+    validation: dict
+    critique: dict = Field(default_factory=dict)
+    rewrite_count: int = 0
+    script_structure_score: float = 0.0
+    hook_retention_score: float = 0.0
+    success_prediction: dict = Field(default_factory=dict)
+    multi_view_qc: dict = Field(default_factory=dict)
+
+
+class ScriptFeedbackRequest(BaseModel):
+    content_id: str
+    analytics: dict = Field(default_factory=dict)
+
+
+class ScriptTrainRequest(BaseModel):
+    niche: str = ""
+    min_samples: int = 15
+
+
+class HookRequest(BaseModel):
+    channel_id: str
+    title: str
+    topic: str
+    original_hook: str = ""
+    script_summary: str = ""
+
+
+class PackagingRequest(BaseModel):
+    channel_id: str
+    title: str
+    topic: str
+    script_data: dict = Field(default_factory=dict)
+
+
+def _safe_format(template: str, **kwargs) -> str:
+    """Replace {key} placeholders without failing on unknown/literal braces."""
+    for key, value in kwargs.items():
+        template = template.replace(f"{{{key}}}", str(value))
+    return template
+
+
+def _parse_json(text: str) -> dict:
+    text = text.strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+    return json.loads(text)
+
+
+async def _load_channel(channel_id: str) -> dict:
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT * FROM channels WHERE channel_id = $1", channel_id)
+    return dict(row) if row else {}
+
+
+async def _load_prompt(prompt_id: str) -> dict:
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT system_prompt, user_prompt_template FROM prompt_registry WHERE prompt_id = $1 AND is_active = true",
+        prompt_id,
+    )
+    return dict(row) if row else {}
+
+
+def _inject_prosody_into_segments(segments: list[dict], voice_segments: list[dict]) -> list[dict]:
+    """
+    Inject Inworld prosody markers into segment narration text.
+
+    Takes the prosody data from voice_segments and injects markers into the
+    original segments' narration text for Inworld TTS.
+    """
+    enhanced_segments = []
+
+    for i, seg in enumerate(segments):
+        enhanced_seg = seg.copy()
+
+        # Find matching voice segment
+        voice_seg = None
+        if i < len(voice_segments):
+            voice_seg = voice_segments[i]
+
+        if not voice_seg:
+            enhanced_segments.append(enhanced_seg)
+            continue
+
+        # Get prosody data
+        emphasis_words = voice_seg.get("emphasis_words", [])
+        sentences = voice_seg.get("sentences", [])
+
+        # If we have sentence-level prosody, inject markers
+        if sentences:
+            narration_parts = []
+            for sent_prosody in sentences:
+                sentence_text = sent_prosody.get("text", "")
+
+                # Create prosody marker
+                marker = ProsodyMarker(
+                    emphasis_words=sent_prosody.get("emphasis_words", []),
+                    pause_after_ms=sent_prosody.get("pause_after_ms", 0),
+                    opening_breath=(sent_prosody.get("emotion") in ["urgency", "surprise"]),
+                    closing_sigh=(sent_prosody.get("emotion") == "empathy"),
+                )
+
+                # Inject markers
+                enhanced_text = inject_prosody_markers(sentence_text, marker)
+                narration_parts.append(enhanced_text)
+
+            # Replace narration with enhanced version
+            enhanced_seg["narration"] = " ".join(narration_parts)
+            enhanced_seg["prosody_injected"] = True
+        else:
+            # Fallback: inject emphasis at segment level
+            if emphasis_words:
+                narration = seg.get("narration", "")
+                marker = ProsodyMarker(emphasis_words=emphasis_words)
+                enhanced_seg["narration"] = inject_prosody_markers(narration, marker, include_delivery_prefix=False)
+                enhanced_seg["prosody_injected"] = True
+
+        enhanced_segments.append(enhanced_seg)
+
+    return enhanced_segments
+
+
+async def _log_usage(
+    content_id: str, service: str, provider: str, model: str, tokens_in: int, tokens_out: int, cost: float, latency: int
+):
+    try:
+        pool = await get_pool()
+        await pool.execute(
+            "INSERT INTO api_usage (content_id, service, provider, model, tokens_in, tokens_out, cost_usd, latency_ms) "
+            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+            content_id,
+            service,
+            provider,
+            model,
+            tokens_in,
+            tokens_out,
+            float(cost),
+            latency,
+        )
+    except Exception as e:
+        logger.warning("script.db_log_failed", error=str(e))
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("script.starting")
+    yield
+    await close_pool()
+    logger.info("script.stopped")
+
+
+from observability.sentry import init_sentry
+
+init_sentry("script")
+
+app = FastAPI(title="Script Service", version="0.2.0", lifespan=lifespan)
+
+
+instrument_app(app, service_name="script")
+
+
+@app.get("/health", response_model=HealthResponse)
+async def health():
+    return HealthResponse(service="script")
+
+
+@app.post("/generate-script", response_model=ServiceResponse)
+async def generate_script(req: ScriptRequest):
+    """Full script pipeline: Claude write → validate → critique → rewrite loop → fact-check."""
+    logger.info("script.generating", channel_id=req.channel_id, topic=req.topic)
+    total_cost = 0.0
+
+    try:
+        channel = await _load_channel(req.channel_id)
+        if not channel:
+            raise HTTPException(status_code=404, detail=f"Channel {req.channel_id} not found")
+
+        is_long = req.content_mode == "long_form"
+        word_target = channel.get("words_per_video_long", 1100) if is_long else channel.get("words_per_video_short", 80)
+        duration_target = channel.get("long_form_duration", 480) if is_long else channel.get("short_form_duration", 45)
+        seg_count = "8-12" if is_long else "3-4"
+        forbidden = channel.get("forbidden_words") or ""
+
+        niche_for_bandit = channel.get("niche", "")
+        hook_styles = [
+            "shocking_stat",
+            "open_loop",
+            "pattern_interrupt",
+            "story_hook",
+            "authority_challenge",
+            "contrarian",
+            "outcome_promise",
+        ]
+        pacing_strategies = ["slow_build", "fast_punchy", "wave_rhythm", "escalating", "conversational"]
+        try:
+            hook_bandit = await thompson_sample(
+                niche_for_bandit,
+                "hook_style",
+                hook_styles,
+                channel_id=req.channel_id,
+            )
+            pacing_bandit = await thompson_sample(
+                niche_for_bandit,
+                "pacing_strategy",
+                pacing_strategies,
+                channel_id=req.channel_id,
+            )
+            selected_hook_style = hook_bandit["selected_arm"]
+            selected_pacing = pacing_bandit["selected_arm"]
+            logger.info(
+                "script.bandit_pre_generation",
+                hook_style=selected_hook_style,
+                pacing=selected_pacing,
+                hook_forced=hook_bandit.get("forced_exploration"),
+                pacing_forced=pacing_bandit.get("forced_exploration"),
+            )
+        except Exception as exc:
+            logger.warning("script.bandit_pre_failed", error=str(exc))
+            selected_hook_style = "open_loop"
+            selected_pacing = "wave_rhythm"
+
+        from llm import BudgetExceeded as _BudgetExceeded, route as _route
+
+        from intelligence import build_performance_context
+
+        perf_context = await build_performance_context(req.channel_id)
+        prompt = await _load_prompt("PRM_B1_SCRIPT_V1")
+
+        system_prompt = _safe_format(
+            prompt.get("system_prompt", "You are a YouTube scriptwriter. Output valid JSON with segments."),
+            brand_voice=channel.get("brand_voice", ""),
+            narrative_rhythm=channel.get("narrative_rhythm", ""),
+            emotional_contract=channel.get("emotional_contract", ""),
+            content_mode=req.content_mode,
+        )
+        system_prompt += (
+            f"\n\nBANDIT GUIDANCE (use these — they are winning on this niche):"
+            f"\n- HOOK STYLE: {selected_hook_style}"
+            f"\n- PACING STRATEGY: {selected_pacing}"
+        )
+        user_prompt = _safe_format(
+            prompt.get("user_prompt_template", "Channel: {channel_id}\nTopic: {topic}\nTitle: {title}"),
+            channel_id=req.channel_id,
+            topic=req.topic,
+            title=req.title or "Generate one",
+            hook=req.hook or "Generate one",
+            target_duration=f"{duration_target}s (~{word_target} words, {seg_count} segments)",
+            word_target=word_target,
+            research_data=json.dumps(req.research_data, default=str)[:3000],
+            forbidden_words=forbidden,
+        )
+
+        user_with_memory = f"{perf_context}\n\n{user_prompt}" if perf_context else user_prompt
+        try:
+            result = await _route(
+                category="llm.script",
+                request=LLMRequest(
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_with_memory},
+                    ],
+                    temperature=0.7,
+                    max_tokens=4000,
+                    response_format="json",
+                ),
+                channel_id=req.channel_id,
+                content_id=f"script-{req.channel_id}",
+                record_usage=False,
+            )
+        except _BudgetExceeded as exc:
+            raise HTTPException(status_code=402, detail=str(exc))
+        total_cost += result.cost_usd
+        await _log_usage(
+            f"script-{req.channel_id}",
+            "script_v1",
+            result.provider,
+            result.model,
+            result.tokens_in,
+            result.tokens_out,
+            result.cost_usd,
+            result.latency_ms,
+        )
+
+        try:
+            script_data = _parse_json(result.content)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=500, detail="LLM returned invalid JSON for script")
+
+        segments = script_data.get("segments", [])
+        actual_words = sum(len(s.get("narration", "").split()) for s in segments)
+        validation = {
+            "word_count": actual_words,
+            "word_target": word_target,
+            "word_count_ok": abs(actual_words - word_target) <= word_target * 0.15,
+            "segment_count": len(segments),
+            "has_hook": any(s.get("section") == "hook" for s in segments),
+            "has_outro": any(s.get("section") == "outro" for s in segments),
+        }
+
+        forbidden_list = [w.strip().lower() for w in forbidden.split(",") if w.strip()]
+        full_narration = " ".join(s.get("narration", "") for s in segments).lower()
+        found_forbidden = [w for w in forbidden_list if w in full_narration]
+        validation["forbidden_words_found"] = found_forbidden
+        validation["forbidden_words_ok"] = len(found_forbidden) == 0
+
+        script_data["validation"] = validation
+
+        critique_prompt = await _load_prompt("PRM_B1_SCRIPT_CRITIQUE")
+
+        crit_system = _safe_format(
+            critique_prompt.get("system_prompt", "Critique this script. Score 8 dimensions 1-10. Respond in JSON."),
+            min_dimension_score=7.0,
+        )
+        crit_user = _safe_format(
+            critique_prompt.get("user_prompt_template", "Script: {script_json}\nVoice: {brand_voice}"),
+            script_json=json.dumps(script_data)[:4000],
+            brand_voice=channel.get("brand_voice", ""),
+            target_audience=channel.get("target_audience", ""),
+        )
+
+        try:
+            crit_result = await _route(
+                category="llm.qc",
+                request=LLMRequest(
+                    messages=[
+                        {"role": "system", "content": crit_system},
+                        {"role": "user", "content": crit_user},
+                    ],
+                    temperature=0.3,
+                    max_tokens=2000,
+                    response_format="json",
+                ),
+                channel_id=req.channel_id,
+                content_id=f"script-{req.channel_id}",
+                record_usage=False,
+            )
+        except _BudgetExceeded as exc:
+            raise HTTPException(status_code=402, detail=str(exc))
+        total_cost += crit_result.cost_usd
+        await _log_usage(
+            f"script-{req.channel_id}",
+            "script_critique",
+            crit_result.provider,
+            crit_result.model,
+            crit_result.tokens_in,
+            crit_result.tokens_out,
+            crit_result.cost_usd,
+            crit_result.latency_ms,
+        )
+
+        try:
+            critique_data = _parse_json(crit_result.content)
+        except json.JSONDecodeError:
+            critique_data = {"dimensions": {}, "overall_score": 7.0, "weak_dimensions": [], "rewrite_suggestions": []}
+
+        script_data["critique"] = critique_data
+        weak_dims = critique_data.get("weak_dimensions", [])
+
+        rewrite_count = 0
+        target_overall_score = 9.0
+        overall_score = critique_data.get("overall_score", 7.0)
+
+        while (weak_dims or overall_score < target_overall_score) and rewrite_count < 3:
+            rewrite_count += 1
+            logger.info(
+                "script.rewriting",
+                attempt=rewrite_count,
+                weak=weak_dims,
+                current_score=overall_score,
+                target=target_overall_score,
+            )
+
+            suggestions = critique_data.get("rewrite_suggestions", [])
+            rewrite_prompt = (
+                f"REWRITE this script. Current overall score: {overall_score}/10. Target: {target_overall_score}/10.\n\n"
+                f"Weak dimensions to fix: {json.dumps(weak_dims)}\n"
+                f"Specific fixes required:\n{json.dumps(suggestions, indent=2)}\n\n"
+                f"RULES:\n"
+                f"- Keep the same JSON structure\n"
+                f"- Fix ALL weak dimensions listed above\n"
+                f"- Ensure every segment has scene_direction (50+ words), emphasis_words, text_overlay, emotion\n"
+                f"- Make scene directions cinematic and specific, not vague\n"
+                f"- Ensure narration is natural and conversational with zero filler\n\n"
+                f"Current script:\n{json.dumps(script_data)[:5000]}"
+            )
+
+            try:
+                rw_result = await _route(
+                    category="llm.script",
+                    request=LLMRequest(
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": rewrite_prompt},
+                        ],
+                        temperature=max(0.5, 0.7 - rewrite_count * 0.1),
+                        max_tokens=4000,
+                        response_format="json",
+                    ),
+                    channel_id=req.channel_id,
+                    content_id=f"script-{req.channel_id}",
+                    record_usage=False,
+                )
+            except _BudgetExceeded as exc:
+                logger.warning("script.rewrite_budget_exceeded", error=str(exc))
+                break
+            total_cost += rw_result.cost_usd
+            await _log_usage(
+                f"script-{req.channel_id}",
+                f"script_rewrite_{rewrite_count}",
+                rw_result.provider,
+                rw_result.model,
+                rw_result.tokens_in,
+                rw_result.tokens_out,
+                rw_result.cost_usd,
+                rw_result.latency_ms,
+            )
+
+            try:
+                script_data = _parse_json(rw_result.content)
+            except json.JSONDecodeError:
+                logger.warning("script.rewrite_json_failed", attempt=rewrite_count)
+                break
+
+            updated_crit_user = _safe_format(
+                critique_prompt.get("user_prompt_template", "Script: {script_json}\nVoice: {brand_voice}"),
+                script_json=json.dumps(script_data)[:4000],
+                brand_voice=channel.get("brand_voice", ""),
+                target_audience=channel.get("target_audience", ""),
+            )
+
+            try:
+                crit_result2 = await _route(
+                    category="llm.qc",
+                    request=LLMRequest(
+                        messages=[
+                            {"role": "system", "content": crit_system},
+                            {"role": "user", "content": updated_crit_user},
+                        ],
+                        temperature=0.3,
+                        max_tokens=2000,
+                        response_format="json",
+                    ),
+                    channel_id=req.channel_id,
+                    content_id=f"script-{req.channel_id}",
+                    record_usage=False,
+                )
+            except _BudgetExceeded as exc:
+                logger.warning("script.recritique_budget_exceeded", error=str(exc))
+                break
+            total_cost += crit_result2.cost_usd
+            await _log_usage(
+                f"script-{req.channel_id}",
+                f"script_recritique_{rewrite_count}",
+                crit_result2.provider,
+                crit_result2.model,
+                crit_result2.tokens_in,
+                crit_result2.tokens_out,
+                crit_result2.cost_usd,
+                crit_result2.latency_ms,
+            )
+
+            try:
+                critique_data = _parse_json(crit_result2.content)
+                script_data["critique"] = critique_data
+                weak_dims = critique_data.get("weak_dimensions", [])
+                overall_score = critique_data.get("overall_score", overall_score)
+            except json.JSONDecodeError:
+                break
+
+        script_data["rewrite_count"] = rewrite_count
+        script_data["script_structure_score"] = overall_score
+
+        segments = script_data.get("segments", [])
+        niche = channel.get("niche", "")
+        pacing_style = channel.get("pacing_style", "dynamic")
+        brand_voice = channel.get("brand_voice", "")
+
+        try:
+            humanized = humanize_full_script(segments, pacing_style, brand_voice)
+            segments = humanized["segments"]
+            script_data["segments"] = segments
+            humanizer_metrics = humanized["metrics"]
+            logger.info(
+                "script.humanized",
+                ai_removed=humanizer_metrics["ai_patterns_removed"],
+                score=humanizer_metrics["composite_score"],
+            )
+        except Exception as e:
+            logger.warning("script.humanize_failed", error=str(e))
+            humanizer_metrics = {"composite_score": 0.5, "contraction_rate": 0.0}
+
+        try:
+            script_analysis = await analyze_full_script(segments)
+            logger.info(
+                "script.analyzed",
+                words=script_analysis["total_word_count"],
+                ai_patterns=script_analysis["ai_patterns_total"],
+            )
+        except Exception as e:
+            logger.warning("script.analysis_failed", error=str(e))
+            script_analysis = {"total_word_count": 0, "segment_analyses": []}
+
+        try:
+            retention = await compute_retention_score(segments)
+            script_data["retention_score"] = retention
+            logger.info("script.retention_scored", composite=retention["composite_score"])
+        except Exception as e:
+            logger.warning("script.retention_failed", error=str(e))
+            retention = {"composite_score": 0.5, "dimensions": {}}
+
+        try:
+            hook_strength_norm = float(retention.get("dimensions", {}).get("hook_strength", 0.5))
+        except (TypeError, ValueError):
+            hook_strength_norm = 0.5
+        script_data["hook_retention_score"] = round(hook_strength_norm * 10.0, 2)
+
+        try:
+            script_voice = await generate_script_voice(segments, channel)
+            logger.info(
+                "script.v1_voice_generated",
+                duration=script_voice["total_duration_s"],
+                coverage=script_voice["prosody_coverage"],
+            )
+
+            # Inject Inworld prosody markers into narration text
+            voice_segments = script_voice.get("segments", [])
+            if voice_segments:
+                segments = _inject_prosody_into_segments(segments, voice_segments)
+                script_data["segments"] = segments
+                logger.info("script.prosody_injected", segment_count=len(segments))
+        except Exception as e:
+            logger.warning("script.v1_voice_failed", error=str(e))
+            script_voice = {"version": "v1_voice", "segments": [], "error": str(e)}
+
+        try:
+            script_assets = await generate_script_assets(segments, channel, req.video_style)
+            logger.info("script.v2_assets_generated", coverage=script_assets.get("qc", {}).get("asset_coverage", 0))
+        except Exception as e:
+            logger.warning("script.v2_assets_failed", error=str(e))
+            script_assets = {"version": "v2_assets", "segments": [], "error": str(e)}
+
+        try:
+            voice_segs = script_voice.get("segments", []) if isinstance(script_voice, dict) else []
+            asset_segs = script_assets.get("segments", []) if isinstance(script_assets, dict) else []
+            resolution = "1080x1920" if req.content_mode == "short" else "1920x1080"
+            script_direction = generate_script_direction(
+                segments,
+                voice_segs,
+                asset_segs,
+                channel,
+                fps=30,
+                resolution=resolution,
+            )
+            logger.info(
+                "script.v3_direction_generated",
+                duration_ms=script_direction.get("render_config", {}).get("duration_ms", 0),
+            )
+        except Exception as e:
+            logger.warning("script.v3_direction_failed", error=str(e))
+            script_direction = {"version": "v3_direction", "segments": [], "error": str(e)}
+
+        content_id = req.content_id or f"script-{req.channel_id}-{req.topic[:20]}"
+        try:
+            features = await extract_script_features(
+                script_analysis,
+                retention,
+                humanizer_metrics,
+                req.channel_id,
+                content_id,
+                req.topic,
+            )
+            prediction = await predict_script_success(features, niche)
+            script_data["success_prediction"] = prediction
+
+            await store_script_features(
+                content_id,
+                req.channel_id,
+                features,
+                overall_score=overall_score,
+                hook_score=retention.get("dimensions", {}).get("hook_strength", 0),
+                hook_style=selected_hook_style,
+                pacing_strategy=selected_pacing,
+                topic=req.topic,
+            )
+            logger.info("script.features_stored", predicted=prediction.get("predicted_probability", 0))
+        except Exception as e:
+            logger.warning("script.features_failed", error=str(e))
+
+        qc_report = {
+            "humanization": humanizer_metrics.get("composite_score", 0),
+            "retention": retention.get("composite_score", 0),
+            "prosody_coverage": script_voice.get("prosody_coverage", 0) if isinstance(script_voice, dict) else 0,
+            "asset_coverage": script_assets.get("qc", {}).get("asset_coverage", 0)
+            if isinstance(script_assets, dict)
+            else 0,
+            "direction_ok": script_direction.get("qc", {}).get("direction_ok", False)
+            if isinstance(script_direction, dict)
+            else False,
+            "script_structure_score": overall_score,
+        }
+        script_data["multi_view_qc"] = qc_report
+
+        logger.info(
+            "script.generated",
+            segments=len(segments),
+            score=overall_score,
+            rewrites=rewrite_count,
+            retention=retention.get("composite_score", 0),
+            humanization=humanizer_metrics.get("composite_score", 0),
+            cost=round(total_cost, 4),
+        )
+
+        # Validate script output schema
+        try:
+            validated_script = ScriptOutput(
+                segments=[ScriptSegment(**seg) for seg in segments],
+                validation=script_data.get("validation", {}),
+                critique=script_data.get("critique", {}),
+                rewrite_count=rewrite_count,
+                script_structure_score=overall_score,
+                hook_retention_score=script_data.get("hook_retention_score", 0.0),
+                success_prediction=script_data.get("success_prediction", {}),
+                multi_view_qc=qc_report,
+            )
+            logger.info("script.validation_passed", segment_count=len(validated_script.segments))
+        except Exception as e:
+            logger.error("script.validation_failed", error=str(e))
+            raise HTTPException(status_code=500, detail=f"Script validation failed: {str(e)}")
+
+        return ServiceResponse(
+            status="success",
+            data={
+                "script_base": script_data,
+                "script_voice": script_voice,
+                "script_assets": script_assets,
+                "script_direction": script_direction,
+                "bandit_selections": {
+                    "hook_style": selected_hook_style,
+                    "pacing_strategy": selected_pacing,
+                },
+                "intelligence_scores": qc_report,
+            },
+            cost={"cost_usd": round(total_cost, 6), "provider": "multi"},
+        )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("script.failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/generate-hooks", response_model=ServiceResponse)
+async def generate_hooks(req: HookRequest):
+    """Generate 5 hooks → predict retention → rank → quality gate (>=8.0)."""
+    logger.info("hooks.generating", channel_id=req.channel_id, title=req.title[:50])
+    total_cost = 0.0
+
+    try:
+        from llm import BudgetExceeded as _BudgetExceeded, route as _route
+
+        channel = await _load_channel(req.channel_id)
+        if not channel:
+            raise HTTPException(status_code=404, detail=f"Channel {req.channel_id} not found")
+
+        prompt = await _load_prompt("PRM_B1_HOOK")
+
+        is_long = channel.get("content_mode", "short") == "long_form"
+        hook_seconds = (
+            channel.get("hook_length_seconds_long", 8) if is_long else channel.get("hook_length_seconds_short", 2)
+        )
+
+        system_prompt = _safe_format(
+            prompt.get("system_prompt", "Generate 5 hooks. Respond in JSON."),
+            hook_length_seconds=hook_seconds,
+        )
+        user_prompt = _safe_format(
+            prompt.get("user_prompt_template", "Title: {title}\nTopic: {topic}"),
+            title=req.title,
+            topic=req.topic,
+            narrative_rhythm=channel.get("narrative_rhythm", ""),
+            target_audience=channel.get("target_audience", ""),
+            original_hook=req.original_hook,
+        )
+
+        try:
+            result = await _route(
+                category="llm.hook",
+                request=LLMRequest(
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=0.8,
+                    max_tokens=1500,
+                    response_format="json",
+                ),
+                channel_id=req.channel_id,
+                content_id=f"hooks-{req.channel_id}",
+                record_usage=False,
+            )
+        except _BudgetExceeded as exc:
+            raise HTTPException(status_code=402, detail=str(exc))
+        total_cost += result.cost_usd
+        await _log_usage(
+            f"hooks-{req.channel_id}",
+            "hooks",
+            result.provider,
+            result.model,
+            result.tokens_in,
+            result.tokens_out,
+            result.cost_usd,
+            result.latency_ms,
+        )
+
+        try:
+            hook_data = _parse_json(result.content)
+        except json.JSONDecodeError:
+            hook_data = {"hooks": [{"text": req.original_hook or req.title, "predicted_retention": 7.0}]}
+
+        hooks = hook_data.get("hooks", [])
+        hooks.sort(key=lambda h: float(h.get("predicted_retention", 0)), reverse=True)
+
+        best_hook = hooks[0] if hooks else {"text": req.original_hook, "predicted_retention": 7.0}
+
+        return ServiceResponse(
+            status="success",
+            data={
+                "selected_hook": best_hook,
+                "all_hooks": hooks,
+                "hook_retention_score": float(best_hook.get("predicted_retention", 7.0)),
+            },
+            cost={"cost_usd": round(total_cost, 6), "provider": result.provider},
+        )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("hooks.failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/package", response_model=ServiceResponse)
+async def package(req: PackagingRequest):
+    """Generate optimized titles, description, tags, chapters, comment triggers."""
+    logger.info("packaging.generating", channel_id=req.channel_id)
+    total_cost = 0.0
+
+    try:
+        from llm import BudgetExceeded as _BudgetExceeded, route as _route
+
+        channel = await _load_channel(req.channel_id)
+
+        segments = req.script_data.get("segments", [])
+        narration_preview = " ".join(s.get("narration", "")[:100] for s in segments[:5])
+
+        try:
+            result = await _route(
+                category="llm",
+                request=LLMRequest(
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are a YouTube SEO and packaging expert. Generate optimized metadata. "
+                                'Respond in JSON: {"titles": [8 variants], "description": "2-3 paragraphs with timestamps", '
+                                '"tags": [20 tags], "chapters": ["00:00 Title", ...], '
+                                '"comment_triggers": [3 engaging questions], '
+                                '"shorts_funnel_text": "CTA linking to long-form"}'
+                            ),
+                        },
+                        {
+                            "role": "user",
+                            "content": (
+                                f"Channel: {req.channel_id} ({channel.get('channel_name', '')})\n"
+                                f"Niche: {channel.get('niche', '')}\n"
+                                f"Title: {req.title}\n"
+                                f"Topic: {req.topic}\n"
+                                f"Content preview: {narration_preview[:500]}\n"
+                                f"Target audience: {channel.get('target_audience', '')}\n"
+                                f"CTA style: {channel.get('cta_style_long', '')}"
+                            ),
+                        },
+                    ],
+                    temperature=0.7,
+                    max_tokens=2000,
+                    response_format="json",
+                ),
+                channel_id=req.channel_id,
+                content_id=f"packaging-{req.channel_id}",
+                record_usage=False,
+            )
+        except _BudgetExceeded as exc:
+            raise HTTPException(status_code=402, detail=str(exc))
+        total_cost += result.cost_usd
+        await _log_usage(
+            f"packaging-{req.channel_id}",
+            "packaging",
+            result.provider,
+            result.model,
+            result.tokens_in,
+            result.tokens_out,
+            result.cost_usd,
+            result.latency_ms,
+        )
+
+        try:
+            pkg_data = _parse_json(result.content)
+        except json.JSONDecodeError:
+            pkg_data = {"titles": [req.title], "description": "", "tags": [], "chapters": []}
+
+        niche = channel.get("niche", "")
+        disclaimers = {
+            "health": "This content is for informational purposes only and is not medical advice. Consult a healthcare professional before making any health decisions.",
+            "finance": "This is not financial advice. Consult a qualified financial advisor before making investment decisions. Past performance is not indicative of future results.",
+            "psychology": "This content is for educational purposes. If you're experiencing mental health issues, please seek professional help.",
+        }
+        disclaimer = disclaimers.get(niche, "")
+        if disclaimer:
+            pkg_data["niche_disclaimer"] = disclaimer
+            desc = pkg_data.get("description", "")
+            if disclaimer not in desc:
+                pkg_data["description"] = f"{desc}\n\n---\n{disclaimer}"
+
+        pkg_data["ai_disclosure"] = True
+
+        return ServiceResponse(
+            status="success",
+            data=pkg_data,
+            cost={"cost_usd": round(total_cost, 6), "provider": result.provider},
+        )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("packaging.failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/script-feedback", response_model=ServiceResponse)
+async def script_feedback(req: ScriptFeedbackRequest):
+    """Ingest post-publish YouTube analytics for script self-learning."""
+    logger.info("script_feedback.ingesting", content_id=req.content_id)
+    try:
+        result = await ingest_script_performance(req.content_id, req.analytics)
+        return ServiceResponse(status="success", data=result)
+    except Exception as exc:
+        logger.error("script_feedback.failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/script-train", response_model=ServiceResponse)
+async def script_train(req: ScriptTrainRequest):
+    """Train/retrain the script success predictor model."""
+    logger.info("script_train.starting", niche=req.niche)
+    try:
+        result = await train_script_model(req.niche or None, req.min_samples)
+        return ServiceResponse(status="success", data=result)
+    except Exception as exc:
+        logger.error("script_train.failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/script-drift", response_model=ServiceResponse)
+async def script_drift(niche: str = ""):
+    """Check if the script success model needs retraining."""
+    try:
+        result = await detect_script_drift(niche or None)
+        return ServiceResponse(status="success", data=result)
+    except Exception as exc:
+        logger.error("script_drift.failed", error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+if __name__ == "__main__":
+    uvicorn.run("services_api.script.main:app", host="0.0.0.0", port=8002, log_level="info")

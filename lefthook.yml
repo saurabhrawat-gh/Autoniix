@@ -1,0 +1,58 @@
+# Lefthook configuration for Autoniix (Phase 7: Python + TypeScript)
+# See: https://github.com/evilmartians/lefthook
+#
+# This file mirrors the checks in .husky/pre-commit and .husky/pre-push. Use
+# either lefthook OR husky, not both. `make hooks-install` installs husky by
+# default; run `lefthook install` explicitly to switch.
+
+pre-commit:
+  parallel: true
+  commands:
+    # Python: format + lint
+    ruff-format:
+      glob: "*.py"
+      run: ruff format {staged_files}
+      stage_fixed: true
+
+    ruff-check:
+      glob: "*.py"
+      run: ruff check --fix {staged_files}
+      stage_fixed: true
+
+    # TypeScript / JSON / Markdown: format + lint
+    prettier:
+      glob: "*.{ts,tsx,js,jsx,json,md,yml,yaml}"
+      run: npx prettier --write {staged_files}
+      stage_fixed: true
+
+    eslint:
+      glob: "*.{ts,tsx,js,jsx}"
+      run: npx eslint --fix {staged_files}
+      stage_fixed: true
+
+pre-push:
+  commands:
+    # Type checks — BLOCKING (Phase 7 stack paths)
+    python-types:
+      run: |
+        echo "🔍 Running Python type checks (shared/python)..."
+        mypy shared/python/
+
+    typescript-types:
+      run: |
+        echo "🔍 Running TypeScript type checks..."
+        cd shared/ts/contracts && npm run typecheck
+        cd ../../backend/api/gateway && npm run typecheck
+        cd ../streaming-hub && npm run typecheck
+
+    # Tests (fast unit tests only, non-blocking on optional deps)
+    python-tests:
+      run: |
+        echo "🧪 Running Python tests..."
+        pytest tests/ -x --tb=short -m "not integration"
+
+    typescript-tests:
+      run: |
+        echo "🧪 Running TypeScript tests (gateway + streaming-hub)..."
+        (cd backend/api/gateway && npm test) && \
+        (cd backend/api/streaming-hub && npm test)
