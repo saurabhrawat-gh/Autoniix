@@ -5,6 +5,9 @@ on:
     branches:
       - main
       - develop
+      - 'feat/**'
+      - 'fix/**'
+      - 'hotfix/**'
   pull_request:
     branches:
       - main
@@ -35,6 +38,7 @@ jobs:
     name: Guard — main only from develop
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Skip for feature branches and PRs
     steps:
       - uses: actions/checkout@v4
         with:
@@ -298,6 +302,7 @@ jobs:
       - remotion-typecheck
       - dependency-scan
       - migration-equivalence
+    # Note: guard is not in needs list to allow feature branches to run
     steps:
       - name: Aggregate results
         run: |
