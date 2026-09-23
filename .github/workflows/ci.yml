@@ -49,6 +49,14 @@ jobs:
           PARENTS=$(git log -1 --pretty=format:"%P")
           PARENT_COUNT=$(echo "$PARENTS" | wc -w | tr -d ' ')
           MSG=$(git log -1 --pretty=format:"%s")
+          git fetch origin develop --quiet
+          # A push whose HEAD is already on develop means develop and main are
+          # in sync (develop was pushed first). The code went through develop,
+          # which is what this gate protects.
+          if git merge-base --is-ancestor HEAD origin/develop 2>/dev/null; then
+            echo "✅ HEAD is already on origin/develop — branches in sync."
+            exit 0
+          fi
           if [ "$PARENT_COUNT" -lt 2 ]; then
             # Allow first commit / non-merge only when it's a hotfix landing
             # directly on main via signed commit (rare).
@@ -219,12 +227,10 @@ jobs:
         run: |
           pip install -r requirements.txt --quiet 2>/dev/null || true
           pip-audit --requirement requirements.txt \
-                    --skip-editable \
                     --output json \
                     --output-file pip-audit-report.json \
                     --ignore-vuln GHSA-r9hx-vwmv-q579 || true
           pip-audit --requirement requirements.txt \
-                    --skip-editable \
                     --format columns \
                     --ignore-vuln GHSA-r9hx-vwmv-q579
 
