@@ -75,7 +75,7 @@ services:
     restart: unless-stopped
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
@@ -98,7 +98,7 @@ services:
   # `public/` prefix (used for assets that must be fetched directly by
   # YouTube / browsers without presigning, e.g. thumbnails). Idempotent.
   minio-bootstrap:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     networks: [autoniix-net]
     depends_on:
       minio:
@@ -615,43 +615,6 @@ services:
     restart: unless-stopped
     deploy: { resources: { limits: { memory: 256M } } }
 
-  # Go Temporal Workers (workflow orchestration — activities stay in Python)
-  go-worker-production:
-    build:
-      context: ./go
-      dockerfile: Dockerfile
-      args:
-        WORKER: production
-    env_file: .env
-    environment:
-      - TEMPORAL_HOST=temporal:7233
-      - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
-    networks: [autoniix-net]
-    healthcheck:
-      disable: true
-    depends_on:
-      temporal: { condition: service_started }
-    restart: unless-stopped
-    deploy: { resources: { limits: { memory: 64M } } }
-
-  go-worker-scheduler:
-    build:
-      context: ./go
-      dockerfile: Dockerfile
-      args:
-        WORKER: scheduler
-    env_file: .env
-    environment:
-      - TEMPORAL_HOST=temporal:7233
-      - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
-    networks: [autoniix-net]
-    healthcheck:
-      disable: true
-    depends_on:
-      temporal: { condition: service_started }
-    restart: unless-stopped
-    deploy: { resources: { limits: { memory: 64M } } }
-
   notification-dispatcher:
     build:
       context: ./backend/workers/notification-dispatcher
@@ -770,46 +733,6 @@ services:
       resources:
         limits:
           memory: 256M
-
-  # Rust API Gateway v1 — /api/v2/* routes (auth, users, channels, workspace)
-  # Local dev: http://localhost:8081    Production: https://${GW_DOMAIN}
-  # Add GW_DOMAIN=gw.yourdomain.com to .env to enable TLS routing.
-  #
-  # During Phase 2 migration, this v1 gateway handles all traffic by default.
-  # Requests carrying `X-Gateway-Version: v2` are routed to `node-gateway` via
-  # Traefik priority ordering (see labels on node-gateway below).
-  rust-gateway:
-    build:
-      context: .
-      dockerfile: services/gateway/Dockerfile
-    env_file: .env
-    environment:
-      # Use Docker-network hostname; overrides any localhost URL from .env
-      - DATABASE_URL=postgresql://${DB_USER:-app}:${DB_PASSWORD:-changeme}@postgres-app:5432/${DB_NAME:-autoniix}
-      - PORT=8080
-      - RUST_LOG=${RUST_LOG:-info}
-    ports:
-      - "127.0.0.1:8081:8080"
-    labels:
-      - "traefik.enable=true"
-      # Default (fallback) router — priority 1 so v2 header router wins when present
-      - "traefik.http.routers.gw.rule=Host(`${GW_DOMAIN:-gw.localhost}`)"
-      - "traefik.http.routers.gw.priority=1"
-      - "traefik.http.routers.gw.entrypoints=websecure"
-      - "traefik.http.routers.gw.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.gw.middlewares=secureHeaders@file"
-      - "traefik.http.services.gw.loadbalancer.server.port=8080"
-    networks: [autoniix-net]
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health/live"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
-    depends_on:
-      postgres-app: { condition: service_healthy }
-    restart: unless-stopped
-    deploy: { resources: { limits: { memory: 128M } } }
 
   # Node/Fastify Streaming Hub v2 — Phase 3 migration replacement for Go streaming-hub
   # SSE + WebSocket + Redis pub/sub. Fans out job progress + real-time events.

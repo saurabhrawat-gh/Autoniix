@@ -4,15 +4,15 @@ WORKDIR /app
 FROM base AS deps
 RUN apk add --no-cache libc6-compat python3 make g++
 COPY package.json package-lock.json ./
-COPY services/streaming-hub-v2/package.json ./services/streaming-hub-v2/
-RUN npm ci --workspace=services/streaming-hub-v2 --legacy-peer-deps
+COPY backend/api/streaming-hub/package.json ./backend/api/streaming-hub/
+RUN npm ci --workspace=backend/api/streaming-hub --legacy-peer-deps
 
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/services/streaming-hub-v2/node_modules ./services/streaming-hub-v2/node_modules
+COPY --from=deps /app/backend/api/streaming-hub/node_modules ./backend/api/streaming-hub/node_modules
 COPY tsconfig.base.json ./
-COPY services/streaming-hub-v2 ./services/streaming-hub-v2
+COPY backend/api/streaming-hub ./backend/api/streaming-hub
 RUN npm run build --workspace=@autoniix/streaming-hub-v2
 
 FROM base AS runner
@@ -20,8 +20,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs \
  && adduser  --system --uid 1001 fastify
-COPY --from=builder --chown=fastify:nodejs /app/services/streaming-hub-v2/dist ./dist
-COPY --from=builder --chown=fastify:nodejs /app/services/streaming-hub-v2/package.json ./
+COPY --from=builder --chown=fastify:nodejs /app/backend/api/streaming-hub/dist ./dist
+COPY --from=builder --chown=fastify:nodejs /app/backend/api/streaming-hub/package.json ./
 COPY --from=builder --chown=fastify:nodejs /app/node_modules ./node_modules
 USER fastify
 EXPOSE 8090
