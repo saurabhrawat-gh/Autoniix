@@ -360,8 +360,28 @@ jobs:
           git fetch --all --prune
           git reset --hard origin/main
           export RELEASE_SHA="${GITHUB_SHA:-$(git rev-parse HEAD)}"
-          docker compose --profile tls down --remove-orphans 2>/dev/null || true
-          docker compose --profile tls up -d --build --remove-orphans
+
+          # Build BEFORE touching running containers so the site stays up during
+          # the build, and build in small batches: the VPS disk cannot export
+          # ~26 image layers at once (iowait >90%, deploys stalled for 30+ min).
+          # All Python services share one Dockerfile, so that image builds once
+          # and is then just re-tagged for each service.
+          PY_SERVICES=$(docker compose --profile tls config --services 2>/dev/null \
+            | grep -vE '^(node-gateway|streaming-hub-v2|dashboard-ui|landing-ui|remotion-api|remotion-worker|remotion-mcp|notification-dispatcher|resolve-finisher|sentry-agent|postgres-app|postgres-temporal|redis|minio|minio-bootstrap|temporal|temporal-ui|prometheus|alertmanager|grafana|loki|promtail|node-exporter|traefik|socket-proxy|infisical)$' \
+            | tr '\n' ' ')
+          docker compose --profile tls build $PY_SERVICES
+          for svc in node-gateway streaming-hub-v2 dashboard-ui landing-ui notification-dispatcher resolve-finisher; do
+            docker compose --profile tls build "$svc"
+          done
+          docker compose --profile tls build remotion-api remotion-worker
+
+          # Swap to the new images; compose only recreates containers whose
+          # image or config changed, so untouched services keep running.
+          docker compose --profile tls up -d --no-build --remove-orphans
+
+          # Reclaim build cache and dangling layers left by previous deploys.
+          docker image prune -f >/dev/null 2>&1 || true
+          docker builder prune -f --keep-storage 20GB >/dev/null 2>&1 || true
 
           # Sync postgres password from .env → running postgres (data volume persists across deploys).
           DB_USER_VAL=$(grep -m1 '^DB_USER=' .env 2>/dev/null | sed 's/^DB_USER=//' | tr -d "\"'" || true)
