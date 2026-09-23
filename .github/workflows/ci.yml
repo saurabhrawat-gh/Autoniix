@@ -224,15 +224,21 @@ jobs:
         run: pip install pip-audit cyclonedx-bom
 
       - name: Vulnerability scan (pip-audit)
+        # Accepted advisories (re-evaluate when a fixed release exists):
+        #   PYSEC-2026-3740  nltk <=3.10.3 path traversal in model-artifact loaders
+        #     (PerceptronTagger/TransitionParser with caller-controlled paths).
+        #     3.10.3 is the newest release; we only load the wordnet corpus from
+        #     the image's own nltk_data, never caller-supplied model paths.
         run: |
           pip install -r requirements.txt --quiet 2>/dev/null || true
+          IGNORE="--ignore-vuln GHSA-r9hx-vwmv-q579 --ignore-vuln PYSEC-2026-3740"
           pip-audit --requirement requirements.txt \
                     --output json \
                     --output-file pip-audit-report.json \
-                    --ignore-vuln GHSA-r9hx-vwmv-q579 || true
+                    $IGNORE || true
           pip-audit --requirement requirements.txt \
                     --format columns \
-                    --ignore-vuln GHSA-r9hx-vwmv-q579
+                    $IGNORE
 
       - name: Generate SBOM (CycloneDX JSON)
         run: |

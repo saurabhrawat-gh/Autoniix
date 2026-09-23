@@ -1,4 +1,5 @@
-import { extendZodWithOpenApi, OpenAPIRegistry, OpenApiGeneratorV3 } from "@asteasolutions/zod-to-openapi";
+import "./openapi-extend.js";
+import { OpenAPIRegistry, OpenApiGeneratorV3 } from "@asteasolutions/zod-to-openapi";
 import { z } from "zod";
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -45,7 +46,6 @@ import {
   ResourceMetadataSchema,
 } from "./common.schema.js";
 
-extendZodWithOpenApi(z);
 
 const registry = new OpenAPIRegistry();
 
