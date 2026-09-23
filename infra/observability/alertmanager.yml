@@ -1,7 +1,8 @@
 global:
   resolve_timeout: 5m
-  # Used by the Slack receiver. Set SLACK_WEBHOOK_URL in .env.
-  slack_api_url: "${SLACK_WEBHOOK_URL}"
+  # Alertmanager does not expand environment variables in this file. The Slack
+  # webhook is mounted as a secret from SLACK_WEBHOOK_URL (see docker-compose).
+  slack_api_url_file: /run/secrets/slack_webhook_url
 
 route:
   receiver: "slack-default"

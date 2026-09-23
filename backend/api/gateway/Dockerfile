@@ -41,6 +41,9 @@ RUN adduser --system --uid 1001 fastify
 COPY --from=builder --chown=fastify:nodejs /app/backend/api/gateway/dist ./dist
 COPY --from=builder --chown=fastify:nodejs /app/backend/api/gateway/package.json ./
 COPY --from=builder --chown=fastify:nodejs /app/node_modules ./node_modules
+# node_modules/@autoniix/contracts is a workspace symlink to this path
+COPY --from=builder --chown=fastify:nodejs /app/shared/ts/contracts/package.json ./shared/ts/contracts/
+COPY --from=builder --chown=fastify:nodejs /app/shared/ts/contracts/dist ./shared/ts/contracts/dist
 
 USER fastify
 
