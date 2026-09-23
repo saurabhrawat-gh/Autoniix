@@ -192,7 +192,15 @@ services:
     restart: unless-stopped
 
   # Application Services
+  #
+  # All Python services share ONE image (autoniix-python) built from the root
+  # Dockerfile; the remotion-* services share autoniix-remotion. Keeping a
+  # `build:` on each service means `docker compose up --build` still works for
+  # local dev, while the CI deploy builds each shared image exactly once
+  # (`docker compose build research remotion-api`) and starts everything with
+  # `up -d --no-build`. See .github/workflows/ci.yml → deploy.
   research:
+    image: ${AUTONIIX_PY_IMAGE:-autoniix-python:latest}
     build: .
     command: uvicorn services_api.research.main:app --host 0.0.0.0 --port 8001
     env_file: .env
@@ -209,6 +217,7 @@ services:
     deploy: { resources: { limits: { memory: 1536M } } }
 
   script:
+    image: ${AUTONIIX_PY_IMAGE:-autoniix-python:latest}
     build: .
     command: uvicorn services_api.script.main:app --host 0.0.0.0 --port 8002
     env_file: .env
@@ -224,6 +233,7 @@ services:
     deploy: { resources: { limits: { memory: 1536M } } }
 
   voice:
+    image: ${AUTONIIX_PY_IMAGE:-autoniix-python:latest}
     build: .
     command: uvicorn services_api.voice.main:app --host 0.0.0.0 --port 8003
     env_file: .env
@@ -239,6 +249,7 @@ services:
     deploy: { resources: { limits: { memory: 768M } } }
 
   assets:
+    image: ${AUTONIIX_PY_IMAGE:-autoniix-python:latest}
     build: .
     command: uvicorn services_api.assets.main:app --host 0.0.0.0 --port 8004
     env_file: .env
@@ -254,6 +265,7 @@ services:
     deploy: { resources: { limits: { memory: 512M } } }
 
   thumbnail:
+    image: ${AUTONIIX_PY_IMAGE:-autoniix-python:latest}
     build: .
     command: uvicorn services_api.thumbnail.main:app --host 0.0.0.0 --port 8005
     env_file: .env
@@ -269,6 +281,7 @@ services:
     deploy: { resources: { limits: { memory: 768M } } }
 
   assembly:
+    image: ${AUTONIIX_PY_IMAGE:-autoniix-python:latest}
     build: .
     command: uvicorn services_api.assembly.main:app --host 0.0.0.0 --port 8006
     env_file: .env
@@ -283,6 +296,7 @@ services:
     deploy: { resources: { limits: { memory: 512M } } }
 
   delivery:
+    image: ${AUTONIIX_PY_IMAGE:-autoniix-python:latest}
     build: .
     command: uvicorn services_api.delivery.main:app --host 0.0.0.0 --port 8007
     env_file: .env
@@ -297,6 +311,7 @@ services:
     deploy: { resources: { limits: { memory: 256M } } }
 
   analytics:
+    image: ${AUTONIIX_PY_IMAGE:-autoniix-python:latest}
     build: .
     command: uvicorn services_api.analytics.main:app --host 0.0.0.0 --port 8008
     env_file: .env
@@ -311,6 +326,7 @@ services:
     deploy: { resources: { limits: { memory: 512M } } }
 
   admin:
+    image: ${AUTONIIX_PY_IMAGE:-autoniix-python:latest}
     build: .
     command: uvicorn services_api.admin.main:app --host 0.0.0.0 --port 8009
     env_file: .env
@@ -325,6 +341,7 @@ services:
     deploy: { resources: { limits: { memory: 256M } } }
 
   direction:
+    image: ${AUTONIIX_PY_IMAGE:-autoniix-python:latest}
     build: .
     command: uvicorn services_api.direction.main:app --host 0.0.0.0 --port 8010
     env_file: .env
@@ -339,6 +356,7 @@ services:
     deploy: { resources: { limits: { memory: 512M } } }
 
   brand:
+    image: ${AUTONIIX_PY_IMAGE:-autoniix-python:latest}
     build: .
     command: uvicorn services_api.brand.main:app --host 0.0.0.0 --port 8012
     env_file: .env
@@ -358,6 +376,7 @@ services:
   # Starts in advisory-only mode (brain.advisory_mode=TRUE); flip to FALSE to
   # enable enforcement. Health + decision API on port 8015.
   brain:
+    image: ${AUTONIIX_PY_IMAGE:-autoniix-python:latest}
     build: .
     command: python -m services_api.brain.main
     env_file: .env
@@ -381,6 +400,7 @@ services:
     deploy: { resources: { limits: { memory: 256M } } }
 
   editor:
+    image: ${AUTONIIX_PY_IMAGE:-autoniix-python:latest}
     build: .
     command: uvicorn services_api.editor.main:app --host 0.0.0.0 --port 8013
     env_file: .env
@@ -395,6 +415,7 @@ services:
     deploy: { resources: { limits: { memory: 512M } } }
 
   sheets-sync:
+    image: ${AUTONIIX_PY_IMAGE:-autoniix-python:latest}
     build: .
     command: uvicorn services_api.sheets_sync.main:app --host 0.0.0.0 --port 8011
     env_file: .env
@@ -431,6 +452,7 @@ services:
 
   # Remotion Renderer
   remotion-api:
+    image: ${AUTONIIX_REMOTION_IMAGE:-autoniix-remotion:latest}
     build: { context: ./backend/media/remotion, dockerfile: Dockerfile }
     command: ["npm", "run", "start:api"]
     environment:
@@ -469,6 +491,7 @@ services:
     deploy: { resources: { limits: { memory: 2G } } }
 
   remotion-worker:
+    image: ${AUTONIIX_REMOTION_IMAGE:-autoniix-remotion:latest}
     build: { context: ./backend/media/remotion, dockerfile: Dockerfile }
     command: ["npm", "run", "start:worker"]
     environment:
@@ -505,6 +528,7 @@ services:
   # Off by default. Enable with `docker compose --profile vision up`.
   remotion-worker-tier1:
     profiles: ["vision"]
+    image: ${AUTONIIX_REMOTION_IMAGE:-autoniix-remotion:latest}
     build:
       context: ./backend/media/remotion
       dockerfile: Dockerfile
@@ -537,6 +561,7 @@ services:
 
   remotion-worker-tier2:
     profiles: ["vision"]
+    image: ${AUTONIIX_REMOTION_IMAGE:-autoniix-remotion:latest}
     build:
       context: ./backend/media/remotion
       dockerfile: Dockerfile
@@ -567,6 +592,7 @@ services:
 
   remotion-mcp:
     profiles: ["vision"]
+    image: ${AUTONIIX_REMOTION_IMAGE:-autoniix-remotion:latest}
     build:
       context: ./backend/media/remotion
       dockerfile: Dockerfile
@@ -587,6 +613,7 @@ services:
 
   # Temporal Workers
   worker-production:
+    image: ${AUTONIIX_PY_IMAGE:-autoniix-python:latest}
     build: .
     command: python -m temporal_workers.run_production
     env_file: .env
@@ -602,6 +629,7 @@ services:
     deploy: { resources: { limits: { memory: 512M } } }
 
   worker-scheduler:
+    image: ${AUTONIIX_PY_IMAGE:-autoniix-python:latest}
     build: .
     command: python -m temporal_workers.run_scheduler
     env_file: .env
@@ -647,6 +675,7 @@ services:
   # handlers (transcode_hls, waveform, transcribe, poster-from-video) are
   # registered as skipped until ffmpeg is added to the worker image.
   worker-media-jobs:
+    image: ${AUTONIIX_PY_IMAGE:-autoniix-python:latest}
     build: .
     command: python -m temporal_workers.media_jobs.runner
     env_file: .env
@@ -679,6 +708,7 @@ services:
 
   # Dashboard
   dashboard-bff:
+    image: ${AUTONIIX_PY_IMAGE:-autoniix-python:latest}
     build: .
     command: uvicorn services_api.dashboard.main:app --host 0.0.0.0 --port 8020
     env_file: .env
