@@ -421,7 +421,7 @@ services:
       - "127.0.0.1:8014:8014"
     networks: [autoniix-net]
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8014/health || exit 1"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8014/health', timeout=3)"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -896,8 +896,8 @@ services:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
       - --web.listen-address=:9093
-    environment:
-      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+    secrets:
+      - slack_webhook_url
     ports:
       - "127.0.0.1:9093:9093"
     labels:
@@ -1046,3 +1046,7 @@ services:
       resources:
         limits:
           memory: 256M
+
+secrets:
+  slack_webhook_url:
+    environment: SLACK_WEBHOOK_URL

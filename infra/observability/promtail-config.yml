@@ -34,7 +34,7 @@ scrape_configs:
             content_id: content_id
             channel_id: channel_id
             phase: phase
-        drop_malformed: false
+          drop_malformed: false
       - labels:
           level:
           phase:
