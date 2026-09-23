@@ -10,7 +10,7 @@ export const JobConfigSchema = z.object({
   num_videos: z.number().int().min(1).max(100),
   niche: z.string().min(1).max(255),
   auto_publish: z.boolean().default(false),
-  parameters: z.record(z.string()).optional(),
+  parameters: z.record(z.string(), z.string()).optional(),
 });
 
 export type JobConfig = z.infer<typeof JobConfigSchema>;

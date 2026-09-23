@@ -24,12 +24,12 @@
     "gen-openapi": "tsx src/generate-openapi.ts"
   },
   "dependencies": {
-    "zod": "^4.2.0",
-    "@asteasolutions/zod-to-openapi": "^8.4.3"
+    "@asteasolutions/zod-to-openapi": "^8.4.3",
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
-    "typescript": "^5.7.2",
-    "tsx": "^4.19.2"
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
   }
 }
