@@ -45,7 +45,9 @@ async function request<T = any>(path: string, opts: RequestInit = {}): Promise<T
   const res = await fetch(`${BASE}${path}`, { ...opts, headers });
   if (res.status === 401) {
     clearToken();
-    if (typeof window !== 'undefined') window.location.href = '/login';
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      window.location.href = '/login';
+    }
     throw new Error('Unauthorized');
   }
   if (!res.ok) {
