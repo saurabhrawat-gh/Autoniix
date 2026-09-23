@@ -21,7 +21,6 @@ import {
   SlidersHorizontal,
 } from "@/lib/components/Icon";
 import { useAppState } from "@/lib/components/AppStateProvider";
-import { useTheme } from "@/lib/theme";
 import {
   Button,
   Input,
@@ -1050,14 +1049,8 @@ function ConfigRow({
 }
 
 function DisplayPreferences() {
-  const { theme, setTheme } = useTheme();
   const { density, setDensity } = useAppState();
 
-  const themeOpts: { value: "light" | "dark" | "system"; label: string }[] = [
-    { value: "light", label: "Light" },
-    { value: "dark", label: "Dark" },
-    { value: "system", label: "System" },
-  ];
   const densityOpts: { value: "comfortable" | "compact"; label: string }[] = [
     { value: "comfortable", label: "Comfortable" },
     { value: "compact", label: "Compact" },
@@ -1067,33 +1060,6 @@ function DisplayPreferences() {
     <div className="mb-8">
       <h2 className="text-xs font-semibold text-content-secondary mb-3 flex items-center gap-2">Display</h2>
       <div className="card p-5 space-y-5">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <div className="text-sm font-medium text-content-primary">Theme</div>
-            <div className="text-xs text-content-tertiary mt-0.5">Light, dark, or follow your operating system.</div>
-          </div>
-          <div role="radiogroup" aria-label="Theme" className="inline-flex rounded-lg bg-surface-2 p-1">
-            {themeOpts.map((opt) => (
-              <Button
-                key={opt.value}
-                role="radio"
-                aria-checked={theme === opt.value}
-                variant="ghost"
-                size="sm"
-                onClick={() => setTheme(opt.value)}
-                className={cn(
-                  "h-7 px-3 text-xs",
-                  theme === opt.value
-                    ? "bg-surface-0 text-content-primary shadow-card hover:bg-surface-0"
-                    : "text-content-tertiary hover:text-content-primary"
-                )}
-              >
-                {opt.label}
-              </Button>
-            ))}
-          </div>
-        </div>
-
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
             <div className="text-sm font-medium text-content-primary">Density</div>

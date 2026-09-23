@@ -1,77 +1,71 @@
-import { Zap } from "lucide-react";
+import BrandMark from "./ui/BrandMark";
 
-const footerLinks = {
-  Product: ["Features", "How it works", "Pricing", "Changelog"],
-  Resources: ["Documentation", "Blog", "Status", "Support"],
-  Legal: ["Privacy Policy", "Terms of Service", "Cookie Policy"],
+const LINKS = {
+  Product: [
+    ["Product", "#product"],
+    ["Pipeline", "#pipeline"],
+    ["Features", "#features"],
+    ["Pricing", "#pricing"],
+  ],
+  Company: [
+    ["Dashboard", "https://dash.autoniix.com/login"],
+    ["Status", "#"],
+    ["Contact", "mailto:hello@autoniix.com"],
+    ["Sales", "mailto:sales@autoniix.com"],
+  ],
+  Legal: [
+    ["Privacy", "#"],
+    ["Terms", "#"],
+    ["Cookies", "#"],
+  ],
 };
+
+const SOCIAL = [
+  ["X", "https://twitter.com/autoniix", "X (Twitter)"],
+  ["GH", "https://github.com/autoniix", "GitHub"],
+  ["YT", "https://youtube.com/@autoniix", "YouTube"],
+];
 
 export default function Footer() {
   return (
-    <footer
-      className="border-t"
-      style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--text-primary) 4%, transparent)" }}
-    >
-      <div className="max-w-7xl mx-auto px-6 pt-16 pb-8">
-        {/* Top row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-16">
-          {/* Brand */}
-          <div className="col-span-2 md:col-span-1">
-            <a href="/" className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#00D89F] to-[#00A876] flex items-center justify-center shadow-[0_0_12px_rgba(0,216,159,0.3)]">
-                <Zap className="w-4 h-4 text-[#0A0A0F] fill-[#0A0A0F]" strokeWidth={2} />
-              </div>
-              <span
-                className="t-headline"
-                style={{ color: "var(--text-primary)", fontSize: "1.125rem", fontWeight: 500 }}
-              >
-                Autoniix
-              </span>
+    <footer className="border-t border-border bg-surface-bg/70">
+      <div className="container-x pt-16 pb-8">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-10 mb-14">
+          <div className="col-span-2">
+            <a href="/" className="inline-flex items-center gap-2.5 mb-4">
+              <BrandMark size={24} />
+              <span className="text-[15px] font-semibold tracking-tight text-content-primary">Autoniix</span>
             </a>
-            <p className="t-body-sm max-w-[220px]" style={{ color: "var(--text-muted)" }}>
-              AI-powered content automation. Research, script, voice, render, publish.
+            <p className="text-sm text-content-tertiary max-w-xs leading-relaxed">
+              AI video generation and automation for YouTube. Research, script, voice, render, publish — on autopilot.
             </p>
-            {/* Social */}
-            <div className="flex items-center gap-3 mt-5">
-              {[
-                { name: "X", href: "https://twitter.com/autoniix", label: "X (Twitter)" },
-                { name: "GH", href: "https://github.com/autoniix", label: "GitHub" },
-                { name: "YT", href: "https://youtube.com/@autoniix", label: "YouTube" },
-              ].map((s) => (
+            <div className="flex items-center gap-2 mt-6">
+              {SOCIAL.map(([k, href, label]) => (
                 <a
-                  key={s.name}
-                  href={s.href}
-                  aria-label={s.label}
+                  key={k}
+                  href={href}
+                  aria-label={label}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-8 h-8 rounded-lg glass-card border flex items-center justify-center transition-all duration-150 t-micro"
-                  style={{
-                    borderColor: "var(--border)",
-                    color: "var(--text-muted)",
-                    fontSize: "0.625rem",
-                  }}
+                  className="btn btn-secondary w-9 h-9 p-0 rounded-lg font-mono text-[11px]"
                 >
-                  {s.name}
+                  {k}
                 </a>
               ))}
             </div>
           </div>
 
-          {/* Link columns */}
-          {Object.entries(footerLinks).map(([category, links]) => (
-            <div key={category}>
-              <p className="t-eyebrow mb-4" style={{ color: "var(--text-secondary)" }}>
-                {category}
-              </p>
-              <ul className="space-y-3">
-                {links.map((link) => (
-                  <li key={link}>
+          {Object.entries(LINKS).map(([group, links]) => (
+            <div key={group}>
+              <p className="eyebrow mb-4">{group}</p>
+              <ul className="space-y-2.5">
+                {links.map(([label, href]) => (
+                  <li key={label}>
                     <a
-                      href="#"
-                      className="t-body-sm transition-colors duration-150 hover:opacity-100"
-                      style={{ color: "var(--text-muted)" }}
+                      href={href}
+                      className="text-sm text-content-secondary hover:text-content-primary transition-colors"
                     >
-                      {link}
+                      {label}
                     </a>
                   </li>
                 ))}
@@ -80,16 +74,11 @@ export default function Footer() {
           ))}
         </div>
 
-        {/* Bottom bar */}
-        <div
-          className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t"
-          style={{ borderColor: "var(--border)" }}
-        >
-          <p className="t-body-sm" style={{ color: "var(--text-faint)" }}>
-            © {new Date().getFullYear()} Autoniix. All rights reserved.
-          </p>
-          <p className="t-body-sm" style={{ color: "var(--text-faint)" }}>
-            Built with AI, for creators.
+        <div className="hairline" />
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 text-xs text-content-tertiary">
+          <p>© {new Date().getFullYear()} Autoniix. All rights reserved.</p>
+          <p className="font-mono flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-status-success" /> All systems operational
           </p>
         </div>
       </div>

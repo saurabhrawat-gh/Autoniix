@@ -6,7 +6,6 @@ import { Check, ChevronRight, Users, Youtube, Rocket, Building2 } from "lucide-r
 import { workspaceApi, invitesApi, settingsApi, authApi, isLoggedIn } from "@/lib/api-v2";
 import { Button, Input, Label } from "@/lib/ui";
 import { cn } from "@/lib/utils";
-import { ThemeToggle } from "@/lib/theme";
 
 const STEPS = [
   { id: 1, label: "Your Workspace", icon: Building2 },
@@ -119,10 +118,6 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <div className="absolute top-5 right-5">
-        <ThemeToggle />
-      </div>
-
       {/* Progress bar header */}
       <header className="border-b border-border py-4 px-6">
         <div className="max-w-2xl mx-auto">

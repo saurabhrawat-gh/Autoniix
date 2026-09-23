@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 /**
  * ChromeBar — slim 40px top strip rendered above the sidebar+content row.
@@ -9,28 +9,26 @@
  *   • Search button moved into the sidebar AppBrand row.
  *   • Help (?) and User menu moved into the sidebar bottom utility row.
  *   • WsStatus is now a dot-only indicator (no text pill).
- *   • Theme toggle is the right-most affordance.
  *
  * What stays here:
  *   • Mobile hamburger (md+ shows the sidebar instead).
- *   • Right cluster: status-dot, NotificationBell, ThemeToggle.
+ *   • Right cluster: status-dot, NotificationBell, user menu.
  *   • Global modals it anchors: ShortcutHelp, CommandPalette, MobileDrawer.
  *     Trigger state lives in AppStateProvider so the sidebar buttons can
  *     toggle them without prop-drilling.
  */
 
-import { usePathname } from 'next/navigation';
-import { useState } from 'react';
-import { useHotkeys } from 'react-hotkeys-hook';
-import { useAppState } from './AppStateProvider';
-import { ShortcutHelp } from './ShortcutHelp';
-import { CommandPalette } from './CommandPalette';
-import { NotificationBell } from './NotificationBell';
-import { WsStatusPill } from './WsStatusPill';
-import { MobileDrawer } from './MobileDrawer';
-import { ThemeToggle, ThemePicker } from '../theme';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { Tip } from './Tooltip';
+import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
+import { useAppState } from "./AppStateProvider";
+import { ShortcutHelp } from "./ShortcutHelp";
+import { CommandPalette } from "./CommandPalette";
+import { NotificationBell } from "./NotificationBell";
+import { WsStatusPill } from "./WsStatusPill";
+import { MobileDrawer } from "./MobileDrawer";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { Tip } from "./Tooltip";
 import {
   MoreHorizontal as MenuIcon,
   Home,
@@ -45,39 +43,57 @@ import {
   LogOut,
   HelpCircle,
   UserCircle,
-} from './Icon';
-import { clearToken } from '../api';
-import { confirmDialog } from './ConfirmDialog';
-import { authApi } from '../api-v2';
-import { useRouter } from 'next/navigation';
+} from "./Icon";
+import { clearToken } from "../api";
+import { confirmDialog } from "./ConfirmDialog";
+import { authApi } from "../api-v2";
+import { useRouter } from "next/navigation";
 
 export function ChromeBar() {
-  const pathname = usePathname() || '';
+  const pathname = usePathname() || "";
   const router = useRouter();
   const { setPaletteOpen, helpOpen, setHelpOpen } = useAppState();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  useHotkeys('shift+slash', (e) => { e.preventDefault(); setHelpOpen(!helpOpen); }, [helpOpen, setHelpOpen]);
-  useHotkeys('escape', () => setHelpOpen(false), [setHelpOpen]);
-  useHotkeys('mod+k', (e) => { e.preventDefault(); setPaletteOpen(true); }, [setPaletteOpen]);
+  useHotkeys(
+    "shift+slash",
+    (e) => {
+      e.preventDefault();
+      setHelpOpen(!helpOpen);
+    },
+    [helpOpen, setHelpOpen]
+  );
+  useHotkeys("escape", () => setHelpOpen(false), [setHelpOpen]);
+  useHotkeys(
+    "mod+k",
+    (e) => {
+      e.preventDefault();
+      setPaletteOpen(true);
+    },
+    [setPaletteOpen]
+  );
 
   async function handleLogout() {
     const ok = await confirmDialog({
-      title: 'Sign out?',
-      description: 'You will be returned to the login page.',
+      title: "Sign out?",
+      description: "You will be returned to the login page.",
       destructive: true,
-      confirmLabel: 'Sign out',
+      confirmLabel: "Sign out",
     });
     if (!ok) return;
     clearToken();
-    try { await authApi.logout(); } catch { /* ignore — redirect regardless */ }
-    router.push('/login');
+    try {
+      await authApi.logout();
+    } catch {
+      /* ignore — redirect regardless */
+    }
+    router.push("/login");
   }
 
   const chromeBtn =
-    'inline-flex items-center justify-center w-7 h-7 rounded-md text-content-tertiary ' +
-    'hover:bg-surface-2 hover:text-content-primary transition-colors ' +
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40';
+    "inline-flex items-center justify-center w-7 h-7 rounded-md text-content-tertiary " +
+    "hover:bg-surface-2 hover:text-content-primary transition-colors " +
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40";
 
   return (
     <>
@@ -118,11 +134,7 @@ export function ChromeBar() {
           </Tip>
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
-              <button
-                type="button"
-                aria-label="User menu"
-                className={chromeBtn}
-              >
+              <button type="button" aria-label="User menu" className={chromeBtn}>
                 <UserCircle size={14} />
               </button>
             </DropdownMenu.Trigger>
@@ -133,7 +145,7 @@ export function ChromeBar() {
                 className="z-[200] min-w-[180px] bg-surface-0 border border-border rounded-xl shadow-elevated p-1 text-sm"
               >
                 <DropdownMenu.Item
-                  onSelect={() => router.push('/dashboard/profile')}
+                  onSelect={() => router.push("/dashboard/profile")}
                   className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-content-primary hover:bg-surface-2 outline-none"
                 >
                   <UserCircle size={14} className="text-content-secondary" />
@@ -141,7 +153,10 @@ export function ChromeBar() {
                 </DropdownMenu.Item>
                 <DropdownMenu.Separator className="my-1 h-px bg-border" />
                 <DropdownMenu.Item
-                  onSelect={(e) => { e.preventDefault(); handleLogout(); }}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    handleLogout();
+                  }}
                   className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-status-error hover:bg-status-error/10 outline-none"
                 >
                   <LogOut size={14} />
@@ -150,8 +165,6 @@ export function ChromeBar() {
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
           </DropdownMenu.Root>
-          <ThemePicker />
-          <ThemeToggle />
         </div>
       </header>
 
@@ -161,26 +174,64 @@ export function ChromeBar() {
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         items={[
-          { href: '/dashboard', label: 'Home', icon: Home, active: pathname === '/dashboard' },
-          { href: '/dashboard/channels', label: 'Channels', icon: Tv, active: pathname.startsWith('/dashboard/channels') },
-          { href: '/dashboard/content', label: 'Content', icon: Film, active: pathname.startsWith('/dashboard/content') },
-          { href: '/dashboard/library', label: 'Library', icon: Archive, active: pathname.startsWith('/dashboard/library') },
-          { href: '/dashboard/experiments', label: 'Experiments', icon: Zap, active: pathname.startsWith('/dashboard/experiments') },
-          { href: '/dashboard/providers', label: 'Providers', icon: Plug, active: pathname.startsWith('/dashboard/providers') },
-          { href: '/dashboard/progress', label: 'Progress', icon: Activity, active: pathname.startsWith('/dashboard/progress') || pathname.startsWith('/dashboard/jobs') },
-          { href: '/dashboard/settings', label: 'Settings', icon: Settings, active: pathname.startsWith('/dashboard/settings') },
-          { href: '/dashboard/channels/new', label: 'Add Channel', icon: Plus },
+          { href: "/dashboard", label: "Home", icon: Home, active: pathname === "/dashboard" },
+          {
+            href: "/dashboard/channels",
+            label: "Channels",
+            icon: Tv,
+            active: pathname.startsWith("/dashboard/channels"),
+          },
+          {
+            href: "/dashboard/content",
+            label: "Content",
+            icon: Film,
+            active: pathname.startsWith("/dashboard/content"),
+          },
+          {
+            href: "/dashboard/library",
+            label: "Library",
+            icon: Archive,
+            active: pathname.startsWith("/dashboard/library"),
+          },
+          {
+            href: "/dashboard/experiments",
+            label: "Experiments",
+            icon: Zap,
+            active: pathname.startsWith("/dashboard/experiments"),
+          },
+          {
+            href: "/dashboard/providers",
+            label: "Providers",
+            icon: Plug,
+            active: pathname.startsWith("/dashboard/providers"),
+          },
+          {
+            href: "/dashboard/progress",
+            label: "Progress",
+            icon: Activity,
+            active: pathname.startsWith("/dashboard/progress") || pathname.startsWith("/dashboard/jobs"),
+          },
+          {
+            href: "/dashboard/settings",
+            label: "Settings",
+            icon: Settings,
+            active: pathname.startsWith("/dashboard/settings"),
+          },
+          { href: "/dashboard/channels/new", label: "Add Channel", icon: Plus },
         ]}
-        footer={(
+        footer={
           <button
             type="button"
-            onClick={() => { setDrawerOpen(false); handleLogout(); }}
+            onClick={() => {
+              setDrawerOpen(false);
+              handleLogout();
+            }}
             className="w-full h-9 inline-flex items-center justify-center gap-2 rounded-md bg-surface-2 text-content-secondary hover:text-content-primary text-sm font-medium"
           >
             <LogOut size={14} />
             Sign out
           </button>
-        )}
+        }
       />
     </>
   );
