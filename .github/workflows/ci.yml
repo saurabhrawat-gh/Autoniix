@@ -383,7 +383,10 @@ jobs:
           export RELEASE_SHA="${GITHUB_SHA:-$(git rev-parse HEAD)}"
           export GIT_SHA="$RELEASE_SHA"
 
-          STATE_DIR=/home/autoniix/.autoniix
+          # Deploy state lives inside the checkout under the git-ignored
+          # .harness/ dir: the runner user can write there (setgid group dir)
+          # but not to /home/autoniix itself, and `reset --hard` leaves it alone.
+          STATE_DIR="$PWD/.harness/deploy"
           mkdir -p "$STATE_DIR"
           PREV_SHA=$(cat "$STATE_DIR/last-deployed-sha" 2>/dev/null || true)
 
