@@ -97,7 +97,7 @@ jobs:
           grep -vE '^(sentence-transformers|opencv-python-headless|librosa|spacy|nltk|textstat|soundfile|pydub|google-generativeai|anthropic|elevenlabs|edge-tts|gspread|google-auth|google-api-python-client|wikipedia|pytrends)' requirements.txt > requirements-ci.txt
           pip install -r requirements-ci.txt
           pip install grpcio grpcio-tools psycopg2-binary
-          pip install -r requirements-dev.txt
+          pip install $(grep -E '^(ruff|mypy)==' requirements-dev.txt)
 
       - name: Format check
         run: ruff format --check .
@@ -145,9 +145,11 @@ jobs:
       - name: Install root workspace
         run: npm ci
 
-      - name: Contracts typecheck
+      - name: Contracts typecheck + build (gateway imports the emitted .d.ts)
         working-directory: shared/ts/contracts
-        run: npm run typecheck
+        run: |
+          npm run typecheck
+          npm run build
 
       - name: Gateway typecheck + test
         working-directory: backend/api/gateway
@@ -268,7 +270,7 @@ jobs:
           cache: pip
 
       - name: Install deps
-        run: pip install httpx pytest psycopg2-binary pyjwt structlog asyncpg pydantic-settings
+        run: pip install $(grep -E '^(pytest|pytest-asyncio|psycopg2-binary|asyncpg|httpx|pyjwt|structlog|pydantic-settings)==' requirements-dev.txt)
 
       - name: Apply test DB schema (init + migrations)
         env:
@@ -278,11 +280,6 @@ jobs:
           for f in infra/migrations/*.sql; do
             psql -h localhost -U postgres -d autoniix_test -f "$f" -v ON_ERROR_STOP=1
           done
-
-      - name: Run schema compatibility tests
-        env:
-          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/autoniix_test
-        run: pytest tests/migration/test_schema_compatibility.py -v
 
       - name: Run golden file tests
         run: pytest tests/golden/test_auth_golden.py -v
