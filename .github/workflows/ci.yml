@@ -1,10 +1,13 @@
 name: CI
 
 on:
+  # Pushes to develop trigger NOTHING. Quality gates run on pull requests
+  # (into develop or main); the build + deploy runs only when a PR lands on
+  # main. Feature branches get the harness on push so authors see failures
+  # before opening a PR.
   push:
     branches:
       - main
-      - develop
       - 'feat/**'
       - 'fix/**'
       - 'hotfix/**'
@@ -21,7 +24,13 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Never cancel an in-flight deploy on main; a second merge queues behind it.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+# Pushes to main only ever come from a merged PR whose head already passed the
+# full harness, so on main we skip re-running the test matrix and go straight
+# from guard → deploy. This is what keeps a deploy in the 2–4 minute range.
+# (Each harness job carries the same `if:` — job-level ifs can't read `env`.)
 
 # Phase 7 stack: Python + TypeScript only. Rust/Go removed.
 # Job list here MUST match scripts/ci-local.sh functions 1:1 (Phase B).
@@ -90,6 +99,7 @@ jobs:
   python-lint-and-tests:
     name: Python — lint + unit tests
     runs-on: ubuntu-latest
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     steps:
       - uses: actions/checkout@v4
 
@@ -142,6 +152,7 @@ jobs:
   ts-typecheck-and-tests:
     name: TypeScript — contracts + gateway + streaming-hub
     runs-on: ubuntu-latest
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     steps:
       - uses: actions/checkout@v4
 
@@ -175,6 +186,7 @@ jobs:
   dashboard-typecheck:
     name: Dashboard — typecheck + tests + UI-token lint
     runs-on: ubuntu-latest
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     defaults:
       run:
         working-directory: frontend/dashboard
@@ -194,6 +206,7 @@ jobs:
   remotion-typecheck:
     name: Remotion — typecheck
     runs-on: ubuntu-latest
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     defaults:
       run:
         working-directory: backend/media/remotion
@@ -212,6 +225,7 @@ jobs:
     name: Security — pip-audit + SBOM
     runs-on: ubuntu-latest
     needs: [python-lint-and-tests]
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     steps:
       - uses: actions/checkout@v4
 
@@ -259,6 +273,7 @@ jobs:
   migration-equivalence:
     name: Migration — equivalence + schema tests
     runs-on: ubuntu-latest
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     services:
       postgres:
         image: pgvector/pgvector:pg15
@@ -303,7 +318,7 @@ jobs:
   harness-summary:
     name: harness/all-green
     runs-on: ubuntu-latest
-    if: always()
+    if: ${{ always() && !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     needs:
       - python-lint-and-tests
       - ts-typecheck-and-tests
@@ -341,13 +356,19 @@ jobs:
   deploy:
     name: Deploy — VPS
     runs-on: self-hosted
-    needs: [guard, harness-summary]
+    needs: [guard]
+    # Only a push to main (i.e. a merged PR) deploys. The harness is NOT a
+    # dependency here on purpose: it already ran on the PR, and it is skipped
+    # on main pushes (see job-level ifs above) so deploy starts immediately.
     if: >-
       github.event_name == 'push'
       && github.ref == 'refs/heads/main'
       && needs.guard.result == 'success'
-      && needs.harness-summary.result == 'success'
       && !contains(github.event.head_commit.message, '[skip deploy]')
+    timeout-minutes: 25
+    concurrency:
+      group: deploy-vps
+      cancel-in-progress: false
     steps:
       - name: Deploy
         env:
@@ -360,28 +381,89 @@ jobs:
           git fetch --all --prune
           git reset --hard origin/main
           export RELEASE_SHA="${GITHUB_SHA:-$(git rev-parse HEAD)}"
+          export GIT_SHA="$RELEASE_SHA"
 
-          # Build BEFORE touching running containers so the site stays up during
-          # the build, and build in small batches: the VPS disk cannot export
-          # ~26 image layers at once (iowait >90%, deploys stalled for 30+ min).
-          # All Python services share one Dockerfile, so that image builds once
-          # and is then just re-tagged for each service.
-          PY_SERVICES=$(docker compose --profile tls config --services 2>/dev/null \
-            | grep -vE '^(node-gateway|streaming-hub-v2|dashboard-ui|landing-ui|remotion-api|remotion-worker|remotion-mcp|notification-dispatcher|resolve-finisher|sentry-agent|postgres-app|postgres-temporal|redis|minio|minio-bootstrap|temporal|temporal-ui|prometheus|alertmanager|grafana|loki|promtail|node-exporter|traefik|socket-proxy|infisical)$' \
-            | tr '\n' ' ')
-          docker compose --profile tls build $PY_SERVICES
-          for svc in node-gateway streaming-hub-v2 dashboard-ui landing-ui notification-dispatcher resolve-finisher; do
-            docker compose --profile tls build "$svc"
-          done
-          docker compose --profile tls build remotion-api remotion-worker
+          STATE_DIR=/home/autoniix/.autoniix
+          mkdir -p "$STATE_DIR"
+          PREV_SHA=$(cat "$STATE_DIR/last-deployed-sha" 2>/dev/null || true)
 
-          # Swap to the new images; compose only recreates containers whose
-          # image or config changed, so untouched services keep running.
+          # ── 1. Work out what actually changed since the last successful deploy ──
+          # Each image gets rebuilt only if one of its source paths changed. If
+          # we have no record of the previous deploy, or if the compose/CI
+          # plumbing itself changed, rebuild everything.
+          if [[ -n "$PREV_SHA" ]] && git cat-file -e "$PREV_SHA^{commit}" 2>/dev/null; then
+            CHANGED=$(git diff --name-only "$PREV_SHA" "$RELEASE_SHA")
+            echo "Changed files since $PREV_SHA:"; echo "$CHANGED" | sed 's/^/  /'
+          else
+            CHANGED="__ALL__"
+            echo "No previous deploy recorded — full rebuild."
+          fi
+
+          changed() {  # changed <regex> → 0 if any changed path matches
+            [[ "$CHANGED" == "__ALL__" ]] && return 0
+            grep -qE "$1" <<<"$CHANGED"
+          }
+          missing() { ! docker image inspect "$1" >/dev/null 2>&1; }
+
+          if changed '^(docker-compose\.yml|\.github/workflows/ci\.yml|versions\.env)$'; then
+            CHANGED="__ALL__"; echo "Compose/CI/versions changed — full rebuild."
+          fi
+
+          TO_BUILD=()
+          # Python — one shared image for the 18 services (see docker-compose.yml)
+          if missing autoniix-python:latest || changed '^(Dockerfile|requirements\.txt|shared/python/|backend/api/core/|backend/workers/temporal/|scripts/|tools/seeds/)'; then
+            TO_BUILD+=(research)
+          fi
+          # Remotion — one shared image for remotion-api / remotion-worker
+          if missing autoniix-remotion:latest || changed '^backend/media/remotion/'; then
+            TO_BUILD+=(remotion-api)
+          fi
+          if missing autoniix-node-gateway || changed '^(backend/api/gateway/|shared/ts/|package(-lock)?\.json)'; then
+            TO_BUILD+=(node-gateway)
+          fi
+          if missing autoniix-streaming-hub-v2 || changed '^(backend/api/streaming-hub/|shared/ts/|package(-lock)?\.json)'; then
+            TO_BUILD+=(streaming-hub-v2)
+          fi
+          if missing autoniix-dashboard-ui || changed '^frontend/dashboard/'; then
+            TO_BUILD+=(dashboard-ui)
+          fi
+          if missing autoniix-landing-ui || changed '^frontend/marketing/'; then
+            TO_BUILD+=(landing-ui)
+          fi
+          if missing autoniix-notification-dispatcher || changed '^backend/workers/notification-dispatcher/'; then
+            TO_BUILD+=(notification-dispatcher)
+          fi
+          if missing autoniix-resolve-finisher || changed '^backend/platform/resolve-finisher/'; then
+            TO_BUILD+=(resolve-finisher)
+          fi
+
+          # ── 2. Build only those images, BEFORE touching running containers ──
+          # Sequential builds: the VPS disk is the bottleneck (iowait >90% when
+          # many images export at once), so parallel bake is slower here.
+          if [[ ${#TO_BUILD[@]} -eq 0 ]]; then
+            echo "Nothing to build — no image sources changed."
+          else
+            echo "Building: ${TO_BUILD[*]}"
+            for svc in "${TO_BUILD[@]}"; do
+              t0=$(date +%s)
+              docker compose --profile tls build "$svc"
+              echo "  ✓ $svc built in $(( $(date +%s) - t0 ))s"
+            done
+          fi
+
+          # ── 3. Swap. compose only recreates containers whose image/config changed ──
           docker compose --profile tls up -d --no-build --remove-orphans
 
-          # Reclaim build cache and dangling layers left by previous deploys.
+          echo "$RELEASE_SHA" > "$STATE_DIR/last-deployed-sha"
+          # Expose to later steps
+          echo "TO_BUILD=${TO_BUILD[*]:-}" >> "$GITHUB_ENV"
+          echo "CHANGED_PY=$([[ ${TO_BUILD[*]:-} == *research* ]] && echo 1 || echo 0)" >> "$GITHUB_ENV"
+          echo "CHANGED_MIGRATIONS=$(changed '^infra/migrations/' && echo 1 || echo 0)" >> "$GITHUB_ENV"
+
+          # Reclaim dangling layers left by previous deploys. Keep a generous
+          # builder cache: it is what makes the next pip/npm layer a cache hit.
           docker image prune -f >/dev/null 2>&1 || true
-          docker builder prune -f --keep-storage 20GB >/dev/null 2>&1 || true
+          docker builder prune -f --keep-storage 40GB >/dev/null 2>&1 || true
 
           # Sync postgres password from .env → running postgres (data volume persists across deploys).
           DB_USER_VAL=$(grep -m1 '^DB_USER=' .env 2>/dev/null | sed 's/^DB_USER=//' | tr -d "\"'" || true)
@@ -416,6 +498,10 @@ jobs:
           fi
 
       - name: Post-deploy — apply pending DB migrations + register Temporal schedules
+        # Skipped when neither the Python image nor infra/migrations changed:
+        # nothing new to migrate or register, and the bff/scheduler weren't
+        # recreated so there's nothing to wait on.
+        if: env.CHANGED_PY == '1' || env.CHANGED_MIGRATIONS == '1'
         run: |
           set -euo pipefail
           cd /home/autoniix/autoniix
@@ -450,5 +536,15 @@ jobs:
       - name: Post-deploy smoke
         run: |
           set -e
+          cd /home/autoniix/autoniix
           curl -fsS http://localhost:8020/health | python3 -m json.tool
-          echo "Deploy verified."
+          # Frontends: wait for the freshly recreated containers to pass their healthcheck.
+          for svc in landing-ui dashboard-ui; do
+            for i in $(seq 1 20); do
+              st=$(docker inspect -f '{{.State.Health.Status}}' "autoniix-${svc}-1" 2>/dev/null || echo missing)
+              [[ "$st" == "healthy" ]] && { echo "✓ $svc healthy"; break; }
+              [[ $i -eq 20 ]] && { echo "❌ $svc not healthy ($st)"; docker compose logs --tail=50 "$svc"; exit 1; }
+              sleep 3
+            done
+          done
+          echo "Deploy verified. Built: ${TO_BUILD:-nothing}"
