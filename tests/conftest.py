@@ -13,7 +13,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-import core.db
+# Add shared/python to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "shared", "python"))
+
+import core.db  # noqa: E402
 
 
 @pytest.fixture(scope="session", autouse=True)
