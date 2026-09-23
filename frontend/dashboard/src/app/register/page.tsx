@@ -7,7 +7,6 @@ import { z } from "zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authApi } from "@/lib/api-v2";
-import { ThemeToggle } from "@/lib/theme";
 import { Button, Input, Card } from "@/lib/ui";
 import { FormField } from "@/lib/components/FormField";
 
@@ -43,10 +42,6 @@ export default function RegisterPage() {
 
   return (
     <div className="flex items-center justify-center min-h-screen relative">
-      <div className="absolute top-5 right-5">
-        <ThemeToggle />
-      </div>
-
       <div className="w-full max-w-md px-6">
         <Card variant="elevated" padding="xl">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">

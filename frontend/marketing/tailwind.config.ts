@@ -1,141 +1,104 @@
 import type { Config } from "tailwindcss";
 
+/* Token bridge — identical to frontend/dashboard/tailwind.config.ts so both
+ * autoniix.com and dash.autoniix.com share one palette. Values live in
+ * src/app/globals.css as space-separated RGB triplets. */
+function cssVar(name: string) {
+  return `rgb(var(--${name}) / <alpha-value>)`;
+}
+
 const config: Config = {
   darkMode: "class",
-  content: [
-    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
-  ],
+  content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
     extend: {
       colors: {
+        surface: {
+          bg: cssVar("surface-bg"),
+          0: cssVar("surface-0"),
+          1: cssVar("surface-1"),
+          2: cssVar("surface-2"),
+          3: cssVar("surface-3"),
+        },
         accent: {
-          violet: "#7C3AED",
-          "violet-light": "#9B6FF5",
-          "violet-dark": "#5B21B6",
-          green: "#00D89F",
-          "green-dark": "#00A876",
-          cyan: "#06B6D4",
-          pink: "#EC4899",
+          DEFAULT: cssVar("accent"),
+          hover: cssVar("accent-hover"),
+          light: cssVar("accent-light"),
+          muted: cssVar("accent-muted"),
+        },
+        "accent-primary": cssVar("accent-primary-bg"),
+        "accent-primary-fg": cssVar("accent-primary-text"),
+        secondary: {
+          DEFAULT: cssVar("secondary"),
+          light: cssVar("secondary-light"),
+        },
+        brand: {
+          violet: "#8A56FF",
+          pink: "#FF6FB5",
+        },
+        content: {
+          primary: cssVar("content-primary"),
+          secondary: cssVar("content-secondary"),
+          tertiary: cssVar("content-tertiary"),
+          disabled: cssVar("content-disabled"),
+          inverse: cssVar("content-inverse"),
+        },
+        border: {
+          DEFAULT: cssVar("border"),
+          hover: cssVar("border-hover"),
+        },
+        status: {
+          success: cssVar("status-success"),
+          warning: cssVar("status-warning"),
+          error: cssVar("status-error"),
+          info: cssVar("status-info"),
         },
       },
       fontFamily: {
-        sans: ["var(--font-google-sans)", "Google Sans Flex", "system-ui", "sans-serif"],
-        serif: ["var(--font-google-sans)", "Google Sans Flex", "system-ui", "sans-serif"],
-        display: ["var(--font-google-sans)", "Google Sans Flex", "system-ui", "sans-serif"],
-        hero: ["var(--font-google-sans)", "Google Sans Flex", "system-ui", "sans-serif"],
-        cursive: ["var(--font-cattalague)", "Cattalague", "cursive"],
-        mono: ["var(--font-mono)", "JetBrains Mono", "monospace"],
+        sans: ["var(--font-sans)", "Satoshi", "system-ui", "-apple-system", "sans-serif"],
+        mono: ["var(--font-mono)", "JetBrains Mono", "SF Mono", "Menlo", "monospace"],
+      },
+      boxShadow: {
+        card: "var(--shadow-card)",
+        elevated: "var(--shadow-elevated)",
+        glow: "var(--shadow-glow)",
       },
       letterSpacing: {
         tight: "-0.022em",
-        tighter: "-0.03em",
-      },
-      backgroundImage: {
-        "glow-green": "radial-gradient(ellipse at center, rgba(0,216,159,0.15) 0%, transparent 70%)",
-        "glow-purple": "radial-gradient(ellipse at center, rgba(102,69,193,0.15) 0%, transparent 70%)",
-        "glow-blue": "radial-gradient(ellipse at center, rgba(37,99,235,0.12) 0%, transparent 70%)",
-        "hero-gradient":
-          "linear-gradient(135deg, rgba(0,216,159,0.08) 0%, transparent 50%, rgba(102,69,193,0.08) 100%)",
-        "btn-primary": "linear-gradient(135deg, #00D89F 0%, #00A876 100%)",
-        "card-glass": "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)",
-      },
-      boxShadow: {
-        "glow-sm": "0 0 12px rgba(0,216,159,0.25)",
-        "glow-md": "0 0 24px rgba(0,216,159,0.20)",
-        "glow-lg": "0 0 48px rgba(0,216,159,0.15)",
-        card: "0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3)",
-        "card-hover": "0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,216,159,0.2)",
-        "purple-glow": "0 0 24px rgba(102,69,193,0.25)",
+        tighter: "-0.035em",
       },
       animation: {
-        "float-slow": "float 8s ease-in-out infinite",
-        "float-medium": "float 6s ease-in-out infinite 2s",
-        "float-fast": "float 5s ease-in-out infinite 1s",
-        "pulse-slow": "pulse 3s ease-in-out infinite",
-        marquee: "marquee 30s linear infinite",
-        marquee2: "marquee2 30s linear infinite",
-        scan: "scan 8s linear infinite",
-        blink: "blink 1s step-end infinite",
-        "gradient-shift": "gradient-shift 8s ease infinite",
-        "mesh-drift-1": "meshDrift1 18s ease-in-out infinite",
-        "mesh-drift-2": "meshDrift2 22s ease-in-out infinite 3s",
-        "mesh-drift-3": "meshDrift3 26s ease-in-out infinite 7s",
-        "wave-flow": "waveFlow 6s ease-in-out infinite",
-        "reveal-blur": "revealBlur 0.7s cubic-bezier(0.16,1,0.3,1) forwards",
-        "node-pulse": "nodePulse 2.4s ease-in-out infinite",
-        "flow-dash": "flowDash 1.8s linear infinite",
-        "job-enter": "jobEnter 0.5s cubic-bezier(0.16,1,0.3,1) forwards",
-        "shimmer-flow": "shimmerFlow 2.5s linear infinite",
-        "border-rotate": "borderRotate 4s linear infinite",
+        marquee: "marquee 40s linear infinite",
+        "flow-dash": "flowDash 1.6s linear infinite",
+        "pulse-soft": "pulseSoft 2.4s ease-in-out infinite",
+        shimmer: "shimmer 2.8s linear infinite",
+        scan: "scan 7s linear infinite",
+        "spin-slow": "spin 14s linear infinite",
+        "float-slow": "float 9s ease-in-out infinite",
       },
       keyframes: {
-        float: {
-          "0%, 100%": { transform: "translateY(0px) scale(1)" },
-          "50%": { transform: "translateY(-30px) scale(1.02)" },
-        },
         marquee: {
-          "0%": { transform: "translateX(0%)" },
+          "0%": { transform: "translateX(0)" },
           "100%": { transform: "translateX(-50%)" },
         },
-        marquee2: {
-          "0%": { transform: "translateX(50%)" },
-          "100%": { transform: "translateX(0%)" },
+        flowDash: {
+          to: { strokeDashoffset: "-24" },
+        },
+        pulseSoft: {
+          "0%, 100%": { opacity: "0.45", transform: "scale(1)" },
+          "50%": { opacity: "1", transform: "scale(1.06)" },
+        },
+        shimmer: {
+          "0%": { backgroundPosition: "200% 50%" },
+          "100%": { backgroundPosition: "-200% 50%" },
         },
         scan: {
           "0%": { transform: "translateY(-100%)" },
-          "100%": { transform: "translateY(200vh)" },
+          "100%": { transform: "translateY(100%)" },
         },
-        blink: {
-          "0%, 100%": { opacity: "1" },
-          "50%": { opacity: "0" },
-        },
-        "gradient-shift": {
-          "0%, 100%": { backgroundPosition: "0% 50%" },
-          "50%": { backgroundPosition: "100% 50%" },
-        },
-        meshDrift1: {
-          "0%, 100%": { transform: "translate(0px, 0px) scale(1)" },
-          "33%": { transform: "translate(60px, -40px) scale(1.08)" },
-          "66%": { transform: "translate(-30px, 50px) scale(0.95)" },
-        },
-        meshDrift2: {
-          "0%, 100%": { transform: "translate(0px, 0px) scale(1)" },
-          "40%": { transform: "translate(-70px, 30px) scale(1.1)" },
-          "70%": { transform: "translate(40px, -60px) scale(0.92)" },
-        },
-        meshDrift3: {
-          "0%, 100%": { transform: "translate(0px, 0px) scale(1)" },
-          "50%": { transform: "translate(50px, 50px) scale(1.05)" },
-        },
-        waveFlow: {
-          "0%, 100%": { transform: "translateX(-5%) scaleY(1)" },
-          "50%": { transform: "translateX(5%) scaleY(1.08)" },
-        },
-        revealBlur: {
-          "0%": { opacity: "0", filter: "blur(8px)", transform: "translateY(20px)" },
-          "100%": { opacity: "1", filter: "blur(0px)", transform: "translateY(0)" },
-        },
-        nodePulse: {
-          "0%, 100%": { boxShadow: "0 0 0 0 rgba(0,216,159,0.4)" },
-          "50%": { boxShadow: "0 0 0 8px rgba(0,216,159,0)" },
-        },
-        flowDash: {
-          "0%": { strokeDashoffset: "100" },
-          "100%": { strokeDashoffset: "0" },
-        },
-        jobEnter: {
-          "0%": { opacity: "0", transform: "translateX(-16px)" },
-          "100%": { opacity: "1", transform: "translateX(0)" },
-        },
-        shimmerFlow: {
-          "0%": { backgroundPosition: "-200% center" },
-          "100%": { backgroundPosition: "200% center" },
-        },
-        borderRotate: {
-          "0%": { "--border-angle": "0deg" } as Record<string, string>,
-          "100%": { "--border-angle": "360deg" } as Record<string, string>,
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-14px)" },
         },
       },
     },

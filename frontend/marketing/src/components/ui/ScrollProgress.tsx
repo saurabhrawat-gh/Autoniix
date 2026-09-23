@@ -7,20 +7,17 @@ export default function ScrollProgress() {
 
   useEffect(() => {
     const handler = () => {
-      const scrollTop = window.scrollY;
       const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-      setProgress(docHeight > 0 ? (scrollTop / docHeight) * 100 : 0);
+      setProgress(docHeight > 0 ? (window.scrollY / docHeight) * 100 : 0);
     };
+    handler();
     window.addEventListener("scroll", handler, { passive: true });
     return () => window.removeEventListener("scroll", handler);
   }, []);
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[100] h-[2px] bg-transparent">
-      <div
-        className="h-full bg-gradient-to-r from-[#00D89F] to-[#6645C1] transition-none"
-        style={{ width: `${progress}%` }}
-      />
+    <div className="fixed top-0 left-0 right-0 z-[100] h-px pointer-events-none">
+      <div className="h-full bg-brand" style={{ width: `${progress}%` }} />
     </div>
   );
 }

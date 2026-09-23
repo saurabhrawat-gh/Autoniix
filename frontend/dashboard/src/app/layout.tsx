@@ -11,7 +11,6 @@ import { MotionProvider } from "@/lib/components/MotionProvider";
 import { QueryProvider } from "@/lib/components/QueryProvider";
 import { FeatureFlagProvider } from "@/lib/components/FeatureFlagProvider";
 import "./globals.css";
-import "./themes.css";
 
 const satoshi = localFont({
   src: [
@@ -48,7 +47,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const messages = await getMessages();
 
   return (
-    <html lang={locale} suppressHydrationWarning className={`${satoshi.variable} ${jetbrainsMono.variable}`}>
+    <html lang={locale} suppressHydrationWarning className={`dark ${satoshi.variable} ${jetbrainsMono.variable}`}>
       <body className="min-h-screen font-sans">
         <a
           href="#main-content"

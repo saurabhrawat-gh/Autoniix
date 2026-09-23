@@ -1,22 +1,17 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { JetBrains_Mono } from "next/font/google";
-import CursorSpotlight from "@/components/ui/CursorSpotlight";
 import ScrollProgress from "@/components/ui/ScrollProgress";
 import BackToTop from "@/components/ui/BackToTop";
-import { ThemeProvider } from "@/components/ui/ThemeProvider";
 import "./globals.css";
 
-const googleSansFlex = localFont({
-  src: "../../public/fonts/GoogleSansFlex.ttf",
-  variable: "--font-google-sans",
-  weight: "100 900",
-  display: "swap",
-});
-
-const cattalague = localFont({
-  src: "../../public/fonts/Cattalague.ttf",
-  variable: "--font-cattalague",
+const satoshi = localFont({
+  src: [
+    { path: "../../public/fonts/Satoshi-Variable.woff2", style: "normal" },
+    { path: "../../public/fonts/Satoshi-VariableItalic.woff2", style: "italic" },
+  ],
+  variable: "--font-sans",
+  weight: "300 900",
   display: "swap",
 });
 
@@ -28,10 +23,16 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Autoniix — AI Content Automation",
+  title: "Autoniix — AI Video Generation & Automation for YouTube",
   description:
     "Autoniix orchestrates AI to research, script, voice, render and publish YouTube content — Shorts and long-form, at any scale. Your YouTube empire, fully automated.",
-  keywords: ["AI content automation", "YouTube automation", "content creation AI", "automated video production"],
+  keywords: [
+    "AI video generation",
+    "AI content automation",
+    "YouTube automation",
+    "automated video production",
+    "faceless YouTube channel",
+  ],
   authors: [{ name: "Autoniix" }],
   creator: "Autoniix",
   metadataBase: new URL("https://autoniix.com"),
@@ -39,24 +40,18 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: "https://autoniix.com",
-    title: "Autoniix — AI Content Automation",
+    title: "Autoniix — AI Video Generation & Automation",
     description: "Research, script, voice, render, publish. Your content empire, fully automated.",
     siteName: "Autoniix",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Autoniix — AI Content Automation",
+    title: "Autoniix — AI Video Generation & Automation",
     description: "Research, script, voice, render, publish. Your content empire, fully automated.",
   },
-  robots: {
-    index: true,
-    follow: true,
-  },
+  robots: { index: true, follow: true },
   icons: {
-    icon: [
-      { url: "/favicon-dark.png", media: "(prefers-color-scheme: dark)", type: "image/png", sizes: "64x64" },
-      { url: "/favicon-light.png", media: "(prefers-color-scheme: light)", type: "image/png", sizes: "64x64" },
-    ],
+    icon: [{ url: "/favicon-dark.png", type: "image/png", sizes: "64x64" }],
     shortcut: "/favicon-dark.png",
     apple: "/favicon-dark.png",
   },
@@ -65,23 +60,17 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0A0A0F",
+  themeColor: "#0A0A0D",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="en"
-      suppressHydrationWarning
-      className={`${googleSansFlex.variable} ${cattalague.variable} ${jetbrainsMono.variable}`}
-    >
-      <body className="antialiased font-sans transition-colors duration-300">
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange={false}>
-          <ScrollProgress />
-          <CursorSpotlight />
-          {children}
-          <BackToTop />
-        </ThemeProvider>
+    <html lang="en" className={`dark ${satoshi.variable} ${jetbrainsMono.variable}`}>
+      <body className="ambient min-h-screen font-sans">
+        <ScrollProgress />
+        {children}
+        <BackToTop />
       </body>
     </html>
   );

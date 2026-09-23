@@ -1,12 +1,12 @@
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
-import Marquee from "@/components/Marquee";
+import ModelStrip from "@/components/ModelStrip";
+import Pipeline from "@/components/Pipeline";
 import Features from "@/components/Features";
-import HowItWorks from "@/components/HowItWorks";
-import ProductPreview from "@/components/ProductPreview";
+import CommandCenter from "@/components/CommandCenter";
 import Stats from "@/components/Stats";
 import Pricing from "@/components/Pricing";
-import MarketingFeatures from "@/components/MarketingFeatures";
+import FAQ from "@/components/FAQ";
 import FinalCTA from "@/components/FinalCTA";
 import Footer from "@/components/Footer";
 
@@ -15,13 +15,13 @@ export default function Home() {
     <main>
       <Navbar />
       <Hero />
-      <Marquee />
+      <ModelStrip />
+      <Pipeline />
       <Features />
-      <HowItWorks />
-      <ProductPreview />
+      <CommandCenter />
       <Stats />
       <Pricing />
-      <MarketingFeatures />
+      <FAQ />
       <FinalCTA />
       <Footer />
     </main>

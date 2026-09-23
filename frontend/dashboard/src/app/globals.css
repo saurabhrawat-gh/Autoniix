@@ -62,45 +62,12 @@
   --type-metric-tracking: -0.03em;
 }
 
-/* ── Light theme (default) ─────────────────────── */
-/* V5 Spotlight Hybrid — LOCKED 2026-06-18 (replaces warm cream palette).
+/* ── Theme (dark only) ─────────────────────────── */
+/* V5 Spotlight Hybrid — LOCKED 2026-06-18. Dark is the single theme for
+ * dash.autoniix.com and autoniix.com; the light variant was removed.
+ * <html> always carries the `dark` class so `dark:` utilities keep working.
  * Reference: docs/mood-boards/appshell.html §V5 tokens. */
-:root {
-  --surface-bg: 245 245 245; /* #F5F5F5 — page bg behind everything */
-  --surface-sidebar: 236 236 239; /* #ECECEF — sidebar a touch darker than page bg
-                                     for clear separation vs the white content card */
-  --surface-0: 255 255 255; /* #FFFFFF — floating main canvas card */
-  --surface-1: 242 242 245; /* #F2F2F5 — cards on canvas */
-  --surface-2: 230 230 234; /* #E6E6EA — hover on cards */
-  --surface-3: 218 218 224; /* #DADAE0 — selected / pressed */
-  --accent-primary-bg: 16 16 14; /* #10100e — inverted primary button bg */
-  --accent-primary-text: 252 255 225; /* #fcffe1 — inverted primary button text */
-  --accent: 61 92 26; /* #3d5c1a — moss green (focus, active, highlights) */
-  --accent-hover: 44 69 20; /* #2c4514 */
-  --accent-light: 220 235 190; /* #dcebbe — moss green tint */
-  --accent-muted: 107 140 74; /* #6b8c4a */
-  --secondary: 68 46 132;
-  --secondary-light: 237 234 249;
-  --content-primary: 16 16 14; /* #10100e */
-  --content-secondary: 58 62 48; /* #3a3e30 */
-  --content-tertiary: 106 110 96; /* #6a6e60 */
-  --content-muted: 106 110 96; /* #6a6e60 — alias */
-  --content-disabled: 171 174 176; /* #abaeb0 */
-  --content-inverse: 252 255 225; /* #fcffe1 */
-  --border: 224 224 228; /* #E0E0E4 — V5 hairline (very low contrast) */
-  --border-hover: 200 200 208; /* #C8C8D0 */
-  --status-success: 90 140 58; /* #5a8c3a — warm moss */
-  --status-warning: 196 138 42; /* #c48a2a — warm amber */
-  --status-error: 220 90 58; /* #dc5a3a — warm terracotta */
-  --status-info: 90 122 204; /* #5a7acc — warm slate blue */
-  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
-  --shadow-elevated: 0 8px 24px -4px rgba(0, 0, 0, 0.08), 0 4px 8px -3px rgba(0, 0, 0, 0.04);
-  --shadow-glow: 0 0 20px rgba(61, 92, 26, 0.15);
-}
-
-/* ── Dark theme ────────────────────────────────── */
-/* V5 Spotlight Hybrid — LOCKED 2026-06-18 (replaces warm near-black palette).
- * Reference: docs/mood-boards/appshell.html §V5 tokens. */
+:root,
 .dark {
   --surface-bg: 10 10 13; /* #0A0A0D — page bg, same as sidebar */
   --surface-sidebar: 10 10 13; /* #0A0A0D — V5 sidebar/chrome */
@@ -140,11 +107,6 @@
 .app-shell-bg {
   background-color: rgb(var(--surface-bg));
   background-image:
-    radial-gradient(72% 56% at 14% -4%, rgba(146, 108, 255, 0.05), transparent 62%),
-    radial-gradient(60% 48% at 92% 104%, rgba(255, 122, 178, 0.045), transparent 62%);
-}
-.dark .app-shell-bg {
-  background-image:
     radial-gradient(72% 56% at 14% -4%, rgba(132, 96, 255, 0.16), transparent 62%),
     radial-gradient(60% 48% at 92% 104%, rgba(255, 96, 170, 0.1), transparent 62%);
 }
@@ -163,7 +125,7 @@
       color 0.2s ease;
   }
 
-  .dark ::placeholder {
+  ::placeholder {
     opacity: 0.65;
   }
 
@@ -308,9 +270,6 @@
     @apply absolute inset-0 rounded-xl z-10;
     backdrop-filter: blur(1px) saturate(0.6);
     -webkit-backdrop-filter: blur(1px) saturate(0.6);
-    background: rgb(var(--surface-0) / 0.25);
-  }
-  .dark .lockdown-frost::after {
     background: rgb(var(--surface-0) / 0.35);
   }
 
