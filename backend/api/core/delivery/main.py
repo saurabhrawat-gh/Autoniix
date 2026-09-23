@@ -385,6 +385,40 @@ async def upload(req: DeliveryRequest):
                     },
                 )
 
+        # Channels with auto_upload disabled stop here: the finished MP4 and
+        # thumbnail stay in storage for review and nothing is published.
+        try:
+            pool = await get_pool()
+            auto_upload = await pool.fetchval(
+                "SELECT COALESCE(auto_upload, false) FROM channels WHERE channel_id = $1", req.channel_id
+            )
+        except Exception as exc:
+            logger.warning("delivery.auto_upload_lookup_failed", channel_id=req.channel_id, error=str(exc))
+            auto_upload = False
+        if not auto_upload:
+            try:
+                await pool.execute(
+                    "UPDATE videos SET status = 'ready_for_review', final_composite_score = $1, "
+                    "rendered_video_url = $2, updated_at = NOW() WHERE content_id = $3",
+                    final_score,
+                    req.video_url,
+                    req.content_id,
+                )
+            except Exception as exc:
+                logger.warning("delivery.ready_for_review_write_failed", content_id=req.content_id, error=str(exc))
+            logger.info("delivery.upload_skipped", content_id=req.content_id, reason="channel.auto_upload=false")
+            return ServiceResponse(
+                status="success",
+                data={
+                    "content_id": req.content_id,
+                    "youtube_video_id": "",
+                    "final_score": final_score,
+                    "video_url": req.video_url,
+                    "thumbnail_url": req.thumbnail_url,
+                    "message": "auto_upload is off for this channel; video kept in storage for review",
+                },
+            )
+
         access_token = await refresh_access_token()
 
         async with httpx.AsyncClient(timeout=300.0) as client:

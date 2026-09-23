@@ -971,6 +971,26 @@ class VideoProductionWorkflow:
                 youtube_video_id=youtube_id,
                 cost=self._accrued_cost,
             )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            # Leave a truthful record: a video stuck at its last phase blocks
+            # the channel (the trigger refuses while a job is "in progress")
+            # and hides the failure from the dashboard.
+            failed_phase = self._current_phase or "unknown"
+            log.error("pipeline failed", extra={"phase": failed_phase, "error": str(exc)[:500]})
+            for act, args in (
+                ("update_video_status", [content_id, "failed", ch, final_title, params.content_mode]),
+                (
+                    "emit_job_event",
+                    [content_id, ch, failed_phase, "failed", {"error": str(exc)[:1000], "cost": self._accrued_cost}],
+                ),
+            ):
+                try:
+                    await workflow.execute_activity(act, args=args, start_to_close_timeout=timedelta(seconds=10))
+                except Exception:  # noqa: BLE001 — best-effort bookkeeping on the failure path
+                    pass
+            raise
         finally:
             # Always release channel lock
             try:

@@ -61,7 +61,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: sh -c "redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru $${REDIS_PASSWORD:+--requirepass $$REDIS_PASSWORD}"
+    command: sh -c "redis-server --maxmemory 1gb --maxmemory-policy noeviction $${REDIS_PASSWORD:+--requirepass $$REDIS_PASSWORD}"
     volumes:
       - redis_data:/data
     ports:
