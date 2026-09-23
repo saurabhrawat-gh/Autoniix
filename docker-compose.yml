@@ -663,7 +663,10 @@ services:
 
   # Sentry Agent — monitors #alerts-critical and #alerts-warnings Slack channels,
   # triages Sentry errors into Jira bugs, and attempts LLM-powered auto-fixes via PR.
+  # Slack auto-fix bot. Needs SLACK_BOT_TOKEN/SLACK_APP_TOKEN; without them the
+  # process exits at import, so it only starts with `--profile slack-bot`.
   sentry-agent:
+    profiles: ["slack-bot"]
     build: { context: ./backend/platform/sentry-agent }
     env_file: .env
     environment:
