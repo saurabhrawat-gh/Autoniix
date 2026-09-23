@@ -8,6 +8,7 @@ export async function healthRoutes(app: FastifyInstance): Promise<void> {
     if (!dbHealthy) {
       return reply.code(503).send({
         status: "unhealthy",
+        version: "2.0.0",
         database: "down",
       });
     }

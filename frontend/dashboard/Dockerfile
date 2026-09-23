@@ -2,7 +2,7 @@
 ARG NODE_ALPINE_IMAGE=node:22.23.1-alpine
 FROM ${NODE_ALPINE_IMAGE} AS builder
 WORKDIR /app
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json* .npmrc ./
 RUN npm ci
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1

@@ -97,7 +97,7 @@ jobs:
           grep -vE '^(sentence-transformers|opencv-python-headless|librosa|spacy|nltk|textstat|soundfile|pydub|google-generativeai|anthropic|elevenlabs|edge-tts|gspread|google-auth|google-api-python-client|wikipedia|pytrends)' requirements.txt > requirements-ci.txt
           pip install -r requirements-ci.txt
           pip install grpcio grpcio-tools psycopg2-binary
-          pip install ruff mypy
+          pip install -r requirements-dev.txt
 
       - name: Format check
         run: ruff format --check .

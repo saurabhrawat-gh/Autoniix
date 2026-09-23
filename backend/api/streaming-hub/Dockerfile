@@ -3,14 +3,14 @@ WORKDIR /app
 
 FROM base AS deps
 RUN apk add --no-cache libc6-compat python3 make g++
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 COPY backend/api/streaming-hub/package.json ./backend/api/streaming-hub/
 RUN npm ci --workspace=backend/api/streaming-hub --legacy-peer-deps
 
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/backend/api/streaming-hub/node_modules ./backend/api/streaming-hub/node_modules
+COPY --from=deps /app/package.json ./package.json
 COPY tsconfig.base.json ./
 COPY backend/api/streaming-hub ./backend/api/streaming-hub
 RUN npm run build --workspace=@autoniix/streaming-hub-v2

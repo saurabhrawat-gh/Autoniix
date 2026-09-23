@@ -6,7 +6,7 @@ WORKDIR /app
 FROM base AS deps
 RUN apk add --no-cache libc6-compat python3 make g++
 
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 COPY shared/ts/contracts/package.json ./shared/ts/contracts/
 COPY backend/api/gateway/package.json ./backend/api/gateway/
 
@@ -17,8 +17,7 @@ FROM base AS builder
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/backend/api/gateway/node_modules ./backend/api/gateway/node_modules
-COPY --from=deps /app/shared/ts/contracts/node_modules ./shared/ts/contracts/node_modules
+COPY --from=deps /app/package.json ./package.json
 
 COPY tsconfig.base.json ./
 COPY shared/ts/contracts ./shared/ts/contracts

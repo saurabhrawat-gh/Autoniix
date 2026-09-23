@@ -297,20 +297,25 @@ export function validateTimelineDensity(direction: DirectionV3_1Input): string[]
       continue;
     }
     const kfs = [...seg.timeline].sort((a, b) => a.t_ms - b.t_ms);
-    if (kfs[0].t_ms > 0) {
-      issues.push(`segment ${seg.id}: first keyframe at ${kfs[0].t_ms}ms, expected 0`);
-    }
+    const first = kfs[0];
     const last = kfs[kfs.length - 1];
+    if (!first || !last) continue;
+    if (first.t_ms > 0) {
+      issues.push(`segment ${seg.id}: first keyframe at ${first.t_ms}ms, expected 0`);
+    }
     if (last.t_ms < seg.duration_ms - MAX_KEYFRAME_GAP_MS) {
       issues.push(
         `segment ${seg.id}: last keyframe at ${last.t_ms}ms leaves > ${MAX_KEYFRAME_GAP_MS}ms tail before segment end (${seg.duration_ms}ms)`,
       );
     }
     for (let i = 1; i < kfs.length; i++) {
-      const gap = kfs[i].t_ms - kfs[i - 1].t_ms;
+      const prev = kfs[i - 1];
+      const curr = kfs[i];
+      if (!prev || !curr) continue;
+      const gap = curr.t_ms - prev.t_ms;
       if (gap > MAX_KEYFRAME_GAP_MS) {
         issues.push(
-          `segment ${seg.id}: keyframe gap ${gap}ms between t=${kfs[i - 1].t_ms} and t=${kfs[i].t_ms} exceeds ${MAX_KEYFRAME_GAP_MS}ms floor`,
+          `segment ${seg.id}: keyframe gap ${gap}ms between t=${prev.t_ms} and t=${curr.t_ms} exceeds ${MAX_KEYFRAME_GAP_MS}ms floor`,
         );
       }
     }

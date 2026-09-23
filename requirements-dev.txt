@@ -1,7 +1,7 @@
 # Pinned Python dev/CI tools. Consumed by ci-local.sh and every CI job.
 # EXACT pins only.
 
-ruff==0.7.4
+ruff==0.12.0
 mypy==1.13.0
 pytest==8.3.4
 pytest-asyncio==0.24.0
