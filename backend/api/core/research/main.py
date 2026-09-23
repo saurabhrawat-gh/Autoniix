@@ -48,6 +48,9 @@ from services_api.research.trend_collector import collect_trends
 
 logger = structlog.get_logger()
 
+# Wikipedia (and Reddit) reject requests without a descriptive User-Agent.
+_UA = "Autoniix/1.0 (https://autoniix.com; research bot)"
+
 
 class ResearchRequest(BaseModel):
     channel_id: str
@@ -237,7 +240,7 @@ async def _search_reddit(topic: str, niche: str) -> list[dict]:
     async with httpx.AsyncClient(
         timeout=10.0,
         headers={
-            "User-Agent": "YTAutomation/1.0",
+            "User-Agent": _UA,
         },
     ) as client:
         resp = await client.get(
@@ -326,7 +329,7 @@ async def _search_news(topic: str, niche: str) -> list[dict]:
 @with_http_retry(max_attempts=3, base_delay=0.5)
 async def _search_wikipedia(topic: str) -> list[dict]:
     """Search Wikipedia for background knowledge with retry logic."""
-    async with httpx.AsyncClient(timeout=10.0) as client:
+    async with httpx.AsyncClient(timeout=10.0, headers={"User-Agent": _UA}) as client:
         resp = await client.get(
             "https://en.wikipedia.org/w/api.php",
             params={
@@ -419,11 +422,31 @@ async def research(req: ResearchRequest):
         news_task = _search_news(primary_topic, niche)
         wiki_task = _search_wikipedia(primary_topic)
 
-        youtube_results, serp_results, reddit_results, news_results, wiki_results = await asyncio.gather(
-            youtube_task, serpapi_task, reddit_task, news_task, wiki_task
+        # Every source is best-effort: a blocked or rate-limited API must not
+        # take the whole research step (and the whole pipeline) down with it.
+        gathered = await asyncio.gather(
+            youtube_task, serpapi_task, reddit_task, news_task, wiki_task, return_exceptions=True
         )
+        source_names = ("youtube", "serpapi", "reddit", "news", "wikipedia")
+        results_by_source: list[list[dict]] = []
+        for name, res in zip(source_names, gathered):
+            if isinstance(res, BaseException):
+                logger.warning("research.source_failed", source=name, error=str(res)[:300])
+                results_by_source.append([])
+            else:
+                results_by_source.append(res or [])
+        youtube_results, serp_results, reddit_results, news_results, wiki_results = results_by_source
 
         all_sources = youtube_results + serp_results + reddit_results + news_results + wiki_results
+        if not all_sources:
+            if not queries:
+                raise HTTPException(
+                    status_code=502,
+                    detail="All research sources failed and no topic candidates were given; nothing to research",
+                )
+            # Caller supplied topics: synthesize from them alone rather than
+            # failing the whole pipeline on external-API availability.
+            logger.warning("research.no_external_sources", topics=queries)
         logger.info(
             "research.sources_collected",
             youtube=len(youtube_results),

@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     elevenlabs_model_id: str = "eleven_multilingual_v2"
     inworld_api_key: str = ""
     inworld_tts_model: str = "inworld-tts-2"
-    inworld_voice_id: str = ""
+    inworld_voice_id: str = "Ashley"  # Inworld stock voice; override per channel or via INWORLD_VOICE_ID
     cartesia_api_key: str = ""
     tts_provider: str = "inworld"
 
