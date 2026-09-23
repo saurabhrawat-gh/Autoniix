@@ -133,7 +133,7 @@ class TestLoudnormParse:
 
 class TestCubeGenerator:
     def test_write_cube_well_formed(self):
-        from scripts.seeds.lut_presets.generate_luts import write_cube
+        from tools.seeds.lut_presets.generate_luts import write_cube
 
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "cinematic.cube")
@@ -146,7 +146,7 @@ class TestCubeGenerator:
             assert len(triplets) == 9**3
 
     def test_all_presets_generate(self):
-        from scripts.seeds.lut_presets.generate_luts import write_cube
+        from tools.seeds.lut_presets.generate_luts import write_cube
 
         with tempfile.TemporaryDirectory() as d:
             for key in lut_registry.PRESET_KEYS:
@@ -252,8 +252,8 @@ class TestFinishingActivity:
 async def test_real_ffmpeg_finish_produces_output():
     import asyncio
 
-    from scripts.seeds.lut_presets.generate_luts import write_cube
     from services_api.finishing.ffmpeg_finisher import run_finishing
+    from tools.seeds.lut_presets.generate_luts import write_cube
 
     with tempfile.TemporaryDirectory() as d:
         raw = os.path.join(d, "raw.mp4")

@@ -23,12 +23,11 @@ from observability.sentry import init_sentry
 init_sentry("worker-production-v2")
 
 # Activities (same set as run_production.py)
-from src.temporal_workflows.brain_activities import brain_directive_check_activity
-
 from services_api.finishing.activity import finishing_activity
 from temporal_workers.activities.analytics import analytics_activity
 from temporal_workers.activities.assembly import assembly_activity
 from temporal_workers.activities.assets import assets_activity
+from temporal_workers.activities.brain import brain_directive_check_activity
 from temporal_workers.activities.brand import brand_activity
 from temporal_workers.activities.common import (
     acquire_channel_lock,

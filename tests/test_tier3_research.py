@@ -123,7 +123,7 @@ class TestAPIValidation:
         from backend.api.core.research.main import _search_youtube
 
         with patch("httpx.AsyncClient") as mock_client:
-            mock_response = AsyncMock()
+            mock_response = MagicMock()
             mock_response.json.return_value = {"error": "Invalid API key"}
             mock_response.raise_for_status = MagicMock()
             mock_client.return_value.__aenter__.return_value.get = AsyncMock(return_value=mock_response)
@@ -134,10 +134,13 @@ class TestAPIValidation:
     @pytest.mark.asyncio
     async def test_youtube_search_filters_invalid_items(self):
         """YouTube search should filter items without videoId or title."""
-        from backend.api.core.research.main import _search_youtube
+        from backend.api.core.research.main import _search_youtube, settings
 
-        with patch("httpx.AsyncClient") as mock_client:
-            mock_response = AsyncMock()
+        with (
+            patch.object(settings, "youtube_api_key", "test-key"),
+            patch("httpx.AsyncClient") as mock_client,
+        ):
+            mock_response = MagicMock()
             mock_response.json.return_value = {
                 "items": [
                     {
@@ -167,7 +170,7 @@ class TestAPIValidation:
         from backend.api.core.research.main import _search_reddit
 
         with patch("httpx.AsyncClient") as mock_client:
-            mock_response = AsyncMock()
+            mock_response = MagicMock()
             mock_response.json.return_value = {"error": "Invalid request"}
             mock_response.raise_for_status = MagicMock()
             mock_client.return_value.__aenter__.return_value.get = AsyncMock(return_value=mock_response)
@@ -181,7 +184,7 @@ class TestAPIValidation:
         from backend.api.core.research.main import _search_news
 
         with patch("httpx.AsyncClient") as mock_client:
-            mock_response = AsyncMock()
+            mock_response = MagicMock()
             mock_response.json.return_value = {"status": "error", "message": "Invalid API key"}
             mock_response.raise_for_status = MagicMock()
             mock_client.return_value.__aenter__.return_value.get = AsyncMock(return_value=mock_response)
@@ -237,6 +240,8 @@ class TestEmbeddingDeduplication:
         fake_pool = FakePool()
         fake_pool.rows = [
             {
+                "content_id": "content_prev",
+                "channel_id": "test_channel",
                 "text_content": "Similar topic",
                 "cosine_sim": 0.95,
                 "simhash": 12345,
@@ -258,8 +263,8 @@ class TestEmbeddingDeduplication:
             ):
                 result = await check_similarity(text="Test topic", channel_id="test_channel", top_k=5)
 
-                assert "similar_topics" in result
-                assert len(result["similar_topics"]) > 0
+                assert "nearest_matches" in result
+                assert len(result["nearest_matches"]) > 0
 
 
 class TestResultValidation:
@@ -293,7 +298,7 @@ class TestResultValidation:
         from backend.api.core.research.main import _search_wikipedia
 
         with patch("httpx.AsyncClient") as mock_client:
-            mock_response = AsyncMock()
+            mock_response = MagicMock()
             mock_response.json.return_value = {
                 "query": {
                     "search": [

@@ -17,6 +17,7 @@ COPY shared/python/ ./src/
 COPY backend/api/core/ ./src/services_api/
 COPY backend/workers/temporal/workers/ ./src/temporal_workers/
 COPY scripts/ ./scripts/
+COPY tools/seeds/ ./tools/seeds/
 
 ARG GIT_SHA=unknown
 ENV GIT_SHA=${GIT_SHA}

@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
-SEED_FILE = ROOT / "scripts" / "seeds" / "public_domain_assets.json"
+SEED_FILE = ROOT / "tools" / "seeds" / "public_domain_assets.json"
 
 # Pure functions (testable without DB)
 

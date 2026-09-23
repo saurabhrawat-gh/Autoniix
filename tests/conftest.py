@@ -5,16 +5,30 @@ Mocks DB pool, Redis, and external services so tests run without infrastructure.
 
 from __future__ import annotations
 
-import asyncio
 import os
 import sys
+import types
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-# Add shared/python to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "shared", "python"))
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+# Mirror the container layout (see Dockerfile) so tests import the same names
+# services do at runtime:
+#   shared/python/                    -> top-level (core, providers, agents, ...)
+#   backend/api/core/                 -> services_api
+#   backend/workers/temporal/workers/ -> temporal_workers
+sys.path.insert(0, os.path.join(_REPO_ROOT, "shared", "python"))
+for _name, _rel in (
+    ("services_api", os.path.join("backend", "api", "core")),
+    ("temporal_workers", os.path.join("backend", "workers", "temporal", "workers")),
+):
+    if _name not in sys.modules:
+        _pkg = types.ModuleType(_name)
+        _pkg.__path__ = [os.path.join(_REPO_ROOT, _rel)]
+        sys.modules[_name] = _pkg
 
 import core.db  # noqa: E402
 
@@ -27,13 +41,6 @@ def _test_jwt_secret():
     default so tests must supply a deterministic-but-safe value.
     """
     os.environ.setdefault("AUTH_JWT_SECRET", "ci-test-jwt-secret-not-for-production-use")
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 
 class FakeRecord(dict):

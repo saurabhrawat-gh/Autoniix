@@ -95,7 +95,7 @@ async def _resolve_lut(preset_key: str, dest_path: str) -> str:
         return dest_path
     except Exception as exc:
         logger.warning("finishing.lut_download_failed_generating", preset=preset_key, key=cube_key, error=str(exc))
-        from scripts.seeds.lut_presets.generate_luts import write_cube
+        from tools.seeds.lut_presets.generate_luts import write_cube
 
         write_cube(preset_key, dest_path)
         return dest_path

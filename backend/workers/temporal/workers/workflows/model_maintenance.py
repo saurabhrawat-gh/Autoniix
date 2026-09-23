@@ -12,12 +12,47 @@ from temporalio import workflow
 
 from .types import RETRY_LIGHT
 
-TRAINABLE_MODELS: list[str] = [
-    "script_quality",
-    "thumbnail_ctr",
-    "voice_engagement",
-    "retention_predictor",
-    "title_optimizer",
+# Each entry is the activity contract consumed by
+# temporal_workers.activities.model (check_model_freshness / check_model_drift /
+# retrain_model): which service to call, on which port, and how much new
+# outcome data must exist before a retrain is worth running.
+TRAINABLE_MODELS: list[dict[str, Any]] = [
+    {
+        "model_name": "voice_style_gbm",
+        "service": "voice",
+        "port": 8003,
+        "train_endpoint": "/voice-train",
+        "drift_endpoint": None,
+        "min_new_rows_table": "voice_outcomes",
+        "min_rows_for_train": 20,
+    },
+    {
+        "model_name": "thumbnail_ctr_gbm",
+        "service": "thumbnail",
+        "port": 8005,
+        "train_endpoint": "/thumbnail-train",
+        "drift_endpoint": None,
+        "min_new_rows_table": "thumbnail_outcomes",
+        "min_rows_for_train": 20,
+    },
+    {
+        "model_name": "research_gbm",
+        "service": "research",
+        "port": 8001,
+        "train_endpoint": "/train",
+        "drift_endpoint": "/drift",
+        "min_new_rows_table": "performance_outcomes",
+        "min_rows_for_train": 30,
+    },
+    {
+        "model_name": "script_gbm",
+        "service": "script",
+        "port": 8002,
+        "train_endpoint": "/script-train",
+        "drift_endpoint": "/script-drift",
+        "min_new_rows_table": "script_outcomes",
+        "min_rows_for_train": 20,
+    },
 ]
 
 
@@ -32,14 +67,15 @@ class ModelMaintenanceWorkflow:
         errors = 0
         model_results: dict[str, Any] = {}
 
-        for model_name in TRAINABLE_MODELS:
+        for model_cfg in TRAINABLE_MODELS:
+            model_name = model_cfg["model_name"]
             log.info("checking model", extra={"model": model_name})
 
             # 1. Freshness check
             try:
                 freshness = await workflow.execute_activity(
                     "check_model_freshness",
-                    model_name,
+                    model_cfg,
                     start_to_close_timeout=timedelta(minutes=2),
                     retry_policy=RETRY_LIGHT,
                 )
@@ -62,7 +98,7 @@ class ModelMaintenanceWorkflow:
             try:
                 drift = await workflow.execute_activity(
                     "check_model_drift",
-                    model_name,
+                    model_cfg,
                     start_to_close_timeout=timedelta(minutes=5),
                     retry_policy=RETRY_LIGHT,
                 )
@@ -106,7 +142,7 @@ class ModelMaintenanceWorkflow:
             try:
                 retrain_result = await workflow.execute_activity(
                     "retrain_model",
-                    model_name,
+                    model_cfg,
                     start_to_close_timeout=timedelta(minutes=30),
                     retry_policy=RETRY_LIGHT,
                 )

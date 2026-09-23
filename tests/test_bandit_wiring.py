@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT_MAIN = Path(__file__).resolve().parents[1] / "src" / "services" / "script" / "main.py"
+SCRIPT_MAIN = Path(__file__).resolve().parents[1] / "backend" / "api" / "core" / "script" / "main.py"
 
 
 @pytest.fixture(scope="module")

@@ -18,8 +18,8 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SIDEBAR_PATH = REPO_ROOT / "dashboard" / "src" / "lib" / "components" / "Sidebar.tsx"
-PERMS_MIGRATION = REPO_ROOT / "scripts" / "migrations" / "202605220001_named_permissions.sql"
+SIDEBAR_PATH = REPO_ROOT / "frontend" / "dashboard" / "src" / "lib" / "components" / "Sidebar.tsx"
+PERMS_MIGRATION = REPO_ROOT / "infra" / "migrations" / "202605220001_named_permissions.sql"
 
 _SIDEBAR_PERM_RE = re.compile(r"permission:\s*'([a-z][\w.]+)'")
 _MIGRATION_PERM_RE = re.compile(r"\(\s*'([a-z][\w.]+)'\s*,\s*'[^']*'\s*\)")

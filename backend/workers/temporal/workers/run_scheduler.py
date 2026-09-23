@@ -23,30 +23,29 @@ from observability.sentry import init_sentry
 init_sentry("worker-scheduler-v2")
 
 # Activities (same set as run_scheduler.py)
-from src.temporal_workflows.gate_activities import (
-    calibrate_gate_for_niche_activity,
-    list_niches_with_outcomes_activity,
-)
-from src.temporal_workflows.model_activities import (
-    check_model_drift,
-    check_model_freshness,
-    retrain_model,
-    update_model_health_activity,
-)
-from src.temporal_workflows.niche_pulse_activities import (
-    refresh_niche_pulse_activity,
-)
-from src.temporal_workflows.retention_activities import (
-    fetch_retention_for_video_activity,
-    list_videos_needing_retention_activity,
-)
-
 from temporal_workers.activities.common import (
     acquire_channel_lock,
     check_system_status,
     get_eligible_channels,
     release_channel_lock,
     send_notification,
+)
+from temporal_workers.activities.gate import (
+    calibrate_gate_for_niche_activity,
+    list_niches_with_outcomes_activity,
+)
+from temporal_workers.activities.model import (
+    check_model_drift,
+    check_model_freshness,
+    retrain_model,
+    update_model_health_activity,
+)
+from temporal_workers.activities.niche_pulse import (
+    refresh_niche_pulse_activity,
+)
+from temporal_workers.activities.retention import (
+    fetch_retention_for_video_activity,
+    list_videos_needing_retention_activity,
 )
 from temporal_workers.change_request_beat import expire_stale_change_requests
 from temporal_workers.provider_health_beat import check_all_provider_health

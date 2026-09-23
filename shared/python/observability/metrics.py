@@ -35,9 +35,9 @@ try:
 
         _orig_get_route_name = _pfi_routing.get_route_name
 
-        def _safe_get_route_name(request: Any) -> str:  # type: ignore[override]
+        def _safe_get_route_name(request: Any, *args: Any, **kwargs: Any) -> str:  # type: ignore[override]
             try:
-                return _orig_get_route_name(request)
+                return _orig_get_route_name(request, *args, **kwargs)
             except AttributeError:
                 return "unknown"
 

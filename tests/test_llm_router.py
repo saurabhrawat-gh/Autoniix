@@ -77,7 +77,9 @@ class _FakeTransient(LLMProvider):
 
 
 class _FakePermanent(LLMProvider):
-    """Raises a non-transient error (auth bug) — router must surface it."""
+    """Raises a non-transient, non-config error (caller schema bug) — router must
+    surface it. 401/403/404 are treated as per-provider config errors and skipped
+    (see ``router._is_provider_config_error``), so use 400 here."""
 
     def __init__(self) -> None:
         self.calls = 0
@@ -85,8 +87,8 @@ class _FakePermanent(LLMProvider):
     async def complete(self, request: LLMRequest) -> LLMResult:
         self.calls += 1
         req = httpx.Request("POST", "https://example.invalid/x")
-        resp = httpx.Response(401, request=req)
-        raise httpx.HTTPStatusError("unauthorized", request=req, response=resp)
+        resp = httpx.Response(400, request=req)
+        raise httpx.HTTPStatusError("bad request", request=req, response=resp)
 
     def estimate_cost(self, *a, **kw):
         return 0.0

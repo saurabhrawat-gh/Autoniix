@@ -15,9 +15,9 @@ from pathlib import Path
 from core.config import settings
 
 ROOT = Path(__file__).resolve().parent.parent
-PROD = ROOT / "src" / "workers" / "run_production.py"
-SCHED = ROOT / "src" / "workers" / "run_scheduler.py"
-DB = ROOT / "src" / "db.py"
+PROD = ROOT / "backend" / "workers" / "temporal" / "workers" / "run_production.py"
+SCHED = ROOT / "backend" / "workers" / "temporal" / "workers" / "run_scheduler.py"
+DB = ROOT / "shared" / "python" / "core" / "db.py"
 
 
 def test_settings_expose_temporal_sizing():
@@ -59,7 +59,7 @@ def test_db_pool_applies_statement_timeout_per_connection():
 
 def test_pool_stats_helper_is_exported():
     """The fleet-health endpoint depends on this name."""
-    from src import db
+    from core import db
 
     assert hasattr(db, "get_pool_stats")
     out = db.get_pool_stats()

@@ -5,7 +5,7 @@ Tests: TRAINABLE_MODELS config, activity function definitions.
 
 from __future__ import annotations
 
-from src.temporal_workflows.model_maintenance import TRAINABLE_MODELS
+from temporal_workers.workflows.model_maintenance import TRAINABLE_MODELS
 
 
 class TestTrainableModels:
