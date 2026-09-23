@@ -3,3 +3,7 @@ node_modules/
 out/
 .env*.local
 tsconfig.tsbuildinfo
+
+# tsc emit artifacts must never sit next to their .ts sources: webpack resolves
+# the stale .js first and the TypeScript changes silently never ship
+src/**/*.js
